@@ -312,7 +312,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             BiFunction<String, String, Transport.Connection> connectionLookup,
             ClusterState clusterState,
             Map<String, AliasFilter> aliasFilter,
-            IndexBoosts indexBoosts,
+            IndexBoosts concreteIndexBoosts,
             boolean preFilter,
             ThreadPool threadPool,
             SearchResponse.Clusters clusters,
@@ -327,7 +327,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                     searchTransportService,
                     connectionLookup,
                     aliasFilter,
-                    indexBoosts,
+                    concreteIndexBoosts,
                     threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
                     searchRequest,
                     shardIterators,
@@ -353,7 +353,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                         connectionLookup,
                         clusterState,
                         aliasFilter,
-                        indexBoosts,
+                        concreteIndexBoosts,
                         clusters,
                         searchRequestAttributes
                     );
@@ -369,7 +369,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                     connectionLookup,
                     clusterState,
                     aliasFilter,
-                    indexBoosts,
+                    concreteIndexBoosts,
                     clusters,
                     searchRequestAttributes
                 );
@@ -386,7 +386,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             BiFunction<String, String, Transport.Connection> connectionLookup,
             ClusterState clusterState,
             Map<String, AliasFilter> aliasFilter,
-            IndexBoosts indexBoosts,
+            IndexBoosts concreteIndexBoosts,
             SearchResponse.Clusters clusters,
             Map<String, Object> searchRequestAttributes
         ) {
@@ -401,7 +401,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 searchService.getBigArrays(),
                 connectionLookup,
                 aliasFilter,
-                indexBoosts,
+                concreteIndexBoosts,
                 executor,
                 searchRequest,
                 listener,

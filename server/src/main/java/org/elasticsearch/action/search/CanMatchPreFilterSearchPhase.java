@@ -80,7 +80,7 @@ final class CanMatchPreFilterSearchPhase {
     private final BiFunction<String, String, Transport.Connection> nodeIdToConnection;
     private final SearchTransportService searchTransportService;
     private final Map<SearchShardIterator, Integer> shardItIndexMap;
-    private final IndexBoosts indexBoosts;
+    private final IndexBoosts concreteIndexBoosts;
     private final Map<String, AliasFilter> aliasFilter;
     private final SearchTask task;
     private final Executor executor;
@@ -103,7 +103,7 @@ final class CanMatchPreFilterSearchPhase {
         SearchTransportService searchTransportService,
         BiFunction<String, String, Transport.Connection> nodeIdToConnection,
         Map<String, AliasFilter> aliasFilter,
-        IndexBoosts indexBoosts,
+        IndexBoosts concreteIndexBoosts,
         Executor executor,
         SearchRequest request,
         List<SearchShardIterator> shardsIts,
@@ -121,7 +121,7 @@ final class CanMatchPreFilterSearchPhase {
         this.listener = listener;
         this.shardsIts = shardsIts;
         this.timeProvider = timeProvider;
-        this.indexBoosts = indexBoosts;
+        this.concreteIndexBoosts = concreteIndexBoosts;
         this.aliasFilter = aliasFilter;
         this.task = task;
         this.requireAtLeastOneMatch = requireAtLeastOneMatch;
@@ -150,7 +150,7 @@ final class CanMatchPreFilterSearchPhase {
         SearchTransportService searchTransportService,
         BiFunction<String, String, Transport.Connection> nodeIdToConnection,
         Map<String, AliasFilter> aliasFilter,
-        IndexBoosts indexBoosts,
+        IndexBoosts concreteIndexBoosts,
         Executor executor,
         SearchRequest request,
         List<SearchShardIterator> shardsIts,
@@ -202,7 +202,7 @@ final class CanMatchPreFilterSearchPhase {
                     searchTransportService,
                     nodeIdToConnection,
                     aliasFilter,
-                    indexBoosts,
+                    concreteIndexBoosts,
                     executor,
                     request,
                     shardsIts,
@@ -456,7 +456,7 @@ final class CanMatchPreFilterSearchPhase {
     private CanMatchNodeRequest.Shard buildShardLevelRequest(SearchShardIterator shardIt) {
         AliasFilter filter = aliasFilter.get(shardIt.shardId().getIndex().getUUID());
         assert filter != null;
-        float indexBoost = indexBoosts.lookup(shardIt);
+        float indexBoost = concreteIndexBoosts.lookup(shardIt);
         int shardRequestIndex = shardItIndexMap.get(shardIt);
         return new CanMatchNodeRequest.Shard(
             shardIt.getOriginalIndices().indices(),

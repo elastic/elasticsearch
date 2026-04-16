@@ -89,7 +89,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     protected final SearchPhaseResults<Result> results;
     private final long clusterStateVersion;
     protected final Map<String, AliasFilter> aliasFilter;
-    protected final IndexBoosts indexBoosts;
+    protected final IndexBoosts concreteIndexBoosts;
     private final SetOnce<AtomicArray<ShardSearchFailure>> shardFailures = new SetOnce<>();
     private final AtomicBoolean hasShardResponse = new AtomicBoolean(false);
     private final AtomicInteger successfulOps;
@@ -121,7 +121,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         BigArrays bigArrays,
         BiFunction<String, String, Transport.Connection> nodeIdToConnection,
         Map<String, AliasFilter> aliasFilter,
-        IndexBoosts indexBoosts,
+        IndexBoosts concreteIndexBoosts,
         Executor executor,
         SearchRequest request,
         ActionListener<SearchResponse> listener,
@@ -160,7 +160,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.task = task;
         this.listener = ActionListener.runBefore(listener, () -> doneFuture.onResponse(null));
         this.nodeIdToConnection = nodeIdToConnection;
-        this.indexBoosts = indexBoosts;
+        this.concreteIndexBoosts = concreteIndexBoosts;
         this.clusterStateVersion = clusterState.version();
         this.mintransportVersion = clusterState.getMinTransportVersion();
         this.discoveryNodes = clusterState::nodes;
@@ -806,7 +806,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     protected final ShardSearchRequest buildShardSearchRequest(SearchShardIterator shardIt, int shardIndex) {
         AliasFilter filter = aliasFilter.get(shardIt.shardId().getIndex().getUUID());
         assert filter != null;
-        float indexBoost = indexBoosts.lookup(shardIt);
+        float indexBoost = concreteIndexBoosts.lookup(shardIt);
         ShardSearchRequest shardRequest = new ShardSearchRequest(
             shardIt.getOriginalIndices(),
             request,

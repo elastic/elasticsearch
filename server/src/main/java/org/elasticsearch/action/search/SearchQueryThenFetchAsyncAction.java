@@ -107,7 +107,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         BigArrays bigArrays,
         BiFunction<String, String, Transport.Connection> nodeIdToConnection,
         Map<String, AliasFilter> aliasFilter,
-        IndexBoosts indexBoosts,
+        IndexBoosts concreteIndexBoosts,
         Executor executor,
         SearchPhaseResults<SearchPhaseResult> resultConsumer,
         SearchRequest request,
@@ -132,7 +132,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             bigArrays,
             nodeIdToConnection,
             aliasFilter,
-            indexBoosts,
+            concreteIndexBoosts,
             executor,
             request,
             listener,
@@ -499,7 +499,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     );
                     perNodeRequest.shards.add(
                         new ShardToQuery(
-                            indexBoosts.lookup(shardRoutings),
+                            concreteIndexBoosts.lookup(shardRoutings),
                             getOriginalIndices(shardIndex).indices(),
                             shardIndex,
                             routing.getShardId(),

@@ -37,7 +37,7 @@ public record DataSourceConfigDefinition(String name, boolean secret, boolean ca
     }
 
     /** Returns a copy whose values are treated as case-insensitive (normalized to lowercase on input). */
-    public DataSourceConfigDefinition withCaseInsensitive() {
+    public DataSourceConfigDefinition asCaseInsensitive() {
         return new DataSourceConfigDefinition(name, secret, true);
     }
 

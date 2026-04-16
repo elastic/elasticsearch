@@ -16,7 +16,7 @@ import java.util.Set;
 
 public class GcsDataSourceValidatorTests extends ESTestCase {
 
-    private final DataSourceValidator validator = new FileDataSourceValidator("gcs", GcsConfiguration::fromMap, Set.of("gs://"));
+    private final DataSourceValidator validator = new FileDataSourceValidator("gcs", GcsConfiguration::fromMap, Set.of("gs"));
 
     public void testType() {
         assertEquals("gcs", validator.type());

@@ -17,13 +17,13 @@ import java.util.Set;
 public class AzureDataSourceValidatorTests extends ESTestCase {
 
     private final DataSourceValidator validator = new FileDataSourceValidator(
-        "azure_blob",
+        "azure",
         AzureConfiguration::fromMap,
-        Set.of("wasbs://", "wasb://")
+        Set.of("wasbs", "wasb")
     );
 
     public void testType() {
-        assertEquals("azure_blob", validator.type());
+        assertEquals("azure", validator.type());
     }
 
     public void testValidateDatasourceWithSharedKey() {

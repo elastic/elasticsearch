@@ -680,7 +680,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
             }
         }
 
-        return new TimeSeriesAggregate(source, plan, groupings, aggregates, null, command.timestamp());
+        return new TimeSeriesAggregate(source, plan, groupings, aggregates, null, command.timestamp(), command.isCollapsed());
     }
 
     private static boolean hasTSGrouping(List<Attribute> groupings) {

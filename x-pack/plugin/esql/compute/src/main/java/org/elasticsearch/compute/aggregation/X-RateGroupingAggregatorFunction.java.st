@@ -147,8 +147,12 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
             throw new IllegalStateException("expected timestamp vector in time-series aggregation");
         }
         BytesRefBlock temporalityBlock = ((BytesRefBlock) page.getBlock(channels.get(2)));
-            // TODO: add warnings for invalid temporality values and ignore those data points
-        TemporalityAccessor temporalityAccessor = TemporalityAccessor.create(temporalityBlock, Temporality.CUMULATIVE, v -> Temporality.CUMULATIVE);
+        // TODO: add warnings for invalid temporality values and ignore those data points
+        TemporalityAccessor temporalityAccessor = TemporalityAccessor.create(
+            temporalityBlock,
+            Temporality.CUMULATIVE,
+            v -> Temporality.CUMULATIVE
+        );
         IntVector sliceIndices = ((IntBlock) page.getBlock(channels.get(3))).asVector();
         assert sliceIndices != null : "expected slice indices vector in time-series aggregation";
         LongVector futureMaxTimestamps = ((LongBlock) page.getBlock(channels.get(4))).asVector();

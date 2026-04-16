@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
@@ -145,7 +146,13 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
             assert false : "expected timestamp vector in time-series aggregation";
             throw new IllegalStateException("expected timestamp vector in time-series aggregation");
         }
-        // TODO: channels.get(2) provides the temporality, add support for it
+        BytesRefBlock temporalityBlock = ((BytesRefBlock) page.getBlock(channels.get(2)));
+        // TODO: add warnings for invalid temporality values and ignore those data points
+        TemporalityAccessor temporalityAccessor = TemporalityAccessor.create(
+            temporalityBlock,
+            Temporality.CUMULATIVE,
+            v -> Temporality.CUMULATIVE
+        );
         IntVector sliceIndices = ((IntBlock) page.getBlock(channels.get(3))).asVector();
         assert sliceIndices != null : "expected slice indices vector in time-series aggregation";
         LongVector futureMaxTimestamps = ((LongBlock) page.getBlock(channels.get(4))).asVector();
@@ -158,21 +165,21 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
         return new AddInput() {
             @Override
             public void add(int positionOffset, IntArrayBlock groupIds) {
-                addRawInput(positionOffset, groupIds, valuesBlock, timestampsVector);
+                addRawInput(positionOffset, groupIds, valuesBlock, timestampsVector, temporalityAccessor);
             }
 
             @Override
             public void add(int positionOffset, IntBigArrayBlock groupIds) {
-                addRawInput(positionOffset, groupIds, valuesBlock, timestampsVector);
+                addRawInput(positionOffset, groupIds, valuesBlock, timestampsVector, temporalityAccessor);
             }
 
             @Override
             public void add(int positionOffset, IntVector groupIds) {
                 var valuesVector = valuesBlock.asVector();
                 if (valuesVector != null) {
-                    addRawInput(positionOffset, groupIds, valuesVector, timestampsVector);
+                    addRawInput(positionOffset, groupIds, valuesVector, timestampsVector, temporalityAccessor);
                 } else {
-                    addRawInput(positionOffset, groupIds, valuesBlock, timestampsVector);
+                    addRawInput(positionOffset, groupIds, valuesBlock, timestampsVector, temporalityAccessor);
                 }
             }
 
@@ -184,8 +191,16 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
     }
 
     // Note that this path can be executed randomly in tests, not in production
-    private void addRawInput(int positionOffset, IntBlock groups, DoubleBlock valueBlock, LongVector timestampVector) {
+    private void addRawInput(
+        int positionOffset,
+        IntBlock groups,
+        DoubleBlock valueBlock,
+        LongVector timestampVector,
+        TemporalityAccessor temporalityAccessor
+    ) {
         int lastGroup = -1;
+        Temporality temporality = null;
+        ReducedState currentDeltaState = null;
         int positionCount = groups.getPositionCount();
         for (int p = 0; p < positionCount; p++) {
             if (groups.isNull(p)) {
@@ -203,64 +218,142 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
                 final int groupId = groups.getInt(g);
                 final var value = valueBlock.getDouble(valueBlock.getFirstValueIndex(valuePosition));
                 if (lastGroup != groupId) {
-                    rawBuffer.prepareForAppend(groupId, 1, timestamp);
-                    rawBuffer.appendWithoutResize(timestamp, value);
+                    temporality = temporalityAccessor.get(valuePosition);
+                    if (temporality == Temporality.CUMULATIVE) {
+                        rawBuffer.prepareForAppend(groupId, 1, timestamp);
+                        rawBuffer.appendWithoutResize(timestamp, value);
+                    } else {
+                        currentDeltaState = getOrInitializeReducedState(groupId);
+                        currentDeltaState.appendDeltaValue(timestamp, value);
+                    }
                     lastGroup = groupId;
                 } else {
-                    rawBuffer.maybeResizeAndAppend(timestamp, value);
+                    if (temporality == Temporality.CUMULATIVE) {
+                        rawBuffer.maybeResizeAndAppend(timestamp, value);
+                    } else {
+                        currentDeltaState.appendDeltaValue(timestamp, value);
+                    }
                 }
             }
         }
     }
 
-    private void addRawInput(int positionOffset, IntVector groups, DoubleBlock valueBlock, LongVector timestampVector) {
+    private void addRawInput(
+        int positionOffset,
+        IntVector groups,
+        DoubleBlock valueBlock,
+        LongVector timestampVector,
+        TemporalityAccessor temporalityAccessor
+    ) {
         int positionCount = groups.getPositionCount();
         if (groups.isConstant()) {
             int groupId = groups.getInt(0);
-            addSubRange(groupId, positionOffset, positionOffset + positionCount, valueBlock, timestampVector);
+            addSubRange(groupId, positionOffset, positionOffset + positionCount, valueBlock, timestampVector, temporalityAccessor);
         } else {
             int lastGroup = groups.getInt(0);
             int lastPosition = 0;
             for (int p = 1; p < positionCount; p++) {
                 int group = groups.getInt(p);
                 if (group != lastGroup) {
-                    addSubRange(lastGroup, positionOffset + lastPosition, positionOffset + p, valueBlock, timestampVector);
+                    addSubRange(
+                        lastGroup,
+                        positionOffset + lastPosition,
+                        positionOffset + p,
+                        valueBlock,
+                        timestampVector,
+                        temporalityAccessor
+                    );
                     lastGroup = group;
                     lastPosition = p;
                 }
             }
-            addSubRange(lastGroup, positionOffset + lastPosition, positionOffset + positionCount, valueBlock, timestampVector);
+            addSubRange(
+                lastGroup,
+                positionOffset + lastPosition,
+                positionOffset + positionCount,
+                valueBlock,
+                timestampVector,
+                temporalityAccessor
+            );
         }
     }
 
-    private void addRawInput(int positionOffset, IntVector groups, DoubleVector valueVector, LongVector timestampVector) {
+    private void addRawInput(
+        int positionOffset,
+        IntVector groups,
+        DoubleVector valueVector,
+        LongVector timestampVector,
+        TemporalityAccessor temporalityAccessor
+    ) {
         int positionCount = groups.getPositionCount();
         if (groups.isConstant()) {
             int groupId = groups.getInt(0);
-            addSubRange(groupId, positionOffset, positionOffset + positionCount, valueVector, timestampVector);
+            addSubRange(groupId, positionOffset, positionOffset + positionCount, valueVector, timestampVector, temporalityAccessor);
         } else {
             int lastGroup = groups.getInt(0);
             int lastPosition = 0;
             for (int p = 1; p < positionCount; p++) {
                 int group = groups.getInt(p);
                 if (group != lastGroup) {
-                    addSubRange(lastGroup, positionOffset + lastPosition, positionOffset + p, valueVector, timestampVector);
+                    addSubRange(
+                        lastGroup,
+                        positionOffset + lastPosition,
+                        positionOffset + p,
+                        valueVector,
+                        timestampVector,
+                        temporalityAccessor
+                    );
                     lastGroup = group;
                     lastPosition = p;
                 }
             }
-            addSubRange(lastGroup, positionOffset + lastPosition, positionOffset + positionCount, valueVector, timestampVector);
+            addSubRange(
+                lastGroup,
+                positionOffset + lastPosition,
+                positionOffset + positionCount,
+                valueVector,
+                timestampVector,
+                temporalityAccessor
+            );
         }
     }
 
-    private void addSubRange(int group, int from, int to, DoubleVector valueVector, LongVector timestampVector) {
-        rawBuffer.prepareForAppend(group, to - from, timestampVector.getLong(from));
-        rawBuffer.appendRange(from, to, valueVector, timestampVector);
+    private void addSubRange(
+        int group,
+        int from,
+        int to,
+        DoubleVector valueVector,
+        LongVector timestampVector,
+        TemporalityAccessor temporalityAccessor
+    ) {
+        if (temporalityAccessor.get(from) == Temporality.CUMULATIVE) {
+            rawBuffer.prepareForAppend(group, to - from, timestampVector.getLong(from));
+            rawBuffer.appendRange(from, to, valueVector, timestampVector);
+        } else {
+            ReducedState state = getOrInitializeReducedState(group);
+            for (int pos = from; pos < to; pos++) {
+                state.appendDeltaValue(timestampVector.getLong(pos), valueVector.getDouble(pos));
+            }
+        }
     }
 
-    private void addSubRange(int group, int from, int to, DoubleBlock valueBlock, LongVector timestampVector) {
-        rawBuffer.prepareForAppend(group, to - from, timestampVector.getLong(from));
-        rawBuffer.appendRange(from, to, valueBlock, timestampVector);
+    private void addSubRange(
+        int group,
+        int from,
+        int to,
+        DoubleBlock valueBlock,
+        LongVector timestampVector,
+        TemporalityAccessor temporalityAccessor
+    ) {
+        if (temporalityAccessor.get(from) == Temporality.CUMULATIVE) {
+            rawBuffer.prepareForAppend(group, to - from, timestampVector.getLong(from));
+            rawBuffer.appendRange(from, to, valueBlock, timestampVector);
+        } else {
+            ReducedState state = getOrInitializeReducedState(group);
+            for (int pos = from; pos < to; pos++) {
+                state.appendDeltaValue(timestampVector.getLong(pos), valueBlock.getDouble(pos));
+            }
+        }
     }
 
     @Override
@@ -296,16 +389,21 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
                 continue;
             }
             int groupId = groups.getInt(groupPosition);
-            reducedStates = bigArrays.grow(reducedStates, groupId + 1);
-            ReducedState state = reducedStates.get(groupId);
-            if (state == null) {
-                state = new ReducedState();
-                reducedStates.set(groupId, state);
-            }
+            ReducedState state = getOrInitializeReducedState(groupId);
             state.appendIntervalsFromBlocks(timestamps, values, valuePosition);
             state.samples += sampleCount;
             state.resets += resets.getDouble(valuePosition);
         }
+    }
+
+    private ReducedState getOrInitializeReducedState(int groupId) {
+        reducedStates = bigArrays.grow(reducedStates, groupId + 1);
+        ReducedState state = reducedStates.get(groupId);
+        if (state == null) {
+            state = new ReducedState();
+            reducedStates.set(groupId, state);
+        }
+        return state;
     }
 
     private void addIntermediateInputBlock(int positionOffset, IntBlock groups, Page page) {
@@ -331,12 +429,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
             int lastGroup = firstGroup + groups.getValueCount(groupPosition);
             for (int g = firstGroup; g < lastGroup; g++) {
                 int groupId = groups.getInt(g);
-                reducedStates = bigArrays.grow(reducedStates, groupId + 1);
-                ReducedState state = reducedStates.get(groupId);
-                if (state == null) {
-                    state = new ReducedState();
-                    reducedStates.set(groupId, state);
-                }
+                ReducedState state = getOrInitializeReducedState(groupId);
                 state.appendIntervalsFromBlocks(timestamps, values, valuePosition);
                 state.samples += sampleCount;
                 state.resets += resets.getDouble(valuePosition);
@@ -634,11 +727,25 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
         return sb.toString();
     }
 
-    record Interval(long lastTs, double lastValue, long firstTs, double firstValue) implements Comparable<Interval> {
+    static class Interval implements Comparable<Interval> {
+
+        private long lastTs;
+        private double lastValue;
+        private long firstTs;
+        private double firstValue;
+
+        public Interval(long lastTs, double lastValue, long firstTs, double firstValue) {
+            this.lastTs = lastTs;
+            this.lastValue = lastValue;
+            this.firstTs = firstTs;
+            this.firstValue = firstValue;
+        }
+
         @Override
         public int compareTo(Interval other) {
             return Long.compare(other.lastTs, lastTs); // want most recent first
         }
+
     }
 
     static final class ReducedState {
@@ -669,6 +776,24 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
                     vs.getDouble(vsFirst + i + 1)
                 );
                 intervals[currentSize++] = interval;
+            }
+        }
+
+        public void appendDeltaValue(long timestamp, double value) {
+            samples++;
+            resets += value;
+            if (intervals.length == 0) {
+                appendInterval(new Interval(timestamp, 0, timestamp, value));
+            } else {
+                assert intervals.length == 1 : "Expected exactly one, pre-merged interval for delta data";
+                Interval deltaInterval = intervals[0];
+                assert deltaInterval.lastValue == 0 : "lastValue is expected to be zero for delta intervals";
+
+                deltaInterval.lastTs = Math.max(deltaInterval.lastTs, timestamp);
+                if (timestamp < deltaInterval.firstTs) {
+                    deltaInterval.firstTs = timestamp;
+                    deltaInterval.firstValue = value;
+                }
             }
         }
     }
@@ -710,8 +835,8 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
         var previousState = (0 <= previousGroupId && previousGroupId < reducedStates.size()) ? reducedStates.get(previousGroupId) : null;
         if (previousState == null || previousState.samples == 0) {
             if (state.samples == 1) {
-                firstTsSec = state.intervals[0].lastTs / dateFactor;
-                firstValue = state.intervals[0].lastValue;
+                firstTsSec = state.intervals[0].firstTs / dateFactor;
+                firstValue = state.intervals[0].firstValue;
             } else {
                 firstValue = extrapolateToBoundary(state, tbucketStart, tbucketEnd, dateFactor, true);
             }
@@ -724,7 +849,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
         if (nextState == null || nextState.samples == 0) {
             if (state.samples == 1) {
                 lastTsSec = state.intervals[0].lastTs / dateFactor;
-                lastValue = state.intervals[0].lastValue;
+                lastValue = state.intervals[0].lastValue + state.resets;
             } else {
                 lastValue = extrapolateToBoundary(state, tbucketStart, tbucketEnd, dateFactor, false);
             }

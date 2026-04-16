@@ -124,8 +124,8 @@ public final class S3StorageObject implements StorageObject {
         if (position < 0) {
             throw new IllegalArgumentException("position must be non-negative, got: " + position);
         }
-        if (length < 0) {
-            throw new IllegalArgumentException("length must be non-negative, got: " + length);
+        if (length <= 0) {
+            throw new IllegalArgumentException("length must be positive, got: " + length);
         }
 
         long endPosition = position + length - 1;
@@ -256,8 +256,8 @@ public final class S3StorageObject implements StorageObject {
             listener.onFailure(new IllegalArgumentException("position must be non-negative, got: " + position));
             return;
         }
-        if (length < 0) {
-            listener.onFailure(new IllegalArgumentException("length must be non-negative, got: " + length));
+        if (length <= 0) {
+            listener.onFailure(new IllegalArgumentException("length must be positive, got: " + length));
             return;
         }
 

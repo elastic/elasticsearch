@@ -118,8 +118,8 @@ public final class AzureStorageObject implements StorageObject {
         if (position < 0) {
             throw new IllegalArgumentException("position must be non-negative, got: " + position);
         }
-        if (length < 0) {
-            throw new IllegalArgumentException("length must be non-negative, got: " + length);
+        if (length <= 0) {
+            throw new IllegalArgumentException("length must be positive, got: " + length);
         }
 
         try {
@@ -221,8 +221,8 @@ public final class AzureStorageObject implements StorageObject {
             listener.onFailure(new IllegalArgumentException("position must be non-negative, got: " + position));
             return;
         }
-        if (length < 0) {
-            listener.onFailure(new IllegalArgumentException("length must be non-negative, got: " + length));
+        if (length <= 0) {
+            listener.onFailure(new IllegalArgumentException("length must be positive, got: " + length));
             return;
         }
 

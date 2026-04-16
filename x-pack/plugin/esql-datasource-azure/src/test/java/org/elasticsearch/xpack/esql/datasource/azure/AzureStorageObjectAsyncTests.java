@@ -113,7 +113,7 @@ public class AzureStorageObjectAsyncTests extends ESTestCase {
 
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         assertThat(error.get(), instanceOf(IllegalArgumentException.class));
-        assertThat(error.get().getMessage(), containsString("length must be non-negative"));
+        assertThat(error.get().getMessage(), containsString("length must be positive"));
     }
 
     public void testProviderCloseDoesNotThrow() throws IOException {

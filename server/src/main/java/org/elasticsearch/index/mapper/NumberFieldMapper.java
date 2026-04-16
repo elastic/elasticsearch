@@ -56,6 +56,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxLongsFromDoc
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinDoublesFromDocValuesBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinIntsFromDocValuesBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinLongsFromDocValuesBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.RoundToLongsFromDocValuesBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.LongFieldScript;
@@ -541,6 +542,11 @@ public class NumberFieldMapper extends FieldMapper {
             BlockLoader blockLoaderFromDocValuesMvMax(String fieldName) {
                 return new MvMaxDoublesFromDocValuesBlockLoader(fieldName, l -> HalfFloatPoint.sortableShortToHalfFloat((short) l));
             }
+
+            @Override
+            BlockLoader blockLoaderFromDocValuesRoundTo(String fieldName, long[] points) {
+                throw new UnsupportedOperationException("ROUND_TO not supported for half_float");
+            }
         },
         FLOAT("float", NumericType.FLOAT) {
             @Override
@@ -750,6 +756,11 @@ public class NumberFieldMapper extends FieldMapper {
             BlockLoader blockLoaderFromDocValuesMvMax(String fieldName) {
                 return new MvMaxDoublesFromDocValuesBlockLoader(fieldName, l -> NumericUtils.sortableIntToFloat((int) l));
             }
+
+            @Override
+            BlockLoader blockLoaderFromDocValuesRoundTo(String fieldName, long[] points) {
+                throw new UnsupportedOperationException("ROUND_TO not supported for float");
+            }
         },
         DOUBLE("double", NumericType.DOUBLE) {
             @Override
@@ -925,6 +936,11 @@ public class NumberFieldMapper extends FieldMapper {
             BlockLoader blockLoaderFromDocValuesMvMax(String fieldName) {
                 return new MvMaxDoublesFromDocValuesBlockLoader(fieldName, NumericUtils::sortableLongToDouble);
             }
+
+            @Override
+            BlockLoader blockLoaderFromDocValuesRoundTo(String fieldName, long[] points) {
+                throw new UnsupportedOperationException("ROUND_TO not supported for double");
+            }
         },
         BYTE("byte", NumericType.BYTE) {
             @Override
@@ -1064,6 +1080,11 @@ public class NumberFieldMapper extends FieldMapper {
                 return new MvMaxIntsFromDocValuesBlockLoader(fieldName);
             }
 
+            @Override
+            BlockLoader blockLoaderFromDocValuesRoundTo(String fieldName, long[] points) {
+                throw new UnsupportedOperationException("ROUND_TO not supported for byte");
+            }
+
             private boolean isOutOfRange(Object value) {
                 double doubleValue = objectToDouble(value);
                 return doubleValue < Byte.MIN_VALUE || doubleValue > Byte.MAX_VALUE;
@@ -1200,6 +1221,11 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             BlockLoader blockLoaderFromDocValuesMvMax(String fieldName) {
                 return new MvMaxIntsFromDocValuesBlockLoader(fieldName);
+            }
+
+            @Override
+            BlockLoader blockLoaderFromDocValuesRoundTo(String fieldName, long[] points) {
+                throw new UnsupportedOperationException("ROUND_TO not supported for short");
             }
 
             private boolean isOutOfRange(Object value) {
@@ -1418,6 +1444,11 @@ public class NumberFieldMapper extends FieldMapper {
             BlockLoader blockLoaderFromDocValuesMvMax(String fieldName) {
                 return new MvMaxIntsFromDocValuesBlockLoader(fieldName);
             }
+
+            @Override
+            BlockLoader blockLoaderFromDocValuesRoundTo(String fieldName, long[] points) {
+                throw new UnsupportedOperationException("ROUND_TO not supported for integer");
+            }
         },
         LONG("long", NumericType.LONG) {
             @Override
@@ -1614,6 +1645,11 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             BlockLoader blockLoaderFromDocValuesMvMax(String fieldName) {
                 return new MvMaxLongsFromDocValuesBlockLoader(fieldName);
+            }
+
+            @Override
+            BlockLoader blockLoaderFromDocValuesRoundTo(String fieldName, long[] points) {
+                return new RoundToLongsFromDocValuesBlockLoader(fieldName, points);
             }
 
             private boolean isOutOfRange(Object value) {
@@ -1893,6 +1929,8 @@ public class NumberFieldMapper extends FieldMapper {
         abstract BlockLoader blockLoaderFromDocValuesMvMin(String fieldName);
 
         abstract BlockLoader blockLoaderFromDocValuesMvMax(String fieldName);
+
+        abstract BlockLoader blockLoaderFromDocValuesRoundTo(String fieldName, long[] points);
 
         // All values that fit into integer are returned as integers
         private static BlockLoader integerBlockLoaderFromFallbackSyntheticSource(
@@ -2174,6 +2212,7 @@ public class NumberFieldMapper extends FieldMapper {
                     case MV_MAX -> type.blockLoaderFromDocValuesMvMax(name());
                     case MV_MIN -> type.blockLoaderFromDocValuesMvMin(name());
                     case AMD_COUNT, AMD_DEFAULT, AMD_MAX, AMD_MIN, AMD_SUM -> type.blockLoaderFromDocValues(name());
+                    case ROUND_TO -> type.blockLoaderFromDocValuesRoundTo(name(), ((BlockLoaderFunctionConfig.RoundToLongs) cfg).points());
                     default -> throw new UnsupportedOperationException("unknown fusion config [" + cfg.function() + "]");
                 };
             }
@@ -2197,6 +2236,7 @@ public class NumberFieldMapper extends FieldMapper {
             if (hasDocValues() && (preference != FieldExtractPreference.STORED || isSyntheticSource)) {
                 return switch (config.function()) {
                     case AMD_MIN, AMD_MAX, AMD_SUM, AMD_COUNT, AMD_DEFAULT, MV_MAX, MV_MIN -> true;
+                    case ROUND_TO -> type == NumberType.LONG && indexType.hasDocValuesSkipper();
                     default -> false;
                 };
             }

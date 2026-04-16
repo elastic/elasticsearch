@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.extractor;
 
+import org.elasticsearch.core.ReleasableRef;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
@@ -20,46 +21,49 @@ public class ScriptFieldTests extends ESTestCase {
 
     public void testKeyword() {
         SearchHit hit = new SearchHitBuilder(42).addField("a_keyword", "bar").build();
+        try (var hitRef = ReleasableRef.of(hit)) {
+            ExtractedField field = new ScriptField("a_keyword");
 
-        ExtractedField field = new ScriptField("a_keyword");
-
-        assertThat(field.value(hit, new SourceSupplier(hit)), equalTo(new String[] { "bar" }));
-        assertThat(field.getName(), equalTo("a_keyword"));
-        assertThat(field.getSearchField(), equalTo("a_keyword"));
-        assertThat(field.getTypes().isEmpty(), is(true));
-        expectThrows(UnsupportedOperationException.class, () -> field.getDocValueFormat());
-        assertThat(field.getMethod(), equalTo(ExtractedField.Method.SCRIPT_FIELD));
-        expectThrows(UnsupportedOperationException.class, () -> field.getParentField());
-        assertThat(field.isMultiField(), is(false));
-        assertThat(field.supportsFromSource(), is(false));
-        expectThrows(UnsupportedOperationException.class, () -> field.newFromSource());
+            assertThat(field.value(hitRef.get(), new SourceSupplier(hitRef.get())), equalTo(new String[] { "bar" }));
+            assertThat(field.getName(), equalTo("a_keyword"));
+            assertThat(field.getSearchField(), equalTo("a_keyword"));
+            assertThat(field.getTypes().isEmpty(), is(true));
+            expectThrows(UnsupportedOperationException.class, () -> field.getDocValueFormat());
+            assertThat(field.getMethod(), equalTo(ExtractedField.Method.SCRIPT_FIELD));
+            expectThrows(UnsupportedOperationException.class, () -> field.getParentField());
+            assertThat(field.isMultiField(), is(false));
+            assertThat(field.supportsFromSource(), is(false));
+            expectThrows(UnsupportedOperationException.class, () -> field.newFromSource());
+        }
     }
 
     public void testKeywordArray() {
         SearchHit hit = new SearchHitBuilder(42).addField("array", Arrays.asList("a", "b")).build();
+        try (var hitRef = ReleasableRef.of(hit)) {
+            ExtractedField field = new ScriptField("array");
 
-        ExtractedField field = new ScriptField("array");
+            assertThat(field.value(hitRef.get(), new SourceSupplier(hitRef.get())), equalTo(new String[] { "a", "b" }));
+            assertThat(field.getName(), equalTo("array"));
+            assertThat(field.getSearchField(), equalTo("array"));
+            assertThat(field.getTypes().isEmpty(), is(true));
+            expectThrows(UnsupportedOperationException.class, () -> field.getDocValueFormat());
+            assertThat(field.getMethod(), equalTo(ExtractedField.Method.SCRIPT_FIELD));
+            expectThrows(UnsupportedOperationException.class, () -> field.getParentField());
+            assertThat(field.isMultiField(), is(false));
+            assertThat(field.supportsFromSource(), is(false));
+            expectThrows(UnsupportedOperationException.class, () -> field.newFromSource());
 
-        assertThat(field.value(hit, new SourceSupplier(hit)), equalTo(new String[] { "a", "b" }));
-        assertThat(field.getName(), equalTo("array"));
-        assertThat(field.getSearchField(), equalTo("array"));
-        assertThat(field.getTypes().isEmpty(), is(true));
-        expectThrows(UnsupportedOperationException.class, () -> field.getDocValueFormat());
-        assertThat(field.getMethod(), equalTo(ExtractedField.Method.SCRIPT_FIELD));
-        expectThrows(UnsupportedOperationException.class, () -> field.getParentField());
-        assertThat(field.isMultiField(), is(false));
-        assertThat(field.supportsFromSource(), is(false));
-        expectThrows(UnsupportedOperationException.class, () -> field.newFromSource());
-
-        ExtractedField missing = new DocValueField("missing", Collections.singleton("keyword"));
-        assertThat(missing.value(hit, new SourceSupplier(hit)), equalTo(new Object[0]));
+            ExtractedField missing = new DocValueField("missing", Collections.singleton("keyword"));
+            assertThat(missing.value(hitRef.get(), new SourceSupplier(hitRef.get())), equalTo(new Object[0]));
+        }
     }
 
     public void testMissing() {
         SearchHit hit = new SearchHitBuilder(42).addField("a_keyword", "bar").build();
+        try (var hitRef = ReleasableRef.of(hit)) {
+            ExtractedField missing = new ScriptField("missing");
 
-        ExtractedField missing = new ScriptField("missing");
-
-        assertThat(missing.value(hit, new SourceSupplier(hit)), equalTo(new Object[0]));
+            assertThat(missing.value(hitRef.get(), new SourceSupplier(hitRef.get())), equalTo(new Object[0]));
+        }
     }
 }

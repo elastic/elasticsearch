@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
@@ -50,6 +51,12 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(FirstOverTime.class)
         .ternary(FirstOverTime::new)
+        .name("first_over_time");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .withinSeries(FirstOverTime::new)
+        .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
+        .description("Returns the first value of each time series in the specified time range.")
+        .example("first_over_time(http_requests_total[1h])")
         .name("first_over_time");
 
     private final Expression timestamp;

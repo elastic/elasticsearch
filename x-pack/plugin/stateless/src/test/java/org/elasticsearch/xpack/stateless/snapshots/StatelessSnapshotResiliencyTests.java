@@ -102,6 +102,7 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.IndexShardCacheWarmer;
+import org.elasticsearch.xpack.stateless.StatelessComponents;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
@@ -512,7 +513,8 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         peerRecoveryTargetService,
                         projectResolver,
                         searchService,
-                        new PITRelocationService()
+                        new PITRelocationService(),
+                        new StatelessComponents(mock(TranslogReplicator.class), testStatelessPlugin.objectStoreService)
                     ),
                     TransportShardRefreshAction.TYPE,
                     new TransportShardRefreshAction(

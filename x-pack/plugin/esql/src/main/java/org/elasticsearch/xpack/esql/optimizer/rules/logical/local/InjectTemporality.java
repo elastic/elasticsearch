@@ -50,10 +50,8 @@ public final class InjectTemporality extends OptimizerRules.OptimizerRule<TimeSe
         }
 
         // Inject a single, canonical temporality attribute into the first EsRelation
-        return (TimeSeriesAggregate) normalized.transformDownSkipBranch((plan, skip) -> {
+        return (TimeSeriesAggregate) normalized.transformDown(plan -> {
             if (plan instanceof EsRelation relation) {
-                // no need to look further, we only want to transform the first EsRelation we encounter
-                skip.set(true);
                 return relation.withAdditionalAttribute(new TemporalityAttribute(Source.EMPTY).withId(canonicalTemporalityId.get()));
             }
             return plan;

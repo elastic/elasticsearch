@@ -991,6 +991,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     /**
      * Returns the resource leak message if one was detected during node shutdown, or null if no leaks were found.
      */
+    @Internal
     public String getLeakMessage() {
         return leakMessage;
     }

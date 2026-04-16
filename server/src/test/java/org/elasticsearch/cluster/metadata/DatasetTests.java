@@ -52,7 +52,7 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
             );
             case 1 -> new Dataset(
                 instance.name(),
-                randomValueOtherThan(instance.dataSource(), () -> randomAlphaOfLength(6).toLowerCase(Locale.ROOT)),
+                randomValueOtherThan(instance.dataSource(), () -> new DataSourceReference(randomAlphaOfLength(6).toLowerCase(Locale.ROOT))),
                 instance.resource(),
                 instance.description(),
                 instance.settings()
@@ -84,7 +84,7 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
     private static Dataset randomDataset() {
         return new Dataset(
             randomAlphaOfLength(8).toLowerCase(Locale.ROOT),
-            randomAlphaOfLength(6).toLowerCase(Locale.ROOT),
+            new DataSourceReference(randomAlphaOfLength(6).toLowerCase(Locale.ROOT)),
             "s3://" + randomAlphaOfLength(8) + "/" + randomAlphaOfLength(6) + ".parquet",
             randomBoolean() ? null : randomAlphaOfLengthBetween(0, 32),
             randomSettings()
@@ -101,42 +101,42 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
     }
 
     public void testIndexAbstractionType() {
-        var dataset = new Dataset("test", "ds", "s3://b/p", null, Map.of());
+        var dataset = new Dataset("test", new DataSourceReference("ds"), "s3://b/p", null, Map.of());
         assertEquals(IndexAbstraction.Type.DATASET, dataset.getType());
     }
 
     public void testIndexAbstractionName() {
-        var dataset = new Dataset("my_dataset", "ds", "s3://b/p", null, Map.of());
+        var dataset = new Dataset("my_dataset", new DataSourceReference("ds"), "s3://b/p", null, Map.of());
         assertEquals("my_dataset", dataset.getName());
     }
 
     public void testIndexAbstractionNoIndices() {
-        var dataset = new Dataset("test", "ds", "s3://b/p", null, Map.of());
+        var dataset = new Dataset("test", new DataSourceReference("ds"), "s3://b/p", null, Map.of());
         assertTrue(dataset.getIndices().isEmpty());
     }
 
     public void testIndexAbstractionNoWriteIndex() {
-        var dataset = new Dataset("test", "ds", "s3://b/p", null, Map.of());
+        var dataset = new Dataset("test", new DataSourceReference("ds"), "s3://b/p", null, Map.of());
         assertNull(dataset.getWriteIndex());
     }
 
     public void testIndexAbstractionNoDataStream() {
-        var dataset = new Dataset("test", "ds", "s3://b/p", null, Map.of());
+        var dataset = new Dataset("test", new DataSourceReference("ds"), "s3://b/p", null, Map.of());
         assertNull(dataset.getParentDataStream());
     }
 
     public void testNotHidden() {
-        var dataset = new Dataset("test", "ds", "s3://b/p", null, Map.of());
+        var dataset = new Dataset("test", new DataSourceReference("ds"), "s3://b/p", null, Map.of());
         assertFalse(dataset.isHidden());
     }
 
     public void testNotSystem() {
-        var dataset = new Dataset("test", "ds", "s3://b/p", null, Map.of());
+        var dataset = new Dataset("test", new DataSourceReference("ds"), "s3://b/p", null, Map.of());
         assertFalse(dataset.isSystem());
     }
 
     public void testRequiresName() {
-        expectThrows(NullPointerException.class, () -> new Dataset(null, "ds", "s3://b/p", null, Map.of()));
+        expectThrows(NullPointerException.class, () -> new Dataset(null, new DataSourceReference("ds"), "s3://b/p", null, Map.of()));
     }
 
     public void testRequiresDataSource() {
@@ -144,11 +144,11 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
     }
 
     public void testRequiresResource() {
-        expectThrows(NullPointerException.class, () -> new Dataset("test", "ds", null, null, Map.of()));
+        expectThrows(NullPointerException.class, () -> new Dataset("test", new DataSourceReference("ds"), null, null, Map.of()));
     }
 
     public void testNullDescription() throws IOException {
-        var dataset = new Dataset("test", "ds", "s3://b/p", null, Map.of());
+        var dataset = new Dataset("test", new DataSourceReference("ds"), "s3://b/p", null, Map.of());
         BytesStreamOutput out = new BytesStreamOutput();
         dataset.writeTo(out);
         var deserialized = new Dataset(out.bytes().streamInput());
@@ -156,7 +156,7 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
     }
 
     public void testEmptySettings() throws IOException {
-        var dataset = new Dataset("test", "ds", "s3://b/p", null, Map.of());
+        var dataset = new Dataset("test", new DataSourceReference("ds"), "s3://b/p", null, Map.of());
         BytesStreamOutput out = new BytesStreamOutput();
         dataset.writeTo(out);
         var deserialized = new Dataset(out.bytes().streamInput());
@@ -166,7 +166,7 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
     public void testWriteableRoundTripExplicit() throws IOException {
         var dataset = new Dataset(
             "access_logs",
-            "my-s3",
+            new DataSourceReference("my-s3"),
             "s3://bucket/logs/*.parquet",
             "Access logs dataset",
             Map.of("partition_detection", "hive", "schema_sample_size", 50)
@@ -179,7 +179,7 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
 
         assertEquals(dataset, deserialized);
         assertEquals("access_logs", deserialized.getName());
-        assertEquals("my-s3", deserialized.dataSource());
+        assertEquals("my-s3", deserialized.dataSource().getName());
         assertEquals("s3://bucket/logs/*.parquet", deserialized.resource());
         assertEquals("Access logs dataset", deserialized.description());
         assertEquals("hive", deserialized.settings().get("partition_detection"));
@@ -197,17 +197,29 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
         settings.put("case_insensitive", true);
         settings.put("optional_label", null);
         settings.put("error_mode", "skip_row");
-        var dataset = new Dataset("access_logs", "my-s3", "s3://bucket/logs/*.parquet", "Access logs dataset", settings);
+        var dataset = new Dataset(
+            "access_logs",
+            new DataSourceReference("my-s3"),
+            "s3://bucket/logs/*.parquet",
+            "Access logs dataset",
+            settings
+        );
         assertExplicitXContentRoundTrip(dataset);
     }
 
     public void testXContentRoundTripNoDescription() throws IOException {
-        var dataset = new Dataset("access_logs", "my-s3", "s3://bucket/logs/*.parquet", null, Map.of("partition_detection", "hive"));
+        var dataset = new Dataset(
+            "access_logs",
+            new DataSourceReference("my-s3"),
+            "s3://bucket/logs/*.parquet",
+            null,
+            Map.of("partition_detection", "hive")
+        );
         assertExplicitXContentRoundTrip(dataset);
     }
 
     public void testXContentRoundTripEmptySettings() throws IOException {
-        var dataset = new Dataset("access_logs", "my-s3", "s3://bucket/logs/*.parquet", "desc", Map.of());
+        var dataset = new Dataset("access_logs", new DataSourceReference("my-s3"), "s3://bucket/logs/*.parquet", "desc", Map.of());
         assertExplicitXContentRoundTrip(dataset);
     }
 

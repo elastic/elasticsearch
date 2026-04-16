@@ -61,7 +61,7 @@ public class DatasetMetadataTests extends AbstractChunkedSerializingTestCase<Dat
         // consistent with DataSourceMetadata: restoring datasets without their data sources would leave dangling
         // references, so both types must move together when snapshot support is enabled in a future milestone.
         DatasetMetadata metadata = new DatasetMetadata(
-            Map.of("my-dataset", new Dataset("my-dataset", "my-source", "s3://bucket/key", null, Map.of()))
+            Map.of("my-dataset", new Dataset("my-dataset", new DataSourceReference("my-source"), "s3://bucket/key", null, Map.of()))
         );
         assertEquals(EnumSet.of(Metadata.XContentContext.API, Metadata.XContentContext.GATEWAY), metadata.context());
         assertFalse(metadata.context().contains(Metadata.XContentContext.SNAPSHOT));
@@ -80,6 +80,6 @@ public class DatasetMetadataTests extends AbstractChunkedSerializingTestCase<Dat
         for (int i = 0; i < numSettings; i++) {
             settings.put(randomAlphaOfLength(6).toLowerCase(Locale.ROOT), randomFrom(randomAlphaOfLength(8), randomInt(), randomBoolean()));
         }
-        return new Dataset(name, dataSource, resource, description, settings);
+        return new Dataset(name, new DataSourceReference(dataSource), resource, description, settings);
     }
 }

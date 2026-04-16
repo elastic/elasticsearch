@@ -3413,8 +3413,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         // similar names.
         final String dataset1Name = "my-dataset-1";
         final String dataset2Name = "other-dataset-2";
-        Dataset dataset1 = new Dataset(dataset1Name, "ds-source", "s3://bucket/logs/*.parquet", null, Map.of());
-        Dataset dataset2 = new Dataset(dataset2Name, "ds-source", "s3://bucket/metrics/*.parquet", null, Map.of());
+        Dataset dataset1 = new Dataset(dataset1Name, new DataSourceReference("ds-source"), "s3://bucket/logs/*.parquet", null, Map.of());
+        Dataset dataset2 = new Dataset(dataset2Name, new DataSourceReference("ds-source"), "s3://bucket/metrics/*.parquet", null, Map.of());
 
         final IndicesOptions defaultDatasetOptions = IndicesOptions.builder()
             .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -3470,7 +3470,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         // no aliases, no views, BUT wants datasets, the loop that includes datasets must still run. The pre-fix code
         // returned the concrete-only list before checking resolveDatasets, silently dropping all datasets.
         final String datasetName = "logs-dataset";
-        Dataset dataset = new Dataset(datasetName, "ds-source", "s3://bucket/logs/*.parquet", null, Map.of());
+        Dataset dataset = new Dataset(datasetName, new DataSourceReference("ds-source"), "s3://bucket/logs/*.parquet", null, Map.of());
 
         IndexMetadata idx = IndexMetadata.builder("concrete-index")
             .settings(settings(IndexVersion.current()))
@@ -3503,7 +3503,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     public void testDatasetExcludedWhenResolveDatasetsFalse() {
         // With the default resolveDatasets=false, a dataset name should NOT appear in dataset resolution.
         final String datasetName = "my-dataset";
-        Dataset dataset = new Dataset(datasetName, "ds-source", "s3://bucket/logs/*.parquet", null, Map.of());
+        Dataset dataset = new Dataset(datasetName, new DataSourceReference("ds-source"), "s3://bucket/logs/*.parquet", null, Map.of());
 
         ProjectMetadata project = ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID).datasets(Map.of(datasetName, dataset)).build();
 

@@ -1004,7 +1004,7 @@ public class ProjectMetadataTests extends ESTestCase {
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
-        Dataset dataset = new Dataset(conflictingName, "my-data-source", "s3://b/p", null, Map.of());
+        Dataset dataset = new Dataset(conflictingName, new DataSourceReference("my-data-source"), "s3://b/p", null, Map.of());
         ProjectMetadata.Builder b = ProjectMetadata.builder(randomProjectIdOrDefault())
             .put(idx, false)
             .datasets(Map.of(conflictingName, dataset));
@@ -1029,7 +1029,7 @@ public class ProjectMetadataTests extends ESTestCase {
             .numberOfReplicas(0)
             .putAlias(AliasMetadata.builder(conflictingName).build())
             .build();
-        Dataset dataset = new Dataset(conflictingName, "my-data-source", "s3://b/p", null, Map.of());
+        Dataset dataset = new Dataset(conflictingName, new DataSourceReference("my-data-source"), "s3://b/p", null, Map.of());
         ProjectMetadata.Builder b = ProjectMetadata.builder(randomProjectIdOrDefault())
             .put(idx, false)
             .datasets(Map.of(conflictingName, dataset));
@@ -1041,7 +1041,7 @@ public class ProjectMetadataTests extends ESTestCase {
     public void testBuilderRejectsDataStreamThatConflictsWithDataset() {
         final String conflictingName = "shared_name";
         IndexMetadata backing = createFirstBackingIndex(conflictingName).build();
-        Dataset dataset = new Dataset(conflictingName, "my-data-source", "s3://b/p", null, Map.of());
+        Dataset dataset = new Dataset(conflictingName, new DataSourceReference("my-data-source"), "s3://b/p", null, Map.of());
         ProjectMetadata.Builder b = ProjectMetadata.builder(randomProjectIdOrDefault())
             .put(backing, false)
             .put(newInstance(conflictingName, List.of(backing.getIndex())))

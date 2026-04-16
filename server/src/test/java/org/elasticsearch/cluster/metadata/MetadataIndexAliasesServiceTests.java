@@ -866,7 +866,9 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
         ClusterState before = ClusterState.builder(ClusterName.DEFAULT)
             .putProjectMetadata(
                 ProjectMetadata.builder(projectId)
-                    .datasets(Map.of(datasetName, new Dataset(datasetName, "my-ds", "path/to/resource", null, Map.of())))
+                    .datasets(
+                        Map.of(datasetName, new Dataset(datasetName, new DataSourceReference("my-ds"), "path/to/resource", null, Map.of()))
+                    )
                     .build()
             )
             .build();

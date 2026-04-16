@@ -57,7 +57,7 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
         false,
         (args, ctx) -> new Dataset(
             (String) args[0],
-            (String) args[1],
+            (DataSourceReference) args[1],
             (String) args[2],
             (String) args[3],
             args[4] != null ? (Map<String, Object>) args[4] : Map.of()
@@ -66,19 +66,25 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), DATASOURCE);
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> DataSourceReference.fromXContent(p), DATASOURCE);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), RESOURCE);
         PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), DESCRIPTION);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), SETTINGS);
     }
 
     private final String name;
-    private final String dataSource;
+    private final DataSourceReference dataSource;
     private final String resource;
     private final String description;
     private final Map<String, Object> settings;
 
-    public Dataset(String name, String dataSource, String resource, @Nullable String description, Map<String, Object> settings) {
+    public Dataset(
+        String name,
+        DataSourceReference dataSource,
+        String resource,
+        @Nullable String description,
+        Map<String, Object> settings
+    ) {
         this.name = Objects.requireNonNull(name, "name must not be null");
         this.dataSource = Objects.requireNonNull(dataSource, "data source must not be null");
         this.resource = Objects.requireNonNull(resource, "resource must not be null");
@@ -88,7 +94,7 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
 
     public Dataset(StreamInput in) throws IOException {
         this.name = in.readString();
-        this.dataSource = in.readString();
+        this.dataSource = new DataSourceReference(in);
         this.resource = in.readString();
         this.description = in.readOptionalString();
         // readMap returns a mutable HashMap when non-empty; wrap to preserve the class invariant that settings is unmodifiable
@@ -98,7 +104,7 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        out.writeString(dataSource);
+        dataSource.writeTo(out);
         out.writeString(resource);
         out.writeOptionalString(description);
         out.writeMap(settings, StreamOutput::writeGenericValue);
@@ -108,7 +114,7 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
         return name;
     }
 
-    public String dataSource() {
+    public DataSourceReference dataSource() {
         return dataSource;
     }
 

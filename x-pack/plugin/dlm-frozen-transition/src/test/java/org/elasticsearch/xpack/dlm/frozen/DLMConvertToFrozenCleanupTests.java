@@ -141,7 +141,7 @@ public class DLMConvertToFrozenCleanupTests extends ESTestCase {
     public void testCleanupSwapsBackingIndexAndDeletesCloneAndOriginal() throws InterruptedException {
         String dataStreamName = "my-data-stream";
         String cloneIndexName = CLONE_INDEX_PREFIX + indexName;
-        createProjectStateWithDataStream(dataStreamName, indexName, cloneIndexName);
+        buildAndSetProjectState(dataStreamName, indexName, cloneIndexName);
 
         DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
         convert.maybeCleanup(cloneIndexName);
@@ -169,7 +169,7 @@ public class DLMConvertToFrozenCleanupTests extends ESTestCase {
      */
     public void testCleanupWithNoDataStreamSkipsSwapAndDeletesBothIndices() throws InterruptedException {
         String cloneIndexName = CLONE_INDEX_PREFIX + indexName;
-        createProjectStateWithoutDataStream(cloneIndexName);
+        buildAndSetProjectState(null, indexName, cloneIndexName);
 
         DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
         convert.maybeCleanup(cloneIndexName);
@@ -189,7 +189,7 @@ public class DLMConvertToFrozenCleanupTests extends ESTestCase {
     public void testCleanupThrowsWhenSwapFails() {
         String dataStreamName = "my-data-stream";
         String cloneIndexName = CLONE_INDEX_PREFIX + indexName;
-        createProjectStateWithDataStream(dataStreamName, indexName, cloneIndexName);
+        buildAndSetProjectState(dataStreamName, indexName, cloneIndexName);
 
         mockModifyDataStreamsFailure.set(new ElasticsearchException("swap failed"));
 
@@ -210,7 +210,7 @@ public class DLMConvertToFrozenCleanupTests extends ESTestCase {
     public void testCleanupDoesNotDeleteWhenSwapNotAcknowledged() {
         String dataStreamName = "my-data-stream";
         String cloneIndexName = CLONE_INDEX_PREFIX + indexName;
-        createProjectStateWithDataStream(dataStreamName, indexName, cloneIndexName);
+        buildAndSetProjectState(dataStreamName, indexName, cloneIndexName);
 
         mockModifyDataStreamsResponse.set(AcknowledgedResponse.FALSE);
 
@@ -226,50 +226,35 @@ public class DLMConvertToFrozenCleanupTests extends ESTestCase {
     }
 
     /**
-     * Creates a project state with the original index inside a data stream, and optionally a clone index.
+     * Tests that when isCleanUpComplete returns true (original and clone indices are gone,
+     * and the frozen index is part of the data stream), cleanup is skipped entirely.
      */
-    private void createProjectStateWithDataStream(String dataStreamName, String origIndexName, String cloneIndexName) {
-        IndexMetadata originalIndexMetadata = IndexMetadata.builder(origIndexName)
-            .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-                    .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
-                    .build()
-            )
-            .numberOfShards(1)
-            .numberOfReplicas(0)
-            .putCustom(
-                DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY,
-                Map.of(DataStreamLifecycleService.FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY, REPO_NAME)
-            )
-            .build();
+    public void testCleanupSkipsWhenAlreadyComplete() throws InterruptedException {
+        String dataStreamName = "my-data-stream";
+        String cloneIndexName = CLONE_INDEX_PREFIX + indexName;
+        String frozenIndexName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + indexName;
 
-        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectId).put(originalIndexMetadata, false);
+        // Build a state where original and clone are gone, and the frozen index is in the data stream
+        buildAndSetProjectState(dataStreamName, frozenIndexName);
 
-        // Add the data stream with the original index as a backing index
-        projectMetadataBuilder.put(DataStream.builder(dataStreamName, List.of(originalIndexMetadata.getIndex())).setGeneration(1).build());
+        DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
+        convert.maybeCleanup(cloneIndexName);
 
-        if (cloneIndexName != null) {
-            IndexMetadata cloneIndexMetadata = IndexMetadata.builder(cloneIndexName)
-                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
-                .numberOfShards(1)
-                .numberOfReplicas(0)
-                .build();
-            projectMetadataBuilder.put(cloneIndexMetadata, false);
-        }
-
-        RepositoryMetadata repo = new RepositoryMetadata(REPO_NAME, "fs", Settings.EMPTY);
-        projectMetadataBuilder.putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(List.of(repo)));
-
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadataBuilder).build();
-        setState(clusterService, clusterState);
+        // No swap or delete should have been attempted
+        assertThat(capturedModifyDataStreamsRequest.get(), is(nullValue()));
+        assertThat(capturedDeleteRequests.size(), is(0));
     }
 
     /**
-     * Creates a project state with the original index NOT part of any data stream, and optionally a clone index.
+     * Builds and sets a project cluster state. The {@code backingIndexName} is the index that will be added to the data stream
+     * (if {@code dataStreamName} is non-null). Additional index names can be supplied via {@code extraIndexNames} and will be
+     * added to the project as plain indices. The backing index gets the lifecycle custom metadata with the repo name and the
+     * original index UUID; extra indices get minimal settings.
      */
-    private void createProjectStateWithoutDataStream(String cloneIndexName) {
-        IndexMetadata originalIndexMetadata = IndexMetadata.builder(indexName)
+    private void buildAndSetProjectState(String dataStreamName, String backingIndexName, String... extraIndexNames) {
+        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectId);
+
+        IndexMetadata backingIndexMetadata = IndexMetadata.builder(backingIndexName)
             .settings(
                 Settings.builder()
                     .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -283,16 +268,21 @@ public class DLMConvertToFrozenCleanupTests extends ESTestCase {
                 Map.of(DataStreamLifecycleService.FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY, REPO_NAME)
             )
             .build();
+        projectMetadataBuilder.put(backingIndexMetadata, false);
 
-        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectId).put(originalIndexMetadata, false);
+        if (dataStreamName != null) {
+            projectMetadataBuilder.put(
+                DataStream.builder(dataStreamName, List.of(backingIndexMetadata.getIndex())).setGeneration(1).build()
+            );
+        }
 
-        if (cloneIndexName != null) {
-            IndexMetadata cloneIndexMetadata = IndexMetadata.builder(cloneIndexName)
+        for (String extra : extraIndexNames) {
+            IndexMetadata extraMetadata = IndexMetadata.builder(extra)
                 .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .build();
-            projectMetadataBuilder.put(cloneIndexMetadata, false);
+            projectMetadataBuilder.put(extraMetadata, false);
         }
 
         RepositoryMetadata repo = new RepositoryMetadata(REPO_NAME, "fs", Settings.EMPTY);

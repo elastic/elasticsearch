@@ -518,6 +518,58 @@ public class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.
             if (copySuccess) {
                 readOnNodes(readCopyNodes, request.copyBlobName, false);
             }
+
+            doBlobExistenceCheck();
+        }
+
+        private void doBlobExistenceCheck() {
+            // Verify blob existence via HeadObject: the just-written blob must exist, and a non-existent blob must not.
+            if (request.getAbortWrite() == false) {
+                try {
+                    if (blobContainer.blobExists(OperationPurpose.REPOSITORY_ANALYSIS, request.blobName) == false) {
+                        readResponseListeners.acquire()
+                            .onFailure(
+                                new RepositoryVerificationException(
+                                    request.getRepositoryName(),
+                                    "blob [" + request.blobName + "] not found via HEAD after successful write"
+                                )
+                            );
+                        return;
+                    }
+                } catch (IOException e) {
+                    readResponseListeners.acquire()
+                        .onFailure(
+                            new RepositoryVerificationException(
+                                request.getRepositoryName(),
+                                "HEAD request failed for blob [" + request.blobName + "] after successful write",
+                                e
+                            )
+                        );
+                    return;
+                }
+
+                final String nonExistentBlobName = request.blobName + "-nonexistent";
+                try {
+                    if (blobContainer.blobExists(OperationPurpose.REPOSITORY_ANALYSIS, nonExistentBlobName)) {
+                        readResponseListeners.acquire()
+                            .onFailure(
+                                new RepositoryVerificationException(
+                                    request.getRepositoryName(),
+                                    "HEAD request for non-existent blob [" + nonExistentBlobName + "] incorrectly reported it exists"
+                                )
+                            );
+                    }
+                } catch (IOException e) {
+                    readResponseListeners.acquire()
+                        .onFailure(
+                            new RepositoryVerificationException(
+                                request.getRepositoryName(),
+                                "HEAD request failed for non-existent blob [" + nonExistentBlobName + "]",
+                                e
+                            )
+                        );
+                }
+            }
         }
 
         /**

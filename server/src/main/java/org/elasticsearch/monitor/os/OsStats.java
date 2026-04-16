@@ -203,11 +203,11 @@ public class OsStats implements Writeable, ToXContentFragment {
             assert total >= 0 : "expected total swap to be positive, got: " + total;
             assert free >= 0 : "expected free swap to be positive, got: " + free;
             if (total < 0) {
-                logger.error("negative total swap [{}] found in swap stats", total);
+                logger.warn("negative total swap [{}] found in swap stats", total);
                 total = 0;
             }
             if (free < 0) {
-                logger.error("negative free swap [{}] found in swap stats", free);
+                logger.warn("negative free swap [{}] found in swap stats", free);
                 free = 0;
             }
             this.total = total;
@@ -218,14 +218,14 @@ public class OsStats implements Writeable, ToXContentFragment {
             long total = in.readLong();
             assert total >= 0 : "expected total swap to be positive, got: " + total;
             if (total < 0) {
-                logger.error("negative total swap [{}] deserialized in swap stats", total);
+                logger.warn("negative total swap [{}] deserialized in swap stats", total);
                 total = 0;
             }
             this.total = total;
             long free = in.readLong();
             assert free >= 0 : "expected free swap to be positive, got: " + free;
             if (free < 0) {
-                logger.error("negative free swap [{}] deserialized in swap stats", free);
+                logger.warn("negative free swap [{}] deserialized in swap stats", free);
                 free = 0;
             }
             this.free = free;
@@ -287,15 +287,15 @@ public class OsStats implements Writeable, ToXContentFragment {
             assert free >= 0 : "expected free memory to be positive, got: " + free;
             // Extra layer of protection for when assertions are disabled
             if (total < 0) {
-                logger.error("negative total memory [{}] found in memory stats", total);
+                logger.warn("negative total memory [{}] found in memory stats", total);
                 total = 0;
             }
             if (adjustedTotal < 0) {
-                logger.error("negative adjusted total memory [{}] found in memory stats", adjustedTotal);
+                logger.warn("negative adjusted total memory [{}] found in memory stats", adjustedTotal);
                 adjustedTotal = 0;
             }
             if (free < 0) {
-                logger.error("negative free memory [{}] found in memory stats", free);
+                logger.warn("negative free memory [{}] found in memory stats", free);
                 free = 0;
             }
             this.total = total;
@@ -308,21 +308,21 @@ public class OsStats implements Writeable, ToXContentFragment {
             assert total >= 0 : "expected total memory to be positive, got: " + total;
             // Extra layer of protection for when assertions are disabled
             if (total < 0) {
-                logger.error("negative total memory [{}] deserialized in memory stats", total);
+                logger.warn("negative total memory [{}] deserialized in memory stats", total);
                 total = 0;
             }
             this.total = total;
             long adjustedTotal = in.readLong();
             assert adjustedTotal >= 0 : "expected adjusted total memory to be positive, got: " + adjustedTotal;
             if (adjustedTotal < 0) {
-                logger.error("negative adjusted total memory [{}] deserialized in memory stats", adjustedTotal);
+                logger.warn("negative adjusted total memory [{}] deserialized in memory stats", adjustedTotal);
                 adjustedTotal = 0;
             }
             this.adjustedTotal = adjustedTotal;
             long free = in.readLong();
             assert free >= 0 : "expected free memory to be positive, got: " + free;
             if (free < 0) {
-                logger.error("negative free memory [{}] deserialized in memory stats", free);
+                logger.warn("negative free memory [{}] deserialized in memory stats", free);
                 free = 0;
             }
             this.free = free;

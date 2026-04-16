@@ -1,0 +1,15 @@
+area: ES|QL
+issues: []
+pr: 144818
+summary: Partition rate query using tsid prefixes
+type: enhancement
+highlight:
+  title: "Counter rate aggregations use tsid prefixes to parallelize execution"
+  notable: true
+  body: |-
+    The first bytes of a time series id (tsid) include a hash of the metric name(s) for each doc of a time-series index.
+    Counter rate evaluation leverages these bytes to assign tsids to workers inside the ES|QL compute engine. This
+    (a) improves parallelism by dividing work in a granular and uniform fashion, and (b) leads to dense, sequential
+    access patterns per time series that have been optimized to avoid copies between counter value decoding and rate calculations.
+    
+    Rate execution performance thus improves substantially, with up to 5x faster query responses.

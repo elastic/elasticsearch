@@ -22,30 +22,64 @@
 #define STRIDE_BYTES_LEN sizeof(__m256i) // Must be a power of 2
 #endif
 
-static inline int32_t doti7u_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
+// Accumulates acc += dot(pa, pb) for unsigned 7-bit int lanes (32 bytes per step).
+template<int offsetRegs>
+inline void fmai7u(__m256i& acc, const int8_t* pa, const int8_t* pb) {
+    constexpr int lanes = offsetRegs * STRIDE_BYTES_LEN;
+    const __m256i a = _mm256_loadu_si256((const __m256i_u*)(pa + lanes));
+    const __m256i b = _mm256_loadu_si256((const __m256i_u*)(pb + lanes));
+    const __m256i vab = _mm256_maddubs_epi16(a, b);
     const __m256i ones = _mm256_set1_epi16(1);
+    acc = _mm256_add_epi32(_mm256_madd_epi16(ones, vab), acc);
+}
 
-    // Init accumulator(s) with 0
-    __m256i acc1 = _mm256_setzero_si256();
-
+static inline int32_t doti7u_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
+    int32_t res = 0;
     int i = 0;
-    const int blk = dims & ~(STRIDE_BYTES_LEN - 1);
-#pragma GCC unroll 4
-    for (; i < blk; i += STRIDE_BYTES_LEN) {
-        // Load packed 8-bit integers
-        __m256i va1 = _mm256_loadu_si256((const __m256i_u*)(a + i));
-        __m256i vb1 = _mm256_loadu_si256((const __m256i_u*)(b + i));
+    if (dims >= STRIDE_BYTES_LEN) {
+        i = dims & ~(STRIDE_BYTES_LEN - 1);
 
-        // Perform multiplication and create 16-bit values
-        // Vertically multiply each unsigned 8-bit integer from va with the corresponding
-        // 8-bit integer from vb, producing intermediate signed 16-bit integers.
-        const __m256i vab = _mm256_maddubs_epi16(va1, vb1);
-        // Horizontally add adjacent pairs of intermediate signed 16-bit integers, and pack the results.
-        acc1 = _mm256_add_epi32(_mm256_madd_epi16(ones, vab), acc1);
+        constexpr int batches = 4;
+        static_assert(batches % 2 == 0, "batches must be even");
+        constexpr int half_batches = batches / 2;
+        constexpr int batch_stride = batches * STRIDE_BYTES_LEN;
+        constexpr int half_batch_stride = half_batches * STRIDE_BYTES_LEN;
+        const int8_t* pa = a;
+        const int8_t* pb = b;
+
+        __m256i acc[batches];
+        apply_indexed<batches>([&](auto I) {
+            acc[I] = _mm256_setzero_si256();
+        });
+
+        const int8_t* pa_end = a + (i & ~(batch_stride - 1));
+        while (pa < pa_end) {
+            apply_indexed<batches>([&](auto I) {
+                fmai7u<I>(acc[I], pa, pb);
+            });
+            pa += batch_stride;
+            pb += batch_stride;
+        }
+
+        pa_end = a + (i & ~(half_batch_stride - 1));
+        while (pa < pa_end) {
+            apply_indexed<half_batches>([&](auto I) {
+                fmai7u<I>(acc[I], pa, pb);
+            });
+            pa += half_batch_stride;
+            pb += half_batch_stride;
+        }
+
+        pa_end = a + i;
+        while (pa < pa_end) {
+            fmai7u<0>(acc[0], pa, pb);
+            pa += STRIDE_BYTES_LEN;
+            pb += STRIDE_BYTES_LEN;
+        }
+
+        __m256i total_sum = tree_reduce<batches, __m256i, _mm256_add_epi32>(acc);
+        res = mm256_reduce_epi32<_mm_add_epi32>(total_sum);
     }
-
-    // reduce (horizontally add all)
-    int32_t res = mm256_reduce_epi32<_mm_add_epi32>(acc1);
     // scalar tail
     for (; i < dims; i++) {
         res += dot_scalar(a[i], b[i]);
@@ -81,28 +115,66 @@ EXPORT void vec_doti7u_bulk_sparse(
     call_i8_bulk<const int8_t*, sparse_mapper, doti7u_inner>((const int8_t* const*)addresses, b, dims, 0, NULL, count, results);
 }
 
-static inline int32_t sqri7u_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
-    // Init accumulator(s) with 0
-    __m256i acc1 = _mm256_setzero_si256();
-
+// Accumulates acc += sqr_distance(pa, pb) for unsigned 7-bit int lanes (32 bytes per step).
+template<int offsetRegs>
+inline void sqri7u(__m256i& acc, const int8_t* pa, const int8_t* pb) {
+    constexpr int lanes = offsetRegs * STRIDE_BYTES_LEN;
+    const __m256i a = _mm256_loadu_si256((const __m256i_u*)(pa + lanes));
+    const __m256i b = _mm256_loadu_si256((const __m256i_u*)(pb + lanes));
+    const __m256i dist = _mm256_sub_epi8(a, b);
+    const __m256i abs_dist = _mm256_sign_epi8(dist, dist);
+    const __m256i sqr = _mm256_maddubs_epi16(abs_dist, abs_dist);
     const __m256i ones = _mm256_set1_epi16(1);
+    acc = _mm256_add_epi32(_mm256_madd_epi16(ones, sqr), acc);
+}
 
+static inline int32_t sqri7u_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
+    int32_t res = 0;
     int i = 0;
-    const int blk = dims & ~(STRIDE_BYTES_LEN - 1);
-#pragma GCC unroll 4
-    for (; i < blk; i += STRIDE_BYTES_LEN) {
-        // Load packed 8-bit integers
-        __m256i va1 = _mm256_loadu_si256((const __m256i_u*)(a + i));
-        __m256i vb1 = _mm256_loadu_si256((const __m256i_u*)(b + i));
+    if (dims >= STRIDE_BYTES_LEN) {
+        i = dims & ~(STRIDE_BYTES_LEN - 1);
 
-        const __m256i dist1 = _mm256_sub_epi8(va1, vb1);
-        const __m256i abs_dist1 = _mm256_sign_epi8(dist1, dist1);
-        const __m256i sqr1 = _mm256_maddubs_epi16(abs_dist1, abs_dist1);
-        acc1 = _mm256_add_epi32(_mm256_madd_epi16(ones, sqr1), acc1);
+        constexpr int batches = 4;
+        static_assert(batches % 2 == 0, "batches must be even");
+        constexpr int half_batches = batches / 2;
+        constexpr int batch_stride = batches * STRIDE_BYTES_LEN;
+        constexpr int half_batch_stride = half_batches * STRIDE_BYTES_LEN;
+        const int8_t* pa = a;
+        const int8_t* pb = b;
+
+        __m256i acc[batches];
+        apply_indexed<batches>([&](auto I) {
+            acc[I] = _mm256_setzero_si256();
+        });
+
+        const int8_t* pa_end = a + (i & ~(batch_stride - 1));
+        while (pa < pa_end) {
+            apply_indexed<batches>([&](auto I) {
+                sqri7u<I>(acc[I], pa, pb);
+            });
+            pa += batch_stride;
+            pb += batch_stride;
+        }
+
+        pa_end = a + (i & ~(half_batch_stride - 1));
+        while (pa < pa_end) {
+            apply_indexed<half_batches>([&](auto I) {
+                sqri7u<I>(acc[I], pa, pb);
+            });
+            pa += half_batch_stride;
+            pb += half_batch_stride;
+        }
+
+        pa_end = a + i;
+        while (pa < pa_end) {
+            sqri7u<0>(acc[0], pa, pb);
+            pa += STRIDE_BYTES_LEN;
+            pb += STRIDE_BYTES_LEN;
+        }
+
+        __m256i total_sum = tree_reduce<batches, __m256i, _mm256_add_epi32>(acc);
+        res = mm256_reduce_epi32<_mm_add_epi32>(total_sum);
     }
-
-    // reduce (accumulate all)
-    int32_t res = mm256_reduce_epi32<_mm_add_epi32>(acc1);
     // scalar tail
     for (; i < dims; i++) {
         res += sqr_scalar(a[i], b[i]);
@@ -146,20 +218,14 @@ EXPORT void vec_sqri7u_bulk_sparse(
  * instead, at the cost of doing double the loops
  */
 
-struct cosine_results_t {
-    int32_t sum;
-    int32_t norm1;
-    int32_t norm2;
-};
-
-static inline cosine_results_t cosi8_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
-    // Init accumulator(s) with 0
+static inline f32_t cosi8_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
     __m256i sum = _mm256_setzero_si256();
     __m256i norm1 = _mm256_setzero_si256();
     __m256i norm2 = _mm256_setzero_si256();
 
-    for(int i = 0; i < dims; i += sizeof(__m128i)) {
-        // Load packed 8-bit integers
+    int i = 0;
+    const int blk = dims & ~(sizeof(__m128i) - 1);
+    for (; i < blk; i += sizeof(__m128i)) {
         __m128i va8 = _mm_loadu_si128((const __m128i*)(a + i));
         __m128i vb8 = _mm_loadu_si128((const __m128i*)(b + i));
 
@@ -167,41 +233,28 @@ static inline cosine_results_t cosi8_inner(const int8_t* a, const int8_t* b, con
         __m256i va16 = _mm256_cvtepi8_epi16(va8);
         __m256i vb16 = _mm256_cvtepi8_epi16(vb8);
 
-        // vertically multiply and add a little bit to 32-bit values
-        __m256i sums = _mm256_madd_epi16(va16, vb16);
-        __m256i norm1s = _mm256_madd_epi16(va16, va16);
-        __m256i norm2s = _mm256_madd_epi16(vb16, vb16);
-
-        // accumulate
-        sum = _mm256_add_epi32(sums, sum);
-        norm1 = _mm256_add_epi32(norm1s, norm1);
-        norm2 = _mm256_add_epi32(norm2s, norm2);
+        sum = _mm256_add_epi32(_mm256_madd_epi16(va16, vb16), sum);
+        norm1 = _mm256_add_epi32(_mm256_madd_epi16(va16, va16), norm1);
+        norm2 = _mm256_add_epi32(_mm256_madd_epi16(vb16, vb16), norm2);
     }
 
-    // reduce (horizontally add all)
-    return cosine_results_t {
-        mm256_reduce_epi32<_mm_add_epi32>(sum),
-        mm256_reduce_epi32<_mm_add_epi32>(norm1),
-        mm256_reduce_epi32<_mm_add_epi32>(norm2)
-    };
-}
-
-EXPORT f32_t vec_cosi8(const int8_t* a, const int8_t* b, const int32_t dims) {
-    cosine_results_t res = cosine_results_t { 0, 0, 0 };
-    int i = 0;
-    if (dims >= sizeof(__m128i)) {
-        i += dims & ~(sizeof(__m128i) - 1);
-        res = cosi8_inner(a, b, i);
-    }
+    int32_t sum_i32 = mm256_reduce_epi32<_mm_add_epi32>(sum);
+    int32_t norm1_i32 = mm256_reduce_epi32<_mm_add_epi32>(norm1);
+    int32_t norm2_i32 = mm256_reduce_epi32<_mm_add_epi32>(norm2);
+    // scalar tail
     for (; i < dims; i++) {
         int32_t ai = (int32_t) a[i];
         int32_t bi = (int32_t) b[i];
-        res.sum += ai * bi;
-        res.norm1 += ai * ai;
-        res.norm2 += bi * bi;
+        sum_i32 += ai * bi;
+        norm1_i32 += ai * ai;
+        norm2_i32 += bi * bi;
     }
 
-    return (f32_t) ((double) res.sum / __builtin_sqrt((double) res.norm1 * res.norm2));
+    return (f32_t) ((double) sum_i32 / __builtin_sqrt((double) norm1_i32 * norm2_i32));
+}
+
+EXPORT f32_t vec_cosi8(const int8_t* a, const int8_t* b, const int32_t dims) {
+    return cosi8_inner(a, b, dims);
 }
 
 template <typename TData, const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t), int batches = 2>
@@ -320,7 +373,7 @@ static inline void cosi8_inner_bulk(
     // Tail-handling: remaining vectors
     for (; c < count; c++) {
         const int8_t* a0 = mapper(a, c, offsets, pitch);
-        results[c] = vec_cosi8(a0, b, dims);
+        results[c] = cosi8_inner(a0, b, dims);
     }
 }
 
@@ -348,31 +401,63 @@ EXPORT void vec_cosi8_bulk_sparse(
     cosi8_inner_bulk<const int8_t*, sparse_mapper>((const int8_t* const*)addresses, b, dims, 0, NULL, count, results);
 }
 
+// Accumulates acc += dot(pa, pb) for signed int8. Loads 16 bytes at compile-time offset,
+// sign-extends to 16-bit, then signed multiply-accumulate.
+template<int offsetRegs>
+inline void fmai8(__m256i& acc, const int8_t* pa, const int8_t* pb) {
+    constexpr int lanes = offsetRegs * sizeof(__m128i);
+    const __m256i a16 = _mm256_cvtepi8_epi16(_mm_loadu_si128((const __m128i*)(pa + lanes)));
+    const __m256i b16 = _mm256_cvtepi8_epi16(_mm_loadu_si128((const __m128i*)(pb + lanes)));
+    acc = _mm256_add_epi32(_mm256_madd_epi16(a16, b16), acc);
+}
+
 static inline int32_t doti8_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
-    // Init accumulator(s) with 0
-    __m256i acc1 = _mm256_setzero_si256();
-
+    int32_t res = 0;
     int i = 0;
-    const int blk = dims & ~(sizeof(__m128i) - 1);
-#pragma GCC unroll 4
-    for (; i < blk; i += sizeof(__m128i)) {
-        // Load packed 8-bit integers
-        __m128i va8 = _mm_loadu_si128((const __m128i*)(a + i));
-        __m128i vb8 = _mm_loadu_si128((const __m128i*)(b + i));
+    if (dims >= sizeof(__m128i)) {
+        i = dims & ~(sizeof(__m128i) - 1);
 
-        // sign-extend to 16-bits
-        __m256i va16 = _mm256_cvtepi8_epi16(va8);
-        __m256i vb16 = _mm256_cvtepi8_epi16(vb8);
+        constexpr int batches = 4;
+        static_assert(batches % 2 == 0, "batches must be even");
+        constexpr int half_batches = batches / 2;
+        constexpr int batch_stride = batches * sizeof(__m128i);
+        constexpr int half_batch_stride = half_batches * sizeof(__m128i);
+        const int8_t* pa = a;
+        const int8_t* pb = b;
 
-        // vertically multiply and add a little bit to 32-bit values
-        __m256i vab = _mm256_madd_epi16(va16, vb16);
+        __m256i acc[batches];
+        apply_indexed<batches>([&](auto I) {
+            acc[I] = _mm256_setzero_si256();
+        });
 
-        // accumulate
-        acc1 = _mm256_add_epi32(vab, acc1);
+        const int8_t* pa_end = a + (i & ~(batch_stride - 1));
+        while (pa < pa_end) {
+            apply_indexed<batches>([&](auto I) {
+                fmai8<I>(acc[I], pa, pb);
+            });
+            pa += batch_stride;
+            pb += batch_stride;
+        }
+
+        pa_end = a + (i & ~(half_batch_stride - 1));
+        while (pa < pa_end) {
+            apply_indexed<half_batches>([&](auto I) {
+                fmai8<I>(acc[I], pa, pb);
+            });
+            pa += half_batch_stride;
+            pb += half_batch_stride;
+        }
+
+        pa_end = a + i;
+        while (pa < pa_end) {
+            fmai8<0>(acc[0], pa, pb);
+            pa += sizeof(__m128i);
+            pb += sizeof(__m128i);
+        }
+
+        __m256i total_sum = tree_reduce<batches, __m256i, _mm256_add_epi32>(acc);
+        res = mm256_reduce_epi32<_mm_add_epi32>(total_sum);
     }
-
-    // reduce (horizontally add all)
-    int32_t res = mm256_reduce_epi32<_mm_add_epi32>(acc1);
     // scalar tail
     for (; i < dims; i++) {
         res += dot_scalar(a[i], b[i]);
@@ -432,30 +517,64 @@ EXPORT void vec_doti8_bulk_sparse(
     );
 }
 
+// Accumulates acc += sqr_distance(pa, pb) for signed int8. Sign-extends to 16-bit,
+// subtracts, then madd for squared accumulation.
+template<int offsetRegs>
+inline void sqri8(__m256i& acc, const int8_t* pa, const int8_t* pb) {
+    constexpr int lanes = offsetRegs * sizeof(__m128i);
+    const __m256i a16 = _mm256_cvtepi8_epi16(_mm_loadu_si128((const __m128i*)(pa + lanes)));
+    const __m256i b16 = _mm256_cvtepi8_epi16(_mm_loadu_si128((const __m128i*)(pb + lanes)));
+    const __m256i dist = _mm256_sub_epi16(a16, b16);
+    acc = _mm256_add_epi32(_mm256_madd_epi16(dist, dist), acc);
+}
+
 static inline int32_t sqri8_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
-    // Init accumulator(s) with 0
-    __m256i acc1 = _mm256_setzero_si256();
-
+    int32_t res = 0;
     int i = 0;
-    const int blk = dims & ~(sizeof(__m128i) - 1);
-#pragma GCC unroll 4
-    for (; i < blk; i += sizeof(__m128i)) {
-        // Load packed 8-bit integers
-        __m128i va8 = _mm_loadu_si128((const __m128i*)(a + i));
-        __m128i vb8 = _mm_loadu_si128((const __m128i*)(b + i));
+    if (dims >= sizeof(__m128i)) {
+        i = dims & ~(sizeof(__m128i) - 1);
 
-        // sign-extend to 16-bits
-        __m256i va16 = _mm256_cvtepi8_epi16(va8);
-        __m256i vb16 = _mm256_cvtepi8_epi16(vb8);
+        constexpr int batches = 4;
+        static_assert(batches % 2 == 0, "batches must be even");
+        constexpr int half_batches = batches / 2;
+        constexpr int batch_stride = batches * sizeof(__m128i);
+        constexpr int half_batch_stride = half_batches * sizeof(__m128i);
+        const int8_t* pa = a;
+        const int8_t* pb = b;
 
-        // do the sqr distance and accumulate to 32-bit ints
-        __m256i dist = _mm256_sub_epi16(va16, vb16);
-        __m256i sqr = _mm256_madd_epi16(dist, dist);
-        acc1 = _mm256_add_epi32(sqr, acc1);
+        __m256i acc[batches];
+        apply_indexed<batches>([&](auto I) {
+            acc[I] = _mm256_setzero_si256();
+        });
+
+        const int8_t* pa_end = a + (i & ~(batch_stride - 1));
+        while (pa < pa_end) {
+            apply_indexed<batches>([&](auto I) {
+                sqri8<I>(acc[I], pa, pb);
+            });
+            pa += batch_stride;
+            pb += batch_stride;
+        }
+
+        pa_end = a + (i & ~(half_batch_stride - 1));
+        while (pa < pa_end) {
+            apply_indexed<half_batches>([&](auto I) {
+                sqri8<I>(acc[I], pa, pb);
+            });
+            pa += half_batch_stride;
+            pb += half_batch_stride;
+        }
+
+        pa_end = a + i;
+        while (pa < pa_end) {
+            sqri8<0>(acc[0], pa, pb);
+            pa += sizeof(__m128i);
+            pb += sizeof(__m128i);
+        }
+
+        __m256i total_sum = tree_reduce<batches, __m256i, _mm256_add_epi32>(acc);
+        res = mm256_reduce_epi32<_mm_add_epi32>(total_sum);
     }
-
-    // reduce (accumulate all)
-    int32_t res = mm256_reduce_epi32<_mm_add_epi32>(acc1);
     // scalar tail
     for (; i < dims; i++) {
         res += sqr_scalar(a[i], b[i]);

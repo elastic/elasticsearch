@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.ExternalSliceQueue;
 
@@ -49,6 +50,7 @@ public record SourceOperatorContext(
     Map<String, Object> config,
     Map<String, Object> sourceMetadata,
     Object pushedFilter,
+    List<Expression> pushedExpressions,
     FileList fileList,
     @Nullable ExternalSplit split,
     Set<String> partitionColumnNames,
@@ -62,6 +64,7 @@ public record SourceOperatorContext(
         attributes = attributes != null ? List.copyOf(attributes) : List.of();
         config = config != null ? Map.copyOf(config) : Map.of();
         sourceMetadata = sourceMetadata != null ? Map.copyOf(sourceMetadata) : Map.of();
+        pushedExpressions = pushedExpressions != null ? List.copyOf(pushedExpressions) : List.of();
         partitionColumnNames = partitionColumnNames != null && partitionColumnNames.isEmpty() == false
             ? Collections.unmodifiableSet(new LinkedHashSet<>(partitionColumnNames))
             : Set.of();
@@ -103,6 +106,7 @@ public record SourceOperatorContext(
             config,
             sourceMetadata,
             pushedFilter,
+            null,
             fileList,
             split,
             null,
@@ -136,6 +140,7 @@ public record SourceOperatorContext(
             config,
             sourceMetadata,
             pushedFilter,
+            null,
             fileList,
             null,
             null,
@@ -172,6 +177,7 @@ public record SourceOperatorContext(
             null,
             null,
             null,
+            null,
             1
         );
     }
@@ -202,6 +208,7 @@ public record SourceOperatorContext(
             null,
             null,
             null,
+            null,
             1
         );
     }
@@ -222,6 +229,7 @@ public record SourceOperatorContext(
         private Map<String, Object> config;
         private Map<String, Object> sourceMetadata;
         private Object pushedFilter;
+        private List<Expression> pushedExpressions;
         private FileList fileList;
         private ExternalSplit split;
         private Set<String> partitionColumnNames;
@@ -283,6 +291,11 @@ public record SourceOperatorContext(
             return this;
         }
 
+        public Builder pushedExpressions(List<Expression> pushedExpressions) {
+            this.pushedExpressions = pushedExpressions;
+            return this;
+        }
+
         public Builder fileList(FileList fileList) {
             this.fileList = fileList;
             return this;
@@ -321,6 +334,7 @@ public record SourceOperatorContext(
                 config,
                 sourceMetadata,
                 pushedFilter,
+                pushedExpressions,
                 fileList,
                 split,
                 partitionColumnNames,

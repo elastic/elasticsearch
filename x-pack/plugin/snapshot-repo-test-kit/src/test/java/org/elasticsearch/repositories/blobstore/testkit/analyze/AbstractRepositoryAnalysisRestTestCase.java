@@ -21,6 +21,10 @@ public abstract class AbstractRepositoryAnalysisRestTestCase extends ESRestTestC
 
     protected abstract Settings repositorySettings();
 
+    protected boolean checkOverwriteProtection() {
+        return true;
+    }
+
     public void testRepositoryAnalysis() throws Exception {
         final String repositoryType = repositoryType();
         final Settings repositorySettings = repositorySettings();
@@ -36,6 +40,9 @@ public abstract class AbstractRepositoryAnalysisRestTestCase extends ESRestTestC
         request.addParameter("max_blob_size", randomFrom("1mb", "10mb"));
         request.addParameter("timeout", timeout.getStringRep());
         request.addParameter("seed", Long.toString(randomLong()));
+        if (checkOverwriteProtection() == false) {
+            request.addParameter("check_overwrite_protection", "false");
+        }
         request.setOptions(
             RequestOptions.DEFAULT.toBuilder()
                 .setRequestConfig(RequestConfig.custom().setSocketTimeout(Math.toIntExact(timeout.millis() + 10_000)).build())

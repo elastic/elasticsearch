@@ -21,6 +21,7 @@ import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 
@@ -30,6 +31,7 @@ import static org.elasticsearch.reindex.ReindexMetrics.ATTRIBUTE_NAME_SOURCE;
 import static org.elasticsearch.reindex.ReindexMetrics.ATTRIBUTE_VALUE_SOURCE_LOCAL;
 import static org.elasticsearch.reindex.ReindexMetrics.ATTRIBUTE_VALUE_SOURCE_REMOTE;
 import static org.elasticsearch.reindex.ReindexMetrics.REINDEX_COMPLETION_COUNTER;
+import static org.elasticsearch.reindex.ReindexMetrics.REINDEX_RELOCATION_COUNTER;
 import static org.elasticsearch.reindex.ReindexMetrics.REINDEX_TIME_HISTOGRAM;
 import static org.elasticsearch.reindex.ReindexMetrics.SlicingMode;
 
@@ -109,6 +111,50 @@ public class ReindexMetricsTests extends ESTestCase {
         assertEquals(RestStatus.BAD_REQUEST.name(), measurements.get(1).attributes().get(ATTRIBUTE_NAME_ERROR_TYPE));
         assertEquals(ATTRIBUTE_VALUE_SOURCE_REMOTE, measurements.get(1).attributes().get(ATTRIBUTE_NAME_SOURCE));
         assertEquals("auto", measurements.get(1).attributes().get(ATTRIBUTE_NAME_SLICING_MODE));
+    }
+
+    public void testRecordRelocationSuccess() {
+        metrics.recordRelocationSuccess();
+
+        List<Measurement> measurements = registry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, REINDEX_RELOCATION_COUNTER);
+        assertEquals(1, measurements.size());
+        assertEquals(1, measurements.getFirst().getLong());
+        assertNull(measurements.getFirst().attributes().get(ATTRIBUTE_NAME_ERROR_TYPE));
+
+        metrics.recordRelocationSuccess();
+
+        measurements = registry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, REINDEX_RELOCATION_COUNTER);
+        assertEquals(2, measurements.size());
+        assertEquals(1, measurements.get(1).getLong());
+        assertNull(measurements.get(1).attributes().get(ATTRIBUTE_NAME_ERROR_TYPE));
+    }
+
+    public void testRecordRelocationFailure() {
+        metrics.recordRelocationFailure(new IllegalArgumentException(randomAlphaOfLength(10)));
+
+        List<Measurement> measurements = registry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, REINDEX_RELOCATION_COUNTER);
+        assertEquals(1, measurements.size());
+        assertEquals(1, measurements.getFirst().getLong());
+        assertEquals("java.lang.IllegalArgumentException", measurements.getFirst().attributes().get(ATTRIBUTE_NAME_ERROR_TYPE));
+
+        metrics.recordRelocationFailure(new RuntimeException(randomAlphaOfLength(10)));
+
+        measurements = registry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, REINDEX_RELOCATION_COUNTER);
+        assertEquals(2, measurements.size());
+        assertEquals(1, measurements.get(1).getLong());
+        assertEquals("java.lang.RuntimeException", measurements.get(1).attributes().get(ATTRIBUTE_NAME_ERROR_TYPE));
+    }
+
+    public void testRecordRelocationSuccessAndFailure() {
+        metrics.recordRelocationSuccess();
+        metrics.recordRelocationFailure(new IOException(randomAlphaOfLength(10)));
+
+        List<Measurement> measurements = registry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, REINDEX_RELOCATION_COUNTER);
+        assertEquals(2, measurements.size());
+        assertEquals(1, measurements.getFirst().getLong());
+        assertNull(measurements.getFirst().attributes().get(ATTRIBUTE_NAME_ERROR_TYPE));
+        assertEquals(1, measurements.get(1).getLong());
+        assertEquals("java.io.IOException", measurements.get(1).attributes().get(ATTRIBUTE_NAME_ERROR_TYPE));
     }
 
     public void testResolveSlicingModeNone() {

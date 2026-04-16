@@ -5,6 +5,6 @@ steps:
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404
-      machineType: e2-custom-32-98304
-      diskType: pd-ssd
+      machineType: n4-custom-32-98304
+      diskType: hyperdisk-balanced
       buildDirectory: /dev/shm/bk

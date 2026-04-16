@@ -119,4 +119,13 @@ public interface DataSourcePlugin {
     default List<NamedWriteableRegistry.Entry> namedWriteables() {
         return List.of();
     }
+
+    /**
+     * CRUD-time validators for datasource and dataset settings, keyed by type name.
+     * Receives node {@link Settings} so implementations can read cluster admin overrides
+     * (e.g. limits, allowed auth modes, default field values) when constructing validators.
+     */
+    default Map<String, DataSourceValidator> datasourceValidators(Settings settings) {
+        return Map.of();
+    }
 }

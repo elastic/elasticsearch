@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNat
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -42,6 +43,9 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
         "Sparkline",
         Sparkline::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Sparkline.class)
+        .quinary(Sparkline::new, 0)
+        .name("sparkline");
 
     @FunctionInfo(
         returnType = { "integer", "long", "double" },

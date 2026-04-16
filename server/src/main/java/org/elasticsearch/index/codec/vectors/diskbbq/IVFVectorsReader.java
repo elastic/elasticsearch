@@ -334,11 +334,11 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         }
         final float approximateCost;
         if (esAcceptDocs instanceof ESAcceptDocs.ESAcceptDocsAll) {
-            approximateCost = values.size();
+            approximateCost = numVectors;
         } else {
             approximateCost = esAcceptDocs == null ? acceptDocs.cost() : esAcceptDocs.approximateCost();
         }
-        float percentFiltered = Math.max(0f, Math.min(1f, approximateCost / values.size()));
+        float percentFiltered = Math.max(0f, Math.min(1f, approximateCost / numVectors));
         int k = knnCollector.k();
         int numCands = k;
         float visitRatio = dynamicVisitRatio;

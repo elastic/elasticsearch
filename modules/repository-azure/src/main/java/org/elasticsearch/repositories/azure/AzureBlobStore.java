@@ -265,15 +265,6 @@ public class AzureBlobStore implements BlobStore {
 
     @Override
     public BlobContainer blobContainer(BlobPath path) {
-        if (service.isStateless()) {
-            return new AzureTenaciousRetryBlobContainer(
-                new AzureBlobContainer(path, this),
-                Integer.MAX_VALUE,
-                transientErrorBackoffPolicy,
-                repositoriesMetrics
-            );
-        }
-
         return new AzureBlobContainer(path, this);
     }
 

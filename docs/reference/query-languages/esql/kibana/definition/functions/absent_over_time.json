@@ -404,6 +404,6 @@
   "examples" : [
     "TS k8s\n| WHERE cluster == \"prod\" AND pod == \"two\"\n| STATS events_received = MAX(ABSENT_OVER_TIME(events_received)) BY pod, time_bucket = TBUCKET(2 minute)"
   ],
-  "preview" : true,
+  "preview" : false,
   "snapshot_only" : false
 }

@@ -120,6 +120,7 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
     public List<Setting<?>> getSettings() {
         final List<Setting<?>> settings = new ArrayList<>();
         settings.add(TransportReindexAction.REMOTE_CLUSTER_WHITELIST);
+        settings.add(TransportReindexAction.REMOTE_CLUSTER_BLOCKLIST);
         settings.addAll(ReindexSslConfig.getSettings());
         return settings;
     }

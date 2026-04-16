@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -85,6 +86,8 @@ public class TRange extends EsqlConfigurationFunction
     private final Expression first;
     private final Expression second;
     private final Expression timestamp;
+
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(TRange.class).ternaryConfig(TRange::new).name("trange");
 
     @FunctionInfo(
         returnType = "boolean",

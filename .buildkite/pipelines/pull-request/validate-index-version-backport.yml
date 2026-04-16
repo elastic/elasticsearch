@@ -1,3 +1,5 @@
+config:
+  auto-retry: false
 steps:
   - label: validate-index-version-backport
     if: build.pull_request.base_branch =~ /^(\d+\.\d+|\d+\.x)$$/

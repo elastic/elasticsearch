@@ -182,11 +182,11 @@ public class PersistentTasksCustomMetadataTests extends BasePersistentTasksCusto
     public void testAssignmentReasonFromExplanation() {
         // All well-known explanation strings
         assertEquals(
-            PersistentTasksCustomMetadata.Assignment.Reason.INITIAL_ASSIGNMENT,
+            PersistentTasksCustomMetadata.Assignment.Reason.TASK_CREATED,
             PersistentTasksCustomMetadata.Assignment.Reason.fromExplanation(null, "waiting for initial assignment")
         );
         assertEquals(
-            PersistentTasksCustomMetadata.Assignment.Reason.LOST_NODE,
+            PersistentTasksCustomMetadata.Assignment.Reason.NODE_LEFT,
             PersistentTasksCustomMetadata.Assignment.Reason.fromExplanation(null, "awaiting reassignment after node loss")
         );
         assertEquals(
@@ -219,11 +219,11 @@ public class PersistentTasksCustomMetadataTests extends BasePersistentTasksCusto
             )
         );
         assertEquals(
-            PersistentTasksCustomMetadata.Assignment.Reason.AWAITING_JOB_ASSIGNMENT,
+            PersistentTasksCustomMetadata.Assignment.Reason.AWAITING_LAZY_ASSIGNMENT,
             PersistentTasksCustomMetadata.Assignment.Reason.fromExplanation(null, "datafeed awaiting job assignment.")
         );
         assertEquals(
-            PersistentTasksCustomMetadata.Assignment.Reason.AWAITING_JOB_RELOCATION,
+            PersistentTasksCustomMetadata.Assignment.Reason.AWAITING_LAZY_ASSIGNMENT,
             PersistentTasksCustomMetadata.Assignment.Reason.fromExplanation(null, "datafeed awaiting job relocation.")
         );
 
@@ -286,7 +286,7 @@ public class PersistentTasksCustomMetadataTests extends BasePersistentTasksCusto
             TransportVersion.fromName("persistent_task_assignment_reason")
         );
 
-        // Well-known explanation: fromExplanation should infer INITIAL_ASSIGNMENT
+        // Well-known explanation: fromExplanation should infer TASK_CREATED
         PersistentTasksCustomMetadata.PersistentTask<TestPersistentTasksPlugin.TestParams> task =
             new PersistentTasksCustomMetadata.PersistentTask<>(
                 "task-id",
@@ -295,7 +295,7 @@ public class PersistentTasksCustomMetadataTests extends BasePersistentTasksCusto
                 1L,
                 new PersistentTasksCustomMetadata.Assignment(
                     null,
-                    PersistentTasksCustomMetadata.Assignment.Reason.INITIAL_ASSIGNMENT,
+                    PersistentTasksCustomMetadata.Assignment.Reason.TASK_CREATED,
                     "waiting for initial assignment"
                 )
             );
@@ -305,7 +305,7 @@ public class PersistentTasksCustomMetadataTests extends BasePersistentTasksCusto
             PersistentTasksCustomMetadata.PersistentTask::new,
             oldVersion
         );
-        assertEquals(PersistentTasksCustomMetadata.Assignment.Reason.INITIAL_ASSIGNMENT, copy.getAssignment().getReason());
+        assertEquals(PersistentTasksCustomMetadata.Assignment.Reason.TASK_CREATED, copy.getAssignment().getReason());
 
         // Assigned task: fromExplanation returns ASSIGNED when executorNode is non-null
         task = new PersistentTasksCustomMetadata.PersistentTask<>(

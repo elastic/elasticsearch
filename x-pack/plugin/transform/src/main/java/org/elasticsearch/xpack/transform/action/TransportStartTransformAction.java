@@ -391,9 +391,9 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             }
             PersistentTasksCustomMetadata.Assignment assignment = persistentTask.getAssignment();
             if (assignment != null
-                && assignment.getReason() != PersistentTasksCustomMetadata.Assignment.Reason.INITIAL_ASSIGNMENT
+                && assignment.getReason() != PersistentTasksCustomMetadata.Assignment.Reason.TASK_CREATED
                 && assignment.isAssigned() == false) {
-                // For some reason, the task is not assigned to a node, but is no longer in the `INITIAL_ASSIGNMENT` state
+                // For some reason, the task is not assigned to a node, but is no longer in the `TASK_CREATED` state
                 // Consider this a failure.
                 exception = new ElasticsearchStatusException(
                     "Could not start transform, allocation explanation [" + assignment.getExplanation() + "]",

@@ -51,8 +51,8 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public interface PersistentTasks {
 
     String API_CONTEXT = Metadata.XContentContext.API.toString();
-    Assignment LOST_NODE_ASSIGNMENT = new Assignment(null, Assignment.Reason.LOST_NODE, "awaiting reassignment after node loss");
-    Assignment INITIAL_ASSIGNMENT = new Assignment(null, Assignment.Reason.INITIAL_ASSIGNMENT, "waiting for initial assignment");
+    Assignment LOST_NODE_ASSIGNMENT = new Assignment(null, Assignment.Reason.NODE_LEFT, "awaiting reassignment after node loss");
+    Assignment INITIAL_ASSIGNMENT = new Assignment(null, Assignment.Reason.TASK_CREATED, "waiting for initial assignment");
     Assignment ASSIGNMENT_DISABLED = new Assignment(
         null,
         Assignment.Reason.ASSIGNMENT_DISABLED,

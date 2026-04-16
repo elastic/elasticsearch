@@ -561,7 +561,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
             String reason = "__unknown__";
 
             if (assignment != null
-                && assignment.getReason() != PersistentTasksCustomMetadata.Assignment.Reason.INITIAL_ASSIGNMENT
+                && assignment.getReason() != PersistentTasksCustomMetadata.Assignment.Reason.TASK_CREATED
                 && assignment.isAssigned() == false) {
                 assignmentExplanation = assignment.getExplanation();
                 // Assignment failed due to primary shard check.

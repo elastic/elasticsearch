@@ -760,15 +760,11 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             }
             PersistentTasksCustomMetadata.Assignment assignment = persistentTask.getAssignment();
             if (assignment != null) {
-                // This means we are awaiting the datafeed's job to be assigned to a node
-                if (assignment.getReason() == PersistentTasksCustomMetadata.Assignment.Reason.AWAITING_JOB_ASSIGNMENT) {
+                // This means we are awaiting the datafeed's job to be assigned or relocated
+                if (assignment.getReason() == PersistentTasksCustomMetadata.Assignment.Reason.AWAITING_LAZY_ASSIGNMENT) {
                     return true;
                 }
-                // This means the node the job got assigned to was shut down in between starting the job and the datafeed - not an error
-                if (assignment.getReason() == PersistentTasksCustomMetadata.Assignment.Reason.AWAITING_JOB_RELOCATION) {
-                    return true;
-                }
-                if (assignment.getReason() != PersistentTasksCustomMetadata.Assignment.Reason.INITIAL_ASSIGNMENT
+                if (assignment.getReason() != PersistentTasksCustomMetadata.Assignment.Reason.TASK_CREATED
                     && assignment.isAssigned() == false) {
                     // Assignment has failed despite passing our "fast fail" validation
                     exception = new ElasticsearchStatusException(

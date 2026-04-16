@@ -40,12 +40,12 @@ public class DatafeedNodeSelector {
 
     public static final PersistentTasksCustomMetadata.Assignment AWAITING_JOB_ASSIGNMENT = new PersistentTasksCustomMetadata.Assignment(
         null,
-        PersistentTasksCustomMetadata.Assignment.Reason.AWAITING_JOB_ASSIGNMENT,
+        PersistentTasksCustomMetadata.Assignment.Reason.AWAITING_LAZY_ASSIGNMENT,
         "datafeed awaiting job assignment."
     );
     public static final PersistentTasksCustomMetadata.Assignment AWAITING_JOB_RELOCATION = new PersistentTasksCustomMetadata.Assignment(
         null,
-        PersistentTasksCustomMetadata.Assignment.Reason.AWAITING_JOB_RELOCATION,
+        PersistentTasksCustomMetadata.Assignment.Reason.AWAITING_LAZY_ASSIGNMENT,
         "datafeed awaiting job relocation."
     );
 

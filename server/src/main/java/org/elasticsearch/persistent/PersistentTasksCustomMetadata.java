@@ -192,11 +192,11 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
             /**
              * Task is waiting for its initial assignment.
              */
-            INITIAL_ASSIGNMENT,
+            TASK_CREATED,
             /**
              * The node the task was assigned to left the cluster.
              */
-            LOST_NODE,
+            NODE_LEFT,
             /**
              * Cluster settings prevent persistent task assignment.
              */
@@ -217,14 +217,6 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
              * Task cannot be assigned while a feature reset is in progress.
              */
             RESET_IN_PROGRESS,
-            /**
-             * Datafeed is waiting for its associated job to be assigned.
-             */
-            AWAITING_JOB_ASSIGNMENT,
-            /**
-             * Datafeed is waiting for its associated job to be relocated.
-             */
-            AWAITING_JOB_RELOCATION,
             /**
              * Generic or dynamic reason that does not match a well-known category.
              */
@@ -252,15 +244,14 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
                     return ASSIGNED;
                 }
                 return switch (explanation) {
-                    case "waiting for initial assignment" -> INITIAL_ASSIGNMENT;
-                    case "awaiting reassignment after node loss" -> LOST_NODE;
+                    case "waiting for initial assignment" -> TASK_CREATED;
+                    case "awaiting reassignment after node loss" -> NODE_LEFT;
                     case "no persistent task assignments are allowed due to cluster settings" -> ASSIGNMENT_DISABLED;
                     case "no appropriate nodes found for the assignment" -> NO_NODE_FOUND;
-                    case "persistent task is awaiting node assignment." -> AWAITING_LAZY_ASSIGNMENT;
+                    case "persistent task is awaiting node assignment.", "datafeed awaiting job assignment.",
+                        "datafeed awaiting job relocation." -> AWAITING_LAZY_ASSIGNMENT;
                     case "persistent task cannot be assigned while upgrade mode is enabled." -> AWAITING_UPGRADE;
                     case "persistent task will not be assigned as a feature reset is in progress." -> RESET_IN_PROGRESS;
-                    case "datafeed awaiting job assignment." -> AWAITING_JOB_ASSIGNMENT;
-                    case "datafeed awaiting job relocation." -> AWAITING_JOB_RELOCATION;
                     default -> OTHER;
                 };
             }

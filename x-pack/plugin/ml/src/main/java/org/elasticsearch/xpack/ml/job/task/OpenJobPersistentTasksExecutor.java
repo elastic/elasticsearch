@@ -615,7 +615,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
         String jobId,
         Logger logger
     ) {
-        if (assignment != null && assignment.getReason() != Assignment.Reason.INITIAL_ASSIGNMENT && assignment.isAssigned() == false) {
+        if (assignment != null && assignment.getReason() != Assignment.Reason.TASK_CREATED && assignment.isAssigned() == false) {
             // Assignment has failed on the master node despite passing our "fast fail" validation
             if (assignment.getReason() == Assignment.Reason.AWAITING_UPGRADE) {
                 return Optional.of(makeCurrentlyBeingUpgradedException(logger, jobId));

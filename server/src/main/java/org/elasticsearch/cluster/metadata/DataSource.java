@@ -120,7 +120,6 @@ public final class DataSource implements Writeable, ToXContentObject {
             }
             result.put(entry.getKey(), plaintext);
         }
-        // Cannot use Map.copyOf() — it rejects null values, which are legitimate here (a setting with value=null).
         return Collections.unmodifiableMap(result);
     }
 
@@ -130,7 +129,6 @@ public final class DataSource implements Writeable, ToXContentObject {
         for (var entry : settings.entrySet()) {
             result.put(entry.getKey(), entry.getValue().presentationValue());
         }
-        // Cannot use Map.copyOf() — it rejects null values, which are legitimate here (a non-secret setting with value=null).
         return Collections.unmodifiableMap(result);
     }
 

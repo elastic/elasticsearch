@@ -20,10 +20,15 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 
 public class DirectoryMetricsTests extends ESTestCase {
 
@@ -157,6 +162,21 @@ public class DirectoryMetricsTests extends ESTestCase {
         );
     }
 
+    public void testEntriesLastWriteWinsForSameKey() {
+        String key = "key";
+
+        DirectoryMetrics.Builder builder = new DirectoryMetrics.Builder();
+        builder.add("metric_a", new MetricWithEntry("metric_a", key, "value_a"));
+        builder.add("metric_b", new MetricWithEntry("metric_b", key, "value_b"));
+        DirectoryMetrics metrics = builder.build();
+
+        Map<String, String> entries = metrics.entries();
+        assertThat(entries.size(), equalTo(1));
+        assertThat(entries, hasKey(key));
+        String value = entries.get(key);
+        assertThat(value, anyOf(equalTo("value_a"), equalTo("value_b")));
+    }
+
     public static class Counter implements DirectoryMetrics.PluggableMetrics<Counter> {
         public static final String NAME = "counter";
         private int count;
@@ -232,6 +252,29 @@ public class DirectoryMetricsTests extends ESTestCase {
 
         public Counter2(StreamInput in) throws IOException {
             super(in);
+        }
+    }
+
+    private static class MetricWithEntry extends Counter {
+        private final String name;
+        private final String entryKey;
+        private final String entryValue;
+
+        MetricWithEntry(String name, String entryKey, String entryValue) {
+            super(0);
+            this.name = name;
+            this.entryKey = entryKey;
+            this.entryValue = entryValue;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return name;
+        }
+
+        @Override
+        public Map<String, String> entries() {
+            return Map.of(entryKey, entryValue);
         }
     }
 

@@ -4,21 +4,9 @@ ALL-UNNAMED:
   - files:
     - path: "/dev/null"
       mode: "read"
-software.amazon.awssdk.http.nio.netty:
-  - manage_threads
-  - outbound_network
-io.netty.common:
-  - outbound_network
-  - manage_threads
-  - inbound_network
-  - files:
-      - path: "/etc/os-release"
-        mode: "read"
-      - path: "/usr/lib/os-release"
-        mode: "read"
-      - path: "/proc/sys/net/core/somaxconn"
-        mode: read
-io.netty.transport:
-  - manage_threads
-  - outbound_network
-  - inbound_network
+    - path: "/etc/os-release"
+      mode: "read"
+    - path: "/usr/lib/os-release"
+      mode: "read"
+    - path: "/proc/sys/net/core/somaxconn"
+      mode: "read"

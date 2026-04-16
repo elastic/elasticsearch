@@ -16,15 +16,6 @@ import java.util.Set;
 
 public final class SearchFeatures implements FeatureSpecification {
 
-    /**
-     * When profiling is enabled, search responses may include {@code profile.request} (coordinator indices and source)
-     * alongside {@code profile.shards}. Wired with the same rollout as
-     * {@link org.elasticsearch.search.profile.SearchProfileResults#originalQueryIndicesInProfileResults}.
-     */
-    public static final NodeFeature SEARCH_PROFILE_COORDINATOR_REQUEST_METADATA = new NodeFeature(
-        "search.profile.coordinator_request_metadata"
-    );
-
     public static final NodeFeature LUCENE_10_0_0_UPGRADE = new NodeFeature("lucene_10_upgrade");
     public static final NodeFeature LUCENE_10_1_0_UPGRADE = new NodeFeature("lucene_10_1_upgrade");
     public static final NodeFeature LUCENE_10_4_0_UPGRADE_TEST = new NodeFeature("lucene_10_4_upgrade");
@@ -98,8 +89,7 @@ public final class SearchFeatures implements FeatureSpecification {
             EXPONENTIAL_HISTOGRAM_QUERYDSL_BOXPLOT,
             EXPONENTIAL_HISTOGRAM_QUERYDSL_RANGE,
             EXPONENTIAL_HISTOGRAM_UPSCALING_REMOVED,
-            DEFAULT_DISK_BBQ,
-            SEARCH_PROFILE_COORDINATOR_REQUEST_METADATA
+            DEFAULT_DISK_BBQ
         );
     }
 }

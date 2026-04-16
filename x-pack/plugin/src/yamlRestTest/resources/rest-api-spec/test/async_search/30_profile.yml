@@ -23,8 +23,8 @@ setup:
 ---
 "Profiling includes shard results and coordinator request metadata":
   - requires:
-      cluster_features: [ "search.profile.coordinator_request_metadata", "gte_v8.10.0" ]
-      reason: "profile.request requires coordinator metadata; shard id/node_id/index/cluster require 8.10+"
+      cluster_features: "gte_v8.10.0"
+      reason: "shard id/node_id/index/cluster require 8.10+"
       test_runner_features: "contains"
 
   - do:

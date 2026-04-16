@@ -71,6 +71,13 @@ public class TimedListener<Response> {
         return listenerWithTimeout;
     }
 
+    /**
+     * Creates an {@link ElasticsearchStatusException} with a message indicating that the request timed out and a status of
+     * {@link RestStatus#GATEWAY_TIMEOUT}.
+     * @param timeout the timeout that was reached
+     * @param inferenceId the id of the inference request that timed out
+     * @return an {@link ElasticsearchStatusException} indicating a timeout occurred
+     */
     public static ElasticsearchStatusException gatewayTimeoutException(TimeValue timeout, String inferenceId) {
         return new ElasticsearchStatusException(
             Strings.format("Request timed out after [%s] for inference id [%s]", timeout, inferenceId),

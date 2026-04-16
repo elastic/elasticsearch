@@ -134,7 +134,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
                 This examples demonstrates how to use `TOP_SNIPPETS` with `RERANK`. By returning a fixed number of snippets with a limited
                 size, we have more control over the number of tokens that are used for semantic reranking.
                 """),
-            @Example(file = "top-snippets", tag = "top-snippets-with-highlighting", applies_to = "stack: preview 9.4.0", explanation = """
+            @Example(file = "top-snippets", tag = "top-snippets-with-highlighting", applies_to = "stack: preview 9.4.1", explanation = """
                 Enable highlighting by setting `highlight` to `true` in the options. This wraps matched query terms in the
                 returned snippets with `<em>` tags by default. To use different tags, set the `pre_tag` and `post_tag` options
                 to the desired opening and closing tags respectively.
@@ -142,13 +142,25 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
             @Example(
                 file = "top-snippets",
                 tag = "top-snippets-num-words-zero-highlight",
-                applies_to = "stack: preview 9.4.0",
+                applies_to = "stack: preview 9.4.1",
                 explanation = """
                     Set `num_words` to 0 to disable chunking entirely. This keeps the input field values as-is,
                     which is useful when the text has already been chunked. Combine this with `highlight` set to
                     `true` to highlight matched terms within each full value.
                     """
-            ), }
+            ),
+            @Example(
+                file = "top-snippets",
+                tag = "top-snippets-num-words-zero-highlight-preceding-chunk",
+                applies_to = "stack: preview 9.4.1",
+                explanation = """
+                    This is another example of setting `num_words` to 0, this time applied to an input that has
+                    already been chunked with the `CHUNK` command. The markdown text is chunked by sections first, and
+                    because the text is pre-chunked, no further splitting is needed. Setting `num_words` to 0 disables
+                    chunking so that each chunk is scored and highlighted individually.
+                """
+            ),
+        }
     )
     public TopSnippets(
         Source source,
@@ -186,19 +198,27 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
                 @MapParam.MapParamEntry(name = "highlight", type = "boolean", description = """
                     When true, wraps matched query terms in the returned snippets with markup tags.
                     Defaults to false.
-                    """, valueHint = { "true" }),
+                    """, valueHint = { "true" },
+                    applies_to = "stack: preview 9.4.1"
+                ),
                 @MapParam.MapParamEntry(name = "pre_tag", type = "keyword", description = """
                     Opening tag for highlighted terms. Only applies when highlight is true.
                     Defaults to `<em>`.
-                    """, valueHint = { "<em>" }),
+                    """, valueHint = { "<em>" },
+                    applies_to = "stack: preview 9.4.1"
+                ),
                 @MapParam.MapParamEntry(name = "post_tag", type = "keyword", description = """
                     Closing tag for highlighted terms. Only applies when highlight is true.
                     Defaults to `</em>`.
-                    """, valueHint = { "</em>" }),
+                    """, valueHint = { "</em>" },
+                    applies_to = "stack: preview 9.4.1"
+                ),
                 @MapParam.MapParamEntry(name = "encoder", type = "keyword", description = """
                     Controls HTML encoding of snippet text before tagging: `default` (no encoding) or `html`.
                     Only applies when highlight is true. Defaults to `default`.
-                    """, valueHint = { "default" }) }
+                    """, valueHint = { "default" },
+                    applies_to = "stack: preview 9.4.1")
+            }
         ) Expression options
     ) {
         super(source, options == null ? List.of(field, query) : List.of(field, query, options));
@@ -265,10 +285,14 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
 
     @Override
     public void postOptimizationVerification(Failures failures) {
-        if (query() != null && query() instanceof Literal == false) {
-            failures.add(
-                fail(query(), "second argument of [{}] must be a constant, received [{}]", sourceText(), Expressions.name(query()))
-            );
+        if (query() != null) {
+            if (query() instanceof Literal == false
+                || ((Literal) query()).value() instanceof List<?>) {
+                failures.add(
+                    fail(query(), "second argument of [{}] must be a constant single-valued string, received [{}]",
+                        sourceText(), Expressions.name(query()))
+                );
+            }
         }
     }
 
@@ -317,6 +341,9 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
 
     @Override
     public boolean foldable() {
+        if (query() instanceof Literal literal && literal.value() instanceof List<?>) {
+            return false;
+        }
         return field().foldable() && query().foldable() && (options() == null || options().foldable());
     }
 
@@ -371,6 +398,9 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
         @Fixed int numSnippets,
         @Fixed(includeInToString = false) PassageFormatter highlightFormatter
     ) {
+        if (queryString == null) {
+            throw new IllegalArgumentException("query must be a constant single-valued string");
+        }
         int valueCount = field.getValueCount(position);
         if (valueCount == 0) {
             builder.appendNull();
@@ -489,7 +519,8 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
 
         MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer();
 
-        String queryString = ((BytesRef) query.fold(toEvaluator.foldCtx())).utf8ToString();
+        Object foldedQuery = query.fold(toEvaluator.foldCtx());
+        String queryString = foldedQuery instanceof BytesRef bytes ? bytes.utf8ToString() : null;
 
         return new TopSnippetsEvaluator.Factory(
             source(),

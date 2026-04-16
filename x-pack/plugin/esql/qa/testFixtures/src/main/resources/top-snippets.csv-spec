@@ -151,20 +151,6 @@ snippets:keyword
 null
 ;
 
-topSnippetsWithMultivaluedQuery
-required_capability: top_snippets_mv
-
-ROW content = "Senior Team Lead", queries = ["lead", "senior"]
-| EVAL snippets = TOP_SNIPPETS(content, queries)
-| KEEP snippets
-;
-warning:Line 2:19: evaluation of [TOP_SNIPPETS(content, queries)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:19: java.lang.IllegalArgumentException: single-value function encountered multi-value
-
-snippets:keyword
-null
-;
-
 topSnippetsWithNullField
 required_capability: top_snippets_function
 
@@ -347,4 +333,27 @@ book_no:keyword | title:text                                            | snippe
 1502            | Selected Passages from Correspondence with Friends    | null
 1937            | The Best Short Stories of Dostoevsky (Modern Library) | null
 1985            | Brothers Karamazov                                    | null
+;
+
+topSnippetsNumWordsZeroHighlightPrecedingChunk
+required_capability: top_snippets_highlight
+// tag::top-snippets-num-words-zero-highlight-preceding-chunk[]
+ROW content = CONCAT(
+    "# Climate Change Solutions\n\n",
+    "## Renewable Energy\n",
+    "Solar and wind power are becoming cost-competitive with fossil fuels. Investment in clean energy infrastructure creates jobs.\n\n",
+    "## Carbon Capture\n",
+    "Direct air capture technology removes CO2 from the atmosphere. These systems require significant energy input but show promise for large-scale deployment.\n\n",
+    "## Policy Changes\n",
+    "Government regulations can accelerate the transition to clean energy through carbon pricing and renewable energy mandates.")
+| EVAL chunked_content = CHUNK(content, {"strategy": "recursive", "max_chunk_size": 30, "separators": ["##", "\n\n"]})
+| EVAL snippets = TOP_SNIPPETS(chunked_content, "clean energy", {"num_words": "0", "num_snippets": 1, "highlight":true})
+| KEEP snippets 
+// end::top-snippets-num-words-zero-highlight-preceding-chunk[]
+;
+
+// tag::top-snippets-num-words-zero-highlight-preceding-chunk-result[]
+snippets:keyword  
+\## Policy Changes\nGovernment regulations can accelerate the transition to <em>clean</em> <em>energy</em> through carbon pricing and renewable <em>energy</em> mandates.
+// end::top-snippets-num-words-zero-highlight-preceding-chunk-result[]
 ;

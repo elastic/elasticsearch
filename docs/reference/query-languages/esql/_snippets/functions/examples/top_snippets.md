@@ -54,7 +54,7 @@ This examples demonstrates how to use `TOP_SNIPPETS` with `RERANK`. By returning
 size, we have more control over the number of tokens that are used for semantic reranking.
 
 ```{applies_to}
-stack: preview 9.4.0
+stack: preview 9.4.1
 ```
 
 ```esql
@@ -74,7 +74,7 @@ returned snippets with `<em>` tags by default. To use different tags, set the `p
 to the desired opening and closing tags respectively.
 
 ```{applies_to}
-stack: preview 9.4.0
+stack: preview 9.4.1
 ```
 
 ```esql
@@ -90,5 +90,32 @@ ROW chunks = ["Alice was beginning to get very tired of sitting by her sister on
 Set `num_words` to 0 to disable chunking entirely. This keeps the input field values as-is,
 which is useful when the text has already been chunked. Combine this with `highlight` set to
 `true` to highlight matched terms within each full value.
+
+```{applies_to}
+stack: preview 9.4.1
+```
+
+```esql
+ROW content = CONCAT(
+    "# Climate Change Solutions\\n\\n",
+    "## Renewable Energy\\n",
+    "Solar and wind power are becoming cost-competitive with fossil fuels. Investment in clean energy infrastructure creates jobs.\\n\\n",
+    "## Carbon Capture\\n",
+    "Direct air capture technology removes CO2 from the atmosphere. These systems require significant energy input but show promise for large-scale deployment.\\n\\n",
+    "## Policy Changes\\n",
+    "Government regulations can accelerate the transition to clean energy through carbon pricing and renewable energy mandates.")
+| EVAL chunked_content = CHUNK(content, {"strategy": "recursive", "max_chunk_size": 30, "separators": ["##", "\\n\\n"]})
+| EVAL snippets = TOP_SNIPPETS(chunked_content, "clean energy", {"num_words": "0", "num_snippets": 1, "highlight":true})
+| KEEP snippets
+```
+
+| snippets:keyword |
+| --- |
+| \## Policy Changes\nGovernment regulations can accelerate the transition to <em>clean</em> <em>energy</em> through carbon pricing and renewable <em>energy</em> mandates. |
+
+
+This is another example of setting `num_words` to 0, this time applied to a column that has
+    already been chunked with the `CHUNK` command. Because the text is pre-chunked, no further
+    splitting is needed, each chunk is scored and highlighted individually.
 
 

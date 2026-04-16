@@ -502,7 +502,15 @@ public abstract class GoldenTestCase extends ESTestCase {
 
     // Visible for testing.
     static String normalizeString(String input) {
-        return normalizeNameIds(normalizeSyntheticNames(input));
+        return normalizeRandomSeeds(normalizeNameIds(normalizeSyntheticNames(input)));
+    }
+
+    /**
+     * Rewrites seeds of random sampling queries to a fixed seed of 42.
+     * The seed generated during plan building can vary between runs, so this is needed to keep golden output deterministic.
+     */
+    private static String normalizeRandomSeeds(String line) {
+        return line.replaceAll("(\"seed\"\\s*:\\s*)(-?\\d+)", "$142");
     }
 
     /**

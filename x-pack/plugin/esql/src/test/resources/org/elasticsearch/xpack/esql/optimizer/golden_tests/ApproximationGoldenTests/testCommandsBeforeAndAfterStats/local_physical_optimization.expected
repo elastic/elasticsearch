@@ -15,7 +15,7 @@ ProjectExec[[avg{r}#0, avg_squared{r}#1, _approximation_confidence_interval(avg)
       {
         "random_sampling" : {
           "query" : 0.0123456789,
-          "seed" : 65300135,
+          "seed" : 42,
           "hash" : 0
         }
       }

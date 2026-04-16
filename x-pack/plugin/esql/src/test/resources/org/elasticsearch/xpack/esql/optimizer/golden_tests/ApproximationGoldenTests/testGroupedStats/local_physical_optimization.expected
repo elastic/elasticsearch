@@ -15,7 +15,7 @@ ProjectExec[[COUNT(mv){r}#0, mv{f}#1, _approximation_confidence_interval(COUNT(m
       {
         "random_sampling" : {
           "query" : 0.0123456789,
-          "seed" : -59598310,
+          "seed" : 42,
           "hash" : 0
         }
       }

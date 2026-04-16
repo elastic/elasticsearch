@@ -14,7 +14,7 @@ ProjectExec[[SUM(mv){r}#0, COUNT(mv){r}#1]]
       {
         "random_sampling" : {
           "query" : 0.0123456789,
-          "seed" : 320024117,
+          "seed" : 42,
           "hash" : 0
         }
       }

@@ -202,7 +202,13 @@ public abstract class AbstractAsyncBulkByScrollAction<
         this.remoteVersion = remoteVersion;
         paginatedHitSource = buildScrollableResultSource(
             backoffPolicy,
-            prepareSearchRequest(mainRequest, needsSourceDocumentVersions, needsSourceDocumentSeqNoAndPrimaryTerm, needsVectors, remoteVersion)
+            prepareSearchRequest(
+                mainRequest,
+                needsSourceDocumentVersions,
+                needsSourceDocumentSeqNoAndPrimaryTerm,
+                needsVectors,
+                remoteVersion
+            )
         );
         scriptApplier = Objects.requireNonNull(buildScriptApplier(), "script applier must not be null");
     }

@@ -365,7 +365,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         }
     }
 
-    private static final AllowedFailureRule[] ALLOWED_FAILURE_RULES = { ctx -> isAllowedError(ctx.errorMessage),
+    private static final AllowedFailureRule[] ALLOWED_FAILURE_RULES = {
+        ctx -> isAllowedError(ctx.errorMessage),
         ctx -> isUnmappedFieldError(ctx.errorMessage, ctx.query),
         ctx -> isScalarTypeMismatchError(ctx.errorMessage),
         ctx -> isFieldFullTextError(ctx.errorMessage, ctx.query, ctx.previousCommands, ctx.currentSchema),

@@ -45,8 +45,8 @@ inline void fmai7u(__m512i& acc, const int8_t* pa, const int8_t* pb) {
 }
 
 static inline int32_t dot7u_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
-    int32_t res = 0;
     int i = 0;
+    __m512i total_sum = _mm512_setzero_si512();
     if (dims >= sizeof(__m512i)) {
         i = dims & ~(sizeof(__m512i) - 1);
 
@@ -89,9 +89,7 @@ static inline int32_t dot7u_inner(const int8_t* a, const int8_t* b, const int32_
             pb += sizeof(__m512i);
         }
 
-        // reduce (accumulate all)
-        __m512i total_sum = tree_reduce<batches, __m512i, _mm512_add_epi32>(acc);
-        res = _mm512_reduce_add_epi32(total_sum);
+        total_sum = tree_reduce<batches, __m512i, _mm512_add_epi32>(acc);
     }
     // Masked tail: handle remaining elements (< 64) with a single masked SIMD iteration.
     // Zeroed lanes from maskz_loadu produce zeros in maddubs, contributing nothing to the sum.
@@ -102,9 +100,9 @@ static inline int32_t dot7u_inner(const int8_t* a, const int8_t* b, const int32_
         const __m512i vb = _mm512_maskz_loadu_epi8(mask, b + i);
         const __m512i vab = _mm512_maddubs_epi16(va, vb);
         const __m512i ones = _mm512_set1_epi16(1);
-        res += _mm512_reduce_add_epi32(_mm512_madd_epi16(ones, vab));
+        total_sum = _mm512_add_epi32(total_sum, _mm512_madd_epi16(ones, vab));
     }
-    return res;
+    return _mm512_reduce_add_epi32(total_sum);
 }
 
 EXPORT int32_t vec_dot7u_2(const int8_t* a, const int8_t* b, const int32_t dims) {
@@ -141,8 +139,8 @@ inline void sqri7u(__m512i& acc, const int8_t* pa, const int8_t* pb) {
 }
 
 static inline int32_t sqr7u_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
-    int32_t res = 0;
     int i = 0;
+    __m512i total_sum = _mm512_setzero_si512();
     if (dims >= sizeof(__m512i)) {
         i = dims & ~(sizeof(__m512i) - 1);
 
@@ -185,9 +183,7 @@ static inline int32_t sqr7u_inner(const int8_t* a, const int8_t* b, const int32_
             pb += sizeof(__m512i);
         }
 
-        // reduce (accumulate all)
-        __m512i total_sum = tree_reduce<batches, __m512i, _mm512_add_epi32>(acc);
-        res = _mm512_reduce_add_epi32(total_sum);
+        total_sum = tree_reduce<batches, __m512i, _mm512_add_epi32>(acc);
     }
     // Masked tail: handle remaining elements (< 64) with a single masked SIMD iteration.
     // Zeroed lanes from maskz_loadu produce zeros in sub/abs/maddubs, contributing nothing to the sum.
@@ -200,9 +196,9 @@ static inline int32_t sqr7u_inner(const int8_t* a, const int8_t* b, const int32_
         const __m512i abs_dist = _mm512_abs_epi8(dist);
         const __m512i sqr_add = _mm512_maddubs_epi16(abs_dist, abs_dist);
         const __m512i ones = _mm512_set1_epi16(1);
-        res += _mm512_reduce_add_epi32(_mm512_madd_epi16(ones, sqr_add));
+        total_sum = _mm512_add_epi32(total_sum, _mm512_madd_epi16(ones, sqr_add));
     }
-    return res;
+    return _mm512_reduce_add_epi32(total_sum);
 }
 
 EXPORT int32_t vec_sqr7u_2(const int8_t* a, const int8_t* b, const int32_t dims) {
@@ -240,8 +236,8 @@ inline void fmai8(__m512i& acc, const int8_t* pa, const int8_t* pb) {
 }
 
 static inline int32_t doti8_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
-    int32_t res = 0;
     int i = 0;
+    __m512i total_sum = _mm512_setzero_si512();
     if (dims >= sizeof(__m256i)) {
         i = dims & ~(sizeof(__m256i) - 1);
 
@@ -283,8 +279,7 @@ static inline int32_t doti8_inner(const int8_t* a, const int8_t* b, const int32_
             pb += sizeof(__m256i);
         }
 
-        __m512i total_sum = tree_reduce<batches, __m512i, _mm512_add_epi32>(acc);
-        res = _mm512_reduce_add_epi32(total_sum);
+        total_sum = tree_reduce<batches, __m512i, _mm512_add_epi32>(acc);
     }
     // Masked tail: sign-extend remaining elements (< 32) with a single masked SIMD iteration.
     // Zeroed lanes from maskz_loadu produce zeros in madd_epi16, contributing nothing to the sum.
@@ -293,9 +288,9 @@ static inline int32_t doti8_inner(const int8_t* a, const int8_t* b, const int32_
         const __mmask32 mask = (__mmask32)((1ULL << remaining) - 1);
         const __m512i a16 = _mm512_cvtepi8_epi16(_mm256_maskz_loadu_epi8(mask, a + i));
         const __m512i b16 = _mm512_cvtepi8_epi16(_mm256_maskz_loadu_epi8(mask, b + i));
-        res += _mm512_reduce_add_epi32(_mm512_madd_epi16(a16, b16));
+        total_sum = _mm512_add_epi32(total_sum, _mm512_madd_epi16(a16, b16));
     }
-    return res;
+    return _mm512_reduce_add_epi32(total_sum);
 }
 
 EXPORT f32_t vec_doti8_2(const int8_t* a, const int8_t* b, const int32_t dims) {
@@ -338,8 +333,8 @@ inline void sqri8(__m512i& acc, const int8_t* pa, const int8_t* pb) {
 }
 
 static inline int32_t sqri8_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
-    int32_t res = 0;
     int i = 0;
+    __m512i total_sum = _mm512_setzero_si512();
     if (dims >= sizeof(__m256i)) {
         i = dims & ~(sizeof(__m256i) - 1);
 
@@ -381,8 +376,7 @@ static inline int32_t sqri8_inner(const int8_t* a, const int8_t* b, const int32_
             pb += sizeof(__m256i);
         }
 
-        __m512i total_sum = tree_reduce<batches, __m512i, _mm512_add_epi32>(acc);
-        res = _mm512_reduce_add_epi32(total_sum);
+        total_sum = tree_reduce<batches, __m512i, _mm512_add_epi32>(acc);
     }
     // Masked tail: zeroed lanes from maskz_loadu produce zeros in sub/madd, contributing nothing.
     const int remaining = dims - i;
@@ -391,9 +385,9 @@ static inline int32_t sqri8_inner(const int8_t* a, const int8_t* b, const int32_
         const __m512i a16 = _mm512_cvtepi8_epi16(_mm256_maskz_loadu_epi8(mask, a + i));
         const __m512i b16 = _mm512_cvtepi8_epi16(_mm256_maskz_loadu_epi8(mask, b + i));
         const __m512i dist = _mm512_sub_epi16(a16, b16);
-        res += _mm512_reduce_add_epi32(_mm512_madd_epi16(dist, dist));
+        total_sum = _mm512_add_epi32(total_sum, _mm512_madd_epi16(dist, dist));
     }
-    return res;
+    return _mm512_reduce_add_epi32(total_sum);
 }
 
 EXPORT f32_t vec_sqri8_2(const int8_t* a, const int8_t* b, const int32_t dims) {
@@ -442,21 +436,20 @@ static inline f32_t cosi8_inner(const int8_t* a, const int8_t* b, const int32_t 
         b_norm = _mm512_add_epi32(_mm512_madd_epi16(b16, b16), b_norm);
     }
 
-    int32_t sum_i32 = _mm512_reduce_add_epi32(sum);
-    int32_t a_norm_i32 = _mm512_reduce_add_epi32(a_norm);
-    int32_t b_norm_i32 = _mm512_reduce_add_epi32(b_norm);
-
     // Masked tail
     const int remaining = dims - i;
     if (remaining > 0) {
         const __mmask32 mask = (__mmask32)((1ULL << remaining) - 1);
         const __m512i a16 = _mm512_cvtepi8_epi16(_mm256_maskz_loadu_epi8(mask, a + i));
         const __m512i b16 = _mm512_cvtepi8_epi16(_mm256_maskz_loadu_epi8(mask, b + i));
-        sum_i32 += _mm512_reduce_add_epi32(_mm512_madd_epi16(a16, b16));
-        a_norm_i32 += _mm512_reduce_add_epi32(_mm512_madd_epi16(a16, a16));
-        b_norm_i32 += _mm512_reduce_add_epi32(_mm512_madd_epi16(b16, b16));
+        sum = _mm512_add_epi32(_mm512_madd_epi16(a16, b16), sum);
+        a_norm = _mm512_add_epi32(_mm512_madd_epi16(a16, a16), a_norm);
+        b_norm = _mm512_add_epi32(_mm512_madd_epi16(b16, b16), b_norm);
     }
 
+    int32_t sum_i32 = _mm512_reduce_add_epi32(sum);
+    int32_t a_norm_i32 = _mm512_reduce_add_epi32(a_norm);
+    int32_t b_norm_i32 = _mm512_reduce_add_epi32(b_norm);
     return (f32_t) ((double) sum_i32 / __builtin_sqrt((double) a_norm_i32 * b_norm_i32));
 }
 
@@ -485,14 +478,14 @@ static inline void cosi8_inner_bulk(
         const __m512i vb16 = _mm512_cvtepi8_epi16(_mm256_loadu_si256((const __m256i*)(b + bi)));
         b_norms = _mm512_add_epi32(_mm512_madd_epi16(vb16, vb16), b_norms);
     }
-    int32_t b_norm = _mm512_reduce_add_epi32(b_norms);
     // Masked tail for b norm
     const int b_remaining = dims - bi;
     if (b_remaining > 0) {
         const __mmask32 mask = (__mmask32)((1ULL << b_remaining) - 1);
         const __m512i vb16 = _mm512_cvtepi8_epi16(_mm256_maskz_loadu_epi8(mask, b + bi));
-        b_norm += _mm512_reduce_add_epi32(_mm512_madd_epi16(vb16, vb16));
+        b_norms = _mm512_add_epi32(_mm512_madd_epi16(vb16, vb16), b_norms);
     }
+    int32_t b_norm = _mm512_reduce_add_epi32(b_norms);
 
     const int8_t* current_vecs[batches];
     init_pointers<batches, TData, int8_t, mapper>(current_vecs, a, pitch, offsets, 0, count);
@@ -526,13 +519,6 @@ static inline void cosi8_inner_bulk(
             });
         }
 
-        int32_t sum[batches];
-        int32_t a_norm[batches];
-        apply_indexed<batches>([&](auto I) {
-            sum[I] = _mm512_reduce_add_epi32(sums[I]);
-            a_norm[I] = _mm512_reduce_add_epi32(a_norms[I]);
-        });
-
         // Masked tail
         const int remaining = dims - i;
         if (remaining > 0) {
@@ -540,15 +526,19 @@ static inline void cosi8_inner_bulk(
             const __m512i vb16 = _mm512_cvtepi8_epi16(_mm256_maskz_loadu_epi8(mask, b + i));
             apply_indexed<batches>([&](auto I) {
                 const __m512i va16 = _mm512_cvtepi8_epi16(_mm256_maskz_loadu_epi8(mask, current_vecs[I] + i));
-                sum[I] += _mm512_reduce_add_epi32(_mm512_madd_epi16(va16, vb16));
-                a_norm[I] += _mm512_reduce_add_epi32(_mm512_madd_epi16(va16, va16));
+                sums[I] = _mm512_add_epi32(_mm512_madd_epi16(va16, vb16), sums[I]);
+                a_norms[I] = _mm512_add_epi32(_mm512_madd_epi16(va16, va16), a_norms[I]);
             });
         }
 
         // Vectorized cosine finalization: results[i] = sum[i] / sqrt(a_norm[i] * b_norm)
         // batches=4 fits exactly in one __m128
-        __m128 sum_ps = _mm_setr_ps(sum[0], sum[1], sum[2], sum[3]);
-        __m128 a_norm_ps = _mm_setr_ps(a_norm[0], a_norm[1], a_norm[2], a_norm[3]);
+        __m128 sum_ps = _mm_setr_ps(
+            _mm512_reduce_add_epi32(sums[0]), _mm512_reduce_add_epi32(sums[1]),
+            _mm512_reduce_add_epi32(sums[2]), _mm512_reduce_add_epi32(sums[3]));
+        __m128 a_norm_ps = _mm_setr_ps(
+            _mm512_reduce_add_epi32(a_norms[0]), _mm512_reduce_add_epi32(a_norms[1]),
+            _mm512_reduce_add_epi32(a_norms[2]), _mm512_reduce_add_epi32(a_norms[3]));
         __m128 b_norm_ps = _mm_set1_ps(b_norm);
         __m128 res = _mm_div_ps(sum_ps, _mm_sqrt_ps(_mm_mul_ps(a_norm_ps, b_norm_ps)));
         _mm_storeu_ps(results + c, res);

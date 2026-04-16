@@ -1671,8 +1671,10 @@ public final class EsqlTestUtils {
         for (String indexPatternOrSubquery : indexPatternsAndSubqueries) {
             // remove the from keyword if it's there
             indexPatternOrSubquery = indexPatternOrSubquery.strip();
-            if (indexPatternOrSubquery.toLowerCase(Locale.ROOT).startsWith("from ")) {
-                indexPatternOrSubquery = indexPatternOrSubquery.strip().substring(5);
+            if (indexPatternOrSubquery.length() > 4
+                && indexPatternOrSubquery.substring(0, 4).toLowerCase(Locale.ROOT).equals("from")
+                && Character.isWhitespace(indexPatternOrSubquery.charAt(4))) {
+                indexPatternOrSubquery = indexPatternOrSubquery.substring(4).strip();
             }
             // substitute the index patterns or subquery with remote index patterns
             if (isSubquery(indexPatternOrSubquery)) {

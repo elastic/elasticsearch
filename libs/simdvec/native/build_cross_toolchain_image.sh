@@ -39,7 +39,7 @@ cd "$(dirname "$0")"
 
 if [ "$LOCAL" = true ]; then
   echo "Building $IMAGE (host platform only) ..."
-  docker build \
+  docker build --pull \
     -f Dockerfile.cross-toolchain \
     -t "$IMAGE" \
     .

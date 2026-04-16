@@ -29,7 +29,7 @@ import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchTaskWatchdog;
 import org.elasticsearch.action.search.SearchTransportService;
-import org.elasticsearch.action.support.ReshardingRetryService;
+import org.elasticsearch.action.support.ReshardingActionHelper;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.client.internal.Client;
@@ -1384,7 +1384,7 @@ class NodeConstruction {
             () -> Log4jWriter.PROVIDER
         );
 
-        ReshardingRetryService reshardingRetryService = new ReshardingRetryService(clusterService, projectResolver, threadPool);
+        ReshardingActionHelper reshardingActionHelper = new ReshardingActionHelper(clusterService, projectResolver, threadPool);
 
         modules.add(b -> {
             b.bind(NodeService.class).toInstance(nodeService);
@@ -1434,7 +1434,7 @@ class NodeConstruction {
             b.bind(ActionLoggingFieldsProvider.class).toInstance(loggingFieldsProvider);
             b.bind(ActivityLogWriterProvider.class).toInstance(logWriterProvider);
             b.bind(DataStreamLifecycleErrorStore.class).toInstance(dlmErrorStore);
-            b.bind(ReshardingRetryService.class).toInstance(reshardingRetryService);
+            b.bind(ReshardingActionHelper.class).toInstance(reshardingActionHelper);
         });
 
         if (ReadinessService.enabled(environment)) {

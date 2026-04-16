@@ -20,7 +20,7 @@ import org.elasticsearch.action.RetryableSplitAwareRequest;
 import org.elasticsearch.action.SplitAwareRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
-import org.elasticsearch.action.support.ReshardingRetryService;
+import org.elasticsearch.action.support.ReshardingActionHelper;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.replication.StaleRequestException;
@@ -311,7 +311,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                         internalRequest.concreteIndex()
                     );
                     return retryableSplitAwareRequest.getSplitShardCountSummary().equals(staleSummary) == false;
-                }, ReshardingRetryService.ROUTE_REFRESH_TIMEOUT.get(clusterService.getSettings()), logger);
+                }, ReshardingActionHelper.ROUTE_REFRESH_TIMEOUT.get(clusterService.getSettings()), logger);
             } else {
                 // SplitAwareRequest marks requests that intentionally opted out of retries.
                 // So we bubble the stale request exception up to be retried on a higher level.

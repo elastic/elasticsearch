@@ -13,7 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.ReshardingRetryService;
+import org.elasticsearch.action.support.ReshardingActionHelper;
 import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -40,7 +40,7 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
     private final NodeClient client;
     private final ProjectResolver projectResolver;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
-    private final ReshardingRetryService reshardingRetryService;
+    private final ReshardingActionHelper reshardingActionHelper;
 
     @Inject
     public TransportMultiTermVectorsAction(
@@ -50,7 +50,7 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
         ActionFilters actionFilters,
         ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        ReshardingRetryService reshardingRetryService
+        ReshardingActionHelper reshardingActionHelper
     ) {
         super(
             MultiTermVectorsAction.NAME,
@@ -63,7 +63,7 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
         this.client = client;
         this.projectResolver = projectResolver;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.reshardingRetryService = reshardingRetryService;
+        this.reshardingActionHelper = reshardingActionHelper;
     }
 
     @Override
@@ -81,7 +81,7 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
             if (staleRequestExceptions.isEmpty() == false) {
                 // todo: this retries the entire request on any StaleRequestException. It might be worth saving the other items
                 // and only retrying the ones that failed with StaleRequestException, then merging the results.
-                reshardingRetryService.waitForRoutingUpdate(
+                reshardingActionHelper.waitForRoutingUpdate(
                     staleRequestExceptions,
                     listener.delegateFailureAndWrap((l, unused) -> executeOnce(request, l))
                 );

@@ -37,16 +37,16 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.action.support.ReshardingRetryService.ROUTE_REFRESH_TIMEOUT;
+import static org.elasticsearch.action.support.ReshardingActionHelper.ROUTE_REFRESH_TIMEOUT;
 import static org.elasticsearch.common.UUIDs.randomBase64UUID;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class ReshardingRetryServiceTests extends ESTestCase {
+public class ReshardingActionHelperTests extends ESTestCase {
     public void testStaleRequestExceptionTimesOut() {
         Index index = new Index("index1", randomBase64UUID());
 
-        var threadPool = new TestThreadPool(ReshardingRetryServiceTests.class.getSimpleName());
+        var threadPool = new TestThreadPool(ReshardingActionHelperTests.class.getSimpleName());
 
         ProjectId projectId = randomProjectIdOrDefault();
         var projectResolver = TestProjectResolvers.singleProject(projectId);
@@ -104,7 +104,7 @@ public class ReshardingRetryServiceTests extends ESTestCase {
             clusterApplierService.setNodeConnectionsService(ClusterServiceUtils.createNoOpNodeConnectionsService());
             clusterApplierService.start();
             when(clusterService.getClusterApplierService()).thenReturn(clusterApplierService);
-            var sut = new ReshardingRetryService(clusterService, projectResolver, threadPool);
+            var sut = new ReshardingActionHelper(clusterService, projectResolver, threadPool);
 
             var shardId = new ShardId(index, 0);
             // Note how the summary matches the number of shards in the index

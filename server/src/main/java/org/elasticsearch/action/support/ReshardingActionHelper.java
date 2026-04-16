@@ -28,7 +28,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
 
-public class ReshardingRetryService {
+public class ReshardingActionHelper {
     // How long to wait to see a shard routing update after receiving a stale request failure
     // Deliberately is not registered in ClusterSettings.BUILT_IN_CLUSTER_SETTINGS because it is only for tests
     public static final Setting<TimeValue> ROUTE_REFRESH_TIMEOUT = Setting.timeSetting(
@@ -41,9 +41,9 @@ public class ReshardingRetryService {
     private final ProjectResolver projectResolver;
     private final ThreadPool threadPool;
 
-    private static final Logger logger = LogManager.getLogger(ReshardingRetryService.class);
+    private static final Logger logger = LogManager.getLogger(ReshardingActionHelper.class);
 
-    public ReshardingRetryService(ClusterService clusterService, ProjectResolver projectResolver, ThreadPool threadPool) {
+    public ReshardingActionHelper(ClusterService clusterService, ProjectResolver projectResolver, ThreadPool threadPool) {
         this.clusterService = clusterService;
         this.projectResolver = projectResolver;
         this.threadPool = threadPool;

@@ -15,7 +15,7 @@ import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.ReshardingRetryService;
+import org.elasticsearch.action.support.ReshardingActionHelper;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -201,7 +201,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
             projectResolver,
             new Resolver(),
             mock(IndicesService.class),
-            new ReshardingRetryService(clusterService, projectResolver, threadPool)
+            new ReshardingActionHelper(clusterService, projectResolver, threadPool)
         ) {
             @Override
             protected void executeShardAction(
@@ -236,7 +236,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
             projectResolver,
             new Resolver(),
             mock(IndicesService.class),
-            new ReshardingRetryService(clusterService, projectResolver, threadPool)
+            new ReshardingActionHelper(clusterService, projectResolver, threadPool)
         ) {
             @Override
             protected void executeShardAction(

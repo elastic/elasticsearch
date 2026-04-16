@@ -304,16 +304,15 @@ public class VectorScorerOSQBenchmark {
                 ES940OSQVectorsScorer.BULK_SIZE,
                 resolvedEncoding
             );
-            case PANAMA -> new PanamaESVectorizationProvider(false)
-                .newES940OSQVectorsScorer(
-                    input,
-                    (byte) queryBits,
-                    (byte) docBits,
-                    dims,
-                    data.binaryIndexLength,
-                    BULK_SIZE,
-                    resolvedEncoding
-                );
+            case PANAMA -> new PanamaESVectorizationProvider(false).newES940OSQVectorsScorer(
+                input,
+                (byte) queryBits,
+                (byte) docBits,
+                dims,
+                data.binaryIndexLength,
+                BULK_SIZE,
+                resolvedEncoding
+            );
             case NATIVE -> ESVectorizationProvider.getInstance()
                 .newES940OSQVectorsScorer(
                     input,

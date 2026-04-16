@@ -50,13 +50,7 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
         for (int i = 0; i < REPETITIONS; i++) {
             var seed = randomLong();
 
-            var data = VectorScorerOSQBenchmark.generateRandomVectorData(
-                new Random(seed),
-                dims,
-                bits,
-                int4Encoding,
-                similarityFunction
-            );
+            var data = VectorScorerOSQBenchmark.generateRandomVectorData(new Random(seed), dims, bits, int4Encoding, similarityFunction);
 
             float[] expected = null;
             for (var impl : VectorScorerOSQBenchmark.VectorImplementation.values()) {
@@ -77,8 +71,7 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
                         continue;
                     }
                     assertArrayEqualsPercent(impl.toString(), expected, result, deltaPercent, DEFAULT_DELTA);
-                }
-                finally {
+                } finally {
                     bench.teardown();
                     IOUtils.rm(bench.tempDir);
                 }
@@ -90,13 +83,7 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
         for (int i = 0; i < REPETITIONS; i++) {
             var seed = randomLong();
 
-            var data = VectorScorerOSQBenchmark.generateRandomVectorData(
-                new Random(seed),
-                dims,
-                bits,
-                int4Encoding,
-                similarityFunction
-            );
+            var data = VectorScorerOSQBenchmark.generateRandomVectorData(new Random(seed), dims, bits, int4Encoding, similarityFunction);
 
             float[] expected = null;
             for (var impl : VectorScorerOSQBenchmark.VectorImplementation.values()) {
@@ -117,8 +104,7 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
                         continue;
                     }
                     assertArrayEqualsPercent(impl.toString(), expected, result, deltaPercent, DEFAULT_DELTA);
-                }
-                finally {
+                } finally {
                     bench.teardown();
                     IOUtils.rm(bench.tempDir);
                 }

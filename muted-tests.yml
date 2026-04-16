@@ -460,6 +460,9 @@ tests:
 - class: org.elasticsearch.versioning.ConcurrentSeqNoVersioningIT
   method: testSeqNoCASLinearizability
   issue: https://github.com/elastic/elasticsearch/issues/146568
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeUnmappedLoadIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/145900
 
 # Examples:
 #

@@ -26,27 +26,27 @@ final class PlainValueDecoder {
     }
 
     void readInts(int[] values, int offset, int count) {
-        for (int i = 0; i < count; i++) {
-            values[offset + i] = buffer.getInt();
-        }
+        buffer.asIntBuffer().get(values, offset, count);
+        buffer.position(buffer.position() + (count << 2));
     }
 
     void readLongs(long[] values, int offset, int count) {
-        for (int i = 0; i < count; i++) {
-            values[offset + i] = buffer.getLong();
-        }
+        buffer.asLongBuffer().get(values, offset, count);
+        buffer.position(buffer.position() + (count << 3));
     }
 
     void readFloats(double[] values, int offset, int count) {
+        float[] tmp = new float[count];
+        buffer.asFloatBuffer().get(tmp, 0, count);
+        buffer.position(buffer.position() + (count << 2));
         for (int i = 0; i < count; i++) {
-            values[offset + i] = buffer.getFloat();
+            values[offset + i] = tmp[i];
         }
     }
 
     void readDoubles(double[] values, int offset, int count) {
-        for (int i = 0; i < count; i++) {
-            values[offset + i] = buffer.getDouble();
-        }
+        buffer.asDoubleBuffer().get(values, offset, count);
+        buffer.position(buffer.position() + (count << 3));
     }
 
     void readBooleans(boolean[] values, int offset, int count) {

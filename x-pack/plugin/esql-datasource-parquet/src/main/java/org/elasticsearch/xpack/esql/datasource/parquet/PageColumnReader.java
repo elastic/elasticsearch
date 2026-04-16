@@ -1773,50 +1773,18 @@ final class PageColumnReader {
                 int nonNullSkipped = defDecoder.skip(fromPage);
                 skipValues(nonNullSkipped);
             } else {
-                BitSet pageNulls = new BitSet(fromPage);
-                int totalNonNull = defDecoder.readBatch(fromPage, pageNulls, 0);
-
-                // Track nulls for selected rows in the output BitSet
-                int outPos = outOffset;
-                int selIdx = pageSel.nextSelected(0);
-                while (selIdx >= 0 && selIdx < fromPage) {
-                    if (pageNulls.get(selIdx)) {
-                        nulls.set(outPos);
-                    }
-                    outPos++;
-                    selIdx = pageSel.nextSelected(selIdx + 1);
-                }
+                BitSet valueSel = new BitSet(fromPage);
+                int[] metrics = defDecoder.readBatchSelectiveWithValueTracking(fromPage, nulls, outOffset, pageSel, valueSel);
+                int totalNonNull = metrics[0];
+                int selectedNonNull = metrics[1];
 
                 if (totalNonNull == 0) {
                     // No values to read from the value stream
+                } else if (selectedNonNull > 0) {
+                    RowSelection nonNullValueSelection = new RowSelection(valueSel, totalNonNull, selectedNonNull);
+                    pageReader.read(values, nonNullValueSelection, totalNonNull, outOffset, nulls, pageSelectedCount);
                 } else {
-                    // Build value-level selection: among totalNonNull value positions,
-                    // which correspond to selected non-null rows?
-                    BitSet valueSel = new BitSet(totalNonNull);
-                    int valuePos = 0;
-                    int selectedNonNull = 0;
-                    selIdx = pageSel.nextSelected(0);
-                    for (int i = 0; i < fromPage; i++) {
-                        boolean isNull = pageNulls.get(i);
-                        boolean isSelected = (i == selIdx);
-                        if (isSelected && isNull == false) {
-                            valueSel.set(valuePos);
-                            selectedNonNull++;
-                        }
-                        if (isSelected) {
-                            selIdx = pageSel.nextSelected(selIdx + 1);
-                        }
-                        if (isNull == false) {
-                            valuePos++;
-                        }
-                    }
-
-                    if (selectedNonNull > 0) {
-                        RowSelection nonNullValueSelection = new RowSelection(valueSel, totalNonNull, selectedNonNull);
-                        pageReader.read(values, nonNullValueSelection, totalNonNull, outOffset, nulls, pageSelectedCount);
-                    } else {
-                        skipValues(totalNonNull);
-                    }
+                    skipValues(totalNonNull);
                 }
                 outOffset += pageSelectedCount;
             }

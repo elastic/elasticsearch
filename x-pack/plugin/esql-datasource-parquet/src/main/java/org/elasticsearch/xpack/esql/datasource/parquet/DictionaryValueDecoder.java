@@ -327,20 +327,59 @@ final class DictionaryValueDecoder {
     }
 
     private static void unpack8Values(byte[] packed, int byteOffset, int[] out, int outOffset, int bitWidth) {
-        for (int i = 0; i < 8; i++) {
-            out[outOffset + i] = readBitsLE(packed, byteOffset * 8 + i * bitWidth, bitWidth);
+        switch (bitWidth) {
+            case 0 -> {
+                for (int i = 0; i < 8; i++) {
+                    out[outOffset + i] = 0;
+                }
+            }
+            case 1 -> {
+                int b = packed[byteOffset] & 0xFF;
+                for (int i = 0; i < 8; i++) {
+                    out[outOffset + i] = (b >>> i) & 1;
+                }
+            }
+            case 2 -> {
+                int word = (packed[byteOffset] & 0xFF) | ((packed[byteOffset + 1] & 0xFF) << 8);
+                for (int i = 0; i < 8; i++) {
+                    out[outOffset + i] = (word >>> (i * 2)) & 0x3;
+                }
+            }
+            case 4 -> {
+                int word = (packed[byteOffset] & 0xFF) | ((packed[byteOffset + 1] & 0xFF) << 8) | ((packed[byteOffset + 2] & 0xFF) << 16)
+                    | ((packed[byteOffset + 3] & 0xFF) << 24);
+                for (int i = 0; i < 8; i++) {
+                    out[outOffset + i] = (word >>> (i * 4)) & 0xF;
+                }
+            }
+            case 8 -> {
+                for (int i = 0; i < 8; i++) {
+                    out[outOffset + i] = packed[byteOffset + i] & 0xFF;
+                }
+            }
+            case 16 -> {
+                for (int i = 0; i < 8; i++) {
+                    int base = byteOffset + i * 2;
+                    out[outOffset + i] = (packed[base] & 0xFF) | ((packed[base + 1] & 0xFF) << 8);
+                }
+            }
+            default -> {
+                int bitBase = byteOffset * 8;
+                for (int i = 0; i < 8; i++) {
+                    out[outOffset + i] = readBitsLE(packed, bitBase + i * bitWidth, bitWidth);
+                }
+            }
         }
     }
 
     private static int readBitsLE(byte[] data, int bitOffset, int width) {
-        int result = 0;
-        for (int b = 0; b < width; b++) {
-            int abs = bitOffset + b;
-            int byteIdx = abs / 8;
-            int bitInByte = abs % 8;
-            int bit = (data[byteIdx] >>> bitInByte) & 1;
-            result |= (bit << b);
+        int byteIdx = bitOffset >>> 3;
+        int bitInByte = bitOffset & 7;
+        long word = 0;
+        int bytesNeeded = ((bitInByte + width) + 7) >>> 3;
+        for (int i = 0; i < bytesNeeded && (byteIdx + i) < data.length; i++) {
+            word |= (long) (data[byteIdx + i] & 0xFF) << (i * 8);
         }
-        return result;
+        return (int) ((word >>> bitInByte) & (width == 32 ? 0xFFFFFFFFL : ((1L << width) - 1)));
     }
 }

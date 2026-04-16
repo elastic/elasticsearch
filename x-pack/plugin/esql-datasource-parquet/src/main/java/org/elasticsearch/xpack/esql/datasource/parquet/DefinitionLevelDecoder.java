@@ -119,6 +119,65 @@ final class DefinitionLevelDecoder {
     }
 
     /**
+     * Combined def-level decode, null tracking, and value-stream position mapping for selective reads.
+     * Decodes all {@code count} def levels (advancing the RLE stream), but only populates output
+     * null positions for selected rows. Also builds a {@link BitSet} of which non-null value-stream
+     * positions correspond to selected non-null rows.
+     *
+     * @param count total rows in the page chunk
+     * @param outputNulls null bitmap for the output (set at output positions)
+     * @param outOffset starting output position
+     * @param selection which rows are selected
+     * @param valueSel output BitSet marking selected non-null positions in the value stream
+     * @return int array of [totalNonNull, selectedNonNull]
+     */
+    int[] readBatchSelectiveWithValueTracking(int count, BitSet outputNulls, int outOffset, RowSelection selection, BitSet valueSel) {
+        if (nonNullable) {
+            int selectedCount = selection.selectedCount();
+            int selIdx = selection.nextSelected(0);
+            for (int i = 0; i < count; i++) {
+                if (i == selIdx) {
+                    valueSel.set(i);
+                    selIdx = selection.nextSelected(selIdx + 1);
+                }
+            }
+            return new int[] { count, selectedCount };
+        }
+        if (count == 0) {
+            return new int[] { 0, 0 };
+        }
+        int totalNonNull = 0;
+        int selectedNonNull = 0;
+        int outPos = outOffset;
+        int valuePos = 0;
+        int selIdx = selection.nextSelected(0);
+        try {
+            for (int i = 0; i < count; i++) {
+                int def = rleDecoder.readInt();
+                boolean isNull = def < maxDefLevel;
+                boolean isSelected = (i == selIdx);
+                if (isSelected) {
+                    if (isNull) {
+                        outputNulls.set(outPos);
+                    } else {
+                        valueSel.set(valuePos);
+                        selectedNonNull++;
+                    }
+                    outPos++;
+                    selIdx = selection.nextSelected(selIdx + 1);
+                }
+                if (isNull == false) {
+                    totalNonNull++;
+                    valuePos++;
+                }
+            }
+        } catch (IOException e) {
+            throw new QlIllegalArgumentException("Failed to read definition levels with value tracking: " + e.getMessage(), e);
+        }
+        return new int[] { totalNonNull, selectedNonNull };
+    }
+
+    /**
      * Skips {@code count} definition levels without materializing values.
      * Returns the number of non-null values that were skipped.
      */

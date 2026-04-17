@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.cluster.metadata.DataSourceSetting;
 import org.elasticsearch.common.ValidationException;
 
 import java.util.HashMap;
@@ -43,7 +44,7 @@ public abstract class DataSourceConfiguration {
     protected DataSourceConfiguration(Map<String, Object> raw, Map<String, DataSourceConfigDefinition> fieldDefs) {
         this.fieldDefs = fieldDefs;
         ValidationException errors = new ValidationException();
-        DataSourceValidator.rejectUnknownFields(raw, fieldDefs.keySet(), errors);
+        DataSourceValidationUtils.rejectUnknownFields(raw, fieldDefs.keySet(), errors);
         Map<String, Object> parsed = new HashMap<>();
         for (var entry : raw.entrySet()) {
             if (fieldDefs.containsKey(entry.getKey()) && entry.getValue() != null) {
@@ -67,7 +68,8 @@ public abstract class DataSourceConfiguration {
     protected boolean hasAnySecretValue() {
         for (var entry : values.entrySet()) {
             DataSourceConfigDefinition def = fieldDefs.get(entry.getKey());
-            if (def != null && def.secret()) {
+            assert def != null : "values map should only contain known fields, got [" + entry.getKey() + "]";
+            if (def.secret()) {
                 return true;
             }
         }
@@ -107,14 +109,13 @@ public abstract class DataSourceConfiguration {
         return v != null ? v.toString() : null;
     }
 
-    /** Returns validated settings as a map from field name to {@link DataSourceStoredSetting}. */
-    public Map<String, DataSourceStoredSetting> toStoredSettings() {
-        Map<String, DataSourceStoredSetting> result = new LinkedHashMap<>();
+    /** Returns validated settings as a map from field name to {@link DataSourceSetting}. */
+    public Map<String, DataSourceSetting> toStoredSettings() {
+        Map<String, DataSourceSetting> result = new LinkedHashMap<>();
         for (var entry : values.entrySet()) {
             DataSourceConfigDefinition def = fieldDefs.get(entry.getKey());
-            if (def != null) {
-                result.put(entry.getKey(), new DataSourceStoredSetting(entry.getValue(), def.secret()));
-            }
+            assert def != null : "values map should only contain known fields, got [" + entry.getKey() + "]";
+            result.put(entry.getKey(), new DataSourceSetting(entry.getValue(), def.secret()));
         }
         return result;
     }

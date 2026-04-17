@@ -123,6 +123,7 @@ toc:
                   - file: esql/commands/keep.md
                   - file: esql/commands/limit.md
                   - file: esql/commands/lookup-join.md
+                  - file: esql/commands/metrics-info.md
                   - file: esql/commands/mmr.md
                   - file: esql/commands/mv_expand.md
                   - file: esql/commands/registered-domain.md
@@ -131,7 +132,8 @@ toc:
                   - file: esql/commands/sample.md
                   - file: esql/commands/sort.md
                   - file: esql/commands/stats-by.md
-                  - hidden: esql/commands/user-agent.md
+                  - file: esql/commands/ts-info.md
+                  - file: esql/commands/user-agent.md
                   - file: esql/commands/uri-parts.md
                   - file: esql/commands/where.md
           - file: esql/esql-functions-operators.md
@@ -314,6 +316,7 @@ toc:
                   - file: esql/functions-operators/string-functions/url_decode.md
               - file: esql/functions-operators/dense-vector-functions.md
                 children:
+                  - hidden: esql/functions-operators/dense-vector-functions/embedding.md
                   - file: esql/functions-operators/dense-vector-functions/knn.md
                   - file: esql/functions-operators/dense-vector-functions/text_embedding.md
                   - file: esql/functions-operators/dense-vector-functions/v_cosine.md
@@ -378,12 +381,13 @@ toc:
           - file: esql/esql-multi-index.md
           - file: esql/esql-cross-clusters.md
           - file: esql/esql-subquery.md
-          - hidden: esql/esql-cross-serverless-projects.md
+          - file: esql/esql-cross-serverless-projects.md
       - file: esql/esql-advanced.md
         children:
           - file: esql/esql-process-data-with-dissect-grok.md
           - file: esql/esql-enrich-data.md
           - file: esql/esql-lookup-join.md
+          - file: esql/esql-query-approximation.md
       - file: esql/esql-types-and-fields.md
         children:
           - file: esql/esql-implicit-casting.md

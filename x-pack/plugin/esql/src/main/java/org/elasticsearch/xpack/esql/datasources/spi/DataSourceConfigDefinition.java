@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.cluster.metadata.DataSourceSetting;
+
 import java.util.Arrays;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -16,7 +18,7 @@ import java.util.stream.Collectors;
  * value semantics. Used by {@link DataSourceConfiguration} subclasses to declare their
  * settings schema and drive validation. This is internal plugin machinery — it is never
  * exposed through the CRUD API or stored in cluster state. The validated output that
- * enters cluster state is {@link DataSourceStoredSetting}.
+ * enters cluster state is {@link DataSourceSetting}.
  *
  * @param name the field's API name (e.g. "access_key", "region")
  * @param secret whether this field holds a credential or other sensitive value
@@ -37,7 +39,7 @@ public record DataSourceConfigDefinition(String name, boolean secret, boolean ca
     }
 
     /** Returns a copy whose values are treated as case-insensitive (normalized to lowercase on input). */
-    public DataSourceConfigDefinition withCaseInsensitive() {
+    public DataSourceConfigDefinition asCaseInsensitive() {
         return new DataSourceConfigDefinition(name, secret, true);
     }
 

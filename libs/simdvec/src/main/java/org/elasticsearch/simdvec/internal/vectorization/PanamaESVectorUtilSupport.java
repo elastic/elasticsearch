@@ -1429,7 +1429,8 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         // The next line implements the floor(exponent + 1)
         IntVector p = (IntVector) exponent.lanewise(VectorOperators.ABS)
             .add(1, exponent.compare(VectorOperators.GT, 0.0f))
-            .convert(VectorOperators.F2I, 0).mul(signs);
+            .convert(VectorOperators.F2I, 0)
+            .mul(signs);
         p = p.max(-30).min(30);
         FloatVector pFloat = (FloatVector) p.convert(VectorOperators.I2F, 0);
         // Replace div(2) with mul(0.5f)

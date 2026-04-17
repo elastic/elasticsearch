@@ -337,7 +337,7 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
              * hit). Waiting for task completion is one of these hooks, specifically waiting on the throttled reindexing task. If
              * {@link #MAXIMUM_REINDEXING_TIMEOUT_SETTING} is not set to something small like 2 seconds, then it would wait for the entire
              * task to finish. Setting the limit to be 2 seconds + heavy throttling guarantees that the task cannot succeed before shutdown
-             * without making the test run too long
+             * without making the test run too long, and gives enough time for the hook to mark the tasks for relocation
              */
             .put(MAXIMUM_REINDEXING_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(2))
             .build();

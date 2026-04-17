@@ -500,16 +500,18 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         assertNotNull(operator);
 
         List<Page> pages = new ArrayList<>();
-        while (operator.isFinished() == false) {
-            Page page = operator.getOutput();
-            if (page != null) {
-                pages.add(page);
+        RuntimeException readFailure = expectThrows(RuntimeException.class, () -> {
+            while (operator.isFinished() == false) {
+                Page page = operator.getOutput();
+                if (page != null) {
+                    pages.add(page);
+                }
             }
-        }
+        });
+        assertThat(readFailure.getCause(), org.hamcrest.Matchers.instanceOf(IOException.class));
+        assertTrue(readFailure.getCause().getMessage().contains("Simulated read error"));
 
-        AsyncExternalSourceOperator.Status status = (AsyncExternalSourceOperator.Status) operator.status();
-        assertNotNull(status.failure());
-        assertTrue(status.failure().getMessage().contains("Simulated read error"));
+        assertEquals("First file should yield one page before the second file fails", 1, pages.size());
 
         for (Page p : pages) {
             p.releaseBlocks();
@@ -839,7 +841,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         operator.close();
     }
 
-    public void testSliceQueueWithZeroOffsetDoesNotWrapWithRangeStorageObject() throws Exception {
+    public void testSliceQueueWithZeroOffsetWrapsRangeForSplitSpan() throws Exception {
         FileSplit split = new FileSplit("test", StoragePath.of("s3://bucket/small.csv"), 0, 1000, "csv", Map.of(), Map.of());
         ExternalSliceQueue sliceQueue = new ExternalSliceQueue(List.of(split));
 
@@ -887,7 +889,13 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
 
         assertEquals(1, capturedObjects.size());
-        assertFalse("Expected no RangeStorageObject for zero offset", capturedObjects.get(0) instanceof RangeStorageObject);
+        assertTrue(
+            "Zero-offset split must still use RangeStorageObject for the split length",
+            capturedObjects.get(0) instanceof RangeStorageObject
+        );
+        RangeStorageObject range0 = (RangeStorageObject) capturedObjects.get(0);
+        assertEquals(0, range0.offset());
+        assertEquals(1000, range0.length());
 
         assertEquals(1, capturedSkipFirstLine.size());
         assertFalse("Zero-offset split should not skip first line", capturedSkipFirstLine.get(0));
@@ -1034,7 +1042,10 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         assertEquals(3, capturedObjects.size());
 
-        assertFalse("First split (offset=0) should not be wrapped", capturedObjects.get(0) instanceof RangeStorageObject);
+        assertTrue("First split (offset=0) must use RangeStorageObject", capturedObjects.get(0) instanceof RangeStorageObject);
+        RangeStorageObject range0 = (RangeStorageObject) capturedObjects.get(0);
+        assertEquals(0, range0.offset());
+        assertEquals(1000, range0.length());
         assertFalse("First split should not skip first line", capturedSkipFirstLine.get(0));
 
         assertTrue("Second split (offset=1000) should be wrapped", capturedObjects.get(1) instanceof RangeStorageObject);

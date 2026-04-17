@@ -288,13 +288,14 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
             // now we are waiting for the task to finish
             logger.trace("Waiting for response to complete");
             AtomicReference<StoredAsyncResponse<TestResponse>> responseRef = new AtomicReference<>();
+            // Unblock execute before wait-for-completion so the listener timeout measures task completion, not time blocked on
+            // executionLatch.
+            executionLatch.countDown();
             CountDownLatch getResponseCountDown = getResponse(
                 responseHolder.get().id,
                 TimeValue.timeValueSeconds(5),
                 ActionTestUtils.assertNoFailureListener(responseRef::set)
             );
-
-            executionLatch.countDown();
             assertThat(getResponseCountDown.await(10, TimeUnit.SECONDS), equalTo(true));
 
             StoredAsyncResponse<TestResponse> response = responseRef.get();

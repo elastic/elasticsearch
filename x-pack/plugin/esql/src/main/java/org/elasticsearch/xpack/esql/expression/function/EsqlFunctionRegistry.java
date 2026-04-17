@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
+import org.elasticsearch.xpack.esql.expression.function.inference.Embedding;
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.expression.function.scalar.Clamp;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
@@ -608,7 +609,8 @@ public class EsqlFunctionRegistry {
                 // dense vector functions
                 Magnitude.DEFINITION,
                 ToDateRange.DEFINITION,
-                Sparkline.DEFINITION } };
+                Sparkline.DEFINITION,
+                Embedding.DEFINITION } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {
@@ -649,6 +651,27 @@ public class EsqlFunctionRegistry {
         protected final boolean variadic;
         protected final DataType targetDataType;
         protected final Hint hint;
+        protected final String appliesTo;
+
+        public ArgSignature(
+            String name,
+            String[] type,
+            String description,
+            boolean optional,
+            boolean variadic,
+            Hint hint,
+            DataType targetDataType,
+            String appliesTo
+        ) {
+            this.name = name;
+            this.type = type;
+            this.description = description;
+            this.optional = optional;
+            this.variadic = variadic;
+            this.targetDataType = targetDataType;
+            this.hint = hint;
+            this.appliesTo = appliesTo;
+        }
 
         public ArgSignature(
             String name,
@@ -659,25 +682,19 @@ public class EsqlFunctionRegistry {
             Hint hint,
             DataType targetDataType
         ) {
-            this.name = name;
-            this.type = type;
-            this.description = description;
-            this.optional = optional;
-            this.variadic = variadic;
-            this.targetDataType = targetDataType;
-            this.hint = hint;
+            this(name, type, description, optional, variadic, hint, targetDataType, "");
         }
 
         public ArgSignature(String name, String[] type, String description, boolean optional, Hint hint, boolean variadic) {
-            this(name, type, description, optional, variadic, hint, UNSUPPORTED);
+            this(name, type, description, optional, variadic, hint, UNSUPPORTED, "");
         }
 
         public ArgSignature(String name, String[] type, String description, boolean optional, boolean variadic, DataType targetDataType) {
-            this(name, type, description, optional, variadic, null, targetDataType);
+            this(name, type, description, optional, variadic, null, targetDataType, "");
         }
 
         public ArgSignature(String name, String[] type, String description, boolean optional, boolean variadic) {
-            this(name, type, description, optional, variadic, null, UNSUPPORTED);
+            this(name, type, description, optional, variadic, null, UNSUPPORTED, "");
         }
 
         public String name() {
@@ -708,6 +725,10 @@ public class EsqlFunctionRegistry {
             return Map.of();
         }
 
+        public String appliesTo() {
+            return appliesTo;
+        }
+
         public boolean mapArg() {
             return false;
         }
@@ -732,9 +753,19 @@ public class EsqlFunctionRegistry {
     public static class MapArgSignature extends ArgSignature {
         private final Map<String, MapEntryArgSignature> mapParams;
 
-        public MapArgSignature(String name, String description, boolean optional, Map<String, MapEntryArgSignature> mapParams) {
-            super(name, new String[] { "map" }, description, optional, false);
+        public MapArgSignature(
+            String name,
+            String description,
+            boolean optional,
+            Map<String, MapEntryArgSignature> mapParams,
+            String appliesTo
+        ) {
+            super(name, new String[] { "map" }, description, optional, false, null, UNSUPPORTED, appliesTo);
             this.mapParams = mapParams;
+        }
+
+        public MapArgSignature(String name, String description, boolean optional, Map<String, MapEntryArgSignature> mapParams) {
+            this(name, description, optional, mapParams, "");
         }
 
         @Override
@@ -760,7 +791,7 @@ public class EsqlFunctionRegistry {
         }
     }
 
-    public record MapEntryArgSignature(String name, String valueHint, String type, String description) {
+    public record MapEntryArgSignature(String name, String valueHint, String type, String description, String appliesTo) {
         @Override
         public String toString() {
             return "name='" + name + "', values=" + valueHint + ", description='" + description + "', type=" + type;
@@ -833,7 +864,9 @@ public class EsqlFunctionRegistry {
         List<EsqlFunctionRegistry.ArgSignature> args = new ArrayList<>(params.length);
         boolean variadic = false;
         int countOfParamsToDescribe = params.length;
-        if (TimestampAware.class.isAssignableFrom(def.clazz())) {
+        if (TemporalityAware.class.isAssignableFrom(def.clazz())) {
+            countOfParamsToDescribe -= 2; // skip the implicit @timestamp and temporality parameter (last or last before Configuration)
+        } else if (TimestampAware.class.isAssignableFrom(def.clazz())) {
             countOfParamsToDescribe--; // skip the implicit @timestamp parameter (last or last before Configuration)
         }
         if (ConfigurationFunction.class.isAssignableFrom(def.clazz())) {
@@ -867,7 +900,16 @@ public class EsqlFunctionRegistry {
             hint = new ArgSignature.Hint(param.hint().entityType().name().toLowerCase(Locale.ROOT), constraints);
         }
 
-        return new EsqlFunctionRegistry.ArgSignature(param.name(), type, desc, param.optional(), variadic, hint, targetDataType);
+        return new EsqlFunctionRegistry.ArgSignature(
+            param.name(),
+            type,
+            desc,
+            param.optional(),
+            variadic,
+            hint,
+            targetDataType,
+            param.applies_to()
+        );
     }
 
     public static ArgSignature mapParam(MapParam mapParam) {
@@ -879,10 +921,10 @@ public class EsqlFunctionRegistry {
                 ? Arrays.toString(param.valueHint())
                 : "[" + String.join(", ", param.valueHint()) + "]";
             String type = param.type().length <= 1 ? Arrays.toString(param.type()) : "[" + String.join(", ", param.type()) + "]";
-            MapEntryArgSignature mapArg = new MapEntryArgSignature(param.name(), valueHint, type, param.description());
+            MapEntryArgSignature mapArg = new MapEntryArgSignature(param.name(), valueHint, type, param.description(), param.applies_to());
             params.put(param.name(), mapArg);
         }
-        return new EsqlFunctionRegistry.MapArgSignature(mapParam.name(), desc, mapParam.optional(), params);
+        return new EsqlFunctionRegistry.MapArgSignature(mapParam.name(), desc, mapParam.optional(), params, mapParam.applies_to());
     }
 
     public static ArgSignature paramWithoutAnnotation(String name) {

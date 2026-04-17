@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
@@ -40,6 +41,7 @@ import java.util.Set;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.EMBEDDING_INFERENCE_ID;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.TEXT_EMBEDDING_INFERENCE_ID;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
@@ -3357,44 +3359,91 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testTextEmbeddingFunctionInvalidQuery() {
-        var withInference = defaultAnalyzer().addAnalysisTestsInferenceResolution();
-        withInference.error(
-            "from test | EVAL embedding = TEXT_EMBEDDING(null, ?)",
-            equalTo("1:30: first argument of [TEXT_EMBEDDING(null, ?)] cannot be null, received [null]"),
-            TEXT_EMBEDDING_INFERENCE_ID
-        );
-
-        withInference.error(
-            "from test | EVAL embedding = TEXT_EMBEDDING(42, ?)",
-            equalTo("1:30: first argument of [TEXT_EMBEDDING(42, ?)] must be [string], found value [42] type [integer]"),
-            TEXT_EMBEDDING_INFERENCE_ID
-        );
-
-        withInference.error(
-            "from test | EVAL embedding = TEXT_EMBEDDING(last_name, ?)",
-            equalTo("1:30: first argument of [TEXT_EMBEDDING(last_name, ?)] must be a constant, received [last_name]"),
-            TEXT_EMBEDDING_INFERENCE_ID
-        );
+        assertInvalidEmbeddingFirstArgument("TEXT_EMBEDDING", TEXT_EMBEDDING_INFERENCE_ID, TaskType.TEXT_EMBEDDING);
     }
 
     public void testTextEmbeddingFunctionInvalidInferenceId() {
+        assertInvalidEmbeddingSecondArgument("TEXT_EMBEDDING");
+    }
+
+    public void testEmbeddingFunctionInvalidQuery() {
+        assumeTrue("Embedding function must be enabled", EsqlCapabilities.Cap.EMBEDDING_FUNCTION.isEnabled());
+
+        assertInvalidEmbeddingFirstArgument("EMBEDDING", EMBEDDING_INFERENCE_ID, TaskType.EMBEDDING);
+    }
+
+    public void testEmbeddingFunctionInvalidInferenceId() {
+        assumeTrue("Embedding function must be enabled", EsqlCapabilities.Cap.EMBEDDING_FUNCTION.isEnabled());
+
+        assertInvalidEmbeddingSecondArgument("EMBEDDING");
+    }
+
+    private static void assertInvalidEmbeddingFirstArgument(String functionName, String inferenceId, TaskType taskType) {
+        defaultAnalyzer().addInferenceResolution(inferenceId, taskType)
+            .error(
+                "from test | EVAL embedding = " + functionName + "(null, ?)",
+                equalTo("1:30: first argument of [" + functionName + "(null, ?)] cannot be null, received [null]"),
+                inferenceId
+            );
+        defaultAnalyzer().addInferenceResolution(inferenceId, taskType)
+            .error(
+                "from test | EVAL embedding = " + functionName + "(42, ?)",
+                equalTo("1:30: first argument of [" + functionName + "(42, ?)] must be [string], found value [42] type [integer]"),
+                inferenceId
+            );
+    }
+
+    private static void assertInvalidEmbeddingSecondArgument(String functionName) {
         defaultAnalyzer().error(
-            "from test | EVAL embedding = TEXT_EMBEDDING(?, null)",
-            equalTo("1:30: second argument of [TEXT_EMBEDDING(?, null)] cannot be null, received [null]"),
+            "from test | EVAL embedding = " + functionName + "(?, null)",
+            equalTo("1:30: second argument of [" + functionName + "(?, null)] cannot be null, received [null]"),
             "query text"
         );
 
         defaultAnalyzer().error(
-            "from test | EVAL embedding = TEXT_EMBEDDING(?, 42)",
-            equalTo("1:30: second argument of [TEXT_EMBEDDING(?, 42)] must be [string], found value [42] type [integer]"),
+            "from test | EVAL embedding = " + functionName + "(?, 42)",
+            equalTo("1:30: second argument of [" + functionName + "(?, 42)] must be [string], found value [42] type [integer]"),
             "query text"
+        );
+    }
+
+    public void testEmbeddingFunctionOptions() {
+        assumeTrue("Embedding function must be enabled", EsqlCapabilities.Cap.EMBEDDING_FUNCTION.isEnabled());
+
+        // invalid type value
+        TestAnalyzer analyzer = defaultAnalyzer().addInferenceResolution(EMBEDDING_INFERENCE_ID, TaskType.EMBEDDING);
+        analyzer.error(
+            "from test | EVAL embedding = EMBEDDING(?, ?, {\"type\": \"invalid_type\"})",
+            equalTo("1:30: Invalid options for EMBEDDING: Unrecognized type [invalid_type], must be one of [text, image]"),
+            "query text",
+            EMBEDDING_INFERENCE_ID
         );
 
-        defaultAnalyzer().error(
-            "from test | EVAL embedding = TEXT_EMBEDDING(?, last_name)",
-            equalTo("1:30: second argument of [TEXT_EMBEDDING(?, last_name)] must be a constant, received [last_name]"),
-            "query text"
+        // invalid timeout value
+        analyzer.error(
+            "from test | EVAL embedding = EMBEDDING(?, ?, {\"timeout\": \"invalid\"})",
+            containsString("1:30: Invalid options for EMBEDDING: failed to parse [invalid]"),
+            "query text",
+            EMBEDDING_INFERENCE_ID
         );
+    }
+
+    public void testEmbeddingLiteralValues() {
+        assumeTrue("Embedding function must be enabled", EsqlCapabilities.Cap.EMBEDDING_FUNCTION.isEnabled());
+
+        TestAnalyzer analyzer = defaultAnalyzer().addInferenceResolution(EMBEDDING_INFERENCE_ID, TaskType.EMBEDDING);
+        analyzer.query("""
+            row text = "My text value"
+            | EVAL embedding = EMBEDDING(text, ?)
+            """, EMBEDDING_INFERENCE_ID);
+        analyzer.query("""
+            from test
+            | EVAL embedding = EMBEDDING(CONCAT("hello", "world"), ?)
+            """, EMBEDDING_INFERENCE_ID);
+        analyzer.query("""
+            row text = "My text value"
+            | EVAL embedding = EMBEDDING(text, CONCAT("embedding-", "inference-id"))
+            """);
     }
 
     public void testInlineStatsInTSNotAllowed() {

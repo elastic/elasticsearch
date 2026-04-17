@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 145235
+summary: '`SearchHitRowSet` uses pooled `SearchHits`'
+type: enhancement

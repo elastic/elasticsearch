@@ -138,7 +138,6 @@ public class Approximation {
      */
     static final Set<Class<? extends LogicalPlan>> SUPPORTED_COMMANDS = Set.of(
         Aggregate.class,
-        ChangePoint.class,
         Completion.class,
         Dissect.class,
         Enrich.class,
@@ -171,7 +170,9 @@ public class Approximation {
         // Same for LIMIT BY, SORT, or SORT + LIMIT BY
         LimitBy.class,
         TopN.class,
-        TopNBy.class
+        TopNBy.class,
+        // CHANGE_POINT implicitly uses LIMIT
+        ChangePoint.class
     );
 
     /**

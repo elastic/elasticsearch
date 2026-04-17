@@ -1247,7 +1247,10 @@ public abstract class DocsV3Support {
             builder.append("serverless: ");
             builder.append(setting.preview() ? "preview" : "ga");
             builder.append("\n");
-            if (setting.serverlessOnly() == false) {
+
+            if (setting.serverlessOnly()) {
+                builder.append("stack: unavailable");
+            } else {
                 builder.append("stack: ");
                 builder.append(setting.preview() ? "preview" : "ga");
                 String since = param != null ? param.since() : mapParam.since();
@@ -1255,8 +1258,8 @@ public abstract class DocsV3Support {
                     builder.append(" ");
                     builder.append(since);
                 }
-                builder.append("\n");
             }
+            builder.append("\n");
             builder.append("```\n");
 
             builder.append(param != null ? param.description() : mapParam.description());
@@ -1298,7 +1301,7 @@ public abstract class DocsV3Support {
             String exampleContent = loadExampleQuery(example);
             String exampleResult = loadExampleResult(example);
             if (exampleContent != null) {
-                builder.append("## Example\n\n");
+                builder.append("#### Example\n\n");
                 if (example.description().length() > 0) {
                     builder.append(example.description()).append("\n\n");
                 }

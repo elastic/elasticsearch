@@ -105,7 +105,15 @@ public class MergeResultWireCompatibilityTopHitsTests extends ESTestCase {
      * {@link SearchHits} expanded during the write are released afterwards.
      */
     private void assertNoLeakOnWriteTo(TransportVersion serializedVersion, TransportVersion outVersion) throws Exception {
-        InternalAggregations pooledAggs = roundTripToPooledTopHits(createAggregationsWithTopHits(), serializedVersion);
+        InternalAggregations initialAggs = createAggregationsWithTopHits();
+        SearchHits initialHits = initialAggs.<InternalTopHits>get("th").getHits();
+        InternalAggregations pooledAggs;
+        try {
+            pooledAggs = roundTripToPooledTopHits(initialAggs, serializedVersion);
+        } finally {
+            // Release the pre-round-trip SearchHits (and their inner SearchHit objects via deallocate()).
+            initialHits.decRef();
+        }
         SearchHits pooledHits = pooledAggs.<InternalTopHits>get("th").getHits();
         assertTrue("round-trip must yield pooled SearchHits (hit with _source)", pooledHits.isPooled());
 

@@ -85,4 +85,15 @@ public class ApproximationGoldenTests extends GoldenTestCase {
               | STATS SUM(mv), COUNT(mv)
             """, STAGES);
     }
+
+    public void testLookupJoin() {
+        runGoldenTest("""
+            SET approximation=true;
+            FROM many_numbers
+              | EVAL language_code = sv % 4 + 1
+              | LOOKUP JOIN languages_lookup ON language_code
+              | EVAL length = LENGTH(language_name)
+              | STATS AVG(length)
+            """, STAGES);
+    }
 }

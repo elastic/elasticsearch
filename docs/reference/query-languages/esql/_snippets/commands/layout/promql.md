@@ -111,7 +111,29 @@ PROMQL index=metrics-* sum by (instance) (rate(http_requests_total))
 This is the recommended pattern for Kibana dashboards. The query responds to the date picker, adjusts the step size
 to the selected time range, and sizes the range selector window accordingly.
 
-### Ad-hoc query with explicit time range
+### Range query with explicit parameters
+
+::::{include} ../examples/k8s-timeseries-promql.csv-spec/promql_start_end_step.md
+::::
+
+### Cross-series aggregation by label
+
+::::{include} ../examples/k8s-timeseries-promql.csv-spec/cross_series_grouping_on_mapped_label.md
+::::
+
+### Label filtering with named result
+
+::::{include} ../examples/k8s-timeseries-promql.csv-spec/not_equals_filter.md
+::::
+
+### Post-processing with ES|QL
+
+Pipe PromQL results into ES|QL commands for further aggregation:
+
+::::{include} ../examples/k8s-timeseries-promql.csv-spec/post_processing_stats_by_cluster.md
+::::
+
+### Ad-hoc query with inferred step
 
 For queries outside Kibana, set `start` and `end` explicitly. The step and range selector are still inferred
 automatically from the time range and the default `buckets` count:
@@ -121,45 +143,6 @@ PROMQL index=metrics-*
   start="2026-04-01T00:00:00Z"
   end="2026-04-01T01:00:00Z"
   sum by (instance) (rate(http_requests_total))
-```
-
-### Name the value column
-
-Assign a custom name to the value column to reference it in downstream commands:
-
-```esql
-PROMQL index=metrics-*
-  http_rate=(sum by (instance) (rate(http_requests_total)))
-| SORT http_rate DESC
-```
-
-### Fully explicit parameters
-
-All parameters can be set explicitly when full control is needed:
-
-```esql
-PROMQL index=metrics-*
-  step=1m
-  start="2026-04-01T00:00:00Z"
-  end="2026-04-01T01:00:00Z"
-  sum by (instance) (rate(http_requests_total[5m]))
-```
-
-### Filter results
-
-```esql
-PROMQL index=metrics-*
-  http_rate=(sum by (instance) (rate(http_requests_total)))
-| WHERE http_rate > 100
-```
-
-### Sort and limit
-
-```esql
-PROMQL index=metrics-*
-  http_rate=(sum by (instance) (rate(http_requests_total)))
-| SORT http_rate DESC
-| LIMIT 10
 ```
 
 ### Enrich with a lookup

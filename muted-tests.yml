@@ -451,9 +451,6 @@ tests:
 - class: org.elasticsearch.action.support.RefCountingListenerTests
   method: testJavaDocExample
   issue: https://github.com/elastic/elasticsearch/issues/146563
-- class: org.elasticsearch.xpack.esql.optimizer.ApproximationGoldenTests
-  method: testApproximationDisabled
-  issue: https://github.com/elastic/elasticsearch/issues/146564
 - class: org.elasticsearch.action.search.SearchRequestAttributesExtractorTests
   method: testExtractAttributesTimestampSortedTimeRangeFilter
   issue: https://github.com/elastic/elasticsearch/issues/146565

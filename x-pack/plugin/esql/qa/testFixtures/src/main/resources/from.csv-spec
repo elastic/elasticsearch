@@ -134,13 +134,13 @@ c:l | name:k
 // this is only for documentation purposes, it can't run as is in Stateful
 // (project_routing setting is only allowed in Serverless)
 projectRouting_docsOnly-Ignore
-
 // tag::project-routing[]
-SET project_routing = "_alias:my_project"\;
-FROM apps
+SET project_routing="_alias:my-project"\;
+FROM logs*
+| STATS COUNT(*)
 // end::project-routing[]
 ;
 
-id:integer | name:keyword   | version:version
+count(*):long
 ;
 

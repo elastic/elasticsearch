@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceReq
 
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.inference.InferenceService.COMPLETION_PRODUCT_USE_CASE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -65,6 +66,7 @@ public class CompletionRequestIteratorTests extends ComputeTestCase {
             BulkInferenceRequestItem requestItem1 = requestIterator.next();
             assertThat(requestItem1.inferenceRequest().getInferenceEntityId(), equalTo(inferenceId));
             assertThat(requestItem1.inferenceRequest().getTaskType(), equalTo(TaskType.COMPLETION));
+            assertThat(requestItem1.inferenceRequest().getContext().productUseCase(), equalTo(COMPLETION_PRODUCT_USE_CASE));
             assertThat(((InferenceAction.Request) requestItem1.inferenceRequest()).getInput().getFirst(), equalTo("prompt1"));
             assertThat(requestItem1.positionValueCounts(), equalTo(new int[] { 1, 0, 0 }));
 
@@ -251,6 +253,7 @@ public class CompletionRequestIteratorTests extends ComputeTestCase {
 
                 assertThat(request.getInferenceEntityId(), equalTo(inferenceId));
                 assertThat(request.getTaskType(), equalTo(TaskType.COMPLETION));
+                assertThat(request.getContext().productUseCase(), equalTo(COMPLETION_PRODUCT_USE_CASE));
 
                 scratch = inputBlock.getBytesRef(inputBlock.getFirstValueIndex(iterationCount), scratch);
                 assertThat(request.getInput().getFirst(), equalTo(scratch.utf8ToString()));

@@ -1,0 +1,92 @@
+---
+setup:
+  - requires:
+      capabilities:
+        - method: GET
+          path: /_query/data_source
+          capabilities: [data_source_management]
+      test_runner_features: capabilities
+      reason: "ES|QL data source CRUD API"
+
+---
+"get-empty":
+  - do:
+      esql.get_data_source: { }
+
+  - match: { data_sources: [] }
+  - length: { data_sources: 0 }
+
+---
+"invalid-data-source-names":
+  # Name must be lowercase.
+  - do:
+      catch: /invalid data source name/
+      esql.put_data_source:
+        name: "MyDataSource"
+        body:
+          type: s3
+          settings: { }
+
+  # Name must not contain invalid characters.
+  - do:
+      catch: /invalid data source name/
+      esql.put_data_source:
+        name: "bad#name"
+        body:
+          type: s3
+          settings: { }
+
+  # Whitespace-only name — validate() short-circuits with "name is missing" before the
+  # invalid-char / lowercase checks, so the assertion differs.
+  - do:
+      catch: /data source name is missing/
+      esql.put_data_source:
+        name: " "
+        body:
+          type: s3
+          settings: { }
+
+---
+"unknown-type":
+  - do:
+      catch: /unknown data source type/
+      esql.put_data_source:
+        name: my_ds
+        body:
+          type: definitely_not_a_real_type
+          settings: { }
+
+---
+"missing-type":
+  - do:
+      catch: /type is missing or empty/
+      esql.put_data_source:
+        name: my_ds
+        body:
+          settings: { }
+
+---
+"missing-settings":
+  - do:
+      catch: /settings are missing/
+      esql.put_data_source:
+        name: my_ds
+        body:
+          type: s3
+
+---
+"delete-missing":
+  - do:
+      catch: missing
+      esql.delete_data_source:
+        name: ghost
+
+---
+"cluster-state-visibility":
+  # DataSourceMetadata.context() excludes the API XContent context, so even if a data source existed
+  # (can't create one here without a loaded validator plugin), the custom should never surface via
+  # GET _cluster/state.
+  - do:
+      cluster.state: { }
+
+  - is_false: metadata.esql_datasource

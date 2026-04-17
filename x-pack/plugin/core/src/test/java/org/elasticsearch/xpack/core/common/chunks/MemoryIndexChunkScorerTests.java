@@ -107,8 +107,8 @@ public class MemoryIndexChunkScorerTests extends ESTestCase {
         assertThat(new MemoryIndexChunkScorer().analyzer(), instanceOf(StandardAnalyzer.class));
     }
 
-    public void testFallbackToStandardAnalyzer() {
-        assertThat(new MemoryIndexChunkScorer(null).analyzer(), instanceOf(StandardAnalyzer.class));
+    public void testNullAnalyzerThrowsAssertionError() {
+        expectThrows(AssertionError.class, () -> new MemoryIndexChunkScorer(null));
     }
 
     public void testCustomAnalyzer() {

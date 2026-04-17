@@ -322,8 +322,14 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
 
     /**
      * Clears this merger and sets it to the histogram {@code a} minus the histogram {@code b}.
-     * This algorithm provides the following guarantees:
-     * Given to exponential histograms {@code b} and {@code c}.
+     * <p>
+     * This method is intended to compute the delta between two cumulative histograms from the same time series,
+     * where {@code a} is a later snapshot and {@code b} is an earlier snapshot.
+     * In cumulative histograms, bucket counts only increase over time, which means that subtracting {@code b}
+     * from {@code a} will never result in negative bucket counts.
+     * <p>
+     * The algorithm provides the following guarantees:
+     * Given two exponential histograms {@code b} and {@code c}.
      * The histogram {@code a} is the result of merging the histograms {@code b} and {@code c}.
      * Then {@code a - b} will yield the histogram {@code c}, with the limitation that
      * <ul>
@@ -348,7 +354,9 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
             return;
         }
         if (bValueCount == 0) {
-            // fast path, subtracting an empty histogram does nothing
+            // fast path, subtracting an empty histogram does nothing.
+            // This check is placed before the scale check because the ExponentialHistogram.empty() singleton
+            // uses the maximum scale, so we never want to fail when subtracting an empty histogram.
             this.add(a);
             return;
         }
@@ -372,7 +380,7 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
             throw new IllegalArgumentException(
                 "Cannot subtract histograms (a-b), where a.zeroThreshold < b.zeroThreshold: "
                     + a.zeroBucket().zeroThreshold()
-                    + " > "
+                    + " < "
                     + b.zeroBucket().zeroThreshold()
             );
         }
@@ -405,7 +413,6 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
                     "Cannot subtract histograms (a-b), where A has a smaller count for the same bucket than B: " + aCount + " < " + bCount
                 );
             }
-            ;
             return aCount - bCount;
         };
 
@@ -461,7 +468,6 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
         } finally {
             factory.releaseBuffer(buffer);
         }
-
     }
 
 }

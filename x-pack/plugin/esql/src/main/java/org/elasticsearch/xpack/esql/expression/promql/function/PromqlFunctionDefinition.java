@@ -206,7 +206,7 @@ public final class PromqlFunctionDefinition {
         "Optional instant vector input. If omitted, evaluation timestamp is used."
     );
     public static final PromqlParamInfo SCALAR = PromqlParamInfo.child("s", PromqlDataType.SCALAR, "Scalar value.");
-    public static final PromqlParamInfo QUANTILE = PromqlParamInfo.of("\u03c6", PromqlDataType.SCALAR, "Quantile value (0 \u2264 \u03c6 \u2264 1).");
+    public static final PromqlParamInfo QUANTILE = PromqlParamInfo.of("φ", PromqlDataType.SCALAR, "Quantile value (0 ≤ φ ≤ 1).");
     public static final PromqlParamInfo TO_NEAREST = PromqlParamInfo.optional(
         "to_nearest",
         PromqlDataType.SCALAR,

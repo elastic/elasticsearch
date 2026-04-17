@@ -42,7 +42,7 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
 
     @Before
     public void assumePromqlYearCapability() {
-        assumeTrue("Requires PROMQL year capability", EsqlCapabilities.Cap.PROMQL_YEAR.isEnabled());
+        assumeTrue("Requires PROMQL_YEAR capability", EsqlCapabilities.Cap.PROMQL_YEAR.isEnabled());
     }
 
     public void testConstantResults() {

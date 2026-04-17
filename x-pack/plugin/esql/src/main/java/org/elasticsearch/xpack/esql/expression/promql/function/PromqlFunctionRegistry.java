@@ -184,6 +184,7 @@ public class PromqlFunctionRegistry {
         "day_of_month",
         "day_of_week",
         "day_of_year",
+        "days_in_month",
         "hour",
         "minute",
         "month",

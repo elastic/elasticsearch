@@ -15,6 +15,17 @@ setup:
               id: "test-id-3"
 
 ---
+teardown:
+  - requires:
+      cluster_features: ["synonyms.max_synonym_rules"]
+      reason: "synonyms.max_synonym_rules setting added"
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            synonyms.max_synonym_rules: null
+
+---
 "Update a synonyms rule":
   - do:
       synonyms.put_synonym_rule:
@@ -106,12 +117,8 @@ setup:
 ---
 "Max synonym rules limit is enforced for single rule put":
   - requires:
-      test_runner_features: [ capabilities ]
-      capabilities:
-        - method: PUT
-          path: /_synonyms/{synonymsSet}/{synonymRuleId}
-          capabilities: [ synonyms_max_synonym_rules_setting ]
-      reason: "synonyms_max_synonym_rules_setting capability needed"
+      cluster_features: ["synonyms.max_synonym_rules"]
+      reason: "synonyms.max_synonym_rules setting added"
 
   - do:
       cluster.put_settings:
@@ -137,12 +144,6 @@ setup:
           synonyms: "hello, hi, hey"
 
   - match: { result: "updated" }
-
-  - do:
-      cluster.put_settings:
-        body:
-          persistent:
-            synonyms.max_synonym_rules: null
 
 ---
 "Validation failure tests":

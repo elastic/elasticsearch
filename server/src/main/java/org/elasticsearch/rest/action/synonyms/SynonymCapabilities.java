@@ -21,7 +21,6 @@ public final class SynonymCapabilities {
     }
 
     private static final String SYNONYMS_REFRESH_PARAM = "synonyms_refresh_param";
-    private static final String SYNONYMS_MAX_SYNONYM_RULES_SETTING = "synonyms_max_synonym_rules_setting";
 
-    public static final Set<String> CAPABILITIES = Set.of(SYNONYMS_REFRESH_PARAM, SYNONYMS_MAX_SYNONYM_RULES_SETTING);
+    public static final Set<String> CAPABILITIES = Set.of(SYNONYMS_REFRESH_PARAM);
 }

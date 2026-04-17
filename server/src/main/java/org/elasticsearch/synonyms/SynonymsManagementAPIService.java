@@ -109,7 +109,6 @@ public class SynonymsManagementAPIService {
     // Identifies synonym set objects stored in the index
     private static final String SYNONYM_SET_OBJECT_TYPE = "synonym_set";
     private static final String SYNONYM_RULE_ID_SEPARATOR = "|";
-    private static final int MAX_SYNONYM_RULES = 100_000;
     // Maximum number of synonym sets that can be listed by GET /_synonyms
     private static final int MAX_SYNONYMS_SETS = 10_000;
     private static final TimeValue PIT_KEEP_ALIVE = TimeValue.timeValueSeconds(60);
@@ -128,6 +127,7 @@ public class SynonymsManagementAPIService {
     // Limit enforced by nodes that do not support large synonym sets
     static final int PRE_LARGE_SETS_LIMIT = 10_000;
 
+    private static final int MAX_SYNONYM_RULES = 100_000;
     public static final Setting<Integer> MAX_SYNONYM_RULES_SETTING = Setting.intSetting(
         "synonyms.max_synonym_rules",
         MAX_SYNONYM_RULES,
@@ -688,6 +688,10 @@ public class SynonymsManagementAPIService {
             );
             return false;
         }
+        return checkClusterSupportsLargeSynonymSets(resultingCount, listener);
+    }
+
+    private boolean checkClusterSupportsLargeSynonymSets(long resultingCount, ActionListener<?> listener) {
         if (resultingCount > PRE_LARGE_SETS_LIMIT
             && clusterService.state().getMinTransportVersion().supports(SYNONYMS_LARGE_SETS) == false) {
             listener.onFailure(

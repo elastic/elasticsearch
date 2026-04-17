@@ -31,6 +31,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.action.synonyms.SynonymsTestUtils.randomSynonymRule;
 import static org.elasticsearch.action.synonyms.SynonymsTestUtils.randomSynonymsSet;
+import static org.hamcrest.Matchers.containsString;
 
 public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
 
@@ -62,18 +63,16 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
 
         PlainActionFuture<SynonymsManagementAPIService.SynonymsReloadResult> putFuture = new PlainActionFuture<>();
         synonymsManagementAPIService.putSynonymsSet(synonymSetId, randomSynonymsSet(rulesNumber, rulesNumber), refresh, putFuture);
-        SynonymsManagementAPIService.SynonymsReloadResult putResult = putFuture.actionGet();
+        SynonymsManagementAPIService.SynonymsReloadResult putResult = safeGet(putFuture);
         assertEquals(SynonymsManagementAPIService.UpdateSynonymsResultStatus.CREATED, putResult.synonymsOperationResult());
         assertEquals(refresh, putResult.reloadAnalyzersResponse() != null);
 
         // Also retrieve them
-        assertBusy(() -> {
-            PlainActionFuture<PagedResult<SynonymRule>> getFuture = new PlainActionFuture<>();
-            synonymsManagementAPIService.getSynonymSetRules(synonymSetId, 0, maxSynonymRules, getFuture);
-            PagedResult<SynonymRule> getResult = getFuture.actionGet();
-            assertEquals(rulesNumber, getResult.totalResults());
-            assertEquals(rulesNumber, getResult.pageResults().length);
-        }, 5, TimeUnit.SECONDS);
+        PlainActionFuture<PagedResult<SynonymRule>> getFuture = new PlainActionFuture<>();
+        synonymsManagementAPIService.getSynonymSetRules(synonymSetId, 0, maxSynonymRules, getFuture);
+        PagedResult<SynonymRule> getResult = safeGet(getFuture);
+        assertEquals(rulesNumber, getResult.totalResults());
+        assertEquals(rulesNumber, getResult.pageResults().length);
     }
 
     public void testGetAllSynonymSetRulesViaPit() throws Exception {
@@ -91,11 +90,11 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         String synonymSetId = randomIdentifier();
         PlainActionFuture<SynonymsManagementAPIService.SynonymsReloadResult> putFuture = new PlainActionFuture<>();
         synsApiService.putSynonymsSet(synonymSetId, randomSynonymsSet(rulesNumber, rulesNumber), false, putFuture);
-        assertEquals(SynonymsManagementAPIService.UpdateSynonymsResultStatus.CREATED, putFuture.actionGet().synonymsOperationResult());
+        assertEquals(SynonymsManagementAPIService.UpdateSynonymsResultStatus.CREATED, safeGet(putFuture).synonymsOperationResult());
 
         PlainActionFuture<PagedResult<SynonymRule>> getFuture = new PlainActionFuture<>();
         synsApiService.getSynonymSetRules(synonymSetId, getFuture);
-        PagedResult<SynonymRule> result = getFuture.actionGet();
+        PagedResult<SynonymRule> result = safeGet(getFuture);
         assertEquals(rulesNumber, result.totalResults());
         assertEquals(rulesNumber, result.pageResults().length);
     }
@@ -118,7 +117,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         // Use bulkUpdateSynonymsSet to bypass the write-time limit check so we can store more than maxRules
         PlainActionFuture<Void> putFuture = new PlainActionFuture<>();
         synsApiService.bulkUpdateSynonymsSet(synonymSetId, randomSynonymsSet(rulesNumber, rulesNumber), putFuture);
-        putFuture.actionGet();
+        safeGet(putFuture);
 
         try (var mockLog = MockLog.capture(SynonymsManagementAPIService.class)) {
             mockLog.addExpectation(
@@ -131,7 +130,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
             );
             PlainActionFuture<PagedResult<SynonymRule>> getFuture = new PlainActionFuture<>();
             synsApiService.getSynonymSetRules(synonymSetId, getFuture);
-            PagedResult<SynonymRule> result = getFuture.actionGet();
+            PagedResult<SynonymRule> result = safeGet(getFuture);
             assertEquals(rulesNumber, result.totalResults());   // true total from index
             assertEquals(maxRules, result.pageResults().length); // capped at limit
             mockLog.assertAllExpectationsMatched();
@@ -146,7 +145,8 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
             randomBoolean(),
             future
         );
-        expectThrows(IllegalArgumentException.class, future::actionGet);
+        var ex = expectThrows(IllegalArgumentException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
+        assertThat(ex.getMessage(), containsString("cannot exceed " + maxSynonymRules));
     }
 
     public void testCreateTooManySynonymsUsingRuleUpdates() throws InterruptedException {
@@ -226,7 +226,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
 
         PlainActionFuture<SynonymsManagementAPIService.SynonymsReloadResult> putFuture = new PlainActionFuture<>();
         synonymsManagementAPIService.putSynonymsSet(synonymSetId, synonymsSet, true, putFuture);
-        putFuture.actionGet();
+        safeGet(putFuture);
 
         // Updating an existing rule at max capacity should succeed
         PlainActionFuture<SynonymsManagementAPIService.SynonymsReloadResult> updateFuture = new PlainActionFuture<>();
@@ -236,7 +236,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
             randomBoolean(),
             updateFuture
         );
-        updateFuture.actionGet();
+        safeGet(updateFuture);
     }
 
     public void testCreateRuleWithMaxSynonyms() throws Exception {
@@ -246,12 +246,13 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
 
         PlainActionFuture<SynonymsManagementAPIService.SynonymsReloadResult> putFuture = new PlainActionFuture<>();
         synonymsManagementAPIService.putSynonymsSet(synonymSetId, synonymsSet, true, putFuture);
-        putFuture.actionGet();
+        safeGet(putFuture);
 
         // Creating a new rule when at max capacity should fail
         PlainActionFuture<SynonymsManagementAPIService.SynonymsReloadResult> createFuture = new PlainActionFuture<>();
         synonymsManagementAPIService.putSynonymRule(synonymSetId, randomSynonymRule(ruleId), randomBoolean(), createFuture);
-        expectThrows(IllegalArgumentException.class, createFuture::actionGet);
+        var ex = expectThrows(IllegalArgumentException.class, () -> createFuture.actionGet(TEST_REQUEST_TIMEOUT));
+        assertThat(ex.getMessage(), containsString("cannot exceed " + maxSynonymRules));
     }
 
     public void testCreateSynonymsWithYellowSynonymsIndex() throws Exception {

@@ -4,6 +4,17 @@ setup:
       reason: Introduced in 8.10.0
 
 ---
+teardown:
+  - requires:
+      cluster_features: ["synonyms.max_synonym_rules"]
+      reason: "synonyms.max_synonym_rules setting added"
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            synonyms.max_synonym_rules: null
+
+---
 "Create synonyms with no ID creates ID automatically":
   - do:
       synonyms.put_synonym:
@@ -93,12 +104,8 @@ setup:
 ---
 "Max synonym rules limit is enforced":
   - requires:
-      test_runner_features: [ capabilities ]
-      capabilities:
-        - method: PUT
-          path: /_synonyms/{synonymsSet}
-          capabilities: [ synonyms_max_synonym_rules_setting ]
-      reason: "synonyms_max_synonym_rules_setting capability needed"
+      cluster_features: ["synonyms.max_synonym_rules"]
+      reason: "synonyms.max_synonym_rules setting added"
 
   - do:
       cluster.put_settings:
@@ -127,12 +134,6 @@ setup:
             - synonyms: "e, f"
 
   - match: { result: "created" }
-
-  - do:
-      cluster.put_settings:
-        body:
-          persistent:
-            synonyms.max_synonym_rules: null
 
 ---
 "Validation fails tests":

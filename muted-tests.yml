@@ -445,9 +445,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.ApproximationGoldenTests
   method: testApproximationDisabled
   issue: https://github.com/elastic/elasticsearch/issues/146564
-- class: co.elastic.elasticsearch.serverless.crossproject.ServerlessCrossProjectEqlIT
-  method: testCrossProjectQuery
-  issue: https://github.com/elastic/elasticsearch-serverless/issues/6368
 
 # Examples:
 #

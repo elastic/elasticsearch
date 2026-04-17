@@ -9,13 +9,16 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.test.index.IndexVersionUtils;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -46,13 +49,14 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
 
     private record ConflictCheck(XContentBuilder init, XContentBuilder update, Consumer<DocumentMapper> check) {}
 
-    private record UpdateCheck(XContentBuilder init, XContentBuilder update, Consumer<DocumentMapper> check) {}
+    private record UpdateCheck(String paramName, XContentBuilder init, XContentBuilder update, Consumer<DocumentMapper> check) {}
 
     public class ParameterChecker {
 
         Map<String, ConflictCheck> conflictChecks = new HashMap<>();
         List<UpdateCheck> updateChecks = new ArrayList<>();
         Set<String> checkedParameters = new HashSet<>();
+        Set<String> serializationExclusions = new HashSet<>();
 
         /**
          * Register a check that a parameter update will cause a conflict, using the minimal mapping as a base
@@ -91,7 +95,7 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
          */
         public void registerUpdateCheck(String param, XContentBuilder init, XContentBuilder update, Consumer<DocumentMapper> check) {
             checkedParameters.add(param);
-            updateChecks.add(new UpdateCheck(init, update, check));
+            updateChecks.add(new UpdateCheck(param, init, update, check));
         }
 
         /**
@@ -101,6 +105,15 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
          */
         public void registerIgnoredParameter(String param) {
             checkedParameters.add(param);
+        }
+
+        /**
+         * Exclude a parameter from the serialization test, for example when
+         * the parameter is intentionally not serialized in the mapping.
+         * @param param the parameter name
+         */
+        public void excludeFromSerialization(String param) {
+            serializationExclusions.add(param);
         }
 
         /**
@@ -141,6 +154,57 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
             // run the update assertion
             updateCheck.check.accept(mapperService.documentMapper());
         }
+    }
+
+    public void testParameterSerialization() throws IOException {
+        assumeTrue("Metadata field " + fieldName() + " isn't configurable", isConfigurable());
+        ParameterChecker checker = new ParameterChecker();
+        registerParameters(checker);
+
+        for (UpdateCheck updateCheck : checker.updateChecks) {
+            if (checker.serializationExclusions.contains(updateCheck.paramName)) {
+                continue;
+            }
+            String initSerialized = serializeMapping(createMapperService(updateCheck.init));
+            String updateSerialized = serializeMapping(createMapperService(updateCheck.update));
+            assertTrue(
+                "serialized mapping for update check on ["
+                    + updateCheck.paramName
+                    + "] should contain the parameter name"
+                    + " in either init or update mapping. Init: "
+                    + initSerialized
+                    + "; Update: "
+                    + updateSerialized,
+                initSerialized.contains(updateCheck.paramName) || updateSerialized.contains(updateCheck.paramName)
+            );
+        }
+
+        for (Map.Entry<String, ConflictCheck> entry : checker.conflictChecks.entrySet()) {
+            String param = entry.getKey();
+            if (checker.serializationExclusions.contains(param)) {
+                continue;
+            }
+            ConflictCheck conflictCheck = entry.getValue();
+            String initSerialized = serializeMapping(createMapperService(conflictCheck.init));
+            String updateSerialized = serializeMapping(createMapperService(conflictCheck.update));
+            assertTrue(
+                "serialized mapping for conflict check on ["
+                    + param
+                    + "] should contain the parameter name"
+                    + " in either init or update mapping. Init: "
+                    + initSerialized
+                    + "; Update: "
+                    + updateSerialized,
+                initSerialized.contains(param) || updateSerialized.contains(param)
+            );
+        }
+    }
+
+    private static String serializeMapping(MapperService mapperService) throws IOException {
+        XContentBuilder builder = JsonXContent.contentBuilder().startObject();
+        mapperService.documentMapper().mapping().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+        return Strings.toString(builder);
     }
 
     public void testAllParametersAreChecked() throws IOException {

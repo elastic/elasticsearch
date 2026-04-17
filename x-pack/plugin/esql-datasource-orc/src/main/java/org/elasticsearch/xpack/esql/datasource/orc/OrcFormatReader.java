@@ -27,6 +27,8 @@ import org.apache.orc.OrcFile;
 import org.apache.orc.Reader;
 import org.apache.orc.RecordReader;
 import org.apache.orc.StringColumnStatistics;
+import org.apache.orc.StripeInformation;
+import org.apache.orc.StripeStatistics;
 import org.apache.orc.TypeDescription;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -41,8 +43,11 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
@@ -61,41 +66,51 @@ import java.util.Optional;
 import java.util.OptionalLong;
 
 /**
- * {@link FormatReader} implementation for Apache ORC files.
+ * {@link RangeAwareFormatReader} implementation for Apache ORC files.
  *
  * <p>Uses ORC's vectorized reader ({@link VectorizedRowBatch}) which maps naturally to
  * ESQL's columnar {@link Block}/{@link Page} model. Each ORC {@link ColumnVector} is
  * converted directly to the corresponding ESQL Block type.
+ *
+ * <p>Supports stripe-level split parallelism: {@link #discoverSplitRanges} exposes
+ * per-stripe byte ranges, and {@link #readRange} restricts reading to stripes within
+ * a given byte range via ORC's {@code Reader.Options.range()}.
  *
  * <p>Key features:
  * <ul>
  *   <li>Works with any StorageProvider (HTTP, S3, local) via {@link OrcStorageObjectAdapter}</li>
  *   <li>Efficient columnar reading with column projection</li>
  *   <li>Direct conversion from ORC VectorizedRowBatch to ESQL Page</li>
+ *   <li>Stripe-level split parallelism for multi-stripe files</li>
  * </ul>
  */
-public class OrcFormatReader implements FormatReader {
+public class OrcFormatReader implements RangeAwareFormatReader {
 
     private static final long MILLIS_PER_DAY = Duration.ofDays(1).toMillis();
 
     private final BlockFactory blockFactory;
     private final SearchArgument pushedFilter;
+    private final OrcPushedExpressions pushedExpressions;
 
     public OrcFormatReader(BlockFactory blockFactory) {
-        this(blockFactory, null);
+        this(blockFactory, null, null);
     }
 
-    private OrcFormatReader(BlockFactory blockFactory, SearchArgument pushedFilter) {
+    private OrcFormatReader(BlockFactory blockFactory, SearchArgument pushedFilter, OrcPushedExpressions pushedExpressions) {
         this.blockFactory = blockFactory;
         this.pushedFilter = pushedFilter;
+        this.pushedExpressions = pushedExpressions;
     }
 
     @Override
     public FormatReader withPushedFilter(Object pushedFilter) {
-        if (pushedFilter == null) {
-            return this;
+        if (pushedFilter instanceof SearchArgument sarg) {
+            return new OrcFormatReader(this.blockFactory, sarg, null);
         }
-        return new OrcFormatReader(this.blockFactory, (SearchArgument) pushedFilter);
+        if (pushedFilter instanceof OrcPushedExpressions exprs) {
+            return new OrcFormatReader(this.blockFactory, null, exprs);
+        }
+        return this;
     }
 
     @Override
@@ -221,61 +236,162 @@ public class OrcFormatReader implements FormatReader {
 
         OrcStorageObjectAdapter fs = new OrcStorageObjectAdapter(object);
         Path path = new Path(object.path().toString());
-        OrcFile.ReaderOptions readerOptions = orcReaderOptions(fs);
-        Reader reader = OrcFile.createReader(path, readerOptions);
-
+        Reader reader = OrcFile.createReader(path, orcReaderOptions(fs));
         TypeDescription schema = reader.getSchema();
         List<Attribute> attributes = convertOrcSchemaToAttributes(schema);
 
-        List<Attribute> projectedAttributes;
-        boolean[] include = null;
-        if (projectedColumns == null || projectedColumns.isEmpty()) {
-            projectedAttributes = attributes;
-        } else {
-            projectedAttributes = new ArrayList<>();
-            Map<String, Integer> nameToIndex = new HashMap<>();
-            List<String> fieldNames = schema.getFieldNames();
-            for (int i = 0; i < fieldNames.size(); i++) {
-                nameToIndex.put(fieldNames.get(i), i);
-            }
-            // ORC include array: index 0 is the root struct, then 1..N for each field
-            include = new boolean[schema.getMaximumId() + 1];
-            include[0] = true;
-            Map<String, Attribute> attributeMap = new HashMap<>();
-            for (Attribute attr : attributes) {
-                attributeMap.put(attr.name(), attr);
-            }
-            for (String columnName : projectedColumns) {
-                Attribute attr = attributeMap.get(columnName);
-                if (attr != null) {
-                    Integer idx = nameToIndex.get(columnName);
-                    if (idx != null) {
-                        TypeDescription child = schema.getChildren().get(idx);
-                        includeColumnForType(include, child);
-                    }
-                } else {
-                    attr = new ReferenceAttribute(Source.EMPTY, columnName, DataType.NULL);
-                }
-                projectedAttributes.add(attr);
-            }
-        }
+        List<Attribute> projectedAttributes = resolveProjection(attributes, projectedColumns);
+        boolean[] include = buildIncludeMask(schema, projectedColumns);
 
-        Reader.Options readOptions = reader.options().rowBatchSize(batchSize);
-        if (include != null) {
-            readOptions.include(include);
-        }
-        if (pushedFilter != null) {
-            List<PredicateLeaf> leaves = pushedFilter.getLeaves();
-            LinkedHashSet<String> nameSet = new LinkedHashSet<>(leaves.size());
-            for (PredicateLeaf leaf : leaves) {
-                nameSet.add(leaf.getColumnName());
-            }
-            readOptions.searchArgument(pushedFilter, nameSet.toArray(new String[0]));
-        }
+        Reader.Options readOptions = configureReadOptions(reader, batchSize, include, schema);
         RecordReader rows = reader.rows(readOptions);
 
         CloseableIterator<Page> iter = new OrcPageIterator(reader, rows, schema, projectedAttributes, batchSize, blockFactory);
         return rowLimit != NO_LIMIT ? new RowLimitingIterator(iter, rowLimit) : iter;
+    }
+
+    @Override
+    public List<SplitRange> discoverSplitRanges(StorageObject object) throws IOException {
+        OrcStorageObjectAdapter fs = new OrcStorageObjectAdapter(object);
+        Path path = new Path(object.path().toString());
+        try (Reader reader = OrcFile.createReader(path, orcReaderOptions(fs))) {
+            List<StripeInformation> stripes = reader.getStripes();
+            if (stripes.size() <= 1) {
+                return List.of();
+            }
+            List<StripeStatistics> stripeStats = reader.getStripeStatistics();
+            TypeDescription schema = reader.getSchema();
+            List<SplitRange> ranges = new ArrayList<>(stripes.size());
+            for (int i = 0; i < stripes.size(); i++) {
+                StripeInformation stripe = stripes.get(i);
+                Map<String, Object> stats = (i < stripeStats.size()) ? buildStripeStats(stripe, stripeStats.get(i), schema) : Map.of();
+                ranges.add(new SplitRange(stripe.getOffset(), stripe.getLength(), stats));
+            }
+            return ranges;
+        }
+    }
+
+    private static Map<String, Object> buildStripeStats(StripeInformation stripe, StripeStatistics stats, TypeDescription schema) {
+        Map<String, Object> map = new HashMap<>();
+        map.put("_stats.row_count", stripe.getNumberOfRows());
+        map.put("_stats.size_bytes", stripe.getLength());
+        List<String> fieldNames = schema.getFieldNames();
+        List<TypeDescription> children = schema.getChildren();
+        ColumnStatistics[] colStats = stats.getColumnStatistics();
+        for (int i = 0; i < fieldNames.size(); i++) {
+            String colName = fieldNames.get(i);
+            int colId = children.get(i).getId();
+            if (colId >= colStats.length) {
+                continue;
+            }
+            ColumnStatistics cs = colStats[colId];
+            if (cs == null) {
+                continue;
+            }
+            long totalValues = cs.getNumberOfValues();
+            long nullCount = stripe.getNumberOfRows() - totalValues;
+            map.put("_stats.columns." + colName + ".null_count", nullCount);
+            Object minVal = extractOrcMin(cs);
+            Object maxVal = extractOrcMax(cs);
+            if (minVal != null) {
+                map.put("_stats.columns." + colName + ".min", minVal);
+            }
+            if (maxVal != null) {
+                map.put("_stats.columns." + colName + ".max", maxVal);
+            }
+        }
+        return Map.copyOf(map);
+    }
+
+    /**
+     * Reads only the stripes whose byte range falls within {@code [rangeStart, rangeEnd)}.
+     * {@code errorPolicy} is accepted for interface compliance but not applied — ORC errors are
+     * structural (corrupt stripe, schema mismatch) rather than row-level.
+     */
+    @Override
+    public CloseableIterator<Page> readRange(
+        StorageObject object,
+        List<String> projectedColumns,
+        int batchSize,
+        long rangeStart,
+        long rangeEnd,
+        List<Attribute> resolvedAttributes,
+        ErrorPolicy errorPolicy
+    ) throws IOException {
+        if (rangeEnd <= rangeStart) {
+            throw new IllegalArgumentException("rangeEnd [" + rangeEnd + "] must be greater than rangeStart [" + rangeStart + "]");
+        }
+        OrcStorageObjectAdapter fs = new OrcStorageObjectAdapter(object);
+        Path path = new Path(object.path().toString());
+        Reader reader = OrcFile.createReader(path, orcReaderOptions(fs));
+        TypeDescription schema = reader.getSchema();
+
+        final List<Attribute> attributes = resolvedAttributes != null && resolvedAttributes.isEmpty() == false
+            ? resolvedAttributes
+            : convertOrcSchemaToAttributes(schema);
+
+        List<Attribute> projectedAttributes = resolveProjection(attributes, projectedColumns);
+        boolean[] include = buildIncludeMask(schema, projectedColumns);
+
+        Reader.Options readOptions = configureReadOptions(reader, batchSize, include, schema);
+        readOptions.range(rangeStart, rangeEnd - rangeStart);
+        RecordReader rows = reader.rows(readOptions);
+
+        return new OrcPageIterator(reader, rows, schema, projectedAttributes, batchSize, blockFactory);
+    }
+
+    private static List<Attribute> resolveProjection(List<Attribute> attributes, List<String> projectedColumns) {
+        if (projectedColumns == null || projectedColumns.isEmpty()) {
+            return attributes;
+        }
+        List<Attribute> projected = new ArrayList<>();
+        Map<String, Attribute> attributeMap = new HashMap<>();
+        for (Attribute attr : attributes) {
+            attributeMap.put(attr.name(), attr);
+        }
+        for (String columnName : projectedColumns) {
+            Attribute attr = attributeMap.get(columnName);
+            projected.add(attr != null ? attr : new ReferenceAttribute(Source.EMPTY, columnName, DataType.NULL));
+        }
+        return projected;
+    }
+
+    private static boolean[] buildIncludeMask(TypeDescription schema, List<String> projectedColumns) {
+        if (projectedColumns == null || projectedColumns.isEmpty()) {
+            return null;
+        }
+        Map<String, Integer> nameToIndex = new HashMap<>();
+        List<String> fieldNames = schema.getFieldNames();
+        for (int i = 0; i < fieldNames.size(); i++) {
+            nameToIndex.put(fieldNames.get(i), i);
+        }
+        boolean[] include = new boolean[schema.getMaximumId() + 1];
+        include[0] = true;
+        for (String columnName : projectedColumns) {
+            Integer idx = nameToIndex.get(columnName);
+            if (idx != null) {
+                TypeDescription child = schema.getChildren().get(idx);
+                includeColumnForType(include, child);
+            }
+        }
+        return include;
+    }
+
+    private Reader.Options configureReadOptions(Reader reader, int batchSize, boolean[] include, TypeDescription schema) {
+        Reader.Options readOptions = reader.options().rowBatchSize(batchSize);
+        if (include != null) {
+            readOptions.include(include);
+        }
+        SearchArgument resolvedFilter = resolveSearchArgument(schema);
+        if (resolvedFilter != null) {
+            List<PredicateLeaf> leaves = resolvedFilter.getLeaves();
+            LinkedHashSet<String> nameSet = new LinkedHashSet<>(leaves.size());
+            for (PredicateLeaf leaf : leaves) {
+                nameSet.add(leaf.getColumnName());
+            }
+            readOptions.searchArgument(resolvedFilter, nameSet.toArray(new String[0]));
+        }
+        return readOptions;
     }
 
     /**
@@ -291,6 +407,20 @@ public class OrcFormatReader implements FormatReader {
                 includeColumnForType(include, child);
             }
         }
+    }
+
+    /**
+     * Resolves the SearchArgument to use for a given file. If deferred expressions are present,
+     * builds the SearchArgument using the actual file schema for correct DATE/DECIMAL mapping.
+     */
+    private SearchArgument resolveSearchArgument(TypeDescription schema) {
+        if (pushedFilter != null) {
+            return pushedFilter;
+        }
+        if (pushedExpressions != null) {
+            return pushedExpressions.toSearchArgument(schema);
+        }
+        return null;
     }
 
     @Override
@@ -828,7 +958,7 @@ public class OrcFormatReader implements FormatReader {
 
         RowLimitingIterator(CloseableIterator<Page> delegate, int rowLimit) {
             if (rowLimit <= 0) {
-                throw new IllegalArgumentException("rowLimit must be positive, got: " + rowLimit);
+                throw new QlIllegalArgumentException("rowLimit must be positive, got: " + rowLimit);
             }
             this.delegate = delegate;
             this.remaining = rowLimit;

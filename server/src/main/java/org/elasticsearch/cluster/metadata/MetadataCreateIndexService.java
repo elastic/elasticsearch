@@ -2028,6 +2028,10 @@ public class MetadataCreateIndexService {
         if (clusterBlocks.indexBlocked(projectMetadata.id(), ClusterBlockLevel.WRITE, sourceIndex) == false) {
             throw new IllegalStateException("index " + sourceIndex + " must be read-only to resize index. use \"index.blocks.write=true\"");
         }
+        // ensure no resharding operation is in progress
+        if (sourceMetadata.getReshardingMetadata() != null) {
+            throw new IllegalStateException("index " + sourceIndex + " cannot be resized while a resharding operation is in progress");
+        }
 
         if (INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings)) {
             // this method applies all necessary checks ie. if the target shards are less than the source shards
@@ -2185,7 +2189,8 @@ public class MetadataCreateIndexService {
     }
 
     private static boolean applyRefreshBlock(IndexMetadata indexMetadata) {
-        return 0 < indexMetadata.getNumberOfReplicas() // index has replicas
+        return (0 < indexMetadata.getNumberOfReplicas() // index has replicas or auto-expand replicas
+            || indexMetadata.getAutoExpandReplicas().enabled() && indexMetadata.getAutoExpandReplicas().maxReplicas() > 0)
             && indexMetadata.getResizeSourceIndex() == null // index is not a split/shrink index
             && indexMetadata.getInSyncAllocationIds().values().stream().allMatch(Set::isEmpty); // index is a new index
     }

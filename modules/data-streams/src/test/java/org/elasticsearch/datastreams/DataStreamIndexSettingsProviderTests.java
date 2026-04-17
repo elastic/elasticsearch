@@ -66,15 +66,15 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         } else {
             indexVersion = IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.TSID_CREATED_DURING_ROUTING);
         }
-        expectedDisabledSequenceNumbers = IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG
-            && indexVersion.onOrAfter(IndexVersions.TIME_SERIES_DISABLE_SEQUENCE_NUMBERS);
+        expectedDisabledSequenceNumbers = indexVersion.onOrAfter(IndexVersions.TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT);
         indexDimensionsTsidStrategyEnabledSetting = usually();
         expectedIndexDimensionsTsidOptimizationEnabled = indexDimensionsTsidStrategyEnabledSetting
             && indexVersion.onOrAfter(IndexVersions.TSID_CREATED_DURING_ROUTING);
     }
 
     int maybeAdjustIndexSettingCount(int baseCount) {
-        return expectedDisabledSequenceNumbers ? baseCount + 1 : baseCount;
+        // We need to adjust to account for the seq_no removal and synthetic id settings
+        return expectedDisabledSequenceNumbers ? baseCount + 2 : baseCount;
     }
 
     public void testGetAdditionalIndexSettings() throws Exception {
@@ -1090,6 +1090,130 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Settings.Builder additionalSettings = builder();
         provider.onUpdateMappings(im, documentMapper, additionalSettings);
         return additionalSettings.build();
+    }
+
+    public void testClusterSettingsDefineSeqNoDisabledDefault() throws Exception {
+        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT,
+            IndexVersion.current()
+        );
+        String dataStreamName = "metrics-app1";
+
+        // With seq_no_disabled=false, the provider must NOT set index.disable_sequence_numbers
+        DataStreamIndexSettingsProvider providerWithSeqNoEnabled = new DataStreamIndexSettingsProvider(
+            im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName()),
+            Settings.builder().put(DataStreamIndexSettingsProvider.SUPPORT_SEQ_NO_DISABLED.getKey(), false).build()
+        );
+        Settings.Builder additionalSettings = builder();
+        providerWithSeqNoEnabled.provideAdditionalSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
+            dataStreamName,
+            IndexMode.TIME_SERIES,
+            emptyProject(),
+            now,
+            Settings.EMPTY,
+            List.of(),
+            version,
+            additionalSettings
+        );
+        assertFalse(additionalSettings.build().hasValue(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey()));
+
+        // With seq_no_disabled=true (default), the provider must set index.disable_sequence_numbers=true
+        DataStreamIndexSettingsProvider providerWithSeqNoDisabled = new DataStreamIndexSettingsProvider(
+            im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName()),
+            Settings.builder().put(DataStreamIndexSettingsProvider.SUPPORT_SEQ_NO_DISABLED.getKey(), true).build()
+        );
+        additionalSettings = builder();
+        providerWithSeqNoDisabled.provideAdditionalSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
+            dataStreamName,
+            IndexMode.TIME_SERIES,
+            emptyProject(),
+            now,
+            Settings.EMPTY,
+            List.of(),
+            version,
+            additionalSettings
+        );
+        assertThat(IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(additionalSettings.build()), equalTo(true));
+
+        // When index.disable_sequence_numbers is explicitly set in the template, the cluster setting must not override it
+        additionalSettings = builder();
+        providerWithSeqNoDisabled.provideAdditionalSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
+            dataStreamName,
+            IndexMode.TIME_SERIES,
+            emptyProject(),
+            now,
+            Settings.builder().put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), false).build(),
+            List.of(),
+            version,
+            additionalSettings
+        );
+        assertFalse(additionalSettings.build().hasValue(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey()));
+    }
+
+    public void testClusterSettingsDefineSyntheticIdEnabledDefault() throws Exception {
+        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD,
+            IndexVersion.current()
+        );
+        String dataStreamName = "metrics-app1";
+
+        // With synthetic_id_enabled=false, the provider must set index.mapping.synthetic_id=false
+        DataStreamIndexSettingsProvider providerWithSyntheticIdDisabled = new DataStreamIndexSettingsProvider(
+            im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName()),
+            Settings.builder().put(DataStreamIndexSettingsProvider.SUPPORT_SYNTHETIC_ID.getKey(), false).build()
+        );
+        Settings.Builder additionalSettings = builder();
+        providerWithSyntheticIdDisabled.provideAdditionalSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
+            dataStreamName,
+            IndexMode.TIME_SERIES,
+            emptyProject(),
+            now,
+            Settings.EMPTY,
+            List.of(),
+            version,
+            additionalSettings
+        );
+        assertThat(additionalSettings.build().getAsBoolean(IndexSettings.SYNTHETIC_ID.getKey(), true), equalTo(false));
+
+        // With synthetic_id_enabled=true (default), the provider must set index.mapping.synthetic_id=true
+        DataStreamIndexSettingsProvider providerWithSyntheticIdEnabled = new DataStreamIndexSettingsProvider(
+            im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName()),
+            Settings.builder().put(DataStreamIndexSettingsProvider.SUPPORT_SYNTHETIC_ID.getKey(), true).build()
+        );
+        additionalSettings = builder();
+        providerWithSyntheticIdEnabled.provideAdditionalSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
+            dataStreamName,
+            IndexMode.TIME_SERIES,
+            emptyProject(),
+            now,
+            Settings.EMPTY,
+            List.of(),
+            version,
+            additionalSettings
+        );
+        assertThat(additionalSettings.build().getAsBoolean(IndexSettings.SYNTHETIC_ID.getKey(), false), equalTo(true));
+
+        // When index.mapping.synthetic_id is explicitly set in the template, the cluster setting must not override it
+        additionalSettings = builder();
+        providerWithSyntheticIdEnabled.provideAdditionalSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
+            dataStreamName,
+            IndexMode.TIME_SERIES,
+            emptyProject(),
+            now,
+            Settings.builder().put(IndexSettings.SYNTHETIC_ID.getKey(), false).build(),
+            List.of(),
+            version,
+            additionalSettings
+        );
+        assertFalse(additionalSettings.build().hasValue(IndexSettings.SYNTHETIC_ID.getKey()));
     }
 
 }

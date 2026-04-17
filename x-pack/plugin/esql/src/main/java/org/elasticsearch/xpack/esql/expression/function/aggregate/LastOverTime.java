@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -48,6 +49,9 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
         "LastOverTime",
         LastOverTime::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(LastOverTime.class)
+        .ternary(LastOverTime::new)
+        .name("last_over_time");
 
     private final Expression timestamp;
 
@@ -56,8 +60,9 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "long", "integer", "double", "_tsid", "exponential_histogram", "tdigest" },
         description = "Calculates the latest value of a field, where recency determined by the `@timestamp` field.",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
-        preview = true,
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") },
         examples = { @Example(file = "k8s-timeseries", tag = "last_over_time") }
     )
     public LastOverTime(

@@ -19,8 +19,6 @@ import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URL;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -338,24 +336,12 @@ public final class S3FixtureUtils {
         public void loadFixturesFromResources() {
             try {
                 Set<String> loadedKeys = new HashSet<>();
-                FixtureUtils.forEachFixtureEntry(S3FixtureUtils.class, (relativePath, content) -> {
+                FixtureUtils.forEachFixtureEntryMergingAllClasspathRoots(S3FixtureUtils.class.getClassLoader(), (relativePath, content) -> {
                     String key = WAREHOUSE + "/" + relativePath;
                     addBlobToFixture(handler, key, content);
                     loadedKeys.add(key);
                 });
-                URL resourceUrl = S3FixtureUtils.class.getResource(FixtureUtils.FIXTURES_RESOURCE_PATH);
-                if (resourceUrl != null && "jar".equals(resourceUrl.getProtocol())) {
-                    fixtureLogger.info(
-                        "Loaded {} fixture files from JAR {}: {}",
-                        loadedKeys.size(),
-                        resourceUrl,
-                        String.join(", ", loadedKeys)
-                    );
-                } else if (resourceUrl != null && "file".equals(resourceUrl.getProtocol())) {
-                    fixtureLogger.info("Loaded {} fixture files from {}", loadedKeys.size(), Paths.get(resourceUrl.toURI()));
-                } else {
-                    fixtureLogger.info("Loaded {} fixture files into S3 fixture", loadedKeys.size());
-                }
+                fixtureLogger.info("Loaded {} fixture file(s) into S3 fixture: {}", loadedKeys.size(), String.join(", ", loadedKeys));
             } catch (Exception e) {
                 fixtureLogger.error("Failed to load fixtures from resources", e);
                 throw new RuntimeException(e);

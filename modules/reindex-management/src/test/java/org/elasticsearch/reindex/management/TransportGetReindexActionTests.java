@@ -18,7 +18,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ClusterAdminClient;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.ReindexAction;
-import org.elasticsearch.reindex.TaskRelocatedException;
+import org.elasticsearch.index.reindex.TaskRelocatedException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskResult;
@@ -289,8 +289,7 @@ public class TransportGetReindexActionTests extends ESTestCase {
         final TaskId originalTaskId = taskId;
         final TaskId relocatedTaskId = randomValueOtherThan(taskId, () -> new TaskId(randomAlphaOfLength(10), randomIntBetween(1, 1000)));
 
-        final TaskRelocatedException relocatedException = new TaskRelocatedException();
-        relocatedException.setOriginalAndRelocatedTaskIdMetadata(originalTaskId, relocatedTaskId);
+        final var relocatedException = new TaskRelocatedException(originalTaskId, relocatedTaskId);
 
         final TaskInfo originalInfo = createTaskInfo(originalTaskId, ReindexAction.NAME);
         final TaskResult originalResult = new TaskResult(originalInfo, (Exception) relocatedException);
@@ -335,11 +334,9 @@ public class TransportGetReindexActionTests extends ESTestCase {
             () -> new TaskId(randomAlphaOfLength(10), randomIntBetween(1, 1000))
         );
 
-        final TaskRelocatedException firstRelocation = new TaskRelocatedException();
-        firstRelocation.setOriginalAndRelocatedTaskIdMetadata(originalTaskId, firstRelocatedTaskId);
+        final var firstRelocation = new TaskRelocatedException(originalTaskId, firstRelocatedTaskId);
 
-        final TaskRelocatedException secondRelocation = new TaskRelocatedException();
-        secondRelocation.setOriginalAndRelocatedTaskIdMetadata(firstRelocatedTaskId, secondRelocatedTaskId);
+        final var secondRelocation = new TaskRelocatedException(firstRelocatedTaskId, secondRelocatedTaskId);
 
         final TaskInfo originalInfo = createTaskInfo(originalTaskId, ReindexAction.NAME);
         final TaskResult originalResult = new TaskResult(originalInfo, (Exception) firstRelocation);
@@ -385,8 +382,7 @@ public class TransportGetReindexActionTests extends ESTestCase {
         final TaskId originalTaskId = taskId;
         final TaskId relocatedTaskId = randomValueOtherThan(taskId, () -> new TaskId(randomAlphaOfLength(10), randomIntBetween(1, 1000)));
 
-        final TaskRelocatedException relocatedException = new TaskRelocatedException();
-        relocatedException.setOriginalAndRelocatedTaskIdMetadata(originalTaskId, relocatedTaskId);
+        final var relocatedException = new TaskRelocatedException(originalTaskId, relocatedTaskId);
 
         final TaskInfo originalInfo = createTaskInfo(originalTaskId, ReindexAction.NAME);
         final TaskResult originalIncomplete = new TaskResult(false, originalInfo);
@@ -450,8 +446,7 @@ public class TransportGetReindexActionTests extends ESTestCase {
         final TaskId originalTaskId = taskId;
         final TaskId relocatedTaskId = randomValueOtherThan(taskId, () -> new TaskId(randomAlphaOfLength(10), randomIntBetween(1, 1000)));
 
-        final TaskRelocatedException relocatedException = new TaskRelocatedException();
-        relocatedException.setOriginalAndRelocatedTaskIdMetadata(originalTaskId, relocatedTaskId);
+        final var relocatedException = new TaskRelocatedException(originalTaskId, relocatedTaskId);
 
         final TaskInfo originalInfo = createTaskInfo(originalTaskId, ReindexAction.NAME);
         final TaskResult originalResult = new TaskResult(originalInfo, (Exception) relocatedException);

@@ -61,6 +61,7 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.support.single.shard.TransportSingleShardAction.ROUTE_REFRESH_TIMEOUT;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.hamcrest.Matchers.isA;
 import static org.mockito.ArgumentMatchers.any;
@@ -144,10 +145,14 @@ public class TransportSingleShardActionTests extends ESTestCase {
     // test that when the target shard fails an action with StaleRequestException the coordinator fails it after a timeout
     // rather than waiting indefinitely for a routing update
     public void testStaleRequestExceptionTimesOut() {
-        // invoke the action
         doAnswer(invocation -> {
             final ActionListenerResponseHandler<TestResponse> listener = invocation.getArgument(3);
-            listener.handleException(new RemoteTransportException("stale", new StaleRequestException("stale")));
+            listener.handleException(
+                new RemoteTransportException(
+                    "stale",
+                    new StaleRequestException(new ShardId("index", INDEX_UUID_NA_VALUE, 0), SplitShardCountSummary.fromInt(2))
+                )
+            );
             return null;
         }).when(transportService).sendRequest(any(), any(), any(), ArgumentMatchers.<ActionListenerResponseHandler<TestResponse>>any());
 
@@ -164,7 +169,12 @@ public class TransportSingleShardActionTests extends ESTestCase {
         // throw stale, then succeed
         doAnswer(invocation -> {
             final ActionListenerResponseHandler<TestResponse> listener = invocation.getArgument(3);
-            listener.handleException(new RemoteTransportException("stale", new StaleRequestException("stale")));
+            listener.handleException(
+                new RemoteTransportException(
+                    "stale",
+                    new StaleRequestException(new ShardId("index", INDEX_UUID_NA_VALUE, 0), SplitShardCountSummary.fromInt(1))
+                )
+            );
             return null;
         }).doAnswer(invocation -> {
             final ActionListenerResponseHandler<TestResponse> listener = invocation.getArgument(3);

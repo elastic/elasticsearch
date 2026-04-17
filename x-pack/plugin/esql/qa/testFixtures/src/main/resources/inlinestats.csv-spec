@@ -2422,6 +2422,8 @@ emp_no:integer |  c1:long
 
 simpleCountWithFilteringAndNoGroupingOnFieldWithMultivalues
 required_capability: inline_stats
+required_capability: keywords_mv_count_as_single_value_fix
+
 from employees
 | inline stats c1 = count(job_positions) where emp_no <= 10003
 | keep emp_no, c1
@@ -4282,7 +4284,7 @@ inlineStatsAfterPruningAggregate6
 required_capability: inline_stats_double_release_fix
 required_capability: join_lookup_v12
 
-from d*,*
+from d*,*,-addresses_*
 | rename scalerank as other2
 | rename author.keyword as name_str
 | rename intersects as is_active_bool

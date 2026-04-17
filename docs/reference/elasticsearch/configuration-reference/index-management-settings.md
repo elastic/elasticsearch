@@ -98,7 +98,10 @@ The following settings can be used to customize the [OTLP endpoint](docs-content
 $$$reindex-remote-whitelist$$$
 
 `reindex.remote.whitelist` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the hosts that can be [reindexed from remotely](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-reindex). Expects a YAML array of `host:port` strings. Consists of a comma-delimited list of `host:port` entries. Defaults to `["\*.io:*", "\*.com:*"]`.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the hosts that can be [reindexed from remotely](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-reindex). Consists of a list of `host:port` entries or patterns. In {{ece}} and {{ech}} this defaults to `["*.io:*", "*.com:*"]`.
+
+`reindex.remote.blocklist` {applies_to}`stack: ga 9.4+`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the hosts that *cannot* be [reindexed from remotely](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-reindex), even if they would be allowed by `reindex.remote.whitelist`. For example, you could whitelist `*.example.com:*` and then blocklist `*.qa.example.com:*`. Consists of a list of `host:port` entries or patterns. Empty by default.
 
 `reindex.ssl.certificate` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   Specifies the path to the PEM encoded certificate (or certificate chain) to be used for HTTP client authentication (if required by the remote cluster) This setting requires that `reindex.ssl.key` also be set. You cannot specify both `reindex.ssl.certificate` and `reindex.ssl.keystore.path`.

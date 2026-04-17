@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.execution;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -55,6 +57,7 @@ public class PlanExecutor {
     private final PlanTelemetryManager planTelemetryManager;
     private final EsqlQueryLog queryLog;
     private final DataSourceModule dataSourceModule;
+    private final ExternalSourceCacheService cacheService;
 
     public PlanExecutor(
         IndexResolver indexResolver,
@@ -65,7 +68,8 @@ public class PlanExecutor {
         CrossProjectModeDecider crossProjectModeDecider,
         DataSourceModule dataSourceModule,
         EsqlFunctionRegistry functionRegistry,
-        EsqlParser parser
+        EsqlParser parser,
+        ExternalSourceCacheService cacheService
     ) {
         this.indexResolver = indexResolver;
         this.parser = parser;
@@ -77,6 +81,7 @@ public class PlanExecutor {
         this.planTelemetryManager = new PlanTelemetryManager(meterRegistry);
         this.queryLog = queryLog;
         this.dataSourceModule = dataSourceModule;
+        this.cacheService = cacheService;
     }
 
     public void esql(
@@ -97,7 +102,9 @@ public class PlanExecutor {
         // Use the same executor as for searches to avoid blocking
         final ExternalSourceResolver externalSourceResolver = new ExternalSourceResolver(
             services.transportService().getThreadPool().executor(org.elasticsearch.threadpool.ThreadPool.Names.SEARCH),
-            dataSourceModule
+            dataSourceModule,
+            Settings.EMPTY,
+            cacheService
         );
         final var session = new EsqlSession(
             sessionId,
@@ -168,5 +175,9 @@ public class PlanExecutor {
 
     public DataSourceModule dataSourceModule() {
         return dataSourceModule;
+    }
+
+    public ExternalSourceCacheService cacheService() {
+        return cacheService;
     }
 }

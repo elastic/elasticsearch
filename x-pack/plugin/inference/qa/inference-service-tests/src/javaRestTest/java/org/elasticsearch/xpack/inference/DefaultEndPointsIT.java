@@ -36,7 +36,7 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
     private TestThreadPool threadPool;
 
     @Before
-    public void setupTest() throws IOException {
+    public void setupTest() throws Exception {
         threadPool = new TestThreadPool(DefaultEndPointsIT.class.getSimpleName());
 
         Request loggingSettings = new Request("PUT", "_cluster/settings");
@@ -45,6 +45,8 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
                     "logger.org.elasticsearch.xpack.ml.packageloader" : "DEBUG"
                 }}""");
         client().performRequest(loggingSettings);
+        initInferenceIndices();
+        ensureNoInitializingShards();
     }
 
     @After

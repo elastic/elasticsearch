@@ -67,7 +67,7 @@ public class TaskResultsService {
      * time is 600000 milliseconds, ten minutes.
      */
     static final BackoffPolicy STORE_BACKOFF_POLICY = BackoffPolicy.exponentialBackoff(timeValueMillis(250), 14);
-    private static final int TASK_RESULTS_INDEX_MAPPINGS_VERSION = 0;
+    private static final int TASK_RESULTS_INDEX_MAPPINGS_VERSION = 1;
 
     private final Client client;
 
@@ -184,6 +184,14 @@ public class TaskResultsService {
                             builder.startObject("headers");
                             builder.field("type", "object");
                             builder.field("enabled", false);
+                            builder.endObject();
+
+                            builder.startObject("original_task_id");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+
+                            builder.startObject("original_start_time_in_millis");
+                            builder.field("type", "long");
                             builder.endObject();
                         }
                         builder.endObject();

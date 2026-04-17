@@ -22,4 +22,16 @@ FROM employees
 | --- |
 | 13.75 |
 
+`MAX` can also operate on `exponential_histogram` fields, returning the maximum of the values which were used to construct the histograms.
+
+```esql
+TS exp_histo_sample
+| WHERE instance == "instance-0"
+| STATS maximum = ROUND(MAX(responseTime), 4)
+```
+
+| maximum:double |
+| --- |
+| 6.7862 |
+
 

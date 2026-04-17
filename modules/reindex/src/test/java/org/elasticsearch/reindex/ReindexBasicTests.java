@@ -9,12 +9,16 @@
 
 package org.elasticsearch.reindex;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.ReindexAction;
+import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.ReindexRequestBuilder;
+import org.elasticsearch.indices.IndexClosedException;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -31,6 +35,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class ReindexBasicTests extends ReindexTestCase {
     public void testFiltering() throws Exception {
@@ -234,5 +239,26 @@ public class ReindexBasicTests extends ReindexTestCase {
         } finally {
             searchResponse.decRef();
         }
+    }
+
+    /**
+     * Reindex should fail when the source index is closed. By default, IndicesOptions forbids closed
+     * indices, so the request fails at validation with IndexClosedException.
+     */
+    public void testReindexFailsWhenSourceIndexIsClosed() {
+        String sourceIndex = "source";
+        String destIndex = "dest";
+        createIndex(sourceIndex);
+        indexRandom(true, prepareIndex(sourceIndex).setId("1").setSource("foo", "bar"));
+        indicesAdmin().prepareClose(sourceIndex).get();
+
+        Exception e = expectThrows(Exception.class, () -> {
+            ReindexRequest request = new ReindexRequest();
+            request.setSourceIndices(sourceIndex);
+            request.setDestIndex(destIndex);
+            client().execute(ReindexAction.INSTANCE, request).actionGet();
+        });
+
+        assertThat(ExceptionsHelper.unwrap(e, IndexClosedException.class), notNullValue());
     }
 }

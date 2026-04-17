@@ -824,7 +824,7 @@ provide more detailed explanations of the mechanics and rationale behind each st
 
 A follower detects current master failure.
 
-``` 
+```
 LeaderChecker
 Coordinator.onLeaderFailure()
 ```
@@ -846,8 +846,8 @@ there is a current master and what other master-eligible nodes are in the cluste
 
 ```
 PeerFinder.handleWakeUp()
-ConfiguredHostsResolver 
-PeerFinder.startProbe(...) 
+ConfiguredHostsResolver
+PeerFinder.startProbe(...)
 PeersRequest
 PeersResponse
 ```
@@ -1166,8 +1166,8 @@ For production clusters, the operator has to provide the list of master-eligible
 cluster via the [
 `cluster.initial_master_nodes`](https://www.elastic.co/docs/deploy-manage/deploy/self-managed/important-settings-configuration#initial_master_nodes)
 setting.
-`ClusterBootstrapService` uses this setting 
-to [construct](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/ClusterBootstrapService.java#L107) 
+`ClusterBootstrapService` uses this setting
+to [construct](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/ClusterBootstrapService.java#L107)
 its `bootstrapRequirements`.
 
 On startup, a master-eligible node will
@@ -1175,8 +1175,8 @@ first [become candidate](https://github.com/elastic/elasticsearch/blob/v9.3.0/se
 which will also start the discovery process (see [Discovery](#discovery) section). Each time the [PeerFinder] reports
 newly discovered peers, `ClusterBootstrapService`
 will [check](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/ClusterBootstrapService.java#L173)
-whether the discovered nodes satisfy the bootstrap requirements, i.e. when 
-a [strict majority](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/ClusterBootstrapService.java#L198) 
+whether the discovered nodes satisfy the bootstrap requirements, i.e. when
+a [strict majority](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/ClusterBootstrapService.java#L198)
 of the nodes specified in `cluster.initial_master_nodes` are found.
 
 When this condition is met, `ClusterBootstrapService`
@@ -1188,12 +1188,12 @@ then [schedule](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/
 an election (see [Master Elections](#master-elections) for more details). Any requirements that could not be matched to
 a discovered node are added
 as [placeholder](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/ClusterBootstrapService.java#L61)
-entries. These placeholders occupy slots in the voting configuration's `nodeIds` set and affect the quorum size, but 
+entries. These placeholders occupy slots in the voting configuration's `nodeIds` set and affect the quorum size, but
 they cannot cast a vote until the real nodes come online and replace them.
 
-When `cluster.initial_master_nodes` is not present, 
-and [no discovery config is provided](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/ClusterBootstrapService.java#L122) 
-either, [ClusterBootstrapService] 
+When `cluster.initial_master_nodes` is not present,
+and [no discovery config is provided](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/ClusterBootstrapService.java#L122)
+either, [ClusterBootstrapService]
 will [schedule](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/ClusterBootstrapService.java#L204)
 a best-effort bootstrap after the `discovery.unconfigured_bootstrap_timeout` (default 3 seconds). This simply uses all
 master-eligible nodes discovered so far. This is inherently unsafe and is only intended for development and testing.
@@ -1207,14 +1207,14 @@ requirement. The node bootstraps itself immediately.
 
 If more than half of the master-eligible nodes are permanently lost and no snapshot is available, the last-resort
 [UnsafeBootstrapMasterCommand] (`elasticsearch-node unsafe-bootstrap`) can force a single surviving master-eligible
-node to become the new cluster leader. It works by [setting](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/UnsafeBootstrapMasterCommand.java#L91) both voting configurations 
+node to become the new cluster leader. It works by [setting](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/UnsafeBootstrapMasterCommand.java#L91) both voting configurations
 to a single-node configuration containing only the local node and [regenerating](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/UnsafeBootstrapMasterCommand.java#L102) the cluster UUID.
 
 The remaining data nodes cannot join the newly bootstrapped master because their persisted state still references the
 old cluster. The [DetachClusterCommand] (`elasticsearch-node detach-cluster`) sets both their voting configurations
-to `VotingConfiguration.MUST_JOIN_ELECTED_MASTER`, containing the single node ID `_must_join_elected_master_`, 
-which prevents nodes from starting their own elections and forces them to discover and join the already-elected master. 
-It then [resets](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/DetachClusterCommand.java#L57) 
+to `VotingConfiguration.MUST_JOIN_ELECTED_MASTER`, containing the single node ID `_must_join_elected_master_`,
+which prevents nodes from starting their own elections and forces them to discover and join the already-elected master.
+It then [resets](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/DetachClusterCommand.java#L57)
 the persisted term to `0` and marks `clusterUUIDCommitted` as false.
 
 ### Master Transport Actions
@@ -1226,7 +1226,7 @@ Many cluster operations
 [managing snapshots](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/admin/cluster/snapshots/create/TransportCreateSnapshotAction.java), etc.)
 run on the elected master node because they result in [ClusterState] updates. The [TransportMasterNodeAction] class
 is the base class for such operations. It provides a common framework that handles routing requests to the current
-master, retrying when the master changes, and checking for cluster blocks. 
+master, retrying when the master changes, and checking for cluster blocks.
 
 See `TransportMasterNodeAction` Javadoc for a detailed description of the execution flow and retry mechanism.
 
@@ -1304,14 +1304,14 @@ own file-system abstraction used to read and write index files on disk.
 Lucene's `Directory` is a pure I/O abstraction: callers open
 an [IndexInput](https://lucene.apache.org/core/10_3_2/core/org/apache/lucene/store/IndexInput.html) to read a named file
 and create an [IndexOutput](https://lucene.apache.org/core/10_3_2/core/org/apache/lucene/store/IndexOutput.html) to
-write one. The `Store` builds on the Lucene `Directory` capabilities by adding reference counting and corruption 
+write one. The `Store` builds on the Lucene `Directory` capabilities by adding reference counting and corruption
 detection, exposing committed file metadata and enforcing integrity invariants.
 
 #### Reference Counting and Lifecycle
 
 The `Store` implements [RefCounted]. Callers call `store.incRef()` before using it and `store.decRef()` in
 a `finally` block when done. Once the reference count drops to zero the store is closed and the underlying Lucene
-directory is cleaned up. The `Store` also receives a [ShardLock] at construction time and only releases it 
+directory is cleaned up. The `Store` also receives a [ShardLock] at construction time and only releases it
 once closed, allowing other threads waiting to acquire the lock for this shard to proceed.
 
 #### Backing Directory
@@ -1364,9 +1364,9 @@ The [ShardLock] is a node-wide, coarse-grained lock managed by [NodeEnvironment]
 within a JVM process. The
 `Store` [is given](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/Store.java#L169)
 a `ShardLock` at creation time. It holds this lock for its entire lifetime, ensuring that write operations (e.g.
-creating an `IndexWriter`, deleting shard files, or recovering from another shard) have exclusive access to the shard 
+creating an `IndexWriter`, deleting shard files, or recovering from another shard) have exclusive access to the shard
 directory.
-Callers that need to access the directory without a live `Store` (e.g. `TransportNodesListShardStoreMetadata` reading 
+Callers that need to access the directory without a live `Store` (e.g. `TransportNodesListShardStoreMetadata` reading
 metadata for allocation
 decisions) [acquire a temporary](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/indices/store/TransportNodesListShardStoreMetadata.java#L182)
 `ShardLock` for the duration of the read.
@@ -1652,8 +1652,8 @@ Lucene [Version](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/ut
 that the index was written with. The stored Lucene version is used for Lucene API calls that depend on the version,
 such as [reading segment metadata](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/common/lucene/Lucene.java#L173).
 
-The `IndexVersion` class was [introduced](https://github.com/elastic/elasticsearch/pull/94827) in 8.8.0. Before that, 
-the node release `Version` was used for both purposes. Prior to 8.9.0 the `id` field was the same as the release version, 
+The `IndexVersion` class was [introduced](https://github.com/elastic/elasticsearch/pull/94827) in 8.8.0. Before that,
+the node release `Version` was used for both purposes. Prior to 8.9.0 the `id` field was the same as the release version,
 for backwards compatibility. In 8.9.0 it changed to an incrementing number, and disconnected from the release version.
 
 All known versions are declared as constants in [IndexVersions] (e.g. `UPGRADE_TO_LUCENE_10_4_0`,
@@ -1665,7 +1665,7 @@ The `IndexVersion`
 is [stamped](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/MetadataCreateIndexService.java#L1231)
 on every index at creation time via
 the [IndexMetadata](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/IndexMetadata.java)
-`index.version.created` setting. This version is immutable for the lifetime of the index and determines which code
+`index.version.created` setting. The setting is [`Property.PrivateIndex`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/IndexMetadata.java#L374): the cluster assigns it at creation and clients cannot set it explicitly. This version is immutable for the lifetime of the index and determines which code
 paths are used when reading its data
 ([PostRecoveryMerger optimization example](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/indices/PostRecoveryMerger.java#L100)).
 
@@ -1698,6 +1698,40 @@ to degraded read-only archives via [RestoreService.convertLegacyIndex()](https:/
 when restored from a snapshot.
 Both `MINIMUM_COMPATIBLE` and `MINIMUM_READONLY_COMPATIBLE` are bumped with each new major release to maintain this
 window.
+
+#### Enforcement of IndexVersion compatibility in a cluster
+
+Index version acts as a cluster-wide contract. New indices must use a format every data and master-eligible node
+can read and write. A node is only admitted to the cluster if it can open every existing index. Allocation must not
+move shards to nodes running an older Lucene version that cannot read segments already written by a newer one.
+
+The cluster state's `DiscoveryNodes` field (see
+the [Cluster State section](#cluster-state) for more details) computes and
+records `maxDataNodeCompatibleIndexVersion`, which
+is [the minimum of](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/node/DiscoveryNodes.java#L855)
+all data and master-eligible node's `versionInfo.maxIndexVersion()`. This is the
+highest index version the whole cluster supports.
+
+[Creating an index](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/MetadataCreateIndexService.java#L1128)
+sets `index.version.created` to the minimum of `IndexVersion.current()` and
+`getMaxDataNodeCompatibleIndexVersion()`. During a rolling upgrade, old and new nodes coexist: the cluster-wide value
+stays at the lower ceiling until the last pre-upgrade node is gone, so indices created mid-upgrade get the same index
+version as before the upgrade. Code paths and features that are gated on index version therefore stay on
+backward-compatible behavior until the cluster is fully upgraded.
+
+[A joining node](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/NodeJoinExecutor.java#L405)
+is validated by `NodeJoinExecutor.ensureIndexCompatibility`: every index in metadata (open or closed) must fall within
+that node's supported index-version range. Otherwise the join fails: for example, a node whose maximum index version is
+too low cannot join while indices exist that were created with a newer format, and indices older than the joiner's
+minimum writable version are only allowed if they still qualify as read-only-supported on that node.
+
+The stamped `index.version.created` value ensures the index's on-disk format and feature gates are within the range
+supported by the whole cluster. However, it does not pin the Lucene segment format: during a rolling upgrade, a shard
+hosted on a newer node may flush or merge segments in a Lucene format that older nodes cannot read, even though they
+still support the index's `IndexVersion`. To prevent allocating such shards onto incompatible nodes, [IndexVersionAllocationDecider](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/routing/allocation/decider/IndexVersionAllocationDecider.java)
+only allows shard movement/recovery from a source node to a target node whose `DiscoveryNode#getMaxIndexVersion` is
+equal-or-newer than the source node's. In other words, primary relocation and replica allocation are permitted only if
+`target.maxIndexVersion >= source.maxIndexVersion`.
 
 For more details on how index format compatibility interacts with upgrades,
 see the [Index Format Backwards Compatibility](https://github.com/elastic/elasticsearch/blob/main/docs/internal/GeneralArchitectureGuide.md#index-format-backwards-compatibility)
@@ -1742,15 +1776,15 @@ extensions in
 
 The `segments_N` file and the `write.lock` file live at the directory root. A commit atomically publishes a new
 `segments_N+1` as the active commit point, making the new set of segments visible.
-The old segment files are removed once they are no longer 
-[referenced](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/IndexReader.html#decRef()) by any open 
-`IndexReader` or any retained commits. Elasticsearch's 
+The old segment files are removed once they are no longer
+[referenced](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/IndexReader.html#decRef()) by any open
+`IndexReader` or any retained commits. Elasticsearch's
 [CombinedDeletionPolicy](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/CombinedDeletionPolicy.java), which implements Lucene's
-[IndexDeletionPolicy](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/IndexDeletionPolicy.html), 
-manages which commits are retained. All commits more recent than 
+[IndexDeletionPolicy](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/IndexDeletionPolicy.html),
+manages which commits are retained. All commits more recent than
 the [safe commit](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/CombinedDeletionPolicy.java#L55)
 (the most recent commit whose max sequence number is at most the global checkpoint, used as the starting point
-for peer recovery) are preserved. Older commits can also 
+for peer recovery) are preserved. Older commits can also
 be [pinned](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/CombinedDeletionPolicy.java#L216)
 by external consumers (e.g., snapshot operations). `CombinedDeletionPolicy` also
 [communicates the safe commit checkpoint information](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/CombinedDeletionPolicy.java#L109)
@@ -1792,8 +1826,8 @@ with Elasticsearch-specific customizations:
   `_ts_routing_hash` doc values, and the [TSDBSyntheticIdStoredFieldsReader] synthesizes `_id` stored-field values on
   the fly from the same doc values. An
   [ES94BloomFilterDocValuesFormat](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/codec/bloomfilter/ES94BloomFilterDocValuesFormat.java)
-  bloom filter is also built for the `_id` field so that existence checks during indexing can avoid `_tsid` and 
-  `@timestamp` doc-values lookups per document. The synthetic ID feature reduces the storage overhead for 
+  bloom filter is also built for the `_id` field so that existence checks during indexing can avoid `_tsid` and
+  `@timestamp` doc-values lookups per document. The synthetic ID feature reduces the storage overhead for
   high-cardinality time-series indices.
 
 As the [IndexVersion](#index-version) advances with each Lucene upgrade, new codec implementations are
@@ -1857,9 +1891,9 @@ based on the minimum sequence number to retain (evaluated from the global checkp
 `index.soft_deletes.retention.operations` setting, and any active retention leases held by replicas or CCR followers.
 
 Soft deletes are an essential feature for [CCR](#cross-cluster-replication-ccr).
-CCR followers replay operations from their leader Lucene index to stay up to date. Without soft deletes, the leader 
-Lucene index could discard deleted documents during merges, leaving no trace that the delete operation ever occurred. 
-CCR followers that fall behind would no longer be able to catch up via operation replay. Soft-deleted tombstones 
+CCR followers replay operations from their leader Lucene index to stay up to date. Without soft deletes, the leader
+Lucene index could discard deleted documents during merges, leaving no trace that the delete operation ever occurred.
+CCR followers that fall behind would no longer be able to catch up via operation replay. Soft-deleted tombstones
 prevent this by preserving delete operations in the Lucene index until all followers have processed them.
 
 # Recovery

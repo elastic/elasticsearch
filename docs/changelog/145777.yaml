@@ -1,0 +1,5 @@
+area: "Infra/Core"
+issues: []
+pr: 145777
+summary: Throw a 400 error for malformed parsing input when missing element end
+type: bug

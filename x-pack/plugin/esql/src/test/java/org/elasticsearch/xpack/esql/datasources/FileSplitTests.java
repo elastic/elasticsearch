@@ -119,4 +119,48 @@ public class FileSplitTests extends ESTestCase {
         assertTrue(str.contains("s3://bucket/file.parquet"));
         assertTrue(str.contains("year"));
     }
+
+    public void testNamedWriteableRoundTripWithStatistics() throws IOException {
+        StoragePath path = StoragePath.of("s3://bucket/data/file.parquet");
+        Map<String, Object> stats = Map.of("_stats.row_count", 1000L, "_stats.columns.age.null_count", 50L);
+        FileSplit original = new FileSplit("file", path, 0, 2048, ".parquet", Map.of(), Map.of(), null, stats);
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.writeNamedWriteable(original);
+
+        StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry);
+        FileSplit deserialized = (FileSplit) in.readNamedWriteable(ExternalSplit.class);
+
+        assertEquals(original, deserialized);
+        assertEquals(original.hashCode(), deserialized.hashCode());
+        assertNotNull(deserialized.statistics());
+        assertEquals(1000L, deserialized.statistics().get("_stats.row_count"));
+        assertEquals(50L, deserialized.statistics().get("_stats.columns.age.null_count"));
+    }
+
+    public void testNamedWriteableRoundTripWithNullStatistics() throws IOException {
+        StoragePath path = StoragePath.of("s3://bucket/data/file.parquet");
+        FileSplit original = new FileSplit("file", path, 0, 2048, ".parquet", Map.of(), Map.of(), null, null);
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.writeNamedWriteable(original);
+
+        StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry);
+        FileSplit deserialized = (FileSplit) in.readNamedWriteable(ExternalSplit.class);
+
+        assertEquals(original, deserialized);
+        assertNull(deserialized.statistics());
+    }
+
+    public void testEqualityWithStatistics() {
+        StoragePath path = StoragePath.of("s3://bucket/file.parquet");
+        Map<String, Object> stats = Map.of("_stats.row_count", 100L);
+        FileSplit a = new FileSplit("file", path, 0, 100, ".parquet", Map.of(), Map.of(), null, stats);
+        FileSplit b = new FileSplit("file", path, 0, 100, ".parquet", Map.of(), Map.of(), null, stats);
+        FileSplit c = new FileSplit("file", path, 0, 100, ".parquet", Map.of(), Map.of(), null, null);
+
+        assertEquals(a, b);
+        assertEquals(a.hashCode(), b.hashCode());
+        assertNotEquals(a, c);
+    }
 }

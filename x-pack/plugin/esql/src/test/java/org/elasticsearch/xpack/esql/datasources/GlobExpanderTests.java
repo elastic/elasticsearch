@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -45,8 +47,8 @@ public class GlobExpanderTests extends ESTestCase {
 
     public void testExpandGlobLiteralReturnsUnresolved() throws IOException {
         StubProvider provider = new StubProvider(List.of());
-        FileSet result = GlobExpander.expandGlob("s3://bucket/data.parquet", provider);
-        assertTrue(result.isUnresolved());
+        FileList result = GlobExpander.expandGlob("s3://bucket/data.parquet", provider);
+        assertFalse(result.isResolved());
     }
 
     public void testExpandGlobMatchesFiles() throws IOException {
@@ -57,18 +59,18 @@ public class GlobExpanderTests extends ESTestCase {
         );
         StubProvider provider = new StubProvider(listing);
 
-        FileSet result = GlobExpander.expandGlob("s3://bucket/data/*.parquet", provider);
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/*.parquet", provider);
         assertTrue(result.isResolved());
-        assertEquals(2, result.size());
-        assertEquals("s3://bucket/data/file1.parquet", result.files().get(0).path().toString());
-        assertEquals("s3://bucket/data/file2.parquet", result.files().get(1).path().toString());
+        assertEquals(2, result.fileCount());
+        assertEquals("s3://bucket/data/file1.parquet", result.path(0).toString());
+        assertEquals("s3://bucket/data/file2.parquet", result.path(1).toString());
     }
 
     public void testExpandGlobNoMatchReturnsEmpty() throws IOException {
         List<StorageEntry> listing = List.of(entry("s3://bucket/data/file.csv", 50));
         StubProvider provider = new StubProvider(listing);
 
-        FileSet result = GlobExpander.expandGlob("s3://bucket/data/*.parquet", provider);
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/*.parquet", provider);
         assertTrue(result.isEmpty());
     }
 
@@ -76,7 +78,7 @@ public class GlobExpanderTests extends ESTestCase {
         List<StorageEntry> listing = List.of(entry("s3://bucket/data/f.parquet", 10));
         StubProvider provider = new StubProvider(listing);
 
-        FileSet result = GlobExpander.expandGlob("s3://bucket/data/*.parquet", provider);
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/*.parquet", provider);
         assertEquals("s3://bucket/data/*.parquet", result.originalPattern());
     }
 
@@ -87,14 +89,14 @@ public class GlobExpanderTests extends ESTestCase {
         StubProvider provider = new StubProvider(listing);
         provider.existingPaths.add("s3://bucket/extra.parquet");
 
-        FileSet result = GlobExpander.expandCommaSeparated("s3://bucket/data/*.parquet, s3://bucket/extra.parquet", provider);
+        FileList result = GlobExpander.expandCommaSeparated("s3://bucket/data/*.parquet, s3://bucket/extra.parquet", provider);
         assertTrue(result.isResolved());
-        assertEquals(3, result.size());
+        assertEquals(3, result.fileCount());
     }
 
     public void testExpandCommaSeparatedAllMissing() throws IOException {
         StubProvider provider = new StubProvider(List.of());
-        FileSet result = GlobExpander.expandCommaSeparated("s3://bucket/missing.parquet", provider);
+        FileList result = GlobExpander.expandCommaSeparated("s3://bucket/missing.parquet", provider);
         assertTrue(result.isEmpty());
     }
 
@@ -145,9 +147,9 @@ public class GlobExpanderTests extends ESTestCase {
         );
         StubProvider provider = new StubProvider(listing);
 
-        FileSet result = GlobExpander.expandGlob("s3://bucket/data/year=*/*.parquet", provider, null, true);
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/year=*/*.parquet", provider, null, true);
         assertTrue(result.isResolved());
-        assertEquals(2, result.size());
+        assertEquals(2, result.fileCount());
         assertNotNull(result.partitionMetadata());
         assertFalse(result.partitionMetadata().isEmpty());
         assertTrue(result.partitionMetadata().partitionColumns().containsKey("year"));
@@ -160,9 +162,9 @@ public class GlobExpanderTests extends ESTestCase {
         );
         StubProvider provider = new StubProvider(listing);
 
-        FileSet result = GlobExpander.expandGlob("s3://bucket/data/year=*/*.parquet", provider, null, false);
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/year=*/*.parquet", provider, null, false);
         assertTrue(result.isResolved());
-        assertEquals(2, result.size());
+        assertEquals(2, result.fileCount());
         assertNull(result.partitionMetadata());
     }
 
@@ -174,7 +176,7 @@ public class GlobExpanderTests extends ESTestCase {
         StubProvider provider = new StubProvider(listing);
 
         @SuppressWarnings("RegexpMultiline")
-        FileSet result = GlobExpander.expandGlob("s3://bucket/data/**/*.parquet", provider, null, true);
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/**/*.parquet", provider, null, true);
         assertTrue(result.isResolved());
         assertNull(result.partitionMetadata());
     }
@@ -183,7 +185,7 @@ public class GlobExpanderTests extends ESTestCase {
 
     public void testRewriteGlobWithTemplateHints() {
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
-        PartitionConfig config = new PartitionConfig(PartitionConfig.TEMPLATE, "{year}/{month}");
+        PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{year}/{month}");
         String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/*/*/*.parquet", hints, config);
         // First wildcard maps to {year} → rewritten to 2024
         assertEquals("s3://bucket/2024/*/*.parquet", rewritten);
@@ -191,7 +193,7 @@ public class GlobExpanderTests extends ESTestCase {
 
     public void testRewriteGlobWithTemplateInHints() {
         var hints = List.of(hint("month", PartitionFilterHintExtractor.Operator.IN, 1, 2));
-        PartitionConfig config = new PartitionConfig(PartitionConfig.TEMPLATE, "{year}/{month}");
+        PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{year}/{month}");
         String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/*/*/*.parquet", hints, config);
         // Second wildcard maps to {month} → rewritten to {1,2}
         assertEquals("s3://bucket/*/{1,2}/*.parquet", rewritten);
@@ -199,7 +201,7 @@ public class GlobExpanderTests extends ESTestCase {
 
     public void testRewriteGlobWithTemplateRangeHintsNoRewrite() {
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 2020));
-        PartitionConfig config = new PartitionConfig(PartitionConfig.TEMPLATE, "{year}/{month}");
+        PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{year}/{month}");
         // Range hints are not rewritable, so pattern should be unchanged
         String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/*/*/*.parquet", hints, config);
         assertEquals("s3://bucket/*/*/*.parquet", rewritten);
@@ -207,7 +209,7 @@ public class GlobExpanderTests extends ESTestCase {
 
     public void testRewriteGlobWithTemplateNoMatchingHints() {
         var hints = List.of(hint("region", PartitionFilterHintExtractor.Operator.EQUALS, "us-east"));
-        PartitionConfig config = new PartitionConfig(PartitionConfig.TEMPLATE, "{year}/{month}");
+        PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{year}/{month}");
         String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/*/*/*.parquet", hints, config);
         // "region" not in template, so Hive rewriting also won't match → unchanged
         assertEquals("s3://bucket/*/*/*.parquet", rewritten);
@@ -218,7 +220,7 @@ public class GlobExpanderTests extends ESTestCase {
             hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024),
             hint("day", PartitionFilterHintExtractor.Operator.EQUALS, 15)
         );
-        PartitionConfig config = new PartitionConfig(PartitionConfig.TEMPLATE, "{year}/{month}/{day}");
+        PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{year}/{month}/{day}");
         String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/*/*/*/*.parquet", hints, config);
         assertEquals("s3://bucket/2024/*/15/*.parquet", rewritten);
     }
@@ -229,12 +231,12 @@ public class GlobExpanderTests extends ESTestCase {
             entry("s3://bucket/data/2023/12/file2.parquet", 200)
         );
         StubProvider provider = new StubProvider(listing);
-        PartitionConfig config = new PartitionConfig(PartitionConfig.TEMPLATE, "{year}/{month}");
+        PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{year}/{month}");
 
         @SuppressWarnings("RegexpMultiline")
-        FileSet result = GlobExpander.expandGlob("s3://bucket/data/**/*.parquet", provider, null, true, config, Map.of());
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/**/*.parquet", provider, null, true, config, Map.of());
         assertTrue(result.isResolved());
-        assertEquals(2, result.size());
+        assertEquals(2, result.fileCount());
         assertNotNull(result.partitionMetadata());
         assertTrue(result.partitionMetadata().partitionColumns().containsKey("year"));
         assertTrue(result.partitionMetadata().partitionColumns().containsKey("month"));
@@ -246,9 +248,9 @@ public class GlobExpanderTests extends ESTestCase {
             entry("s3://bucket/data/year=2023/file2.parquet", 200)
         );
         StubProvider provider = new StubProvider(listing);
-        PartitionConfig config = new PartitionConfig(PartitionConfig.NONE, null);
+        PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.NONE, null);
 
-        FileSet result = GlobExpander.expandGlob("s3://bucket/data/year=*/*.parquet", provider, null, true, config, Map.of());
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/year=*/*.parquet", provider, null, true, config, Map.of());
         assertTrue(result.isResolved());
         assertNull(result.partitionMetadata());
     }

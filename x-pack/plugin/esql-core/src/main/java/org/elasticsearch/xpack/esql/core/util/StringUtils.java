@@ -222,6 +222,22 @@ public final class StringUtils {
     }
 
     /**
+     * Escapes Lucene wildcard metacharacters ({@code *}, {@code ?}, {@code \}) in a literal string
+     * so it can be safely embedded in a Lucene wildcard pattern.
+     */
+    public static String escapeWildcardLiteral(String literal) {
+        StringBuilder sb = new StringBuilder(literal.length());
+        for (int i = 0; i < literal.length(); i++) {
+            char c = literal.charAt(i);
+            if (c == '*' || c == '?' || c == '\\') {
+                sb.append('\\');
+            }
+            sb.append(c);
+        }
+        return sb.toString();
+    }
+
+    /**
      * Translates a like pattern to a Lucene wildcard.
      * This methods pays attention to the custom escape char which gets converted into \ (used by Lucene).
      * <pre>

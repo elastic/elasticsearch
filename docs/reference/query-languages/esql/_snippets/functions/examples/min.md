@@ -22,4 +22,16 @@ FROM employees
 | --- |
 | -8.46 |
 
+`MIN` can also operate on `exponential_histogram` fields, returning the minimum of the values which were used to construct the histograms.
+
+```esql
+TS exp_histo_sample
+| WHERE instance == "instance-0"
+| STATS minimum = ROUND(MIN(responseTime), 4)
+```
+
+| minimum:double |
+| --- |
+| 2.0E-4 |
+
 

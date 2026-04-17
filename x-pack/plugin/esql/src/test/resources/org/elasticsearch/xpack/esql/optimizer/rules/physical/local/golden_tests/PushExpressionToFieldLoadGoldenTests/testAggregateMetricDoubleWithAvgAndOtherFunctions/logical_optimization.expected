@@ -1,6 +1,6 @@
 Project[[s{r}#0, a{r}#1]]
 \_Eval[[s{r}#0 / $$SUM$a$0{r$}#2 AS a#1]]
   \_Limit[1000[INTEGER],false,false]
-    \_Aggregate[[],[SUM($$sum(network.eth>$SUM$1{r$}#3,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS s#0, SUM($$avg(network.eth>$SUM$0{r$}#4,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS $$SUM$a$0#2]]
+    \_Aggregate[[],[SUM($$sum(network.eth>$SUM$1{r$}#3,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_warn[KEYWORD]) AS s#0, SUM($$avg(network.eth>$SUM$0{r$}#4,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_warn[KEYWORD]) AS $$SUM$a$0#2]]
       \_Eval[[FROMAGGREGATEMETRICDOUBLE(network.eth0.tx{f}#5,2[INTEGER]) AS $$sum(network.eth>$SUM$1#3, FROMAGGREGATEMETRICDOUBLE(network.eth0.tx{f}#5,3[INTEGER]) AS $$avg(network.eth>$SUM$0#4]]
         \_EsRelation[k8s-downsampled][@timestamp{f}#6, client.ip{f}#7, cluster{f}#8, event{f}#9, event_city{f}#10, event_city_boundary{f}#11, event_location{f}#12, event_log{f}#13, event_shape{f}#14, events_received{f}#15, network.bytes_in{f}#16, network.cost{f}#17, network.eth0.currently_connected_clients{f}#18, network.eth0.firmware_version{f}#19, network.eth0.last_up{f}#20, network.eth0.rx{f}#21, network.eth0.tx{f}#5, network.eth0.up{f}#22, network.total_bytes_in{f}#23, network.total_cost{f}#24, pod{f}#25]

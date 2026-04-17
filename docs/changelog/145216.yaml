@@ -1,0 +1,5 @@
+area: Codec
+issues: []
+pr: 145216
+summary: Enable large blocks for binary doc values by default. This mainly affects fields of type wildcard, ignored source, values hitting ignore above threshold and ignore malformed numbers and dates.
+type: enhancement

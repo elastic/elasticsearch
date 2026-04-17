@@ -35,15 +35,15 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * <p>
  * When a {@code COMPLETION} command has a foldable prompt (e.g., a literal or foldable expression),
  * the analyzer transforms it into an {@code EVAL} node with a {@code CompletionFunction} expression:
- * <pre>{@code
+ * {@snippet lang="esql" :
  * FROM books
  * | COMPLETION "Translate this text" WITH { "inference_id": "my-model" }
- * }</pre>
+ * }
  * is internally rewritten into:
- * <pre>{@code
+ * {@snippet lang="esql" :
  * FROM books
  * | EVAL completion = COMPLETION("Translate this text", "my-model")
- * }</pre>
+ * }
  * The pre-optimizer then evaluates this function using {@code InferenceFunctionEvaluator} and
  * replaces it with a literal result.
  */

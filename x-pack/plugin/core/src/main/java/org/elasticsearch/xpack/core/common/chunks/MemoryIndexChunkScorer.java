@@ -24,6 +24,7 @@ import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.QueryBuilder;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Strings;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -47,8 +48,8 @@ public class MemoryIndexChunkScorer {
      * @param analyzer the analyzer used for indexing chunks and parsing query text.
      */
     public MemoryIndexChunkScorer(Analyzer analyzer) {
-        assert analyzer != null : "Analyzer should be set"
-        this.analyzer = (analyzer != null) ? analyzer : new StandardAnalyzer();
+        assert analyzer != null : "Analyzer should be set";
+        this.analyzer = analyzer;
     }
 
     public Analyzer analyzer() {
@@ -76,7 +77,7 @@ public class MemoryIndexChunkScorer {
      * @throws ElasticsearchException on failure scoring chunks
      */
     public List<ScoredChunk> scoreChunks(List<String> chunks, String queryText, int maxResults, boolean backfillResults) {
-        if (chunks == null || chunks.isEmpty() || queryText == null || queryText.trim().isEmpty()) {
+        if (chunks == null || chunks.isEmpty() || queryText == null || Strings.isNullOrBlank(queryText)) {
             return new ArrayList<>();
         }
         Query query = buildQuery(queryText);

@@ -555,7 +555,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 aggsCollector,
                 null
             );
-            searcher.search(Queries.ALL_DOCS_INSTANCE, queryPhaseCollector);
+            searcher.search(new MatchAllDocsQuery(), queryPhaseCollector);
             assertTrue(queryPhaseCollector.isTerminatedAfter());
             assertEquals(terminateAfter, aggsCollector.getTotalHits());
         }
@@ -569,7 +569,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 aggsCollector,
                 null
             );
-            searcher.search(Queries.ALL_DOCS_INSTANCE, queryPhaseCollector);
+            searcher.search(new MatchAllDocsQuery(), queryPhaseCollector);
             assertFalse(queryPhaseCollector.isTerminatedAfter());
             assertEquals(numDocs, aggsCollector.getTotalHits());
         }

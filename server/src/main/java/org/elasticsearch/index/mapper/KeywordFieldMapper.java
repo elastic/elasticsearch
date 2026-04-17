@@ -480,7 +480,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             String offsetsFieldName = getOffsetsFieldName(
                 context,
                 indexSettings.sourceKeepMode(),
-                fieldtype.docValuesType() == DocValuesType.SORTED_SET,
+                docValuesParameters().enabled(),
                 stored.getValue(),
                 this,
                 indexCreatedVersion,
@@ -1550,9 +1550,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             return SyntheticSourceSupport.FALLBACK;
         }
 
-        boolean docValuesSupportNativeSyntheticSource = fieldType().usesBinaryDocValues() == false || sourceKeepMode == SourceKeepMode.NONE;
-
-        if (fieldType.stored() || (docValuesParameters.enabled() && docValuesSupportNativeSyntheticSource)) {
+        if (fieldType.stored() || docValuesParameters.enabled()) {
             return new SyntheticSourceSupport.Native(() -> syntheticFieldLoader(fullPath(), leafName()));
         }
 
@@ -1595,8 +1593,11 @@ public final class KeywordFieldMapper extends FieldMapper {
                     });
                 }
             } else {
-                assert offsetsFieldName == null;
-                layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fieldType().name()));
+                if (offsetsFieldName != null) {
+                    layers.add(new BinaryWithOffsetsDocValuesSyntheticFieldLoaderLayer(fullPath(), offsetsFieldName));
+                } else {
+                    layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fieldType().name()));
+                }
             }
         }
 

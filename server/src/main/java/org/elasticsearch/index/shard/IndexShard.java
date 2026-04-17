@@ -4968,7 +4968,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * in a search-ready state, the listener is notified immediately.
      */
     public void waitForSearchReady(ActionListener<Void> listener) {
-        searchReadyListener.addListener(listener);
+        searchReadyListener.addListener(listener, EsExecutors.DIRECT_EXECUTOR_SERVICE, threadPool.getThreadContext());
     }
 
     /**

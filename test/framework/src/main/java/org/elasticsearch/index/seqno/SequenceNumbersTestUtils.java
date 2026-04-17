@@ -13,6 +13,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -221,50 +222,51 @@ public final class SequenceNumbersTestUtils {
      * This helper method is useful if you do not use replicas in your test setup.
      *
      * @param cluster the cluster containing the index
-     * @param index   the name of the index
+     * @param indexName   the name of the index
      */
-    public static void persistGlobalCheckpointOnPrimaryShards(InternalTestCluster cluster, String index) throws Exception {
+    public static void persistGlobalCheckpointOnPrimaryShards(InternalTestCluster cluster, String indexName) throws Exception {
         final var future = new PlainActionFuture<Void>();
         try (var listeners = new RefCountingListener(future)) {
-            for (String node : cluster.nodesInclude(index)) {
-                for (IndexService indexService : cluster.getInstance(IndicesService.class, node)) {
-                    if (indexService.index().getName().equals(index) == false) {
+            for (String node : cluster.nodesInclude(indexName)) {
+                final var index = cluster.clusterService().state().metadata().getProject().index(indexName).getIndex();
+                IndexService indexService = cluster.getInstance(IndicesService.class, node).indexServiceSafe(index);
+                for (IndexShard indexShard : indexService) {
+                    if (indexShard.routingEntry().primary() == false) {
                         continue;
                     }
-                    for (IndexShard indexShard : indexService) {
-                        if (indexShard.routingEntry().primary() == false) {
-                            continue;
-                        }
-                        assertThat(
-                            "Shard " + indexShard.getShardUuid() + " should be active",
-                            indexShard.routingEntry().active(),
-                            equalTo(true)
-                        );
+                    assertThat(
+                        "Shard " + indexShard.getShardUuid() + " should be active",
+                        indexShard.routingEntry().active(),
+                        equalTo(true)
+                    );
 
-                        final var maxSeqNo = indexShard.withEngine(Engine::getMaxSeqNo);
+                    final var maxSeqNo = indexShard.withEngine(Engine::getMaxSeqNo);
 
-                        indexShard.sync(); // sync to ensure local checkpoint is processed
+                    indexShard.sync(); // sync to ensure local checkpoint is processed
 
-                        if (indexShard.getTranslogDurability() == Translog.Durability.ASYNC) {
-                            assertBusy(() -> assertThat(indexShard.getLastKnownGlobalCheckpoint(), equalTo(maxSeqNo)));
-                        }
-
-                        final var listener = listeners.acquire(
-                            ignored -> assertThat(
-                                "Global checkpoint not synced for shard: " + indexShard.routingEntry(),
-                                indexShard.getLastSyncedGlobalCheckpoint(),
-                                equalTo(maxSeqNo)
-                            )
-                        );
-                        indexShard.syncGlobalCheckpoint(maxSeqNo, e -> {
-                            if (e == null) {
-                                listener.onResponse(null);
-                            } else {
-                                listener.onFailure(e);
-                            }
-                        });
+                    if (indexShard.getTranslogDurability() == Translog.Durability.ASYNC) {
+                        // in the async case, there is a background process that updates the global checkpoint.
+                        // We need to wait for that process to run. Alternatively, we could use indexShard.updateLocalCheckpointForShard
+                        // to enforce a sync but this would be a bit hacky.
+                        assertBusy(() -> assertThat(indexShard.getLastKnownGlobalCheckpoint(), equalTo(maxSeqNo)));
                     }
+
+                    final var listener = listeners.acquire(
+                        ignored -> assertThat(
+                            "Global checkpoint not synced for shard: " + indexShard.routingEntry(),
+                            indexShard.getLastSyncedGlobalCheckpoint(),
+                            equalTo(maxSeqNo)
+                        )
+                    );
+                    indexShard.syncGlobalCheckpoint(maxSeqNo, e -> {
+                        if (e == null) {
+                            listener.onResponse(null);
+                        } else {
+                            listener.onFailure(e);
+                        }
+                    });
                 }
+
             }
         }
         safeGet(future);

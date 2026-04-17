@@ -1435,8 +1435,8 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         // Replace div(2) with mul(0.5f)
         FloatVector m = exponent.sub(pFloat).mul(0.5f).add(1.0f);
         // Build 2^p using direct IEEE-754 bit manipulation
-        // Add bias (127) and shift left by (Float.PRECISION - 1) bits (23) to hit the float exponent field
-        IntVector pBits = p.add(127).lanewise(VectorOperators.LSHL, Float.PRECISION - 1);
+        // Add EXPONENT_BIAS and shift left by MANTISSA_BITS bits to hit the float exponent field
+        IntVector pBits = p.add(MathUtils.EXPONENT_BIAS).lanewise(VectorOperators.LSHL, MathUtils.MANTISSA_BITS);
         FloatVector powerOf2 = pBits.reinterpretAsFloats();
         return m.mul(powerOf2).max(0.0f);
     }

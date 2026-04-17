@@ -538,12 +538,19 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
 
     public void testParseSkipAllNodesClusterFeatures() throws Exception {
         parser = createParser(YamlXContent.yamlXContent, """
+            ---
+            setup:
+              - skip:
+                  cluster_features:  ["feature-a","feature-b"]
+                  all_nodes: true
+                  reason:      "skip in setup"
+            ---
             "Skip on all nodes":
 
               - skip:
                   cluster_features:  ["feature-a","feature-b"]
                   all_nodes: true
-                  reason:      "skip when all nodes have feature-a or feature-b"
+                  reason:      "skip in test section"
               - do:
                   indices.get_mapping:
                     index: test_index
@@ -553,14 +560,16 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
 
         ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(getTestClass().getName(), getTestName(), Optional.empty(), parser);
 
+        assertThat(restTestSuite.getSetupSection(), notNullValue());
+        assertThat(restTestSuite.getSetupSection().isEmpty(), equalTo(false));
+        assertThat(restTestSuite.getSetupSection().getPrerequisiteSection().isEmpty(), equalTo(false));
+        assertThat(restTestSuite.getSetupSection().getPrerequisiteSection().skipReason, equalTo("skip in setup"));
+
         assertThat(restTestSuite, notNullValue());
         assertThat(restTestSuite.getTestSections().size(), equalTo(1));
         assertThat(restTestSuite.getTestSections().get(0).getName(), equalTo("Skip on all nodes"));
         assertThat(restTestSuite.getTestSections().get(0).getPrerequisiteSection().isEmpty(), equalTo(false));
-        assertThat(
-            restTestSuite.getTestSections().get(0).getPrerequisiteSection().skipReason,
-            equalTo("skip when all nodes have feature-a or feature-b")
-        );
+        assertThat(restTestSuite.getTestSections().get(0).getPrerequisiteSection().skipReason, equalTo("skip in test section"));
     }
 
     public void testParseFileWithSingleTestSection() throws Exception {

@@ -34,6 +34,22 @@ import java.util.Map;
  *       since credentials are inherited from the parent data source at query time.</li>
  * </ul>
  *
+ * <p><b>Threading contract.</b> Implementations are called synchronously from the transport
+ * thread that delivered the REST request, via {@code DataSourceService} / {@code DatasetService}.
+ * Implementations MUST NOT perform blocking I/O (network round-trips, disk reads, waits on
+ * external services) on the calling thread. Syntactic validation — reject unknown fields, parse
+ * formats, check enum membership, verify string shapes — is what this path is for. Remote
+ * liveness or authority checks (e.g. contacting S3 to verify that a bucket exists) belong in the
+ * existing test-connection / warmup paths, not here.
+ *
+ * <p><b>Secret access.</b> {@link #validateDataset} receives the parent data source's full
+ * settings map ({@code Map<String, DataSourceSetting>}), including secret-classified entries
+ * that carry plaintext values in memory. This is necessary so implementations can cross-check
+ * a dataset against the parent data source's constraints, but it creates a trust boundary:
+ * every plugin implementing this interface sees cluster secrets at runtime. Implementations
+ * MUST NOT log secret values, persist them outside cluster state, or include them in exception
+ * messages.
+ *
  * <p>Validation helpers (reject unknown fields, validate enums and integers) live in
  * {@link DataSourceValidationUtils}.
  */

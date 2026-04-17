@@ -134,6 +134,11 @@ public abstract class AbstractAsyncBulkByScrollAction<
      */
     protected final Version remoteVersion;
 
+    /**
+     * {@code _shard_doc} for search_after compatibility and performance (see paginate-search-results docs) was added in 7.12
+     */
+    private static final Version REMOTE_SHARD_DOC_SUPPORTED = Version.V_7_12_0;
+
     AbstractAsyncBulkByScrollAction(
         BulkByScrollTask task,
         boolean needsSourceDocumentVersions,
@@ -247,7 +252,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
         List<SortBuilder<?>> sorts = sourceBuilder.sorts();
         if (sorts == null || sorts.isEmpty()) {
             if (sourceBuilder.pointInTimeBuilder() != null) {
-                if (remoteVersion != null && remoteVersion.before(Version.V_7_12_0)) {
+                if (remoteVersion != null && remoteVersion.before(REMOTE_SHARD_DOC_SUPPORTED)) {
                     sourceBuilder.sort(fieldSort(FieldSortBuilder.DOC_FIELD_NAME));
                 } else {
                     sourceBuilder.sort(fieldSort(FieldSortBuilder.SHARD_DOC_FIELD_NAME));

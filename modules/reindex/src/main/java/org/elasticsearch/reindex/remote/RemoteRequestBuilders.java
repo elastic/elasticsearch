@@ -51,9 +51,14 @@ final class RemoteRequestBuilders {
     private RemoteRequestBuilders() {}
 
     /**
-     * Cross-project {@code project_routing} on {@code POST /_search} and open PIT was added in 8.12.
+     * Cross-project {@code project_routing} on {@code POST /_search} and open PIT was added in 9.3.
      */
     private static final Version REMOTE_PROJECT_ROUTING_SUPPORTED = Version.V_9_3_0;
+
+    /**
+     * {@code allow_partial_search_results} on {@code POST /{index}/_pit} was added in 8.16
+     */
+    private static final Version REMOTE_ALLOW_PARTIAL_SEARCH_RESULTS_SUPPORTED = Version.V_8_16_0;
 
     /**
      * {@code index_filter} on {@code POST /{index}/_pit} was added in 8.12
@@ -206,8 +211,7 @@ final class RemoteRequestBuilders {
         path.append("_pit");
         Request request = new Request("POST", path.toString());
         request.addParameter("keep_alive", keepAlive.getStringRep());
-        // Remote versions before V_8_16_0 do not accept allow_partial_search_results on {@code POST /{index}/_pit}
-        if (remoteVersion.onOrAfter(Version.V_8_16_0)) {
+        if (remoteVersion.onOrAfter(REMOTE_ALLOW_PARTIAL_SEARCH_RESULTS_SUPPORTED)) {
             request.addParameter("allow_partial_search_results", "false");
         }
 

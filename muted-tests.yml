@@ -427,8 +427,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeUnmappedLoadIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/145900
-- class: org.elasticsearch.xpack.esql.plan.QuerySettingsTests
-  issue: https://github.com/elastic/elasticsearch/issues/146570
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=aggregations/sig_terms/Test background filter count}
   issue: https://github.com/elastic/elasticsearch/issues/146599
@@ -441,6 +439,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.PushExpressionToLoadIT
   method: testRoundToLongExactMatch
   issue: https://github.com/elastic/elasticsearch/issues/146615
+- class: org.elasticsearch.xpack.esql.optimizer.ApproximationGoldenTests
+  method: testApproximationDisabled
+  issue: https://github.com/elastic/elasticsearch/issues/146564
 
 # Examples:
 #

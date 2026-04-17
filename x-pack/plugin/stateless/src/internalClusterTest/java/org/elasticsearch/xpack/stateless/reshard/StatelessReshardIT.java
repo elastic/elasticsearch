@@ -2082,6 +2082,76 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         );
     }
 
+    // If two concurrent resharding requests are submitted for the same index with the same target shard count, one of them should fail,
+    // either because resharding metadata is already present, or
+    // resharding metadata is gone and the reshard shardcount not 2x current shard count .
+    public void testConcurrentReshardWithSameTargetShardsFails() throws Exception {
+        String masterNode = startMasterOnlyNode();
+        var indexNodes = startIndexNodes(2);
+
+        ensureStableCluster(3);
+
+        final String indexName = randomIndexName();
+        createIndex(indexName, indexSettings(2, 0).build());
+        ensureGreen(indexName);
+        Index index = resolveIndex(indexName);
+
+        String indexNodeA = indexNodes.get(0);
+        String indexNodeB = indexNodes.get(1);
+        indexDocs(indexName, 100);
+
+        // validates that index is not being concurrently resharded.
+        runInParallel(2, i -> {
+            Consumer<Exception> assertReshardException = e -> {
+                if (e instanceof IllegalArgumentException ia) {
+                    assertTrue(
+                        "Unexpected exception from index reshard operation: " + e,
+                        ia.getMessage().contains("Requested new shard count [4] does not match required new shard count [8]")
+                    );
+                } else if (e instanceof IllegalStateException is) {
+                    assertTrue(
+                        "Unexpected exception from index reshard operation: " + e,
+                        is.getMessage().contains("an existing resharding operation on " + index + " is unfinished")
+                    );
+                } else {
+                    fail("Unexpected exception from index reshard operation: " + e);
+                }
+            };
+            if (i == 0) {
+                try {
+                    Thread.sleep(randomIntBetween(0, 1000));
+
+                    client(indexNodeA).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 4)).actionGet();
+                    waitForReshardCompletion(indexName);
+                } catch (Exception e) {
+                    logger.info("Reshard failed on node " + indexNodeA + " with " + e);
+                    assertReshardException.accept(e);
+                }
+            } else {
+                try {
+                    Thread.sleep(randomIntBetween(0, 1000));
+
+                    client(indexNodeB).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 4)).actionGet();
+                    waitForReshardCompletion(indexName);
+                } catch (Exception e) {
+                    logger.info("Reshard failed on node " + indexNodeB + " with " + e);
+                    assertReshardException.accept(e);
+                }
+            }
+        });
+
+        GetSettingsResponse postReshardSettingsResponse = client().admin()
+            .indices()
+            .prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
+            .get();
+
+        assertThat(
+            IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(postReshardSettingsResponse.getIndexToSettings().get(indexName)),
+            equalTo(4)
+        );
+        ensureGreen(indexName);
+    }
+
     public void testReshardSystemIndex() throws Exception {
         String indexNode = startMasterAndIndexNode();
         ensureStableCluster(1);

@@ -198,27 +198,19 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
                 @MapParam.MapParamEntry(name = "highlight", type = "boolean", description = """
                     When true, wraps matched query terms in the returned snippets with markup tags.
                     Defaults to false.
-                    """, valueHint = { "true" },
-                    applies_to = "stack: preview 9.4.1"
-                ),
+                    """, valueHint = { "true" }, applies_to = "stack: preview 9.4.1"),
                 @MapParam.MapParamEntry(name = "pre_tag", type = "keyword", description = """
                     Opening tag for highlighted terms. Only applies when highlight is true.
                     Defaults to `<em>`.
-                    """, valueHint = { "<em>" },
-                    applies_to = "stack: preview 9.4.1"
-                ),
+                    """, valueHint = { "<em>" }, applies_to = "stack: preview 9.4.1"),
                 @MapParam.MapParamEntry(name = "post_tag", type = "keyword", description = """
                     Closing tag for highlighted terms. Only applies when highlight is true.
                     Defaults to `</em>`.
-                    """, valueHint = { "</em>" },
-                    applies_to = "stack: preview 9.4.1"
-                ),
+                    """, valueHint = { "</em>" }, applies_to = "stack: preview 9.4.1"),
                 @MapParam.MapParamEntry(name = "encoder", type = "keyword", description = """
                     Controls HTML encoding of snippet text before tagging: `default` (no encoding) or `html`.
                     Only applies when highlight is true. Defaults to `default`.
-                    """, valueHint = { "default" },
-                    applies_to = "stack: preview 9.4.1")
-            }
+                    """, valueHint = { "default" }, applies_to = "stack: preview 9.4.1") }
         ) Expression options
     ) {
         super(source, options == null ? List.of(field, query) : List.of(field, query, options));

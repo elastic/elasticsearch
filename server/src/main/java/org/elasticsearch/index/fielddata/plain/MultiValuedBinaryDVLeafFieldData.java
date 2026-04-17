@@ -10,6 +10,8 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.LeafReader;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -19,21 +21,24 @@ import org.elasticsearch.script.field.ToScriptFieldFactory;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 
-public final class MultiValuedBinaryDVLeafFieldData implements LeafFieldData {
+public class MultiValuedBinaryDVLeafFieldData implements LeafFieldData {
 
     private final String fieldName;
     private final LeafReader leafReader;
     private final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
+    private final IndexVersion indexVersion;
 
-    MultiValuedBinaryDVLeafFieldData(
+    protected MultiValuedBinaryDVLeafFieldData(
         String fieldName,
         LeafReader leafReader,
-        ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory
+        ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory,
+        IndexVersion indexVersion
     ) {
         super();
         this.fieldName = fieldName;
         this.leafReader = leafReader;
         this.toScriptFieldFactory = toScriptFieldFactory;
+        this.indexVersion = indexVersion;
     }
 
     @Override
@@ -46,7 +51,10 @@ public final class MultiValuedBinaryDVLeafFieldData implements LeafFieldData {
         try {
             // Need to return a new instance each time this gets invoked,
             // otherwise a positioned or exhausted instance can be returned:
-            return MultiValuedSortedBinaryDocValues.from(leafReader, fieldName);
+            if (indexVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES)) {
+                return MultiValuedSortedBinaryDocValues.from(leafReader, fieldName);
+            }
+            return MultiValuedSortedBinaryDocValues.fromLegacy(leafReader, fieldName);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

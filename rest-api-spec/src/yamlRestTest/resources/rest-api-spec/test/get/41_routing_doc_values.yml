@@ -1,5 +1,9 @@
 ---
 "Routing with doc_values enabled":
+ - requires:
+    cluster_features: [ "mapper.routing_as_doc_values" ]
+    reason: "Requires routing to be stored as doc values"
+
  - do:
      indices.create:
        index:    test_1

@@ -14,6 +14,7 @@ import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -31,6 +32,8 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_routing";
     public static final String CONTENT_TYPE = "_routing";
+
+    public static final NodeFeature ROUTING_AS_DOC_VALUES = new NodeFeature("mapper.routing_as_doc_values");
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {

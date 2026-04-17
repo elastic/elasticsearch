@@ -347,32 +347,6 @@ duplications:long | abbrev:keyword | indexes:keyword
 2                 | PZU            | [airports]
 ;
 
-// When a wildcard matches many indexes including views, several factors can contribute to non-deterministic results:
-// - The order in which indexes are processed may vary
-// - the fact that many fields will be null, since they only exist in some of the indexes
-// - implicit limits on subqueries can effectively remove some documents
-// The simplest query that demonstrates this is a wildcard over views and a regular index with a stats aggregation.
-// But any query in the existing csv-spec set that uses `FROM *` will also be non-deterministic if views are present.
-
-queryThatWillNotBeDeterministicWithViews
-required_capability: views_with_branching
-required_capability: views_crud_as_index_actions
-
-FROM *
-| EVAL country=TO_STRING(country)
-| STATS foo = MAX(num), count = COUNT(num) BY country
-| WHERE country IS NULL
-;
-warningRegex: \(in view \[employees_not_rehired\]\): evaluation of \[is_rehired == false\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex: \(in view \[employees_not_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
-warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
-
-foo:long            | count:long | country:keyword
-1698069301543123456 | 22         | null
-// If views are loaded, the above result will sporadically change to 'null,0,null'
-;
-
 // Testing edge cases with multi-value fields in views
 
 multiValueWarningsWithNoViews
@@ -419,4 +393,221 @@ warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentExcept
 rehired_count:long | is_rehired:boolean
 11                 | true
 12                 | false
+;
+
+// Testing views used inside subqueries
+// These tests verify that view references inside user-written subqueries are resolved correctly.
+// The parser produces a plain UnionAll for "FROM index, (FROM ...)" syntax, and ViewResolver
+// must recurse into it to resolve any view references in the subquery children.
+
+viewInSubquery
+required_capability: subquery_in_from_command
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+FROM sample_data, (FROM country_airports)
+| STATS sd = COUNT(client_ip), ca = COUNT(count), total = COUNT()
+;
+
+sd:long | ca:long | total:long
+7       | 15      | 22
+;
+
+viewInSubqueryMultipleRows
+required_capability: subquery_in_from_command
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+FROM sample_data, (FROM country_airports)
+| STATS total = COUNT() BY country
+| SORT total DESC, country ASC
+| LIMIT 5
+;
+
+total:long | country:keyword
+7          | null
+1          | Argentina
+1          | Australia
+1          | Brazil
+1          | Canada
+;
+
+unmappedFields_Load_with_Count
+required_capability: optional_fields_v5
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM employees_rehired
+| STATS rehired_count = COUNT()
+;
+warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+rehired_count:long
+11
+;
+
+unmappedFields_Load_with_WithNonExistentField
+required_capability: optional_fields_v5
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM employees_rehired
+| STATS rehired_count = COUNT(), null_count = COUNT(nonexistent_field)
+;
+warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+rehired_count:long | null_count:long
+11                 | 0
+;
+
+unmappedFields_Load_with_EvalOnNonExistentField
+required_capability: optional_fields_v5
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM employees_rehired
+| EVAL extra = nonexistent_field
+| WHERE extra IS NULL
+| STATS c = COUNT(*)
+;
+warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+c:long
+11
+;
+
+unmappedFields_Load_with_WhereOnNonExistentField
+required_capability: optional_fields_v5
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM employees_rehired
+| WHERE nonexistent_field IS NOT NULL
+| STATS c = COUNT(*)
+;
+warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+c:long
+0
+;
+
+unmappedFields_Load_with_StatsByNonExistentField
+required_capability: optional_fields_v5
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM employees_rehired
+| STATS c = COUNT(*) BY nonexistent_field
+;
+warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+c:long | nonexistent_field:keyword
+11     | null
+;
+
+unmappedFields_Load_with_SortByNonExistentField
+required_capability: optional_fields_v5
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM employees_rehired
+| SORT nonexistent_field ASC, emp_no ASC
+| KEEP emp_no, nonexistent_field
+| LIMIT 3
+;
+warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | nonexistent_field:keyword
+10004          | null
+10021          | null
+10029          | null
+;
+
+###############################################
+# View compaction: simple alias views
+# employees_all is defined as just "FROM employees" (a simple alias).
+# The ViewResolver compacts this into the original index pattern,
+# so "FROM employees_all" should behave identically to "FROM employees".
+# But "FROM employees_all, employees" should produce duplicated results.
+###############################################
+
+compactedViewSameAsIndex
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+// A simple alias view should return the same document count as the underlying index
+FROM employees_all
+| STATS count=COUNT(emp_no)
+;
+
+count:long
+100
+;
+
+compactedViewWithIndexGivesTwoCopies
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_deduplication_bugfix
+
+// FROM index, view where view is a simple alias to the same index should give two copies
+FROM employees, employees_all
+| STATS count=COUNT(emp_no)
+;
+
+count:long
+200
+;
+
+compactedViewWithViewGivesTwoCopies
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+// FROM view, view should only give one copy (normal Elasticsearch behaviour is to de-duplicate repeating index names)
+FROM employees_all, employees_all
+| STATS count=COUNT(emp_no)
+;
+
+count:long
+100
+;
+
+compactedNestedViewWithIndexGivesTripleCopies
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_deduplication_bugfix
+
+// employees_extra is "FROM employees, employees_all" (200 docs after compaction).
+// FROM employees, employees_extra should give 100 + 200 = 300.
+FROM employees, employees_extra
+| STATS count=COUNT(emp_no)
+;
+
+count:long
+300
+;
+
+compactedNestedViewWithViewGivesQuadrupleCopies
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_deduplication_bugfix
+
+// FROM employees_extra, employees_extra: each copy resolves to 200 docs, but de-duplication of same index name gives 200.
+FROM employees_extra, employees_extra
+| STATS count=COUNT(emp_no)
+;
+
+count:long
+200
 ;

@@ -33,7 +33,7 @@ import static org.elasticsearch.xcontent.ObjectParser.fromList;
 /**
  * A query that will return only documents matching specific ids (and a type).
  */
-public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
+public class IdsQueryBuilder extends LeafQueryBuilder<IdsQueryBuilder> {
 
     public static final String NAME = "ids";
     private static final ParseField VALUES_FIELD = new ParseField("values");

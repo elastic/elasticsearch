@@ -14,6 +14,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentParser;
@@ -24,6 +25,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.Stack;
@@ -116,7 +118,7 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
         private final SourceFilter sourceFilter;
         private final Reader<T> reader;
         private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
-        private final LeafReader leafReader;
+        private final MultiValuedSortedBinaryDocValues ignoredSourceDocValues;
 
         IgnoredSourceRowStrideReader(
             CircuitBreaker breaker,
@@ -125,14 +127,20 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
             Reader<T> reader,
             IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat,
             LeafReader leafReader
-        ) {
+        ) throws IOException {
             breaker.addEstimateBytesAndMaybeBreak(ESTIMATED_SIZE, "load blocks");
             this.breaker = breaker;
             this.fieldName = fieldName;
             this.sourceFilter = sourceFilter;
             this.reader = reader;
             this.ignoredSourceFormat = ignoredSourceFormat;
-            this.leafReader = leafReader;
+            if (ignoredSourceFormat == IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE) {
+                this.ignoredSourceDocValues = Objects.requireNonNull(
+                    MultiValuedSortedBinaryDocValues.from(leafReader, IgnoredSourceFieldMapper.NAME)
+                );
+            } else {
+                this.ignoredSourceDocValues = null;
+            }
         }
 
         @Override
@@ -141,7 +149,7 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
                 sourceFilter,
                 storedFields.storedFields(),
                 docId,
-                leafReader
+                ignoredSourceDocValues
             );
 
             if (valuesGroupedByParent.isEmpty()) {

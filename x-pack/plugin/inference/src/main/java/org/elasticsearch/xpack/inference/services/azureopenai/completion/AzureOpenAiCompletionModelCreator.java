@@ -12,8 +12,9 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.ModelCreator;
+import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiModelCreator;
 
 import java.util.Map;
 
@@ -21,7 +22,12 @@ import java.util.Map;
  * Creates {@link AzureOpenAiCompletionModel} instances from config maps
  * or {@link ModelConfigurations} and {@link ModelSecrets} objects.
  */
-public class AzureOpenAiCompletionModelCreator implements ModelCreator<AzureOpenAiCompletionModel> {
+public class AzureOpenAiCompletionModelCreator extends AzureOpenAiModelCreator<AzureOpenAiCompletionModel> {
+
+    public AzureOpenAiCompletionModelCreator(ThreadPool threadPool) {
+        super(threadPool);
+    }
+
     @Override
     public AzureOpenAiCompletionModel createFromMaps(
         String inferenceId,
@@ -33,11 +39,20 @@ public class AzureOpenAiCompletionModelCreator implements ModelCreator<AzureOpen
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        return new AzureOpenAiCompletionModel(inferenceId, taskType, service, serviceSettings, taskSettings, secretSettings, context);
+        return new AzureOpenAiCompletionModel(
+            inferenceId,
+            taskType,
+            service,
+            serviceSettings,
+            taskSettings,
+            secretSettings,
+            context,
+            threadPool
+        );
     }
 
     @Override
     public AzureOpenAiCompletionModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        return new AzureOpenAiCompletionModel(config, secrets);
+        return new AzureOpenAiCompletionModel(config, secrets, threadPool);
     }
 }

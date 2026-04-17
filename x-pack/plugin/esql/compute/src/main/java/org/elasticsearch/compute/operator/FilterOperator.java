@@ -43,7 +43,6 @@ public class FilterOperator extends AbstractPageMappingOperator {
         try (BooleanBlock test = (BooleanBlock) evaluator.eval(page)) {
             if (test.areAllValuesNull()) {
                 // All results are null which is like false. No values selected.
-                page.releaseBlocks();
                 return null;
             }
             // TODO we can detect constant true or false from the type
@@ -60,15 +59,16 @@ public class FilterOperator extends AbstractPageMappingOperator {
             }
 
             if (rowCount == 0) {
-                page.releaseBlocks();
                 return null;
             }
             if (rowCount == page.getPositionCount()) {
-                return page;
+                return page.shallowCopy();
             }
             positions = Arrays.copyOf(positions, rowCount);
 
             return page.filter(false, positions);
+        } finally {
+            page.releaseBlocks();
         }
     }
 

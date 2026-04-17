@@ -16,6 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
 import org.elasticsearch.common.logging.activity.ActivityLogger;
+import org.elasticsearch.common.logging.activity.QueryLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -119,7 +120,7 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
             threadPool,
             bigArrays
         );
-        this.activityLogger = new ActivityLogger<>(
+        this.activityLogger = new QueryLogger<>(
             clusterService.getClusterSettings(),
             new SqlLogProducer(),
             logWriterProvider,

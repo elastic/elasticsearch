@@ -60,6 +60,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.HISTOGRAM;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.PARTIAL_AGG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SOURCE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TDIGEST;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
@@ -102,7 +103,8 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         TDIGEST,
         HISTOGRAM,
         DENSE_VECTOR,
-        DATE_RANGE };
+        DATE_RANGE,
+        PARTIAL_AGG };
 
     private final JoinConfig config;
     private List<Attribute> lazyOutput;

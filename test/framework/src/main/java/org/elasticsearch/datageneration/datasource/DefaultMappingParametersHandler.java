@@ -225,6 +225,8 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         return () -> {
             var mapping = commonMappingParameters();
 
+            mapping.put("doc_values", extendedDocValuesParams());
+
             if (ESTestCase.randomDouble() <= 0.2) {
                 mapping.put("null_value", NetworkAddress.format(ESTestCase.randomIp(ESTestCase.randomBoolean())));
             }
@@ -305,6 +307,10 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
 
             if (ESTestCase.randomDouble() < 0.2) {
                 mapping.put("split_queries_on_whitespace", ESTestCase.randomBoolean());
+            }
+
+            if (ESTestCase.randomDouble() < 0.2) {
+                mapping.put("preserve_leaf_arrays", ESTestCase.randomFrom("lossy", "exact"));
             }
 
             return mapping;

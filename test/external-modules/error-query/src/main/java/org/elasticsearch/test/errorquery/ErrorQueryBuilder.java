@@ -20,7 +20,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -81,7 +81,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  *  </pre>
  */
 
-public class ErrorQueryBuilder extends AbstractQueryBuilder<ErrorQueryBuilder> {
+public class ErrorQueryBuilder extends LeafQueryBuilder<ErrorQueryBuilder> {
     public static final String NAME = "error_query";
 
     private List<IndexError> indices;

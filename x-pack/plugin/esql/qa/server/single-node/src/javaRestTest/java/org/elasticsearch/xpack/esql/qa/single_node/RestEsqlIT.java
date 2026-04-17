@@ -785,6 +785,33 @@ public class RestEsqlIT extends RestEsqlTestCase {
     }
 
     public void testSuggestedCast() throws IOException {
+        doTestSuggestedCast(
+            "FROM index-%s,index-%s | LIMIT 100 | KEEP my_field",
+            "FROM index-%s,index-%s | LIMIT 100 | EVAL my_field = my_field::%s"
+        );
+    }
+
+    public void testSubquerySuggestedCast() throws IOException {
+        assumeTrue("subqueries in from command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeTrue(
+            "union types conflict resolution",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_CONFLICT_RESOLUTION.isEnabled()
+        );
+        doTestSuggestedCast(
+            "FROM (FROM index-%s), (FROM index-%s) | LIMIT 100 | KEEP my_field",
+            "FROM (FROM index-%s), (FROM index-%s) | LIMIT 100 | EVAL my_field = my_field::%s"
+        );
+    }
+
+    /**
+     * Shared implementation for suggested-cast tests. Creates one index per data type, iterates over
+     * all type pairs using the given query format strings, and asserts the response contains the
+     * correct {@code original_types} and {@code suggested_cast} metadata.
+     *
+     * @param queryFormat       format string with 2 string args: type1, type2
+     * @param castedQueryFormat format string with 3 string args: type1, type2, castType
+     */
+    private void doTestSuggestedCast(String queryFormat, String castedQueryFormat) throws IOException {
         // TODO: Figure out how best to make sure we don't leave out new types
         Map<DataType, String> typesAndValues = Map.ofEntries(
             Map.entry(DataType.BOOLEAN, "\"true\""),
@@ -861,11 +888,12 @@ public class RestEsqlIT extends RestEsqlTestCase {
 
         for (int i = 0; i < listOfTypes.size(); i++) {
             for (int j = i + 1; j < listOfTypes.size(); j++) {
+                String fromClause = String.format(Locale.ROOT, queryFormat, listOfTypes.get(i).esType(), listOfTypes.get(j).esType());
                 String query = String.format(Locale.ROOT, """
                     {
-                        "query": "FROM index-%s,index-%s | LIMIT 100 | KEEP my_field"
+                        "query": "%s"
                     }
-                    """, listOfTypes.get(i).esType(), listOfTypes.get(j).esType());
+                    """, fromClause);
                 Request request = new Request("POST", "/_query");
                 request.setJsonEntity(query);
                 Response resp = client().performRequest(request);
@@ -891,17 +919,18 @@ public class RestEsqlIT extends RestEsqlTestCase {
                     );
                 }
 
-                String castedQuery = String.format(
+                String castedFromClause = String.format(
                     Locale.ROOT,
-                    """
-                        {
-                            "query": "FROM index-%s,index-%s | LIMIT 100 | EVAL my_field = my_field::%s"
-                        }
-                        """,
+                    castedQueryFormat,
                     listOfTypes.get(i).esType(),
                     listOfTypes.get(j).esType(),
                     suggestedCast == DataType.KEYWORD ? "STRING" : suggestedCast.nameUpper()
                 );
+                String castedQuery = String.format(Locale.ROOT, """
+                    {
+                        "query": "%s"
+                    }
+                    """, castedFromClause);
                 Request castedRequest = new Request("POST", "/_query");
                 castedRequest.setJsonEntity(castedQuery);
                 Response castedResponse = client().performRequest(castedRequest);
@@ -1259,6 +1288,67 @@ public class RestEsqlIT extends RestEsqlTestCase {
             greaterThanOrEqualTo(1)
         );
         assertMap(reader, matchesMap().extraOk().entry("status", matchesMap().extraOk().entry("readers_built", readersBuiltMatcher)));
+    }
+
+    public void testAutoPartitioning() throws IOException {
+        indexTimestampData(1);
+        assumeTrue("require pragmas", Build.current().isSnapshot());
+        {
+            RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | STATS AVG(value)");
+            builder.profile(true);
+            builder.pragmas(
+                Settings.builder().put("data_partitioning", "auto").put("esql.docs_threshold_auto_partitioning", 1000_000).build()
+            );
+            Map<String, Object> result = runEsql(builder);
+            assertResultMap(
+                result,
+                getResultMatcher(result).entry("profile", getProfileMatcher()),
+                matchesList().item(matchesMap().entry("name", "AVG(value)").entry("type", "double")),
+                equalTo(List.of(List.of(499.5d)))
+            );
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
+            for (Map<String, Object> p : profiles) {
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
+                for (Map<String, Object> o : operators) {
+                    String name = signature(o);
+                    if (name.equals("LuceneSourceOperator")) {
+                        MapMatcher status = matchesMap().entry("total_slices", equalTo(1))
+                            .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "SHARD"))
+                            .extraOk();
+                        assertMap(o, matchesMap().entry("operator", startsWith(name)).entry("status", status));
+                    }
+                }
+            }
+        }
+        {
+            RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | STATS AVG(value)");
+            builder.profile(true);
+            builder.pragmas(Settings.builder().put("data_partitioning", "auto").put("esql.docs_threshold_auto_partitioning", 20).build());
+            Map<String, Object> result = runEsql(builder);
+            assertResultMap(
+                result,
+                getResultMatcher(result).entry("profile", getProfileMatcher()),
+                matchesList().item(matchesMap().entry("name", "AVG(value)").entry("type", "double")),
+                equalTo(List.of(List.of(499.5d)))
+            );
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
+            for (Map<String, Object> p : profiles) {
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
+                for (Map<String, Object> o : operators) {
+                    String name = signature(o);
+                    if (name.equals("LuceneSourceOperator")) {
+                        MapMatcher status = matchesMap().entry("total_slices", greaterThan(1))
+                            .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "DOC"))
+                            .extraOk();
+                        assertMap(o, matchesMap().entry("operator", startsWith(name)).entry("status", status));
+                    }
+                }
+            }
+        }
     }
 
     private Map<String, Object> findSingleReaderProfile(String driverDescription, Map<String, Object> result) {

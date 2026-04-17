@@ -44,6 +44,6 @@
   "examples" : [
     "FROM histogram_standard_index\n | WHERE STARTS_WITH(instance, \"hand-rolled\")\n | EVAL converted = to_exponential_histogram(responseTime)\n | SORT instance\n | KEEP responseTime, converted\n;"
   ],
-  "preview" : true,
+  "preview" : false,
   "snapshot_only" : false
 }

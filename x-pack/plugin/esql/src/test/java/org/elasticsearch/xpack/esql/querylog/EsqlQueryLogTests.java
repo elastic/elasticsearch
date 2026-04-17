@@ -198,6 +198,9 @@ public class EsqlQueryLogTests extends ESTestCase {
                     randomTimeSpan(),
                     randomTimeSpan(),
                     randomTimeSpan(),
+                    randomTimeSpan(),
+                    randomTimeSpan(),
+                    randomTimeSpan(),
                     randomIntBetween(0, 100)
                 );
             }

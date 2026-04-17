@@ -104,6 +104,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             Collections.singletonList(
                 new SearchShardIterator(null, new ShardId("index", "_na", 0), Collections.emptyList(), null, SplitShardCountSummary.UNSET)
             ),
+            Collections.emptyMap(),
             timeProvider,
             ClusterState.EMPTY_STATE,
             null,

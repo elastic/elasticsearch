@@ -11,8 +11,8 @@ package org.elasticsearch.benchmark.xcontent;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.test.ESTestCase;
-import org.openjdk.jmh.annotations.Param;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -48,12 +48,8 @@ public class Base64VectorBenchmarkTests extends ESTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {
-        try {
-            var params = Base64VectorBenchmark.class.getField("dims").getAnnotationsByType(Param.class)[0].value();
-            return () -> Arrays.stream(params).map(Integer::parseInt).map(i -> new Object[] { i }).iterator();
-        } catch (NoSuchFieldException e) {
-            throw new AssertionError(e);
-        }
+        String[] params = Utils.possibleValues(Base64VectorBenchmark.class, "dims").toArray(new String[0]);
+        return () -> Arrays.stream(params).map(Integer::parseInt).map(i -> new Object[] { i }).iterator();
     }
 
     static class FloatArrayConsumerAccess implements Base64VectorBenchmark.FloatArrayConsumer {

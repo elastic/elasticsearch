@@ -28,6 +28,7 @@ module org.elasticsearch.xcore {
     requires org.slf4j;
     requires com.ibm.icu;
     requires org.elasticsearch.exponentialhistogram;
+    requires org.elasticsearch.logging;
 
     exports org.elasticsearch.index.engine.frozen;
     exports org.elasticsearch.license;
@@ -57,12 +58,13 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.ccr;
     exports org.elasticsearch.xpack.core.common.notifications;
     exports org.elasticsearch.xpack.core.common.search.aggregations;
-    exports org.elasticsearch.xpack.core.common.socket;
+
     exports org.elasticsearch.xpack.core.common.stats;
     exports org.elasticsearch.xpack.core.common.table;
     exports org.elasticsearch.xpack.core.common.time;
     exports org.elasticsearch.xpack.core.common.validation;
     exports org.elasticsearch.xpack.core.common;
+    exports org.elasticsearch.xpack.core.crossproject;
     exports org.elasticsearch.xpack.core.datastreams;
     exports org.elasticsearch.xpack.core.datatiers;
     exports org.elasticsearch.xpack.core.deprecation;

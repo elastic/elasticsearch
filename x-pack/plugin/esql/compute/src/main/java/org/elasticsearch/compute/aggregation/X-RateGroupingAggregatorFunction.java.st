@@ -7,16 +7,11 @@
 package org.elasticsearch.compute.aggregation;
 
 // begin generated imports
+
 import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.DoubleArray;
-import org.elasticsearch.common.util.IntArray;
-import org.elasticsearch.common.util.LongArray;
-import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.common.util.ObjectArray;
-import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -26,12 +21,10 @@ import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 import java.util.List;
@@ -85,7 +78,6 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
     private final $Type$RawBuffer rawBuffer;
     private final List<Integer> channels;
     private final DriverContext driverContext;
-    private final LocalCircuitBreaker.SingletonService localCircuitBreakerService;
     private final BigArrays bigArrays;
     private ObjectArray<ReducedState> reducedStates;
     private final boolean isRateOverTime;
@@ -103,23 +95,16 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
         this.channels = channels;
         this.driverContext = driverContext;
         this.isRateOverTime = isRateOverTime;
-        LocalCircuitBreaker.SingletonService localCircuitBreakerService = new LocalCircuitBreaker.SingletonService(
-            driverContext.bigArrays().breakerService(),
-            driverContext.localBreakerSettings()
-        );
-        this.bigArrays = driverContext.bigArrays().withBreakerService(localCircuitBreakerService);
+        this.bigArrays = driverContext.bigArrays();
         this.dateFactor = isDateNanos ? 1_000_000_000.0 : 1000.0;
         $Type$RawBuffer buffer = null;
         try {
-            buffer = new $Type$RawBuffer(bigArrays);
+            buffer = new $Type$RawBuffer(driverContext.breaker());
             this.reducedStates = bigArrays.newObjectArray(256);
-
             this.rawBuffer = buffer;
-            this.localCircuitBreakerService = localCircuitBreakerService;
             buffer = null;
-            localCircuitBreakerService = null;
         } finally {
-            Releasables.close(buffer, localCircuitBreakerService);
+            Releasables.close(buffer);
         }
     }
 
@@ -160,9 +145,10 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
             assert false : "expected timestamp vector in time-series aggregation";
             throw new IllegalStateException("expected timestamp vector in time-series aggregation");
         }
-        IntVector sliceIndices = ((IntBlock) page.getBlock(channels.get(2))).asVector();
+        // TODO: channels.get(2) provides the temporality, add support for it
+        IntVector sliceIndices = ((IntBlock) page.getBlock(channels.get(3))).asVector();
         assert sliceIndices != null : "expected slice indices vector in time-series aggregation";
-        LongVector futureMaxTimestamps = ((LongBlock) page.getBlock(channels.get(3))).asVector();
+        LongVector futureMaxTimestamps = ((LongBlock) page.getBlock(channels.get(4))).asVector();
         assert futureMaxTimestamps != null : "expected future max timestamps vector in time-series aggregation";
         int sliceIndex = sliceIndices.getInt(0);
         if (sliceIndex > lastSliceIndex) {
@@ -359,28 +345,35 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
     }
 
     @Override
-    public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
+    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
+        return this::evaluateIntermediate;
+    }
+
+    private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
         BlockFactory blockFactory = driverContext.blockFactory();
-        int positionCount = selected.getPositionCount();
+        int positionCount = selectedInPage.getPositionCount();
+        var flushQueues = rawBuffer.prepareForFlush();
         try (
-            var flushQueues = rawBuffer.prepareForFlush();
             var timestamps = blockFactory.newLongBlockBuilder(positionCount * 2);
             var values = blockFactory.new$Type$BlockBuilder(positionCount * 2);
             var sampleCounts = blockFactory.newLongVectorFixedBuilder(positionCount);
             var resets = blockFactory.newDoubleVectorFixedBuilder(positionCount)
         ) {
             for (int p = 0; p < positionCount; p++) {
-                int group = selected.getInt(p);
+                int group = selectedInPage.getInt(p);
                 var state = flushAndCombineState(flushQueues, group);
                 // Do not combine intervals across shards because intervals from different indices may overlap.
                 if (state != null && state.samples > 0) {
                     timestamps.beginPositionEntry();
                     values.beginPositionEntry();
                     for (Interval interval : state.intervals) {
-                        timestamps.appendLong(interval.t1);
-                        timestamps.appendLong(interval.t2);
-                        values.append$Type$(interval.v1);
-                        values.append$Type$(interval.v2);
+                        timestamps.appendLong(interval.lastTs);
+                        timestamps.appendLong(interval.firstTs);
+                        values.append$Type$(interval.lastValue);
+                        values.append$Type$(interval.firstValue);
                     }
                     timestamps.endPositionEntry();
                     values.endPositionEntry();
@@ -402,7 +395,7 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
 
     @Override
     public void close() {
-        Releasables.close(reducedStates, rawBuffer, localCircuitBreakerService);
+        Releasables.close(reducedStates, rawBuffer);
     }
 
     void flushRawBuffers() {
@@ -410,31 +403,28 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
             return;
         }
         reducedStates = bigArrays.grow(reducedStates, rawBuffer.maxGroupId + 1);
-        try (var flushQueues = rawBuffer.prepareForFlush()) {
-            for (int groupId = rawBuffer.minGroupId; groupId <= rawBuffer.maxGroupId; groupId++) {
-                var flushQueue = flushQueues.getFlushQueue(groupId);
-                if (flushQueue != null) {
-                    ReducedState state = reducedStates.get(groupId);
-                    if (state == null) {
-                        state = new ReducedState();
-                        reducedStates.set(groupId, state);
-                    }
-                    flushGroup(state, rawBuffer, flushQueue);
+        var flushQueues = rawBuffer.prepareForFlush();
+        for (int groupId = flushQueues.minGroupId(); groupId <= flushQueues.maxGroupId(); groupId++) {
+            var flushQueue = flushQueues.getFlushQueue(groupId);
+            if (flushQueue != null) {
+                ReducedState state = reducedStates.get(groupId);
+                if (state == null) {
+                    state = new ReducedState();
+                    reducedStates.set(groupId, state);
                 }
+                flushGroup(state, rawBuffer, flushQueue);
             }
         }
-        rawBuffer.minGroupId = Integer.MAX_VALUE;
-        rawBuffer.maxGroupId = Integer.MIN_VALUE;
     }
 
     static final class $Type$RawBuffer extends RawBuffer {
-        private $Type$Array values;
+        private final $Type$Buffer values;
 
-        $Type$RawBuffer(BigArrays bigArrays) {
-            super(bigArrays);
+        $Type$RawBuffer(CircuitBreaker breaker) {
+            super(breaker);
             boolean success = false;
             try {
-                this.values = bigArrays.new$Type$Array(PageCacheRecycler.DOUBLE_PAGE_SIZE, false);
+                this.values = new $Type$Buffer(breaker, PAGE_SIZE);
                 success = true;
             } finally {
                 if (success == false) {
@@ -446,8 +436,8 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
         void prepareForAppend(int groupId, int count, long firstTimestamp) {
             prepareSlicesOnly(groupId, firstTimestamp);
             int newSize = valueCount + count;
-            timestamps = bigArrays.grow(timestamps, newSize);
-            values = bigArrays.grow(values, newSize);
+            timestamps.ensureCapacity(newSize);
+            values.ensureCapacity(newSize);
         }
 
         void appendWithoutResize(long timestamp, $type$ value) {
@@ -457,17 +447,16 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
         }
 
         void maybeResizeAndAppend(long timestamp, $type$ value) {
-            timestamps = bigArrays.grow(timestamps, valueCount + 1);
-            values = bigArrays.grow(values, valueCount + 1);
+            timestamps.ensureCapacity(valueCount + 1);
+            values.ensureCapacity(valueCount + 1);
             appendWithoutResize(timestamp, value);
         }
 
         void appendRange(int fromPosition, int toPosition, $Type$Vector valueVector, LongVector timestampVector) {
-            for (int p = fromPosition; p < toPosition; p++) {
-                values.set(valueCount, valueVector.get$Type$(p));
-                timestamps.set(valueCount, timestampVector.getLong(p));
-                valueCount++;
-            }
+            int count = toPosition - fromPosition;
+            timestamps.appendRange(valueCount, timestampVector, fromPosition, count);
+            values.appendRange(valueCount, valueVector, fromPosition, count);
+            valueCount += count;
         }
 
         void appendRange(int fromPosition, int toPosition, $Type$Block valueBlock, LongVector timestampVector) {
@@ -561,12 +550,20 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
     }
 
     @Override
-    public void evaluateFinal(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
+    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
+        return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx);
+    }
+
+    private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage, GroupingAggregatorEvaluationContext ctx) {
         BlockFactory blockFactory = driverContext.blockFactory();
-        int positionCount = selected.getPositionCount();
-        try (var flushQueues = rawBuffer.prepareForFlush(); var rates = blockFactory.newDoubleBlockBuilder(positionCount)) {
+        int positionCount = selectedInPage.getPositionCount();
+        var flushQueues = rawBuffer.prepareForFlush();
+        try (var rates = blockFactory.newDoubleBlockBuilder(positionCount)) {
             for (int p = 0; p < positionCount; p++) {
-                int group = selected.getInt(p);
+                int group = selectedInPage.getInt(p);
                 var state = group < reducedStates.size() ? reducedStates.get(group) : null;
                 var flushQueue = flushQueues.getFlushQueue(group);
                 if (flushQueue != null) {
@@ -584,23 +581,23 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
                     for (int i = 1; i < intervals.length; i++) {
                         Interval next = intervals[i - 1]; // reversed
                         Interval prev = intervals[i];
-                        if (prev.v1 > next.v2) {
-                            state.resets += prev.v1;
+                        if (prev.lastValue > next.firstValue) {
+                            state.resets += prev.lastValue;
                         }
                     }
                 }
             }
-            if (evalContext instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
+            if (ctx instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
                 tsContext.computeAdjacentGroupIds();
             }
             for (int p = 0; p < positionCount; p++) {
-                int group = selected.getInt(p);
+                int group = selectedInPage.getInt(p);
                 var state = group < reducedStates.size() ? reducedStates.get(group) : null;
 
                 final double rate;
                 if (state == null || state.samples == 0) {
                     rate = Double.NaN;
-                } else if (evalContext instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
+                } else if (ctx instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
                     rate = computeRate(group, state, tsContext, isRateOverTime, dateFactor);
                 } else {
                     rate = computeRateWithoutExtrapolate(state, isRateOverTime, dateFactor);
@@ -637,10 +634,10 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
         return sb.toString();
     }
 
-    record Interval(long t1, $type$ v1, long t2, $type$ v2) implements Comparable<Interval> {
+    record Interval(long lastTs, $type$ lastValue, long firstTs, $type$ firstValue) implements Comparable<Interval> {
         @Override
         public int compareTo(Interval other) {
-            return Long.compare(other.t1, t1); // want most recent first
+            return Long.compare(other.lastTs, lastTs); // want most recent first
         }
     }
 
@@ -648,6 +645,7 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
         private static final Interval[] EMPTY_INTERVALS = new Interval[0];
         long samples;
         double resets;
+        // Once sorted, the intervals will be stored in reverse chronological order (highest timestamp first)
         Interval[] intervals = EMPTY_INTERVALS;
 
         void appendInterval(Interval interval) {
@@ -679,10 +677,10 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
         if (state.samples < 2) {
             return Double.NaN;
         }
-        final long firstTS = state.intervals[state.intervals.length - 1].t2;
-        final long lastTS = state.intervals[0].t1;
-        double firstValue = state.intervals[state.intervals.length - 1].v2;
-        double lastValue = state.intervals[0].v1 + state.resets;
+        final long firstTS = state.intervals[state.intervals.length - 1].firstTs;
+        final long lastTS = state.intervals[0].lastTs;
+        double firstValue = state.intervals[state.intervals.length - 1].firstValue;
+        double lastValue = state.intervals[0].lastValue + state.resets;
         if (isRateOverTime) {
             return (lastValue - firstValue) * dateFactor / (lastTS - firstTS);
         } else {
@@ -712,8 +710,8 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
         var previousState = (0 <= previousGroupId && previousGroupId < reducedStates.size()) ? reducedStates.get(previousGroupId) : null;
         if (previousState == null || previousState.samples == 0) {
             if (state.samples == 1) {
-                firstTsSec = state.intervals[0].t1 / dateFactor;
-                firstValue = state.intervals[0].v1;
+                firstTsSec = state.intervals[0].lastTs / dateFactor;
+                firstValue = state.intervals[0].lastValue;
             } else {
                 firstValue = extrapolateToBoundary(state, tbucketStart, tbucketEnd, dateFactor, true);
             }
@@ -725,8 +723,8 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
         var nextState = (nextGroupId >= 0 && nextGroupId < reducedStates.size()) ? reducedStates.get(nextGroupId) : null;
         if (nextState == null || nextState.samples == 0) {
             if (state.samples == 1) {
-                lastTsSec = state.intervals[0].t1 / dateFactor;
-                lastValue = state.intervals[0].v1;
+                lastTsSec = state.intervals[0].lastTs / dateFactor;
+                lastValue = state.intervals[0].lastValue;
             } else {
                 lastValue = extrapolateToBoundary(state, tbucketStart, tbucketEnd, dateFactor, false);
             }
@@ -735,26 +733,29 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
         }
 
         if (lastTsSec == firstTsSec) {
-            // Check for the case where there is only one sample in state, right at the boundary towards a non-empty adjacent state.
+            // Check for the case where there is only one sample in state, right at the lower boundary
+            // of the time bucket towards a non-empty adjacent state.
+            // In this case we want to have a result value as the time bucket is not empty,
+            // but we already included the increase in the previous time bucket.
+            // Therefore, we return the last seen rate of the previous time bucket for rate and zero for increase
             if (state.samples == 1) {
                 if (previousState != null) {
                     assert nextState == null;
-                    assert state.intervals[0].t1 == firstTsSec * dateFactor : firstTsSec + ":" + state.intervals[0].t1;
-                    final double startTs = previousState.intervals[0].t1 / dateFactor;
-                    final double delta = deltaBetweenStates(previousState, state, dateFactor);
-                    return isRateOverTime ? delta / (firstTsSec - startTs) : delta;
-                }
-                if (nextState != null) {
-                    assert state.intervals[0].t1 == lastTsSec * dateFactor : lastTsSec + ":" + state.intervals[0].t1;
-                    final double endTs = nextState.intervals[nextState.intervals.length - 1].t2 / dateFactor;
-                    final double delta = deltaBetweenStates(state, nextState, dateFactor);
-                    return isRateOverTime ? delta / (endTs - lastTsSec) : delta;
+                    assert state.intervals[0].lastTs == firstTsSec * dateFactor : firstTsSec + ":" + state.intervals[0].lastTs;
+                    if (isRateOverTime) {
+                        final double startTs = previousState.intervals[0].lastTs / dateFactor;
+                        final double delta = deltaBetweenStates(previousState, state, dateFactor);
+                        return delta / (firstTsSec - startTs);
+                    } else {
+                        return 0.0;
+                    }
                 }
             }
             return Double.NaN;
         }
         final double increase = lastValue - firstValue;
-        assert increase >= 0 : "increase must be non-negative, got " + lastValue + " - " + firstValue;
+        // Interpolation might introduce precision errors, so we try to account for that.
+        assert increase >= -0.00000000000001 : "increase must be non-negative, got " + lastValue + " - " + firstValue;
         return (isRateOverTime) ? increase / (lastTsSec - firstTsSec) : increase;
     }
 
@@ -774,10 +775,10 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
         double dateFactor,
         boolean isLowerBoundary
     ) {
-        final double startTs = state.intervals[state.intervals.length - 1].t2 / dateFactor;
-        final double startValue = state.intervals[state.intervals.length - 1].v2;
-        final double endTs = state.intervals[0].t1 / dateFactor;
-        final double endValue = state.intervals[0].v1 + state.resets;
+        final double startTs = state.intervals[state.intervals.length - 1].firstTs / dateFactor;
+        final double startValue = state.intervals[state.intervals.length - 1].firstValue;
+        final double endTs = state.intervals[0].lastTs / dateFactor;
+        final double endValue = state.intervals[0].lastValue + state.resets;
         final double sampleTsSec = endTs - startTs;
         final double averageSampleInterval = sampleTsSec / state.samples;
         final double slope = (endValue - startValue) / sampleTsSec;
@@ -821,10 +822,10 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
         double dateFactor,
         boolean isLowerBoundary
     ) {
-        final double startValue = lowerState.intervals[0].v1;
-        final double startTs = lowerState.intervals[0].t1 / dateFactor;
-        final double endValue = upperState.intervals[upperState.intervals.length - 1].v2;
-        final double endTs = upperState.intervals[upperState.intervals.length - 1].t2 / dateFactor;
+        final double startValue = lowerState.intervals[0].lastValue;
+        final double startTs = lowerState.intervals[0].lastTs / dateFactor;
+        final double endValue = upperState.intervals[upperState.intervals.length - 1].firstValue;
+        final double endTs = upperState.intervals[upperState.intervals.length - 1].firstTs / dateFactor;
         assert startTs < endTs : "expected startTs < endTs, got " + startTs + " < " + endTs;
         final double delta = deltaBetweenStates(lowerState, upperState, dateFactor);
         final double slope = delta / (endTs - startTs);
@@ -841,10 +842,8 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
     }
 
     private static double deltaBetweenStates(ReducedState lowerState, ReducedState upperState, double dateFactor) {
-        final double startValue = lowerState.intervals[0].v1;
-        final double startTs = lowerState.intervals[0].t1 / dateFactor;
-        final double endValue = upperState.intervals[upperState.intervals.length - 1].v2;
-        final double endTs = upperState.intervals[upperState.intervals.length - 1].t2 / dateFactor;
+        final double startValue = lowerState.intervals[0].lastValue;
+        final double endValue = upperState.intervals[upperState.intervals.length - 1].firstValue;
 
         // If the end value is smaller than the start value, a counter reset occurred.
         // In this case, the delta is considered equal to the end value.

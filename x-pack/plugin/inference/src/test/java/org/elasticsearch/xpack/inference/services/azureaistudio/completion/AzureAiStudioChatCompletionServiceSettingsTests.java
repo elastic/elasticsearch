@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.inference.services.azureaistudio.completion;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -19,7 +21,6 @@ import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioEnd
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioProvider;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
-import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -32,29 +33,74 @@ import static org.hamcrest.Matchers.is;
 
 public class AzureAiStudioChatCompletionServiceSettingsTests extends AbstractBWCWireSerializationTestCase<
     AzureAiStudioChatCompletionServiceSettings> {
-    public void testFromMap_Request_CreatesSettingsCorrectly() {
-        var target = "http://sometarget.local";
-        var provider = "openai";
-        var endpointType = "token";
+    private static final String TEST_TARGET = "http://sometarget.local";
+    private static final String INITIAL_TEST_TARGET = "http://initialtarget.local";
+    private static final AzureAiStudioProvider TEST_PROVIDER = AzureAiStudioProvider.OPENAI;
+    private static final AzureAiStudioProvider INITIAL_TEST_PROVIDER = AzureAiStudioProvider.MISTRAL;
+    private static final AzureAiStudioEndpointType TEST_ENDPOINT_TYPE = AzureAiStudioEndpointType.TOKEN;
+    private static final AzureAiStudioEndpointType INITIAL_TEST_ENDPOINT_TYPE = AzureAiStudioEndpointType.REALTIME;
+    private static final int TEST_RATE_LIMIT = 20;
+    private static final int INITIAL_TEST_RATE_LIMIT = 30;
+    private static final int DEFAULT_RATE_LIMIT = 240;
 
+    public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
+        var originalServiceSettings = new AzureAiStudioChatCompletionServiceSettings(
+            INITIAL_TEST_TARGET,
+            INITIAL_TEST_PROVIDER,
+            INITIAL_TEST_ENDPOINT_TYPE,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
+            createRequestSettingsMap(TEST_TARGET, TEST_PROVIDER.toString(), TEST_ENDPOINT_TYPE.toString(), TEST_RATE_LIMIT)
+        );
+
+        assertThat(
+            updatedServiceSettings,
+            is(
+                new AzureAiStudioChatCompletionServiceSettings(
+                    INITIAL_TEST_TARGET,
+                    INITIAL_TEST_PROVIDER,
+                    INITIAL_TEST_ENDPOINT_TYPE,
+                    new RateLimitSettings(TEST_RATE_LIMIT)
+                )
+            )
+        );
+    }
+
+    public void testUpdateServiceSettings_EmptyMap_DoesNotChangeSettings() {
+        var originalServiceSettings = new AzureAiStudioChatCompletionServiceSettings(
+            INITIAL_TEST_TARGET,
+            INITIAL_TEST_PROVIDER,
+            INITIAL_TEST_ENDPOINT_TYPE,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(new HashMap<>());
+
+        assertThat(updatedServiceSettings, is(originalServiceSettings));
+    }
+
+    public void testFromMap_Request_OnlyMandatoryFields_CreatesSettingsCorrectly() {
         var serviceSettings = AzureAiStudioChatCompletionServiceSettings.fromMap(
-            createRequestSettingsMap(target, provider, endpointType),
+            createRequestSettingsMap(TEST_TARGET, TEST_PROVIDER.toString(), TEST_ENDPOINT_TYPE.toString(), null),
             ConfigurationParseContext.REQUEST
         );
 
         assertThat(
             serviceSettings,
-            is(new AzureAiStudioChatCompletionServiceSettings(target, AzureAiStudioProvider.OPENAI, AzureAiStudioEndpointType.TOKEN, null))
+            is(
+                new AzureAiStudioChatCompletionServiceSettings(
+                    TEST_TARGET,
+                    TEST_PROVIDER,
+                    TEST_ENDPOINT_TYPE,
+                    new RateLimitSettings(DEFAULT_RATE_LIMIT)
+                )
+            )
         );
     }
 
-    public void testFromMap_RequestWithRateLimit_CreatesSettingsCorrectly() {
-        var target = "http://sometarget.local";
-        var provider = "openai";
-        var endpointType = "token";
-
-        var settingsMap = createRequestSettingsMap(target, provider, endpointType);
-        settingsMap.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 3)));
+    public void testFromMap_Request_AllFields_CreatesSettingsCorrectly() {
+        var settingsMap = createRequestSettingsMap(TEST_TARGET, TEST_PROVIDER.toString(), TEST_ENDPOINT_TYPE.toString(), TEST_RATE_LIMIT);
 
         var serviceSettings = AzureAiStudioChatCompletionServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST);
 
@@ -62,66 +108,76 @@ public class AzureAiStudioChatCompletionServiceSettingsTests extends AbstractBWC
             serviceSettings,
             is(
                 new AzureAiStudioChatCompletionServiceSettings(
-                    target,
-                    AzureAiStudioProvider.OPENAI,
-                    AzureAiStudioEndpointType.TOKEN,
-                    new RateLimitSettings(3)
+                    TEST_TARGET,
+                    TEST_PROVIDER,
+                    TEST_ENDPOINT_TYPE,
+                    new RateLimitSettings(TEST_RATE_LIMIT)
                 )
             )
         );
     }
 
-    public void testFromMap_Persistent_CreatesSettingsCorrectly() {
-        var target = "http://sometarget.local";
-        var provider = "openai";
-        var endpointType = "token";
-
-        var serviceSettings = AzureAiStudioChatCompletionServiceSettings.fromMap(
-            createRequestSettingsMap(target, provider, endpointType),
-            ConfigurationParseContext.PERSISTENT
-        );
-
-        assertThat(
-            serviceSettings,
-            is(new AzureAiStudioChatCompletionServiceSettings(target, AzureAiStudioProvider.OPENAI, AzureAiStudioEndpointType.TOKEN, null))
-        );
-    }
-
     public void testToXContent_WritesAllValues() throws IOException {
         var settings = new AzureAiStudioChatCompletionServiceSettings(
-            "target_value",
-            AzureAiStudioProvider.OPENAI,
-            AzureAiStudioEndpointType.TOKEN,
-            new RateLimitSettings(3)
+            TEST_TARGET,
+            TEST_PROVIDER,
+            TEST_ENDPOINT_TYPE,
+            new RateLimitSettings(TEST_RATE_LIMIT)
         );
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         settings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, CoreMatchers.is("""
-            {"target":"target_value","provider":"openai","endpoint_type":"token",""" + """
-            "rate_limit":{"requests_per_minute":3}}"""));
+        assertThat(xContentResult, is(XContentHelper.stripWhitespace(Strings.format("""
+            {
+              "target": "%s",
+              "provider": "%s",
+              "endpoint_type": "%s",
+              "rate_limit": {
+                "requests_per_minute": %d
+              }
+            }
+            """, TEST_TARGET, TEST_PROVIDER, TEST_ENDPOINT_TYPE, TEST_RATE_LIMIT))));
     }
 
     public void testToFilteredXContent_WritesAllValues() throws IOException {
         var settings = new AzureAiStudioChatCompletionServiceSettings(
-            "target_value",
-            AzureAiStudioProvider.OPENAI,
-            AzureAiStudioEndpointType.TOKEN,
-            new RateLimitSettings(3)
+            TEST_TARGET,
+            TEST_PROVIDER,
+            TEST_ENDPOINT_TYPE,
+            new RateLimitSettings(TEST_RATE_LIMIT)
         );
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         var filteredXContent = settings.getFilteredXContentObject();
         filteredXContent.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, CoreMatchers.is("""
-            {"target":"target_value","provider":"openai","endpoint_type":"token",""" + """
-            "rate_limit":{"requests_per_minute":3}}"""));
+        assertThat(xContentResult, is(XContentHelper.stripWhitespace(Strings.format("""
+            {
+              "target": "%s",
+              "provider": "%s",
+              "endpoint_type": "%s",
+              "rate_limit": {
+                "requests_per_minute": %d
+              }
+            }
+            """, TEST_TARGET, TEST_PROVIDER, TEST_ENDPOINT_TYPE, TEST_RATE_LIMIT))));
     }
 
-    public static HashMap<String, Object> createRequestSettingsMap(String target, String provider, String endpointType) {
-        return new HashMap<>(Map.of(TARGET_FIELD, target, PROVIDER_FIELD, provider, ENDPOINT_TYPE_FIELD, endpointType));
+    public static HashMap<String, Object> createRequestSettingsMap(
+        String target,
+        String provider,
+        String endpointType,
+        @Nullable Integer rateLimit
+    ) {
+        var result = new HashMap<String, Object>();
+        result.put(TARGET_FIELD, target);
+        result.put(PROVIDER_FIELD, provider);
+        result.put(ENDPOINT_TYPE_FIELD, endpointType);
+        if (rateLimit != null) {
+            result.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, rateLimit)));
+        }
+        return result;
     }
 
     @Override
@@ -167,5 +223,4 @@ public class AzureAiStudioChatCompletionServiceSettingsTests extends AbstractBWC
             RateLimitSettingsTests.createRandom()
         );
     }
-
 }

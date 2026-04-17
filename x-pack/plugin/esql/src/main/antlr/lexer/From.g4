@@ -14,8 +14,8 @@ FROM : 'from'                 -> pushMode(FROM_MODE);
 // TS command
 TS : 'ts' -> pushMode(FROM_MODE);
 
-// EXTERNAL command (development only)
-DEV_EXTERNAL : {this.isDevVersion()}? 'external' -> pushMode(FROM_MODE);
+// EXTERNAL command (gated by esql_external_datasources feature flag)
+DEV_EXTERNAL : {this.isExternalDataSourcesEnabled()}? 'external' -> pushMode(FROM_MODE);
 
 mode FROM_MODE;
 FROM_PIPE : PIPE -> type(PIPE), popMode;

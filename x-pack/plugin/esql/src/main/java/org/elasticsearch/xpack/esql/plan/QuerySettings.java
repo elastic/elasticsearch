@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.plan;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -30,15 +29,13 @@ import java.util.stream.Stream;
 
 public class QuerySettings {
 
-    @Param(
-        name = "project_routing",
-        type = { "keyword" },
-        description = "A project routing expression, "
-            + "used to define which projects to route the query to. "
-            + "Only supported if Cross-Project Search is enabled."
-        // TODO add a link to CPS docs when available
-    )
-    @Example(file = "from", tag = "project-routing", description = "Routes the query to the specified project.")
+    @Param(name = "project_routing", type = { "keyword" }, description = """
+        Limits the scope of a [cross-project search (CPS)](/reference/query-languages/esql/esql-cross-serverless-projects.md) to \
+        specific projects before query execution, based on a \
+        [Lucene query expression](docs-content://explore-analyze/cross-project-search/cross-project-search-project-routing.md) \
+        evaluated against project tags. Excluded projects are not queried, which can reduce cost and latency. \
+        """)
+    @Example(file = "from", tag = "project-routing", description = "Route a query to a specific project by alias:")
     public static final QuerySettingDef<String> PROJECT_ROUTING = new QuerySettingDef<>(
         "project_routing",
         DataType.KEYWORD,
@@ -75,16 +72,36 @@ public class QuerySettings {
         ZoneOffset.UTC
     );
 
-    @Param(
-        name = "unmapped_fields",
-        type = { "keyword" },
-        since = "9.3.0",
-        description = "Defines how unmapped fields are treated. Possible values are: "
-            + "\"FAIL\" (default) - fails the query if unmapped fields are present; "
-            + "\"NULLIFY\" - treats unmapped fields as null values. "
-        // + "\"LOAD\" - attempts to load the fields from the source." Commented out since LOAD is currently only under snapshot.
-    )
-    @Example(file = "unmapped-nullify", tag = "unmapped-nullify-simple-keep", description = "Make the field null if it is unmapped.")
+    @Param(name = "unmapped_fields", type = { "keyword" }, since = "9.3.0", description = """
+        Determines how unmapped fields are treated. Possible values are:
+
+        - `DEFAULT` : Standard ESQL queries fail when referencing unmapped fields, while other query types (e.g. PromQL)
+        may treat them differently.
+        - `NULLIFY` : Treats unmapped fields as null values.
+        - `LOAD` : Loads unmapped fields from the stored [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md)
+        with type `keyword`. Or nullifies them if absent from `_source`. {applies_to}`stack: preview 9.4`
+
+        An `unmapped field` is a field referenced in a query that does not exist in the mapping of the index being queried. When querying
+        multiple indices, a field is considered `partially unmapped` if it exists in the mapping of some indices but not others.
+
+        Special notes about the `LOAD` option:
+        - `PromQL`, `FORK`, `LOOKUP JOIN`, subqueries, views, and full-text search functions are not yet supported anywhere in the query.
+        - Referencing subfields of `flattened` parents is not supported.
+        - Referencing partially unmapped non-keyword fields must be inside a cast or a conversion function (e.g. `::TYPE` or `TO_TYPE`),
+        unless referenced in a `KEEP` or `DROP`.
+        """)
+    @Example(file = "unmapped-nullify", tag = "unmapped-nullify-simple-keep", description = """
+        Field `unmapped_message` is not mapped; it doesn't appear in the mapping of index `partial_mapping_sample_data`. It appears,
+        however, in the stored `_source` of all documents in this index.
+
+        The `NULLIFY` option will treat this field as `null`.
+        """)
+    @Example(file = "unmapped-load", tag = "unmapped-load-sample", description = """
+        Field `unmapped_message` is not mapped; it doesn't appear in the mapping of index `partial_mapping_sample_data`. It appears,
+        however, in the stored `_source` of all documents in this index.
+
+        The `LOAD` option will load this field from `_source` and treat it like a `keyword` type field.
+        """)
     public static final QuerySettingDef<UnmappedResolution> UNMAPPED_FIELDS = new QuerySettingDef<>(
         "unmapped_fields",
         DataType.KEYWORD,
@@ -94,29 +111,24 @@ public class QuerySettings {
         (value) -> {
             String resolution = Foldables.stringLiteralValueOf(value, "Unexpected value");
             try {
-                UnmappedResolution res = UnmappedResolution.valueOf(resolution.toUpperCase(Locale.ROOT));
-                if (res == UnmappedResolution.LOAD && EsqlCapabilities.Cap.OPTIONAL_FIELDS_V2.isEnabled() == false) {
-                    throw new IllegalArgumentException("'LOAD' is only supported in snapshot builds");
-                }
-                return res;
+                return UnmappedResolution.valueOf(resolution.toUpperCase(Locale.ROOT));
             } catch (Exception exc) {
-                var values = EsqlCapabilities.Cap.OPTIONAL_FIELDS_V2.isEnabled()
-                    ? UnmappedResolution.values()
-                    : Arrays.stream(UnmappedResolution.values()).filter(e -> e != UnmappedResolution.LOAD).toArray();
-
                 throw new IllegalArgumentException(
-                    "Invalid unmapped_fields resolution [" + value + "], must be one of " + Arrays.toString(values)
+                    "Invalid unmapped_fields resolution [" + value + "], must be one of " + Arrays.toString(UnmappedResolution.values())
                 );
             }
         },
-        UnmappedResolution.FAIL
+        UnmappedResolution.DEFAULT
     );
 
     @Param(
         name = "approximation",
         type = { "boolean", "map_param" },
-        // TODO: more detailed description of query approximation and when it can be applied
-        description = "Enables query approximation if possible for the query."
+        since = "9.4.0",
+        // TODO: make "query approximation" a link to an "Advanced workflows" page when that's ready.
+        description = "Enables query approximation if possible for the query. "
+            + "A boolean value `false` (default) disables query approximation and `true` enables it with "
+            + "default settings. Map values enable query approximation with custom settings."
     )
     @MapParam(
         name = "approximation",
@@ -140,8 +152,8 @@ public class QuerySettings {
         "approximation",
         null,
         false,
-        false,
         true,
+        false,
         ApproximationSettings::parse,
         null
     );

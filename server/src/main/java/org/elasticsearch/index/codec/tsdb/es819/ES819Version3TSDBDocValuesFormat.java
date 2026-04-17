@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.tsdb.es819;
 
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
+import org.elasticsearch.index.codec.tsdb.DocOffsetsCodec;
 
 /**
  * Version 3 of {@link org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat} and has the following change:
@@ -25,14 +26,14 @@ import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 public class ES819Version3TSDBDocValuesFormat extends ES819TSDBDocValuesFormat {
 
     static final String CODEC_NAME = "ES8193TSDB";
-    static final int BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT = 1024 * 1024;
-    static final int BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT = 32768;
+    static final int BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT = 512 * 1024;
+    static final int BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT = 8096;
 
     public ES819Version3TSDBDocValuesFormat() {
-        this(false, false);
+        this(false, false, false);
     }
 
-    public ES819Version3TSDBDocValuesFormat(boolean largeNumericBlock, boolean largeBinaryBlock) {
+    public ES819Version3TSDBDocValuesFormat(boolean largeNumericBlock, boolean largeBinaryBlock, boolean writePrefixPartition) {
         super(
             CODEC_NAME,
             DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
@@ -43,7 +44,8 @@ public class ES819Version3TSDBDocValuesFormat extends ES819TSDBDocValuesFormat {
             largeNumericBlock ? NUMERIC_LARGE_BLOCK_SHIFT : NUMERIC_BLOCK_SHIFT,
             DocOffsetsCodec.BITPACKING,
             largeBinaryBlock ? BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT : ES819TSDBDocValuesFormat.BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT,
-            largeBinaryBlock ? BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT : ES819TSDBDocValuesFormat.BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT
+            largeBinaryBlock ? BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT : ES819TSDBDocValuesFormat.BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT,
+            writePrefixPartition
         );
     }
 
@@ -53,7 +55,8 @@ public class ES819Version3TSDBDocValuesFormat extends ES819TSDBDocValuesFormat {
         boolean enableOptimizedMerge,
         BinaryDVCompressionMode binaryDVCompressionMode,
         final boolean enablePerBlockCompression,
-        int numericBlockShift
+        int numericBlockShift,
+        boolean writePrefixPartition
     ) {
         super(
             CODEC_NAME,
@@ -65,7 +68,8 @@ public class ES819Version3TSDBDocValuesFormat extends ES819TSDBDocValuesFormat {
             numericBlockShift,
             DocOffsetsCodec.BITPACKING,
             BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT,
-            BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT
+            BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT,
+            writePrefixPartition
         );
     }
 }

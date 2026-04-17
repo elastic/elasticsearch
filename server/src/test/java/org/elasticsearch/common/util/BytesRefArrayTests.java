@@ -12,6 +12,7 @@ package org.elasticsearch.common.util;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -177,6 +178,66 @@ public class BytesRefArrayTests extends ESTestCase {
             for (int i = 0; i < values.size(); i++) {
                 array.get(i, scratch);
                 assertThat(scratch, equalTo(values.get(i)));
+            }
+        }
+    }
+
+    public void testAppendPagedBytesCursorSinglePage() {
+        try (BytesRefArray array = new BytesRefArray(0, mockBigArrays())) {
+            byte[] data = randomByteArrayOfLength(between(1, 100));
+            PagedBytesCursor cursor = new PagedBytesCursor();
+            cursor.init(data, 0, data.length);
+            array.append(cursor);
+            assertThat(array.size(), equalTo(1L));
+            assertThat(array.get(0, new BytesRef()), equalTo(new BytesRef(data)));
+        }
+    }
+
+    public void testAppendPagedBytesCursorMultiPage() {
+        try (BytesRefArray array = new BytesRefArray(0, mockBigArrays())) {
+            int pageSize = between(2, 16);
+            int pages = between(2, 4);
+            byte[][] pageData = new byte[pages][pageSize];
+            byte[] flat = randomByteArrayOfLength(pages * pageSize);
+            for (int p = 0; p < pages; p++) {
+                System.arraycopy(flat, p * pageSize, pageData[p], 0, pageSize);
+            }
+            PagedBytesCursor cursor = new PagedBytesCursor();
+            cursor.init(pageData, 0, 0, flat.length, false);
+            array.append(cursor);
+            assertThat(array.size(), equalTo(1L));
+            assertThat(array.get(0, new BytesRef()), equalTo(new BytesRef(flat)));
+        }
+    }
+
+    public void testAppendPagedBytesCursorEmpty() {
+        try (BytesRefArray array = new BytesRefArray(0, mockBigArrays())) {
+            PagedBytesCursor cursor = new PagedBytesCursor();
+            cursor.init(new byte[0], 0, 0);
+            array.append(cursor);
+            assertThat(array.size(), equalTo(1L));
+            assertThat(array.get(0, new BytesRef()), equalTo(new BytesRef()));
+        }
+    }
+
+    public void testAppendPagedBytesCursorMixed() {
+        try (BytesRefArray array = new BytesRefArray(0, mockBigArrays())) {
+            int count = between(4, 20);
+            BytesRef[] expected = new BytesRef[count];
+            PagedBytesCursor cursor = new PagedBytesCursor();
+            for (int i = 0; i < count; i++) {
+                byte[] data = randomByteArrayOfLength(between(0, 50));
+                expected[i] = new BytesRef(data);
+                if (randomBoolean()) {
+                    array.append(new BytesRef(data));
+                } else {
+                    cursor.init(data, 0, data.length);
+                    array.append(cursor);
+                }
+            }
+            BytesRef scratch = new BytesRef();
+            for (int i = 0; i < count; i++) {
+                assertThat(array.get(i, scratch), equalTo(expected[i]));
             }
         }
     }

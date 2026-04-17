@@ -87,6 +87,15 @@ public class BinaryDocValuesContainsTermQueryTests extends ESTestCase {
         assertTrue(contains(value, term));
     }
 
+    public void testWithTermOffset() {
+        BytesRef value = new BytesRef("research");
+        BytesRef term = new BytesRef();
+        term.bytes = "1234567890search".getBytes(StandardCharsets.UTF_8);
+        term.offset = 10; // skip "1234567890"
+        term.length = "search".getBytes(StandardCharsets.UTF_8).length;
+        assertTrue(contains(value, term));
+    }
+
     public void testMultiByteUtf8() {
         BytesRef value = new BytesRef("Ω≈ç√∫");
         BytesRef term = new BytesRef("≈ç√");
@@ -220,7 +229,10 @@ public class BinaryDocValuesContainsTermQueryTests extends ESTestCase {
 
     private static void addSingleValueDoc(RandomIndexWriter writer, String fieldName, String value) throws IOException {
         Document document = new Document();
-        var field = new MultiValuedBinaryDocValuesField.SeparateCount(fieldName, false);
+        var field = new MultiValuedBinaryDocValuesField.SeparateCount(
+            fieldName,
+            MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+        );
         field.add(new BytesRef(value.getBytes(StandardCharsets.UTF_8)));
         var countField = NumericDocValuesField.indexedField(fieldName + ".counts", 1);
         document.add(field);
@@ -230,7 +242,10 @@ public class BinaryDocValuesContainsTermQueryTests extends ESTestCase {
 
     private static void addMultiValueDoc(RandomIndexWriter writer, String fieldName, String... values) throws IOException {
         Document document = new Document();
-        var field = new MultiValuedBinaryDocValuesField.SeparateCount(fieldName, false);
+        var field = new MultiValuedBinaryDocValuesField.SeparateCount(
+            fieldName,
+            MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+        );
         for (String value : values) {
             field.add(new BytesRef(value.getBytes(StandardCharsets.UTF_8)));
         }

@@ -12,8 +12,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.ShutdownPersistentTasksStatus;
 import org.elasticsearch.cluster.metadata.ShutdownPluginsStatus;
 import org.elasticsearch.cluster.metadata.ShutdownShardMigrationStatus;
+import org.elasticsearch.cluster.metadata.ShutdownShardSnapshotsStatus;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -29,7 +30,6 @@ import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
@@ -37,7 +37,6 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasks;
 import org.elasticsearch.persistent.PersistentTasksExecutorRegistry;
 import org.elasticsearch.shutdown.PluginShutdownService;
-import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -65,10 +64,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
     GetShutdownStatusAction.Response> {
     private static final Logger logger = LogManager.getLogger(TransportGetShutdownStatusAction.class);
 
-    private final AllocationDeciders allocationDeciders;
     private final AllocationService allocationService;
-    private final ClusterInfoService clusterInfoService;
-    private final SnapshotsInfoService snapshotsInfoService;
     private final PluginShutdownService pluginShutdownService;
 
     @Inject
@@ -78,9 +74,6 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         ThreadPool threadPool,
         ActionFilters actionFilters,
         AllocationService allocationService,
-        AllocationDeciders allocationDeciders,
-        ClusterInfoService clusterInfoService,
-        SnapshotsInfoService snapshotsInfoService,
         PluginShutdownService pluginShutdownService
     ) {
         super(
@@ -95,9 +88,6 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.allocationService = allocationService;
-        this.allocationDeciders = allocationDeciders;
-        this.clusterInfoService = clusterInfoService;
-        this.snapshotsInfoService = snapshotsInfoService;
         this.pluginShutdownService = pluginShutdownService;
     }
 
@@ -121,19 +111,10 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                 .map(
                     ns -> new SingleNodeShutdownStatus(
                         ns,
-                        shardMigrationStatus(
-                            cancellableTask,
-                            state,
-                            ns.getNodeId(),
-                            ns.getType(),
-                            ns.getNodeSeen(),
-                            clusterInfoService,
-                            snapshotsInfoService,
-                            allocationService,
-                            allocationDeciders
-                        ),
+                        shardMigrationStatus(cancellableTask, state, ns.getNodeId(), ns.getType(), ns.getNodeSeen(), allocationService),
                         persistentTasksStatus(state, ns.getNodeId(), ns.getNodeSeen()),
-                        new ShutdownPluginsStatus(pluginShutdownService.readyToShutdown(ns.getNodeId(), ns.getType()))
+                        new ShutdownPluginsStatus(pluginShutdownService.readyToShutdown(ns.getNodeId(), ns.getType())),
+                        shardSnapshotsStatus(state, ns.getNodeId(), ns.getNodeSeen())
                     )
                 )
                 .collect(Collectors.toList());
@@ -145,19 +126,10 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                 .map(
                     ns -> new SingleNodeShutdownStatus(
                         ns,
-                        shardMigrationStatus(
-                            cancellableTask,
-                            state,
-                            ns.getNodeId(),
-                            ns.getType(),
-                            ns.getNodeSeen(),
-                            clusterInfoService,
-                            snapshotsInfoService,
-                            allocationService,
-                            allocationDeciders
-                        ),
+                        shardMigrationStatus(cancellableTask, state, ns.getNodeId(), ns.getType(), ns.getNodeSeen(), allocationService),
                         persistentTasksStatus(state, ns.getNodeId(), ns.getNodeSeen()),
-                        new ShutdownPluginsStatus(pluginShutdownService.readyToShutdown(ns.getNodeId(), ns.getType()))
+                        new ShutdownPluginsStatus(pluginShutdownService.readyToShutdown(ns.getNodeId(), ns.getType())),
+                        shardSnapshotsStatus(state, ns.getNodeId(), ns.getNodeSeen())
                     )
 
                 )
@@ -190,16 +162,41 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
     }
 
     // pkg-private for testing
+    static ShutdownShardSnapshotsStatus shardSnapshotsStatus(ClusterState state, String nodeId, boolean nodeSeen) {
+        if (state.nodes().get(nodeId) == null && nodeSeen == false) {
+            return ShutdownShardSnapshotsStatus.NOT_STARTED;
+        }
+        long completedShards = 0;
+        long pausedShards = 0;
+        long runningShards = 0;
+        for (final var it = SnapshotsInProgress.get(state).asStream().iterator(); it.hasNext();) {
+            final SnapshotsInProgress.Entry entry = it.next();
+            if (entry.isClone()) {
+                continue;
+            }
+            for (final SnapshotsInProgress.ShardSnapshotStatus status : entry.shards().values()) {
+                if (nodeId.equals(status.nodeId())) {
+                    if (status.state().completed()) {
+                        completedShards++;
+                    } else if (status.state() == SnapshotsInProgress.ShardState.PAUSED_FOR_NODE_REMOVAL) {
+                        pausedShards++;
+                    } else {
+                        runningShards++;
+                    }
+                }
+            }
+        }
+        return ShutdownShardSnapshotsStatus.fromShardCounts(completedShards, pausedShards, runningShards);
+    }
+
+    // pkg-private for testing
     static ShutdownShardMigrationStatus shardMigrationStatus(
         CancellableTask cancellableTask,
         ClusterState currentState,
         String nodeId,
         SingleNodeShutdownMetadata.Type shutdownType,
         boolean nodeSeen,
-        ClusterInfoService clusterInfoService,
-        SnapshotsInfoService snapshotsInfoService,
-        AllocationService allocationService,
-        AllocationDeciders allocationDeciders
+        AllocationService allocationService
     ) {
         assert Transports.assertNotTransportThread("doing O(#shards) work must be forked");
 
@@ -223,15 +220,6 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             );
         }
 
-        final RoutingAllocation allocation = new RoutingAllocation(
-            allocationDeciders,
-            currentState,
-            clusterInfoService.getClusterInfo(),
-            snapshotsInfoService.snapshotShardSizes(),
-            System.nanoTime()
-        );
-        allocation.setDebugMode(RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS);
-
         // We also need the set of node IDs which are currently shutting down.
         Set<String> shuttingDownNodes = currentState.metadata().nodeShutdowns().getAll().keySet();
 
@@ -246,7 +234,11 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
 
         if (unassignedShards.isEmpty() == false) {
             var shardRouting = unassignedShards.get(0);
-            ShardAllocationDecision decision = allocationService.explainShardAllocation(shardRouting, allocation);
+            ShardAllocationDecision decision = allocationService.explainShardAllocation(
+                shardRouting,
+                currentState,
+                RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS
+            );
 
             return new ShutdownShardMigrationStatus(
                 SingleNodeShutdownMetadata.Status.STALLED,
@@ -307,7 +299,10 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             @Override
             public ShardAllocationDecision apply(ShardRouting shardRouting) {
                 if (this.allocationExplainFunctionInternal == null) {
-                    this.allocationExplainFunctionInternal = allocationService.explainAssignedShardAllocationFunction(allocation);
+                    this.allocationExplainFunctionInternal = allocationService.explainAssignedShardAllocationFunction(
+                        currentState,
+                        RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS
+                    );
                 }
                 return this.allocationExplainFunctionInternal.apply(shardRouting);
             }

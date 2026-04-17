@@ -29,6 +29,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 
+import static org.elasticsearch.compute.data.BasicBlockTests.assertDeepCopy;
+import static org.elasticsearch.compute.data.BasicBlockTests.assertFilter;
+import static org.elasticsearch.compute.data.BasicBlockTests.assertKeepMask;
+import static org.elasticsearch.compute.data.BasicBlockTests.assertSlice;
+
 /**
  * Tests for LongArrowBufVector and LongArrowBufBlock. These tests also apply to other blocks for fixed-length values:
  * int, float and double.
@@ -81,6 +86,10 @@ public class LongArrowBufTests extends ESTestCase {
                 assertEquals(30L, vector.getLong(2));
                 assertEquals(40L, vector.getLong(3));
                 assertEquals(50L, vector.getLong(4));
+
+                // assertKeepMask(vector); TODO doesn't return "this"
+                assertFilter(vector);
+                assertSlice(vector);
             }
         }
     }
@@ -102,6 +111,11 @@ public class LongArrowBufTests extends ESTestCase {
                 assertEquals(300L, block.getLong(2));
                 assertFalse(block.mayHaveNulls());
                 assertFalse(block.mayHaveMultivaluedFields());
+
+                assertKeepMask(block);
+                assertFilter(block);
+                assertSlice(block);
+                assertDeepCopy(block);
             }
         }
     }

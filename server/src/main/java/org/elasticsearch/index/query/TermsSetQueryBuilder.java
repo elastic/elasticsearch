@@ -40,7 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQueryBuilder> {
+public final class TermsSetQueryBuilder extends LeafQueryBuilder<TermsSetQueryBuilder> {
 
     public static final String NAME = "terms_set";
 

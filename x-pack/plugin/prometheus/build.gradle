@@ -18,6 +18,8 @@ def protobufVersion = "4.32.0"
 dependencies {
   compileOnly project(path: xpackModule('core'))
   compileOnly project(path: xpackModule('esql'))
+  compileOnly project(path: xpackModule('esql-core'))
+  compileOnly project(':x-pack:plugin:esql:compute')
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: xpackModule('esql'))
   testImplementation project(path: xpackModule('esql-core'))

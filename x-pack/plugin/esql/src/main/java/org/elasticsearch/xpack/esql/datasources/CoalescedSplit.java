@@ -22,6 +22,28 @@ import java.util.Objects;
  * micro-partitions) would otherwise each become an independent work item.
  * Operators that encounter a {@code CoalescedSplit} iterate over its children
  * and process each one individually.
+ * <p>
+ * <b>Schema mapping duplication:</b> when schema reconciliation is active, each
+ * child {@link FileSplit} carries its own {@link SchemaReconciliation.ColumnMapping}.
+ * On the coordinator all splits from the same file share a single object reference
+ * (see {@code FileSplitProvider}), but each is serialized independently on the wire.
+ * {@link SplitCoalescer} groups splits by size, not by file, so a single
+ * {@code CoalescedSplit} may contain children from multiple files with different
+ * mappings. To eliminate the duplication on the wire, one of these approaches
+ * could be used in a follow-up:
+ * <ul>
+ *   <li><b>Dedup table:</b> add a {@code List<ColumnMapping>} table here;
+ *       each child writes a 1-byte index into the table instead of the full mapping.
+ *       Cleanest wire saving but couples this generic container to schema-specific types.</li>
+ *   <li><b>Group-by-file coalescing:</b> modify {@link SplitCoalescer} to group
+ *       splits by file first, so each {@code CoalescedSplit} has a single shared
+ *       mapping. Simple but may reduce bin-packing quality.</li>
+ *   <li><b>Post-deser dedup:</b> after deserializing children, replace content-equal
+ *       mappings with a single instance. Saves heap but not wire bytes.</li>
+ * </ul>
+ * For typical schemas (&lt; 200 columns) and split counts (&lt; 50 per file), the
+ * per-split mapping overhead is well under 1 KB, making this a low-priority
+ * optimisation relative to the multi-MB data payloads.
  */
 public class CoalescedSplit implements ExternalSplit {
 

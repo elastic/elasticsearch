@@ -1778,7 +1778,7 @@ required_capability: join_lookup_v12
 required_capability: remove_redundant_sort
 required_capability: make_number_of_channels_consistent_with_layout
 
-from *
+from *,-addresses_*
 | rename city.country.continent.planet.name as message
 | lookup join message_types_lookup on message
 | sort language_code, birth_date
@@ -1795,7 +1795,7 @@ required_capability: join_lookup_v12
 required_capability: remove_redundant_sort
 required_capability: make_number_of_channels_consistent_with_layout
 
-from *
+from *,-addresses_*
 | rename city.country.continent.planet.name as message
 | lookup join message_types_lookup on message
 | keep birth_date, language_code
@@ -1813,7 +1813,7 @@ required_capability: join_lookup_v12
 required_capability: remove_redundant_sort
 required_capability: make_number_of_channels_consistent_with_layout
 
-from *
+from *,-addresses_*
 | rename city.country.continent.planet.name as message
 | lookup join message_types_lookup on message
 | keep birth_date, language_code
@@ -1829,7 +1829,7 @@ required_capability: join_lookup_v12
 required_capability: remove_redundant_sort
 required_capability: make_number_of_channels_consistent_with_layout
 
-from *
+from *,-addresses_*
 | rename city.country.continent.planet.name as message
 | lookup join message_types_lookup on message
 | keep birth_date, language_code
@@ -1847,7 +1847,7 @@ required_capability: join_lookup_v12
 required_capability: remove_redundant_sort
 required_capability: make_number_of_channels_consistent_with_layout
 
-from *
+from *,-addresses_*
 | rename city.country.continent.planet.name as message
 | lookup join message_types_lookup on message
 | keep birth_date, language_code
@@ -1974,7 +1974,7 @@ required_capability: union_types
 required_capability: join_lookup_v12
 required_capability: fix_join_masking_regex_extract
 required_capability: lookup_join_sort_warning
-from books,message_*,ul*
+from books,message_*,ul_*
 | enrich languages_policy on status
 | drop `language_name`, `bytes_out`, `id`, id
 | dissect book_no "%{type}"
@@ -5873,3 +5873,319 @@ warning:Line 13:24: java.lang.IllegalArgumentException: single-value function en
 language_name:keyword | country:text | other2:integer | YEcxuCOHsGzb:keyword | other1:keyword | date:datetime | date_nanos:date_nanos | id_int:integer | ip_addr:ip | is_active_bool:boolean | name_str:keyword
 
 ;
+
+whereFalseBeforeLookupJoin
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE false
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+;
+
+whereFalseBeforeLookupJoinWithFilterAfter
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE false
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE emp_no > 100
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+;
+
+whereFalseBeforeLookupJoinWithStatsAfter
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE false
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| STATS c = COUNT(*)
+;
+
+c:long
+0
+;
+
+impossibleFilterBeforeLookupJoin
+required_capability: join_lookup_v12
+
+FROM employees
+| EVAL a = 1, b = a + 1, c = b + a
+| WHERE c > 10
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE language_name IS NOT NULL
+| KEEP emp_no, language_name
+;
+
+emp_no:integer | language_name:keyword
+;
+
+// See https://github.com/elastic/elasticsearch/issues/144329
+whereFalseBeforeLookupJoinWithMatch
+required_capability: join_lookup_v12
+required_capability: match_function
+required_capability: propagate_empty_relation_past_joins
+
+FROM sample_data
+| WHERE false
+| LOOKUP JOIN message_types_lookup ON message
+| WHERE match(message, "Connection error")
+| KEEP message, type
+;
+
+message:keyword | type:keyword
+;
+
+// See https://github.com/elastic/elasticsearch/issues/144329
+whereFalseBeforeLookupJoinWithMatchPhrase
+required_capability: join_lookup_v12
+required_capability: match_phrase_function
+required_capability: propagate_empty_relation_past_joins
+
+FROM sample_data
+| WHERE false
+| LOOKUP JOIN message_types_lookup ON message
+| WHERE match_phrase(message, "Connection error")
+| KEEP message, type
+;
+
+message:keyword | type:keyword
+;
+
+// See https://github.com/elastic/elasticsearch/issues/144329
+whereFalseBeforeLookupJoinWithMatchOperator
+required_capability: join_lookup_v12
+required_capability: match_operator_colon
+required_capability: propagate_empty_relation_past_joins
+
+FROM sample_data
+| WHERE false
+| LOOKUP JOIN message_types_lookup ON message
+| WHERE message:"Connection error"
+| KEEP message, type
+;
+
+message:keyword | type:keyword
+;
+
+// See https://github.com/elastic/elasticsearch/issues/144329
+whereFalseWithEvalBeforeLookupJoinAndMatch
+required_capability: join_lookup_v12
+required_capability: match_function
+required_capability: propagate_empty_relation_past_joins
+
+FROM sample_data
+| WHERE false
+| EVAL msg = message
+| LOOKUP JOIN message_types_lookup ON message
+| WHERE match(message, "Connection error")
+| KEEP message, type
+;
+
+message:keyword | type:keyword
+;
+
+// See https://github.com/elastic/elasticsearch/issues/144329
+whereFalseBeforeLookupJoinWithFullTextDisjunction
+required_capability: join_lookup_v12
+required_capability: full_text_functions_disjunctions_compute_engine
+required_capability: propagate_empty_relation_past_joins
+
+FROM sample_data
+| WHERE false
+| LOOKUP JOIN message_types_lookup ON message
+| WHERE match(message, "Connection error") OR type LIKE "Success"
+| KEEP message, type
+;
+
+message:keyword | type:keyword
+;
+
+// See https://github.com/elastic/elasticsearch/issues/144329
+whereFalseBeforeLookupJoinWithMatchAndStats
+required_capability: join_lookup_v12
+required_capability: match_function
+required_capability: propagate_empty_relation_past_joins
+
+FROM sample_data
+| WHERE false
+| LOOKUP JOIN message_types_lookup ON message
+| WHERE match(message, "Connection error")
+| STATS c = COUNT(*)
+;
+
+c:long
+0
+;
+
+// See https://github.com/elastic/elasticsearch/issues/144329
+whereFalseBeforeLookupJoinWithMultipleFullTextFunctions
+required_capability: join_lookup_v12
+required_capability: match_function
+required_capability: match_phrase_function
+required_capability: propagate_empty_relation_past_joins
+
+FROM sample_data
+| WHERE false
+| LOOKUP JOIN message_types_lookup ON message
+| WHERE match(message, "Connection") AND match_phrase(message, "Connection error")
+| KEEP message, type
+;
+
+message:keyword | type:keyword
+;
+
+// See https://github.com/elastic/elasticsearch/issues/144329
+whereFalseBeforeLookupJoinWithMatchOnEmployees
+required_capability: join_lookup_v12
+required_capability: match_function
+required_capability: propagate_empty_relation_past_joins
+
+FROM employees
+| WHERE false
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE match(first_name, "Georgi")
+| KEEP emp_no, first_name, language_name
+;
+
+emp_no:integer | first_name:keyword | language_name:keyword
+;
+
+whereNullBeforeLookupJoin
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE null
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+;
+
+evalNullFilterBeforeLookupJoin
+required_capability: join_lookup_v12
+
+FROM employees
+| EVAL x = null
+| WHERE x::int > 0
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+;
+
+whereNullBeforeLookupJoinWithStatsAfter
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE null
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| STATS c = COUNT(*)
+;
+
+c:long
+0
+;
+
+whereNullBeforeLookupJoinWithFilterAfter
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE null
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE emp_no > 100
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+;
+
+nullArithmeticFilterBeforeLookupJoin
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE 1 + null > 0
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+;
+
+whereNullConjunctionBeforeLookupJoin
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE null AND emp_no > 0
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+;
+
+whereNullDisjunctionBeforeLookupJoin
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE null OR false
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+;
+
+// See https://github.com/elastic/elasticsearch/issues/144329
+whereNullBeforeLookupJoinWithMatch
+required_capability: join_lookup_v12
+required_capability: match_function
+required_capability: propagate_empty_relation_past_joins
+
+FROM sample_data
+| WHERE null
+| LOOKUP JOIN message_types_lookup ON message
+| WHERE match(message, "Connection error")
+| KEEP message, type
+;
+
+message:keyword | type:keyword
+;
+
+// See https://github.com/elastic/elasticsearch/issues/144329
+evalNullFilterBeforeLookupJoinWithMatch
+required_capability: join_lookup_v12
+required_capability: match_function
+required_capability: propagate_empty_relation_past_joins
+
+FROM sample_data
+| EVAL x = null
+| WHERE x::int > 0
+| LOOKUP JOIN message_types_lookup ON message
+| WHERE match(message, "Connection error")
+| KEEP message, type
+;
+
+message:keyword | type:keyword
+;
+

@@ -9,6 +9,7 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
@@ -94,6 +95,15 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     @Override
     public ConstantNullBlock deepCopy(BlockFactory blockFactory) {
         return (ConstantNullBlock) blockFactory.newConstantNullBlock(positionCount);
+    }
+
+    @Override
+    public ConstantNullBlock slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        return (ConstantNullBlock) blockFactory().newConstantNullBlock(endExclusive - beginInclusive);
     }
 
     @Override
@@ -278,6 +288,12 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
 
     @Override
     public BytesRef getBytesRef(int valueIndex, BytesRef dest) {
+        assert false : "null block";
+        throw new UnsupportedOperationException("null block");
+    }
+
+    @Override
+    public PagedBytesCursor get(int valueIndex, PagedBytesCursor scratch) {
         assert false : "null block";
         throw new UnsupportedOperationException("null block");
     }

@@ -23,7 +23,9 @@ import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.createBinarizedIndexData;
@@ -150,7 +152,9 @@ public class ES93BinaryQuantizedVectorScorerTests extends BaseVectorizationTests
 
                 final float[] scoresDefault = new float[numVectors];
                 final float[] scoresPanama = new float[numVectors];
-                final int[] nodes = IntStream.range(0, numVectors).map(x -> randomInt(numVectors - 1)).toArray();
+                var nodeList = new ArrayList<>(IntStream.range(0, numVectors).boxed().toList());
+                Collections.shuffle(nodeList, random());
+                final int[] nodes = nodeList.stream().mapToInt(Integer::intValue).toArray();
 
                 float defaultMaxScore = defaultScorer.scoreBulk(
                     queryData.vector(),

@@ -1,6 +1,9 @@
 setup:
   - requires:
-      cluster_features: "text_embedding_query_vector_builder.used_by.result_diversification_mmr_retriever"
+      cluster_features: [
+        "text_embedding_query_vector_builder.used_by.result_diversification_mmr_retriever",
+        "semantic_text.element_type_in_index_options"
+      ]
       reason: "Added retriever for result diversification using MMR in 9.3.0"
 
   - requires:
@@ -97,6 +100,9 @@ setup:
               content:
                 type: semantic_text
                 inference_id: dense-inference-id
+                index_options:
+                  dense_vector:
+                    element_type: float
 
   - do:
       headers:
@@ -162,9 +168,15 @@ setup:
                 type: semantic_text
                 inference_id: dense-inference-id
                 copy_to: final_content
+                index_options:
+                  dense_vector:
+                    element_type: float
               final_content:
                 type: semantic_text
                 inference_id: dense-inference-id
+                index_options:
+                  dense_vector:
+                    element_type: float
 
   - do:
       headers:

@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests;
 import org.elasticsearch.xpack.inference.InputTypeTests;
+import org.elasticsearch.xpack.inference.TaskTypeTests;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -379,7 +380,7 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
             var embeddingSize = randomNonNegativeInt();
             var model = AlibabaCloudSearchEmbeddingsModelTests.createModel(
                 randomAlphaOfLength(10),
-                randomFrom(TaskType.values()),
+                TaskTypeTests.randomTaskTypeOtherThanAny(),
                 AlibabaCloudSearchEmbeddingsServiceSettingsTests.createRandom(),
                 AlibabaCloudSearchEmbeddingsTaskSettingsTests.createRandom(),
                 null

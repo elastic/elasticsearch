@@ -10,6 +10,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.SpecReader;
 import org.elasticsearch.xpack.esql.datasources.AzureFixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.AzureFixtureUtils.DataSourcesAzureHttpFixture;
@@ -183,24 +184,27 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     private static void generateCompressedFixtures() {
         try {
             int[] generated = { 0 };
-            FixtureUtils.forEachFixtureEntry(AbstractExternalSourceSpecTestCase.class, (relativePath, content) -> {
-                String fileName = relativePath.contains("/") ? relativePath.substring(relativePath.lastIndexOf('/') + 1) : relativePath;
-                if (fileName.endsWith(".csv") == false && fileName.endsWith(".ndjson") == false) {
-                    return;
-                }
-                String relativeDir = relativePath.contains("/") ? relativePath.substring(0, relativePath.lastIndexOf('/')) : "";
+            FixtureUtils.forEachFixtureEntryMergingAllClasspathRoots(
+                AbstractExternalSourceSpecTestCase.class.getClassLoader(),
+                (relativePath, content) -> {
+                    String fileName = relativePath.contains("/") ? relativePath.substring(relativePath.lastIndexOf('/') + 1) : relativePath;
+                    if (fileName.endsWith(".csv") == false && fileName.endsWith(".ndjson") == false) {
+                        return;
+                    }
+                    String relativeDir = relativePath.contains("/") ? relativePath.substring(0, relativePath.lastIndexOf('/')) : "";
 
-                for (String suffix : COMPRESSED_EXTENSIONS) {
-                    byte[] compressed = FixtureUtils.compress(content, suffix);
-                    String compressedName = fileName + suffix;
-                    String key = WAREHOUSE + "/" + (relativeDir.isEmpty() ? compressedName : relativeDir + "/" + compressedName);
+                    for (String suffix : COMPRESSED_EXTENSIONS) {
+                        byte[] compressed = FixtureUtils.compress(content, suffix);
+                        String compressedName = fileName + suffix;
+                        String key = WAREHOUSE + "/" + (relativeDir.isEmpty() ? compressedName : relativeDir + "/" + compressedName);
 
-                    S3FixtureUtils.addBlobToFixture(s3Fixture.getHandler(), key, compressed);
-                    GcsFixtureUtils.addBlobToFixture(gcsFixture.getHandler(), key, compressed);
-                    AzureFixtureUtils.addBlobToFixture(azureFixture.getAddress(), key, compressed);
-                    generated[0]++;
+                        S3FixtureUtils.addBlobToFixture(s3Fixture.getHandler(), key, compressed);
+                        GcsFixtureUtils.addBlobToFixture(gcsFixture.getHandler(), key, compressed);
+                        AzureFixtureUtils.addBlobToFixture(azureFixture.getAddress(), key, compressed);
+                        generated[0]++;
+                    }
                 }
-            });
+            );
             logger.info("Generated {} compressed fixture variants", generated[0]);
         } catch (Exception e) {
             logger.error("Failed to generate compressed fixtures", e);
@@ -391,12 +395,20 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
     @Override
     protected List<String> indicesToLoad() {
-        return List.of("languages_lookup");
+        // languages: enrich policy source; languages_lookup: LOOKUP JOIN (see CsvTestsDataLoader.loadEnrichPoliciesForLoadedSourceIndices)
+        return List.of("languages", "languages_lookup");
     }
 
     @Override
     protected boolean supportsInferenceTestServiceOnLocalCluster() {
         return false;
+    }
+
+    @Override
+    protected void createInferenceEndpointsIfSupported() throws IOException {
+        // Register only RERANK: external-basic.csv-spec uses test_reranker; full INFERENCE_CONFIGS includes task types
+        // not supported on these minimal clusters (e.g. SPARSE_EMBEDDING). Test clusters must load inference-service-test.
+        CsvTestsDataLoader.createInferenceEndpoints(adminClient(), List.of("test_reranker"));
     }
 
     @Override

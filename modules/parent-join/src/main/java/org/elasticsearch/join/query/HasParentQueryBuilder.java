@@ -22,6 +22,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.InnerHitContextBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardException;
@@ -41,7 +42,7 @@ import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 /**
  * Builder for the 'has_parent' query.
  */
-public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBuilder> {
+public class HasParentQueryBuilder extends LeafQueryBuilder<HasParentQueryBuilder> {
     public static final String NAME = "has_parent";
 
     /**

@@ -102,7 +102,7 @@ In many cases, a brute-force kNN search is not efficient enough. For this reason
 
 Unmapped array fields of float elements with size between 128 and 4096 are dynamically mapped as `dense_vector` with a default similarity of `cosine`. You can override the default similarity by explicitly mapping the field as `dense_vector` with the desired similarity.
 
-Indexing is enabled by default for dense vector fields and indexed as `bbq_hnsw` if dimensions are greater than or equal to 384, otherwise they are indexed as `int8_hnsw`. {applies_to}`stack: ga 9.1`
+Indexing is enabled by default for dense vector fields. When indexing `float` vectors, {{es}} uses a [default index type](#default-quantization-types).
 
 :::{note}
 In {{stack}} 9.0, dense vector fields are always indexed as `int8_hnsw`.
@@ -387,10 +387,14 @@ When indexing `float` vectors, the default index type is `int8_hnsw`.
 
 :::{applies-item} stack: ga 9.1+
 When indexing `float` vectors, the default index type is:
-- `bbq_hnsw` for vectors with greater than or equal to 384 dimensions
-- `int8_hnsw` for vectors with less than 384 dimensions
+  - `bbq_hnsw` for vectors with greater than or equal to 384 dimensions
+  - `int8_hnsw` for vectors with less than 384 dimensions
 :::
 
+:::{applies-item} { "stack": "ga 9.4", "serverless": "ga" }
+When indexing `float` vectors, the default index type is `bbq_disk`
+when available under the current license.
+:::
 ::::
 
 ### int8 [dense-vector-quantization-int8]
@@ -549,7 +553,7 @@ $$$dense-vector-index-options$$$
 
     ² $$$footnote-2$$$ This parameter can only be specified when `index` is `true`.
 
-::::{dropdown} Properties of index_options
+:::::{dropdown} Properties of index_options
 `type`
 :   (Required, string) The type of kNN algorithm to use. Can be either any of:
     * `hnsw` - This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) for scalable approximate kNN search. This supports all `element_type` values.
@@ -576,12 +580,15 @@ $$$dense-vector-index-options$$$
 `default_visit_percentage` {applies_to}`stack: ga 9.2`
 :   (Optional, integer) Only applicable to `bbq_disk`. Must be between 0 and 100.  0 will default to using `num_candidates` for calculating the percent visited. Increasing `default_visit_percentage` tends to improve the accuracy of the final results. Defaults to ~1% per shard for every 1 million vectors.
 
+`precondition` {applies_to}`stack: ga 9.4`
+:   (Optional, boolean) Only applicable to `bbq_disk`. When `true` transforms the indexed vectors using a random orthogonal projection. This can help improve accuracy when any of the vector components are not normally distributed. Defaults to `false`.
+
 `cluster_size` {applies_to}`stack: ga 9.2`
 :   (Optional, integer) Only applicable to `bbq_disk`.  The number of vectors per cluster.  Smaller cluster sizes increases accuracy at the cost of performance. Defaults to `384`. Must be a value between `64` and `65536`.
 
 `rescore_vector` {applies_to}`stack: preview =9.0, ga 9.1+`
 :   (Optional, object) An optional section that configures automatic vector rescoring on knn queries for the given field. Only applicable to quantized index types.
-:::::{dropdown} Properties of rescore_vector
+::::{dropdown} Properties of rescore_vector
 `oversample`
 :   (required, float) The amount to oversample the search results by. This value should be one of the following:
     * Greater than `1.0` and less than `10.0`
@@ -589,11 +596,11 @@ $$$dense-vector-index-options$$$
     :   The higher the value, the more vectors will be gathered and rescored with the raw values per shard.
     :   In case a knn query specifies a `rescore_vector` parameter, the query `rescore_vector` parameter will be used instead.
     :   See [oversampling and rescoring quantized vectors](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for details.
-:::::
+::::
 
 `on_disk_rescore` {applies_to}`stack: preview 9.3` {applies_to}`serverless: unavailable`
 :   (Optional, boolean) Only applicable to quantized HNSW and `bbq_disk` index types. When `true`, vector rescoring will read the raw vector data directly from disk, and will not copy it in memory. This can improve performance when vector data is larger than the amount of available RAM. This setting only applies to newly-indexed vectors; after changing this setting, the vectors must be reindexed or force-merged to apply the new setting to the whole index. Defaults to `false`.
-::::
+:::::
 
 
 

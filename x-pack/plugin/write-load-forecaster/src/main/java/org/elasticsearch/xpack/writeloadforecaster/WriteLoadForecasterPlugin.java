@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.writeloadforecaster;
 
+import org.elasticsearch.cluster.ClusterInfo;
+import org.elasticsearch.cluster.ClusterInfoService;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -20,10 +24,13 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.OptionalDouble;
+import java.util.function.BooleanSupplier;
 
 import static org.elasticsearch.xpack.writeloadforecaster.LicensedWriteLoadForecaster.MAX_INDEX_AGE_SETTING;
 
 public class WriteLoadForecasterPlugin extends Plugin implements ClusterPlugin {
+
     public static final LicensedFeature.Momentary WRITE_LOAD_FORECAST_FEATURE = LicensedFeature.momentary(
         null,
         "write-load-forecast",
@@ -38,6 +45,13 @@ public class WriteLoadForecasterPlugin extends Plugin implements ClusterPlugin {
         Setting.Property.IndexScope
     );
 
+    public static final Setting<Boolean> CLUSTER_INFO_WRITE_LOAD_FORECASTER_ENABLED_SETTING = Setting.boolSetting(
+        "cluster_info_write_load_forecaster.enabled",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     public WriteLoadForecasterPlugin() {}
 
     protected boolean hasValidLicense() {
@@ -46,15 +60,91 @@ public class WriteLoadForecasterPlugin extends Plugin implements ClusterPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(MAX_INDEX_AGE_SETTING, OVERRIDE_WRITE_LOAD_FORECAST_SETTING);
+        return List.of(MAX_INDEX_AGE_SETTING, OVERRIDE_WRITE_LOAD_FORECAST_SETTING, CLUSTER_INFO_WRITE_LOAD_FORECASTER_ENABLED_SETTING);
     }
 
     @Override
     public Collection<WriteLoadForecaster> createWriteLoadForecasters(
         ThreadPool threadPool,
         Settings settings,
-        ClusterSettings clusterSettings
+        ClusterSettings clusterSettings,
+        ClusterInfoService clusterInfoService
     ) {
-        return List.of(new LicensedWriteLoadForecaster(this::hasValidLicense, threadPool, settings, clusterSettings));
+        /**
+         * Return a wrapper forecaster around a delegate WriteLoadForecaster, where the wrapper switches between
+         * ClusterInfoWriteLoadForecaster and LicensedWriteLoadForecaster as the setting CLUSTER_INFO_WRITE_LOAD_FORECASTER_ENABLED_SETTING
+         * changes. This extra layer is needed, because createWriteLoadForecasters is only called during node setup */
+        return List.of(
+            new DelegateDynamicSettingsChangerWriteLoadForecaster(
+                threadPool,
+                settings,
+                clusterSettings,
+                clusterInfoService,
+                this::hasValidLicense
+            )
+        );
+    }
+
+    public static class DelegateDynamicSettingsChangerWriteLoadForecaster implements WriteLoadForecaster {
+        private final ThreadPool threadPool;
+        private final Settings settings;
+        private final ClusterSettings clusterSettings;
+        private final BooleanSupplier licenseCheck;
+        private final ClusterInfoService clusterInfoService;
+
+        private volatile WriteLoadForecaster delegateForecaster;
+
+        public DelegateDynamicSettingsChangerWriteLoadForecaster(
+            ThreadPool threadPool,
+            Settings settings,
+            ClusterSettings clusterSettings,
+            ClusterInfoService clusterInfoService,
+            BooleanSupplier licenseCheck
+        ) {
+            this.threadPool = threadPool;
+            this.settings = settings;
+            this.clusterSettings = clusterSettings;
+            this.licenseCheck = licenseCheck;
+
+            this.clusterInfoService = clusterInfoService;
+            this.clusterInfoService.addListener(this::onNewClusterInfo);
+
+            clusterSettings.initializeAndWatch(
+                CLUSTER_INFO_WRITE_LOAD_FORECASTER_ENABLED_SETTING,
+                clusterInfoForecasterEnabled -> handleChangedWriteLoadForecaster(clusterInfoForecasterEnabled)
+            );
+        }
+
+        private void handleChangedWriteLoadForecaster(boolean clusterInfoForecasterEnabled) {
+            if (clusterInfoForecasterEnabled) {
+                // set up with last cluster info before setting as delegate
+                var clusterInfoForecaster = new ClusterInfoWriteLoadForecaster(licenseCheck);
+                clusterInfoForecaster.onNewClusterInfo(clusterInfoService.getClusterInfo());
+                delegateForecaster = clusterInfoForecaster;
+            } else {
+                delegateForecaster = new LicensedWriteLoadForecaster(licenseCheck, threadPool, settings, clusterSettings);
+            }
+        }
+
+        private void onNewClusterInfo(ClusterInfo clusterInfo) {
+            if (delegateForecaster instanceof ClusterInfoWriteLoadForecaster clusterInfoForecaster) {
+                clusterInfoForecaster.onNewClusterInfo(clusterInfo);
+            }
+        }
+
+        @Override
+        public ProjectMetadata.Builder withWriteLoadForecastForWriteIndex(String dataStreamName, ProjectMetadata.Builder metadata) {
+            return delegateForecaster.withWriteLoadForecastForWriteIndex(dataStreamName, metadata);
+        }
+
+        @Override
+        public OptionalDouble getForecastedWriteLoad(IndexMetadata indexMetadata) {
+            return delegateForecaster.getForecastedWriteLoad(indexMetadata);
+        }
+
+        @Override
+        public void refreshLicense() {
+            delegateForecaster.refreshLicense();
+        }
     }
 }

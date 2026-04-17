@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -110,7 +111,7 @@ public final class ParallelParsingCoordinator {
             return reader.read(storageObject, baseCtx);
         }
 
-        return new OrderedParallelIterator(reader, storageObject, projectedColumns, batchSize, segments, executor, errorPolicy);
+        return new OrderedParallelIterator(reader, storageObject, projectedColumns, batchSize, segments, executor, effectivePolicy);
     }
 
     /**

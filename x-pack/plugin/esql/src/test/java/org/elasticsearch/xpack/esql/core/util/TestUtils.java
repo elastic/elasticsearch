@@ -7,20 +7,28 @@
 
 package org.elasticsearch.xpack.esql.core.util;
 
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 
+import java.io.IOException;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.test.rest.ESRestTestCase.entityAsMap;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
@@ -83,5 +91,27 @@ public final class TestUtils {
             sb.append(randomBoolean() ? chunk.toLowerCase(Locale.ROOT) : chunk.toUpperCase(Locale.ROOT));
         }
         return sb.toString();
+    }
+
+    // Lifted from TSDBSyntheticIdUpgradeIT
+    // TODO: move it to ESRestTestCase?
+    public static boolean isServerless(RestClient client) throws IOException {
+        Map<String, Map<?, ?>> nodesInfo = getNodesInfo(client);
+        List<?> buildFlavors = nodesInfo.values().stream().map(nodeInfoMap -> nodeInfoMap.get("build_flavor")).distinct().toList();
+        if (buildFlavors.size() != 1) {
+            throw new IllegalStateException("Expected exactly one build_flavor, got: " + buildFlavors);
+        }
+        String buildFlavor = ESRestTestCase.asInstanceOf(String.class, buildFlavors.getFirst());
+        return "serverless".equals(buildFlavor);
+    }
+
+    // Lifted from ESRestTestCase
+    static Map<String, Map<?, ?>> getNodesInfo(RestClient adminClient) throws IOException {
+        Map<?, ?> response = entityAsMap(adminClient.performRequest(new Request("GET", "_nodes/plugins")));
+        Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
+
+        return nodes.entrySet()
+            .stream()
+            .collect(Collectors.toUnmodifiableMap(entry -> entry.getKey().toString(), entry -> (Map<?, ?>) entry.getValue()));
     }
 }

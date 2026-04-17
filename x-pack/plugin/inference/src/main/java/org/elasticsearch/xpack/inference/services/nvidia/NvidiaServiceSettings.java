@@ -136,9 +136,7 @@ public abstract class NvidiaServiceSettings extends FilteredXContentObject imple
         var validationException = new ValidationException();
         var commonServiceSettings = extractNvidiaCommonServiceSettings(map, context, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return factory.apply(commonServiceSettings);
     }

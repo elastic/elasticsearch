@@ -13,8 +13,9 @@ import org.elasticsearch.features.NodeFeature;
 import java.util.Set;
 
 /**
- * This is so that we can use {@code cluster_features: prometheus_plugin} in the yaml tests depending on whether the
- * feature flag is enabled (in snapshot builds and regular PR tests) or disabled (in release builds and release tests).
+ * Exposes the {@code prometheus_plugin} cluster feature so that yaml tests can depend on it.
+ * Required for BWC: older nodes in a mixed-version cluster advertise this feature, so new nodes
+ * must also advertise it or they will be rejected by the feature join barrier.
  */
 public class PrometheusFeatures implements FeatureSpecification {
 
@@ -22,10 +23,6 @@ public class PrometheusFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        if (PrometheusPlugin.PROMETHEUS_FEATURE_FLAG.isEnabled()) {
-            return Set.of(PROMETHEUS_PLUGIN);
-        } else {
-            return Set.of();
-        }
+        return Set.of(PROMETHEUS_PLUGIN);
     }
 }

@@ -364,14 +364,13 @@ class DownsampleShardIndexer {
     }
 
     private class TimeSeriesBucketCollector extends BucketCollector {
-        // Constants to reduce object allocation when we do not need documents for counter resets
-        private static final DimensionFieldDownsampler[] EMPTY_DIMENSIONS_FOR_COUNTER_RESETS = new DimensionFieldDownsampler[0];
         private static final NumericMetricFieldDownsampler.AggregateCounter[] EMPTY_AGGREGATE_COUNTERS =
             new NumericMetricFieldDownsampler.AggregateCounter[0];
         private final BulkProcessor2 bulkProcessor;
         private final DownsampleBucketBuilder downsampleBucketBuilder;
         private LeafDownsampleCollector currentLeafCollector;
         // Downsamplers grouped by the doc value input they expect, we use primitive arrays to reduce the footprint.
+        private final DimensionFieldDownsampler[] dimensionDownsamplers;
         private final LastValueFieldDownsampler[] formattedDocValuesDownsamplers;
         private final ExponentialHistogramFieldDownsampler[] exponentialHistogramDownsamplers;
         private final TDigestHistogramFieldDownsampler[] tDigestHistogramDownsamplers;
@@ -386,6 +385,8 @@ class DownsampleShardIndexer {
 
         TimeSeriesBucketCollector(BulkProcessor2 bulkProcessor, String[] dimensions) {
             this.bulkProcessor = bulkProcessor;
+            int dimensionFieldIndex = 0;
+            this.dimensionDownsamplers = new DimensionFieldDownsampler[fieldCounts.dimensionFields()];
             int numericFieldIndex = 0;
             this.numericDownsamplers = new NumericMetricFieldDownsampler[fieldCounts.numericFields()];
             int formattedValueFieldIndex = 0;
@@ -398,10 +399,6 @@ class DownsampleShardIndexer {
             this.aggregateCounterDownsamplers = fieldCounts.aggregateCounterFields() == 0
                 ? EMPTY_AGGREGATE_COUNTERS
                 : new NumericMetricFieldDownsampler.AggregateCounter[fieldCounts.aggregateCounterFields()];
-            int dimensionFieldIndex = 0;
-            DimensionFieldDownsampler[] dimensionDownsamplers = fieldCounts.aggregateCounterFields() == 0
-                ? EMPTY_DIMENSIONS_FOR_COUNTER_RESETS
-                : new DimensionFieldDownsampler[fieldCounts.dimensionFields()];
 
             for (AbstractFieldDownsampler<?> fieldDownsampler : fieldDownsamplers) {
                 switch (fieldDownsampler) {
@@ -413,14 +410,13 @@ class DownsampleShardIndexer {
                         assert numericFieldIndex < numericDownsamplers.length;
                         numericDownsamplers[numericFieldIndex++] = numericMetricDownsampler;
                     }
+                    case DimensionFieldDownsampler dimensionDownsampler -> {
+                        assert dimensionFieldIndex < dimensionDownsamplers.length;
+                        dimensionDownsamplers[dimensionFieldIndex++] = dimensionDownsampler;
+                    }
                     case LastValueFieldDownsampler lastValueDownsampler -> {
                         assert formattedValueFieldIndex < formattedDocValuesDownsamplers.length;
                         formattedDocValuesDownsamplers[formattedValueFieldIndex++] = lastValueDownsampler;
-                        if (dimensionDownsamplers.length > 0
-                            && lastValueDownsampler instanceof DimensionFieldDownsampler dimensionFieldDownsampler) {
-                            assert dimensionFieldIndex < dimensionDownsamplers.length;
-                            dimensionDownsamplers[dimensionFieldIndex++] = dimensionFieldDownsampler;
-                        }
                     }
                     case ExponentialHistogramFieldDownsampler exponentialHistogramDownsampler -> {
                         assert exponentialHistogramFieldIndex < exponentialHistogramDownsamplers.length;
@@ -457,6 +453,10 @@ class DownsampleShardIndexer {
             for (int i = 0; i < formattedDocValuesDownsamplers.length; i++) {
                 formattedDocValues[i] = formattedDocValuesDownsamplers[i].getLeaf(ctx);
             }
+            var dimensionDocValues = new FormattedDocValues[dimensionDownsamplers.length];
+            for (int i = 0; i < dimensionDownsamplers.length; i++) {
+                dimensionDocValues[i] = dimensionDownsamplers[i].getLeaf(ctx);
+            }
             var exponentialHistogramValues = new ExponentialHistogramValuesReader[exponentialHistogramDownsamplers.length];
             for (int i = 0; i < exponentialHistogramDownsamplers.length; i++) {
                 exponentialHistogramValues[i] = exponentialHistogramDownsamplers[i].getLeaf(ctx);
@@ -475,6 +475,7 @@ class DownsampleShardIndexer {
             return new LeafDownsampleCollector(
                 aggCtx,
                 docCountProvider,
+                dimensionDocValues,
                 numericValues,
                 formattedDocValues,
                 exponentialHistogramValues,
@@ -494,6 +495,7 @@ class DownsampleShardIndexer {
 
             final AggregationExecutionContext aggCtx;
             final DocCountProvider docCountProvider;
+            final FormattedDocValues[] dimensionDocValues;
             final SortedNumericDoubleValues[] numericValues;
             final FormattedDocValues[] formattedDocValues;
             final ExponentialHistogramValuesReader[] exponentialHistogramValues;
@@ -507,6 +509,7 @@ class DownsampleShardIndexer {
             LeafDownsampleCollector(
                 AggregationExecutionContext aggCtx,
                 DocCountProvider docCountProvider,
+                FormattedDocValues[] dimensionDocValues,
                 SortedNumericDoubleValues[] numericValues,
                 FormattedDocValues[] formattedDocValues,
                 ExponentialHistogramValuesReader[] exponentialHistogramValues,
@@ -516,6 +519,7 @@ class DownsampleShardIndexer {
             ) {
                 this.aggCtx = aggCtx;
                 this.docCountProvider = docCountProvider;
+                this.dimensionDocValues = dimensionDocValues;
                 this.numericValues = numericValues;
                 this.formattedDocValues = formattedDocValues;
                 this.exponentialHistogramValues = exponentialHistogramValues;
@@ -592,6 +596,18 @@ class DownsampleShardIndexer {
                 collect(formattedDocValuesDownsamplers, formattedDocValues);
                 collect(exponentialHistogramDownsamplers, exponentialHistogramValues);
                 collect(tDigestHistogramDownsamplers, tDigestHistogramValues);
+                if (downsampleBucketBuilder.dimensionsCollected == false) {
+                    assert dimensionDownsamplers.length == dimensionDocValues.length
+                        : "Number of downsamplers ["
+                            + dimensionDownsamplers.length
+                            + "] does not match number of doc values ["
+                            + dimensionDocValues.length
+                            + "]";
+                    for (int i = 0; i < dimensionDownsamplers.length; i++) {
+                        dimensionDownsamplers[i].collectOnce(dimensionDocValues[i], docIdBuffer);
+                    }
+                    downsampleBucketBuilder.dimensionsCollected = true;
+                }
                 if (aggregateCounterDownsamplers.length > 0) {
                     assert timestampValues != null;
                     long[] timestamps = TimestampValueFetcher.fetch(timestampValues, docIdBuffer);
@@ -694,6 +710,7 @@ class DownsampleShardIndexer {
         private long timestamp;
         private int docCount;
         private CounterResetDataPoints counterResetDataPoints;
+        private boolean dimensionsCollected = false;
         // A list of all the downsamplers so we can reset them before moving on to the next bucket
         private final List<AbstractFieldDownsampler<?>> fieldDownsamplers;
         // An array of field serializers, each field has one serializer which can group one or more AbstractFieldDownsamplers
@@ -739,6 +756,11 @@ class DownsampleShardIndexer {
             for (int i = 0; i < aggregateCounterDownsamplers.length; i++) {
                 aggregateCounterDownsamplers[i].tsidReset();
             }
+            // Reset dimension downsamplers
+            for (int i = 0; i < dimensionDownsamplers.length; i++) {
+                dimensionDownsamplers[i].tsidReset();
+            }
+            dimensionsCollected = false;
         }
 
         /**

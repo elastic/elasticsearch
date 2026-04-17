@@ -151,7 +151,7 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
             () -> randomIntBetween(1, ElasticInferenceServiceSettingsUtils.MAX_BATCH_SIZE_UPPER_BOUND)
         );
 
-        ServiceSettings updated = original.updateServiceSettings(Map.of("max_batch_size", newBatchSize));
+        ServiceSettings updated = original.updateServiceSettings(new HashMap<>(Map.of("max_batch_size", newBatchSize)));
 
         assertThat(
             updated,
@@ -165,7 +165,7 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
         {
             ValidationException e = expectThrows(
                 ValidationException.class,
-                () -> original.updateServiceSettings(Map.of("max_batch_size", 0))
+                () -> original.updateServiceSettings(new HashMap<>(Map.of("max_batch_size", 0)))
             );
             assertThat(e.getMessage(), containsString("Invalid value [0]. [max_batch_size] must be a positive integer;"));
         }
@@ -174,7 +174,7 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
             final int newBatchSize = randomIntBetween(Integer.MIN_VALUE, 0);
             ValidationException e = expectThrows(
                 ValidationException.class,
-                () -> original.updateServiceSettings(Map.of("max_batch_size", newBatchSize))
+                () -> original.updateServiceSettings(new HashMap<>(Map.of("max_batch_size", newBatchSize)))
             );
             assertThat(
                 e.getMessage(),
@@ -189,7 +189,7 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
             );
             ValidationException e = expectThrows(
                 ValidationException.class,
-                () -> original.updateServiceSettings(Map.of("max_batch_size", newBatchSize))
+                () -> original.updateServiceSettings(new HashMap<>(Map.of("max_batch_size", newBatchSize)))
             );
             assertThat(
                 e.getMessage(),

@@ -126,8 +126,9 @@ public abstract class AbstractArrowBufVector<V extends Vector, B extends Block> 
         final var allocator = blockFactory.arrowAllocator();
         final int size = byteSize();
         final var buffer = allocator.buffer((long) positions.length * size);
-        for (int pos : positions) {
-            buffer.setBytes((long) pos * size, valueBuffer, (long) pos * size, size);
+        for (int i = 0; i < positions.length; i++) {
+            int pos = positions[i];
+            buffer.setBytes((long) i * size, valueBuffer, (long) pos * size, size);
         }
         return vectorConstructor().create(buffer, positions.length, blockFactory);
     }

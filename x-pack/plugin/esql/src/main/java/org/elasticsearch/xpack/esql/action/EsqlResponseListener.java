@@ -103,7 +103,7 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
      * To correctly time the execution of a request, a {@link EsqlResponseListener} must be constructed immediately before execution begins.
      */
     public EsqlResponseListener(RestChannel channel, RestRequest restRequest, EsqlQueryRequest esqlRequest) {
-        this(channel, restRequest, esqlRequest.query(), EsqlMediaTypeParser.getResponseMediaType(restRequest, esqlRequest));
+        this(channel, restRequest, esqlRequest.queryDescription(), EsqlMediaTypeParser.getResponseMediaType(restRequest, esqlRequest));
     }
 
     /**

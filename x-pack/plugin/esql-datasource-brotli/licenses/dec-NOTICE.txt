@@ -1,0 +1,3 @@
+Brotli
+Copyright (c) 2009, 2010, 2013-2016 by the Brotli Authors.
+https://github.com/google/brotli

@@ -142,16 +142,14 @@ public class SemanticInferenceMetadataFieldsMapper extends InferenceMetadataFiel
                 String[] fieldNameParts = fieldName.split("\\.");
                 setPath(context.path(), fieldNameParts);
                 var mapper = context.mappingLookup().getMapper(fieldName);
-                if (mapper instanceof SemanticTextFieldMapper fieldMapper) {
+                if (mapper instanceof SemanticFieldMapper fieldMapper) {
                     XContentLocation xContentLocation = context.parser().getTokenLocation();
                     var input = fieldMapper.parseSemanticTextField(context);
                     if (input != null) {
                         fieldMapper.parseCreateFieldFromContext(context, input, xContentLocation);
                     }
                 } else {
-                    throw new IllegalArgumentException(
-                        "Field [" + fieldName + "] is not a [" + SemanticTextFieldMapper.CONTENT_TYPE + "] field"
-                    );
+                    throw new IllegalArgumentException("Field [" + fieldName + "] is not an inference field");
                 }
             }
         } finally {

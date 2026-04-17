@@ -391,7 +391,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                         Strings.arrayToCommaDelimitedString(startContext.config.getSource().getIndex())
                     )
                 );
-            } else if (Math.floor(startContext.config.getAnalysis().getTrainingPercent() * dataSummary.rows) >= Math.pow(2, 32)) {
+            } else if (tooManyDocumentsForAnalysis(dataSummary.rows, startContext.config.getAnalysis().getTrainingPercent())) {
                 listener.onFailure(
                     ExceptionsHelper.badRequestException(
                         "Unable to start because too many documents "
@@ -402,6 +402,10 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                 listener.onResponse(startContext);
             }
         }, listener::onFailure));
+    }
+
+    static boolean tooManyDocumentsForAnalysis(long rows, double trainingPercent) {
+        return Math.floor(rows * trainingPercent / 100.0) >= Math.pow(2, 32);
     }
 
     private void getProgress(DataFrameAnalyticsConfig config, ActionListener<List<PhaseProgress>> listener) {

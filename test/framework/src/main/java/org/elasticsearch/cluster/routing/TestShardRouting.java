@@ -115,7 +115,7 @@ public class TestShardRouting {
                 primary,
                 state,
                 recoverySource != null ? recoverySource : buildRecoverySource(primary, state),
-                unassignedInfo != null ? unassignedInfo : buildUnassignedInfo(state),
+                unassignedInfo != null ? unassignedInfo : buildUnassignedInfo(state, relocatingNodeId != null),
                 relocationFailureInfo != null ? relocationFailureInfo : buildRelocationFailureInfo(state),
                 allocationId != null ? allocationId : buildAllocationId(state),
                 expectedShardSize != null ? expectedShardSize : ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
@@ -157,7 +157,7 @@ public class TestShardRouting {
             primary,
             state,
             buildRecoverySource(primary, state),
-            buildUnassignedInfo(state),
+            buildUnassignedInfo(state, false),
             buildRelocationFailureInfo(state),
             buildAllocationId(state),
             ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
@@ -181,7 +181,7 @@ public class TestShardRouting {
             primary,
             state,
             recoverySource,
-            buildUnassignedInfo(state),
+            buildUnassignedInfo(state, false),
             buildRelocationFailureInfo(state),
             buildAllocationId(state),
             ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
@@ -220,12 +220,20 @@ public class TestShardRouting {
             primary,
             state,
             buildRecoverySource(primary, state),
-            buildUnassignedInfo(state),
+            buildUnassignedInfo(state, relocatingNodeId != null),
             buildRelocationFailureInfo(state),
             buildAllocationId(state),
             ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
             ShardRouting.Role.DEFAULT
         );
+    }
+
+    public static boolean randomHasRelocatingNodeId(ShardRoutingState state) {
+        return switch (state) {
+            case UNASSIGNED, STARTED -> false;
+            case INITIALIZING -> randomBoolean();
+            case RELOCATING -> true;
+        };
     }
 
     public static RecoverySource buildRecoverySource(boolean primary, ShardRoutingState state) {
@@ -245,9 +253,10 @@ public class TestShardRouting {
         };
     }
 
-    public static UnassignedInfo buildUnassignedInfo(ShardRoutingState state) {
+    public static UnassignedInfo buildUnassignedInfo(ShardRoutingState state, boolean hasRelocatingNodeId) {
         return switch (state) {
-            case UNASSIGNED, INITIALIZING -> buildUnassignedInfo("auto generated for test");
+            case UNASSIGNED -> buildUnassignedInfo("auto generated for test");
+            case INITIALIZING -> hasRelocatingNodeId ? null : buildUnassignedInfo("auto generated for test");
             case STARTED, RELOCATING -> null;
         };
     }

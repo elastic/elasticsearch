@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -50,7 +49,7 @@ public class AzureAiStudioChatCompletionTaskSettingsTests extends AbstractBWCWir
         if (newSettings.maxNewTokens() != null) settingsMap.put(MAX_NEW_TOKENS_FIELD, newSettings.maxNewTokens());
 
         AzureAiStudioChatCompletionTaskSettings updatedSettings = (AzureAiStudioChatCompletionTaskSettings) initialSettings
-            .updatedTaskSettings(Collections.unmodifiableMap(settingsMap));
+            .updatedTaskSettings(settingsMap);
 
         assertEquals(
             newSettings.temperature() == null ? initialSettings.temperature() : newSettings.temperature(),

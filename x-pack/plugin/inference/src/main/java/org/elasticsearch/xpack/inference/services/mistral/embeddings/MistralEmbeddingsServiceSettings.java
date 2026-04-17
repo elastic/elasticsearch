@@ -67,9 +67,7 @@ public class MistralEmbeddingsServiceSettings extends FilteredXContentObject imp
         );
         Integer dims = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new MistralEmbeddingsServiceSettings(model, dims, maxInputTokens, similarity, rateLimitSettings);
     }

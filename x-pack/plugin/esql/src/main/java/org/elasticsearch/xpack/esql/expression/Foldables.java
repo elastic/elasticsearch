@@ -158,7 +158,9 @@ public abstract class Foldables {
         } else {
             // it is expected that the expression is a literal after folding
             // we fail if it is not a literal
-            validator.invalidIfPostValidation(fail(queryField, "Query must be a valid string in [{}], found [{}]", sourceText, queryField));
+            validator.invalidIfPostValidation(
+                fail(queryField, "Query must be a constant string in [{}], found [{}]", sourceText, queryField)
+            );
         }
         return validator.getResolvedType();
     }

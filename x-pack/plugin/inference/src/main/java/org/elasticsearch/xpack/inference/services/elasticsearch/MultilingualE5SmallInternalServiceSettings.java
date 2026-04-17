@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsS
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID;
@@ -90,9 +89,7 @@ public class MultilingualE5SmallInternalServiceSettings extends ElasticsearchInt
             }
         }
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return baseSettings;
     }
@@ -119,7 +116,6 @@ public class MultilingualE5SmallInternalServiceSettings extends ElasticsearchInt
 
     @Override
     public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
-        serviceSettings = new HashMap<>(serviceSettings);
         ServiceSettings updated = super.updateServiceSettings(serviceSettings);
         if (updated instanceof ElasticsearchInternalServiceSettings esSettings) {
             return new MultilingualE5SmallInternalServiceSettings(esSettings);

@@ -44,7 +44,10 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
     def "filters test task execution by detected testsfailed-history file"() {
         given:
         simpleTestSetup()
-        writeFailedHistory(":subproject2:test", "org.acme.SubProject2TestClazz2", "someTest1")
+        writeFailedHistoryWithExecutedTasks(
+            ":subproject2:test", "org.acme.SubProject2TestClazz2", "someTest1",
+            [":subproject1:test", ":subproject2:test"]
+        )
         when:
         def result = gradleRunner("test", "--warning-mode", "all").build()
         then:
@@ -124,7 +127,10 @@ public class SubProject2RandomizedTestClazz2 extends RandomizedTest {
 }
         '''
         }
-        writeFailedHistory(":subproject2:test", "org.acme.SubProject2RandomizedTestClazz2", "test {yaml=analysis-common/30_tokenizers/letter}")
+        writeFailedHistoryWithExecutedTasks(
+            ":subproject2:test", "org.acme.SubProject2RandomizedTestClazz2", "test {yaml=analysis-common/30_tokenizers/letter}",
+            [":subproject1:test", ":subproject2:test"]
+        )
 
         when:
         def result = gradleRunner("test", "--warning-mode", "all").build()
@@ -182,6 +188,56 @@ public class SubProject2RandomizedTestClazz2 extends RandomizedTest {
       ]
     }
   ]
+}
+"""
+    }
+
+    private File writeFailedHistoryWithExecutedTasks(String taskPath, String testClazz, String testName, List<String> executedTasks) {
+        def executedTasksJson = executedTasks.collect { "\"$it\"" }.join(", ")
+        file(".failed-test-history.json") << """
+{
+  "workUnits": [
+    {
+      "name": "$taskPath",
+      "outcome": "failed",
+      "tests": [
+        {
+          "name": "$testClazz",
+          "outcome": {
+            "overall": "failed",
+            "own": "passed",
+            "children": "failed"
+          },
+          "executions": [
+            {
+              "outcome": {
+                "overall": "failed",
+                "own": "passed",
+                "children": "failed"
+              }
+            }
+          ],
+          "children": [
+            {
+              "name": "$testName",
+              "outcome": {
+                "overall": "failed"
+              },
+              "executions": [
+                {
+                  "outcome": {
+                    "overall": "failed"
+                  }
+                }
+              ],
+              "children": []
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "executedTestTasks": [$executedTasksJson]
 }
 """
     }
@@ -257,9 +313,105 @@ public class SubProject2RandomizedTestClazz2 extends RandomizedTest {
         def result = gradleRunner("test", "--warning-mode", "all").build()
 
         then:
-        // Should skip all tests since no failures recorded
+        // Should skip all tests since no failures recorded and no executedTestTasks data (null fallback runs all)
+        // With null executedTestTasks, wasTaskExecuted returns false, so tasks run all tests
+        result.task(":subproject1:test").outcome == TaskOutcome.SUCCESS
+        result.task(":subproject2:test").outcome == TaskOutcome.SUCCESS
+    }
+
+    def "skips confirmed-passed tasks when executedTestTasks is present"() {
+        given:
+        simpleTestSetup()
+        writeFailedHistoryWithExecutedTasks(
+            ":subproject2:test", "org.acme.SubProject2TestClazz2", "someTest1",
+            [":subproject1:test", ":subproject2:test"]
+        )
+
+        when:
+        def result = gradleRunner("test", "--warning-mode", "all").build()
+
+        then:
+        // subproject1:test was executed but had no failures — confirmed passed, skip it
         result.task(":subproject1:test").outcome == TaskOutcome.SKIPPED
-        result.task(":subproject2:test").outcome == TaskOutcome.SKIPPED
+        result.output.contains("confirmed passed in previous run")
+
+        // subproject2:test had failures — rerun only failed tests
+        result.task(":subproject2:test").outcome == TaskOutcome.SUCCESS
+        testExecuted(result.output, "SubProject2TestClazz2 > someTest1")
+        testNotExecuted(result.output, "SubProject2TestClazz2 > someTest2")
+        testNotExecuted(result.output, "SubProject2TestClazz1 > someTest1")
+    }
+
+    def "runs all tests for tasks not in executedTestTasks"() {
+        given:
+        simpleTestSetup()
+        // Only subproject2:test was executed in previous run, subproject1:test was never executed
+        writeFailedHistoryWithExecutedTasks(
+            ":subproject2:test", "org.acme.SubProject2TestClazz2", "someTest1",
+            [":subproject2:test"]
+        )
+
+        when:
+        def result = gradleRunner("test", "--warning-mode", "all").build()
+
+        then:
+        // subproject1:test was NOT in executedTestTasks — never executed, run all tests
+        result.task(":subproject1:test").outcome == TaskOutcome.SUCCESS
+        result.output.contains("not executed in previous run")
+        testExecuted(result.output, "SubProject1TestClazz1 > someTest1")
+        testExecuted(result.output, "SubProject1TestClazz1 > someTest2")
+        testExecuted(result.output, "SubProject1TestClazz2 > someTest1")
+        testExecuted(result.output, "SubProject1TestClazz2 > someTest2")
+
+        // subproject2:test had failures — rerun only failed tests
+        result.task(":subproject2:test").outcome == TaskOutcome.SUCCESS
+        testExecuted(result.output, "SubProject2TestClazz2 > someTest1")
+        testNotExecuted(result.output, "SubProject2TestClazz2 > someTest2")
+    }
+
+    def "falls back to run all tests when executedTestTasks is null"() {
+        given:
+        simpleTestSetup()
+        // Write history without executedTestTasks (backward compatible JSON)
+        writeFailedHistory(":subproject2:test", "org.acme.SubProject2TestClazz2", "someTest1")
+
+        when:
+        def result = gradleRunner("test", "--warning-mode", "all").build()
+
+        then:
+        // subproject1:test has no failures and executedTestTasks is null — safe fallback, run all tests
+        result.task(":subproject1:test").outcome == TaskOutcome.SUCCESS
+        result.output.contains("not executed in previous run")
+        testExecuted(result.output, "SubProject1TestClazz1 > someTest1")
+        testExecuted(result.output, "SubProject1TestClazz1 > someTest2")
+
+        // subproject2:test had failures — rerun only failed tests
+        result.task(":subproject2:test").outcome == TaskOutcome.SUCCESS
+        testExecuted(result.output, "SubProject2TestClazz2 > someTest1")
+        testNotExecuted(result.output, "SubProject2TestClazz2 > someTest2")
+    }
+
+    def "handles empty executedTestTasks array"() {
+        given:
+        simpleTestSetup()
+        // executedTestTasks is present but empty — all tasks are "never executed"
+        writeFailedHistoryWithExecutedTasks(
+            ":subproject2:test", "org.acme.SubProject2TestClazz2", "someTest1",
+            []
+        )
+
+        when:
+        def result = gradleRunner("test", "--warning-mode", "all").build()
+
+        then:
+        // Both tasks should run all tests since none are in executedTestTasks
+        result.task(":subproject1:test").outcome == TaskOutcome.SUCCESS
+        testExecuted(result.output, "SubProject1TestClazz1 > someTest1")
+
+        // subproject2:test is in workUnits (has failures) so it still filters
+        result.task(":subproject2:test").outcome == TaskOutcome.SUCCESS
+        testExecuted(result.output, "SubProject2TestClazz2 > someTest1")
+        testNotExecuted(result.output, "SubProject2TestClazz2 > someTest2")
     }
 
     void simpleTestSetup() {

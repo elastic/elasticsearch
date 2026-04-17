@@ -356,7 +356,7 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
 
         final var collectingLoggingAssertion = new MockLog.SeenEventExpectation(
             "seen event",
-            LicensedWriteLoadForecaster.class.getCanonicalName(),
+            AbstractLicenseCheckingWriteLoadForecaster.class.getCanonicalName(),
             Level.INFO,
             "*"
         ) {
@@ -399,7 +399,7 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
                     "license state changed, now [valid]"
                 )
             );
-        }, LicensedWriteLoadForecaster.class, collectingLoggingAssertion);
+        }, AbstractLicenseCheckingWriteLoadForecaster.class, collectingLoggingAssertion);
     }
 
     public void testShardIncreaseDoesNotIncreaseTotalLoad() {

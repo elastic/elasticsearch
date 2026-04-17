@@ -77,6 +77,7 @@ public final class DataSourceModule implements Closeable {
 
         Map<String, ExternalSourceFactory> sourceFactoryMap = new LinkedHashMap<>();
         Map<String, SourceOperatorFactoryProvider> operatorFactoryProviders = new HashMap<>();
+        Map<String, FilterPushdownSupport> pluginFilterPushdownProviders = new HashMap<>();
         List<Closeable> closeables = new ArrayList<>();
         Map<String, String> registeredSchemes = new HashMap<>();
 
@@ -177,6 +178,12 @@ public final class DataSourceModule implements Closeable {
                     }
                 }
             }
+
+            // Collect plugin-level filter pushdown support (keyed by format name, e.g. "orc")
+            Map<String, FilterPushdownSupport> pluginFps = plugin.filterPushdownSupport(settings);
+            if (pluginFps.isEmpty() == false) {
+                pluginFilterPushdownProviders.putAll(pluginFps);
+            }
         }
 
         // Register the framework-internal FileSourceFactory as a catch-all fallback.
@@ -193,11 +200,11 @@ public final class DataSourceModule implements Closeable {
         this.pluginFactories = Map.copyOf(operatorFactoryProviders);
         this.managedCloseables = closeables;
 
-        // Build FilterPushdownRegistry -- only from non-lazy factories to avoid triggering loading.
-        // Lazy wrappers (LazyConnectorFactory, LazyTableCatalogWrapper) return null from
-        // filterPushdownSupport() by default, which is correct since the real support
-        // is only available after loading.
+        // Build FilterPushdownRegistry from two sources:
+        // 1. ExternalSourceFactory.filterPushdownSupport() — for catalog/connector factories (Iceberg, Flight)
+        // 2. DataSourcePlugin.filterPushdownSupport() — for format-level pushdown (ORC, Parquet)
         Map<String, FilterPushdownSupport> filterPushdownProviders = new HashMap<>();
+        // First: collect from ExternalSourceFactory instances (non-lazy only)
         for (Map.Entry<String, ExternalSourceFactory> entry : this.sourceFactories.entrySet()) {
             ExternalSourceFactory factory = entry.getValue();
             // Skip lazy wrappers to avoid triggering classloading
@@ -209,6 +216,8 @@ public final class DataSourceModule implements Closeable {
                 filterPushdownProviders.put(entry.getKey(), fps);
             }
         }
+        // Second: merge plugin-level registrations (keyed by format name, e.g. "orc")
+        filterPushdownProviders.putAll(pluginFilterPushdownProviders);
         this.filterPushdownRegistry = new FilterPushdownRegistry(filterPushdownProviders);
     }
 

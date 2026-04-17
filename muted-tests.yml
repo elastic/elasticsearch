@@ -355,6 +355,9 @@ tests:
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testReindexFailsWhenPitRelocationFails
   issue: https://github.com/elastic/elasticsearch/issues/146650
+- class: org.elasticsearch.transport.ClusterConnectionManagerTests
+  method: testConcurrentConnectsAndDisconnects
+  issue: https://github.com/elastic/elasticsearch/issues/146685
 
 # Examples:
 #

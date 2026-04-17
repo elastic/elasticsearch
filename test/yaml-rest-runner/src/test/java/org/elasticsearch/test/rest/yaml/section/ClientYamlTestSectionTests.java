@@ -259,6 +259,7 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
         assertThat(testSection.getPrerequisiteSection(), notNullValue());
         assertThat(testSection.getPrerequisiteSection().isEmpty(), equalTo(false));
         assertThat(testSection.getPrerequisiteSection().skipReason, equalTo("skip when all nodes have feature"));
+        assertThat(testSection.getPrerequisiteSection().skipOnAllNodes, equalTo(true));
         assertThat(testSection.getExecutableSections().size(), equalTo(1));
     }
 
@@ -282,6 +283,7 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
         assertThat(testSection.getPrerequisiteSection(), notNullValue());
         assertThat(testSection.getPrerequisiteSection().isEmpty(), equalTo(false));
         assertThat(testSection.getPrerequisiteSection().skipReason, equalTo("skip when any node has feature"));
+        assertThat(testSection.getPrerequisiteSection().skipOnAllNodes, equalTo(false));
         assertThat(testSection.getExecutableSections().size(), equalTo(1));
     }
 

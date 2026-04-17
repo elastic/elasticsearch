@@ -103,13 +103,20 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
     }
 
     public void testBuildMessage() {
-        PrerequisiteSection section = new PrerequisiteSection(List.of(), "unsupported", emptyList(), "required", singletonList("warnings"));
+        PrerequisiteSection section = new PrerequisiteSection(
+            List.of(),
+            "unsupported",
+            emptyList(),
+            "required",
+            singletonList("warnings"),
+            false
+        );
         assertEquals("[FOOBAR] skipped, reason: [unsupported] unsupported features [warnings]", section.buildMessage("FOOBAR", true));
         assertEquals("[FOOBAR] skipped, reason: [required] unsupported features [warnings]", section.buildMessage("FOOBAR", false));
-        section = new PrerequisiteSection(emptyList(), "unsupported", emptyList(), "required", emptyList());
+        section = new PrerequisiteSection(emptyList(), "unsupported", emptyList(), "required", emptyList(), false);
         assertEquals("[FOOBAR] skipped, reason: [unsupported]", section.buildMessage("FOOBAR", true));
         assertEquals("[FOOBAR] skipped, reason: [required]", section.buildMessage("FOOBAR", false));
-        section = new PrerequisiteSection(emptyList(), null, emptyList(), null, singletonList("warnings"));
+        section = new PrerequisiteSection(emptyList(), null, emptyList(), null, singletonList("warnings"), false);
         assertEquals("[FOOBAR] skipped, unsupported features [warnings]", section.buildMessage("FOOBAR", true));
         assertEquals("[FOOBAR] skipped, unsupported features [warnings]", section.buildMessage("FOOBAR", false));
     }
@@ -338,7 +345,7 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
             """);
 
         var skipSectionBuilder = PrerequisiteSection.parseInternal(parser);
-        assertThat(!skipSectionBuilder.skipOnAnyNode, is(true));
+        assertThat(skipSectionBuilder.skipOnAllNodes, is(true));
         assertThat(skipSectionBuilder.skipClusterFeatures, containsInAnyOrder("A", "B"));
         assertThat(skipSectionBuilder.skipReason, is("reason"));
     }
@@ -352,7 +359,7 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
             """);
 
         var skipSectionBuilder = PrerequisiteSection.parseInternal(parser);
-        assertThat(!skipSectionBuilder.skipOnAnyNode, is(false));
+        assertThat(skipSectionBuilder.skipOnAllNodes, is(false));
         assertThat(skipSectionBuilder.skipClusterFeatures, containsInAnyOrder("A", "B"));
         assertThat(skipSectionBuilder.skipReason, is("reason"));
     }
@@ -363,7 +370,8 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
             "foobar",
             emptyList(),
             "foobar",
-            emptyList()
+            emptyList(),
+            false
         );
 
         {
@@ -519,7 +527,8 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
             "foobar",
             List.of(Prerequisites.requireClusterFeatures(Set.of("required-feature-1", "required-feature-2"))),
             "foobar",
-            emptyList()
+            emptyList(),
+            false
         );
 
         var mockContext = mock(ClientYamlTestExecutionContext.class);
@@ -536,7 +545,8 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
             "foobar",
             List.of(Prerequisites.requireClusterFeatures(Set.of("required-feature-1", "required-feature-2"))),
             "foobar",
-            emptyList()
+            emptyList(),
+            false
         );
 
         var mockContext = mock(ClientYamlTestExecutionContext.class);
@@ -549,11 +559,12 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
 
     public void testSkipClusterFeaturesSomeToSkipMatch() {
         PrerequisiteSection section = new PrerequisiteSection(
-            List.of(Prerequisites.skipOnClusterFeatures(Set.of("undesired-feature-1", "undesired-feature-2"), false)),
+            List.of(Prerequisites.skipOnClusterFeatures(Set.of("undesired-feature-1", "undesired-feature-2"))),
             "foobar",
             emptyList(),
             "foobar",
-            emptyList()
+            emptyList(),
+            false
         );
 
         var mockContext = mock(ClientYamlTestExecutionContext.class);
@@ -564,11 +575,12 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
 
     public void testSkipClusterFeaturesNoneToSkipMatch() {
         PrerequisiteSection section = new PrerequisiteSection(
-            List.of(Prerequisites.skipOnClusterFeatures(Set.of("undesired-feature-1", "undesired-feature-2"), false)),
+            List.of(Prerequisites.skipOnClusterFeatures(Set.of("undesired-feature-1", "undesired-feature-2"))),
             "foobar",
             emptyList(),
             "foobar",
-            emptyList()
+            emptyList(),
+            false
         );
         assertFalse(section.hasCapabilitiesCheck());
 
@@ -578,11 +590,12 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
 
     public void testSkipClusterFeaturesAllRequiredSomeToSkipMatch() {
         PrerequisiteSection section = new PrerequisiteSection(
-            List.of(Prerequisites.skipOnClusterFeatures(Set.of("undesired-feature-1", "undesired-feature-2"), false)),
+            List.of(Prerequisites.skipOnClusterFeatures(Set.of("undesired-feature-1", "undesired-feature-2"))),
             "foobar",
             List.of(Prerequisites.requireClusterFeatures(Set.of("required-feature-1", "required-feature-2"))),
             "foobar",
-            emptyList()
+            emptyList(),
+            false
         );
         assertFalse(section.hasCapabilitiesCheck());
 
@@ -597,11 +610,12 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
 
     public void testSkipClusterFeaturesAllRequiredNoneToSkipMatch() {
         PrerequisiteSection section = new PrerequisiteSection(
-            List.of(Prerequisites.skipOnClusterFeatures(Set.of("undesired-feature-1", "undesired-feature-2"), false)),
+            List.of(Prerequisites.skipOnClusterFeatures(Set.of("undesired-feature-1", "undesired-feature-2"))),
             "foobar",
             List.of(Prerequisites.requireClusterFeatures(Set.of("required-feature-1", "required-feature-2"))),
             "foobar",
-            emptyList()
+            emptyList(),
+            false
         );
         assertFalse(section.hasCapabilitiesCheck());
 
@@ -619,7 +633,8 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
             "foobar",
             emptyList(),
             "foobar",
-            emptyList()
+            emptyList(),
+            false
         );
         assertFalse(section.hasCapabilitiesCheck());
 
@@ -653,7 +668,8 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
             "skip",
             List.of(Prerequisites.requireCapabilities(requiredCapabilities)),
             "required",
-            emptyList()
+            emptyList(),
+            false
         );
         assertTrue(section.hasCapabilitiesCheck());
         var context = mock(ClientYamlTestExecutionContext.class);
@@ -677,21 +693,21 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
     }
 
     public void evaluateEmpty() {
-        var section = new PrerequisiteSection(List.of(), "unsupported", List.of(), "required", List.of());
+        var section = new PrerequisiteSection(List.of(), "unsupported", List.of(), "required", List.of(), false);
 
         var mockContext = mock(ClientYamlTestExecutionContext.class);
         section.evaluate(mockContext, "TEST");
     }
 
     public void evaluateRequiresCriteriaTrue() {
-        var section = new PrerequisiteSection(List.of(), "unsupported", List.of(Prerequisites.TRUE), "required", List.of());
+        var section = new PrerequisiteSection(List.of(), "unsupported", List.of(Prerequisites.TRUE), "required", List.of(), false);
 
         var mockContext = mock(ClientYamlTestExecutionContext.class);
         section.evaluate(mockContext, "TEST");
     }
 
     public void evaluateSkipCriteriaFalse() {
-        var section = new PrerequisiteSection(List.of(Prerequisites.FALSE), "unsupported", List.of(), "required", List.of());
+        var section = new PrerequisiteSection(List.of(Prerequisites.FALSE), "unsupported", List.of(), "required", List.of(), false);
 
         var mockContext = mock(ClientYamlTestExecutionContext.class);
         section.evaluate(mockContext, "TEST");
@@ -703,7 +719,8 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
             "unsupported",
             List.of(Prerequisites.FALSE),
             "required",
-            List.of()
+            List.of(),
+            false
         );
 
         var mockContext = mock(ClientYamlTestExecutionContext.class);
@@ -717,7 +734,8 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
             "unsupported",
             List.of(Prerequisites.TRUE),
             "required",
-            List.of()
+            List.of(),
+            false
         );
 
         var mockContext = mock(ClientYamlTestExecutionContext.class);

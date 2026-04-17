@@ -316,8 +316,7 @@ public class CustomService extends SenderService<CustomModel> implements Reranki
             serviceSettings.getResponseJsonParser(),
             serviceSettings.rateLimitSettings(),
             serviceSettings.getBatchSize(),
-            serviceSettings.getInputTypeTranslator(),
-            customModel.getTaskType()
+            serviceSettings.getInputTypeTranslator()
         );
     }
 

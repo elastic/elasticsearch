@@ -75,9 +75,6 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
     private static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_INPUT_TYPE = TransportVersion.fromName(
         "ml_inference_custom_service_input_type"
     );
-    protected static final TransportVersion INFERENCE_CUSTOM_SERVICE_SETTINGS_TASK_TYPE = TransportVersion.fromName(
-        "inference_custom_service_settings_task_type"
-    );
 
     public static CustomServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context, TaskType taskType) {
         var validationException = new ValidationException();
@@ -126,8 +123,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             responseJsonParser,
             rateLimitSettings,
             batchSize,
-            inputTypeTranslator,
-            taskType
+            inputTypeTranslator
         );
     }
 
@@ -158,12 +154,8 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             return new TextEmbeddingSettings(similarity, dimensions, maxInputTokens);
         }
 
-        private TextEmbeddingSettings updateTextEmbeddingServiceSettings(
-            Map<String, Object> map,
-            TaskType taskType,
-            ValidationException validationException
-        ) {
-            if (taskType != TaskType.TEXT_EMBEDDING) {
+        private TextEmbeddingSettings updateTextEmbeddingServiceSettings(Map<String, Object> map, ValidationException validationException) {
+            if (this.equals(NON_TEXT_EMBEDDING_TASK_TYPE_SETTINGS)) {
                 return NON_TEXT_EMBEDDING_TASK_TYPE_SETTINGS;
             }
             var extractedMaxInputTokens = extractOptionalPositiveInteger(
@@ -253,7 +245,6 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
     private final RateLimitSettings rateLimitSettings;
     private final int batchSize;
     private final InputTypeTranslator inputTypeTranslator;
-    private final TaskType taskType;
 
     public CustomServiceSettings(
         TextEmbeddingSettings textEmbeddingSettings,
@@ -262,8 +253,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         @Nullable QueryParameters queryParameters,
         String requestContentString,
         CustomResponseParser responseJsonParser,
-        @Nullable RateLimitSettings rateLimitSettings,
-        @Nullable TaskType taskType
+        @Nullable RateLimitSettings rateLimitSettings
     ) {
         this(
             textEmbeddingSettings,
@@ -274,8 +264,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             responseJsonParser,
             rateLimitSettings,
             null,
-            InputTypeTranslator.EMPTY_TRANSLATOR,
-            taskType
+            InputTypeTranslator.EMPTY_TRANSLATOR
         );
     }
 
@@ -288,8 +277,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         CustomResponseParser responseJsonParser,
         @Nullable RateLimitSettings rateLimitSettings,
         @Nullable Integer batchSize,
-        InputTypeTranslator inputTypeTranslator,
-        @Nullable TaskType taskType
+        InputTypeTranslator inputTypeTranslator
     ) {
         this.textEmbeddingSettings = Objects.requireNonNull(textEmbeddingSettings);
         this.url = Objects.requireNonNull(url);
@@ -300,7 +288,6 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
         this.batchSize = Objects.requireNonNullElse(batchSize, DEFAULT_EMBEDDING_BATCH_SIZE);
         this.inputTypeTranslator = Objects.requireNonNull(inputTypeTranslator);
-        this.taskType = taskType;
     }
 
     public CustomServiceSettings(StreamInput in) throws IOException {
@@ -329,11 +316,6 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         } else {
             inputTypeTranslator = InputTypeTranslator.EMPTY_TRANSLATOR;
         }
-        if (in.getTransportVersion().supports(INFERENCE_CUSTOM_SERVICE_SETTINGS_TASK_TYPE)) {
-            taskType = in.readEnum(TaskType.class);
-        } else {
-            taskType = null;
-        }
     }
 
     @Override
@@ -348,7 +330,6 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
 
         var updatedTextEmbeddingServiceSettings = this.textEmbeddingSettings.updateTextEmbeddingServiceSettings(
             serviceSettings,
-            this.taskType,
             validationException
         );
 
@@ -370,7 +351,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             validationException
         );
 
-        var extractedResponseJsonParser = extractCustomResponseParser(serviceSettings, this.taskType, validationException);
+        var extractedResponseJsonParser = extractCustomResponseParser(serviceSettings, validationException);
 
         var extractedRateLimitSettings = RateLimitSettings.of(
             serviceSettings,
@@ -400,8 +381,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             extractedResponseJsonParser != NoopResponseParser.INSTANCE ? extractedResponseJsonParser : this.responseJsonParser,
             extractedRateLimitSettings,
             extractedBatchSize != null ? extractedBatchSize : this.batchSize,
-            extractedInputTypeTranslator != InputTypeTranslator.EMPTY_TRANSLATOR ? extractedInputTypeTranslator : this.inputTypeTranslator,
-            this.taskType
+            extractedInputTypeTranslator != InputTypeTranslator.EMPTY_TRANSLATOR ? extractedInputTypeTranslator : this.inputTypeTranslator
         );
     }
 
@@ -413,11 +393,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         return validateMapStringValues(extractedHeaders, HEADERS, validationException, false);
     }
 
-    private static CustomResponseParser extractCustomResponseParser(
-        Map<String, Object> serviceSettings,
-        TaskType taskType,
-        ValidationException validationException
-    ) {
+    private CustomResponseParser extractCustomResponseParser(Map<String, Object> serviceSettings, ValidationException validationException) {
         var extractedResponseParserMap = extractOptionalMap(serviceSettings, RESPONSE, validationException);
 
         var extractedJsonParserMap = extractOptionalMap(
@@ -426,11 +402,11 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             validationException
         );
 
-        var extractedResponseJsonParser = extractResponseParser(taskType, extractedJsonParserMap, validationException);
+        var updatedResponseJsonParser = this.responseJsonParser.updateFromMap(extractedJsonParserMap, RESPONSE_SCOPE, validationException);
 
         throwIfNotEmptyMap(extractedJsonParserMap, JSON_PARSER, NAME);
         throwIfNotEmptyMap(extractedResponseParserMap, RESPONSE, NAME);
-        return extractedResponseJsonParser;
+        return updatedResponseJsonParser;
     }
 
     @Override
@@ -455,10 +431,6 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
 
     public Integer getMaxInputTokens() {
         return textEmbeddingSettings.maxInputTokens;
-    }
-
-    protected TaskType taskType() {
-        return taskType;
     }
 
     TextEmbeddingSettings getTextEmbeddingSettings() {
@@ -508,9 +480,6 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         builder.startObject();
 
         toXContentFragment(builder, params);
-        if (taskType != null) {
-            builder.field("task_type", taskType);
-        }
 
         builder.endObject();
         return builder;
@@ -587,9 +556,6 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         if (out.getTransportVersion().supports(ML_INFERENCE_CUSTOM_SERVICE_INPUT_TYPE)) {
             inputTypeTranslator.writeTo(out);
         }
-        if (out.getTransportVersion().supports(INFERENCE_CUSTOM_SERVICE_SETTINGS_TASK_TYPE)) {
-            out.writeEnum(taskType);
-        }
     }
 
     @Override
@@ -605,8 +571,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             && Objects.equals(responseJsonParser, that.responseJsonParser)
             && Objects.equals(rateLimitSettings, that.rateLimitSettings)
             && Objects.equals(batchSize, that.batchSize)
-            && Objects.equals(inputTypeTranslator, that.inputTypeTranslator)
-            && Objects.equals(taskType, that.taskType);
+            && Objects.equals(inputTypeTranslator, that.inputTypeTranslator);
     }
 
     @Override
@@ -620,8 +585,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             responseJsonParser,
             rateLimitSettings,
             batchSize,
-            inputTypeTranslator,
-            taskType
+            inputTypeTranslator
         );
     }
 

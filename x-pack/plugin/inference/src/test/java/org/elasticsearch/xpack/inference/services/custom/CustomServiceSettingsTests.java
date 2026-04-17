@@ -43,7 +43,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.Utils.randomSimilarityMeasure;
-import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings.INFERENCE_CUSTOM_SERVICE_SETTINGS_TASK_TYPE;
 import static org.hamcrest.Matchers.is;
 
 public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTestCase<CustomServiceSettings> {
@@ -132,12 +131,11 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             queryParameters,
             requestContentString,
             responseJsonParser,
-            rateLimitSettings,
-            taskType
+            rateLimitSettings
         );
     }
 
-    public void testUpdateServiceSettings_AllFields_Success() {
+    public void testUpdateServiceSettings_AllFields_UpdatesMutableFields() {
         HashMap<String, Object> requestSettingsMap = createSettingsMap();
 
         var updatedServiceSettings = createInitialCustomServiceSettings().updateServiceSettings(requestSettingsMap);
@@ -158,14 +156,13 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     TEST_RESPONSE_PARSER,
                     new RateLimitSettings(TEST_RATE_LIMIT),
                     TEST_BATCH_SIZE,
-                    TEST_INPUT_TYPE_TRANSLATOR,
-                    TaskType.TEXT_EMBEDDING
+                    TEST_INPUT_TYPE_TRANSLATOR
                 )
             )
         );
     }
 
-    public void testUpdateServiceSettings_EmptyMap_Success() {
+    public void testUpdateServiceSettings_EmptyMap_ReturnsUnchangedSettings() {
         var originalServiceSettings = createInitialCustomServiceSettings();
         var updatedServiceSettings = originalServiceSettings.updateServiceSettings(new HashMap<>());
 
@@ -186,8 +183,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             INITIAL_TEST_RESPONSE_PARSER,
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT),
             INITIAL_TEST_BATCH_SIZE,
-            INITIAL_TEST_INPUT_TYPE_TRANSLATOR,
-            TaskType.TEXT_EMBEDDING
+            INITIAL_TEST_INPUT_TYPE_TRANSLATOR
         );
     }
 
@@ -304,8 +300,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     responseParser,
                     new RateLimitSettings(10_000),
                     11,
-                    InputTypeTranslator.EMPTY_TRANSLATOR,
-                    TaskType.TEXT_EMBEDDING
+                    InputTypeTranslator.EMPTY_TRANSLATOR
                 )
             )
         );
@@ -354,8 +349,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     null,
                     requestContentString,
                     responseParser,
-                    new RateLimitSettings(10_000),
-                    TaskType.TEXT_EMBEDDING
+                    new RateLimitSettings(10_000)
                 )
             )
         );
@@ -404,8 +398,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     null,
                     requestContentString,
                     responseParser,
-                    new RateLimitSettings(10_000),
-                    TaskType.TEXT_EMBEDDING
+                    new RateLimitSettings(10_000)
                 )
             )
         );
@@ -454,8 +447,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     null,
                     requestContentString,
                     responseParser,
-                    new RateLimitSettings(10_000),
-                    TaskType.TEXT_EMBEDDING
+                    new RateLimitSettings(10_000)
                 )
             )
         );
@@ -499,8 +491,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     null,
                     requestContentString,
                     responseParser,
-                    new RateLimitSettings(10_000),
-                    TaskType.COMPLETION
+                    new RateLimitSettings(10_000)
                 )
             )
         );
@@ -588,8 +579,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     null,
                     requestContentString,
                     responseParser,
-                    new RateLimitSettings(10_000),
-                    TaskType.TEXT_EMBEDDING
+                    new RateLimitSettings(10_000)
                 )
             )
         );
@@ -649,8 +639,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     null,
                     requestContentString,
                     responseParser,
-                    new RateLimitSettings(10_000),
-                    TaskType.TEXT_EMBEDDING
+                    new RateLimitSettings(10_000)
                 )
             )
         );
@@ -943,8 +932,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             null,
             "string",
             new DenseEmbeddingResponseParser("$.result.embeddings[*].embedding", CustomServiceEmbeddingType.FLOAT),
-            null,
-            TaskType.TEXT_EMBEDDING
+            null
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -971,8 +959,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                 "rate_limit": {
                     "requests_per_minute": 10000
                 },
-                "batch_size": 10,
-                "task_type": "text_embedding"
+                "batch_size": 10
             }
             """);
 
@@ -991,8 +978,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                 "$.result.reranked_results[*].index",
                 "$.result.reranked_results[*].document_text"
             ),
-            null,
-            TaskType.RERANK
+            null
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -1020,8 +1006,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                 "rate_limit": {
                     "requests_per_minute": 10000
                 },
-                "batch_size": 10,
-                "task_type": "rerank"
+                "batch_size": 10
             }
             """);
 
@@ -1038,8 +1023,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             new DenseEmbeddingResponseParser("$.result.embeddings[*].embedding", CustomServiceEmbeddingType.FLOAT),
             null,
             null,
-            new InputTypeTranslator(Map.of(InputType.SEARCH, "do_search", InputType.INGEST, "do_ingest"), "a_default"),
-            TaskType.TEXT_EMBEDDING
+            new InputTypeTranslator(Map.of(InputType.SEARCH, "do_search", InputType.INGEST, "do_ingest"), "a_default")
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -1069,8 +1053,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                 "rate_limit": {
                     "requests_per_minute": 10000
                 },
-                "batch_size": 10,
-                "task_type": "text_embedding"
+                "batch_size": 10
             }
             """);
 
@@ -1087,8 +1070,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             new DenseEmbeddingResponseParser("$.result.embeddings[*].embedding", CustomServiceEmbeddingType.FLOAT),
             null,
             11,
-            InputTypeTranslator.EMPTY_TRANSLATOR,
-            TaskType.COMPLETION
+            InputTypeTranslator.EMPTY_TRANSLATOR
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -1115,8 +1097,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                 "rate_limit": {
                     "requests_per_minute": 10000
                 },
-                "batch_size": 11,
-                "task_type": "completion"
+                "batch_size": 11
             }
             """);
 
@@ -1140,7 +1121,6 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
 
     @Override
     protected CustomServiceSettings mutateInstance(CustomServiceSettings instance) {
-        var taskType = instance.taskType();
         var textEmbeddingSettings = instance.getTextEmbeddingSettings();
         var url = instance.getUrl();
         var headers = instance.getHeaders();
@@ -1150,7 +1130,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
         var rateLimitSettings = instance.rateLimitSettings();
         var batchSize = instance.getBatchSize();
         var inputTypeTranslator = instance.getInputTypeTranslator();
-        switch (randomInt(9)) {
+        switch (randomInt(8)) {
             case 0 -> textEmbeddingSettings = randomValueOtherThan(
                 textEmbeddingSettings,
                 CustomServiceSettingsTests::randomTextEmbeddingSettings
@@ -1166,10 +1146,6 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             case 6 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
             case 7 -> batchSize = randomValueOtherThan(batchSize, ESTestCase::randomInt);
             case 8 -> inputTypeTranslator = randomValueOtherThan(inputTypeTranslator, InputTypeTranslatorTests::createRandom);
-            case 9 -> taskType = randomValueOtherThan(
-                taskType,
-                () -> randomFrom(TaskType.TEXT_EMBEDDING, TaskType.RERANK, TaskType.SPARSE_EMBEDDING, TaskType.COMPLETION, null)
-            );
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
@@ -1182,8 +1158,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             responseJsonParser,
             rateLimitSettings,
             batchSize,
-            inputTypeTranslator,
-            taskType
+            inputTypeTranslator
         );
     }
 
@@ -1215,20 +1190,6 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
 
     @Override
     protected CustomServiceSettings mutateInstanceForVersion(CustomServiceSettings instance, TransportVersion version) {
-        if (version.supports(INFERENCE_CUSTOM_SERVICE_SETTINGS_TASK_TYPE) == false) {
-            return new CustomServiceSettings(
-                instance.getTextEmbeddingSettings(),
-                instance.getUrl(),
-                instance.getHeaders(),
-                instance.getQueryParameters(),
-                instance.getRequestContentString(),
-                instance.getResponseJsonParser(),
-                instance.rateLimitSettings(),
-                instance.getBatchSize(),
-                instance.getInputTypeTranslator(),
-                null
-            );
-        }
         return instance;
     }
 }

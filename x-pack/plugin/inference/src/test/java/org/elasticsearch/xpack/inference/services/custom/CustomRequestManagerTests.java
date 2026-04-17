@@ -64,8 +64,7 @@ public class CustomRequestManagerTests extends ESTestCase {
             null,
             requestContentString,
             new RerankResponseParser("$.result.score"),
-            new RateLimitSettings(10_000),
-            TaskType.RERANK
+            new RateLimitSettings(10_000)
         );
 
         var model = CustomModelTests.createModel(

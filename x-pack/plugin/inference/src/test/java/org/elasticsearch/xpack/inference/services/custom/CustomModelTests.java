@@ -116,8 +116,7 @@ public class CustomModelTests extends ESTestCase {
             QueryParameters.EMPTY,
             requestContentString,
             responseParser,
-            new RateLimitSettings(10_000),
-            taskType
+            new RateLimitSettings(10_000)
         );
 
         CustomTaskSettings taskSettings = new CustomTaskSettings(Map.of(taskSettingsKey, taskSettingsValue));

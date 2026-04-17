@@ -256,7 +256,11 @@ public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests
         var nativeQuerySeg = segment.asSlice((long) queryOrd * dims * Float.BYTES, (long) dims * Float.BYTES);
         var addressesSeg = arena.allocate(ValueLayout.ADDRESS.byteSize() * numVecs, ValueLayout.ADDRESS.byteAlignment());
         for (int i = 0; i < numVecs; i++) {
-            addressesSeg.setAtIndex(ValueLayout.ADDRESS, i, segment.asSlice((long) ordinals[i] * dims * Float.BYTES, (long) dims * Float.BYTES));
+            addressesSeg.setAtIndex(
+                ValueLayout.ADDRESS,
+                i,
+                segment.asSlice((long) ordinals[i] * dims * Float.BYTES, (long) dims * Float.BYTES)
+            );
         }
         var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
         similarityBulkSparse(addressesSeg, nativeQuerySeg, dims, numVecs, bulkScoresSeg);

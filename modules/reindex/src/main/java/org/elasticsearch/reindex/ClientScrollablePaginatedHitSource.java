@@ -157,7 +157,7 @@ public class ClientScrollablePaginatedHitSource extends ScrollablePaginatedHitSo
         } else {
             hits = new ArrayList<>(response.getHits().getHits().length);
             for (SearchHit hit : response.getHits().getHits()) {
-                hits.add(new ClientHit(hit));
+                hits.add(ClientHit.forScrollHit(hit));
             }
             hits = unmodifiableList(hits);
         }

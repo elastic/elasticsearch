@@ -62,6 +62,12 @@ public class Avg extends AggregateFunction implements SurrogateExpression, Aggre
                     + "computing the average of the values which were used to construct the histograms.",
                 file = "exponential_histogram",
                 tag = "avgExpHistoForDocs"
+            ),
+            @Example(
+                description = "`AVG` can also operate on `tdigest` and casted `histogram` fields, "
+                    + "computing the average of the values which were used to construct the digests.",
+                file = "tdigest",
+                tag = "avgTDigestForDocs"
             ) }
     )
     public Avg(

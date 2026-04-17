@@ -61,6 +61,7 @@ dependencies {
   // utilities
   api project(":libs:cli")
   implementation 'com.carrotsearch:hppc:0.8.1'
+  implementation 'org.roaringbitmap:RoaringBitmap:1.3.0'
 
   // precentil ranks aggregation
   api 'org.hdrhistogram:HdrHistogram:2.1.9'

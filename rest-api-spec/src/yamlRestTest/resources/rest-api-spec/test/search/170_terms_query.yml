@@ -53,3 +53,189 @@
           rest_total_hits_as_int: true
           index: test_index
           body: {"query" : {"terms" : {"user" : {"index" : "test_index", "id" : "u2", "path" : "followers"}}}}
+
+---
+"Terms Query with integer_bitmap format":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ terms_query_integer_bitmap_format ]
+      test_runner_features: capabilities
+      reason: "integer_bitmap format for terms query"
+  - do:
+      indices.create:
+          index: bitmap_index
+          body:
+              settings:
+                  number_of_shards: 1
+              mappings:
+                  properties:
+                      num:
+                          type: integer
+                      category:
+                          type: keyword
+
+  - do:
+      bulk:
+          refresh: true
+          index: bitmap_index
+          body:
+              - '{"index": {"_id": "1"}}'
+              - '{"num": 1,  "category": "a"}'
+              - '{"index": {"_id": "2"}}'
+              - '{"num": 2,  "category": "a"}'
+              - '{"index": {"_id": "3"}}'
+              - '{"num": 3,  "category": "a"}'
+              - '{"index": {"_id": "4"}}'
+              - '{"num": 4,  "category": "a"}'
+              - '{"index": {"_id": "5"}}'
+              - '{"num": 5,  "category": "a"}'
+              - '{"index": {"_id": "6"}}'
+              - '{"num": 6,  "category": "a"}'
+              - '{"index": {"_id": "7"}}'
+              - '{"num": 7,  "category": "a"}'
+              - '{"index": {"_id": "8"}}'
+              - '{"num": 8,  "category": "a"}'
+              - '{"index": {"_id": "9"}}'
+              - '{"num": 9,  "category": "a"}'
+              - '{"index": {"_id": "10"}}'
+              - '{"num": 10, "category": "a"}'
+              - '{"index": {"_id": "11"}}'
+              - '{"num": 11, "category": "b"}'
+              - '{"index": {"_id": "12"}}'
+              - '{"num": 12, "category": "b"}'
+              - '{"index": {"_id": "13"}}'
+              - '{"num": 13, "category": "b"}'
+              - '{"index": {"_id": "14"}}'
+              - '{"num": 14, "category": "b"}'
+              - '{"index": {"_id": "15"}}'
+              - '{"num": 15, "category": "b"}'
+              - '{"index": {"_id": "16"}}'
+              - '{"num": 16, "category": "b"}'
+              - '{"index": {"_id": "17"}}'
+              - '{"num": 17, "category": "b"}'
+              - '{"index": {"_id": "18"}}'
+              - '{"num": 18, "category": "b"}'
+              - '{"index": {"_id": "19"}}'
+              - '{"num": 19, "category": "b"}'
+              - '{"index": {"_id": "20"}}'
+              - '{"num": 20, "category": "b"}'
+
+  # bitmap covering {1..20}: matches all docs
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: bitmap_index
+          body:
+              query:
+                  terms:
+                      num: ["OjAAAAEAAAAAABMAEAAAAAEAAgADAAQABQAGAAcACAAJAAoACwAMAA0ADgAPABAAEQASABMAFAA="]
+                      format: integer_bitmap
+  - match: { hits.total: 20 }
+
+  # bitmap {1,5,10,15,20}: 5 matches
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: bitmap_index
+          body:
+              query:
+                  terms:
+                      num: ["OjAAAAEAAAAAAAQAEAAAAAEABQAKAA8AFAA="]
+                      format: integer_bitmap
+  - match: { hits.total: 5 }
+
+  # bitmap {5,25,30}: only 5 is indexed -> 1 match
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: bitmap_index
+          body:
+              query:
+                  terms:
+                      num: ["OjAAAAEAAAAAAAIAEAAAAAUAGQAeAA=="]
+                      format: integer_bitmap
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "5" }
+
+  # bitmap {25,30,100}: no matches
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: bitmap_index
+          body:
+              query:
+                  terms:
+                      num: ["OjAAAAEAAAAAAAIAEAAAABkAHgBkAA=="]
+                      format: integer_bitmap
+  - match: { hits.total: 0 }
+
+  # bitmap {3,4,5}: 3 matches
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: bitmap_index
+          body:
+              query:
+                  terms:
+                      num: ["OjAAAAEAAAAAAAIAEAAAAAMABAAFAA=="]
+                      format: integer_bitmap
+  - match: { hits.total: 3 }
+
+  # bitmap {7}: single match
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: bitmap_index
+          body:
+              query:
+                  terms:
+                      num: ["OjAAAAEAAAAAAAAAEAAAAAcA"]
+                      format: integer_bitmap
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "7" }
+
+  # combined: bitmap {1,5,10,15,20} AND category=a -> {1,5,10} (3 matches)
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: bitmap_index
+          body:
+              query:
+                  bool:
+                      filter:
+                          - terms:
+                              num: ["OjAAAAEAAAAAAAQAEAAAAAEABQAKAA8AFAA="]
+                              format: integer_bitmap
+                          - term:
+                              category: a
+  - match: { hits.total: 3 }
+
+  # combined: bitmap {1,5,10,15,20} AND category=b -> {15,20} (2 matches)
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: bitmap_index
+          body:
+              query:
+                  bool:
+                      filter:
+                          - terms:
+                              num: ["OjAAAAEAAAAAAAQAEAAAAAEABQAKAA8AFAA="]
+                              format: integer_bitmap
+                          - term:
+                              category: b
+  - match: { hits.total: 2 }
+
+  # non-integer field rejected
+  - do:
+      catch: bad_request
+      search:
+          rest_total_hits_as_int: true
+          index: bitmap_index
+          body:
+              query:
+                  terms:
+                      category: ["OjAAAAEAAAAAAAQAEAAAAAEABQAKAA8AFAA="]
+                      format: integer_bitmap

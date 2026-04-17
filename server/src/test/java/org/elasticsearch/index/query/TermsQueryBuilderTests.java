@@ -34,10 +34,14 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.hamcrest.CoreMatchers;
 import org.junit.Before;
+import org.roaringbitmap.RoaringBitmap;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -352,6 +356,134 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
 
         QueryBuilder rewritten = query.rewrite(coordinatorRewriteContext);
         assertThat(rewritten, CoreMatchers.instanceOf(MatchNoneQueryBuilder.class));
+    }
+
+    public void testBitmapFormatParsing() throws IOException {
+        RoaringBitmap bitmap = RoaringBitmap.bitmapOf(1, 5, 10, 100);
+        ByteBuffer buf = ByteBuffer.allocate(bitmap.serializedSizeInBytes()).order(ByteOrder.LITTLE_ENDIAN);
+        bitmap.serialize(buf);
+        String base64 = Base64.getEncoder().encodeToString(buf.array());
+
+        String json = String.format(Locale.ROOT, """
+            {
+              "terms": {
+                "%s": ["%s"],
+                "format": "integer_bitmap"
+              }
+            }""", INT_FIELD_NAME, base64);
+
+        TermsQueryBuilder parsed = (TermsQueryBuilder) parseQuery(json);
+        assertEquals(INT_FIELD_NAME, parsed.fieldName());
+        assertEquals(TermsQueryBuilder.INTEGER_BITMAP_FORMAT, parsed.format());
+        assertEquals(1, parsed.values().size());
+
+        SearchExecutionContext context = createSearchExecutionContext();
+        Query luceneQuery = parsed.toQuery(context);
+        assertThat(
+            luceneQuery,
+            either(instanceOf(org.apache.lucene.search.IndexOrDocValuesQuery.class)).or(
+                instanceOf(org.elasticsearch.index.search.BitmapIndexQuery.class)
+            ).or(instanceOf(org.elasticsearch.index.search.BitmapDocValuesQuery.class))
+        );
+    }
+
+    public void testBitmapFormatXContentRoundTrip() throws IOException {
+        RoaringBitmap bitmap = RoaringBitmap.bitmapOf(1, 2, 3);
+        ByteBuffer buf = ByteBuffer.allocate(bitmap.serializedSizeInBytes()).order(ByteOrder.LITTLE_ENDIAN);
+        bitmap.serialize(buf);
+        String base64 = Base64.getEncoder().encodeToString(buf.array());
+
+        String json = String.format(Locale.ROOT, """
+            {
+              "terms": {
+                "%s": ["%s"],
+                "format": "integer_bitmap"
+              }
+            }""", INT_FIELD_NAME, base64);
+
+        TermsQueryBuilder parsed = (TermsQueryBuilder) parseQuery(json);
+        String serialized = Strings.toString(parsed);
+        TermsQueryBuilder reparsed = (TermsQueryBuilder) parseQuery(serialized);
+        assertEquals(parsed, reparsed);
+    }
+
+    public void testBitmapFormatFailures() throws IOException {
+        RoaringBitmap bitmap = RoaringBitmap.bitmapOf(1, 5, 10);
+        ByteBuffer buf = ByteBuffer.allocate(bitmap.serializedSizeInBytes()).order(ByteOrder.LITTLE_ENDIAN);
+        bitmap.serialize(buf);
+        String base64 = Base64.getEncoder().encodeToString(buf.array());
+
+        SearchExecutionContext context = createSearchExecutionContext();
+
+        // non-numeric field types (binary, date) are rejected
+        for (String fieldName : new String[] { BINARY_FIELD_NAME, DATE_FIELD_NAME }) {
+            String json = String.format(Locale.ROOT, """
+                {
+                  "terms": {
+                    "%s": ["%s"],
+                    "format": "integer_bitmap"
+                  }
+                }""", fieldName, base64);
+            TermsQueryBuilder parsed = (TermsQueryBuilder) parseQuery(json);
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parsed.toQuery(context));
+            assertThat(e.getMessage(), containsString("[integer_bitmap] format is only supported for numeric field types"));
+        }
+
+        // numeric but non-integer field type (double) is rejected
+        {
+            String json = String.format(Locale.ROOT, """
+                {
+                  "terms": {
+                    "%s": ["%s"],
+                    "format": "integer_bitmap"
+                  }
+                }""", DOUBLE_FIELD_NAME, base64);
+            TermsQueryBuilder parsed = (TermsQueryBuilder) parseQuery(json);
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parsed.toQuery(context));
+            assertThat(e.getMessage(), containsString("[integer_bitmap] format is only supported for [integer] field type"));
+        }
+
+        // malformed (not valid base64) bitmap value
+        {
+            String json = String.format(Locale.ROOT, """
+                {
+                  "terms": {
+                    "%s": ["wrong_fake_bitmpa"],
+                    "format": "integer_bitmap"
+                  }
+                }""", INT_FIELD_NAME);
+            TermsQueryBuilder parsed = (TermsQueryBuilder) parseQuery(json);
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parsed.toQuery(context));
+            assertThat(e.getMessage(), containsString("[integer_bitmap] format expects a base64-encoded serialized RoaringBitmap value"));
+        }
+
+        // valid base64 but not a valid serialized RoaringBitmap
+        {
+            String garbage = Base64.getEncoder().encodeToString(new byte[] { 1, 2, 3, 4 });
+            String json = String.format(Locale.ROOT, """
+                {
+                  "terms": {
+                    "%s": ["%s"],
+                    "format": "integer_bitmap"
+                  }
+                }""", INT_FIELD_NAME, garbage);
+            TermsQueryBuilder parsed = (TermsQueryBuilder) parseQuery(json);
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parsed.toQuery(context));
+            assertThat(e.getMessage(), containsString("[integer_bitmap] format expects a base64-encoded serialized RoaringBitmap value"));
+        }
+
+        // a null value in the terms array is rejected at parse time
+        {
+            String json = String.format(Locale.ROOT, """
+                {
+                  "terms": {
+                    "%s": [null],
+                    "format": "integer_bitmap"
+                  }
+                }""", INT_FIELD_NAME);
+            ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
+            assertThat(e.getMessage(), containsString("No value specified for terms query"));
+        }
     }
 
     @Override

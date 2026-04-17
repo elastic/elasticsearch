@@ -64,6 +64,7 @@ public final class SearchCapabilities {
     private static final String DENSE_VECTOR_DOCVALUE_FIELDS_FORMAT = "dense_vector_docvalue_fields_format";
     private static final String KNN_QUERY_VECTOR_BASE64 = "knn_query_vector_base64";
     private static final String AGGREGATE_METRIC_DOUBLE_DEFAULTS_TO_AVERAGE = "aggregate_metric_double_defaults_to_average";
+    private static final String TERMS_QUERY_INTEGER_BITMAP_FORMAT = "terms_query_integer_bitmap_format";
 
     public static final Set<String> CAPABILITIES;
     static {
@@ -98,6 +99,7 @@ public final class SearchCapabilities {
         capabilities.add(DENSE_VECTOR_DOCVALUE_FIELDS_FORMAT);
         capabilities.add(KNN_QUERY_VECTOR_BASE64);
         capabilities.add(AGGREGATE_METRIC_DOUBLE_DEFAULTS_TO_AVERAGE);
+        capabilities.add(TERMS_QUERY_INTEGER_BITMAP_FORMAT);
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

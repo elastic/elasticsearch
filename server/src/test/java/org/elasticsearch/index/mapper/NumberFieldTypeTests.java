@@ -50,11 +50,14 @@ import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchExecutionContextHelper;
+import org.elasticsearch.index.search.BitmapDocValuesQuery;
+import org.elasticsearch.index.search.BitmapIndexQuery;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
+import org.roaringbitmap.RoaringBitmap;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -103,6 +106,35 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         assertEquals(IntPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1, 2.1), MOCK_CONTEXT));
         assertEquals(IntPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1.0, 2.1), MOCK_CONTEXT));
         assertTrue(ft.termsQuery(Arrays.asList(1.1, 2.1), MOCK_CONTEXT) instanceof MatchNoDocsQuery);
+    }
+
+    public void testIntegerBitmapQuery() {
+        NumberFieldMapper.NumberFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.INTEGER);
+        RoaringBitmap bitmap = RoaringBitmap.bitmapOf(1, 2, 3, 100);
+        Query query = ft.bitmapQuery(bitmap, MOCK_CONTEXT);
+        // indexed + doc values: IndexOrDocValuesQuery wrapping BitmapIndexQuery and BitmapDocValuesQuery
+        assertTrue(query instanceof IndexOrDocValuesQuery);
+    }
+
+    public void testIntegerBitmapQueryIndexedOnly() {
+        NumberFieldMapper.NumberFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.INTEGER, true, false);
+        RoaringBitmap bitmap = RoaringBitmap.bitmapOf(1, 2, 3);
+        Query query = ft.bitmapQuery(bitmap, MOCK_CONTEXT);
+        assertTrue(query instanceof BitmapIndexQuery);
+    }
+
+    public void testIntegerBitmapQueryDocValuesOnly() {
+        NumberFieldMapper.NumberFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.INTEGER, false, true);
+        RoaringBitmap bitmap = RoaringBitmap.bitmapOf(1, 2, 3);
+        Query query = ft.bitmapQuery(bitmap, MOCK_CONTEXT);
+        assertTrue(query instanceof BitmapDocValuesQuery);
+    }
+
+    public void testBitmapQueryNotSupportedForLong() {
+        NumberFieldMapper.NumberFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.LONG);
+        RoaringBitmap bitmap = RoaringBitmap.bitmapOf(1, 2, 3);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ft.bitmapQuery(bitmap, MOCK_CONTEXT));
+        assertThat(e.getMessage(), containsString("integer_bitmap"));
     }
 
     public void testLongTermsQueryWithDecimalPart() {

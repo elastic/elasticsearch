@@ -58,6 +58,8 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinIntsFromDocV
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinLongsFromDocValuesBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.RoundToLongsFromDocValuesBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.search.BitmapDocValuesQuery;
+import org.elasticsearch.index.search.BitmapIndexQuery;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
@@ -78,6 +80,7 @@ import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
+import org.roaringbitmap.RoaringBitmap;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -1306,6 +1309,18 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
+            public Query bitmapQuery(String field, RoaringBitmap bitmap, IndexType indexType) {
+                // TODO: explore if we can be more efficient when index is sorted
+                if (indexType.hasPoints() && indexType.hasDocValues()) {
+                    return new IndexOrDocValuesQuery(new BitmapIndexQuery(field, bitmap), new BitmapDocValuesQuery(field, bitmap));
+                }
+                if (indexType.hasPoints()) {
+                    return new BitmapIndexQuery(field, bitmap);
+                }
+                return new BitmapDocValuesQuery(field, bitmap);
+            }
+
+            @Override
             public Query rangeQuery(
                 String field,
                 Object lowerTerm,
@@ -1690,6 +1705,14 @@ public class NumberFieldMapper extends FieldMapper {
         public abstract Query termQuery(String field, Object value, IndexType indexType);
 
         public abstract Query termsQuery(String field, Collection<?> values);
+
+        /**
+         * Build a query that matches documents whose integer field value is contained in the given bitmap.
+         * Only supported for {@link NumberType#INTEGER}.
+         */
+        public Query bitmapQuery(String field, RoaringBitmap bitmap, IndexType indexType) {
+            throw new IllegalArgumentException("[integer_bitmap] format is only supported for [integer] field type, not [" + name + "]");
+        }
 
         public abstract Query rangeQuery(
             String field,
@@ -2170,6 +2193,11 @@ public class NumberFieldMapper extends FieldMapper {
             } else {
                 return super.termsQuery(values, context);
             }
+        }
+
+        public Query bitmapQuery(RoaringBitmap bitmap, SearchExecutionContext context) {
+            failIfNotIndexedNorDocValuesFallback(context);
+            return type.bitmapQuery(name(), bitmap, indexType);
         }
 
         @Override

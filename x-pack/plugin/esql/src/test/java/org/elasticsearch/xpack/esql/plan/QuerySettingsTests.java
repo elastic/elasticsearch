@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
@@ -101,20 +100,21 @@ public class QuerySettingsTests extends ESTestCase {
     }
 
     public void testValidate_UnmappedFields_techPreview() {
-        assumeFalse("Requires no snapshot", Build.current().isSnapshot());
+        assumeFalse("Requires no snapshot", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
-        validateUnmappedFields("DEFAULT", "NULLIFY");
+        validateUnmappedFields("DEFAULT", "NULLIFY", "LOAD");
         var settingName = QuerySettings.UNMAPPED_FIELDS.name();
         assertInvalid(
             settingName,
             NON_SNAPSHOT_CTX_WITH_CPS_ENABLED,
             of("UNKNOWN"),
-            "Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution [UNKNOWN], must be one of [DEFAULT, NULLIFY]"
+            "Error validating setting [unmapped_fields]: "
+                + "Invalid unmapped_fields resolution [UNKNOWN], must be one of [DEFAULT, NULLIFY, LOAD]"
         );
     }
 
     public void testValidate_UnmappedFields_allValues() {
-        assumeTrue("Requires unmapped fields", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.isEnabled());
+        assumeTrue("Requires unmapped fields", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
         validateUnmappedFields("DEFAULT", "NULLIFY", "LOAD");
     }
 
@@ -257,8 +257,6 @@ public class QuerySettingsTests extends ESTestCase {
     public static void generateDocs() throws Exception {
         List<QuerySettings.QuerySettingDef<?>> settings = QuerySettings.SETTINGS_BY_NAME.values()
             .stream()
-            // TODO this is non-snapshot, but we don't want to expose it yet
-            .filter(def -> def != QuerySettings.PROJECT_ROUTING)
             .sorted(Comparator.comparing(QuerySettings.QuerySettingDef::name))
             .toList();
 
@@ -270,14 +268,6 @@ public class QuerySettingsTests extends ESTestCase {
             );
             settingsDocsSupport.renderDocs();
         }
-
-        // TODO remote this when project routing is public
-        // we only want the Kibana JSON for now
-        new DocsV3Support.SettingsDocsSupport(
-            QuerySettings.PROJECT_ROUTING,
-            QuerySettingsTests.class,
-            DocsV3Support.callbacksFromSystemProperty()
-        ).renderKibanaCommandDefinition();
 
         DocsV3Support.SettingsTocDocsSupport toc = new DocsV3Support.SettingsTocDocsSupport(
             settings,

@@ -58,6 +58,11 @@ public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
     }
 
     @Before
+    public void checkPragma() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+    }
+
+    @Before
     public void setupIndices() throws Exception {
         // Create "fail" index with a runtime field that throws on read
         XContentBuilder mapping = JsonXContent.contentBuilder().startObject();

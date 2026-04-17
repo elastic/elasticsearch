@@ -47,7 +47,7 @@ public class ElasticInferenceServiceDenseEmbeddingsResponseEntity {
      *  {
      *      "input": [
      *          {
-     *              "content": [{"type": "image", "format": "base64", "value": "image data"}]
+     *              "content": [{"type": "image", "format": "base64", "value": "data:image/png;base64,..."}]
      *          },
      *          {
      *              "content": [{"type": "text", "format": "text", "value": "text input"}]

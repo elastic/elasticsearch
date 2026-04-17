@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.EnumSet;
@@ -141,10 +140,11 @@ public class NdJsonSchemaInferrer {
             // Keep in sync with NdJsonPageIterator.Decoder
             case START_OBJECT -> inferObjectSchema(parser, field);
             case VALUE_STRING -> {
-                try {
-                    DATE_FORMATTER.parse(parser.getText());
+                String text = parser.getText();
+                // All-digit strings (e.g. book ids) must not be inferred as years / partial dates.
+                if (field.types.contains(DataType.KEYWORD) == false && isLikelyDateString(text) && DATE_FORMATTER.tryParse(text) != null) {
                     field.addType(DataType.DATETIME);
-                } catch (DateTimeParseException | IllegalArgumentException e) {
+                } else {
                     field.addType(DataType.KEYWORD);
                 }
             }
@@ -276,5 +276,22 @@ public class NdJsonSchemaInferrer {
         var copy = EnumSet.copyOf(values);
         copy.removeAll(from);
         return copy.isEmpty();
+    }
+
+    /**
+     * {@code strict_date_optional_time} accepts year-only forms that collide with numeric identifiers
+     * (e.g. book numbers). Skip date inference for all-ASCII-digit tokens.
+     */
+    private static boolean isLikelyDateString(String text) {
+        if (text.isEmpty()) {
+            return false;
+        }
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (c < '0' || c > '9') {
+                return true;
+            }
+        }
+        return false;
     }
 }

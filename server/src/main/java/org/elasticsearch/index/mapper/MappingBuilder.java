@@ -49,6 +49,10 @@ public class MappingBuilder {
         return rootBuilder;
     }
 
+    public MetadataFieldMapper.Builder metadataBuilder(String name) {
+        return metadataBuilders.get(name);
+    }
+
     /**
      * Merges another {@link MappingBuilder} into this one, mutating this builder in place.
      *

@@ -50,9 +50,19 @@ public abstract class DocumentParserContext {
     private static class Wrapper extends DocumentParserContext {
         private final DocumentParserContext in;
 
+        // cached to avoid method chain overhead and dynamic dispatch
+        private final boolean isWithinCopyTo;
+        private final ContentPath path;
+        private final XContentParser parser;
+        private final LuceneDocument doc;
+
         private Wrapper(ObjectMapper parent, DocumentParserContext in) {
             super(parent, parent.dynamic == null ? in.dynamic : parent.dynamic, in);
             this.in = in;
+            this.isWithinCopyTo = in.isWithinCopyTo();
+            this.path = in.path();
+            this.parser = in.parser();
+            this.doc = in.doc();
         }
 
         // Used to create a copy_to context.
@@ -60,6 +70,10 @@ public abstract class DocumentParserContext {
         private Wrapper(RootObjectMapper root, DocumentParserContext in) {
             super(root, ObjectMapper.Dynamic.getRootDynamic(in.mappingLookup()), in);
             this.in = in;
+            this.isWithinCopyTo = in.isWithinCopyTo();
+            this.path = in.path();
+            this.parser = in.parser();
+            this.doc = in.doc();
         }
 
         @Override
@@ -69,17 +83,17 @@ public abstract class DocumentParserContext {
 
         @Override
         public boolean isWithinCopyTo() {
-            return in.isWithinCopyTo();
+            return isWithinCopyTo;
         }
 
         @Override
         public ContentPath path() {
-            return in.path();
+            return path;
         }
 
         @Override
         public XContentParser parser() {
-            return in.parser();
+            return parser;
         }
 
         @Override
@@ -89,7 +103,7 @@ public abstract class DocumentParserContext {
 
         @Override
         public LuceneDocument doc() {
-            return in.doc();
+            return doc;
         }
 
         @Override
@@ -185,10 +199,13 @@ public abstract class DocumentParserContext {
      * that copy_to field in introduced using a dynamic template
      * in this document and therefore is not present in mapping yet.
      */
+    private final Set<String> mappingCopyToFields;
     private final Set<String> copyToFields;
 
     // Indicates if the source for this context has been marked to be recorded. Applies to synthetic source only.
     private boolean recordedSource;
+
+    private final FieldNamesFieldMapper fieldNamesFieldMapper; // cached from the mapping
 
     private DocumentParserContext(
         MappingLookup mappingLookup,
@@ -208,6 +225,7 @@ public abstract class DocumentParserContext {
         ObjectMapper parent,
         ObjectMapper.Dynamic dynamic,
         Set<String> fieldsAppliedFromTemplates,
+        Set<String> mappingCopyToFields,
         Set<String> copyToFields,
         DynamicMapperSize dynamicMapperSize,
         boolean recordedSource
@@ -229,9 +247,12 @@ public abstract class DocumentParserContext {
         this.parent = parent;
         this.dynamic = dynamic;
         this.fieldsAppliedFromTemplates = fieldsAppliedFromTemplates;
+        this.mappingCopyToFields = mappingCopyToFields;
+        assert this.mappingCopyToFields == Set.copyOf(this.mappingCopyToFields); // ensure that we've been passed an ImmutableSet(12|N)
         this.copyToFields = copyToFields;
         this.dynamicMappersSize = dynamicMapperSize;
         this.recordedSource = recordedSource;
+        this.fieldNamesFieldMapper = mappingLookup.getMapping().fieldNamesFieldMapper();
     }
 
     private DocumentParserContext(ObjectMapper parent, ObjectMapper.Dynamic dynamic, DocumentParserContext in) {
@@ -253,6 +274,7 @@ public abstract class DocumentParserContext {
             parent,
             dynamic,
             in.fieldsAppliedFromTemplates,
+            in.mappingCopyToFields,
             in.copyToFields,
             in.dynamicMappersSize,
             in.recordedSource
@@ -284,7 +306,8 @@ public abstract class DocumentParserContext {
             parent,
             dynamic,
             new HashSet<>(),
-            new HashSet<>(mappingLookup.fieldTypesLookup().getCopyToDestinationFields()),
+            mappingLookup.fieldTypesLookup().getCopyToDestinationFields(),
+            new HashSet<>(),
             new DynamicMapperSize(),
             false
         );
@@ -363,12 +386,12 @@ public abstract class DocumentParserContext {
 
     /**
      * Adds an ignored field from the parser context, capturing an object or an array.
-     *
+     * <p>
      * In case of nested arrays, i.e. capturing an array within an array, elements tracked as ignored fields may interfere with
      * the rest, as ignored source contents take precedence over regular field contents with the same leaf name. To prevent
      * missing array elements from synthetic source, all array elements get recorded in ignored source. Otherwise, just the value in
      * the current parsing context gets captured.
-     *
+     * <p>
      * In both cases, a new parser sub-context gets created from the current {@link DocumentParserContext} and returned, indicating
      * that the source for the sub-context has been captured, to avoid double-storing parts of its contents to ignored source.
      */
@@ -402,7 +425,7 @@ public abstract class DocumentParserContext {
      * Clones the current context to mark it as an array, if it's not already marked, or restore it if it's within a nested object.
      * Applies to synthetic source only.
      */
-    public final DocumentParserContext maybeCloneForArray(Mapper mapper) throws IOException {
+    public final DocumentParserContext maybeCloneForArray(Mapper mapper) {
         if (canAddIgnoredField()
             && mapper instanceof ObjectMapper
             && mapper instanceof NestedObjectMapper == false
@@ -416,12 +439,11 @@ public abstract class DocumentParserContext {
 
     /**
      * Add the given {@code field} to the _field_names field
-     *
+     * <p>
      * Use this if an exists query run against the field cannot use docvalues
      * or norms.
      */
     public final void addToFieldNames(String field) {
-        FieldNamesFieldMapper fieldNamesFieldMapper = (FieldNamesFieldMapper) getMetadataMapper(FieldNamesFieldMapper.NAME);
         if (fieldNamesFieldMapper != null) {
             fieldNamesFieldMapper.addFieldNames(this, field);
         }
@@ -497,7 +519,7 @@ public abstract class DocumentParserContext {
     }
 
     public boolean isCopyToDestinationField(String name) {
-        return copyToFields.contains(name);
+        return mappingCopyToFields.contains(name) || copyToFields.contains(name);
     }
 
     public void processArrayOffsets(DocumentParserContext context) throws IOException {
@@ -908,13 +930,7 @@ public abstract class DocumentParserContext {
      * @param fieldName   the name of the field to be flattened
      */
     public final DocumentParserContext createFlattenContext(String fieldName) {
-        XContentParser flatteningParser = new FlatteningXContentParser(parser(), fieldName);
-        return new Wrapper(this.parent(), this) {
-            @Override
-            public XContentParser parser() {
-                return flatteningParser;
-            }
-        };
+        return switchParser(new FlatteningXContentParser(parser(), fieldName));
     }
 
     /**
@@ -1041,7 +1057,7 @@ public abstract class DocumentParserContext {
         }
 
         @Override
-        public Token nextToken() throws IOException {
+        public Token nextToken() {
             if (state == State.FIELD) {
                 state = State.VALUE;
                 return delegate().currentToken();
@@ -1058,7 +1074,7 @@ public abstract class DocumentParserContext {
         }
 
         @Override
-        public String currentName() throws IOException {
+        public String currentName() {
             return field;
         }
     }

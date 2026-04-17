@@ -228,6 +228,7 @@ public class HttpClient implements Closeable {
         }
 
         RequestConfig.Builder config = RequestConfig.custom();
+        validateProxyAgainstWhitelist(request.proxy);
         setProxy(config, request, settingsProxy);
         HttpClientContext localContext = HttpClientContext.create();
         // auth
@@ -420,6 +421,26 @@ public class HttpClient implements Closeable {
 
     private boolean isWhitelisted(String host) {
         return whitelistAutomaton.get().run(host);
+    }
+
+    /**
+     * Validates that a per-request proxy host is whitelisted. System-wide proxies configured via {@code xpack.http.proxy.host} are exempt
+     */
+    private void validateProxyAgainstWhitelist(HttpProxy proxy) {
+        if (proxy == null || proxy.equals(HttpProxy.NO_PROXY)) {
+            return;
+        }
+        HttpHost proxyHost = new HttpHost(proxy.getHost(), proxy.getPort(), proxy.getScheme() != null ? proxy.getScheme().scheme() : null);
+        if (isWhitelisted(proxyHost.toURI()) == false) {
+            throw new ElasticsearchException(
+                "proxy host ["
+                    + proxyHost.toURI()
+                    + "] is not whitelisted in setting ["
+                    + HttpSettings.HOSTS_WHITELIST.getKey()
+                    + "], "
+                    + "will not connect"
+            );
+        }
     }
 
     private static final CharacterRunAutomaton MATCH_ALL_AUTOMATON = new CharacterRunAutomaton(Regex.simpleMatchToAutomaton("*"));

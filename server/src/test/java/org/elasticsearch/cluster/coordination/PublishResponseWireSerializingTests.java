@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
@@ -26,21 +27,20 @@ public class PublishResponseWireSerializingTests extends AbstractWireSerializing
 
     @Override
     protected PublishResponse createTestInstance() {
-        long term = randomNonNegativeLong();
-        long version = randomNonNegativeLong();
-        return new PublishResponse(term, version);
+        return new PublishResponse(randomNonNegativeLong(), randomNonNegativeLong());
     }
 
     @Override
-    protected PublishResponse mutateInstance(PublishResponse instance) throws IOException {
-        long term = instance.getTerm();
-        long version = instance.getVersion();
-        int field = between(0, 1);
-        if (field == 0) {
-            term = randomValueOtherThan(term, () -> randomNonNegativeLong());
-        } else {
-            version = randomValueOtherThan(version, () -> randomNonNegativeLong());
+    protected PublishResponse mutateInstance(PublishResponse publishResponse) throws IOException {
+        if (randomBoolean()) {
+            return new PublishResponse(
+                randomValueOtherThan(publishResponse.getTerm(), ESTestCase::randomNonNegativeLong),
+                publishResponse.getVersion()
+            );
         }
-        return new PublishResponse(term, version);
+        return new PublishResponse(
+            publishResponse.getTerm(),
+            randomValueOtherThan(publishResponse.getVersion(), ESTestCase::randomNonNegativeLong)
+        );
     }
 }

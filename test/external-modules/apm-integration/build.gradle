@@ -25,6 +25,7 @@ tasks.named("test").configure {
 }
 
 tasks.named('javaRestTest').configure {
+  def buildParams = project.rootProject.extensions.getByName('buildParams')
   it.onlyIf("snapshot build") { buildParams.snapshotBuild }
 }
 

@@ -1,0 +1,5 @@
+area: TSDB
+issues: []
+pr: 145097
+summary: Disable sequence numbers for new TSDB indices
+type: enhancement

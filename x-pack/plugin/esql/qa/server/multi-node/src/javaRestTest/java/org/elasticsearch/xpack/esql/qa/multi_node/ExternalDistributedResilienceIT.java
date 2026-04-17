@@ -22,6 +22,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.core.util.TestUtils.isServerless;
 import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.WAREHOUSE;
 
 /**
@@ -108,7 +109,8 @@ public class ExternalDistributedResilienceIT extends AbstractExternalDistributed
         s3Fixture.loadFixturesFromResources();
 
         for (String mode : DISTRIBUTION_MODES) {
-            faultHandler().setFault(FaultType.HTTP_503, 100);
+            // Global per-request fault budget; distributed Parquet reads issue many HTTP requests and retries.
+            faultHandler().setFault(FaultType.HTTP_503, isServerless(adminClient()) ? 1_000 : 100);
 
             Exception ex = expectThrows(Exception.class, () -> runQueryWithMode(employeesQuery(), mode));
             if (ex instanceof ResponseException responseEx) {

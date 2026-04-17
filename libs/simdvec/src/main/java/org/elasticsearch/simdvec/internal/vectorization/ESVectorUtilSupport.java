@@ -95,4 +95,6 @@ public interface ESVectorUtilSupport {
     int indexOf(byte[] bytes, int offset, int length, byte marker);
 
     int codePointCount(BytesRef bytesRef);
+
+    boolean contains(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength);
 }

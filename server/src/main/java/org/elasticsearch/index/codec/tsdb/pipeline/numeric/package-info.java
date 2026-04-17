@@ -8,13 +8,13 @@
  */
 
 /**
- * Encoder/decoder contracts for numeric pipeline stages.
+ * Encoder/decoder contracts and pipeline orchestration for numeric pipeline stages.
  *
  * <p>This package defines two families of stage contracts:
  * <ul>
  *   <li><strong>Transform stages</strong>:
- *       {@link org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericEncoder} and
- *       {@link org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericDecoder}
+ *       {@link org.elasticsearch.index.codec.tsdb.pipeline.numeric.TransformEncoder} and
+ *       {@link org.elasticsearch.index.codec.tsdb.pipeline.numeric.TransformDecoder}
  *       (combined as {@link org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericCodecStage})
  *       modify {@code long[]} values in-place and exchange metadata through the
  *       encoding/decoding context. Concrete implementations live in the
@@ -26,6 +26,14 @@
  *       serialize transformed values to bytes and read them back as the terminal
  *       pipeline step.</li>
  * </ul>
+ *
+ * <p>Pipeline orchestration is provided by {@link org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericEncodePipeline}
+ * (write path) and {@link org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericDecodePipeline} (read path).
+ * The high-level API is exposed via {@link org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericEncoder}
+ * and {@link org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericDecoder}, which produce per-field
+ * {@link org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericBlockEncoder} and
+ * {@link org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericBlockDecoder} instances owning
+ * mutable per-block context.
  *
  * <p>Each stage implementation corresponds to a
  * {@link org.elasticsearch.index.codec.tsdb.pipeline.StageSpec} and is identified by a

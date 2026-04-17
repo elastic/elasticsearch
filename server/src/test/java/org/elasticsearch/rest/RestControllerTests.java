@@ -1188,6 +1188,19 @@ public class RestControllerTests extends ESTestCase {
         checkUnprotected.accept(inaccessiblePaths);
     }
 
+    public void testGetAllHandlersPreservesMultiValueParams() {
+        restController.registerHandler(new Route(GET, "/{index}"), (request, channel, client) -> {});
+
+        var params = RequestParams.of(Map.of("format", List.of("json", "yaml")));
+        var it = restController.getAllHandlers(params, "/my-index");
+        while (it.hasNext()) {
+            it.next();
+        }
+
+        // Multi-values must survive the per-iteration reset that PathTrie triggers
+        assertThat(params.getAll("format"), equalTo(List.of("json", "yaml")));
+    }
+
     @ServerlessScope(Scope.PUBLIC)
     private static final class PublicRestHandler extends BaseRestHandler {
         @Override

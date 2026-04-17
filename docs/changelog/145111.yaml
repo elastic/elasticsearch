@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 145111
+summary: Add blocks and vectors for more Arrow numeric types
+type: enhancement

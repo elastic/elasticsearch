@@ -56,6 +56,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxLongsFromDoc
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinDoublesFromDocValuesBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinIntsFromDocValuesBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinLongsFromDocValuesBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.RoundToLongsFromDocValuesBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.LongFieldScript;
@@ -541,6 +542,11 @@ public class NumberFieldMapper extends FieldMapper {
             BlockLoader blockLoaderFromDocValuesMvMax(String fieldName) {
                 return new MvMaxDoublesFromDocValuesBlockLoader(fieldName, l -> HalfFloatPoint.sortableShortToHalfFloat((short) l));
             }
+
+            @Override
+            BlockLoader blockLoaderFromDocValuesRoundTo(String fieldName, long[] points) {
+                throw new UnsupportedOperationException("ROUND_TO not supported for half_float");
+            }
         },
         FLOAT("float", NumericType.FLOAT) {
             @Override
@@ -750,6 +756,11 @@ public class NumberFieldMapper extends FieldMapper {
             BlockLoader blockLoaderFromDocValuesMvMax(String fieldName) {
                 return new MvMaxDoublesFromDocValuesBlockLoader(fieldName, l -> NumericUtils.sortableIntToFloat((int) l));
             }
+
+            @Override
+            BlockLoader blockLoaderFromDocValuesRoundTo(String fieldName, long[] points) {
+                throw new UnsupportedOperationException("ROUND_TO not supported for float");
+            }
         },
         DOUBLE("double", NumericType.DOUBLE) {
             @Override
@@ -925,6 +936,11 @@ public class NumberFieldMapper extends FieldMapper {
             BlockLoader blockLoaderFromDocValuesMvMax(String fieldName) {
                 return new MvMaxDoublesFromDocValuesBlockLoader(fieldName, NumericUtils::sortableLongToDouble);
             }
+
+            @Override
+            BlockLoader blockLoaderFromDocValuesRoundTo(String fieldName, long[] points) {
+                throw new UnsupportedOperationException("ROUND_TO not supported for double");
+            }
         },
         BYTE("byte", NumericType.BYTE) {
             @Override
@@ -1064,6 +1080,11 @@ public class NumberFieldMapper extends FieldMapper {
                 return new MvMaxIntsFromDocValuesBlockLoader(fieldName);
             }
 
+            @Override
+            BlockLoader blockLoaderFromDocValuesRoundTo(String fieldName, long[] points) {
+                throw new UnsupportedOperationException("ROUND_TO not supported for byte");
+            }
+
             private boolean isOutOfRange(Object value) {
                 double doubleValue = objectToDouble(value);
                 return doubleValue < Byte.MIN_VALUE || doubleValue > Byte.MAX_VALUE;
@@ -1200,6 +1221,11 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             BlockLoader blockLoaderFromDocValuesMvMax(String fieldName) {
                 return new MvMaxIntsFromDocValuesBlockLoader(fieldName);
+            }
+
+            @Override
+            BlockLoader blockLoaderFromDocValuesRoundTo(String fieldName, long[] points) {
+                throw new UnsupportedOperationException("ROUND_TO not supported for short");
             }
 
             private boolean isOutOfRange(Object value) {
@@ -1418,6 +1444,11 @@ public class NumberFieldMapper extends FieldMapper {
             BlockLoader blockLoaderFromDocValuesMvMax(String fieldName) {
                 return new MvMaxIntsFromDocValuesBlockLoader(fieldName);
             }
+
+            @Override
+            BlockLoader blockLoaderFromDocValuesRoundTo(String fieldName, long[] points) {
+                throw new UnsupportedOperationException("ROUND_TO not supported for integer");
+            }
         },
         LONG("long", NumericType.LONG) {
             @Override
@@ -1614,6 +1645,11 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             BlockLoader blockLoaderFromDocValuesMvMax(String fieldName) {
                 return new MvMaxLongsFromDocValuesBlockLoader(fieldName);
+            }
+
+            @Override
+            BlockLoader blockLoaderFromDocValuesRoundTo(String fieldName, long[] points) {
+                return new RoundToLongsFromDocValuesBlockLoader(fieldName, points);
             }
 
             private boolean isOutOfRange(Object value) {
@@ -1893,6 +1929,8 @@ public class NumberFieldMapper extends FieldMapper {
         abstract BlockLoader blockLoaderFromDocValuesMvMin(String fieldName);
 
         abstract BlockLoader blockLoaderFromDocValuesMvMax(String fieldName);
+
+        abstract BlockLoader blockLoaderFromDocValuesRoundTo(String fieldName, long[] points);
 
         // All values that fit into integer are returned as integers
         private static BlockLoader integerBlockLoaderFromFallbackSyntheticSource(
@@ -2174,6 +2212,7 @@ public class NumberFieldMapper extends FieldMapper {
                     case MV_MAX -> type.blockLoaderFromDocValuesMvMax(name());
                     case MV_MIN -> type.blockLoaderFromDocValuesMvMin(name());
                     case AMD_COUNT, AMD_DEFAULT, AMD_MAX, AMD_MIN, AMD_SUM -> type.blockLoaderFromDocValues(name());
+                    case ROUND_TO -> type.blockLoaderFromDocValuesRoundTo(name(), ((BlockLoaderFunctionConfig.RoundToLongs) cfg).points());
                     default -> throw new UnsupportedOperationException("unknown fusion config [" + cfg.function() + "]");
                 };
             }
@@ -2197,6 +2236,7 @@ public class NumberFieldMapper extends FieldMapper {
             if (hasDocValues() && (preference != FieldExtractPreference.STORED || isSyntheticSource)) {
                 return switch (config.function()) {
                     case AMD_MIN, AMD_MAX, AMD_SUM, AMD_COUNT, AMD_DEFAULT, MV_MAX, MV_MIN -> true;
+                    case ROUND_TO -> type == NumberType.LONG && indexType.hasDocValuesSkipper();
                     default -> false;
                 };
             }
@@ -2322,6 +2362,9 @@ public class NumberFieldMapper extends FieldMapper {
 
     private final IndexSettings indexSettings;
 
+    // cached to avoid lookup overhead
+    private final NumberFieldType fieldType;
+
     private NumberFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
@@ -2347,6 +2390,9 @@ public class NumberFieldMapper extends FieldMapper {
         this.isSyntheticSource = isSyntheticSource;
         this.offsetsFieldName = offsetsFieldName;
         this.indexSettings = builder.indexSettings;
+
+        // this is basically just an inlined version of `(NumberFieldType) super.fieldType()`
+        this.fieldType = (NumberFieldType) mappedFieldType;
     }
 
     boolean coerce() {
@@ -2364,7 +2410,7 @@ public class NumberFieldMapper extends FieldMapper {
 
     @Override
     public NumberFieldType fieldType() {
-        return (NumberFieldType) super.fieldType();
+        return fieldType;
     }
 
     @Override
@@ -2378,7 +2424,7 @@ public class NumberFieldMapper extends FieldMapper {
 
     @Override
     protected String contentType() {
-        return fieldType().type.typeName();
+        return fieldType.type.typeName();
     }
 
     @Override
@@ -2401,7 +2447,7 @@ public class NumberFieldMapper extends FieldMapper {
         if (value != null) {
             indexValue(context, value);
         } else {
-            value = fieldType().nullValue;
+            value = fieldType.nullValue;
         }
         if (offsetsFieldName != null && context.isImmediateParentAnArray() && context.canAddIgnoredField()) {
             if (value != null) {
@@ -2428,13 +2474,27 @@ public class NumberFieldMapper extends FieldMapper {
         if (currentToken == Token.VALUE_NULL) {
             return nullValue;
         }
-        if (coerce() && currentToken == Token.VALUE_STRING && parser.textLength() == 0) {
+        final boolean coerce = coerce();
+        if (coerce && currentToken == Token.VALUE_STRING && parser.textLength() == 0) {
             return nullValue;
         }
         if (currentToken == Token.START_OBJECT) {
             throw new IllegalArgumentException("Cannot parse object as number");
         }
-        return type.parse(parser, coerce());
+        // Switch avoids megamorphic virtual dispatch on the NumberType enum (visible in flamegraphs for bulk indexing).
+        return switch (type) {
+            case BYTE -> {
+                int value = parser.intValue(coerce);
+                if (value < Byte.MIN_VALUE || value > Byte.MAX_VALUE) {
+                    throw new IllegalArgumentException("Value [" + value + "] is out of range for a byte");
+                }
+                yield (byte) value;
+            }
+            case SHORT -> parser.shortValue(coerce);
+            case INTEGER -> parser.intValue(coerce);
+            case LONG -> parser.longValue(coerce);
+            default -> type.parse(parser, coerce);
+        };
     }
 
     /**
@@ -2443,22 +2503,66 @@ public class NumberFieldMapper extends FieldMapper {
      * fields that want to share the behavior of numeric fields.
      */
     public void indexValue(DocumentParserContext context, Number numericValue) {
-        if (dimension && numericValue != null) {
-            context.getRoutingFields().addLong(fieldType().name(), numericValue.longValue());
+        final String name = fieldType.name();
+        final LuceneDocument doc = context.doc();
+
+        if (dimension) {
+            context.getRoutingFields().addLong(name, numericValue.longValue());
         }
-        fieldType().type.addFields(context.doc(), fieldType().name(), numericValue, fieldType().indexType, stored);
+
+        // Switch avoids megamorphic virtual dispatch on the NumberType enum (visible in flamegraphs for bulk indexing).
+        switch (type) {
+            case BYTE, SHORT, INTEGER -> addIntFields(doc, name, numericValue.intValue());
+            case LONG -> addLongFields(doc, name, numericValue.longValue());
+            default -> type.addFields(doc, name, numericValue, fieldType.indexType, stored);
+        }
 
         if (false == allowMultipleValues && (indexed || docValuesParameters.enabled() || stored)) {
             // the last field is the current field, Add to the key map, so that we can validate if it has been added
-            List<IndexableField> fields = context.doc().getFields();
-            IndexableField last = fields.get(fields.size() - 1);
-            assert last.name().equals(fieldType().name())
-                : "last field name [" + last.name() + "] mis match field name [" + fieldType().name() + "]";
-            context.doc().onlyAddKey(fieldType().name(), fields.get(fields.size() - 1));
+            List<IndexableField> fields = doc.getFields();
+            final IndexableField last = fields.getLast();
+            assert last.name().equals(name) : "last field name [" + last.name() + "] mis match field name [" + name + "]";
+            doc.onlyAddKey(name, last);
         }
 
         if (docValuesParameters.enabled() == false && (stored || indexed)) {
-            context.addToFieldNames(fieldType().name());
+            context.addToFieldNames(name);
+        }
+    }
+
+    private void addIntFields(LuceneDocument document, String name, int i) {
+        final var indexType = fieldType.indexType();
+        if (indexType.hasPoints() && indexType.hasDocValues()) {
+            document.add(new IntField(name, i, Field.Store.NO));
+        } else if (indexType.hasDocValues()) {
+            if (indexType.hasDocValuesSkipper()) {
+                document.add(SortedNumericDocValuesField.indexedField(name, i));
+            } else {
+                document.add(new SortedNumericDocValuesField(name, i));
+            }
+        } else if (indexType.hasPoints()) {
+            document.add(new IntPoint(name, i));
+        }
+        if (stored) {
+            document.add(new StoredField(name, i));
+        }
+    }
+
+    private void addLongFields(LuceneDocument document, String name, long l) {
+        final var indexType = fieldType.indexType();
+        if (indexType.hasPoints() && indexType.hasDocValues()) {
+            document.add(new LongField(name, l, Field.Store.NO));
+        } else if (indexType.hasDocValues()) {
+            if (indexType.hasDocValuesSkipper()) {
+                document.add(SortedNumericDocValuesField.indexedField(name, l));
+            } else {
+                document.add(new SortedNumericDocValuesField(name, l));
+            }
+        } else if (indexType.hasPoints()) {
+            document.add(new LongPoint(name, l));
+        }
+        if (stored) {
+            document.add(new StoredField(name, l));
         }
     }
 

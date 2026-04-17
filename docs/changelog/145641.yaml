@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 145641
+summary: Schema-aware filter pushdown for DATETIME and DECIMAL
+type: enhancement

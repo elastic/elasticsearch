@@ -12,7 +12,6 @@ package org.elasticsearch.index.mapper.blockloader.docvalues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBinaryDocValues;
@@ -83,7 +82,7 @@ public class BytesRefsFromCustomBinaryBlockLoader extends BlockDocValuesReader.D
     }
 
     /**
-     * Read BinaryDocValues encoded by {@link BinaryFieldMapper.CustomBinaryDocValuesField}
+     * Read BinaryDocValues encoded by {@link org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.IntegratedCount}
      */
     static class BytesRefsFromCustomBinary extends AbstractBytesRefsFromBinary {
         private final CustomBinaryDocValuesReader reader = new CustomBinaryDocValuesReader();

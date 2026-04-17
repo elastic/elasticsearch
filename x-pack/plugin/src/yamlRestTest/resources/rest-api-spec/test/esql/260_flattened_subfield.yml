@@ -114,13 +114,25 @@ setup:
 
 ---
 'loading from two indices with different mappings 2':
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [optional_fields_fix_load_partially_mapped]
+      reason: "error message changed"
   - do:
-      catch: '/Cannot use field \[foo.bar\] due to ambiguities being mapped as \[2\] incompatible types: \[keyword\] due to loading from _source.*\[unsupported\]/'
+      catch: bad_request
       esql.query:
         body:
           # [foo] is flattened in index1
           # [foo.bar] is keyword in index4
           query: 'SET unmapped_fields="load"; FROM index1,index4 | WHERE foo.bar == "something"'
+
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Found 1 problem' }
+  - contains: { error.reason: 'line 1:56: Cannot use field [foo.bar] with unsupported type [flattened]' }
 
 ---
 'loading from two indices with different mappings 3':

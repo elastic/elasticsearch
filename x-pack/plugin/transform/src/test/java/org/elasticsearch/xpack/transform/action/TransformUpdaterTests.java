@@ -199,6 +199,7 @@ public class TransformUpdaterTests extends ESTestCase {
                 true,
                 false,
                 false,
+                false,
                 AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
                 destIndexSettings,
                 listener
@@ -233,6 +234,7 @@ public class TransformUpdaterTests extends ESTestCase {
                 update,
                 null, // seqNoPrimaryTermAndIndex
                 true,
+                false,
                 false,
                 false,
                 AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
@@ -307,6 +309,7 @@ public class TransformUpdaterTests extends ESTestCase {
                 true,
                 false,
                 false,
+                false,
                 AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
                 destIndexSettings,
                 listener
@@ -374,6 +377,7 @@ public class TransformUpdaterTests extends ESTestCase {
                 true,
                 true,
                 false,
+                false,
                 AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
                 destIndexSettings,
                 listener
@@ -421,6 +425,7 @@ public class TransformUpdaterTests extends ESTestCase {
                 false,
                 false,
                 true,
+                false,
                 AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
                 destIndexSettings,
                 listener
@@ -463,6 +468,7 @@ public class TransformUpdaterTests extends ESTestCase {
                 true,
                 false,
                 true,
+                false,
                 AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
                 destIndexSettings,
                 listener
@@ -498,6 +504,7 @@ public class TransformUpdaterTests extends ESTestCase {
             false,
             false,
             true,
+            false,
             AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
             destIndexSettings,
             ActionListener.wrap(
@@ -563,6 +570,7 @@ public class TransformUpdaterTests extends ESTestCase {
                 TransformConfigUpdate.EMPTY,
                 null,
                 true,
+                false,
                 false,
                 false,
                 AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
@@ -638,6 +646,7 @@ public class TransformUpdaterTests extends ESTestCase {
                 TransformConfigUpdate.EMPTY,
                 null,
                 true,
+                false,
                 false,
                 false,
                 AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,

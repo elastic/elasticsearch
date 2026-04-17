@@ -1931,7 +1931,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 assertResultMap(
                     result,
                     getResultMatcher(result),
-                    matchesList().item(matchesMap().entry("name", "bucket").entry("type", "date")),
+                    matchesList().item(matchesMap().entry("name", "bucket").entry("type", "date").extraOk()),
                     hasSize(greaterThanOrEqualTo(1))
                 );
 

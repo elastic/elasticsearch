@@ -374,7 +374,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
 
     @Override
     public String formatName() {
-        return "parquet";
+        return "parquet-java";
     }
 
     @Override

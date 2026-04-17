@@ -120,6 +120,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -209,10 +210,16 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     );
 
     /**
-     * When true, the native parquet-rs Parquet reader is used instead of the Java-based parquet-mr reader.
-     * Only one Parquet plugin will be registered at runtime based on this toggle.
+     * When true, the native parquet-rs reader is used for .parquet files instead of the Java-based parquet-mr reader.
+     * Both readers are registered at startup; this setting controls which one the .parquet extension resolves to.
+     * Can be changed at runtime via cluster settings.
      */
-    static final boolean USE_NATIVE_PARQUET = true;
+    public static final Setting<Boolean> PARQUET_USE_NATIVE_READER = Setting.boolSetting(
+        "esql.parquet.use_native_reader",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
     private final List<PlanCheckerProvider> extraCheckerProviders = new ArrayList<>();
     private final List<DataSourcePlugin> dataSourcePlugins = new ArrayList<>();
@@ -251,16 +258,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             }
         }
 
-        // Remove the inactive Parquet plugin based on the toggle so only one registers for "parquet"
-        allDataSourcePlugins.removeIf(p -> {
-            String name = p.getClass().getSimpleName();
-            if (USE_NATIVE_PARQUET) {
-                return "ParquetDataSourcePlugin".equals(name);
-            } else {
-                return "ParquetRsPlugin".equals(name);
-            }
-        });
-
         // Build capabilities from plugin declarations (cheap -- no I/O, no heavy deps)
         DataSourceCapabilities dataSourceCapabilities = DataSourceCapabilities.build(allDataSourcePlugins);
 
@@ -274,6 +271,16 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             services.threadPool().executor(ThreadPool.Names.GENERIC)
         );
 
+        // Register dynamic alias so the setting controls which parquet reader is used at runtime.
+        // Both "parquet" (native) and "parquet-java" format readers are registered; the alias
+        // makes .parquet extension and "parquet" name lookups resolve to the active one.
+        AtomicBoolean useNativeParquet = new AtomicBoolean(PARQUET_USE_NATIVE_READER.get(settings));
+        if (dataSourceModule.formatReaderRegistry().hasFormat("parquet")
+            && dataSourceModule.formatReaderRegistry().hasFormat("parquet-java")) {
+            dataSourceModule.formatReaderRegistry()
+                .registerDynamicAlias(".parquet", "parquet", "parquet", "parquet-java", useNativeParquet::get);
+        }
+
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
         EsqlParser parser = new EsqlParser(new EsqlConfig(functionRegistry));
         capabilities.set(EsqlCapabilities.capabilities(functionRegistry, false));
@@ -282,6 +289,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         services.clusterService()
             .getClusterSettings()
             .addSettingsUpdateConsumer(ExternalSourceCacheSettings.CACHE_ENABLED, cacheService::setEnabled);
+        services.clusterService().getClusterSettings().addSettingsUpdateConsumer(PARQUET_USE_NATIVE_READER, useNativeParquet::set);
 
         return List.of(
             new PlanExecutor(
@@ -343,7 +351,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD,
                 ViewService.MAX_VIEWS_COUNT_SETTING,
                 ViewService.MAX_VIEW_LENGTH_SETTING,
-                ViewResolver.MAX_VIEW_DEPTH_SETTING
+                ViewResolver.MAX_VIEW_DEPTH_SETTING,
+                PARQUET_USE_NATIVE_READER
             )
         );
         settings.addAll(PlannerSettings.settings());

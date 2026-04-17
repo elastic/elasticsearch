@@ -68,7 +68,7 @@ public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQuery
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        format = new ESNextDiskBBQVectorsFormat(128, 4, null);
+        format = new ESNextDiskBBQVectorsFormat(128, 4, SLICE_FIELD);
         // only one slice so it behaves as a normal index
         this.numSlices = 1;
         querySlice = new BytesRef("" + 0);

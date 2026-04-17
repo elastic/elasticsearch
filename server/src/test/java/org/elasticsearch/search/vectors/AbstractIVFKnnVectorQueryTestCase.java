@@ -625,9 +625,10 @@ abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
             // implementation.
             IndexWriterConfig iwc = configStandardCodec();
             iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(format));
+            decorateIWC(iwc);
             RandomIndexWriter w = new RandomIndexWriter(random(), d, iwc);
             for (int i = 0; i < numDocs; i++) {
-                Document doc = new Document();
+                Document doc = getDocumentToIndex();
                 doc.add(getKnnVectorField("field", randomVector(dimension)));
                 doc.add(new NumericDocValuesField("tag", i));
                 doc.add(new IntPoint("tag", i));
@@ -643,14 +644,14 @@ abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
 
                     // Test a filter with cost less than k and check we use exact search
                     Query filter1 = IntPoint.newRangeQuery("tag", lower, lower + 8);
-                    TopDocs results = searcher.search(getStableKnnVectorQuery("field", randomVector(dimension), 10, filter1), numDocs);
+                    TopDocs results = searcher.search(getKnnVectorQuery("field", randomVector(dimension), 10, filter1), numDocs);
                     assertEquals(9, results.totalHits.value());
                     assertEquals(results.totalHits.value(), results.scoreDocs.length);
 
                     // Test an unrestrictive filter and check we use approximate search
                     Query filter3 = IntPoint.newRangeQuery("tag", lower, numDocs);
                     results = searcher.search(
-                        getStableKnnVectorQuery("field", randomVector(dimension), 5, filter3),
+                        getKnnVectorQuery("field", randomVector(dimension), 5, filter3),
                         numDocs,
                         new Sort(new SortField("tag", SortField.Type.INT))
                     );
@@ -667,7 +668,7 @@ abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
                     // Test a filter with cost slightly more than k, and check we use exact search as k
                     // results are not retrieved from approximate search
                     Query filter5 = IntPoint.newRangeQuery("tag", lower, lower + 11);
-                    results = searcher.search(getStableKnnVectorQuery("field", randomVector(dimension), 10, filter5), numDocs);
+                    results = searcher.search(getKnnVectorQuery("field", randomVector(dimension), 10, filter5), numDocs);
                     assertEquals(10, results.totalHits.value());
                     assertEquals(results.totalHits.value(), results.scoreDocs.length);
                 }
@@ -686,10 +687,11 @@ abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
             // implementation.
             IndexWriterConfig iwc = configStandardCodec();
             iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(format));
+            decorateIWC(iwc);
             IndexWriter w = new IndexWriter(d, iwc);
             float[] vector = randomVector(dimension);
             for (int i = 0; i < numDocs; i++) {
-                Document doc = new Document();
+                Document doc = getDocumentToIndex();
                 doc.add(getKnnVectorField("field", vector));
                 doc.add(new IntPoint("tag", i));
                 w.addDocument(doc);
@@ -704,12 +706,12 @@ abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
 
                 // Test a restrictive filter, which usually performs exact search
                 Query filter1 = IntPoint.newRangeQuery("tag", lower, lower + 6);
-                TopDocs results = searcher.search(getStableKnnVectorQuery("field", randomVector(dimension), size, filter1), size);
+                TopDocs results = searcher.search(getKnnVectorQuery("field", randomVector(dimension), size, filter1), size);
                 assertEquals(size, results.scoreDocs.length);
 
                 // Test an unrestrictive filter, which usually performs approximate search
                 Query filter2 = IntPoint.newRangeQuery("tag", lower, numDocs);
-                results = searcher.search(getStableKnnVectorQuery("field", randomVector(dimension), size, filter2), size);
+                results = searcher.search(getKnnVectorQuery("field", randomVector(dimension), size, filter2), size);
                 assertEquals(size, results.scoreDocs.length);
             }
         }

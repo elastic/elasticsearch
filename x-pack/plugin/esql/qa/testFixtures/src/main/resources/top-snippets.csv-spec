@@ -151,6 +151,20 @@ snippets:keyword
 null
 ;
 
+topSnippetsWithMultivaluedQuery
+required_capability: top_snippets_mv
+
+ROW content = "Senior Team Lead", queries = ["lead", "senior"]
+| EVAL snippets = TOP_SNIPPETS(content, queries)
+| KEEP snippets
+;
+warning:Line 2:19: evaluation of [TOP_SNIPPETS(content, queries)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:19: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+snippets:keyword
+null
+;
+
 topSnippetsWithNullField
 required_capability: top_snippets_function
 

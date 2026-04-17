@@ -521,37 +521,6 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         assertThat(err, is("1:30: first argument for [EMBEDDING(last_name, ?)] must be a constant string"));
     }
 
-    public void testTopSnippetsMultiValuedQueryFromIndex() {
-        assumeTrue("top_snippets must be enabled", EsqlCapabilities.Cap.TOP_SNIPPETS_MV.isEnabled());
-
-        var err = error(
-            analyzer().addDefaultIndex().query("FROM test | EVAL snippets = TOP_SNIPPETS(first_name, [\"lead\", \"senior\"])")
-        );
-        assertThat(
-            err,
-            is(
-                "1:54: second argument of [TOP_SNIPPETS(first_name, [\"lead\", \"senior\"])]"
-                    + " must be a constant single-valued string, received [[\"lead\", \"senior\"]]"
-            )
-        );
-    }
-
-    public void testTopSnippetsMultiValuedQueryFromRow() {
-        assumeTrue("top_snippets must be enabled", EsqlCapabilities.Cap.TOP_SNIPPETS_MV.isEnabled());
-
-        var err = error(analyzer().query("""
-            ROW content = "Senior Team Lead", queries = ["lead", "senior"]
-            | EVAL snippets = TOP_SNIPPETS(content, queries)
-            """));
-        assertThat(
-            err,
-            is(
-                "1:45: second argument of [TOP_SNIPPETS(content, queries)]"
-                    + " must be a constant single-valued string, received [[\"lead\", \"senior\"]]"
-            )
-        );
-    }
-
     public void testEmbeddingFunctionInvalidInferenceId() {
         assumeTrue("Embedding function must be enabled", EsqlCapabilities.Cap.EMBEDDING_FUNCTION.isEnabled());
 

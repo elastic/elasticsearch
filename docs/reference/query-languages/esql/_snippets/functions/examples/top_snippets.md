@@ -114,8 +114,9 @@ ROW content = CONCAT(
 | \## Policy Changes\nGovernment regulations can accelerate the transition to <em>clean</em> <em>energy</em> through carbon pricing and renewable <em>energy</em> mandates. |
 
 
-This is another example of setting `num_words` to 0, this time applied to a column that has
-    already been chunked with the `CHUNK` command. Because the text is pre-chunked, no further
-    splitting is needed, each chunk is scored and highlighted individually.
+This is another example of setting `num_words` to 0, this time applied to an input that has
+    already been chunked with the `CHUNK` command. The markdown text is chunked by sections first, and
+    because the text is pre-chunked, no further splitting is needed. Setting `num_words` to 0 disables
+    chunking so that each chunk is scored and highlighted individually.
 
 

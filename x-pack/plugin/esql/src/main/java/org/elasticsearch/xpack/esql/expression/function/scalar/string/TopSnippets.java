@@ -285,14 +285,10 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
 
     @Override
     public void postOptimizationVerification(Failures failures) {
-        if (query() != null) {
-            if (query() instanceof Literal == false
-                || ((Literal) query()).value() instanceof List<?>) {
-                failures.add(
-                    fail(query(), "second argument of [{}] must be a constant single-valued string, received [{}]",
-                        sourceText(), Expressions.name(query()))
-                );
-            }
+        if (query() != null && query() instanceof Literal == false) {
+            failures.add(
+                fail(query(), "second argument of [{}] must be a constant, received [{}]", sourceText(), Expressions.name(query()))
+            );
         }
     }
 
@@ -341,9 +337,6 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
 
     @Override
     public boolean foldable() {
-        if (query() instanceof Literal literal && literal.value() instanceof List<?>) {
-            return false;
-        }
         return field().foldable() && query().foldable() && (options() == null || options().foldable());
     }
 
@@ -399,7 +392,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
         @Fixed(includeInToString = false) PassageFormatter highlightFormatter
     ) {
         if (queryString == null) {
-            throw new IllegalArgumentException("query must be a constant single-valued string");
+            throw new IllegalArgumentException("single-value function encountered multi-value");
         }
         int valueCount = field.getValueCount(position);
         if (valueCount == 0) {
@@ -520,6 +513,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
         MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer();
 
         Object foldedQuery = query.fold(toEvaluator.foldCtx());
+        // at this point this should only return null if we have List<BytesRef> which we handle in process
         String queryString = foldedQuery instanceof BytesRef bytes ? bytes.utf8ToString() : null;
 
         return new TopSnippetsEvaluator.Factory(

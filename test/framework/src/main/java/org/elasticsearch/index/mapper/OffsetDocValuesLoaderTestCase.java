@@ -140,6 +140,7 @@ public abstract class OffsetDocValuesLoaderTestCase extends MapperServiceTestCas
         minimalMapping(mapping);
         mapping.startObject("doc_values").field("cardinality", "high").endObject();
         mapping.endObject().endObject().endObject().endObject();
+        testOffsetArrayRandom(mapping);
     }
 
     protected void minimalMapping(XContentBuilder b) throws IOException {

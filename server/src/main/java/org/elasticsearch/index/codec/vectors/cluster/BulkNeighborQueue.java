@@ -195,7 +195,6 @@ public class BulkNeighborQueue {
         private int size;
         private long threshold = Long.MIN_VALUE;
         private float thresholdScore = Float.NEGATIVE_INFINITY;
-        private int thresholdNode = Integer.MAX_VALUE;
 
         private ReservoirTopK(int maxSize) {
             this.maxSize = maxSize;
@@ -243,8 +242,7 @@ public class BulkNeighborQueue {
                 int doc = docs[i];
                 long encoded = encodeRaw(doc, score);
                 values[size] = encoded;
-                boolean beatsThreshold = score > thresholdScore || (score == thresholdScore && doc < thresholdNode);
-                int acceptedDelta = beatsThreshold && encoded > threshold ? 1 : 0;
+                int acceptedDelta = encoded > threshold ? 1 : 0;
                 size += acceptedDelta;
                 accepted += acceptedDelta;
                 if (size == capacity) {
@@ -320,14 +318,12 @@ public class BulkNeighborQueue {
 
         private void refreshThresholdCache() {
             thresholdScore = decodeScoreRaw(threshold);
-            thresholdNode = (int) ~threshold;
         }
 
         private void reset() {
             size = 0;
             threshold = Long.MIN_VALUE;
             thresholdScore = Float.NEGATIVE_INFINITY;
-            thresholdNode = Integer.MAX_VALUE;
         }
 
         /**

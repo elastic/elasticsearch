@@ -442,6 +442,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.PushExpressionToLoadIT
   method: testRoundToLongExactMatch
   issue: https://github.com/elastic/elasticsearch/issues/146615
+- class: org.elasticsearch.xpack.esql.optimizer.ApproximationGoldenTests
+  method: testApproximationDisabled
+  issue: https://github.com/elastic/elasticsearch/issues/146564
 
 # Examples:
 #

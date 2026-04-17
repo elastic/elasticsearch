@@ -55,6 +55,14 @@ Best practices:
 
 ::::{applies-switch}
 
+:::{applies-item} stack: ga 9.4.1+
+
+```esql
+COMPLETION [column =] prompt WITH { "inference_id" : "my_inference_endpoint" [, "timeout" : "<timeout_duration>"] }
+```
+
+:::
+
 :::{applies-item} stack: ga 9.2+
 
 ```esql
@@ -88,6 +96,11 @@ COMPLETION [column =] prompt WITH my_inference_endpoint
 :   The ID of the [inference endpoint](docs-content://explore-analyze/elastic-inference/inference-api.md) to use for the task.
     The inference endpoint must be configured with the `completion` task type.
 
+`timeout_duration`
+:   (Optional) Timeout for the inference request (for example, `"30s"`, `"1m"`).
+    If not specified, the default inference timeout applies. Use this to set a
+    per-call timeout independent of the inference inference task timeout.
+
 ## Description
 
 The `COMPLETION` command provides a general-purpose interface for
@@ -111,21 +124,13 @@ task type `completion`.
 
 ### Handling timeouts
 
-`COMPLETION` commands may time out when processing large datasets or complex prompts. The default timeout is 10 minutes, but you can increase this limit if necessary.
+`COMPLETION` commands may time out when processing large datasets or complex prompts.
+The default timeout is 30 seconds, but you can increase this limit if necessary.
 
-How you increase the timeout depends on your deployment type:
-
-::::{applies-switch}
-
-:::{applies-item} ess:
-* You can adjust {{es}} settings in the [Elastic Cloud Console](docs-content://deploy-manage/deploy/elastic-cloud/edit-stack-settings.md)
-* You can also adjust the `search.default_search_timeout` cluster setting using [Kibana's Advanced settings](kibana://reference/advanced-settings.md#kibana-search-settings)
-:::
-
-:::{applies-item} self:
-* You can configure at the cluster level by setting `search.default_search_timeout` in `elasticsearch.yml` or updating via [Cluster Settings API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings)
-* You can also adjust the `search:timeout` setting using [Kibana's Advanced settings](kibana://reference/advanced-settings.md#kibana-search-settings)
-* Alternatively, you can add timeout parameters to individual queries
+You can set a per-call inference timeout using the `"timeout"` option in the `WITH` clause:
+  ```esql
+  COMPLETION answer = question WITH { "inference_id": "my_inference_endpoint", "timeout": "1m" }
+  ```
 :::
 
 :::{applies-item} serverless:

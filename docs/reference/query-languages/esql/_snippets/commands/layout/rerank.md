@@ -54,9 +54,25 @@ FROM books
 
 ## Syntax
 
+::::{applies-switch}
+
+:::{applies-item} stack: ga 9.4.1+
+
+```esql
+RERANK [column =] query ON field [, field, ...] [WITH { "inference_id" : "my_inference_endpoint" [, "timeout" : "<timeout_duration>"] }]
+```
+
+:::
+
+:::{applies-item} stack: preview 9.2-9.3, ga 9.4.0+
+
 ```esql
 RERANK [column =] query ON field [, field, ...] [WITH { "inference_id" : "my_inference_endpoint" }]
 ```
+
+:::
+
+::::
 
 ## Parameters
 
@@ -79,6 +95,11 @@ text that the reranking model will evaluate.
 the [inference endpoint](docs-content://explore-analyze/elastic-inference/inference-api.md)
 to use for the task.
 The inference endpoint must be configured with the `rerank` task type.
+
+`timeout_duration`
+:   (Optional) Timeout for the inference request (for example, `"30s"`, `"1m"`).
+    If not specified, the default search timeout applies. Use this to set a
+    per-call timeout independent of the cluster-wide search timeout.
 
 ## Description
 
@@ -105,28 +126,13 @@ task type `rerank`.
 ### Handling timeouts
 
 `RERANK` commands may time out when processing large datasets or complex
-queries. The default timeout is 10 minutes, but you can increase this limit if
+queries. The default timeout is 30 seconds, but you can increase this limit if
 necessary.
 
-How you increase the timeout depends on your deployment type:
-
-::::{tab-set}
-:::{tab-item} {{ech}}
-
-* You can adjust {{es}} settings in
-  the [Elastic Cloud Console](docs-content://deploy-manage/deploy/elastic-cloud/edit-stack-settings.md)
-* You can also adjust the `search.default_search_timeout` cluster setting
-  using [Kibana's Advanced settings](kibana://reference/advanced-settings.md#kibana-search-settings)
-  :::
-
-:::{tab-item} Self-managed
-
-* You can configure at the cluster level by setting
-  `search.default_search_timeout` in `elasticsearch.yml` or updating
-  via [Cluster Settings API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings)
-* You can also adjust the `search:timeout` setting
-  using [Kibana's Advanced settings](kibana://reference/advanced-settings.md#kibana-search-settings)
-* Alternatively, you can add timeout parameters to individual queries
+You can set a per-call inference timeout using the `"timeout"` option in the `WITH` clause:
+  ```esql
+  RERANK "search query" ON title WITH { "inference_id": "my_rerank_endpoint", "timeout": "30s" }
+  ```
   :::
 
 :::{tab-item} {{serverless-full}}

@@ -21,5 +21,8 @@ stack: ga 9.4.0, preview 9.3.0
 :::{include} ../types/text_embedding.md
 :::
 
+:::{include} ../functionNamedParams/text_embedding.md
+:::
+
 :::{include} ../examples/text_embedding.md
 :::

@@ -542,6 +542,39 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         }
     }
 
+    public void testTerminateAfterWithAggsAndEarlyTerminatedTopDocs() throws IOException {
+        // When the top docs collector early terminates for every segment (simulating size=0 with track_total_hits disabled,
+        // where PartialHitCountCollector has threshold 0), terminate_after should still be honored for aggs collection.
+        {
+            int terminateAfter = randomIntBetween(1, numDocs - 1);
+            DummyTotalHitCountCollector aggsCollector = new DummyTotalHitCountCollector();
+            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(
+                new TerminateAfterCollector(new DummyTotalHitCountCollector(), 0),
+                null,
+                resolveTerminateAfterChecker(terminateAfter),
+                aggsCollector,
+                null
+            );
+            searcher.search(Queries.ALL_DOCS_INSTANCE, queryPhaseCollector);
+            assertTrue(queryPhaseCollector.isTerminatedAfter());
+            assertEquals(terminateAfter, aggsCollector.getTotalHits());
+        }
+        {
+            // terminate_after equal to numDocs: no early termination
+            DummyTotalHitCountCollector aggsCollector = new DummyTotalHitCountCollector();
+            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(
+                new TerminateAfterCollector(new DummyTotalHitCountCollector(), 0),
+                null,
+                resolveTerminateAfterChecker(numDocs),
+                aggsCollector,
+                null
+            );
+            searcher.search(Queries.ALL_DOCS_INSTANCE, queryPhaseCollector);
+            assertFalse(queryPhaseCollector.isTerminatedAfter());
+            assertEquals(numDocs, aggsCollector.getTotalHits());
+        }
+    }
+
     public void testTerminateAfterTopDocsOnlyWithPostFilter() throws IOException {
         TermQuery termQuery = new TermQuery(new Term("field2", "value"));
         Weight filterWeight = termQuery.createWeight(searcher, ScoreMode.TOP_DOCS, 1f);

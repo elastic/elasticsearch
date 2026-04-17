@@ -7,11 +7,12 @@ The `PROMQL` source command is similar to the [`TS`](/reference/query-languages/
 source command allowing you to query time series data using [**Prometheus Query Language**](https://prometheus.io/docs/prometheus/latest/querying/basics/).
 
 ::::{note}
-In 9.4, the `PROMQL` command is available as a preview feature. The most notable gaps:
+In 9.4, `PROMQL` command is available as a preview feature. Current limitations include:
 
-- **Group modifiers** like `on(chip) group_left(chip_name)`.
-- **Set operators** like `or`, `and`, `unless`.
-- **Some functions** including `histogram_quantile`, `predict_linear`, and `label_join`.
+- **Group modifiers**, such as on(chip) group_left(chip_name)
+- **Set operators**, such as or, and, and unless
+- **Some functions**, including histogram_quantile, predict_linear, and label_join
+- **Time buckets** align to fixed calendar boundaries rather than the query start time. This can cause slight differences from Prometheus, especially for short ranges or large step sizes.
 ::::
 
 

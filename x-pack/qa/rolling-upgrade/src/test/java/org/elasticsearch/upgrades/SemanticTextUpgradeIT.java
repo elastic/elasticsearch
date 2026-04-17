@@ -16,6 +16,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils;
@@ -33,7 +34,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
-import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.model.TestModel;
 import org.junit.BeforeClass;
 
@@ -88,9 +88,10 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
         switch (CLUSTER_TYPE) {
             case OLD -> {
                 assumeFalse(
-                    "Legacy format index creation is not supported when cluster has ["
-                        + SemanticTextFieldMapper.SEMANTIC_TEXT_PREVENT_LEGACY_FORMAT_NEW_INDICES.id() + "] feature",
-                    useLegacyFormat && clusterHasFeature(SemanticTextFieldMapper.SEMANTIC_TEXT_PREVENT_LEGACY_FORMAT_NEW_INDICES)
+                    "Legacy format index creation is not supported on clusters with index version ["
+                        + IndexVersions.SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN
+                        + "] or later",
+                    useLegacyFormat && minimumIndexVersion().onOrAfter(IndexVersions.SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN)
                 );
                 createAndPopulateIndex();
             }

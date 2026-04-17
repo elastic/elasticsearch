@@ -16,6 +16,8 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.search.TopDocs;
@@ -135,10 +137,7 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         List<IndexableField> fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.size());
 
-        var reader = fields.get(0).readerValue();
-        char[] buff = new char[20];
-        assertEquals(4, reader.read(buff));
-        assertEquals("1234", new String(buff, 0, 4));
+        assertEquals("1234", fields.get(0).stringValue());
 
         IndexableFieldType fieldType = fields.get(0).fieldType();
         assertThat(fieldType.omitNorms(), equalTo(true));
@@ -733,6 +732,38 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 SearchExecutionContext context = createSearchExecutionContext(mapperService, newSearcher(reader));
                 MatchPhraseQueryBuilder queryBuilder = new MatchPhraseQueryBuilder("field", "brown fox");
+                TopDocs docs = context.searcher().search(queryBuilder.toQuery(context), 1);
+                assertThat(docs.totalHits.value(), equalTo(1L));
+                assertThat(docs.totalHits.relation(), equalTo(TotalHits.Relation.EQUAL_TO));
+            }
+        }
+    }
+
+    public void testIndexUnicodeSurrogatePairs() throws IOException {
+        var mapping = mapping(b -> {
+            b.startObject("field");
+            b.field("type", "match_only_text");
+            b.endObject();
+        });
+        var mapperService = createSytheticSourceMapperService(mapping);
+
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 128; i++) {
+            sb.append(Character.toChars(0x13000 + (i % 48)));
+        }
+
+        var source = source(b -> b.field("field", sb.toString()));
+
+        try (Directory directory = newDirectory()) {
+            IndexWriterConfig conf = new IndexWriterConfig();
+            IndexWriter iw = new IndexWriter(directory, conf);
+            LuceneDocument doc = mapperService.documentMapper().parse(source).rootDoc();
+            iw.addDocument(doc);
+            iw.close();
+
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                SearchExecutionContext context = createSearchExecutionContext(mapperService, newSearcher(reader));
+                MatchPhraseQueryBuilder queryBuilder = new MatchPhraseQueryBuilder("field", sb.toString());
                 TopDocs docs = context.searcher().search(queryBuilder.toQuery(context), 1);
                 assertThat(docs.totalHits.value(), equalTo(1L));
                 assertThat(docs.totalHits.relation(), equalTo(TotalHits.Relation.EQUAL_TO));

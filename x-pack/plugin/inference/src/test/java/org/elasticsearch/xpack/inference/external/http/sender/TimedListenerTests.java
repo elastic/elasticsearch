@@ -40,7 +40,11 @@ public class TimedListenerTests extends ESTestCase {
 
     private static final String INFERENCE_ID = "test-inference-id";
     private static final TimeValue ONE_MILLISECOND = TimeValue.timeValueMillis(1);
-    private static final String REQUEST_TIMED_OUT_MESSAGE = format("Request timed out after [%s] for inference id [%s]", ONE_MILLISECOND, INFERENCE_ID);
+    private static final String REQUEST_TIMED_OUT_MESSAGE = format(
+        "Request timed out after [%s] for inference id [%s]",
+        ONE_MILLISECOND,
+        INFERENCE_ID
+    );
 
     private ThreadPool threadPool;
 

@@ -376,7 +376,10 @@ public class HttpRequestSenderTests extends ESTestCase {
 
             var thrownException = expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(TIMEOUT));
 
-            assertThat(thrownException.getMessage(), is(format("Request timed out after [%s] for inference id [%s]", ONE_NANOSECOND, INFERENCE_ID)));
+            assertThat(
+                thrownException.getMessage(),
+                is(format("Request timed out after [%s] for inference id [%s]", ONE_NANOSECOND, INFERENCE_ID))
+            );
             assertThat(thrownException.status(), is(RestStatus.TOO_MANY_REQUESTS));
         }
     }
@@ -403,7 +406,10 @@ public class HttpRequestSenderTests extends ESTestCase {
 
             var thrownException = expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(TIMEOUT));
 
-            assertThat(thrownException.getMessage(), is(format("Request timed out after [%s] for inference id [%s]", ONE_NANOSECOND, INFERENCE_ID)));
+            assertThat(
+                thrownException.getMessage(),
+                is(format("Request timed out after [%s] for inference id [%s]", ONE_NANOSECOND, INFERENCE_ID))
+            );
             assertThat(thrownException.status(), is(RestStatus.TOO_MANY_REQUESTS));
         }
     }
@@ -423,17 +429,14 @@ public class HttpRequestSenderTests extends ESTestCase {
             var request = mock(Request.class);
             when(request.getInferenceEntityId()).thenReturn(INFERENCE_ID);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            sender.sendWithoutQueuing(
-                mock(Logger.class),
-                request,
-                mock(ResponseHandler.class),
-                TimeValue.timeValueNanos(1),
-                listener
-            );
+            sender.sendWithoutQueuing(mock(Logger.class), request, mock(ResponseHandler.class), TimeValue.timeValueNanos(1), listener);
 
             var thrownException = expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(TIMEOUT));
 
-            assertThat(thrownException.getMessage(), is(format("Request timed out after [%s] for inference id [%s]", ONE_NANOSECOND, INFERENCE_ID)));
+            assertThat(
+                thrownException.getMessage(),
+                is(format("Request timed out after [%s] for inference id [%s]", ONE_NANOSECOND, INFERENCE_ID))
+            );
             assertThat(thrownException.status(), is(RestStatus.TOO_MANY_REQUESTS));
         }
     }

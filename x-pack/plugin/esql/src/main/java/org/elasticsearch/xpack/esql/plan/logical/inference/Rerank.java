@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -72,7 +71,7 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
             queryText,
             rerankFields,
             scoreAttribute,
-            InferenceAction.Request.DEFAULT_TIMEOUT
+            null
         );
     }
 
@@ -85,7 +84,7 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
         List<Alias> rerankFields,
         Attribute scoreAttribute
     ) {
-        this(source, child, inferenceId, rowLimit, queryText, rerankFields, scoreAttribute, InferenceAction.Request.DEFAULT_TIMEOUT);
+        this(source, child, inferenceId, rowLimit, queryText, rerankFields, scoreAttribute, null);
     }
 
     public Rerank(
@@ -114,7 +113,7 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
             in.readNamedWriteable(Expression.class),
             in.readCollectionAsList(Alias::new),
             in.readNamedWriteable(Attribute.class),
-            in.getTransportVersion().supports(ESQL_INFERENCE_ACCEPT_TIMEOUT) ? in.readTimeValue() : InferenceAction.Request.DEFAULT_TIMEOUT
+            in.getTransportVersion().supports(ESQL_INFERENCE_ACCEPT_TIMEOUT) ? in.readOptionalTimeValue() : null
         );
     }
 
@@ -125,7 +124,7 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
         out.writeCollection(rerankFields());
         out.writeNamedWriteable(scoreAttribute);
         if (out.getTransportVersion().supports(ESQL_INFERENCE_ACCEPT_TIMEOUT)) {
-            out.writeTimeValue(timeout);
+            out.writeOptionalTimeValue(timeout);
         }
     }
 
@@ -185,7 +184,7 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
     }
 
     public Rerank withTimeout(TimeValue newTimeout) {
-        if (timeout.equals(newTimeout)) {
+        if (Objects.equals(timeout, newTimeout)) {
             return this;
         }
         return new Rerank(source(), child(), inferenceId(), rowLimit(), queryText, rerankFields, scoreAttribute, newTimeout);

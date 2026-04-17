@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -67,7 +66,7 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
     private List<Attribute> lazyOutput;
 
     public Completion(Source source, LogicalPlan p, Expression rowLimit, Expression prompt, Attribute targetField) {
-        this(source, p, Literal.NULL, rowLimit, prompt, targetField, DEFAULT_TASK_SETTINGS, InferenceAction.Request.DEFAULT_TIMEOUT);
+        this(source, p, Literal.NULL, rowLimit, prompt, targetField, DEFAULT_TASK_SETTINGS, null);
     }
 
     public Completion(
@@ -78,7 +77,7 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
         Expression prompt,
         Attribute targetField
     ) {
-        this(source, child, inferenceId, rowLimit, prompt, targetField, DEFAULT_TASK_SETTINGS, InferenceAction.Request.DEFAULT_TIMEOUT);
+        this(source, child, inferenceId, rowLimit, prompt, targetField, DEFAULT_TASK_SETTINGS, null);
     }
 
     public Completion(
@@ -90,7 +89,7 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
         Attribute targetField,
         MapExpression taskSettings
     ) {
-        this(source, child, inferenceId, rowLimit, prompt, targetField, taskSettings, InferenceAction.Request.DEFAULT_TIMEOUT);
+        this(source, child, inferenceId, rowLimit, prompt, targetField, taskSettings, null);
     }
 
     public Completion(
@@ -122,7 +121,7 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
             // Deserialization is kept for rolling upgrade safety. Since old versions don't
             // know about task_settings, we use empty defaults.
             (MapExpression) in.readNamedWriteable(Expression.class),
-            in.getTransportVersion().supports(ESQL_INFERENCE_ACCEPT_TIMEOUT) ? in.readTimeValue() : InferenceAction.Request.DEFAULT_TIMEOUT
+            in.getTransportVersion().supports(ESQL_INFERENCE_ACCEPT_TIMEOUT) ? in.readOptionalTimeValue() : null
         );
     }
 
@@ -133,7 +132,7 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
         out.writeNamedWriteable(targetField);
         out.writeNamedWriteable(taskSettings);
         if (out.getTransportVersion().supports(ESQL_INFERENCE_ACCEPT_TIMEOUT)) {
-            out.writeTimeValue(timeout);
+            out.writeOptionalTimeValue(timeout);
         }
     }
 
@@ -175,7 +174,7 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
     }
 
     public Completion withTimeout(TimeValue newTimeout) {
-        if (timeout.equals(newTimeout)) {
+        if (Objects.equals(timeout, newTimeout)) {
             return this;
         }
         return new Completion(source(), child(), inferenceId(), rowLimit(), prompt, targetField, taskSettings, newTimeout);

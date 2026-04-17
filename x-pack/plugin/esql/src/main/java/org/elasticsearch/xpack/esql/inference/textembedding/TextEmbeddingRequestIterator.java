@@ -41,10 +41,11 @@ class TextEmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
         if (text == null) {
             return new BulkInferenceRequestItem(null, pvcs);
         }
-        return new BulkInferenceRequestItem(
-            InferenceAction.Request.builder(inferenceId, taskType).setInput(List.of(text)).setInferenceTimeout(timeout).build(),
-            pvcs
-        );
+        InferenceAction.Request.Builder builder = InferenceAction.Request.builder(inferenceId, taskType).setInput(List.of(text));
+        if (timeout != null) {
+            builder.setInferenceTimeout(timeout);
+        }
+        return new BulkInferenceRequestItem(builder.build(), pvcs);
     }
 
     /**

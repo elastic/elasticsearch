@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.inference;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
@@ -57,7 +56,7 @@ public class CompletionFunction extends InferenceFunction<CompletionFunction> {
     private final TimeValue timeout;
 
     public CompletionFunction(Source source, Expression prompt, Expression inferenceId, MapExpression taskSettings) {
-        this(source, prompt, inferenceId, taskSettings, InferenceAction.Request.DEFAULT_TIMEOUT);
+        this(source, prompt, inferenceId, taskSettings, null);
     }
 
     public CompletionFunction(Source source, Expression prompt, Expression inferenceId, MapExpression taskSettings, TimeValue timeout) {

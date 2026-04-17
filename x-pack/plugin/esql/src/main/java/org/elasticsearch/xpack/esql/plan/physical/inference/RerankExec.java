@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -52,7 +51,7 @@ public class RerankExec extends InferenceExec {
         List<Alias> rerankFields,
         Attribute scoreAttribute
     ) {
-        this(source, child, inferenceId, queryText, rerankFields, scoreAttribute, InferenceAction.Request.DEFAULT_TIMEOUT);
+        this(source, child, inferenceId, queryText, rerankFields, scoreAttribute, null);
     }
 
     public RerankExec(
@@ -79,9 +78,7 @@ public class RerankExec extends InferenceExec {
             in.readNamedWriteable(Expression.class),
             in.readCollectionAsList(Alias::new),
             in.readNamedWriteable(Attribute.class),
-            in.getTransportVersion().supports(InferencePlan.ESQL_INFERENCE_ACCEPT_TIMEOUT)
-                ? in.readTimeValue()
-                : InferenceAction.Request.DEFAULT_TIMEOUT
+            in.getTransportVersion().supports(InferencePlan.ESQL_INFERENCE_ACCEPT_TIMEOUT) ? in.readOptionalTimeValue() : null
         );
     }
 
@@ -113,7 +110,7 @@ public class RerankExec extends InferenceExec {
         out.writeCollection(rerankFields());
         out.writeNamedWriteable(scoreAttribute);
         if (out.getTransportVersion().supports(InferencePlan.ESQL_INFERENCE_ACCEPT_TIMEOUT)) {
-            out.writeTimeValue(timeout);
+            out.writeOptionalTimeValue(timeout);
         }
     }
 

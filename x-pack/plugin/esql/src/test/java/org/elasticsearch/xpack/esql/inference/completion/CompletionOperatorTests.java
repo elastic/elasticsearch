@@ -48,7 +48,7 @@ public class CompletionOperatorTests extends InferenceOperatorTestCase<ChatCompl
             SIMPLE_INFERENCE_ID,
             evaluatorFactory(inputChannel),
             Map.of(),
-            InferenceAction.Request.DEFAULT_TIMEOUT
+            null
         );
     }
 
@@ -122,7 +122,7 @@ public class CompletionOperatorTests extends InferenceOperatorTestCase<ChatCompl
             SIMPLE_INFERENCE_ID,
             evaluatorFactory(inputChannel),
             Map.of(),
-            InferenceAction.Request.DEFAULT_TIMEOUT
+            null
         );
 
         DriverContext driverContext = driverContext();

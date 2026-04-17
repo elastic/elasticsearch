@@ -51,7 +51,7 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
         final String inferenceId = randomIdentifier();
         final BytesRefBlock[] inputBlocks = new BytesRefBlock[] { randomInputBlock(size) };
 
-        try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize, InferenceAction.Request.DEFAULT_TIMEOUT)) {
+        try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize, null)) {
             // Should produce exactly one request containing all items
             assertTrue(requestIterator.hasNext());
 
@@ -75,7 +75,7 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
         final String inferenceId = randomIdentifier();
         final BytesRefBlock[] inputBlocks = new BytesRefBlock[] { randomInputBlock(0) };
 
-        try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, 20, InferenceAction.Request.DEFAULT_TIMEOUT)) {
+        try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, 20, null)) {
             // Empty page should have no iterations
             assertFalse(requestIterator.hasNext());
 
@@ -92,7 +92,7 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
         final int batchSize = 10;
         final BytesRefBlock[] inputBlocks = new BytesRefBlock[] { randomInputBlockWithNulls(size) };
 
-        try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize, InferenceAction.Request.DEFAULT_TIMEOUT)) {
+        try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize, null)) {
             int totalPositionsProcessed = 0;
             while (requestIterator.hasNext()) {
                 BulkInferenceRequestItem requestItem = requestIterator.next();
@@ -156,7 +156,7 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
             BytesRefBlock inputBlock = blockBuilder.build();
             BytesRefBlock[] inputBlocks = new BytesRefBlock[] { inputBlock };
 
-            try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize, InferenceAction.Request.DEFAULT_TIMEOUT)) {
+            try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize, null)) {
                 // First batch: 1 null position + 10 document positions
                 // Position value counts [0,1,1,1,1,1,1,1,1,1,1] where first 0 is the leading null
                 assertTrue(requestIterator.hasNext());
@@ -187,7 +187,7 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
         final int batchSize = between(5, 50);
         final BytesRefBlock[] inputBlocks = new BytesRefBlock[] { randomInputBlock(size) };
 
-        try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize, InferenceAction.Request.DEFAULT_TIMEOUT)) {
+        try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize, null)) {
             assertThat(requestIterator.estimatedSize(), equalTo(size));
         }
 
@@ -200,7 +200,7 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
         final int batchSize = 10;
         final BytesRefBlock[] inputBlocks = new BytesRefBlock[] { randomInputBlock(size) };
 
-        try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize, InferenceAction.Request.DEFAULT_TIMEOUT)) {
+        try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize, null)) {
             List<Integer> batchSizes = new ArrayList<>();
             List<Integer> positionValueCountsLengths = new ArrayList<>();
 
@@ -253,7 +253,7 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
             BytesRefBlock inputBlock = blockBuilder.build();
             BytesRefBlock[] inputBlocks = new BytesRefBlock[] { inputBlock };
 
-            try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize, InferenceAction.Request.DEFAULT_TIMEOUT)) {
+            try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize, null)) {
                 // First batch: 5 document positions (hits batch size) + 3 trailing null positions
                 // Position value counts [1,1,1,1,1,0,0,0] represents 5 docs and 3 nulls bundled together
                 assertTrue(requestIterator.hasNext());
@@ -310,7 +310,7 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
             BytesRefBlock inputBlock = blockBuilder.build();
             BytesRefBlock[] inputBlocks = new BytesRefBlock[] { inputBlock };
 
-            try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize, InferenceAction.Request.DEFAULT_TIMEOUT)) {
+            try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize, null)) {
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem item = requestIterator.next();
 
@@ -350,7 +350,7 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
             BytesRefBlock inputBlock = blockBuilder.build();
             BytesRefBlock[] inputBlocks = new BytesRefBlock[] { inputBlock };
 
-            try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize, InferenceAction.Request.DEFAULT_TIMEOUT)) {
+            try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize, null)) {
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem item = requestIterator.next();
 
@@ -388,7 +388,7 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
             BytesRefBlock inputBlock = blockBuilder.build();
             BytesRefBlock[] inputBlocks = new BytesRefBlock[] { inputBlock };
 
-            try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize, InferenceAction.Request.DEFAULT_TIMEOUT)) {
+            try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize, null)) {
                 // Should produce one batch with no documents but position value counts [0,0,0,0,0]
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem item = requestIterator.next();
@@ -434,7 +434,7 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
 
             BytesRefBlock[] inputBlocks = new BytesRefBlock[] { blockBuilder1.build(), blockBuilder2.build() };
 
-            try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize, InferenceAction.Request.DEFAULT_TIMEOUT)) {
+            try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize, null)) {
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem item = requestIterator.next();
 
@@ -489,7 +489,7 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
 
             BytesRefBlock[] inputBlocks = new BytesRefBlock[] { blockBuilder1.build(), blockBuilder2.build() };
 
-            try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize, InferenceAction.Request.DEFAULT_TIMEOUT)) {
+            try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize, null)) {
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem item = requestIterator.next();
 
@@ -560,7 +560,7 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
 
             BytesRefBlock[] inputBlocks = new BytesRefBlock[] { blockBuilder1.build(), blockBuilder2.build() };
 
-            try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize, InferenceAction.Request.DEFAULT_TIMEOUT)) {
+            try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize, null)) {
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem item = requestIterator.next();
 
@@ -620,7 +620,7 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
 
             BytesRefBlock[] inputBlocks = new BytesRefBlock[] { blockBuilder1.build(), blockBuilder2.build() };
 
-            try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize, InferenceAction.Request.DEFAULT_TIMEOUT)) {
+            try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize, null)) {
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem item = requestIterator.next();
 
@@ -647,7 +647,7 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
         final String inferenceId = randomIdentifier();
         final BytesRefBlock[] inputBlocks = new BytesRefBlock[] { randomInputBlock(size) };
 
-        try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize, InferenceAction.Request.DEFAULT_TIMEOUT)) {
+        try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize, null)) {
             int totalItemsProcessed = 0;
             int requestCount = 0;
 

@@ -100,8 +100,10 @@ class CompletionRequestIterator implements BulkInferenceRequestItemIterator {
         }
 
         InferenceAction.Request.Builder builder = InferenceAction.Request.builder(inferenceId, TaskType.COMPLETION)
-            .setInput(List.of(prompt))
-            .setInferenceTimeout(timeout);
+            .setInput(List.of(prompt));
+        if (timeout != null) {
+            builder.setInferenceTimeout(timeout);
+        }
 
         // Only set task settings if explicitly provided by the user.
         // This preserves backward compatibility and avoids sending empty

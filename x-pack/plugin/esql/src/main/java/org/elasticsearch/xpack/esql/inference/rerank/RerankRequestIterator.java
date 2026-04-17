@@ -206,11 +206,13 @@ class RerankRequestIterator implements BulkInferenceRequestItemIterator {
         }
 
         // Create a defensive copy since the inputBuffer is reused for subsequent batches
-        return InferenceAction.Request.builder(inferenceId, TaskType.RERANK)
+        InferenceAction.Request.Builder builder = InferenceAction.Request.builder(inferenceId, TaskType.RERANK)
             .setInput(List.copyOf(inputs))
-            .setQuery(queryText)
-            .setInferenceTimeout(timeout)
-            .build();
+            .setQuery(queryText);
+        if (timeout != null) {
+            builder.setInferenceTimeout(timeout);
+        }
+        return builder.build();
     }
 
     @Override

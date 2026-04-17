@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -51,7 +50,7 @@ public class CompletionExec extends InferenceExec {
         Attribute targetField,
         MapExpression taskSettings
     ) {
-        this(source, child, inferenceId, prompt, targetField, taskSettings, InferenceAction.Request.DEFAULT_TIMEOUT);
+        this(source, child, inferenceId, prompt, targetField, taskSettings, null);
     }
 
     public CompletionExec(
@@ -78,9 +77,7 @@ public class CompletionExec extends InferenceExec {
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Attribute.class),
             (MapExpression) in.readNamedWriteable(Expression.class),
-            in.getTransportVersion().supports(InferencePlan.ESQL_INFERENCE_ACCEPT_TIMEOUT)
-                ? in.readTimeValue()
-                : InferenceAction.Request.DEFAULT_TIMEOUT
+            in.getTransportVersion().supports(InferencePlan.ESQL_INFERENCE_ACCEPT_TIMEOUT) ? in.readOptionalTimeValue() : null
         );
     }
 
@@ -96,7 +93,7 @@ public class CompletionExec extends InferenceExec {
         out.writeNamedWriteable(targetField);
         out.writeNamedWriteable(taskSettings);
         if (out.getTransportVersion().supports(InferencePlan.ESQL_INFERENCE_ACCEPT_TIMEOUT)) {
-            out.writeTimeValue(timeout);
+            out.writeOptionalTimeValue(timeout);
         }
     }
 

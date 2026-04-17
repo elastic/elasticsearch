@@ -19,6 +19,7 @@ import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.inference.AbstractEmbeddingRequestIterator;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItem;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItem.PositionValueCountsBuilder;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceReq
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Embedding request iterator for typed (DataType) inputs.
@@ -55,7 +57,10 @@ class EmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
             InputType.UNSPECIFIED,
             Map.of()
         );
-        return new BulkInferenceRequestItem(new EmbeddingAction.Request(inferenceId, taskType, embeddingRequest, timeout), pvcs);
+        return new BulkInferenceRequestItem(
+            new EmbeddingAction.Request(inferenceId, taskType, embeddingRequest, Objects.requireNonNullElse(timeout, InferenceAction.Request.DEFAULT_TIMEOUT)),
+            pvcs
+        );
     }
 
     /**

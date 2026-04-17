@@ -12,8 +12,6 @@ package org.elasticsearch.index.codec.vectors.cluster;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TaskExecutor;
-import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.HnswConcurrentMergeBuilder;

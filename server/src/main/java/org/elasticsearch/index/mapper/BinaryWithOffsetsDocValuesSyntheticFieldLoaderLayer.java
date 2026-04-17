@@ -12,8 +12,8 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -21,11 +21,11 @@ import java.util.Objects;
 import java.util.function.Function;
 
 /**
- * Load {@code _source} fields from {@link SortedSetDocValues} and associated {@link BinaryDocValues}. The former contains the unique values
- * in sorted order and the latter the offsets for each instance of the values. This allows synthesizing array elements in order as was
- * specified at index time. Note that this works only for leaf arrays.
+ * Load {@code _source} fields from {@link MultiValuedSortedBinaryDocValues} and associated {@link BinaryDocValues}.
+ * The former contains the unique values in sorted order and the latter the offsets for each instance of the values. This allows
+ * synthesizing array elements in order as was specified at index time. Note that this works only for leaf arrays.
  */
-final class SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer implements CompositeSyntheticFieldLoader.DocValuesLayer {
+final class BinaryWithOffsetsDocValuesSyntheticFieldLoaderLayer implements CompositeSyntheticFieldLoader.DocValuesLayer {
 
     private final String name;
     private final String offsetsFieldName;
@@ -36,7 +36,7 @@ final class SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer implements Co
      * @param name              The name of the field to synthesize
      * @param offsetsFieldName  The related offset field used to correctly synthesize the field if it is a leaf array
      */
-    SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer(String name, String offsetsFieldName) {
+    BinaryWithOffsetsDocValuesSyntheticFieldLoaderLayer(String name, String offsetsFieldName) {
         this(name, offsetsFieldName, Function.identity());
     }
 
@@ -48,7 +48,7 @@ final class SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer implements Co
      *                          format that can be serialized as utf8 string. For example IP field mapper doc values can't directly be
      *                          serialized as utf8 string.
      */
-    SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer(String name, String offsetsFieldName, Function<BytesRef, BytesRef> converter) {
+    BinaryWithOffsetsDocValuesSyntheticFieldLoaderLayer(String name, String offsetsFieldName, Function<BytesRef, BytesRef> converter) {
         this.name = Objects.requireNonNull(name);
         this.offsetsFieldName = Objects.requireNonNull(offsetsFieldName);
         this.converter = Objects.requireNonNull(converter);
@@ -61,8 +61,8 @@ final class SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer implements Co
 
     @Override
     public SourceLoader.SyntheticFieldLoader.DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
-        SortedSetDocValues valueDocValues = DocValues.getSortedSet(leafReader, name);
-        return docValues = ValuesWithOffsetsDocValuesLoader.sortedSetLoader(
+        MultiValuedSortedBinaryDocValues valueDocValues = MultiValuedSortedBinaryDocValues.from(leafReader, name);
+        return docValues = ValuesWithOffsetsDocValuesLoader.binaryLoader(
             valueDocValues,
             DocValues.getSorted(leafReader, offsetsFieldName),
             converter

@@ -259,7 +259,6 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
 
             // Wait for watcher to actually start....
             startWatcher();
-
             try {
                 final Map<String, Object> getWatchStatusResponse = entityAsMap(client().performRequest(getWatchStatusRequest));
                 final Map<String, Object> status = (Map<String, Object>) getWatchStatusResponse.get("status");
@@ -276,8 +275,15 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
                     if (false == executed.get() && "executed".equals(newStatus.get("execution_state"))) {
                         executed.set(true);
                     }
+                    logger.debug("new watch status: {}", newStatus);
                     assertThat(
-                        "version increased: [" + versionIncreased.get() + "], executed: [" + executed.get() + "]",
+                        "version increased: ["
+                            + versionIncreased.get()
+                            + "], executed: ["
+                            + executed.get()
+                            + "], execution state: ["
+                            + newStatus.get("execution_state")
+                            + "]",
                         versionIncreased.get() && executed.get(),
                         is(true)
                     );

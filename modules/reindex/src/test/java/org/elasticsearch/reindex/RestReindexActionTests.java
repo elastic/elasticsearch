@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -43,7 +44,8 @@ public class RestReindexActionTests extends RestActionTestCase {
     @Before
     public void setUpAction() {
         action = new RestReindexAction(
-            nf -> nf.equals(ReindexPlugin.RELOCATE_ON_SHUTDOWN_NODE_FEATURE) && relocateOnShutdownFeatureEnabled
+            nf -> nf.equals(ReindexPlugin.RELOCATE_ON_SHUTDOWN_NODE_FEATURE) && relocateOnShutdownFeatureEnabled,
+            CrossProjectModeDecider.NOOP
         );
         controller().registerHandler(action);
     }

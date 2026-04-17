@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.inference.services.elastic.request;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.DataFormat;
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.test.ESTestCase;
@@ -20,6 +22,7 @@ import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.Elasti
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.inference.InferenceStringTests.TEST_IMAGE_DATA_URI;
 import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhitespaceInJsonString;
 import static org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModelTests.createEmbeddingModel;
 import static org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModelTests.createTextEmbeddingModel;
@@ -76,21 +79,21 @@ public class ElasticInferenceServiceDenseEmbeddingsRequestEntityTests extends ES
         var entity = new ElasticInferenceServiceDenseEmbeddingsRequestEntity(
             List.of(
                 new InferenceStringGroup("abc"),
-                new InferenceStringGroup(new InferenceString(InferenceString.DataType.IMAGE, InferenceString.DataFormat.BASE64, "def"))
+                new InferenceStringGroup(new InferenceString(DataType.IMAGE, DataFormat.BASE64, TEST_IMAGE_DATA_URI))
             ),
             createEmbeddingModel("", "my-model-id"),
             ElasticInferenceServiceUsageContext.UNSPECIFIED
         );
         String xContentString = xContentEntityToString(entity);
-        assertThat(xContentString, equalToIgnoringWhitespaceInJsonString("""
+        assertThat(xContentString, equalToIgnoringWhitespaceInJsonString(Strings.format("""
             {
                 "input": [
                     {"content":[{"type": "text", "format": "text", "value": "abc"}]},
-                    {"content":[{"type": "image", "format": "base64", "value": "def"}]}
+                    {"content":[{"type": "image", "format": "base64", "value": "%s"}]}
                 ],
                 "model": "my-model-id"
             }
-            """));
+            """, TEST_IMAGE_DATA_URI)));
     }
 
     public void testToXContent_SingleInput_UsageContextSpecified() throws IOException {

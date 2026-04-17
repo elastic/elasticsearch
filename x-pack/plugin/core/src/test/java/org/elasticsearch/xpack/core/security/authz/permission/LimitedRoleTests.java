@@ -16,7 +16,7 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -342,7 +342,10 @@ public class LimitedRoleTests extends ESTestCase {
         IndexMetadata.Builder imbBuilder1 = IndexMetadata.builder("_index1")
             .settings(indexSettings(IndexVersion.current(), 1, 1))
             .putAlias(AliasMetadata.builder("_alias1"));
-        Metadata md = Metadata.builder().put(imbBuilder).put(imbBuilder1).build();
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(imbBuilder.build(), true)
+            .put(imbBuilder1.build(), true)
+            .build();
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         Role fromRole = Role.builder(EMPTY_RESTRICTED_INDICES, "a-role")
             .cluster(Collections.singleton("manage_security"), Collections.emptyList())
@@ -353,7 +356,7 @@ public class LimitedRoleTests extends ESTestCase {
         IndicesAccessControl iac = fromRole.authorize(
             TransportSearchAction.TYPE.name(),
             Sets.newHashSet("_index", "_alias1"),
-            md.getProject(),
+            projectMetadata,
             fieldPermissionsCache
         );
         assertThat(iac.isGranted(), is(false));
@@ -364,7 +367,7 @@ public class LimitedRoleTests extends ESTestCase {
         iac = fromRole.authorize(
             TransportCreateIndexAction.TYPE.name(),
             Sets.newHashSet("_index", "_index1"),
-            md.getProject(),
+            projectMetadata,
             fieldPermissionsCache
         );
         assertThat(iac.isGranted(), is(true));
@@ -382,7 +385,7 @@ public class LimitedRoleTests extends ESTestCase {
             iac = limitedByRole.authorize(
                 TransportSearchAction.TYPE.name(),
                 Sets.newHashSet("_index", "_alias1"),
-                md.getProject(),
+                projectMetadata,
                 fieldPermissionsCache
             );
             assertThat(iac.isGranted(), is(false));
@@ -393,7 +396,7 @@ public class LimitedRoleTests extends ESTestCase {
             iac = limitedByRole.authorize(
                 TransportDeleteIndexAction.TYPE.name(),
                 Sets.newHashSet("_index", "_alias1"),
-                md.getProject(),
+                projectMetadata,
                 fieldPermissionsCache
             );
             assertThat(iac.isGranted(), is(false));
@@ -404,7 +407,7 @@ public class LimitedRoleTests extends ESTestCase {
             iac = limitedByRole.authorize(
                 TransportCreateIndexAction.TYPE.name(),
                 Sets.newHashSet("_index", "_alias1"),
-                md.getProject(),
+                projectMetadata,
                 fieldPermissionsCache
             );
             assertThat(iac.isGranted(), is(false));
@@ -422,7 +425,7 @@ public class LimitedRoleTests extends ESTestCase {
             iac = role.authorize(
                 TransportSearchAction.TYPE.name(),
                 Sets.newHashSet("_index", "_alias1"),
-                md.getProject(),
+                projectMetadata,
                 fieldPermissionsCache
             );
             assertThat(iac.isGranted(), is(false));
@@ -433,7 +436,7 @@ public class LimitedRoleTests extends ESTestCase {
             iac = role.authorize(
                 TransportDeleteIndexAction.TYPE.name(),
                 Sets.newHashSet("_index", "_alias1"),
-                md.getProject(),
+                projectMetadata,
                 fieldPermissionsCache
             );
             assertThat(iac.isGranted(), is(false));
@@ -444,7 +447,7 @@ public class LimitedRoleTests extends ESTestCase {
             iac = role.authorize(
                 TransportCreateIndexAction.TYPE.name(),
                 Sets.newHashSet("_index", "_index1"),
-                md.getProject(),
+                projectMetadata,
                 fieldPermissionsCache
             );
             assertThat(iac.isGranted(), is(false));

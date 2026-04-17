@@ -66,13 +66,13 @@ indexed.
 
 `tdigest` fields are supported in the following [ES|QL](/reference/query-languages/esql.md) aggregation functions:
 
-* [Avg](/reference/query-languages/esql/functions-operators/aggregation-functions.md#esql-avg)
-* [Max](/reference/query-languages/esql/functions-operators/aggregation-functions.md#esql-max)
+* [Avg](/reference/query-languages/esql/functions-operators/aggregation-functions/avg.md)
+* [Max](/reference/query-languages/esql/functions-operators/aggregation-functions/max.md)
   and
-  [Min](/reference/query-languages/esql/functions-operators/aggregation-functions.md#esql-min)
-* [Percentile](/reference/query-languages/esql/functions-operators/aggregation-functions.md#esql-percentile)
-* [Present](/reference/query-languages/esql/functions-operators/aggregation-functions.md#esql-present) and
-  [Absent](/reference/query-languages/esql/functions-operators/aggregation-functions.md#esql-absent)
+  [Min](/reference/query-languages/esql/functions-operators/aggregation-functions/min.md)
+* [Percentile](/reference/query-languages/esql/functions-operators/aggregation-functions/percentile.md)
+* [Present](/reference/query-languages/esql/functions-operators/aggregation-functions/present.md) and
+  [Absent](/reference/query-languages/esql/functions-operators/aggregation-functions/absent.md)
 
 
 ## Synthetic `_source` [tdigest-synthetic-source]

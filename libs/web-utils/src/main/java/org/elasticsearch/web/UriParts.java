@@ -15,9 +15,11 @@ import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.SequencedMap;
 
 public class UriParts {
 
@@ -32,23 +34,24 @@ public class UriParts {
     public static final String USERNAME = "username";
     public static final String PASSWORD = "password";
 
-    private static final LinkedHashMap<String, Class<?>> URI_PARTS_TYPES;
+    private static final SequencedMap<String, Class<?>> URI_PARTS_TYPES;
 
     static {
-        URI_PARTS_TYPES = new LinkedHashMap<>();
-        URI_PARTS_TYPES.putLast(DOMAIN, String.class);
-        URI_PARTS_TYPES.putLast(FRAGMENT, String.class);
-        URI_PARTS_TYPES.putLast(PATH, String.class);
-        URI_PARTS_TYPES.putLast(EXTENSION, String.class);
-        URI_PARTS_TYPES.putLast(PORT, Integer.class);
-        URI_PARTS_TYPES.putLast(QUERY, String.class);
-        URI_PARTS_TYPES.putLast(SCHEME, String.class);
-        URI_PARTS_TYPES.putLast(USER_INFO, String.class);
-        URI_PARTS_TYPES.putLast(USERNAME, String.class);
-        URI_PARTS_TYPES.putLast(PASSWORD, String.class);
+        LinkedHashMap<String, Class<?>> fields = new LinkedHashMap<>();
+        fields.putLast(DOMAIN, String.class);
+        fields.putLast(FRAGMENT, String.class);
+        fields.putLast(PATH, String.class);
+        fields.putLast(EXTENSION, String.class);
+        fields.putLast(PORT, Integer.class);
+        fields.putLast(QUERY, String.class);
+        fields.putLast(SCHEME, String.class);
+        fields.putLast(USER_INFO, String.class);
+        fields.putLast(USERNAME, String.class);
+        fields.putLast(PASSWORD, String.class);
+        URI_PARTS_TYPES = Collections.unmodifiableSequencedMap(fields);
     }
 
-    public static LinkedHashMap<String, Class<?>> getUriPartsTypes() {
+    public static SequencedMap<String, Class<?>> getUriPartsTypes() {
         return URI_PARTS_TYPES;
     }
 

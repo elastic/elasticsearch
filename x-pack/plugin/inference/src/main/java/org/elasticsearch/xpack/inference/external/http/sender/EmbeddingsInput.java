@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
@@ -57,7 +58,7 @@ public class EmbeddingsInput extends InferenceInputs {
     /**
      * This method should only be called in code paths that both do not handle grouped embedding inputs AND that do not deal with
      * multimodal inputs, i.e. code paths that expect to generate one embedding per input rather than one embedding for multiple inputs,
-     * AND where all inputs are guaranteed to be raw text, since it discards the {@link InferenceString.DataType} associated with
+     * AND where all inputs are guaranteed to be raw text, since it discards the {@link DataType} associated with
      * each input.
      * <p>
      * Calling this method twice will result in the {@link #inputListSupplier} being invoked twice. In the case where the supplier simply

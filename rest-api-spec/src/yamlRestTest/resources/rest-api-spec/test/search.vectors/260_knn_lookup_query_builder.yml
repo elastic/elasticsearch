@@ -1,0 +1,411 @@
+setup:
+  - requires:
+      cluster_features: "mapper.base64_dense_vectors"
+      reason: 'search.vectors.lookup_query_vector_builder'
+
+# one index with excluded vectors, with bytes, floats, bits and bfloats16
+# 3 docs one with a field of each kind, with one of the docs where all vectors are base64
+  - do:
+      indices.create:
+        index: knn_lookup_query_vector_builder_index
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              no_vectors:
+                type: keyword
+              my_vector_byte:
+                type: dense_vector
+                index : true
+                similarity : l2_norm
+                element_type: byte
+              my_vector_float:
+                type: dense_vector
+                index: true
+                element_type: float
+                similarity : cosine
+              my_vector_bit:
+                type: dense_vector
+                index: true
+                element_type: bit
+                similarity : l2_norm
+              my_vector_bfloat16:
+                type: dense_vector
+                index: true
+                element_type: bfloat16
+                similarity : cosine
+  - do:
+      index:
+        index: knn_lookup_query_vector_builder_index
+        id: "1"
+        body:
+          no_vectors: "test_doc_with_base64_vectors"
+          my_vector_float: "P2I/CD8hjoM/R66D"
+          my_vector_byte: "gH8K"
+          my_vector_bit: "gH8K"
+          my_vector_bfloat16: "P2I/CD8hjoM/R66D"
+  - do:
+      index:
+        index: knn_lookup_query_vector_builder_index
+        id: "2"
+        body:
+          no_vectors: "test_doc_with_array_vectors"
+          my_vector_float: [0.5, -1, -2]
+          my_vector_byte: [12, -1, -3]
+          my_vector_bit: [1,0,1]
+          my_vector_bfloat16: [0.5, -1, -2]
+
+  - do:
+      indices.create:
+        index: knn_lookup_query_vector_builder_index_exclude_vectors_false
+        body:
+          settings:
+            index:
+              mapping:
+                exclude_source_vectors: false
+          mappings:
+            dynamic: false
+            properties:
+              my_vector_byte:
+                type: dense_vector
+                index : true
+                similarity : l2_norm
+                element_type: byte
+              my_vector_float:
+                type: dense_vector
+                index: true
+                element_type: float
+                similarity : cosine
+              my_vector_bit:
+                type: dense_vector
+                index: true
+                element_type: bit
+                similarity : l2_norm
+              my_vector_bfloat16:
+                type: dense_vector
+                index: true
+                element_type: bfloat16
+                similarity : cosine
+  - do:
+      index:
+        index: knn_lookup_query_vector_builder_index_exclude_vectors_false
+        id: "1"
+        body:
+          my_vector_float: "P2I/CD8hjoM/R66D"
+          my_vector_byte: "gH8K"
+          my_vector_bit: "gH8K"
+          my_vector_bfloat16: "P2I/CD8hjoM/R66D"
+  - do:
+      index:
+        index: knn_lookup_query_vector_builder_index_exclude_vectors_false
+        id: "2"
+        body:
+          my_vector_float: [0.5, -1, -2]
+          my_vector_byte: [12, -1, -3]
+          my_vector_bit: [1,0,1]
+          my_vector_bfloat16: [0.5, -1, -2]
+
+  - do:
+      indices.refresh: {}
+
+---
+"Test lookup base64 query vector builder with exclude_source_vectors true":
+  - do:
+      search:
+        index: knn_lookup_query_vector_builder_index
+        body:
+          size: 1
+          knn:
+            query_vector_builder:
+              lookup:
+                path: my_vector_float
+                id: "1"
+                index: knn_lookup_query_vector_builder_index
+            field: my_vector_float
+
+  - match: { hits.hits.0._id: "1" }
+
+  - do:
+      search:
+        index: knn_lookup_query_vector_builder_index
+        body:
+          size: 1
+          knn:
+            query_vector_builder:
+              lookup:
+                path: my_vector_float
+                id: "2"
+                index: knn_lookup_query_vector_builder_index
+            field: my_vector_float
+
+  - match: { hits.hits.0._id: "2" }
+
+  - do:
+      search:
+        index: knn_lookup_query_vector_builder_index
+        body:
+          size: 1
+          knn:
+            query_vector_builder:
+              lookup:
+                path: my_vector_byte
+                id: "1"
+                index: knn_lookup_query_vector_builder_index
+            field: my_vector_byte
+
+  - match: { hits.hits.0._id: "1" }
+
+  - do:
+      search:
+        index: knn_lookup_query_vector_builder_index
+        body:
+          size: 1
+          knn:
+            query_vector_builder:
+              lookup:
+                path: my_vector_byte
+                id: "2"
+                index: knn_lookup_query_vector_builder_index
+            field: my_vector_byte
+
+  - match: { hits.hits.0._id: "2" }
+
+  - do:
+      search:
+        index: knn_lookup_query_vector_builder_index
+        body:
+          size: 1
+          knn:
+            query_vector_builder:
+              lookup:
+                path: my_vector_bit
+                id: "1"
+                index: knn_lookup_query_vector_builder_index
+            field: my_vector_bit
+
+  - match: { hits.hits.0._id: "1" }
+
+  - do:
+      search:
+        index: knn_lookup_query_vector_builder_index
+        body:
+          size: 1
+          knn:
+            query_vector_builder:
+              lookup:
+                path: my_vector_bit
+                id: "2"
+                index: knn_lookup_query_vector_builder_index
+            field: my_vector_bit
+
+  - match: { hits.hits.0._id: "2" }
+
+  - do:
+      search:
+        index: knn_lookup_query_vector_builder_index
+        body:
+          size: 1
+          knn:
+            query_vector_builder:
+              lookup:
+                path: my_vector_bfloat16
+                id: "1"
+                index: knn_lookup_query_vector_builder_index
+            field: my_vector_bfloat16
+
+  - match: { hits.hits.0._id: "1" }
+
+  - do:
+      search:
+        index: knn_lookup_query_vector_builder_index
+        body:
+          size: 1
+          knn:
+            query_vector_builder:
+              lookup:
+                path: my_vector_bfloat16
+                id: "2"
+                index: knn_lookup_query_vector_builder_index
+            field: my_vector_bfloat16
+
+  - match: { hits.hits.0._id: "2" }
+---
+"Test lookup base64 query vector builder with exclude_source_vectors false":
+  - do:
+      search:
+        index: knn_lookup_query_vector_builder_index_exclude_vectors_false
+        body:
+          size: 1
+          knn:
+            query_vector_builder:
+              lookup:
+                path: my_vector_float
+                id: "1"
+                index: knn_lookup_query_vector_builder_index_exclude_vectors_false
+            field: my_vector_float
+
+  - match: { hits.hits.0._id: "1" }
+
+  - do:
+      search:
+        index: knn_lookup_query_vector_builder_index_exclude_vectors_false
+        body:
+          size: 1
+          knn:
+            query_vector_builder:
+              lookup:
+                path: my_vector_float
+                id: "2"
+                index: knn_lookup_query_vector_builder_index_exclude_vectors_false
+            field: my_vector_float
+
+  - match: { hits.hits.0._id: "2" }
+
+  - do:
+      search:
+        index: knn_lookup_query_vector_builder_index_exclude_vectors_false
+        body:
+          size: 1
+          knn:
+            query_vector_builder:
+              lookup:
+                path: my_vector_byte
+                id: "1"
+                index: knn_lookup_query_vector_builder_index_exclude_vectors_false
+            field: my_vector_byte
+
+  - match: { hits.hits.0._id: "1" }
+
+  - do:
+      search:
+        index: knn_lookup_query_vector_builder_index_exclude_vectors_false
+        body:
+          size: 1
+          knn:
+            query_vector_builder:
+              lookup:
+                path: my_vector_byte
+                id: "2"
+                index: knn_lookup_query_vector_builder_index_exclude_vectors_false
+            field: my_vector_byte
+
+  - match: { hits.hits.0._id: "2" }
+
+  - do:
+      search:
+        index: knn_lookup_query_vector_builder_index_exclude_vectors_false
+        body:
+          size: 1
+          knn:
+            query_vector_builder:
+              lookup:
+                path: my_vector_bit
+                id: "1"
+                index: knn_lookup_query_vector_builder_index_exclude_vectors_false
+            field: my_vector_bit
+
+  - match: { hits.hits.0._id: "1" }
+
+  - do:
+      search:
+        index: knn_lookup_query_vector_builder_index_exclude_vectors_false
+        body:
+          size: 1
+          knn:
+            query_vector_builder:
+              lookup:
+                path: my_vector_bit
+                id: "2"
+                index: knn_lookup_query_vector_builder_index_exclude_vectors_false
+            field: my_vector_bit
+
+  - match: { hits.hits.0._id: "2" }
+
+  - do:
+      search:
+        index: knn_lookup_query_vector_builder_index_exclude_vectors_false
+        body:
+          size: 1
+          knn:
+            query_vector_builder:
+              lookup:
+                path: my_vector_bfloat16
+                id: "1"
+                index: knn_lookup_query_vector_builder_index_exclude_vectors_false
+            field: my_vector_bfloat16
+
+  - match: { hits.hits.0._id: "1" }
+
+  - do:
+      search:
+        index: knn_lookup_query_vector_builder_index_exclude_vectors_false
+        body:
+          size: 1
+          knn:
+            query_vector_builder:
+              lookup:
+                path: my_vector_bfloat16
+                id: "2"
+                index: knn_lookup_query_vector_builder_index_exclude_vectors_false
+            field: my_vector_bfloat16
+
+  - match: { hits.hits.0._id: "2" }
+---
+"Test error when document not found":
+  - do:
+      catch: missing
+      search:
+        index: knn_lookup_query_vector_builder_index
+        body:
+          size: 1
+          knn:
+            query_vector_builder:
+              lookup:
+                path: my_vector_float
+                id: "missing_id"
+                index: knn_lookup_query_vector_builder_index
+            field: my_vector_float
+
+  - do:
+      catch: missing
+      search:
+        index: knn_lookup_query_vector_builder_index
+        body:
+          size: 1
+          knn:
+            query_vector_builder:
+              lookup:
+                path: my_vector_float
+                id: "1"
+                index: missing_vector_index
+            field: my_vector_float
+---
+"Test error when field isn't a vector":
+  - do:
+      catch: bad_request
+      search:
+        index: knn_lookup_query_vector_builder_index
+        body:
+          size: 1
+          knn:
+            query_vector_builder:
+              lookup:
+                path: no_vectors
+                id: "1"
+                index: knn_lookup_query_vector_builder_index
+            field: my_vector_float
+---
+"Test error when field is missing":
+  - do:
+      catch: missing
+      search:
+        index: knn_lookup_query_vector_builder_index
+        body:
+          size: 1
+          knn:
+            query_vector_builder:
+              lookup:
+                path: missing_vector
+                id: "1"
+                index: knn_lookup_query_vector_builder_index
+            field: my_vector_float

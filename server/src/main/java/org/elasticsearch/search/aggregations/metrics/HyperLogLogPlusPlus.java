@@ -86,6 +86,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
 
     public HyperLogLogPlusPlus(int precision, BigArrays bigArrays, CircuitBreaker breaker, long initialBucketCount) {
         super(precision);
+        // TODO if initialBucketCount is > 0 we allocate dense arrays for each one.
         this.breaker = breaker;
         HyperLogLog hll = null;
         LinearCounting lc = null;
@@ -490,7 +491,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         }
 
         long maxOrd() {
-            return cells.size() - 1;
+            return cells.size();
         }
 
         @Override

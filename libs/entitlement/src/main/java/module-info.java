@@ -33,6 +33,7 @@ module org.elasticsearch.entitlement {
     exports org.elasticsearch.entitlement.runtime.policy.entitlements to org.elasticsearch.server;
     exports org.elasticsearch.entitlement.rules;
     exports org.elasticsearch.entitlement.rules.function;
+    exports org.elasticsearch.entitlement.util;
 
     uses org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 }

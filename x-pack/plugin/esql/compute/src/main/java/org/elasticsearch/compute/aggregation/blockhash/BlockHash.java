@@ -53,7 +53,7 @@ import java.util.List;
  * </p>
  * <p>
  *     The integer ids are assigned to offsets into arrays of aggregation states
- *     so its permissible to have gaps in the ints. But large gaps are a bad
+ *     so it's permissible to have gaps in the ints. But large gaps are a bad
  *     idea because they'll waste space in the aggregations that use these
  *     positions. For example, {@link BooleanBlockHash} assigns {@code 0} to
  *     {@code null}, {@code 1} to {@code false}, and {@code 1} to {@code true}
@@ -91,12 +91,12 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
     public abstract ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize);
 
     /**
-     * Returns a {@link Block} that contains all the keys that are inserted by {@link #add}.
-     * <p>
-     *     Keys must be in the same order as the IDs returned by {@link #nonEmpty()}.
-     * </p>
+     * Returns an array of {@link Block}s containing keys.
+     * @param selected The groupIds to include in the results. These are the same
+     *                 groupIds returned by {@link #nonEmpty} and fed into aggregations
+     *                 as part of {@link #add}.
      */
-    public abstract Block[] getKeys();
+    public abstract Block[] getKeys(IntVector selected);
 
     /**
      * The grouping ids that are not empty. We use this because some block hashes reserve
@@ -104,9 +104,6 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
      * {@link BooleanBlockHash} does this by always assigning {@code false} to {@code 0}
      * and {@code true} to {@code 1}. It's only <strong>after</strong> collection when we
      * know if there actually were any {@code true} or {@code false} values received.
-     * <p>
-     *     IDs must be in the same order as the keys returned by {@link #getKeys()}.
-     * </p>
      */
     public abstract IntVector nonEmpty();
 

@@ -129,5 +129,7 @@ public class TransformInternalIndexIT extends TransformSingleNodeTestCase {
             GetResponse getResponse = client().get(getRequest).actionGet();
             assertThat(getResponse.isExists(), is(true));
         }
+
+        deleteTransform(transformId);
     }
 }

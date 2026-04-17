@@ -69,9 +69,7 @@ public class GroqChatCompletionServiceSettings extends FilteredXContentObject im
             context
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new GroqChatCompletionServiceSettings(modelId, uri, organizationId, rateLimitSettings);
     }

@@ -46,9 +46,7 @@ public class JinaAIServiceSettings extends FilteredXContentObject implements Ser
 
         String modelId = extractRequiredString(map, ServiceFields.MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new JinaAIServiceSettings(modelId, rateLimitSettings);
     }

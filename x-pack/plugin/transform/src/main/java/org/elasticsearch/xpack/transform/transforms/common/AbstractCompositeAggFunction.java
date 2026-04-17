@@ -16,7 +16,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.TimeValue;
@@ -219,7 +218,7 @@ public abstract class AbstractCompositeAggFunction implements Function {
             .timeout(timeout);
         buildSearchQuery(sourceBuilder, null, pageSize);
         logger.debug("[{}] Querying {} for data: {}", logId, sourceConfig.getIndex(), sourceBuilder);
-        return new SearchRequest(sourceConfig.getIndex()).source(sourceBuilder).indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
+        return new SearchRequest(sourceConfig.getIndex()).source(sourceBuilder).indicesOptions(sourceConfig.indicesOptions());
     }
 
     @Override

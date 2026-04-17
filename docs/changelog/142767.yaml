@@ -1,0 +1,5 @@
+area: Codec
+issues: []
+pr: 142767
+summary: Fix NPE when querying `pattern_text` field in segment with no field values
+type: bug

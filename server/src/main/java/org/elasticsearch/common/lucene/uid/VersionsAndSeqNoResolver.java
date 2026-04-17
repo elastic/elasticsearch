@@ -17,6 +17,7 @@ import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
+import org.elasticsearch.index.mapper.Uid;
 
 import java.io.IOException;
 import java.util.Base64;
@@ -171,7 +172,7 @@ public final class VersionsAndSeqNoResolver {
     ) throws IOException {
         final long timestamp;
         if (useSyntheticId) {
-            assert uid.equals(new BytesRef(Base64.getUrlDecoder().decode(id)));
+            assert uid.equals(Uid.encodeId((id)));
             timestamp = TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(uid);
         } else {
             byte[] idAsBytes = Base64.getUrlDecoder().decode(id);
@@ -218,6 +219,15 @@ public final class VersionsAndSeqNoResolver {
      * The result is either null or the live and latest version of the given uid.
      */
     public static DocIdAndSeqNo loadDocIdAndSeqNo(IndexReader reader, BytesRef term) throws IOException {
+        return loadDocIdAndSeqNo(reader, term, true);
+    }
+
+    /**
+     * Loads the internal docId and sequence number of the latest copy for a given uid from the provided reader.
+     * When {@code loadSeqNo} is false, {@code UNASSIGNED_SEQ_NO} is returned instead of reading the doc value.
+     * The result is either null or the live and latest version of the given uid.
+     */
+    public static DocIdAndSeqNo loadDocIdAndSeqNo(IndexReader reader, BytesRef term, boolean loadSeqNo) throws IOException {
         final PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, false);
         final List<LeafReaderContext> leaves = reader.leaves();
         // iterate backwards to optimize for the frequently updated documents
@@ -225,7 +235,7 @@ public final class VersionsAndSeqNoResolver {
         for (int i = leaves.size() - 1; i >= 0; i--) {
             final LeafReaderContext leaf = leaves.get(i);
             final PerThreadIDVersionAndSeqNoLookup lookup = lookups[leaf.ord];
-            final DocIdAndSeqNo result = lookup.lookupSeqNo(term, leaf);
+            final DocIdAndSeqNo result = lookup.lookupDocIdAndSeqNo(term, leaf, loadSeqNo);
             if (result != null) {
                 return result;
             }

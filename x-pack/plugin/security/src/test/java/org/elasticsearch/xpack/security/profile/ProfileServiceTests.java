@@ -1491,6 +1491,8 @@ public class ProfileServiceTests extends ESTestCase {
                 0L,
                 ShardSearchFailure.EMPTY_ARRAY,
                 Clusters.EMPTY,
+                null,
+                null,
                 null
             );
         }

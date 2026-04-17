@@ -14,8 +14,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongRangeBlock;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -23,23 +23,18 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 public class ToStringFromDateRangeEvaluator extends AbstractConvertFunction.AbstractEvaluator {
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToStringFromDateRangeEvaluator.class);
 
-    private final EvalOperator.ExpressionEvaluator field;
+    private final ExpressionEvaluator field;
 
     private final DateFormatter formatter;
 
-    public ToStringFromDateRangeEvaluator(
-        Source source,
-        EvalOperator.ExpressionEvaluator field,
-        DateFormatter formatter,
-        DriverContext driverContext
-    ) {
+    public ToStringFromDateRangeEvaluator(Source source, ExpressionEvaluator field, DateFormatter formatter, DriverContext driverContext) {
         super(driverContext, source);
         this.field = field;
         this.formatter = formatter;
     }
 
     @Override
-    protected EvalOperator.ExpressionEvaluator next() {
+    protected ExpressionEvaluator next() {
         return field;
     }
 
@@ -87,19 +82,19 @@ public class ToStringFromDateRangeEvaluator extends AbstractConvertFunction.Abst
         Releasables.closeExpectNoException(field);
     }
 
-    public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    public static class Factory implements ExpressionEvaluator.Factory {
         private final Source source;
-        private final EvalOperator.ExpressionEvaluator.Factory field;
+        private final ExpressionEvaluator.Factory field;
         private final DateFormatter formatter;
 
-        public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field, DateFormatter formatter) {
+        public Factory(Source source, ExpressionEvaluator.Factory field, DateFormatter formatter) {
             this.source = source;
             this.field = field;
             this.formatter = formatter;
         }
 
         @Override
-        public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+        public ExpressionEvaluator get(DriverContext context) {
             return new ToStringFromDateRangeEvaluator(source, field.get(context), formatter, context);
         }
 

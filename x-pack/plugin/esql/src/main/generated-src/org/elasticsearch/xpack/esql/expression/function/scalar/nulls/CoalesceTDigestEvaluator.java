@@ -12,9 +12,8 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.TDigestBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -25,11 +24,11 @@ import java.util.stream.IntStream;
 // end generated imports
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Coalesce}.
+ * {@link ExpressionEvaluator} implementation for {@link Coalesce}.
  * This class is generated. Edit {@code X-CoalesceEvaluator.java.st} instead.
  */
-abstract sealed class CoalesceTDigestEvaluator implements EvalOperator.ExpressionEvaluator permits
-    CoalesceTDigestEvaluator.CoalesceTDigestEagerEvaluator, //
+abstract sealed class CoalesceTDigestEvaluator implements ExpressionEvaluator permits // checkstyle hack
+    CoalesceTDigestEvaluator.CoalesceTDigestEagerEvaluator, // checkstyle hack
     CoalesceTDigestEvaluator.CoalesceTDigestLazyEvaluator {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CoalesceTDigestEvaluator.class);
@@ -71,9 +70,9 @@ abstract sealed class CoalesceTDigestEvaluator implements EvalOperator.Expressio
     }
 
     protected final DriverContext driverContext;
-    protected final List<EvalOperator.ExpressionEvaluator> evaluators;
+    protected final List<ExpressionEvaluator> evaluators;
 
-    protected CoalesceTDigestEvaluator(DriverContext driverContext, List<EvalOperator.ExpressionEvaluator> evaluators) {
+    protected CoalesceTDigestEvaluator(DriverContext driverContext, List<ExpressionEvaluator> evaluators) {
         this.driverContext = driverContext;
         this.evaluators = evaluators;
     }
@@ -88,8 +87,8 @@ abstract sealed class CoalesceTDigestEvaluator implements EvalOperator.Expressio
      * {@link #perPosition} evaluation.
      * <p>
      * Entire Block evaluation is the "normal" way to run the compute engine,
-     * just calling {@link EvalOperator.ExpressionEvaluator#eval}. It's much faster so we try
-     * that first. For each evaluator, we {@linkplain EvalOperator.ExpressionEvaluator#eval} and:
+     * just calling {@link ExpressionEvaluator#eval}. It's much faster so we try
+     * that first. For each evaluator, we {@linkplain ExpressionEvaluator#eval} and:
      * </p>
      * <ul>
      *     <li>If the {@linkplain Block} doesn't have any nulls we return it. COALESCE done.</li>
@@ -165,7 +164,7 @@ abstract sealed class CoalesceTDigestEvaluator implements EvalOperator.Expressio
      * in a lazy environment.
      */
     static final class CoalesceTDigestEagerEvaluator extends CoalesceTDigestEvaluator {
-        CoalesceTDigestEagerEvaluator(DriverContext driverContext, List<EvalOperator.ExpressionEvaluator> evaluators) {
+        CoalesceTDigestEagerEvaluator(DriverContext driverContext, List<ExpressionEvaluator> evaluators) {
             super(driverContext, evaluators);
         }
 
@@ -211,7 +210,7 @@ abstract sealed class CoalesceTDigestEvaluator implements EvalOperator.Expressio
      * </ul>
      */
     static final class CoalesceTDigestLazyEvaluator extends CoalesceTDigestEvaluator {
-        CoalesceTDigestLazyEvaluator(DriverContext driverContext, List<EvalOperator.ExpressionEvaluator> evaluators) {
+        CoalesceTDigestLazyEvaluator(DriverContext driverContext, List<ExpressionEvaluator> evaluators) {
             super(driverContext, evaluators);
         }
 

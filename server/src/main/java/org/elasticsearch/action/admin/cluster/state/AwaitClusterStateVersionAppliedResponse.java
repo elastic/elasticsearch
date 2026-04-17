@@ -10,6 +10,7 @@
 package org.elasticsearch.action.admin.cluster.state;
 
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -20,9 +21,6 @@ import java.util.List;
 
 public class AwaitClusterStateVersionAppliedResponse extends BaseNodesResponse<
     TransportAwaitClusterStateVersionAppliedAction.NodeResponse> {
-    public AwaitClusterStateVersionAppliedResponse(StreamInput in) throws IOException {
-        super(in);
-    }
 
     public AwaitClusterStateVersionAppliedResponse(
         ClusterName clusterName,
@@ -34,12 +32,12 @@ public class AwaitClusterStateVersionAppliedResponse extends BaseNodesResponse<
 
     @Override
     protected List<TransportAwaitClusterStateVersionAppliedAction.NodeResponse> readNodesFrom(StreamInput in) throws IOException {
-        return in.readCollectionAsList(TransportAwaitClusterStateVersionAppliedAction.NodeResponse::new);
+        return TransportAction.localOnly();
     }
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<TransportAwaitClusterStateVersionAppliedAction.NodeResponse> nodes)
         throws IOException {
-        out.writeCollection(nodes);
+        TransportAction.localOnly();
     }
 }

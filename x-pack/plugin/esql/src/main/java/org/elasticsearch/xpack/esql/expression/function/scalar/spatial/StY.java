@@ -11,7 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -40,6 +41,7 @@ import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpat
  */
 public class StY extends SpatialUnaryDocValuesFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "StY", StY::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StY.class).unary(StY::new).name("st_y");
 
     @FunctionInfo(
         returnType = "double",
@@ -83,7 +85,7 @@ public class StY extends SpatialUnaryDocValuesFunction {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (spatialDocValues) {
             return switch (spatialField().dataType()) {
                 case GEO_POINT -> new StYFromGeoDocValuesEvaluator.Factory(source(), toEvaluator.apply(spatialField()));

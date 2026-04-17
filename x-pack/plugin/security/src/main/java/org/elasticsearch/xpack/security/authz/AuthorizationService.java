@@ -50,6 +50,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.search.crossproject.InvalidProjectRoutingException;
 import org.elasticsearch.search.crossproject.NoMatchingProjectException;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.search.crossproject.TargetProjects;
@@ -612,7 +613,8 @@ public class AuthorizationService {
 
         if (ex instanceof InvalidIndexNameException
             || ex instanceof InvalidSelectorException
-            || ex instanceof UnsupportedSelectorException) {
+            || ex instanceof UnsupportedSelectorException
+            || ex instanceof InvalidProjectRoutingException) {
             logger.info(
                 () -> Strings.format(
                     "failed [%s] action authorization for [%s] due to [%s] exception",

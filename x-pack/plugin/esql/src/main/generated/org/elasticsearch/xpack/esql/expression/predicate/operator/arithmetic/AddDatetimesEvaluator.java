@@ -16,22 +16,22 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Add}.
+ * {@link ExpressionEvaluator} implementation for {@link Add}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class AddDatetimesEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class AddDatetimesEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(AddDatetimesEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator datetime;
+  private final ExpressionEvaluator datetime;
 
   private final TemporalAmount temporalAmount;
 
@@ -41,7 +41,7 @@ public final class AddDatetimesEvaluator implements EvalOperator.ExpressionEvalu
 
   private Warnings warnings;
 
-  public AddDatetimesEvaluator(Source source, EvalOperator.ExpressionEvaluator datetime,
+  public AddDatetimesEvaluator(Source source, ExpressionEvaluator datetime,
       TemporalAmount temporalAmount, ZoneId zoneId, DriverContext driverContext) {
     this.source = source;
     this.datetime = datetime;
@@ -126,16 +126,16 @@ public final class AddDatetimesEvaluator implements EvalOperator.ExpressionEvalu
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory datetime;
+    private final ExpressionEvaluator.Factory datetime;
 
     private final TemporalAmount temporalAmount;
 
     private final ZoneId zoneId;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory datetime,
+    public Factory(Source source, ExpressionEvaluator.Factory datetime,
         TemporalAmount temporalAmount, ZoneId zoneId) {
       this.source = source;
       this.datetime = datetime;

@@ -96,7 +96,7 @@ public class ReplicationSplitHelper<
                         latestSplitSummary.asInt()
                     );
                 }
-                throw new StaleRequestException(primaryRequest.index());
+                throw new StaleRequestException(primaryRequest.shardId(), requestSplitSummary);
             }
             return true;
         }

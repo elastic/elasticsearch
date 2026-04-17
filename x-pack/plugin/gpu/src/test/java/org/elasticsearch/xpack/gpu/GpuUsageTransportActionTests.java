@@ -33,7 +33,7 @@ public class GpuUsageTransportActionTests extends ESTestCase {
         var nodeResponses = List.of(
             new NodeGpuStatsResponse(DiscoveryNodeUtils.create("node1"), true, true, 5, 24_000_000_000L, "NVIDIA L4"),
             new NodeGpuStatsResponse(DiscoveryNodeUtils.create("node2"), true, false, 0, 24_000_000_000L, "NVIDIA L4"),
-            new NodeGpuStatsResponse(DiscoveryNodeUtils.create("node3"), false, false, 0, -1L, null),
+            new NodeGpuStatsResponse(DiscoveryNodeUtils.create("node3"), false, false, 0, 0L, null),
             new NodeGpuStatsResponse(DiscoveryNodeUtils.create("node4"), true, true, 3, 80_000_000_000L, "NVIDIA A100")
         );
 
@@ -65,8 +65,8 @@ public class GpuUsageTransportActionTests extends ESTestCase {
 
     public void testAggregation_noGpuNodes() throws Exception {
         var nodeResponses = List.of(
-            new NodeGpuStatsResponse(DiscoveryNodeUtils.create("node1"), false, false, 0, -1L, null),
-            new NodeGpuStatsResponse(DiscoveryNodeUtils.create("node2"), false, false, 0, -1L, null)
+            new NodeGpuStatsResponse(DiscoveryNodeUtils.create("node1"), false, false, 0, 0L, null),
+            new NodeGpuStatsResponse(DiscoveryNodeUtils.create("node2"), false, false, 0, 0L, null)
         );
 
         var usage = GpuUsageTransportAction.buildUsage(new GpuStatsResponse(CLUSTER_NAME, nodeResponses, Collections.emptyList()), false);

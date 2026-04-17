@@ -66,7 +66,6 @@ import static org.elasticsearch.inference.TaskType.COMPLETION;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
@@ -75,9 +74,9 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNot
  * NvidiaService is an inference service for Nvidia models, supporting text embedding and chat completion tasks.
  * It extends {@link SenderService} to handle HTTP requests and responses for Nvidia models.
  */
-public class NvidiaService extends SenderService implements RerankingInferenceService {
+public class NvidiaService extends SenderService<NvidiaModel> implements RerankingInferenceService {
     public static final String NAME = "nvidia";
-    private static final String SERVICE_NAME = "Nvidia";
+    private static final String SERVICE_NAME = "NVIDIA";
 
     public static final EnumSet<InputType> VALID_INPUT_TYPE_VALUES = EnumSet.of(
         InputType.INGEST,
@@ -97,7 +96,7 @@ public class NvidiaService extends SenderService implements RerankingInferenceSe
         TaskType.RERANK
     );
     private static final ResponseHandler UNIFIED_CHAT_COMPLETION_HANDLER = new NvidiaChatCompletionResponseHandler(
-        "Nvidia chat completion",
+        "NVIDIA chat completion",
         OpenAiChatCompletionResponseEntity::fromResponse
     );
     private static final NvidiaChatCompletionModelCreator COMPLETION_MODEL_CREATOR = new NvidiaChatCompletionModelCreator();
@@ -128,7 +127,7 @@ public class NvidiaService extends SenderService implements RerankingInferenceSe
     }
 
     public NvidiaService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
-        super(factory, serviceComponents, clusterService);
+        super(factory, serviceComponents, clusterService, MODEL_CREATORS);
     }
 
     @Override
@@ -320,63 +319,6 @@ public class NvidiaService extends SenderService implements RerankingInferenceSe
         }
     }
 
-    private NvidiaModel createModelFromPersistent(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> serviceSettings,
-        Map<String, Object> taskSettings,
-        ChunkingSettings chunkingSettings,
-        Map<String, Object> secretSettings
-    ) {
-        return createModel(
-            inferenceEntityId,
-            taskType,
-            serviceSettings,
-            taskSettings,
-            chunkingSettings,
-            secretSettings,
-            ConfigurationParseContext.PERSISTENT
-        );
-    }
-
-    private NvidiaModel parsePersistedConfigInternal(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> config,
-        Map<String, Object> secrets
-    ) {
-        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
-        Map<String, Object> secretSettingsMap = null;
-        if (secrets != null) {
-            secretSettingsMap = removeFromMapOrDefaultEmpty(secrets, ModelSecrets.SECRET_SETTINGS);
-        }
-
-        ChunkingSettings chunkingSettings = null;
-        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
-            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
-        }
-
-        return createModelFromPersistent(
-            inferenceEntityId,
-            taskType,
-            serviceSettingsMap,
-            taskSettingsMap,
-            chunkingSettings,
-            secretSettingsMap
-        );
-    }
-
-    @Override
-    public NvidiaModel parsePersistedConfigWithSecrets(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> config,
-        Map<String, Object> secrets
-    ) {
-        return parsePersistedConfigInternal(inferenceEntityId, taskType, config, secrets);
-    }
-
     @Override
     public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
         return retrieveModelCreatorFromMapOrThrow(
@@ -386,11 +328,6 @@ public class NvidiaService extends SenderService implements RerankingInferenceSe
             config.getService(),
             ConfigurationParseContext.PERSISTENT
         ).createFromModelConfigurationsAndSecrets(config, secrets);
-    }
-
-    @Override
-    public NvidiaModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
-        return parsePersistedConfigInternal(inferenceEntityId, taskType, config, null);
     }
 
     @Override
@@ -439,7 +376,7 @@ public class NvidiaService extends SenderService implements RerankingInferenceSe
                     MODEL_ID,
                     new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription("""
                         The name of the model to use for the inference task. Refer to the \
-                        Nvidia models documentation for the list of available models.""")
+                        NVIDIA models documentation for the list of available models.""")
                         .setLabel("Model ID")
                         .setRequired(true)
                         .setSensitive(false)

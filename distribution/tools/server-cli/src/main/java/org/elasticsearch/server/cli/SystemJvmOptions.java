@@ -177,7 +177,6 @@ final class SystemJvmOptions {
 
         var internalExports = Stream.of(
             "--add-exports=jdk.jlink/jdk.tools.jlink.internal=org.elasticsearch.entitlement",
-            "--add-exports=jdk.internal.vm.ci/jdk.vm.ci.services=org.elasticsearch.entitlement",
             "--add-exports=java.base/sun.net.www=org.elasticsearch.entitlement",
             "--add-exports=java.base/sun.net.www.protocol.ftp=org.elasticsearch.entitlement",
             "--add-exports=java.base/sun.net.www.protocol.file=org.elasticsearch.entitlement",
@@ -202,7 +201,6 @@ final class SystemJvmOptions {
                 "-Djdk.attach.allowAttachSelf=true",
                 "--patch-module=java.base=" + bridgeJar,
                 "--add-exports=java.base/org.elasticsearch.entitlement.bridge=org.elasticsearch.entitlement,"
-                    + "org.elasticsearch.entitlement.instrumentation"
                     + modulesContainingEntitlementInstrumentation
             ),
             internalExports

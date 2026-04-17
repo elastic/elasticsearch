@@ -496,7 +496,6 @@ abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
         assertRandomConsistency(false);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/apache/lucene/issues/14180")
     public void testRandomConsistencyMultiThreaded() throws IOException {
         assertRandomConsistency(true);
     }

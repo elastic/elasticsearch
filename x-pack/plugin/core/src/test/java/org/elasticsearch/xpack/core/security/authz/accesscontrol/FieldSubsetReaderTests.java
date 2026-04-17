@@ -60,6 +60,7 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.settings.Settings;
@@ -807,17 +808,15 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
 
     public void testIgnoredSourceFilteringIntegration() throws Exception {
         IndexVersion indexVersion = randomBoolean() ? getVersion() : IndexVersions.MATCH_ONLY_TEXT_STORED_AS_BYTES;
-        DocumentMapper mapper = createMapperService(
-            indexVersion,
-            Settings.builder()
-                .put("index.mapping.total_fields.limit", 1)
-                .put("index.mapping.total_fields.ignore_dynamic_beyond_limit", true)
-                .put("index.mapping.source.mode", "synthetic")
-                .build(),
-            mapping(b -> {
-                b.startObject("foo").field("type", "keyword").endObject();
-            })
-        ).documentMapper();
+        Settings mapperSettings = Settings.builder()
+            .put("index.mapping.total_fields.limit", 1)
+            .put("index.mapping.total_fields.ignore_dynamic_beyond_limit", true)
+            .put("index.mapping.source.mode", "synthetic")
+            .build();
+        var indexSettings = createIndexSettings(indexVersion, mapperSettings);
+        DocumentMapper mapper = createMapperService(indexVersion, mapperSettings, mapping(b -> {
+            b.startObject("foo").field("type", "keyword").endObject();
+        })).documentMapper();
 
         try (Directory directory = newDirectory()) {
             RandomIndexWriter iw = indexWriterForSyntheticSource(directory);
@@ -838,7 +837,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                     DirectoryReader indexReader = FieldSubsetReader.wrap(
                         wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
                         new CharacterRunAutomaton(automaton),
-                        IgnoredSourceFieldMapper.ignoredSourceFormat(indexVersion),
+                        IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings),
                         (fieldName) -> true
                     )
                 ) {
@@ -857,7 +856,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                     DirectoryReader indexReader = FieldSubsetReader.wrap(
                         wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
                         new CharacterRunAutomaton(automaton),
-                        IgnoredSourceFieldMapper.ignoredSourceFormat(indexVersion),
+                        IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings),
                         (fieldName) -> true
                     )
                 ) {
@@ -873,7 +872,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                     DirectoryReader indexReader = FieldSubsetReader.wrap(
                         wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
                         new CharacterRunAutomaton(automaton),
-                        IgnoredSourceFieldMapper.ignoredSourceFormat(indexVersion),
+                        IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings),
                         (fieldName) -> true
                     )
                 ) {
@@ -893,7 +892,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                     DirectoryReader indexReader = FieldSubsetReader.wrap(
                         wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
                         new CharacterRunAutomaton(automaton),
-                        IgnoredSourceFieldMapper.ignoredSourceFormat(indexVersion),
+                        IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings),
                         (fieldName) -> true
                     )
                 ) {
@@ -909,7 +908,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                     DirectoryReader indexReader = FieldSubsetReader.wrap(
                         wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
                         new CharacterRunAutomaton(automaton),
-                        IgnoredSourceFieldMapper.ignoredSourceFormat(indexVersion),
+                        IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings),
                         (fieldName) -> true
                     )
                 ) {
@@ -929,7 +928,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                     DirectoryReader indexReader = FieldSubsetReader.wrap(
                         wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
                         new CharacterRunAutomaton(automaton),
-                        IgnoredSourceFieldMapper.ignoredSourceFormat(indexVersion),
+                        IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings),
                         (fieldName) -> true
                     )
                 ) {
@@ -1489,19 +1488,21 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
 
     @SuppressWarnings("unchecked")
     public void testMappingsFilteringDuelWithSourceFiltering() throws Exception {
-        Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("index").settings(indexSettings(IndexVersion.current(), 1, 0)).putMapping(MAPPING_TEST_ITEM))
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(
+                IndexMetadata.builder("index").settings(indexSettings(IndexVersion.current(), 1, 0)).putMapping(MAPPING_TEST_ITEM).build(),
+                true
+            )
             .build();
 
         {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[] { "*inner1" }, Strings.EMPTY_ARRAY);
             FieldPermissions fieldPermissions = new FieldPermissions(definition);
-            Map<String, MappingMetadata> mappings = metadata.getProject()
-                .findMappings(
-                    new String[] { "index" },
-                    index -> fieldPermissions::grantsAccessTo,
-                    Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
-                );
+            Map<String, MappingMetadata> mappings = projectMetadata.findMappings(
+                new String[] { "index" },
+                index -> fieldPermissions::grantsAccessTo,
+                Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
+            );
             MappingMetadata index = mappings.get("index");
             Map<String, Object> sourceAsMap = index.getSourceAsMap();
             assertEquals(1, sourceAsMap.size());
@@ -1537,12 +1538,11 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[] { "object*" }, Strings.EMPTY_ARRAY);
             FieldPermissions fieldPermissions = new FieldPermissions(definition);
-            Map<String, MappingMetadata> mappings = metadata.getProject()
-                .findMappings(
-                    new String[] { "index" },
-                    index -> fieldPermissions::grantsAccessTo,
-                    Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
-                );
+            Map<String, MappingMetadata> mappings = projectMetadata.findMappings(
+                new String[] { "index" },
+                index -> fieldPermissions::grantsAccessTo,
+                Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
+            );
             MappingMetadata index = mappings.get("index");
             Map<String, Object> sourceAsMap = index.getSourceAsMap();
             assertEquals(1, sourceAsMap.size());
@@ -1577,12 +1577,11 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[] { "object" }, Strings.EMPTY_ARRAY);
             FieldPermissions fieldPermissions = new FieldPermissions(definition);
-            Map<String, MappingMetadata> mappings = metadata.getProject()
-                .findMappings(
-                    new String[] { "index" },
-                    index -> fieldPermissions::grantsAccessTo,
-                    Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
-                );
+            Map<String, MappingMetadata> mappings = projectMetadata.findMappings(
+                new String[] { "index" },
+                index -> fieldPermissions::grantsAccessTo,
+                Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
+            );
             MappingMetadata index = mappings.get("index");
             Map<String, Object> sourceAsMap = index.getSourceAsMap();
             assertEquals(1, sourceAsMap.size());
@@ -1607,12 +1606,11 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[] { "nested.inner2" }, Strings.EMPTY_ARRAY);
             FieldPermissions fieldPermissions = new FieldPermissions(definition);
-            Map<String, MappingMetadata> mappings = metadata.getProject()
-                .findMappings(
-                    new String[] { "index" },
-                    index -> fieldPermissions::grantsAccessTo,
-                    Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
-                );
+            Map<String, MappingMetadata> mappings = projectMetadata.findMappings(
+                new String[] { "index" },
+                index -> fieldPermissions::grantsAccessTo,
+                Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
+            );
             MappingMetadata index = mappings.get("index");
             Map<String, Object> sourceAsMap = index.getSourceAsMap();
             assertEquals(1, sourceAsMap.size());

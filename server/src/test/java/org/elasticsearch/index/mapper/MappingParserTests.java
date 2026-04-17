@@ -70,16 +70,18 @@ public class MappingParserTests extends MapperServiceTestCase {
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
             indexSettings.getIndexVersionCreated()
         );
-        Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>();
-        metadataMapperParsers.values().stream().map(parser -> parser.getDefault(mappingParserContextSupplier.get())).forEach(m -> {
-            if (m != null) {
-                metadataMappers.put(m.getClass(), m);
+        MappingParserContext ctx = mappingParserContextSupplier.get();
+        Map<String, MetadataFieldMapper.Builder> metadataBuilders = new LinkedHashMap<>();
+        for (MetadataFieldMapper.TypeParser parser : metadataMapperParsers.values()) {
+            MetadataFieldMapper.Builder builder = parser.getDefaultBuilder(ctx);
+            if (builder != null) {
+                metadataBuilders.put(builder.leafName(), builder);
             }
-        });
+        }
         return new MappingParser(
             mappingParserContextSupplier,
             metadataMapperParsers,
-            () -> metadataMappers,
+            () -> metadataBuilders,
             type -> MapperService.SINGLE_MAPPING_NAME
         );
     }
@@ -127,7 +129,7 @@ public class MappingParserTests extends MapperServiceTestCase {
             IllegalArgumentException.class,
             () -> createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)))
         );
-        assertTrue(e.getMessage(), e.getMessage().contains("mapper [foo] cannot be changed from type [text] to [ObjectMapper]"));
+        assertTrue(e.getMessage(), e.getMessage().contains("can't merge a non object mapping [foo] with an object mapping"));
     }
 
     public void testMultiFieldsWithFieldAlias() throws IOException {
@@ -344,6 +346,21 @@ public class MappingParserTests extends MapperServiceTestCase {
             XContentBuilder builder = mappingNoSubobjects(b -> b.startObject(fieldName).field("type", "keyword").endObject());
             assertNotNull(mappingParser.parse("_doc", new CompressedXContent(BytesReference.bytes(builder))));
         }
+    }
+
+    /**
+     * Verifies that supplementary Unicode characters (above U+FFFF) in field names survive the full
+     * mapping round-trip: XContentBuilder serialization -> CompressedXContent compression -> decompression
+     * and parsing by MappingParser. This is a regression guard for
+     * <a href="https://github.com/FasterXML/jackson-core/issues/1541">jackson-core#1541</a>.
+     */
+    public void testSupplementaryCharacterInFieldName() throws Exception {
+        MappingParser mappingParser = createMappingParser(Settings.EMPTY);
+        String fieldName = "emoji_\uD83C\uDFB5_field";
+        XContentBuilder builder = mapping(b -> b.startObject(fieldName).field("type", "keyword").endObject());
+        CompressedXContent compressed = new CompressedXContent(BytesReference.bytes(builder));
+        Mapping mapping = mappingParser.parse("_doc", compressed);
+        assertNotNull(mapping.getRoot().getMapper(fieldName));
     }
 
     public void testDynamicFieldEdgeCaseNamesRuntimeSection() throws Exception {

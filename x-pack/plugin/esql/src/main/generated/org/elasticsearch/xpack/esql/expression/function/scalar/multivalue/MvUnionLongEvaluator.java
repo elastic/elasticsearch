@@ -10,31 +10,31 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvUnion}.
+ * {@link ExpressionEvaluator} implementation for {@link MvUnion}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class MvUnionLongEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class MvUnionLongEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvUnionLongEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator field1;
+  private final ExpressionEvaluator field1;
 
-  private final EvalOperator.ExpressionEvaluator field2;
+  private final ExpressionEvaluator field2;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public MvUnionLongEvaluator(Source source, EvalOperator.ExpressionEvaluator field1,
-      EvalOperator.ExpressionEvaluator field2, DriverContext driverContext) {
+  public MvUnionLongEvaluator(Source source, ExpressionEvaluator field1, ExpressionEvaluator field2,
+      DriverContext driverContext) {
     this.source = source;
     this.field1 = field1;
     this.field2 = field2;
@@ -95,15 +95,15 @@ public final class MvUnionLongEvaluator implements EvalOperator.ExpressionEvalua
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field1;
+    private final ExpressionEvaluator.Factory field1;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field2;
+    private final ExpressionEvaluator.Factory field2;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field1,
-        EvalOperator.ExpressionEvaluator.Factory field2) {
+    public Factory(Source source, ExpressionEvaluator.Factory field1,
+        ExpressionEvaluator.Factory field2) {
       this.source = source;
       this.field1 = field1;
       this.field2 = field2;

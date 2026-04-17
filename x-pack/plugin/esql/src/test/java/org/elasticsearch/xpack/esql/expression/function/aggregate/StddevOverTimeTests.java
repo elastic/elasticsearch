@@ -12,7 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
@@ -23,7 +23,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 
-public class StddevOverTimeTests extends AbstractFunctionTestCase {
+public class StddevOverTimeTests extends AbstractAggregationTestCase {
     public StddevOverTimeTests(Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         testCase = testCaseSupplier.get();
     }

@@ -26,7 +26,6 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
-import java.security.GeneralSecurityException;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
@@ -65,23 +64,6 @@ public class SecureClusterStateSettings implements SecureSettings {
     // nullable (if closed), but otherwise immutable secrets map
     private @Nullable Map<String, Secret> secrets;
     private final Set<String> secretNames;
-
-    /**
-     * Do NOT use, this will be removed as part of ES-13910.
-     * @deprecated  For testing, use {@code new MockSecureSettings().toSecureClusterStateSettings()} instead.
-     */
-    @Deprecated
-    @SuppressWarnings("unchecked")
-    public SecureClusterStateSettings(SecureSettings secureSettings) {
-        this(
-            Map.ofEntries(
-                secureSettings.getSettingNames()
-                    .stream()
-                    .map(key -> entry(key, new Secret(getValueAsByteArray(secureSettings, key), getSHA256Digest(secureSettings, key))))
-                    .toArray(Map.Entry[]::new)
-            )
-        );
-    }
 
     public SecureClusterStateSettings(StreamInput in) throws IOException {
         this(in.readImmutableMap(v -> new Secret(in.readByteArray(), in.readByteArray())));
@@ -189,22 +171,6 @@ public class SecureClusterStateSettings implements SecureSettings {
     @Override
     public int hashCode() {
         return Objects.hash(secrets);
-    }
-
-    private static byte[] getValueAsByteArray(SecureSettings secureSettings, String key) {
-        try (var is = secureSettings.getFile(key)) {
-            return is.readAllBytes();
-        } catch (IOException | GeneralSecurityException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private static byte[] getSHA256Digest(SecureSettings secureSettings, String key) {
-        try {
-            return secureSettings.getSHA256Digest(key);
-        } catch (GeneralSecurityException e) {
-            throw new RuntimeException(e);
-        }
     }
 
     private record Secret(byte[] secret, byte[] sha256Digest) implements Writeable {

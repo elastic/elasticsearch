@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
@@ -87,6 +88,24 @@ public final class LocalStorageObject implements StorageObject {
 
         // Use RandomAccessFile for efficient range reads
         return new RangeInputStream(filePath, position, length);
+    }
+
+    /**
+     * Reads directly into the target ByteBuffer using positional {@link FileChannel} I/O
+     * via {@link org.elasticsearch.common.io.Channels#readFromFileChannel}.
+     * Both heap and direct buffers are handled natively by the OS with no intermediate copies.
+     */
+    @Override
+    public int readBytes(long position, ByteBuffer target) throws IOException {
+        if (target.hasRemaining() == false) {
+            return 0;
+        }
+        try (FileChannel ch = FileChannel.open(filePath, StandardOpenOption.READ)) {
+            int startPos = target.position();
+            org.elasticsearch.common.io.Channels.readFromFileChannel(ch, position, target);
+            int bytesRead = target.position() - startPos;
+            return bytesRead == 0 ? -1 : bytesRead;
+        }
     }
 
     @Override

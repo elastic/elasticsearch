@@ -28,7 +28,6 @@ public class ESAcceptDocsTests extends ESTestCase {
         assertEquals(0L, acceptDocs.cost());
         assertNull(acceptDocs.iterator());
         assertNull(acceptDocs.bits());
-        assertNull(acceptDocs.getBitSet());
     }
 
     public void testFromScorerSupplier() throws IOException {

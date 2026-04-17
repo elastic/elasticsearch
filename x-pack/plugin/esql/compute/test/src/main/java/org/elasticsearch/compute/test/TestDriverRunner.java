@@ -35,8 +35,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.stream.LongStream;
 
+import static org.elasticsearch.test.ESTestCase.assertThat;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.terminate;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Utility for running {@link Driver} with configurations customized for tests.
@@ -44,6 +47,7 @@ import static org.elasticsearch.test.ESTestCase.terminate;
  */
 public class TestDriverRunner {
     private Integer numThreads = null;
+    private TimeValue timeout = TimeValue.timeValueSeconds(30);
 
     /**
      * Set the number of threads use to run the driver. If this isn't called
@@ -55,25 +59,34 @@ public class TestDriverRunner {
     }
 
     /**
+     * Set the timeout for the test. If this isn't called we default to a
+     * thirty-second timeout.
+     */
+    public TestDriverRunner timeout(TimeValue timeout) {
+        this.timeout = timeout;
+        return this;
+    }
+
+    /**
      * Helpers for building the {@link Driver} out of {@link Operator}
      * or {@link Operator.OperatorFactory}.
      * <p>
      *     Generally you can use it like:
      * </p>
-     * <pre>{@code
+     * {@snippet lang="java" :
      *   var runner = new TestDriverRunner().builder(driverContext());
      *   runner.input(buildInput(runner.blockFactory()));
      *   List<Page> results = runner.run(operatorFactory);
-     * }</pre>
+     * }
      * <p>
      *     If you need the inputs to assert the contents of the outputs
      *     then use {@link DriverBuilder#collectDeepCopy()}:
      * </p>
-     * <pre>{@code
+     * {@snippet lang="java" :
      *   var runner = new TestDriverRunner().builder(driverContext()).collectDeepCopy();
      *   runner.input(buildInput(runner.blockFactory()));
      *   assertResults(runner.deepCopy(), runner.run(operatorFactory));
-     * }</pre>
+     * }
      */
     public DriverBuilder builder(DriverContext context) {
         return new DriverBuilder(context);
@@ -90,6 +103,7 @@ public class TestDriverRunner {
      * Run many drivers.
      */
     public void run(List<Driver> drivers) {
+        assertThat("We can't run 0 drivers. Production runs at least one, even if we match no documents.", drivers, not(empty()));
         drivers = new ArrayList<>(drivers);
         int dummyDrivers = between(0, 10);
         for (int i = 0; i < dummyDrivers; i++) {
@@ -121,7 +135,7 @@ public class TestDriverRunner {
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         try {
             driverRunner.runToCompletion(drivers, future);
-            future.actionGet(TimeValue.timeValueSeconds(30));
+            future.actionGet(timeout);
         } finally {
             terminate(threadPool);
         }

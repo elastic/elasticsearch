@@ -8,7 +8,10 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
@@ -20,7 +23,9 @@ import java.util.Map;
 /**
  * A mutable version of AnalyzerContext that allows temporarily changing the transport version.
  * This is useful for testing scenarios where different transport versions need to be tested.
+ * @deprecated use {@link org.elasticsearch.xpack.esql.TestAnalyzer}
  */
+@Deprecated
 public class MutableAnalyzerContext extends AnalyzerContext {
     private TransportVersion currentVersion;
 
@@ -34,7 +39,7 @@ public class MutableAnalyzerContext extends AnalyzerContext {
         TransportVersion minimumVersion,
         UnmappedResolution unmappedResolution
     ) {
-        super(
+        this(
             configuration,
             functionRegistry,
             indexResolution,
@@ -42,7 +47,34 @@ public class MutableAnalyzerContext extends AnalyzerContext {
             enrichResolution,
             inferenceResolution,
             minimumVersion,
-            unmappedResolution
+            unmappedResolution,
+            null
+        );
+    }
+
+    public MutableAnalyzerContext(
+        Configuration configuration,
+        EsqlFunctionRegistry functionRegistry,
+        Map<IndexPattern, IndexResolution> indexResolution,
+        Map<String, IndexResolution> lookupResolution,
+        EnrichResolution enrichResolution,
+        InferenceResolution inferenceResolution,
+        TransportVersion minimumVersion,
+        UnmappedResolution unmappedResolution,
+        @Nullable TimestampBounds timestampBounds
+    ) {
+        super(
+            configuration,
+            functionRegistry,
+            null,
+            indexResolution,
+            lookupResolution,
+            enrichResolution,
+            inferenceResolution,
+            ExternalSourceResolution.EMPTY,
+            minimumVersion,
+            unmappedResolution,
+            timestampBounds
         );
         this.currentVersion = minimumVersion;
     }

@@ -10,7 +10,6 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -31,14 +30,13 @@ import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class FilteredBlockTests extends ESTestCase {
 
-    final CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
-    final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
-    final BlockFactory blockFactory = BlockFactory.getInstance(breaker, bigArrays);
+    final CircuitBreakerService breakerService = newLimitedBreakerService(ByteSizeValue.ofGb(1));
+    final CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
+    final BlockFactory blockFactory = BlockFactory.builder(new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breakerService))
+        .build();
 
     @Before
     @After
@@ -473,7 +471,7 @@ public class FilteredBlockTests extends ESTestCase {
     }
 
     BytesRefArray arrayOf(String... values) {
-        var array = new BytesRefArray(values.length, bigArrays);
+        var array = new BytesRefArray(values.length, blockFactory.bigArrays());
         Arrays.stream(values).map(BytesRef::new).forEach(array::append);
         return array;
     }
@@ -493,12 +491,5 @@ public class FilteredBlockTests extends ESTestCase {
         assertThat(breaker.getUsed(), greaterThan(0L));
         Releasables.closeExpectNoException(vector);
         assertThat(breaker.getUsed(), is(0L));
-    }
-
-    // A breaker service that always returns the given breaker for getBreaker(CircuitBreaker.REQUEST)
-    static CircuitBreakerService mockBreakerService(CircuitBreaker breaker) {
-        CircuitBreakerService breakerService = mock(CircuitBreakerService.class);
-        when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(breaker);
-        return breakerService;
     }
 }

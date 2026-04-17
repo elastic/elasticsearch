@@ -18,14 +18,12 @@ import static org.hamcrest.Matchers.containsString;
 public class GPUPluginBootstrapCheckTests extends AbstractBootstrapCheckTestCase {
 
     public void testNodeSettingTrueWithoutGPUFails() {
-        assumeFalse("GPU not supported on this environment", GPUSupport.isSupported());
-
         Settings settings = Settings.builder()
             .put(GPUPlugin.VECTORS_INDEXING_USE_GPU_NODE_SETTING.getKey(), GPUPlugin.GpuMode.TRUE)
             .build();
 
         BootstrapContext context = createTestContext(settings, Metadata.EMPTY_METADATA);
-        var check = new GPUPlugin.GpuModeBootstrapCheck();
+        var check = new GPUPlugin.GpuModeBootstrapCheck(new TestBootstrapGPUSupport(false));
 
         var result = check.check(context);
         assertTrue("Bootstrap check should fail when GPU setting is TRUE but GPU is not supported", result.isFailure());
@@ -36,14 +34,12 @@ public class GPUPluginBootstrapCheckTests extends AbstractBootstrapCheckTestCase
     }
 
     public void testNodeSettingTrueWithGPUSucceeds() {
-        assumeTrue("GPU supported on this environment", GPUSupport.isSupported());
-
         Settings settings = Settings.builder()
             .put(GPUPlugin.VECTORS_INDEXING_USE_GPU_NODE_SETTING.getKey(), GPUPlugin.GpuMode.TRUE)
             .build();
 
         BootstrapContext context = createTestContext(settings, Metadata.EMPTY_METADATA);
-        var check = new GPUPlugin.GpuModeBootstrapCheck();
+        var check = new GPUPlugin.GpuModeBootstrapCheck(new TestBootstrapGPUSupport(true));
 
         var result = check.check(context);
         assertTrue("Bootstrap check should succeed when GPU setting is TRUE and GPU is supported", result.isSuccess());
@@ -55,7 +51,7 @@ public class GPUPluginBootstrapCheckTests extends AbstractBootstrapCheckTestCase
             .build();
 
         BootstrapContext context = createTestContext(settings, Metadata.EMPTY_METADATA);
-        var check = new GPUPlugin.GpuModeBootstrapCheck();
+        var check = new GPUPlugin.GpuModeBootstrapCheck(new TestBootstrapGPUSupport(false));
 
         var result = check.check(context);
         assertTrue("Bootstrap check should succeed when GPU setting is AUTO", result.isSuccess());
@@ -67,7 +63,7 @@ public class GPUPluginBootstrapCheckTests extends AbstractBootstrapCheckTestCase
             .build();
 
         BootstrapContext context = createTestContext(settings, Metadata.EMPTY_METADATA);
-        var check = new GPUPlugin.GpuModeBootstrapCheck();
+        var check = new GPUPlugin.GpuModeBootstrapCheck(new TestBootstrapGPUSupport(false));
 
         var result = check.check(context);
         assertTrue("Bootstrap check should succeed when GPU setting is FALSE", result.isSuccess());
@@ -78,14 +74,27 @@ public class GPUPluginBootstrapCheckTests extends AbstractBootstrapCheckTestCase
         Settings settings = Settings.EMPTY;
 
         BootstrapContext context = createTestContext(settings, Metadata.EMPTY_METADATA);
-        var check = new GPUPlugin.GpuModeBootstrapCheck();
+        var check = new GPUPlugin.GpuModeBootstrapCheck(new TestBootstrapGPUSupport(randomBoolean()));
 
         var result = check.check(context);
         assertTrue("Bootstrap check should succeed with default setting (AUTO)", result.isSuccess());
     }
 
     public void testBootstrapCheckReferenceDocs() {
-        var check = new GPUPlugin.GpuModeBootstrapCheck();
+        var check = new GPUPlugin.GpuModeBootstrapCheck(new TestBootstrapGPUSupport(randomBoolean()));
         assertNotNull("referenceDocs should return a non-null value", check.referenceDocs());
+    }
+
+    private record TestBootstrapGPUSupport(boolean isSupported) implements GPUSupport {
+
+        @Override
+        public long getTotalGpuMemory() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String getGpuName() {
+            throw new UnsupportedOperationException();
+        }
     }
 }

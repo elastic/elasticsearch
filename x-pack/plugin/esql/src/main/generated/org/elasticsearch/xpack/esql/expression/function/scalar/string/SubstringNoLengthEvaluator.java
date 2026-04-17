@@ -15,31 +15,31 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Substring}.
+ * {@link ExpressionEvaluator} implementation for {@link Substring}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class SubstringNoLengthEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class SubstringNoLengthEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(SubstringNoLengthEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator str;
+  private final ExpressionEvaluator str;
 
-  private final EvalOperator.ExpressionEvaluator start;
+  private final ExpressionEvaluator start;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public SubstringNoLengthEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
-      EvalOperator.ExpressionEvaluator start, DriverContext driverContext) {
+  public SubstringNoLengthEvaluator(Source source, ExpressionEvaluator str,
+      ExpressionEvaluator start, DriverContext driverContext) {
     this.source = source;
     this.str = str;
     this.start = start;
@@ -134,15 +134,15 @@ public final class SubstringNoLengthEvaluator implements EvalOperator.Expression
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory str;
+    private final ExpressionEvaluator.Factory str;
 
-    private final EvalOperator.ExpressionEvaluator.Factory start;
+    private final ExpressionEvaluator.Factory start;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory str,
-        EvalOperator.ExpressionEvaluator.Factory start) {
+    public Factory(Source source, ExpressionEvaluator.Factory str,
+        ExpressionEvaluator.Factory start) {
       this.source = source;
       this.str = str;
       this.start = start;

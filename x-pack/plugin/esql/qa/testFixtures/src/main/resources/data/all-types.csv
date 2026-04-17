@@ -1,1 +1,6 @@
-alias_integer,boolean,byte,constant_keyword-foo,date,date_nanos,double,float,half_float,scaled_float,integer,ip,keyword,long,unsigned_long,short,text,version,wildcard,semantic_text,dense_vector
+boolean:boolean,byte:byte,constant_keyword-foo:keyword,date:date,date_nanos:date_nanos,double:double,float:float,half_float:half_float,scaled_float:scaled_float,integer:integer,ip:ip,keyword:keyword,long:long,unsigned_long:unsigned_long,short:short,text:text,version:version,wildcard:keyword
+true,1,foo,2024-01-01T00:00:00.000Z,2024-01-01T00:00:00.000000001Z,1.1,1.1,1.1,1.1,1,127.0.0.1,key1,100,100,10,text1,1.0.0,wild1
+false,2,foo,2024-01-02T00:00:00.000Z,2024-01-02T00:00:00.000000002Z,2.2,2.2,2.2,2.2,2,127.0.0.2,key2,200,200,20,text2,2.0.0,wild2
+true,3,foo,2024-01-03T00:00:00.000Z,2024-01-03T00:00:00.000000003Z,3.3,3.3,3.3,3.3,3,127.0.0.3,key3,300,300,30,text3,3.0.0,wild3
+false,4,foo,2024-01-04T00:00:00.000Z,2024-01-04T00:00:00.000000004Z,4.4,4.4,4.4,4.4,4,127.0.0.4,key4,400,400,40,text4,4.0.0,wild4
+true,5,foo,2024-01-05T00:00:00.000Z,2024-01-05T00:00:00.000000005Z,5.5,5.5,5.5,5.5,5,127.0.0.5,key5,500,500,50,text5,5.0.0,wild5

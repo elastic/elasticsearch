@@ -124,6 +124,12 @@ class DefaultCheckpointProvider implements CheckpointProvider {
 
             final var threadContext = client.threadPool().getThreadContext();
 
+            // Only use the query for shard filtering when there are no runtime mappings,
+            // because SearchShardsRequest does not support runtime_mappings and the query may reference runtime fields
+            final QueryBuilder queryForShardFiltering = transformConfig.getSource().getRuntimeMappings().isEmpty()
+                ? transformConfig.getSource().getQueryConfig().getQuery()
+                : null;
+
             if (resolvedIndexes.getLocalIndices().isEmpty() == false) {
                 getCheckpointsFromOneCluster(
                     threadContext,
@@ -131,7 +137,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
                     timeout,
                     transformConfig.getHeaders(),
                     resolvedIndexes.getLocalIndices().toArray(new String[0]),
-                    transformConfig.getSource().getQueryConfig().getQuery(),
+                    queryForShardFiltering,
                     RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY,
                     groupedListener
                 );
@@ -151,7 +157,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
                     timeout,
                     transformConfig.getHeaders(),
                     remoteIndex.getValue().toArray(new String[0]),
-                    transformConfig.getSource().getQueryConfig().getQuery(),
+                    queryForShardFiltering,
                     cluster,
                     groupedListener
                 );

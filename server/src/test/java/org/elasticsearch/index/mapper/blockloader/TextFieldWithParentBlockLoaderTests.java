@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper.blockloader;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.datageneration.DocumentGenerator;
 import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.datageneration.MappingGenerator;
@@ -40,7 +41,7 @@ public class TextFieldWithParentBlockLoaderTests extends MapperServiceTestCase {
 
     public TextFieldWithParentBlockLoaderTests(BlockLoaderTestCase.Params params) {
         this.params = params;
-        this.runner = new BlockLoaderTestRunner(params);
+        this.runner = new BlockLoaderTestRunner(params).breaker(newLimitedBreaker(ByteSizeValue.ofMb(1)));
         if (randomBoolean()) {
             runner.allowDummyDocs();
         }

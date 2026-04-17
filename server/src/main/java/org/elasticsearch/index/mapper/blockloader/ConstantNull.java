@@ -11,7 +11,8 @@ package org.elasticsearch.index.mapper.blockloader;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.util.IOSupplier;
+import org.apache.lucene.util.IOFunction;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
@@ -22,7 +23,8 @@ import java.io.IOException;
  */
 public class ConstantNull implements BlockLoader {
     public static final BlockLoader INSTANCE = new ConstantNull();
-    public static final BlockLoader.AllReader READER = new Reader();
+    public static final BlockLoader.ColumnAtATimeReader COLUMN_READER = new ColumnReader();
+    public static final BlockLoader.RowStrideReader ROW_READER = new RowReader();
 
     private ConstantNull() {}
 
@@ -32,13 +34,14 @@ public class ConstantNull implements BlockLoader {
     }
 
     @Override
-    public IOSupplier<ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) {
-        return () -> READER;
+    public IOFunction<CircuitBreaker, ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) {
+        return breaker -> COLUMN_READER;
     }
 
     @Override
-    public RowStrideReader rowStrideReader(LeafReaderContext context) {
-        return READER;
+    public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) {
+        // There is a ROW_READER row-byte-row implementations can use. But we don't need it here.
+        return null;
     }
 
     @Override
@@ -62,16 +65,35 @@ public class ConstantNull implements BlockLoader {
     }
 
     /**
-     * Implementation of {@link ColumnAtATimeReader} and {@link RowStrideReader} that always
-     * loads {@code null}.
+     * Implementation of {@link ColumnAtATimeReader} that always loads {@code null}.
      */
-    private static class Reader implements AllReader {
-        private Reader() {}
+    static class ColumnReader implements ColumnAtATimeReader {
+        private ColumnReader() {}
 
         @Override
-        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) {
             return factory.constantNulls(docs.count() - offset);
         }
+
+        @Override
+        public boolean canReuse(int startingDocID) {
+            return true;
+        }
+
+        @Override
+        public String toString() {
+            return "constant_nulls";
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    /**
+     * Implementation of {@link RowStrideReader} that always loads {@code null}.
+     */
+    static class RowReader implements RowStrideReader {
+        private RowReader() {}
 
         @Override
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
@@ -84,8 +106,6 @@ public class ConstantNull implements BlockLoader {
         }
 
         @Override
-        public String toString() {
-            return "constant_nulls";
-        }
+        public void close() {}
     }
 }

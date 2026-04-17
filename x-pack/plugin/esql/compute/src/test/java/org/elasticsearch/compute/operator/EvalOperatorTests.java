@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverRunner;
@@ -34,7 +35,7 @@ public class EvalOperatorTests extends OperatorTestCase {
         return new TupleLongLongBlockSourceOperator(blockFactory, LongStream.range(0, end).mapToObj(l -> Tuple.tuple(l, end - l)));
     }
 
-    record Addition(DriverContext driverContext, int lhs, int rhs) implements EvalOperator.ExpressionEvaluator {
+    record Addition(DriverContext driverContext, int lhs, int rhs) implements ExpressionEvaluator {
         @Override
         public Block eval(Page page) {
             LongVector lhsVector = page.<LongBlock>getBlock(0).asVector();
@@ -61,7 +62,7 @@ public class EvalOperatorTests extends OperatorTestCase {
         public void close() {}
     }
 
-    record LoadFromPage(int channel) implements EvalOperator.ExpressionEvaluator {
+    record LoadFromPage(int channel) implements ExpressionEvaluator {
         @Override
         public Block eval(Page page) {
             Block block = page.getBlock(channel);
@@ -80,9 +81,9 @@ public class EvalOperatorTests extends OperatorTestCase {
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return new EvalOperator.EvalOperatorFactory(new EvalOperator.ExpressionEvaluator.Factory() {
+        return new EvalOperator.EvalOperatorFactory(new ExpressionEvaluator.Factory() {
             @Override
-            public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+            public ExpressionEvaluator get(DriverContext context) {
                 return new Addition(context, 0, 1);
             }
 

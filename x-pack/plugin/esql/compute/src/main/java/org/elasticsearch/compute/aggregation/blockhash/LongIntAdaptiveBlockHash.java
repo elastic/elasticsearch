@@ -187,20 +187,19 @@ public final class LongIntAdaptiveBlockHash extends AdaptiveBlockHash {
         }
 
         @Override
-        public Block[] getKeys() {
+        public Block[] getKeys(IntVector selected) {
             Block longKeys = null;
             Block intKeys = null;
             boolean success = false;
-            int positionCount = numKeys();
+            int positions = selected.getPositionCount();
             try (
-                var longsBuilder = blockFactory.newLongVectorFixedBuilder(positionCount);
-                var intsBuilder = blockFactory.newIntVectorFixedBuilder(positionCount)
+                var longsBuilder = blockFactory.newLongVectorFixedBuilder(positions);
+                var intsBuilder = blockFactory.newIntVectorFixedBuilder(positions)
             ) {
-                for (int i = 0; i < positionCount; i++) {
-                    long longKey = longLongHash.getKey1(i);
-                    int intKey = (int) longLongHash.getKey2(i);
-                    longsBuilder.appendLong(longKey);
-                    intsBuilder.appendInt(intKey);
+                for (int i = 0; i < positions; i++) {
+                    int groupId = selected.getInt(i);
+                    longsBuilder.appendLong(longLongHash.getKey1(groupId));
+                    intsBuilder.appendInt((int) longLongHash.getKey2(groupId));
                 }
                 longKeys = longsBuilder.build().asBlock();
                 intKeys = intsBuilder.build().asBlock();

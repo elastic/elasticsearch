@@ -23,6 +23,9 @@ dependencies {
   api project(':libs:grok')
   api project(':libs:dissect')
   api project(':libs:web-utils')
+  api project(':libs:user-agent-api')
+
+  testImplementation project(':modules:user-agent')
 }
 
 restResources {

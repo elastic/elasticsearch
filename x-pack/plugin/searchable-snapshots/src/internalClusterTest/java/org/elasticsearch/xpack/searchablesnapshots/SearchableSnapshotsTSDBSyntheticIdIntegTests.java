@@ -163,8 +163,6 @@ public class SearchableSnapshotsTSDBSyntheticIdIntegTests extends BaseFrozenSear
      * having them all together in one test cuts execution a lot.
      */
     public void testSearchableSnapshot() throws IOException {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
-
         // Index exists
         assertTrue("Expected index [" + MOUNTED_INDEX + "] to exist, but did not", indexExists(MOUNTED_INDEX));
 

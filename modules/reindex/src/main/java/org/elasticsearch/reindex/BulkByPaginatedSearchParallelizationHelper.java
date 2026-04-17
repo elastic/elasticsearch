@@ -9,6 +9,7 @@
 
 package org.elasticsearch.reindex;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
@@ -17,12 +18,15 @@ import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShard
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.LeaderBulkByScrollTaskState;
+import org.elasticsearch.index.reindex.ResumeInfo;
+import org.elasticsearch.index.reindex.ResumeInfo.WorkerResult;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.tasks.TaskId;
@@ -31,8 +35,12 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.AUTO_SLICES;
 
 /**
  * Helps parallelize reindex requests using slices. This is search agnostic, working for both scrolls and PITs (point-in-times)
@@ -68,7 +76,9 @@ class BulkByPaginatedSearchParallelizationHelper {
             task,
             request,
             client,
-            listener.delegateFailure((l, v) -> executeSlicedAction(task, request, action, l, client, node, workerAction))
+            listener.delegateFailure(
+                (l, v) -> executeSlicedAction(task, request, action, l, client, node, null, version -> workerAction.run())
+            )
         );
     }
 
@@ -76,11 +86,14 @@ class BulkByPaginatedSearchParallelizationHelper {
      * Takes an action and a {@link BulkByScrollTask} and runs it with regard to whether this task is a
      * leader or worker.
      *
-     * If this task is a worker, the worker action in the given {@link Runnable} will be started on the local
-     * node. If the task is a leader (i.e. the number of slices is more than 1), then a subrequest will be
-     * created for each slice and sent.
+     * If this task is a worker, the worker action is invoked with the given {@code remoteVersion} (may be null
+     * for local reindex). If the task is a leader (i.e. the number of slices is more than 1), then a subrequest
+     * will be created for each slice and sent.
      *
      * This method can only be called after the task state is initialized {@link #initTaskState}.
+     *
+     * @param remoteVersion the version of the remote cluster when reindexing from remote, or null for local reindex
+     * @param workerAction  invoked when this task is a worker, with the remote version (or null)
      */
     static <Request extends AbstractBulkByScrollRequest<Request>> void executeSlicedAction(
         BulkByScrollTask task,
@@ -89,12 +102,13 @@ class BulkByPaginatedSearchParallelizationHelper {
         ActionListener<BulkByScrollResponse> listener,
         Client client,
         DiscoveryNode node,
-        Runnable workerAction
+        @Nullable Version remoteVersion,
+        Consumer<Version> workerAction
     ) {
         if (task.isLeader()) {
             sendSubRequests(client, action, node.getId(), task, request, listener);
         } else if (task.isWorker()) {
-            workerAction.run();
+            workerAction.accept(remoteVersion);
         } else {
             throw new AssertionError("Task should have been initialized at this point.");
         }
@@ -114,8 +128,11 @@ class BulkByPaginatedSearchParallelizationHelper {
         Client client,
         ActionListener<Void> listener
     ) {
-        int configuredSlices = request.getSlices();
-        if (configuredSlices == AbstractBulkByScrollRequest.AUTO_SLICES) {
+        // If we are resuming a task, make sure we slice the same way as before. For example, if slicing was "auto", it's possible that the
+        // number of shards in the source has changed since the original run, so we have to use the original number of slices.
+        int configuredSlices = request.getResumeInfo().map(ResumeInfo::getTotalSlices).orElse(request.getSlices());
+        assert request.getResumeInfo().isEmpty() || configuredSlices != AUTO_SLICES : "Resumed tasks can't have auto slices";
+        if (configuredSlices == AUTO_SLICES) {
             client.execute(
                 TransportClusterSearchShardsAction.TYPE,
                 new ClusterSearchShardsRequest(request.getTimeout(), request.getSearchRequest().indices()),
@@ -160,16 +177,31 @@ class BulkByPaginatedSearchParallelizationHelper {
         Request request,
         ActionListener<BulkByScrollResponse> listener
     ) {
+        LeaderBulkByScrollTaskState leader = task.getLeaderState();
+        int totalSlices = leader.getSlices();
+        assert request.getResumeInfo().isEmpty() || totalSlices == request.getResumeInfo().get().getTotalSlices()
+            : "If resuming, the total slices in the resume info should match the total slices in the task state";
 
-        LeaderBulkByScrollTaskState worker = task.getLeaderState();
-        int totalSlices = worker.getSlices();
-        TaskId parentTaskId = new TaskId(localNodeId, task.getId());
-        for (final SearchRequest slice : sliceIntoSubRequests(request.getSearchRequest(), IdFieldMapper.NAME, totalSlices)) {
-            // TODO move the request to the correct node. maybe here or somehow do it as part of startup for reindex in general....
-            Request requestForSlice = request.forSlice(parentTaskId, slice, totalSlices);
+        SearchRequest[] searchRequests = sliceIntoSubRequests(request.getSearchRequest(), IdFieldMapper.NAME, totalSlices);
+        for (int sliceId = 0; sliceId < searchRequests.length; sliceId++) {
+            // If a resumed slice was already completed, skip sending the request and directly record the result
+            Optional<ResumeInfo> resumeInfo = request.getResumeInfo();
+            if (resumeInfo.isPresent() && resumeInfo.get().isSliceCompleted(sliceId)) {
+                WorkerResult sliceResult = resumeInfo.get().getSlice(sliceId).get().result();
+                if (sliceResult.getResponse().isPresent()) {
+                    leader.onSliceResponse(listener, sliceId, sliceResult.getResponse().get());
+                } else if (sliceResult.getFailure().isPresent()) {
+                    leader.onSliceFailure(listener, sliceId, sliceResult.getFailure().get());
+                }
+                continue;
+            }
+
+            TaskId parentTaskId = new TaskId(localNodeId, task.getId());
+            SearchRequest searchRequest = searchRequests[sliceId];
+            Request requestForSlice = request.forSlice(parentTaskId, searchRequest, totalSlices);
             ActionListener<BulkByScrollResponse> sliceListener = ActionListener.wrap(
-                r -> worker.onSliceResponse(listener, slice.source().slice().getId(), r),
-                e -> worker.onSliceFailure(listener, slice.source().slice().getId(), e)
+                r -> leader.onSliceResponse(listener, searchRequest.source().slice().getId(), r),
+                e -> leader.onSliceFailure(listener, searchRequest.source().slice().getId(), e)
             );
             client.execute(action, requestForSlice, sliceListener);
         }

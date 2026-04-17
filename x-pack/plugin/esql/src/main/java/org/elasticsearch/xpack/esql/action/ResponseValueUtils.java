@@ -23,6 +23,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongRangeBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TDigestBlock;
+import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -181,7 +182,7 @@ public final class ResponseValueUtils {
                 var to = ((LongRangeBlock) block).getToBlock().getLong(offset);
                 return dateRangeToString(from, to);
             };
-            case TDIGEST -> (block, offset, scratch) -> ((TDigestBlock) block).getTDigestHolder(offset);
+            case TDIGEST -> (block, offset, scratch) -> ((TDigestBlock) block).getTDigestHolder(offset, new TDigestHolder());
             case HISTOGRAM -> (block, offset, scratch) -> EsqlDataTypeConverter.histogramToString(
                 ((BytesRefBlock) block).getBytesRef(offset, scratch)
             );
@@ -202,7 +203,7 @@ public final class ResponseValueUtils {
             };
             case DENSE_VECTOR -> (block, offset, scratch) -> ((FloatBlock) block).getFloat(offset);
             case NULL, UNSUPPORTED -> (block, offset, scratch) -> null;
-            case SHORT, BYTE, FLOAT, HALF_FLOAT, SCALED_FLOAT, OBJECT, DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE ->
+            case SHORT, BYTE, FLOAT, HALF_FLOAT, SCALED_FLOAT, OBJECT, DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, PARTIAL_AGG ->
                 throw EsqlIllegalArgumentException.illegalDataType(dataType);
         };
     }

@@ -10,11 +10,14 @@ package org.elasticsearch.xpack.inference.services.nvidia.request.embeddings;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
+import org.elasticsearch.xpack.inference.external.request.DenseEmbeddingRequest;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsModel;
@@ -30,7 +33,7 @@ import static org.elasticsearch.xpack.inference.external.request.RequestUtils.cr
  * This class is responsible for creating a request to the Nvidia embeddings endpoint.
  * It constructs an HTTP POST request with the necessary headers and body content.
  */
-public class NvidiaEmbeddingsRequest implements Request {
+public class NvidiaEmbeddingsRequest implements DenseEmbeddingRequest {
     private final NvidiaEmbeddingsModel model;
     private final Truncator.TruncationResult truncationResult;
     private final Truncator truncator;
@@ -57,7 +60,7 @@ public class NvidiaEmbeddingsRequest implements Request {
     }
 
     @Override
-    public HttpRequest createHttpRequest() {
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         HttpPost httpPost = new HttpPost(getURI());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
@@ -75,7 +78,7 @@ public class NvidiaEmbeddingsRequest implements Request {
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaTypeWithoutParameters());
         httpPost.setHeader(createAuthBearerHeader(model.getSecretSettings().apiKey()));
 
-        return new HttpRequest(httpPost, getInferenceEntityId());
+        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }
 
     /**
@@ -114,5 +117,10 @@ public class NvidiaEmbeddingsRequest implements Request {
     @Override
     public String getInferenceEntityId() {
         return model.getInferenceEntityId();
+    }
+
+    @Override
+    public TaskType getTaskType() {
+        return model.getTaskType();
     }
 }

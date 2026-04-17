@@ -16,13 +16,14 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.expression.function.UnaryTestCaseHelper;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.unary;
 import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.equalTo;
 
 public class AsinhTests extends AbstractScalarFunctionTestCase {
 
@@ -36,69 +37,13 @@ public class AsinhTests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-
-        suppliers.add(
-            new TestCaseSupplier(
-                "asinh(0)",
-                List.of(DataType.DOUBLE),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(0.0, DataType.DOUBLE, "arg")),
-                    "AsinhEvaluator[val=Attribute[channel=0]]",
-                    DataType.DOUBLE,
-                    equalTo(0.0)
-                )
-            )
-        );
-
-        suppliers.add(
-            new TestCaseSupplier(
-                "asinh(1)",
-                List.of(DataType.DOUBLE),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(1.0, DataType.DOUBLE, "arg")),
-                    "AsinhEvaluator[val=Attribute[channel=0]]",
-                    DataType.DOUBLE,
-                    closeTo(ASINH_OF_1, Math.ulp(ASINH_OF_1))
-                )
-            )
-        );
-
-        suppliers.add(
-            new TestCaseSupplier(
-                "asinh(-1)",
-                List.of(DataType.DOUBLE),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(-1.0, DataType.DOUBLE, "arg")),
-                    "AsinhEvaluator[val=Attribute[channel=0]]",
-                    DataType.DOUBLE,
-                    closeTo(-ASINH_OF_1, Math.ulp(ASINH_OF_1))
-                )
-            )
-        );
-
-        suppliers.add(
-            new TestCaseSupplier(
-                "asinh(10)",
-                List.of(DataType.DOUBLE),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(10.0, DataType.DOUBLE, "arg")),
-                    "AsinhEvaluator[val=Attribute[channel=0]]",
-                    DataType.DOUBLE,
-                    closeTo(ASINH_OF_10, Math.ulp(ASINH_OF_10))
-                )
-            )
-        );
-
-        suppliers.addAll(
-            TestCaseSupplier.forUnaryCastingToDouble(
-                "AsinhEvaluator",
-                "val",
-                ESSloppyMath::asinh,
-                Double.NEGATIVE_INFINITY,
-                Double.POSITIVE_INFINITY,
-                List.of()
-            )
-        );
+        UnaryTestCaseHelper helper = unary().evaluatorToString("AsinhEvaluator[val=%0]").expectedOutputType(DataType.DOUBLE);
+        helper.expectedFromDouble(d -> d).castingToDouble(0, 0, true, suppliers);
+        helper.expectedFromDouble(d -> closeTo(ASINH_OF_1, Math.ulp(ASINH_OF_1))).castingToDouble(1.0, 1.0, false, suppliers);
+        helper.expectedFromDouble(d -> closeTo(-ASINH_OF_1, Math.ulp(ASINH_OF_1))).castingToDouble(-1.0, -1.0, false, suppliers);
+        helper.expectedFromDouble(d -> closeTo(ASINH_OF_10, Math.ulp(ASINH_OF_10))).castingToDouble(10.0, 10.0, false, suppliers);
+        helper.expectedFromDouble(d -> closeTo(-ASINH_OF_10, Math.ulp(ASINH_OF_10))).castingToDouble(-10.0, -10.0, false, suppliers);
+        helper.expectedFromDouble(ESSloppyMath::asinh).castingToDouble(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, true, suppliers);
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 

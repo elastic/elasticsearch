@@ -27,6 +27,7 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.plugin.MatchFunctionIT.createAndPopulateLookupIndex;
 import static org.hamcrest.CoreMatchers.containsString;
 
 public class KqlFunctionIT extends AbstractEsqlIntegTestCase {
@@ -176,6 +177,76 @@ public class KqlFunctionIT extends AbstractEsqlIntegTestCase {
         assertQuery.accept(wildcardQuery);
     }
 
+    public void testKqlAfterMvExpand() {
+        var query = """
+            FROM test
+            | MV_EXPAND content
+            | WHERE kql("content: fox")
+            """;
+
+        var error = expectThrows(ElasticsearchException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[KQL] function cannot be used after MV_EXPAND"));
+    }
+
+    public void testKqlAfterMvExpandWithIntermediateCommands() {
+        var error = expectThrows(ElasticsearchException.class, () -> run("""
+            FROM test
+            | MV_EXPAND content
+            | SORT id
+            | WHERE kql("content: fox")
+            """));
+        assertThat(error.getMessage(), containsString("[KQL] function cannot be used after MV_EXPAND"));
+
+        error = expectThrows(ElasticsearchException.class, () -> run("""
+            FROM test
+            | MV_EXPAND content
+            | WHERE id > 0
+            | SORT id
+            | WHERE kql("content: fox")
+            """));
+        assertThat(error.getMessage(), containsString("[KQL] function cannot be used after MV_EXPAND"));
+    }
+
+    public void testWhereFalseBeforeInlineStatsWithKql() {
+        var query = """
+            FROM test
+            | WHERE false
+            | INLINE STATS max_id = MAX(id)
+            | WHERE kql("content: fox")
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[KQL] function cannot be used after INLINE"));
+    }
+
+    public void testWhereFalseBeforeLookupJoinWithKql() {
+        var query = """
+            FROM test
+            | WHERE false
+            | LOOKUP JOIN test_lookup ON id
+            | WHERE kql("lookup_content: fox")
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[KQL] function cannot be used after LOOKUP"));
+    }
+
+    public void testKqlBeforeSample() {
+        var query = """
+            FROM test
+            | WHERE kql("content: dog")
+            | SAMPLE 0.9999
+            | KEEP const_keyword
+            | LIMIT 1
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("const_keyword"));
+            assertColumnTypes(resp.columns(), List.of("keyword"));
+            assertValues(resp.values(), List.of(List.of("foobar")));
+        }
+    }
+
     private void createAndPopulateIndex() {
         var indexName = "test";
         var client = client().admin().indices();
@@ -220,7 +291,11 @@ public class KqlFunctionIT extends AbstractEsqlIntegTestCase {
             )
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
-        ensureYellow(indexName);
+
+        var lookupIndexName = "test_lookup";
+        createAndPopulateLookupIndex(client, lookupIndexName);
+
+        ensureYellow(indexName, lookupIndexName);
     }
 
     @Override

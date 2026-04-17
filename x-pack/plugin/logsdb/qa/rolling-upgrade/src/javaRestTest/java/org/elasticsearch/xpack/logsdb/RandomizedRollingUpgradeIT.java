@@ -24,6 +24,7 @@ import org.elasticsearch.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.datageneration.datasource.DefaultMappingParametersHandler;
+import org.elasticsearch.datageneration.datasource.DefaultObjectGenerationHandler;
 import org.elasticsearch.datageneration.datasource.MultifieldAddonHandler;
 import org.elasticsearch.datageneration.fields.PredefinedField;
 import org.elasticsearch.datageneration.fields.leaf.FlattenedFieldDataGenerator;
@@ -31,6 +32,7 @@ import org.elasticsearch.datageneration.matchers.MatchResult;
 import org.elasticsearch.datageneration.matchers.Matcher;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperFeatures;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -40,7 +42,6 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -90,7 +91,9 @@ public class RandomizedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTest
                     if (System.getProperty("tests.old_cluster_version", "").startsWith("9.0.") == false) {
                         return null;
                     }
-                    var allowed = Arrays.stream(FieldType.values()).filter(ft -> ft != FieldType.COUNTED_KEYWORD).toList();
+                    var allowed = DefaultObjectGenerationHandler.ALLOWED_FIELD_TYPES.stream()
+                        .filter(ft -> ft != FieldType.COUNTED_KEYWORD)
+                        .toList();
                     return new DataSourceResponse.FieldTypeGenerator(
                         () -> new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(ESTestCase.randomFrom(allowed).toString())
                     );
@@ -99,7 +102,7 @@ public class RandomizedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTest
             .withDataSourceHandlers(List.of(new DefaultMappingParametersHandler() {
                 @Override
                 protected Object extendedDocValuesParams() {
-                    if (oldClusterHasFeature("mapper.keyword.store_high_cardinality_in_binary_doc_values")) {
+                    if (oldClusterHasFeature(MapperFeatures.DOC_VALUES_MULTI_VALUE)) {
                         return super.extendedDocValuesParams();
                     }
 
@@ -148,15 +151,13 @@ public class RandomizedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTest
             indexAndQueryDocuments(indexConfigs[i]);
         }
 
-        int numNodes = Integer.parseInt(System.getProperty("tests.num_nodes", "3"));
-        for (int i = 0; i < numNodes; i++) {
-            flush(indexNameBase + "*", true);
-            upgradeNode(i);
+        flush(indexNameBase + "*", true);
+        clusterRollingUpgrade(index -> {
             ensureGreen(indexNameBase + "*");
             for (int j = 0; j < NUM_INDICES; j++) {
                 indexAndQueryDocuments(indexConfigs[j]);
             }
-        }
+        });
     }
 
     public void testIndexingStandardSource() throws IOException {

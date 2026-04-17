@@ -3,6 +3,10 @@ setup:
       cluster_features: ["mapper.tsdb_nested_field_support"]
       reason: "tsdb index with nested field support enabled"
 
+  - skip:
+      cluster_features: "index.time_series_synthetic_id"
+      reason: when cluster has synthetic_id feature use 161/162_nested_fields_synthetic_id_false/true instead
+
 ---
 "Create TSDB index with field of nested type":
   - do:

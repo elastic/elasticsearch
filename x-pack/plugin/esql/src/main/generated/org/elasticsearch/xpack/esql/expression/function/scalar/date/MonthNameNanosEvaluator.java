@@ -16,22 +16,22 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MonthName}.
+ * {@link ExpressionEvaluator} implementation for {@link MonthName}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class MonthNameNanosEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class MonthNameNanosEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MonthNameNanosEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator val;
+  private final ExpressionEvaluator val;
 
   private final ZoneId zoneId;
 
@@ -41,7 +41,7 @@ public final class MonthNameNanosEvaluator implements EvalOperator.ExpressionEva
 
   private Warnings warnings;
 
-  public MonthNameNanosEvaluator(Source source, EvalOperator.ExpressionEvaluator val, ZoneId zoneId,
+  public MonthNameNanosEvaluator(Source source, ExpressionEvaluator val, ZoneId zoneId,
       Locale locale, DriverContext driverContext) {
     this.source = source;
     this.val = val;
@@ -116,17 +116,16 @@ public final class MonthNameNanosEvaluator implements EvalOperator.ExpressionEva
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory val;
+    private final ExpressionEvaluator.Factory val;
 
     private final ZoneId zoneId;
 
     private final Locale locale;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory val, ZoneId zoneId,
-        Locale locale) {
+    public Factory(Source source, ExpressionEvaluator.Factory val, ZoneId zoneId, Locale locale) {
       this.source = source;
       this.val = val;
       this.zoneId = zoneId;

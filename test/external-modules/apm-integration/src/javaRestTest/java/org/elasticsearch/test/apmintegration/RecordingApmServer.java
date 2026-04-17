@@ -33,11 +33,11 @@ import java.util.function.Consumer;
 public class RecordingApmServer extends ExternalResource {
     private static final Logger logger = LogManager.getLogger(RecordingApmServer.class);
 
-    final ArrayBlockingQueue<String> received = new ArrayBlockingQueue<>(1000);
+    final ArrayBlockingQueue<ReceivedTelemetry> received = new ArrayBlockingQueue<>(1000);
 
     private static HttpServer server;
     private final Thread messageConsumerThread = consumerThread();
-    private volatile Consumer<String> consumer;
+    private volatile Consumer<ReceivedTelemetry> consumer;
     private volatile boolean running = true;
 
     @Override
@@ -52,16 +52,18 @@ public class RecordingApmServer extends ExternalResource {
 
     private Thread consumerThread() {
         return new Thread(() -> {
-            while (running) {
+            while (running && Thread.currentThread().isInterrupted() == false) {
                 if (consumer != null) {
                     try {
-                        String msg = received.poll(1L, TimeUnit.SECONDS);
-                        if (msg != null && msg.isEmpty() == false) {
+                        ReceivedTelemetry msg = received.poll(1L, TimeUnit.SECONDS);
+                        if (msg != null) {
                             consumer.accept(msg);
                         }
-
                     } catch (InterruptedException e) {
-                        throw new RuntimeException(e);
+                        Thread.currentThread().interrupt();
+                        return;
+                    } catch (Exception e) {
+                        logger.warn("failed to process message", e);
                     }
                 }
             }
@@ -71,21 +73,33 @@ public class RecordingApmServer extends ExternalResource {
     @Override
     protected void after() {
         running = false;
-        server.stop(1);
+        messageConsumerThread.interrupt();
+        if (server != null) {
+            server.stop(1);
+        }
         consumer = null;
+        try {
+            messageConsumerThread.join(2000);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private void handle(HttpExchange exchange) throws IOException {
         try (exchange) {
+            String path = exchange.getRequestURI().getPath();
             if (running) {
-                try {
-                    try (InputStream requestBody = exchange.getRequestBody()) {
-                        if (requestBody != null) {
-                            var read = readJsonMessages(requestBody);
-                            received.addAll(read);
+                try (InputStream requestBody = exchange.getRequestBody()) {
+                    if (requestBody != null) {
+                        if ("/v1/metrics".equals(path)) {
+                            received.addAll(OtlpMetricsParser.parse(requestBody));
+                        } else {
+                            List<String> lines = readJsonMessages(requestBody);
+                            for (String line : lines) {
+                                ApmIntakeMessageParser.parseLine(line).ifPresent(received::add);
+                            }
                         }
                     }
-
                 } catch (Throwable t) {
                     // The lifetime of HttpServer makes message handling "brittle": we need to start handling and recording received
                     // messages before the test starts running. We should also stop handling them before the test ends (and the test
@@ -110,7 +124,20 @@ public class RecordingApmServer extends ExternalResource {
         return server.getAddress().getPort();
     }
 
-    public void addMessageConsumer(Consumer<String> messageConsumer) {
+    /**
+     * Returns the HTTP address in the format "host:port", properly handling IPv6 addresses with brackets.
+     */
+    public String getHttpAddress() {
+        String host = server.getAddress().getHostString();
+        if (host.contains(":")) {
+            // IPv6 address needs brackets
+            host = "[" + host + "]";
+        }
+        return host + ":" + getPort();
+    }
+
+    public void addMessageConsumer(Consumer<ReceivedTelemetry> messageConsumer) {
         this.consumer = messageConsumer;
     }
+
 }

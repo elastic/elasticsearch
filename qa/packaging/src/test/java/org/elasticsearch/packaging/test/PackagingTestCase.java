@@ -427,8 +427,6 @@ public abstract class PackagingTestCase extends Assert {
             assertThat(error.stdout(), anyOf(stringMatchers));
 
         } else {
-
-            // Otherwise, error should be on shell stderr
             assertThat(result.stderr(), anyOf(stringMatchers));
         }
     }

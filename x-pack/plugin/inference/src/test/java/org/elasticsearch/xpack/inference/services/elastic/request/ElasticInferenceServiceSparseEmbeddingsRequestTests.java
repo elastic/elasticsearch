@@ -15,6 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
@@ -39,7 +40,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
         var modelId = "my-model-id";
 
         var request = createRequest(url, modelId, input, InputType.SEARCH);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -58,7 +59,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
         var modelId = "my-model-id";
 
         var request = createRequest(url, modelId, input, InputType.UNSPECIFIED);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -78,7 +79,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
         var request = createRequest(url, modelId, input, InputType.UNSPECIFIED);
         var truncatedRequest = request.truncate();
 
-        var httpRequest = truncatedRequest.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(truncatedRequest);
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -116,7 +117,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
                 CCMAuthenticationApplierFactory.NOOP_APPLIER
             );
 
-            var httpRequest = request.createHttpRequest();
+            var httpRequest = RequestTests.getHttpRequestSync(request);
 
             assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
             var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -145,7 +146,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
                 new CCMAuthenticationApplierFactory.AuthenticationHeaderApplier(secret)
             );
 
-            var httpRequest = request.createHttpRequest();
+            var httpRequest = RequestTests.getHttpRequestSync(request);
 
             assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
             var httpPost = (HttpPost) httpRequest.httpRequestBase();

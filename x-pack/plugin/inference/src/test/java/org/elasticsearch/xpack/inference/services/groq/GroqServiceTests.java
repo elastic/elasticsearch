@@ -21,6 +21,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -120,11 +121,8 @@ public class GroqServiceTests extends ESTestCase {
             Map<String, Object> secrets = new HashMap<>();
             secrets.put(ModelSecrets.SECRET_SETTINGS, new HashMap<>(Map.of(DefaultSecretSettings.API_KEY, "persisted-secret")));
 
-            GroqChatCompletionModel model = (GroqChatCompletionModel) service.parsePersistedConfigWithSecrets(
-                "groq-test",
-                TaskType.CHAT_COMPLETION,
-                config,
-                secrets
+            GroqChatCompletionModel model = (GroqChatCompletionModel) service.parsePersistedConfig(
+                new UnparsedModel("groq-test", TaskType.CHAT_COMPLETION, GroqService.NAME, config, secrets)
             );
             assertTrue(model.getSecretSettings().apiKey().equals("persisted-secret"));
             assertThat(model.getServiceSettings().modelId(), equalTo("persisted-model"));

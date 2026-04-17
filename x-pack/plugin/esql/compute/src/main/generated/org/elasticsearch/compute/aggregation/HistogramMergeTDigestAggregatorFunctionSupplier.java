@@ -31,13 +31,13 @@ public final class HistogramMergeTDigestAggregatorFunctionSupplier implements Ag
   @Override
   public HistogramMergeTDigestAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return HistogramMergeTDigestAggregatorFunction.create(driverContext, channels);
+    return new HistogramMergeTDigestAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public HistogramMergeTDigestGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return HistogramMergeTDigestGroupingAggregatorFunction.create(channels, driverContext);
+    return new HistogramMergeTDigestGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

@@ -39,6 +39,9 @@ public class OrderBy extends UnaryPlan
 
     private final List<Order> order;
 
+    public static final String UNBOUNDED_SORT_NOT_SUPPORTED_FOR_COMMAND_MESSAGE = "{} [{}] cannot yet have an unbounded SORT [{}]"
+        + " before it: either move the SORT after it, or add a LIMIT after the SORT";
+
     public OrderBy(Source source, LogicalPlan child, List<Order> order) {
         super(source, child);
         this.order = order;
@@ -129,9 +132,23 @@ public class OrderBy extends UnaryPlan
                         orderBy -> failures.add(
                             fail(
                                 inlineJoin,
-                                "INLINE STATS [{}] cannot yet have an unbounded SORT [{}] before it : either move the SORT after it,"
-                                    + " or add a LIMIT before the SORT",
+                                UNBOUNDED_SORT_NOT_SUPPORTED_FOR_COMMAND_MESSAGE,
+                                "INLINE STATS",
                                 inlineJoin.sourceText(),
+                                orderBy.sourceText()
+                            )
+                        )
+                    );
+            } else if (p instanceof MvExpand mvExpand) {
+                mvExpand.child()
+                    .forEachUp(
+                        OrderBy.class,
+                        orderBy -> failures.add(
+                            fail(
+                                mvExpand,
+                                UNBOUNDED_SORT_NOT_SUPPORTED_FOR_COMMAND_MESSAGE,
+                                "MV_EXPAND",
+                                mvExpand.sourceText(),
                                 orderBy.sourceText()
                             )
                         )

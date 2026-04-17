@@ -14,6 +14,11 @@ import io.opentelemetry.proto.metrics.v1.Metric;
 import com.google.protobuf.InvalidProtocolBufferException;
 
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -24,6 +29,7 @@ import org.elasticsearch.xpack.oteldata.OTelPlugin;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.keyValue;
@@ -39,9 +45,13 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
     @Override
     protected AbstractOTLPTransportAction createAction() {
         ClusterService clusterService = mock(ClusterService.class);
-        clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(OTelPlugin.USE_EXPONENTIAL_HISTOGRAM_FIELD_TYPE));
+        clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(OTelPlugin.HISTOGRAM_FIELD_TYPE_SETTING));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
-
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(ProjectId.DEFAULT).build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
+            .metadata(Metadata.builder().projectMetadata(Map.of(ProjectId.DEFAULT, projectMetadata)).build())
+            .build();
+        when(clusterService.state()).thenReturn(clusterState);
         metricsAction = new OTLPMetricsTransportAction(
             mock(TransportService.class),
             mock(ActionFilters.class),
@@ -85,18 +95,16 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
     // --- metrics-specific tests ---
 
     public void testMappingHintsSettingsUpdate() throws Exception {
+        assertThat(metricsAction.defaultMappingHints, equalTo(MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM));
+        assertThat(OTelPlugin.HISTOGRAM_FIELD_TYPE_SETTING.isDynamic(), equalTo(true));
+
+        clusterSettings.applySettings(Settings.builder().put(OTelPlugin.HISTOGRAM_FIELD_TYPE_SETTING.getKey(), "histogram").build());
         assertThat(metricsAction.defaultMappingHints, equalTo(MappingHints.DEFAULT_TDIGEST));
-        assertThat(OTelPlugin.USE_EXPONENTIAL_HISTOGRAM_FIELD_TYPE.isDynamic(), equalTo(true));
 
         clusterSettings.applySettings(
-            Settings.builder().put(OTelPlugin.USE_EXPONENTIAL_HISTOGRAM_FIELD_TYPE.getKey(), "exponential_histogram").build()
+            Settings.builder().put(OTelPlugin.HISTOGRAM_FIELD_TYPE_SETTING.getKey(), "exponential_histogram").build()
         );
         assertThat(metricsAction.defaultMappingHints, equalTo(MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM));
-
-        clusterSettings.applySettings(
-            Settings.builder().put(OTelPlugin.USE_EXPONENTIAL_HISTOGRAM_FIELD_TYPE.getKey(), "histogram").build()
-        );
-        assertThat(metricsAction.defaultMappingHints, equalTo(MappingHints.DEFAULT_TDIGEST));
     }
 
     // --- helpers ---

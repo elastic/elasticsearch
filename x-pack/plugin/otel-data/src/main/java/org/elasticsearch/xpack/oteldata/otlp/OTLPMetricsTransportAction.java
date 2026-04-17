@@ -18,10 +18,16 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamAlias;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -34,6 +40,7 @@ import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MetricDocumentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -52,6 +59,7 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
 
     // visible for testing
     volatile MappingHints defaultMappingHints;
+    private final ClusterService clusterService;
 
     @Inject
     public OTLPMetricsTransportAction(
@@ -63,10 +71,11 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
     ) {
         super(NAME, transportService, actionFilters, threadPool, client);
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
-        defaultMappingHints = MappingHints.fromSettings(clusterSettings.get(OTelPlugin.USE_EXPONENTIAL_HISTOGRAM_FIELD_TYPE));
-        clusterSettings.addSettingsUpdateConsumer(OTelPlugin.USE_EXPONENTIAL_HISTOGRAM_FIELD_TYPE, histogramFieldTypeSetting -> {
+        defaultMappingHints = MappingHints.fromSettings(clusterSettings.get(OTelPlugin.HISTOGRAM_FIELD_TYPE_SETTING));
+        clusterSettings.addSettingsUpdateConsumer(OTelPlugin.HISTOGRAM_FIELD_TYPE_SETTING, histogramFieldTypeSetting -> {
             defaultMappingHints = MappingHints.fromSettings(histogramFieldTypeSetting);
         });
+        this.clusterService = clusterService;
     }
 
     @Override
@@ -79,7 +88,11 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
             return context;
         }
         MetricDocumentBuilder metricDocumentBuilder = new MetricDocumentBuilder(byteStringAccessor, defaultMappingHints);
-        context.consume(dataPointGroup -> addIndexRequest(bulkRequestBuilder, metricDocumentBuilder, dataPointGroup));
+        ProjectMetadata projectMetadata = clusterService.state().projectState(ProjectId.DEFAULT).metadata();
+        Map<String, IndexVersion> indexVersions = new HashMap<>();
+        context.consume(
+            dataPointGroup -> addIndexRequest(bulkRequestBuilder, metricDocumentBuilder, dataPointGroup, projectMetadata, indexVersions)
+        );
         return context;
     }
 
@@ -92,29 +105,51 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
         return ExportMetricsServiceResponse.newBuilder().setPartialSuccess(partialSuccess).build();
     }
 
+    private static IndexVersion resolveIndexVersion(ProjectMetadata projectMetadata, String dataStreamName) {
+        DataStream dataStream = projectMetadata.dataStreams().get(dataStreamName);
+        if (dataStream == null) {
+            DataStreamAlias alias = projectMetadata.dataStreamAliases().get(dataStreamName);
+            if (alias != null && alias.getWriteDataStream() != null) {
+                dataStream = projectMetadata.dataStreams().get(alias.getWriteDataStream());
+            }
+        }
+        if (dataStream != null && dataStream.getWriteIndex() != null) {
+            return projectMetadata.getIndexSafe(dataStream.getWriteIndex()).getCreationVersion();
+        }
+        // non-existent data-stream will be created with the current index version
+        return IndexVersion.current();
+    }
+
     private void addIndexRequest(
         BulkRequestBuilder bulkRequestBuilder,
         MetricDocumentBuilder metricDocumentBuilder,
-        DataPointGroupingContext.DataPointGroup dataPointGroup
+        DataPointGroupingContext.DataPointGroup dataPointGroup,
+        ProjectMetadata projectMetadata,
+        Map<String, IndexVersion> indexVersions
     ) throws IOException {
         try (XContentBuilder xContentBuilder = XContentFactory.cborBuilder(new BytesStreamOutput())) {
             var dynamicTemplates = Maps.<String, String>newHashMapWithExpectedSize(dataPointGroup.dataPoints().size());
             var dynamicTemplateParams = Maps.<String, Map<String, String>>newHashMapWithExpectedSize(dataPointGroup.dataPoints().size());
+            String dataStreamName = dataPointGroup.targetIndex().index();
+            IndexVersion indexVersion = indexVersions.computeIfAbsent(dataStreamName, name -> resolveIndexVersion(projectMetadata, name));
             BytesRef tsid = metricDocumentBuilder.buildMetricDocument(
                 xContentBuilder,
                 dataPointGroup,
                 dynamicTemplates,
-                dynamicTemplateParams
+                dynamicTemplateParams,
+                indexVersion
             );
-            bulkRequestBuilder.add(
-                new IndexRequest(dataPointGroup.targetIndex().index()).opType(DocWriteRequest.OpType.CREATE)
-                    .setRequireDataStream(true)
-                    .source(xContentBuilder)
-                    .tsid(tsid)
-                    .setIncludeSourceOnError(false)
-                    .setDynamicTemplates(dynamicTemplates)
-                    .setDynamicTemplateParams(dynamicTemplateParams)
-            );
+            var indexRequest = new IndexRequest(dataPointGroup.targetIndex().index()).opType(DocWriteRequest.OpType.CREATE)
+                .setRequireDataStream(true)
+                .source(xContentBuilder)
+                .setIncludeSourceOnError(false)
+                .setDynamicTemplates(dynamicTemplates)
+                .setDynamicTemplateParams(dynamicTemplateParams);
+            // For old write indices, let the indexing layer compute the TSID — avoids layout mismatch if a rollover occurs mid-request.
+            if (indexVersion.onOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG)) {
+                indexRequest.tsid(tsid);
+            }
+            bulkRequestBuilder.add(indexRequest);
         }
     }
 }

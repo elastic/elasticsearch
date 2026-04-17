@@ -50,18 +50,21 @@
         },
         "total_bytes_in": {
           "type": "long",
-          "time_series_metric": "counter"
+          "time_series_metric": "counter",
+          "meta": { "unit": "bytes" }
         },
         "total_bytes_out": {
           "type": "long",
-          "time_series_metric": "counter"
+          "time_series_metric": "counter",
+          "meta": { "unit": "bytes" }
         },
         "cost": {
           "type": "double"
         },
         "total_cost": {
           "type": "double",
-          "time_series_metric": "counter"
+          "time_series_metric": "counter",
+          "meta": { "unit": "usd" }
         },
         "eth0": {
           "properties": {
@@ -70,11 +73,13 @@
             },
             "tx": {
               "type": "integer",
-              "time_series_metric": "gauge"
+              "time_series_metric": "gauge",
+              "meta": { "unit": "packets" }
             },
             "rx": {
               "type": "integer",
-              "time_series_metric": "gauge"
+              "time_series_metric": "gauge",
+              "meta": { "unit": "packets" }
             },
             "last_up": {
               "type": "date_nanos"

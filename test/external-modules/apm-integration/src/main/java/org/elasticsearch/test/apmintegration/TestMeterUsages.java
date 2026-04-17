@@ -31,6 +31,8 @@ public class TestMeterUsages {
     private final LongHistogram longHistogram;
     private final AtomicReference<DoubleWithAttributes> doubleWithAttributes = new AtomicReference<>();
     private final AtomicReference<LongWithAttributes> longWithAttributes = new AtomicReference<>();
+    private final AtomicReference<DoubleWithAttributes> asyncDoubleWithAttributes = new AtomicReference<>();
+    private final AtomicReference<LongWithAttributes> asyncLongWithAttributes = new AtomicReference<>();
 
     public TestMeterUsages(MeterRegistry meterRegistry) {
         this.doubleCounter = meterRegistry.registerDoubleCounter("es.test.long_counter.total", "test", "unit");
@@ -48,12 +50,12 @@ public class TestMeterUsages {
             return value;
         });
         meterRegistry.registerLongAsyncCounter("es.test.async_long_counter.total", "test", "unit", () -> {
-            var value = longWithAttributes.get();
+            var value = asyncLongWithAttributes.get();
             logger.trace("[es.test.async_long_counter.total] callback with value [{}]", value);
             return value;
         });
         meterRegistry.registerDoubleAsyncCounter("es.test.async_double_counter.total", "test", "unit", () -> {
-            var value = doubleWithAttributes.get();
+            var value = asyncDoubleWithAttributes.get();
             logger.trace("[es.test.async_double_counter.total] callback with value [{}]", value);
             return value;
         });
@@ -72,5 +74,7 @@ public class TestMeterUsages {
         logger.trace("setting async counters");
         doubleWithAttributes.set(new DoubleWithAttributes(1.0, Map.of()));
         longWithAttributes.set(new LongWithAttributes(1, Map.of()));
+        asyncDoubleWithAttributes.updateAndGet(prev -> new DoubleWithAttributes(prev == null ? 1.0 : prev.value() + 1.0, Map.of()));
+        asyncLongWithAttributes.updateAndGet(prev -> new LongWithAttributes(prev == null ? 1 : prev.value() + 1, Map.of()));
     }
 }

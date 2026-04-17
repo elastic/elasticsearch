@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -147,6 +148,128 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
                 assertThat(indexInputClone, isA(ByteArrayIndexInput.class));
             }
 
+            indexInput.close();
+        }
+    }
+
+    /**
+     * Verifies that {@link FrozenIndexInput}'s {@code DirectAccessInput} methods correctly adjust
+     * offsets when operating on a sliced input. A slice has a non-zero {@code this.offset};
+     * {@code withByteBufferSlice} must add it to produce the correct absolute file position, and
+     * {@code withByteBufferSlices} must adjust every entry in the offsets array. The test reads the
+     * file to populate the {@link SharedBlobCacheService} mmap cache, then checks both the root
+     * input and a slice, comparing returned bytes against the known file content.
+     */
+    public void testDirectAccessWithSliceOffsetAdjustment() throws IOException {
+        assumeFalse("no mmap on Windows", WINDOWS);
+
+        // Use .vec extension (non-metadata) so the blob cache only covers the first 1KB,
+        // forcing the rest of the file through readWithoutBlobCache → SharedBlobCacheService.
+        // Metadata extensions (.si, .fnm, etc.) have a 64KB blob cache range that can cover
+        // the entire small file, preventing SharedBlobCacheService population.
+        final byte[] rawData = randomByteArrayOfLength(randomIntBetween(2000, 5000));
+        final Tuple<String, byte[]> bytes = randomChecksumBytes(rawData);
+        final byte[] fileData = bytes.v2();
+        final String checksum = bytes.v1();
+        final String fileName = randomAlphaOfLength(5) + ".vec";
+
+        final FileInfo fileInfo = new FileInfo(
+            randomAlphaOfLength(10),
+            new StoreFileMetadata(fileName, fileData.length, checksum, IndexVersion.current().luceneVersion().toString()),
+            ByteSizeValue.ofBytes(fileData.length)
+        );
+
+        // Region large enough to fit the entire file so withByteBufferSlice always succeeds
+        final ByteSizeValue regionSize = ByteSizeValue.ofBytes(16 * SharedBytes.PAGE_SIZE);
+        final Settings settings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
+            .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), regionSize)
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(4 * regionSize.getBytes()))
+            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), true)
+            .put("path.home", createTempDir())
+            .build();
+        final Environment environment = TestEnvironment.newEnvironment(settings);
+        for (Path path : environment.dataDirs()) {
+            Files.createDirectories(path);
+        }
+        final SnapshotId snapshotId = new SnapshotId("_name", "_uuid");
+        final Path shardDir = randomShardPath(SHARD_ID);
+        final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, SHARD_ID);
+        final Path cacheDir = Files.createDirectories(resolveSnapshotCache(shardDir).resolve(snapshotId.getUUID()));
+
+        try (
+            NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, environment);
+            SharedBlobCacheService<CacheKey> sharedBlobCacheService = new SharedBlobCacheService<>(
+                nodeEnvironment,
+                settings,
+                threadPool,
+                threadPool.executor(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME),
+                BlobCacheMetrics.NOOP
+            );
+            CacheService cacheService = randomCacheService();
+            TestSearchableSnapshotDirectory directory = new TestSearchableSnapshotDirectory(
+                sharedBlobCacheService,
+                cacheService,
+                fileInfo,
+                snapshotId,
+                fileData,
+                shardPath,
+                cacheDir
+            )
+        ) {
+            cacheService.start();
+            directory.loadSnapshot(createRecoveryState(true), () -> false, ActionListener.noop());
+
+            final IndexInput indexInput = directory.openInput(fileName, randomIOContext());
+            assertThat(indexInput, instanceOf(FrozenIndexInput.class));
+
+            // Read entire file to populate the SharedBlobCacheService
+            byte[] allData = new byte[(int) indexInput.length()];
+            indexInput.readBytes(allData, 0, allData.length);
+            assertArrayEquals(fileData, allData);
+
+            // Test withByteBufferSlice on the root input (offset == 0)
+            int readLen = randomIntBetween(1, Math.min(64, fileData.length));
+            assertTrue(((FrozenIndexInput) indexInput).withByteBufferSlice(0, readLen, bb -> {
+                for (int i = 0; i < readLen; i++) {
+                    assertEquals(fileData[i], bb.get(i));
+                }
+            }));
+
+            // Create a slice at a non-zero offset
+            int sliceOffset = randomIntBetween(10, fileData.length / 2);
+            int sliceLength = fileData.length - sliceOffset;
+            IndexInput sliceInput = indexInput.slice("test-slice", sliceOffset, sliceLength);
+            assertThat(sliceInput, instanceOf(FrozenIndexInput.class));
+
+            // withByteBufferSlice on the slice: FrozenIndexInput adds this.offset to the requested offset
+            int sliceReadLen = randomIntBetween(1, Math.min(64, sliceLength));
+            assertTrue(((FrozenIndexInput) sliceInput).withByteBufferSlice(0, sliceReadLen, bb -> {
+                for (int i = 0; i < sliceReadLen; i++) {
+                    assertEquals("byte mismatch at slice-relative offset " + i, fileData[sliceOffset + i], bb.get(i));
+                }
+            }));
+
+            // withByteBufferSlices on the slice: verifies offset adjustment for the bulk path
+            int vectorSize = randomIntBetween(1, 16);
+            int numVectors = Math.min(randomIntBetween(2, 5), sliceLength / vectorSize);
+            if (numVectors >= 2) {
+                long[] offsets = new long[numVectors];
+                for (int i = 0; i < numVectors; i++) {
+                    offsets[i] = (long) i * vectorSize;
+                }
+                assertTrue(((FrozenIndexInput) sliceInput).withByteBufferSlices(offsets, vectorSize, numVectors, bbs -> {
+                    for (int i = 0; i < numVectors; i++) {
+                        ByteBuffer bb = bbs[i];
+                        for (int j = 0; j < vectorSize; j++) {
+                            int absPos = sliceOffset + i * vectorSize + j;
+                            assertEquals("byte mismatch at vector " + i + " byte " + j, fileData[absPos], bb.get(j));
+                        }
+                    }
+                }));
+            }
+
+            sliceInput.close();
             indexInput.close();
         }
     }

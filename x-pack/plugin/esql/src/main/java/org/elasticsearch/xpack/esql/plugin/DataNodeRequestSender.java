@@ -503,8 +503,8 @@ abstract class DataNodeRequestSender {
             for (DiscoveryNode node : resp.getNodes()) {
                 nodes.put(node.getId(), node);
             }
-            int totalShards = 0;
-            int skippedShards = 0;
+            int totalShards = resp.getNumSkippedShards();
+            int skippedShards = resp.getNumSkippedShards();
             Map<ShardId, TargetShard> shards = newHashMap(resp.getGroups().size());
             for (SearchShardsGroup group : resp.getGroups()) {
                 var shardId = group.shardId();

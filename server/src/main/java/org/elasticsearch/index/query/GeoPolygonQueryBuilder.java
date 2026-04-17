@@ -41,7 +41,7 @@ import java.util.Objects;
  * @deprecated use {@link GeoShapeQueryBuilder}
  */
 @Deprecated
-public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQueryBuilder> {
+public class GeoPolygonQueryBuilder extends LeafQueryBuilder<GeoPolygonQueryBuilder> {
     public static final String NAME = "geo_polygon";
 
     public static final String GEO_POLYGON_DEPRECATION_MSG = "["

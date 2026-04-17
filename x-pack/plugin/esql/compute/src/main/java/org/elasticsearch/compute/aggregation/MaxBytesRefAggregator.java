@@ -79,7 +79,6 @@ class MaxBytesRefAggregator {
             }
         }
 
-        @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             internalState.toIntermediate(blocks, offset, selected, driverContext);
         }

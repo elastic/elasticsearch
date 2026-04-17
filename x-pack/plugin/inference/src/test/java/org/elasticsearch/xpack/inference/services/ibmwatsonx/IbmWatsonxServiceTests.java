@@ -35,6 +35,7 @@ import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -294,7 +295,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_CreatesAIbmWatsonxEmbeddingsModel() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_CreatesAIbmWatsonxEmbeddingsModel() throws IOException {
         try (var service = createIbmWatsonxService()) {
             var persistedConfig = getPersistedConfigMap(
                 new HashMap<>(
@@ -313,11 +314,14 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                 getSecretSettingsMap(API_KEY_VALUE)
             );
 
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    "id",
+                    TaskType.TEXT_EMBEDDING,
+                    IbmWatsonxService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             assertThat(model, instanceOf(IbmWatsonxEmbeddingsModel.class));
@@ -333,7 +337,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_CreatesAIbmWatsonxEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_CreatesAIbmWatsonxEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
         try (var service = createIbmWatsonxService()) {
             var persistedConfig = getPersistedConfigMap(
                 new HashMap<>(
@@ -353,11 +357,14 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                 getSecretSettingsMap(API_KEY_VALUE)
             );
 
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    "id",
+                    TaskType.TEXT_EMBEDDING,
+                    IbmWatsonxService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             assertThat(model, instanceOf(IbmWatsonxEmbeddingsModel.class));
@@ -373,7 +380,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
         try (var service = createIbmWatsonxService()) {
             var persistedConfig = getPersistedConfigMap(
                 new HashMap<>(
@@ -393,11 +400,14 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
             );
             persistedConfig.config().put("extra_key", "value");
 
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    "id",
+                    TaskType.TEXT_EMBEDDING,
+                    IbmWatsonxService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             assertThat(model, instanceOf(IbmWatsonxEmbeddingsModel.class));
@@ -412,7 +422,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInSecretsSettings() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_DoesNotThrowWhenAnExtraKeyExistsInSecretsSettings() throws IOException {
         try (var service = createIbmWatsonxService()) {
             var secretSettingsMap = getSecretSettingsMap(API_KEY_VALUE);
             secretSettingsMap.put("extra_key", "value");
@@ -434,11 +444,14 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                 secretSettingsMap
             );
 
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    "id",
+                    TaskType.TEXT_EMBEDDING,
+                    IbmWatsonxService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             assertThat(model, instanceOf(IbmWatsonxEmbeddingsModel.class));
@@ -453,7 +466,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_DoesNotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
         try (var service = createIbmWatsonxService()) {
             Map<String, Object> serviceSettingsMap = new HashMap<>(
                 Map.of(
@@ -471,11 +484,14 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
 
             var persistedConfig = getPersistedConfigMap(serviceSettingsMap, getTaskSettingsMapEmpty(), getSecretSettingsMap(API_KEY_VALUE));
 
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    "id",
+                    TaskType.TEXT_EMBEDDING,
+                    IbmWatsonxService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             assertThat(model, instanceOf(IbmWatsonxEmbeddingsModel.class));
@@ -490,7 +506,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_DoesNotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
         var modelId = "model";
         var apiKey = "apiKey";
 
@@ -515,11 +531,14 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                 getSecretSettingsMap(apiKey)
             );
 
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    "id",
+                    TaskType.TEXT_EMBEDDING,
+                    IbmWatsonxService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             assertThat(model, instanceOf(IbmWatsonxEmbeddingsModel.class));
@@ -553,7 +572,9 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                 null
             );
 
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel("id", TaskType.TEXT_EMBEDDING, IbmWatsonxService.NAME, persistedConfig.config(), null)
+            );
 
             assertThat(model, instanceOf(IbmWatsonxEmbeddingsModel.class));
 
@@ -587,7 +608,9 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                 null
             );
 
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel("id", TaskType.TEXT_EMBEDDING, IbmWatsonxService.NAME, persistedConfig.config(), null)
+            );
 
             assertThat(model, instanceOf(IbmWatsonxEmbeddingsModel.class));
 

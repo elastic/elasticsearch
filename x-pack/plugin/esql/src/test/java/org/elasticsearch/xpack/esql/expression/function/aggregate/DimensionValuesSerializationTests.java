@@ -19,9 +19,7 @@ public class DimensionValuesSerializationTests extends AbstractExpressionSeriali
 
     @Override
     protected DimensionValues mutateInstance(DimensionValues instance) throws IOException {
-        return new DimensionValues(
-            instance.source(),
-            randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild)
-        );
+        var field = randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild);
+        return new DimensionValues(instance.source(), field);
     }
 }

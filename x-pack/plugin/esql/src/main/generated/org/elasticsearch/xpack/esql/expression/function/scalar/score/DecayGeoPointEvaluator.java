@@ -15,22 +15,22 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Decay}.
+ * {@link ExpressionEvaluator} implementation for {@link Decay}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class DecayGeoPointEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class DecayGeoPointEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DecayGeoPointEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator value;
+  private final ExpressionEvaluator value;
 
   private final BytesRef origin;
 
@@ -46,9 +46,9 @@ public final class DecayGeoPointEvaluator implements EvalOperator.ExpressionEval
 
   private Warnings warnings;
 
-  public DecayGeoPointEvaluator(Source source, EvalOperator.ExpressionEvaluator value,
-      BytesRef origin, BytesRef scale, BytesRef offset, double decay,
-      Decay.DecayFunction decayFunction, DriverContext driverContext) {
+  public DecayGeoPointEvaluator(Source source, ExpressionEvaluator value, BytesRef origin,
+      BytesRef scale, BytesRef offset, double decay, Decay.DecayFunction decayFunction,
+      DriverContext driverContext) {
     this.source = source;
     this.value = value;
     this.origin = origin;
@@ -127,10 +127,10 @@ public final class DecayGeoPointEvaluator implements EvalOperator.ExpressionEval
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory value;
+    private final ExpressionEvaluator.Factory value;
 
     private final BytesRef origin;
 
@@ -142,7 +142,7 @@ public final class DecayGeoPointEvaluator implements EvalOperator.ExpressionEval
 
     private final Decay.DecayFunction decayFunction;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory value, BytesRef origin,
+    public Factory(Source source, ExpressionEvaluator.Factory value, BytesRef origin,
         BytesRef scale, BytesRef offset, double decay, Decay.DecayFunction decayFunction) {
       this.source = source;
       this.value = value;

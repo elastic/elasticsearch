@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.logsdb.patterntext;
 
-import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
@@ -71,8 +71,7 @@ public class PatternTextIndexFieldData implements IndexFieldData<LeafFieldData> 
 
     @Override
     public LeafFieldData loadDirect(LeafReaderContext context) throws IOException {
-        LeafReader leafReader = context.reader();
-        var values = PatternTextFallbackDocValues.from(leafReader, fieldType);
+        final BinaryDocValues values = PatternTextFallbackDocValues.from(context, fieldType);
         return new LeafFieldData() {
 
             final ToScriptFieldFactory<SortedBinaryDocValues> factory = KeywordDocValuesField::new;
@@ -87,7 +86,7 @@ public class PatternTextIndexFieldData implements IndexFieldData<LeafFieldData> 
                 return new SortedBinaryDocValues() {
                     @Override
                     public boolean advanceExact(int doc) throws IOException {
-                        return values.advanceExact(doc);
+                        return values != null && values.advanceExact(doc);
                     }
 
                     @Override

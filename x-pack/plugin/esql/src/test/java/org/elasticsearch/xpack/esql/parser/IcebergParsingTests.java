@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.hamcrest.Matchers.containsString;
@@ -89,7 +90,7 @@ public class IcebergParsingTests extends AbstractStatementParserTests {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
 
         // Create a parser with production mode (dev version = false)
-        EsqlConfig config = new EsqlConfig(false);
+        EsqlConfig config = new EsqlConfig(false, TEST_FUNCTION_REGISTRY);
         EsqlParser prodParser = new EsqlParser(config);
 
         ParsingException pe = expectThrows(ParsingException.class, () -> prodParser.createStatement("EXTERNAL \"s3://bucket/table\""));

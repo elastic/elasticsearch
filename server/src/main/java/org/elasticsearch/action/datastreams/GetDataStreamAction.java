@@ -62,12 +62,12 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         private String[] names;
         private IndicesOptions indicesOptions = IndicesOptions.builder()
             .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+            .indexAbstractionOptions(IndicesOptions.IndexAbstractionOptions.builder().resolveAliases(false).build())
             .wildcardOptions(
                 IndicesOptions.WildcardOptions.builder()
                     .matchOpen(true)
                     .matchClosed(true)
                     .includeHidden(false)
-                    .resolveAliases(false)
                     .allowEmptyExpressions(true)
                     .build()
             )

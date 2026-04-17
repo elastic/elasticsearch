@@ -90,9 +90,7 @@ public class DeepSeekChatCompletionModel extends Model {
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         var serviceSettings = new DeepSeekServiceSettings(model, uri);
         var taskSettings = new EmptyTaskSettings();
@@ -115,9 +113,7 @@ public class DeepSeekChatCompletionModel extends Model {
             extractOptionalString(serviceSettingsMap, "url", ModelConfigurations.SERVICE_SETTINGS, validationException)
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         var serviceSettings = new DeepSeekServiceSettings(model, uri);
         var taskSettings = new EmptyTaskSettings();

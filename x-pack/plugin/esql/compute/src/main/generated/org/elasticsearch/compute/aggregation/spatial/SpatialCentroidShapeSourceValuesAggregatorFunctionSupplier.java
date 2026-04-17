@@ -11,13 +11,17 @@ import java.util.List;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link SpatialCentroidShapeSourceValuesAggregator}.
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class SpatialCentroidShapeSourceValuesAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  public SpatialCentroidShapeSourceValuesAggregatorFunctionSupplier() {
+  private final CoordinateEncoder encoder;
+
+  public SpatialCentroidShapeSourceValuesAggregatorFunctionSupplier(CoordinateEncoder encoder) {
+    this.encoder = encoder;
   }
 
   @Override
@@ -33,13 +37,13 @@ public final class SpatialCentroidShapeSourceValuesAggregatorFunctionSupplier im
   @Override
   public SpatialCentroidShapeSourceValuesAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return SpatialCentroidShapeSourceValuesAggregatorFunction.create(driverContext, channels);
+    return new SpatialCentroidShapeSourceValuesAggregatorFunction(driverContext, channels, encoder);
   }
 
   @Override
   public SpatialCentroidShapeSourceValuesGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return SpatialCentroidShapeSourceValuesGroupingAggregatorFunction.create(channels, driverContext);
+    return new SpatialCentroidShapeSourceValuesGroupingAggregatorFunction(channels, driverContext, encoder);
   }
 
   @Override

@@ -13,29 +13,29 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Greatest}.
+ * {@link ExpressionEvaluator} implementation for {@link Greatest}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class GreatestDoubleEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class GreatestDoubleEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(GreatestDoubleEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator[] values;
+  private final ExpressionEvaluator[] values;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public GreatestDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator[] values,
+  public GreatestDoubleEvaluator(Source source, ExpressionEvaluator[] values,
       DriverContext driverContext) {
     this.source = source;
     this.values = values;
@@ -63,7 +63,7 @@ public final class GreatestDoubleEvaluator implements EvalOperator.ExpressionEva
   @Override
   public long baseRamBytesUsed() {
     long baseRamBytesUsed = BASE_RAM_BYTES_USED;
-    for (EvalOperator.ExpressionEvaluator e : values) {
+    for (ExpressionEvaluator e : values) {
       baseRamBytesUsed += e.baseRamBytesUsed();
     }
     return baseRamBytesUsed;
@@ -128,19 +128,19 @@ public final class GreatestDoubleEvaluator implements EvalOperator.ExpressionEva
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory[] values;
+    private final ExpressionEvaluator.Factory[] values;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory[] values) {
+    public Factory(Source source, ExpressionEvaluator.Factory[] values) {
       this.source = source;
       this.values = values;
     }
 
     @Override
     public GreatestDoubleEvaluator get(DriverContext context) {
-      EvalOperator.ExpressionEvaluator[] values = Arrays.stream(this.values).map(a -> a.get(context)).toArray(EvalOperator.ExpressionEvaluator[]::new);
+      ExpressionEvaluator[] values = Arrays.stream(this.values).map(a -> a.get(context)).toArray(ExpressionEvaluator[]::new);
       return new GreatestDoubleEvaluator(source, values, context);
     }
 

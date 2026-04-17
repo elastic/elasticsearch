@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.oteldata.otlp;
 
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceResponse;
 
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 
@@ -18,8 +19,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 @ServerlessScope(Scope.PUBLIC)
 public class OTLPMetricsRestAction extends AbstractOTLPRestAction {
-    public OTLPMetricsRestAction() {
-        super(OTLPMetricsTransportAction.TYPE, ExportMetricsServiceResponse.newBuilder().build());
+    public OTLPMetricsRestAction(IndexingPressure indexingPressure, long maxRequestSizeBytes) {
+        super(OTLPMetricsTransportAction.TYPE, ExportMetricsServiceResponse.newBuilder().build(), indexingPressure, maxRequestSizeBytes);
     }
 
     @Override

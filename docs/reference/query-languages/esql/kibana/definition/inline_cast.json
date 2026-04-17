@@ -11,6 +11,7 @@
   "datetime" : "to_datetime",
   "dense_vector" : "to_dense_vector",
   "double" : "to_double",
+  "exponential_histogram" : "to_exponential_histogram",
   "geo_point" : "to_geopoint",
   "geo_shape" : "to_geoshape",
   "geohash" : "to_geohash",
@@ -22,6 +23,7 @@
   "keyword" : "to_string",
   "long" : "to_long",
   "string" : "to_string",
+  "tdigest" : "to_tdigest",
   "time_duration" : "to_timeduration",
   "unsigned_long" : "to_unsigned_long",
   "version" : "to_version"

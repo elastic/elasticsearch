@@ -105,7 +105,7 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
 
     @Override
     public String getFipsMode() {
-        return fipsMode.getOrNull();
+        return fipsMode.getOrElse("140-3");
     }
 
     @Override

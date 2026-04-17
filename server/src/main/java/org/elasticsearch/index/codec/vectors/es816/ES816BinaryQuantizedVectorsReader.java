@@ -230,7 +230,7 @@ public class ES816BinaryQuantizedVectorsReader extends FlatVectorsReader {
 
     @Override
     public void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
-        scoreAndCollectAll(knnCollector, acceptDocs, getRandomVectorScorer(field, target));
+        scoreAndCollectAll(knnCollector, acceptDocs, getFloatVectorValues(field).scorer(target));
     }
 
     @Override
@@ -363,6 +363,8 @@ public class ES816BinaryQuantizedVectorsReader extends FlatVectorsReader {
         final BinarizedByteVectorValues quantizedVectorValues;
 
         BinarizedVectorValues(FloatVectorValues rawVectorValues, BinarizedByteVectorValues quantizedVectorValues) {
+            // Its critical that `rawVectorValues` are the filtered format
+            // this aligns with rescore assumptions with HasSlice
             super(rawVectorValues);
             this.quantizedVectorValues = quantizedVectorValues;
         }
@@ -375,6 +377,11 @@ public class ES816BinaryQuantizedVectorsReader extends FlatVectorsReader {
         @Override
         public VectorScorer scorer(float[] query) throws IOException {
             return quantizedVectorValues.scorer(query);
+        }
+
+        @Override
+        public VectorScorer rescorer(float[] floats) throws IOException {
+            return in.rescorer(floats);
         }
 
         protected BinarizedByteVectorValues getQuantizedVectorValues() throws IOException {

@@ -45,7 +45,7 @@ sourceCommand
     | promqlCommand
     // in development
     | {this.isDevVersion()}? explainCommand
-    | {this.isDevVersion()}? externalCommand
+    | {this.isExternalDataSourcesEnabled()}? externalCommand
     ;
 
 processingCommand
@@ -70,10 +70,14 @@ processingCommand
     | inlineStatsCommand
     | fuseCommand
     | uriPartsCommand
+    | metricsInfoCommand
+    | registeredDomainCommand
+    | tsInfoCommand
+    | userAgentCommand
+    | mmrCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? insistCommand
-    | {this.isDevVersion()}? mmrCommand
     ;
 
 whereCommand
@@ -105,7 +109,7 @@ timeSeriesCommand
     ;
 
 externalCommand
-    : EXTERNAL stringOrParameter commandNamedParameters
+    : DEV_EXTERNAL stringOrParameter commandNamedParameters
     ;
 
 indexPatternAndMetadataFields
@@ -114,7 +118,7 @@ indexPatternAndMetadataFields
 
 indexPatternOrSubquery
     : indexPattern
-    | {this.isDevVersion()}? subquery
+    | subquery
     ;
 
 subquery
@@ -218,7 +222,11 @@ stringOrParameter
     ;
 
 limitCommand
-    : LIMIT constant
+    : LIMIT constant limitByGroupKey?
+    ;
+
+limitByGroupKey:
+    BY booleanExpression (COMMA booleanExpression)*
     ;
 
 sortCommand
@@ -354,6 +362,14 @@ fuseKeyByFields
    : qualifiedName (COMMA qualifiedName)*
    ;
 
+metricsInfoCommand
+    : METRICS_INFO
+    ;
+
+tsInfoCommand
+    : TS_INFO
+    ;
+
 //
 // In development
 //
@@ -369,6 +385,14 @@ uriPartsCommand
     : URI_PARTS qualifiedName ASSIGN primaryExpression
     ;
 
+registeredDomainCommand
+    : REGISTERED_DOMAIN qualifiedName ASSIGN primaryExpression
+    ;
+
+userAgentCommand
+    : USER_AGENT qualifiedName ASSIGN primaryExpression commandNamedParameters
+    ;
+
 setCommand
     : SET setField SEMICOLON
     ;
@@ -378,7 +402,7 @@ setField
     ;
 
 mmrCommand
-    :  DEV_MMR (queryVector=mmrQueryVectorParams)? ON diversifyField=qualifiedName MMR_LIMIT limitValue=integerValue commandNamedParameters
+    :  MMR (queryVector=mmrQueryVectorParams)? ON diversifyField=qualifiedName MMR_LIMIT limitValue=integerValue commandNamedParameters
     ;
 
 mmrQueryVectorParams

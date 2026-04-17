@@ -72,8 +72,8 @@ public class TDigestFieldBlockLoaderTests extends BlockLoaderTestCase {
     };
 
     @Override
-    public void testBlockLoaderOfMultiField() throws IOException {
-        // Multi fields are not supported
+    protected boolean supportsMultiField() {
+        return false;
     }
 
     @Override

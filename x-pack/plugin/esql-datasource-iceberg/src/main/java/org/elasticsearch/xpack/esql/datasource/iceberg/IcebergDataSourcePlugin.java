@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.TableCatalogFactory;
 
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Data source plugin that provides Iceberg table catalog support for ESQL external data sources.
@@ -36,6 +37,11 @@ import java.util.Map;
  * to avoid jar hell issues in the core ESQL plugin.
  */
 public class IcebergDataSourcePlugin extends Plugin implements DataSourcePlugin {
+
+    @Override
+    public Set<String> supportedCatalogs() {
+        return Set.of("iceberg");
+    }
 
     @Override
     public Map<String, TableCatalogFactory> tableCatalogs(Settings settings) {

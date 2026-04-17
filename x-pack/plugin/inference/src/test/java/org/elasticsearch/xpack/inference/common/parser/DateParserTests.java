@@ -71,6 +71,11 @@ public class DateParserTests extends ESTestCase {
         assertThat(DateParser.parseLocalDate((String) null, KEY, ROOT), nullValue());
     }
 
+    public void testParseLocalDate_FromString_ReturnsNull_WhenEmptyString() {
+        assertThat(DateParser.parseLocalDate("", KEY, ROOT), nullValue());
+        assertThat(DateParser.parseLocalDate("    ", KEY, ROOT), nullValue());
+    }
+
     public void testParseLocalDate_FromString_Throws_WhenInvalidFormat() {
         var e = expectThrows(IllegalArgumentException.class, () -> DateParser.parseLocalDate(INVALID_DATE_FORMAT, KEY, ROOT));
         assertThat(e.getMessage(), containsString(pathToKey(ROOT, KEY)));

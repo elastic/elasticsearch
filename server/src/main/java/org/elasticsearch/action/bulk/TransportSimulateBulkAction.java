@@ -117,8 +117,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
             systemIndices,
             projectResolver,
             threadPool::relativeTimeInNanos,
-            featureService,
-            null
+            featureService
         );
         this.indicesService = indicesService;
         this.xContentRegistry = xContentRegistry;

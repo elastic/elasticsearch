@@ -119,6 +119,8 @@ The following is a complete list of spatial relation operators available:
 * `WITHIN` - Return all documents whose `shape` field is within the query geometry.
 * `CONTAINS` - Return all documents whose `shape` field contains the query geometry.
 
+Relations compare the **indexed** shape in each document to the **query** shape in two-dimensional X/Y space using Apache Lucene’s cartesian geometry APIs and the same [`ShapeField.QueryRelation`](https://lucene.apache.org/core/9_12_0/core/org/apache/lucene/document/ShapeField.QueryRelation.html) model as the [`geo_shape` query](/reference/query-languages/query-dsl/query-dsl-geo-shape-query.md#geo-shape-spatial-relations-semantics). They are not guaranteed to match [OGC Simple Features](https://www.ogc.org/standard/sfa/) or [DE-9IM](https://en.wikipedia.org/wiki/DE-9IM) semantics. Query geometry may be quantized to match indexed precision.
+
 
 ### Ignore Unmapped [_ignore_unmapped_5]
 

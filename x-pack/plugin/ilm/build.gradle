@@ -6,10 +6,11 @@ apply plugin: 'elasticsearch.internal-java-rest-test'
 esplugin {
   name = 'x-pack-ilm'
   description = 'Elasticsearch Expanded Pack Plugin - Index Lifecycle Management'
-  classname ='org.elasticsearch.xpack.ilm.IndexLifecycle'
+  classname = 'org.elasticsearch.xpack.ilm.IndexLifecycle'
   extendedPlugins = ['x-pack-core']
-  hasNativeController =false
-  requiresKeystore =true
+  hasNativeController = false
+  requiresKeystore = true
+  deploymentTarget = 'STATEFUL_ONLY'
 }
 base {
   archivesName = 'x-pack-ilm'

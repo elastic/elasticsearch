@@ -293,10 +293,9 @@ public class PlanStreamOutputTests extends ESTestCase {
         }
     }
 
-    private static final BlockFactory BLOCK_FACTORY = BlockFactory.getInstance(
-        new NoopCircuitBreaker("noop-esql-breaker"),
-        BigArrays.NON_RECYCLING_INSTANCE
-    );
+    private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+        .breaker(new NoopCircuitBreaker("none"))
+        .build();
 
     private static final NamedWriteableRegistry REGISTRY;
 

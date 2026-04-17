@@ -22,12 +22,8 @@ public class DenseVectorCountAggregatorFunction extends CountAggregatorFunction 
         return new DenseVectorCountAggregatorFunctionSupplier();
     }
 
-    public static DenseVectorCountAggregatorFunction create(List<Integer> inputChannels) {
-        return new DenseVectorCountAggregatorFunction(inputChannels, new LongState(0));
-    }
-
-    protected DenseVectorCountAggregatorFunction(List<Integer> channels, LongState state) {
-        super(channels, state);
+    DenseVectorCountAggregatorFunction(List<Integer> channels) {
+        super(channels);
     }
 
     @Override
@@ -55,12 +51,12 @@ public class DenseVectorCountAggregatorFunction extends CountAggregatorFunction 
     private static class DenseVectorCountAggregatorFunctionSupplier extends CountAggregatorFunctionSupplier {
         @Override
         public AggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
-            return DenseVectorCountAggregatorFunction.create(channels);
+            return new DenseVectorCountAggregatorFunction(channels);
         }
 
         @Override
         public DenseVectorCountGroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
-            return DenseVectorCountGroupingAggregatorFunction.create(driverContext, channels);
+            return new DenseVectorCountGroupingAggregatorFunction(channels, driverContext);
         }
     }
 }

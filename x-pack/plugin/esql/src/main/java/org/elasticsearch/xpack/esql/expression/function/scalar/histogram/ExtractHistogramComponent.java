@@ -15,8 +15,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
 import org.elasticsearch.compute.data.HistogramBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -155,9 +155,9 @@ public class ExtractHistogramComponent extends EsqlScalarFunction {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var fieldEvaluator = toEvaluator.apply(field);
-        return new EvalOperator.ExpressionEvaluator.Factory() {
+        return new ExpressionEvaluator.Factory() {
 
             @Override
             public String toString() {
@@ -165,15 +165,15 @@ public class ExtractHistogramComponent extends EsqlScalarFunction {
             }
 
             @Override
-            public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+            public ExpressionEvaluator get(DriverContext context) {
                 return new Evaluator(fieldEvaluator.get(context), component());
             }
         };
     }
 
-    private record Evaluator(EvalOperator.ExpressionEvaluator fieldEvaluator, ExponentialHistogramBlock.Component componentToExtract)
+    private record Evaluator(ExpressionEvaluator fieldEvaluator, ExponentialHistogramBlock.Component componentToExtract)
         implements
-            EvalOperator.ExpressionEvaluator {
+            ExpressionEvaluator {
 
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Evaluator.class);
 

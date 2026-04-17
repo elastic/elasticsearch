@@ -13,7 +13,8 @@ public enum StorageOperation {
     INSERT("InsertObject"),
     GET("GetObject"),
     LIST("ListObjects"),
-    DELETE("DeleteObject");
+    DELETE("DeleteObject"),
+    COPY("CopyObject");
 
     final String key;
 

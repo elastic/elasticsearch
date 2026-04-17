@@ -53,9 +53,7 @@ public class HuggingFaceRerankServiceSettings extends FilteredXContentObject
             context
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
         return new HuggingFaceRerankServiceSettings(uri, rateLimitSettings);
     }
 

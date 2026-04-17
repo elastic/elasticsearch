@@ -36,17 +36,12 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
 
   private final int precision;
 
-  public CountDistinctBytesRefGroupingAggregatorFunction(List<Integer> channels,
-      HllStates.GroupingState state, DriverContext driverContext, int precision) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
-    this.precision = precision;
-  }
-
-  public static CountDistinctBytesRefGroupingAggregatorFunction create(List<Integer> channels,
+  CountDistinctBytesRefGroupingAggregatorFunction(List<Integer> channels,
       DriverContext driverContext, int precision) {
-    return new CountDistinctBytesRefGroupingAggregatorFunction(channels, CountDistinctBytesRefAggregator.initGrouping(driverContext, precision), driverContext, precision);
+    this.precision = precision;
+    this.channels = channels;
+    this.state = CountDistinctBytesRefAggregator.initGrouping(driverContext, precision);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -62,6 +57,15 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
   public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     BytesRefBlock vBlock = page.getBlock(channels.get(0));
+    if (vBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block. But we
+       * still need to track that some groups may not have been seen
+       * so that they are initialized to null when we read their values.
+       */
+      state.enableGroupIdTracking(seenGroupIds);
+      return null;
+    }
     BytesRefVector vVector = vBlock.asVector();
     if (vVector == null) {
       maybeEnableGroupIdTracking(seenGroupIds, vBlock);
@@ -155,6 +159,15 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
     assert channels.size() == intermediateBlockCount();
     Block hllUncast = page.getBlock(channels.get(0));
     if (hllUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BytesRefVector hll = ((BytesRefBlock) hllUncast).asVector();
@@ -220,6 +233,15 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
     assert channels.size() == intermediateBlockCount();
     Block hllUncast = page.getBlock(channels.get(0));
     if (hllUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BytesRefVector hll = ((BytesRefBlock) hllUncast).asVector();
@@ -271,6 +293,15 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
     assert channels.size() == intermediateBlockCount();
     Block hllUncast = page.getBlock(channels.get(0));
     if (hllUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BytesRefVector hll = ((BytesRefBlock) hllUncast).asVector();
@@ -284,6 +315,11 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
 
   private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, BytesRefBlock vBlock) {
     if (vBlock.mayHaveNulls()) {
+      /*
+       * Some values in the block are null so some group ids may not
+       * be seen. We need to track which ones so we can initialize
+       * them to null when we read their values.
+       */
       state.enableGroupIdTracking(seenGroupIds);
     }
   }
@@ -294,14 +330,24 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    state.toIntermediate(blocks, offset, selected, driverContext);
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+      IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+    return this::evaluateIntermediate;
+  }
+
+  private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
+    state.toIntermediate(blocks, offset, selectedInPage, driverContext);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected,
       GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = CountDistinctBytesRefAggregator.evaluateFinal(state, selected, ctx);
+    return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx);
+  }
+
+  private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage,
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = CountDistinctBytesRefAggregator.evaluateFinal(state, selectedInPage, ctx);
   }
 
   @Override

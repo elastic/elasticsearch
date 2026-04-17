@@ -14,14 +14,17 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.store.RandomAccessInput;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.DirectAccessInput;
 import org.elasticsearch.simdvec.MemorySegmentAccessInputAccess;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-public class StoreMetricsIndexInput extends FilterIndexInput {
+public class StoreMetricsIndexInput extends FilterIndexInput implements DirectAccessInput {
     final PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder;
 
     public static IndexInput create(String resourceDescription, IndexInput in, PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder) {
@@ -86,6 +89,23 @@ public class StoreMetricsIndexInput extends FilterIndexInput {
     @Override
     public void prefetch(long offset, long length) throws IOException {
         in.prefetch(offset, length);
+    }
+
+    @Override
+    public boolean withByteBufferSlice(long offset, long length, CheckedConsumer<ByteBuffer, IOException> action) throws IOException {
+        if (in instanceof DirectAccessInput dai) {
+            return dai.withByteBufferSlice(offset, length, action);
+        }
+        return false;
+    }
+
+    @Override
+    public boolean withByteBufferSlices(long[] offsets, int length, int count, CheckedConsumer<ByteBuffer[], IOException> action)
+        throws IOException {
+        if (in instanceof DirectAccessInput dai) {
+            return dai.withByteBufferSlices(offsets, length, count, action);
+        }
+        return false;
     }
 
     @Override
@@ -276,6 +296,12 @@ public class StoreMetricsIndexInput extends FilterIndexInput {
             addBytesRead(8);
             return result;
         }
+
+        @Override
+        public void readBytes(long pos, byte[] bytes, int offset, int length) throws IOException {
+            delegate.readBytes(pos, bytes, offset, length);
+            addBytesRead(length);
+        }
     }
 
     private static class MetricsRandomAccessInput implements RandomAccessInput {
@@ -318,6 +344,12 @@ public class StoreMetricsIndexInput extends FilterIndexInput {
             long result = delegate.readLong(pos);
             metricHolder.instance().addBytesRead(8);
             return result;
+        }
+
+        @Override
+        public void readBytes(long pos, byte[] bytes, int offset, int length) throws IOException {
+            delegate.readBytes(pos, bytes, offset, length);
+            metricHolder.instance().addBytesRead(length);
         }
     }
 }

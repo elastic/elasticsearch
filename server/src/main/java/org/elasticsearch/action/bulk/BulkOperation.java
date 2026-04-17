@@ -51,6 +51,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
@@ -322,7 +323,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 indexOperationValidator.accept(ia, docWriteRequest);
 
                 TransportBulkAction.prohibitCustomRoutingOnDataStream(docWriteRequest, ia);
-                TransportBulkAction.prohibitAppendWritesInBackingIndices(docWriteRequest, ia);
+                TransportBulkAction.prohibitAppendWritesInBackingIndices(docWriteRequest, ia, project::index);
                 docWriteRequest.routing(project.resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
 
                 final Index concreteIndex = docWriteRequest.getConcreteWriteIndex(ia, project);
@@ -422,7 +423,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 if (task != null) {
                     bulkShardRequest.setParentTask(nodeId, task.getId());
                 }
-                executeBulkShardRequest(bulkShardRequest, project.id(), bulkItemRequestCompleteRefCount.acquire());
+                boolean redactSeqNo = IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(indexMetadata.getSettings());
+                executeBulkShardRequest(bulkShardRequest, project.id(), bulkItemRequestCompleteRefCount.acquire(), redactSeqNo);
             }
         }
     }
@@ -436,9 +438,10 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     }
 
     private void completeBulkOperation() {
+        BulkItemResponse[] bulkItemResponses = responses.toArray(new BulkItemResponse[responses.length()]);
         listener.onResponse(
             new BulkResponse(
-                responses.toArray(new BulkItemResponse[responses.length()]),
+                bulkItemResponses,
                 buildTookInMillis(startTimeNanos),
                 BulkResponse.NO_INGEST_TOOK,
                 new BulkRequest.IncrementalState(shortCircuitShardFailures, bulkRequest.incrementalState().indexingPressureAccounted())
@@ -470,7 +473,12 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         completeBulkOperation();
     }
 
-    private void executeBulkShardRequest(BulkShardRequest bulkShardRequest, ProjectId projectId, Releasable releaseOnFinish) {
+    private void executeBulkShardRequest(
+        BulkShardRequest bulkShardRequest,
+        ProjectId projectId,
+        Releasable releaseOnFinish,
+        boolean redactSeqNo
+    ) {
         ShardId shardId = bulkShardRequest.shardId();
 
         // Short circuit the shard level request with the existing shard failure.
@@ -492,6 +500,13 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                         projectMetadata = clusterService.state().metadata().getProject(projectId);
                     }
                     return projectMetadata;
+                }
+
+                private BulkItemResponse maybeRedactSequenceNumber(BulkItemResponse in) {
+                    if (redactSeqNo == false || in == null || in.isFailed()) {
+                        return in;
+                    }
+                    return BulkItemResponse.success(in.getItemId(), in.getOpType(), in.getResponse().withoutSequenceNumber());
                 }
 
                 @Override
@@ -516,7 +531,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                                 && bulkItemResponse.getResponse() instanceof IndexResponse ir) {
                                 ir.setFailureStoreStatus(IndexDocFailureStoreStatus.USED);
                             }
-                            responses.set(bulkItemResponse.getItemId(), bulkItemResponse);
+                            responses.set(bulkItemResponse.getItemId(), maybeRedactSequenceNumber(bulkItemResponse));
                         }
                     }
                     completeShardOperation();

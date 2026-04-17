@@ -110,7 +110,7 @@ public abstract class AbstractInferenceServiceBaseTests extends InferenceService
             return supportedTaskTypes;
         }
 
-        protected abstract SenderService createService(ThreadPool threadPool, HttpClientManager clientManager);
+        protected abstract SenderService<?> createService(ThreadPool threadPool, HttpClientManager clientManager);
 
         protected abstract Map<String, Object> createServiceSettingsMap(TaskType taskType);
 
@@ -159,7 +159,7 @@ public abstract class AbstractInferenceServiceBaseTests extends InferenceService
             return true;
         }
 
-        protected abstract Model createEmbeddingModel(@Nullable SimilarityMeasure similarityMeasure);
+        protected abstract Model createEmbeddingModel(@Nullable SimilarityMeasure similarityMeasure, TaskType taskType);
     }
 
     private static final UpdateModelConfiguration DISABLED_UPDATE_MODEL_TESTS = new UpdateModelConfiguration() {
@@ -169,7 +169,7 @@ public abstract class AbstractInferenceServiceBaseTests extends InferenceService
         }
 
         @Override
-        protected Model createEmbeddingModel(SimilarityMeasure similarityMeasure) {
+        protected Model createEmbeddingModel(SimilarityMeasure similarityMeasure, TaskType taskType) {
             throw new UnsupportedOperationException("Update model tests are disabled");
         }
     };

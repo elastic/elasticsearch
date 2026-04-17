@@ -22,6 +22,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.DocumentSourceMissingException;
+import org.elasticsearch.index.engine.UpdateNotSupportedException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -61,6 +62,9 @@ public class UpdateHelper {
      */
     public Result prepare(UpdateRequest request, IndexShard indexShard, LongSupplier nowInMillis, FetchSourceContext fetchSourceContext)
         throws IOException {
+        if (indexShard.indexSettings().sequenceNumbersDisabled()) {
+            throw new UpdateNotSupportedException(indexShard.shardId());
+        }
         final GetResult getResult = indexShard.getService()
             .getForUpdate(request.id(), request.ifSeqNo(), request.ifPrimaryTerm(), fetchSourceContext);
         return prepare(indexShard, request, getResult, nowInMillis);

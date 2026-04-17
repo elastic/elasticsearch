@@ -1455,7 +1455,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         builder.put(dataStream);
         Metadata metadata = builder.build();
 
-        List<Index> indicesPastRetention = dataStream.getIndicesOlderThan(
+        Set<Index> indicesPastRetention = dataStream.getIndicesOlderThan(
             metadata.getProject()::index,
             () -> now,
             timeValueSeconds(2500),
@@ -1528,7 +1528,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
         {
             // Mix of indices younger and older than retention
-            List<Index> indicesPastRetention = dataStream.getIndicesOlderThan(
+            Set<Index> indicesPastRetention = dataStream.getIndicesOlderThan(
                 metadata.getProject()::index,
                 () -> now,
                 TimeValue.timeValueSeconds(2500),
@@ -1536,14 +1536,12 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
             );
             assertThat(indicesPastRetention.size(), is(2));
-            for (int i = 0; i < indicesPastRetention.size(); i++) {
-                assertThat(indicesPastRetention.get(i).getName(), is(indicesSupplier.get().get(i).getName()));
-            }
+            assertThat(indicesPastRetention, equalTo(Set.of(indicesSupplier.get().get(0), indicesSupplier.get().get(1))));
         }
 
         {
             // All indices past retention, but we keep the write index
-            List<Index> indicesPastRetention = dataStream.getIndicesOlderThan(
+            Set<Index> indicesPastRetention = dataStream.getIndicesOlderThan(
                 metadata.getProject()::index,
                 () -> now,
                 TimeValue.ZERO,
@@ -1551,14 +1549,22 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
             );
             assertThat(indicesPastRetention.size(), is(4));
-            for (int i = 0; i < indicesPastRetention.size(); i++) {
-                assertThat(indicesPastRetention.get(i).getName(), is(indicesSupplier.get().get(i).getName()));
-            }
+            assertThat(
+                indicesPastRetention,
+                equalTo(
+                    Set.of(
+                        indicesSupplier.get().get(0),
+                        indicesSupplier.get().get(1),
+                        indicesSupplier.get().get(2),
+                        indicesSupplier.get().get(3)
+                    )
+                )
+            );
         }
 
         {
             // All indices younger than retention
-            List<Index> indicesPastRetention = dataStream.getIndicesOlderThan(
+            Set<Index> indicesPastRetention = dataStream.getIndicesOlderThan(
                 metadata.getProject()::index,
                 () -> now,
                 TimeValue.timeValueSeconds(6000),
@@ -1579,7 +1585,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                     .settings(Settings.builder().put(indexMetadata.getSettings()).put(IndexMetadata.LIFECYCLE_NAME, "some-policy").build())
                     .build();
             };
-            List<Index> indicesPastRetention = dataStream.getIndicesOlderThan(
+            Set<Index> indicesPastRetention = dataStream.getIndicesOlderThan(
                 indexMetadataWithSomeLifecycleSupplier,
                 () -> now,
                 TimeValue.ZERO,
@@ -1587,7 +1593,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
             );
             assertThat(indicesPastRetention.size(), is(1));
-            assertThat(indicesPastRetention.get(0).getName(), is(indicesSupplier.get().get(2).getName()));
+            assertThat(indicesPastRetention, equalTo(Set.of(indicesSupplier.get().get(2))));
         }
     }
 
@@ -1637,7 +1643,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
         {
             // retention period where first and second index is too old, and 5th has old origination date.
-            List<Index> indicesPastRetention = dataStream.getIndicesOlderThan(
+            Set<Index> indicesPastRetention = dataStream.getIndicesOlderThan(
                 metadata.getProject()::index,
                 () -> now,
                 TimeValue.timeValueMillis(2500),
@@ -1645,14 +1651,15 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
             );
             assertThat(indicesPastRetention.size(), is(3));
-            assertThat(indicesPastRetention.get(0).getName(), is(indicesSupplier.get().get(0).getName()));
-            assertThat(indicesPastRetention.get(1).getName(), is(indicesSupplier.get().get(1).getName()));
-            assertThat(indicesPastRetention.get(2).getName(), is(indicesSupplier.get().get(5).getName()));
+            assertThat(
+                indicesPastRetention,
+                equalTo(Set.of(indicesSupplier.get().get(0), indicesSupplier.get().get(1), indicesSupplier.get().get(5)))
+            );
         }
 
         {
             // no index matches the retention age
-            List<Index> indicesPastRetention = dataStream.getIndicesOlderThan(
+            Set<Index> indicesPastRetention = dataStream.getIndicesOlderThan(
                 metadata.getProject()::index,
                 () -> now,
                 TimeValue.timeValueMillis(9000),

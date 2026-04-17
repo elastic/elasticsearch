@@ -32,11 +32,11 @@ import static org.hamcrest.Matchers.instanceOf;
 public class IgnoreNullMetricsTests extends AbstractLocalLogicalPlanOptimizerTests {
 
     public void testSimple() {
-        LogicalPlan actual = localPlan("""
+        LogicalPlan actual = metrics().localPlan("""
             TS test
             | STATS max(max_over_time(metric_1)) BY BUCKET(@timestamp, 1 min)
             | LIMIT 10
-            """, metricsAnalyzer);
+            """);
         Limit limit = as(actual, Limit.class);
         Aggregate agg = as(limit.child(), Aggregate.class);
         // The optimizer expands the STATS out into two STATS steps
@@ -51,22 +51,22 @@ public class IgnoreNullMetricsTests extends AbstractLocalLogicalPlanOptimizerTes
     public void testRuleDoesNotApplyInNonTSMode() {
         // NOTE: it is necessary to have the `BY dimension 1` grouping here, otherwise the InfernonNullAggConstraint rule
         // will add the same filter IgnoreNullMetrics would have.
-        LogicalPlan actual = localPlan("""
+        LogicalPlan actual = metrics().localPlan("""
             FROM test
             | STATS max(metric_1) BY dimension_1
             | LIMIT 10
-            """, metricsAnalyzer);
+            """);
         Limit limit = as(actual, Limit.class);
         Aggregate agg = as(limit.child(), Aggregate.class);
         EsRelation relation = as(agg.child(), EsRelation.class);
     }
 
     public void testDimensionsAreNotFiltered() {
-        LogicalPlan actual = localPlan("""
+        LogicalPlan actual = metrics().localPlan("""
             TS test
             | STATS max(max_over_time(metric_1)) BY dimension_1
             | LIMIT 10
-            """, metricsAnalyzer);
+            """);
         Project project = as(actual, Project.class);
         Eval unpack = as(project.child(), Eval.class);
         assertThat(unpack.fields(), hasSize(1));
@@ -85,11 +85,11 @@ public class IgnoreNullMetricsTests extends AbstractLocalLogicalPlanOptimizerTes
     }
 
     public void testFiltersAreJoinedWithOr() {
-        LogicalPlan actual = localPlan("""
+        LogicalPlan actual = metrics().localPlan("""
             TS test
             | STATS max(max_over_time(metric_1)), min(min_over_time(metric_2))
             | LIMIT 10
-            """, metricsAnalyzer);
+            """);
         Limit limit = as(actual, Limit.class);
         Aggregate agg = as(limit.child(), Aggregate.class);
         // The optimizer expands the STATS out into two STATS steps
@@ -120,12 +120,12 @@ public class IgnoreNullMetricsTests extends AbstractLocalLogicalPlanOptimizerTes
     public void testSkipCoalescedMetrics() {
         // Note: this test is passing because the reference attribute metric_2 in the stats block does not inherit the
         // metric property from the original field.
-        LogicalPlan actual = localPlan("""
+        LogicalPlan actual = metrics().localPlan("""
             TS test
             | EVAL metric_2 = coalesce(metric_2, 0)
             | STATS max(max_over_time(metric_1)), min(min_over_time(metric_2))
             | LIMIT 10
-            """, metricsAnalyzer);
+            """);
         Limit limit = as(actual, Limit.class);
         Aggregate agg = as(limit.child(), Aggregate.class);
         // The optimizer expands the STATS out into two STATS steps
@@ -141,12 +141,12 @@ public class IgnoreNullMetricsTests extends AbstractLocalLogicalPlanOptimizerTes
      * check that stats blocks after the first are not sourced for adding metrics to the filter
      */
     public void testMultipleStats() {
-        LogicalPlan actual = localPlan("""
+        LogicalPlan actual = metrics().localPlan("""
             TS test
             | STATS m = max(max_over_time(metric_1))
             | STATS sum(m)
             | LIMIT 10
-            """, metricsAnalyzer);
+            """);
         Limit limit = as(actual, Limit.class);
         Aggregate sumAgg = as(limit.child(), Aggregate.class);
         Aggregate outerAgg = as(sumAgg.child(), Aggregate.class);

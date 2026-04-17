@@ -69,7 +69,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Ins
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
-import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.math.BigInteger;
@@ -86,7 +85,6 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
@@ -96,6 +94,7 @@ import static org.elasticsearch.xpack.esql.core.util.StringUtils.isInteger;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.PATTERN;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.VALUE;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.nameOrPosition;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.promqlNameOrPosition;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.bigIntegerToUnsignedLong;
@@ -125,7 +124,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     protected final ParsingContext context;
 
-    public record ParsingContext(QueryParams params, PlanTelemetry telemetry, InferenceSettings inferenceSettings, String viewName) {}
+    public record ParsingContext(QueryParams params, InferenceSettings inferenceSettings, String viewName) {}
 
     ExpressionBuilder(ParsingContext context) {
         this.context = context;
@@ -721,9 +720,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public String visitFunctionName(EsqlBaseParser.FunctionNameContext ctx) {
-        String name = functionName(ctx);
-        context.telemetry().function(name);
-        return name;
+        return functionName(ctx);
     }
 
     private String functionName(EsqlBaseParser.FunctionNameContext ctx) {
@@ -759,9 +756,6 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             Expression value = expression(entry.value.constant() != null ? entry.value.constant() : entry.value.mapExpression());
             String entryText = entry.getText();
             if (value instanceof Literal l) {
-                if (l.dataType() == NULL) {
-                    throw new ParsingException(source(ctx), "Invalid named parameter [{}], NULL is not supported", entryText);
-                }
                 namedArgs.add(Literal.keyword(source(stringCtx), key));
                 namedArgs.add(l);
                 names.add(key);
@@ -804,7 +798,6 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         }
         Expression expr = expression(parseTree);
         var convertFunction = converterToFactory.apply(source, expr, ConfigurationAware.CONFIGURATION_MARKER);
-        context.telemetry().function(convertFunction.getClass());
         return convertFunction;
     }
 
@@ -1231,9 +1224,11 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         if (node == null) {
             return null;
         }
-        // The token could be a single parameter marker or double parameter markers
         Token token = node.getSymbol();
         String nameOrPosition = nameOrPosition(token);
+        if (nameOrPosition.isBlank()) {
+            nameOrPosition = promqlNameOrPosition(token);
+        }
         if (isInteger(nameOrPosition)) {
             int index = Integer.parseInt(nameOrPosition);
             if (params.get(index) == null) {

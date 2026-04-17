@@ -200,6 +200,11 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
     }
 
     @Override
+    public boolean automaticReassignmentOnShutdown() {
+        return false;
+    }
+
+    @Override
     protected void nodeOperation(AllocatedPersistentTask task, @Nullable TransformTaskParams params, PersistentTaskState state) {
         /* Note:
          *

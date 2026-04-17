@@ -10,11 +10,13 @@ package org.elasticsearch.xpack.inference.services.googleaistudio.request;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
+import org.elasticsearch.xpack.inference.external.request.CompletionRequest;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.googleaistudio.completion.GoogleAiStudioCompletionModel;
@@ -23,7 +25,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-public class GoogleAiStudioCompletionRequest implements GoogleAiStudioRequest {
+public class GoogleAiStudioCompletionRequest implements CompletionRequest {
     private static final String ALT_PARAM = "alt";
     private static final String SSE_VALUE = "sse";
 
@@ -40,7 +42,7 @@ public class GoogleAiStudioCompletionRequest implements GoogleAiStudioRequest {
     }
 
     @Override
-    public HttpRequest createHttpRequest() {
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         var httpPost = createHttpPost();
         var requestEntity = Strings.toString(new GoogleAiStudioCompletionRequestEntity(input.getInputs()));
 
@@ -48,12 +50,12 @@ public class GoogleAiStudioCompletionRequest implements GoogleAiStudioRequest {
         httpPost.setEntity(byteEntity);
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
 
-        return new HttpRequest(httpPost, getInferenceEntityId());
+        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }
 
     private HttpPost createHttpPost() {
         try {
-            var uriBuilder = GoogleAiStudioRequest.builderWithApiKeyParameter(uri.getOrCompute(), model.getSecretSettings());
+            var uriBuilder = GoogleAiStudioRequestUtils.builderWithApiKeyParameter(uri.getOrCompute(), model.getSecretSettings());
             if (isStreaming()) {
                 uriBuilder.addParameter(ALT_PARAM, SSE_VALUE);
             }

@@ -26,7 +26,6 @@ dependencies {
 tasks.named('compileJava').configure {
   options.compilerArgs << '--add-modules=jdk.incubator.vector'
   options.compilerArgs << '--add-reads=org.elasticsearch.swisshash=jdk.incubator.vector'
-  options.compilerArgs -= '-Werror'
 }
 
 tasks.named('javadoc').configure {

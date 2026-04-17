@@ -7,10 +7,8 @@
 
 package org.elasticsearch.xpack.gpu;
 
-import com.nvidia.cuvs.GPUInfo;
-import com.nvidia.cuvs.GPUInfoProvider;
-
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.gpu.GPUSupport;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -29,20 +27,21 @@ import static org.elasticsearch.xpack.gpu.TestVectorsFormatUtils.randomGPUSuppor
 
 public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
 
-    static {
-        TestCuVSServiceProvider.mockedGPUInfoProvider = p -> new TestCuVSServiceProvider.TestGPUInfoProvider(
-            List.of(
-                new GPUInfo(
-                    0,
-                    "TestGPU",
-                    8 * 1024 * 1024 * 1024L,
-                    GPUInfoProvider.MIN_COMPUTE_CAPABILITY_MAJOR,
-                    GPUInfoProvider.MIN_COMPUTE_CAPABILITY_MINOR,
-                    true,
-                    true
-                )
-            )
-        );
+    private static class TestGPUSupport implements GPUSupport {
+        @Override
+        public boolean isSupported() {
+            return true;
+        }
+
+        @Override
+        public long getTotalGpuMemory() {
+            return 8 * 1024 * 1024 * 1024L;
+        }
+
+        @Override
+        public String getGpuName() {
+            return "TestGPU";
+        }
     }
 
     private static boolean isGpuIndexingFeatureAllowed = true;
@@ -51,7 +50,7 @@ public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
     public static class TestGPUPlugin extends GPUPlugin {
 
         public TestGPUPlugin() {
-            super(Settings.builder().put("vectors.indexing.use_gpu", gpuMode.name()).build());
+            super(Settings.builder().put("vectors.indexing.use_gpu", gpuMode.name()).build(), new TestGPUSupport());
         }
 
         @Override

@@ -204,6 +204,20 @@ error_rate:double | hour:date
 // end::docsCaseHourlyErrorRate-result[]
 ;
 
+docsCaseColumnExpression
+// tag::docsCaseColumnExpression[]
+FROM sample_data
+| EVAL error_message = CASE(message LIKE "*error*", message, null)
+| STATS distinct_error_messages = COUNT_DISTINCT(error_message)
+// end::docsCaseColumnExpression[]
+;
+
+// tag::docsCaseColumnExpression-result[]
+distinct_error_messages:long
+1
+// end::docsCaseColumnExpression-result[]
+;
+
 
 nullOnMultivaluesMathOperation
 required_capability: disable_nullable_opts

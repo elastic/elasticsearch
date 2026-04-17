@@ -259,3 +259,211 @@ f_date:datetime                                                                |
 [2025-12-25T00:00:10.000Z, 2025-12-25T00:00:20.000Z, 2025-12-25T00:00:30.000Z] | 2025-12-25T00:00:20.000Z | [2025-12-25T00:00:10.000Z, 2025-12-25T00:00:20.000Z, 2025-12-25T00:00:30.000Z] | 2025-12-25T00:00:20.000Z
 ;
 
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test passing the same field in both parameters
+
+required_capability: first_last_agg_with_dates
+required_capability: fix_aggregation_framework_channels
+
+FROM voyager
+| STATS 
+    x = FIRST(@timestamp, @timestamp),
+    y = LAST(distance_to_earth, distance_to_earth)
+;
+
+x:datetime                                                                     | y:long
+[2025-12-25T00:00:10.000Z, 2025-12-25T00:00:20.000Z, 2025-12-25T00:00:30.000Z] | 21190910706
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test passing foldables in the search field
+required_capability: fix_agg_first_last_foldables_in_sort_field
+
+FROM voyager 
+| SORT row_no DESC
+| EVAL p = 3, q = null
+| STATS
+    a1 = FIRST(p, @timestamp), 
+    a2 = LAST(p, @timestamp),
+    b1 = FIRST(null, @timestamp),
+    b2 = LAST(null, @timestamp)
+;
+
+a1:integer | a2:integer | b1:null | b2:null
+3          | 3          | null    | null
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test passing foldables in the sort field
+required_capability: fix_agg_first_last_foldables_in_sort_field
+
+FROM voyager
+| SORT row_no ASC
+| LIMIT 1000
+| EVAL p = 7::long, q = null
+| STATS
+    # queries that run the regular "type1"-by-long aggregator and does nothing unusual (type1 is the search field's type)
+    
+    x01 = FIRST(@timestamp, p),
+    x02 = LAST(@timestamp, p),
+    
+    x03 = FIRST(active_instruments, p),
+    x04 = LAST(active_instruments, p),
+    
+    x05 = FIRST(low_power_mode, p),
+    x06 = LAST(low_power_mode, p),
+    
+    # queries that run the new any-value-by-long aggregator which returns the first value it encounters
+    
+    x07 = FIRST(distance_to_earth, 7::long), 
+    x08 = LAST(distance_to_earth, 7::long),
+    
+    x09 = FIRST(status, 7::long),    
+    x10 = LAST(status, 7::long),
+    
+    x11 = FIRST(collision_risk, null),
+    x12 = LAST(collision_risk, null),
+    
+    x13 = FIRST(ack_station_ip, q),   
+    x14 = LAST(ack_station_ip, q),
+    
+    x15 = FIRST(low_power_mode, q),   
+    x16 = LAST(low_power_mode, q)
+;
+
+x01:datetime | x02:datetime | x03:integer | x04:integer | x05:boolean | x06:boolean | x07:long    | x08:long    | x09:keyword | x10:keyword | x11:double | x12:double | x13:ip      | x14:ip      | x15:boolean | x16:boolean
+null         | null         | [3, 4]      | [3, 4]      | false       | false       | 21190910703 | 21190910703 | yellow      | yellow      | 0.0011     | 0.0011     | 173.21.3.13 | 173.21.3.13 | false       | false
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test passing foldables with grouping
+required_capability: fix_agg_first_last_foldables_in_sort_field
+
+FROM voyager 
+| SORT row_no ASC
+| EVAL p = 3.14
+| STATS x = FIRST(p, null) BY status
+| SORT status ASC NULLS FIRST
+;
+
+x:double | status:keyword
+3.14     | null
+3.14     | OK
+3.14     | green
+3.14     | red
+3.14     | yellow
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test passing foldables with agg as pipeline breaker
+required_capability: fix_agg_first_last_foldables_in_sort_field
+
+FROM employees 
+| STATS x = FIRST(emp_no, null)
+;
+
+x:integer
+10001..10100
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test aggregating on integers from index
+
+required_capability: first_last_agg_on_ints
+
+FROM voyager
+| STATS 
+    # FIRST
+    f_distance = FIRST(distance_to_earth, row_no),
+    f_active_instruments = FIRST(active_instruments, row_no),
+    f_collision_risk = FIRST(collision_risk, row_no),
+    f_ack_station_ip = FIRST(ack_station_ip, row_no),
+    f_low_power_mode = FIRST(low_power_mode, row_no),
+    f_status = FIRST(status, row_no),
+    f_notes = FIRST(notes, row_no),
+    
+    # LAST
+    l_distance = LAST(distance_to_earth, row_no),
+    l_active_instruments = LAST(active_instruments, row_no),
+    l_collision_risk = LAST(collision_risk, row_no),
+    l_ack_station_ip = LAST(ack_station_ip, row_no),
+    l_low_power_mode = LAST(low_power_mode, row_no),
+    l_status = LAST(status, row_no),
+    l_notes = LAST(notes, row_no)
+;
+
+f_distance:long | f_active_instruments:integer | f_collision_risk:double | f_ack_station_ip:ip | f_low_power_mode:boolean | f_status:keyword | f_notes:keyword   | l_distance:long | l_active_instruments:integer | l_collision_risk:double | l_ack_station_ip:ip | l_low_power_mode:boolean | l_status:keyword | l_notes:keyword
+21190910703     | [3, 4]                       | 0.0011                  | 173.21.3.13         | false                    | yellow           | everything's fine | null            | null                         | null                    | null                | null                     | null             | null
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test aggregating on integers from row
+required_capability: first_last_agg_on_ints
+
+ROW row = [
+  #       @timestamp        |  name   | number
+  "2025-11-25T00:00:00.000Z | alpha   | ",
+  "2025-11-25T00:00:01.000Z | alpha   | 2",
+  "2025-11-25T00:00:02.000Z | bravo   | ",
+  "2025-11-25T00:00:03.000Z | alpha   | 4",
+  "2025-11-25T00:00:04.000Z | bravo   | 5",
+  "2025-11-25T00:00:05.000Z | charlie | 6",
+  "2025-11-25T00:00:06.000Z | delta   | "
+]
+| MV_EXPAND row
+| DISSECT row """%{@timestamp} | %{name} | %{number}"""
+| KEEP @timestamp, name, number
+| EVAL @timestamp = TO_DATETIME(@timestamp), 
+       name = TRIM(name), 
+       number = TO_LONG(number)
+| STATS first_val = FIRST(@timestamp, number),
+        last_val = LAST(@timestamp, number)
+;
+
+warning:Line 15:10: evaluation of [TO_LONG(number)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 15:10: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number []
+
+first_val:datetime       | last_val:datetime
+2025-11-25T00:00:01.000Z | 2025-11-25T00:00:05.000Z
+;
+
+# ---
+
+Test passing int foldables in the sort field
+required_capability: first_last_agg_on_ints
+
+FROM voyager
+| SORT row_no ASC
+| LIMIT 1000
+| EVAL p = 17
+| STATS
+    # queries that run the regular "type1"-by-int aggregator and does nothing unusual (type1 is the search field's type)
+    
+    x01 = FIRST(@timestamp, p),
+    x02 = LAST(@timestamp, p),
+    
+    x03 = FIRST(active_instruments, p),
+    x04 = LAST(active_instruments, p),
+    
+    x05 = FIRST(low_power_mode, p),
+    x06 = LAST(low_power_mode, p),
+    
+    # queries that run the new any-value-by-int aggregator which returns the first value it encounters
+    
+    x07 = FIRST(distance_to_earth, 31), 
+    x08 = LAST(distance_to_earth, 44),
+    
+    x09 = FIRST(status, -273.15::int),
+    x10 = LAST(status, 3.14::int)
+;
+
+x01:datetime | x02:datetime | x03:integer | x04:integer | x05:boolean | x06:boolean | x07:long    | x08:long    | x09:keyword | x10:keyword
+null         | null         | [3, 4]      | [3, 4]      | false       | false       | 21190910703 | 21190910703 | yellow      | yellow
+;

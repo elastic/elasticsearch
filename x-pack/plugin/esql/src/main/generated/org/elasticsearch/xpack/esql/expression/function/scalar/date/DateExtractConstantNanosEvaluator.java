@@ -14,22 +14,22 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link DateExtract}.
+ * {@link ExpressionEvaluator} implementation for {@link DateExtract}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class DateExtractConstantNanosEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class DateExtractConstantNanosEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DateExtractConstantNanosEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator value;
+  private final ExpressionEvaluator value;
 
   private final ChronoField chronoField;
 
@@ -39,7 +39,7 @@ public final class DateExtractConstantNanosEvaluator implements EvalOperator.Exp
 
   private Warnings warnings;
 
-  public DateExtractConstantNanosEvaluator(Source source, EvalOperator.ExpressionEvaluator value,
+  public DateExtractConstantNanosEvaluator(Source source, ExpressionEvaluator value,
       ChronoField chronoField, ZoneId zone, DriverContext driverContext) {
     this.source = source;
     this.value = value;
@@ -114,17 +114,17 @@ public final class DateExtractConstantNanosEvaluator implements EvalOperator.Exp
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory value;
+    private final ExpressionEvaluator.Factory value;
 
     private final ChronoField chronoField;
 
     private final ZoneId zone;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory value,
-        ChronoField chronoField, ZoneId zone) {
+    public Factory(Source source, ExpressionEvaluator.Factory value, ChronoField chronoField,
+        ZoneId zone) {
       this.source = source;
       this.value = value;
       this.chronoField = chronoField;

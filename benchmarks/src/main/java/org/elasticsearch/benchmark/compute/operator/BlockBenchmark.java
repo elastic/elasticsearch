@@ -9,6 +9,8 @@
 
 package org.elasticsearch.benchmark.compute.operator;
 
+import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.memory.RootAllocator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
@@ -60,6 +62,7 @@ public class BlockBenchmark {
         "BytesRef/vector-const",
         "double/array",
         "double/array-multivalue-null",
+        "double/arrow",
         "double/big-array",
         "double/big-array-multivalue-null",
         "double/vector",
@@ -89,7 +92,10 @@ public class BlockBenchmark {
 
     static final Random random = new Random();
 
-    static final BlockFactory blockFactory = BlockFactory.getInstance(new NoopCircuitBreaker("noop"), BigArrays.NON_RECYCLING_INSTANCE);
+    static final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+        .breaker(new NoopCircuitBreaker("none"))
+        .build();
+    static final BufferAllocator arrowAllocator = new RootAllocator(Long.MAX_VALUE);
 
     static Block[] buildBlocks(String dataType, String blockKind, int totalPositions) {
         Block[] blocks = new Block[NUM_BLOCKS_PER_ITERATION];
@@ -274,6 +280,20 @@ public class BlockBenchmark {
                                 firstValueIndexes,
                                 nulls,
                                 Block.MvOrdering.UNORDERED
+                            );
+                        }
+                        case "arrow" -> {
+                            org.apache.arrow.memory.ArrowBuf arrowBuf = arrowAllocator.buffer((long) totalPositions * Double.BYTES);
+                            for (int i = 0; i < values.length; i++) {
+                                arrowBuf.setDouble((long) i * Double.BYTES, values[i]);
+                            }
+                            blocks[blockIndex] = new org.elasticsearch.compute.data.arrow.DoubleArrowBufBlock(
+                                arrowBuf,
+                                null,
+                                null,
+                                totalPositions,
+                                0,
+                                blockFactory
                             );
                         }
                         case "big-array" -> {

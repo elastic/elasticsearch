@@ -18,7 +18,6 @@ import org.elasticsearch.inference.TopNProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -52,9 +51,7 @@ public class JinaAIRerankTaskSettings implements TaskSettings, TopNProvider {
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         if (returnDocuments == null && topNDocumentsOnly == null) {
             return EMPTY_SETTINGS;
@@ -163,7 +160,7 @@ public class JinaAIRerankTaskSettings implements TaskSettings, TopNProvider {
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        JinaAIRerankTaskSettings updatedSettings = JinaAIRerankTaskSettings.fromMap(new HashMap<>(newSettings));
+        JinaAIRerankTaskSettings updatedSettings = JinaAIRerankTaskSettings.fromMap(newSettings);
         return JinaAIRerankTaskSettings.of(this, updatedSettings);
     }
 }

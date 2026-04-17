@@ -20,11 +20,9 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.EnumSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -33,65 +31,15 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * This class represents a String which may be raw text, or the String representation of some other data such as an image in base64
  */
 public record InferenceString(DataType dataType, DataFormat dataFormat, String value) implements Writeable, ToXContentObject {
+    private static final Pattern DATA_URI_PATTERN = Pattern.compile("^data:.*/.*;base64,");
+
     static final String TYPE_FIELD = "type";
     static final String FORMAT_FIELD = "format";
     static final String VALUE_FIELD = "value";
 
-    /**
-     * Describes the type of data represented by an {@link InferenceString}
-     */
-    public enum DataType {
-        TEXT(DataFormat.TEXT),
-        IMAGE(DataFormat.BASE64);
-
-        private final DataFormat defaultFormat;
-
-        DataType(DataFormat defaultFormat) {
-            this.defaultFormat = defaultFormat;
-        }
-
-        @Override
-        public String toString() {
-            return name().toLowerCase(Locale.ROOT);
-        }
-
-        public static DataType fromString(String name) {
-            try {
-                return valueOf(name.trim().toUpperCase(Locale.ROOT));
-            } catch (IllegalArgumentException ex) {
-                throw new IllegalArgumentException(
-                    Strings.format("Unrecognized type [%s], must be one of %s", name, Arrays.toString(DataType.values()))
-                );
-            }
-        }
-    }
-
-    /**
-     * Describes the format of data represented by an {@link InferenceString}
-     */
-    public enum DataFormat {
-        TEXT,
-        BASE64;
-
-        @Override
-        public String toString() {
-            return name().toLowerCase(Locale.ROOT);
-        }
-
-        public static DataFormat fromString(String name) {
-            try {
-                return valueOf(name.trim().toUpperCase(Locale.ROOT));
-            } catch (IllegalArgumentException ex) {
-                throw new IllegalArgumentException(
-                    Strings.format("Unrecognized format [%s], must be one of %s", name, Arrays.toString(DataFormat.values()))
-                );
-            }
-        }
-    }
-
-    static final ConstructingObjectParser<InferenceString, Void> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<InferenceString, Void> PARSER = new ConstructingObjectParser<>(
         InferenceString.class.getSimpleName(),
-        args -> new InferenceString((InferenceString.DataType) args[0], (InferenceString.DataFormat) args[1], (String) args[2])
+        args -> new InferenceString((DataType) args[0], (DataFormat) args[1], (String) args[2])
     );
     static {
         PARSER.declareString(constructorArg(), DataType::fromString, new ParseField(TYPE_FIELD));
@@ -119,21 +67,33 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
      */
     public InferenceString(DataType dataType, @Nullable DataFormat dataFormat, String value) {
         this.dataType = Objects.requireNonNull(dataType);
-        this.dataFormat = Objects.requireNonNullElse(dataFormat, this.dataType.defaultFormat);
+        this.dataFormat = Objects.requireNonNullElse(dataFormat, this.dataType.getDefaultFormat());
         validateTypeAndFormat();
         this.value = Objects.requireNonNull(value);
+        validateDataURIFormat();
     }
 
     private void validateTypeAndFormat() {
-        if (supportedFormatsForType(dataType).contains(dataFormat) == false) {
+        if (dataType.getSupportedFormats().contains(dataFormat) == false) {
             throw new IllegalArgumentException(
                 Strings.format(
                     "Data type [%s] does not support data format [%s], supported formats are %s",
                     dataType,
                     dataFormat,
-                    supportedFormatsForType(dataType)
+                    dataType.getSupportedFormats()
                 )
             );
+        }
+    }
+
+    private void validateDataURIFormat() {
+        if (dataFormat == DataFormat.BASE64) {
+            var endOfURIPart = value.indexOf(',');
+            if (endOfURIPart < 0 || DATA_URI_PATTERN.matcher(value.substring(0, endOfURIPart + 1)).matches() == false) {
+                throw new IllegalArgumentException(
+                    "base64 inputs must be specified as data URIs with the format [data:{MIME-type};base64,...]"
+                );
+            }
         }
     }
 
@@ -149,19 +109,12 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
         return DataType.TEXT.equals(dataType);
     }
 
-    public static EnumSet<DataFormat> supportedFormatsForType(DataType type) {
-        return switch (type) {
-            case TEXT -> EnumSet.of(DataFormat.TEXT);
-            case IMAGE -> EnumSet.of(DataFormat.BASE64);
-        };
-    }
-
     /**
      * Converts a list of {@link InferenceString} to a list of {@link String}.
      * <p>
      * <b>
      * This method should only be called in code paths that do not deal with multimodal inputs, i.e. code paths where all inputs are
-     * guaranteed to be raw text, since it discards the {@link org.elasticsearch.inference.InferenceString.DataType} associated with
+     * guaranteed to be raw text, since it discards the {@link DataType} associated with
      * each input.
      *</b>
      * @param inferenceStrings The list of {@link InferenceString} to convert to a list of {@link String}
@@ -176,7 +129,7 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
      * <p>
      * <b>
      * This method should only be called in code paths that do not deal with multimodal inputs, i.e. code paths where all inputs are
-     * guaranteed to be raw text, since it discards the {@link org.elasticsearch.inference.InferenceString.DataType} associated with
+     * guaranteed to be raw text, since it discards the {@link DataType} associated with
      * each input.
      *</b>
      * @param inferenceString The {@link InferenceString} to convert to a {@link String}

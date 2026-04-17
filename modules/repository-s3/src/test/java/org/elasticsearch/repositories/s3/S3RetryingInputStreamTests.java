@@ -239,6 +239,7 @@ public class S3RetryingInputStreamTests extends ESTestCase {
         when(blobStore.clientReference()).thenReturn(clientReference);
         final MetricPublisher metricPublisher = mock(MetricPublisher.class);
         when(blobStore.getMetricPublisher(any(S3BlobStore.Operation.class), any(OperationPurpose.class))).thenReturn(metricPublisher);
+        when(blobStore.getS3RepositoriesMetrics()).thenReturn(S3RepositoriesMetrics.NOOP);
 
         if (position != null && length != null) {
             if (data.length <= position) {

@@ -6,64 +6,94 @@
  */
 package org.elasticsearch.xpack.esql.datasource.gcs;
 
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition;
+import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration;
 
 import java.util.Map;
+
+import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition.plaintext;
+import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition.secret;
 
 /**
  * Configuration for Google Cloud Storage access including credentials and endpoint settings.
  * <p>
- * Supports two authentication modes:
+ * Supports authentication modes:
  * <ul>
- *   <li>Service account JSON credentials (inline or from a file path)</li>
+ *   <li>Service account JSON credentials (inline)</li>
+ *   <li>{@code auth=none} for anonymous access to public buckets</li>
  *   <li>Application Default Credentials (ADC) when no explicit credentials are provided</li>
  * </ul>
  */
-public record GcsConfiguration(String serviceAccountCredentials, String projectId, String endpoint, String tokenUri) {
+public class GcsConfiguration extends FileDataSourceConfiguration {
 
-    public static GcsConfiguration fromParams(Map<String, Expression> params) {
-        if (params == null || params.isEmpty()) {
-            return null;
-        }
+    private static final DataSourceConfigDefinition CREDENTIALS = secret("credentials");
+    private static final DataSourceConfigDefinition PROJECT_ID = plaintext("project_id");
+    private static final DataSourceConfigDefinition ENDPOINT = plaintext("endpoint");
+    private static final DataSourceConfigDefinition TOKEN_URI = plaintext("token_uri");
 
-        String credentials = extractStringParam(params, "credentials");
-        String projectId = extractStringParam(params, "project_id");
-        String endpoint = extractStringParam(params, "endpoint");
-        String tokenUri = extractStringParam(params, "token_uri");
+    private static final Map<String, DataSourceConfigDefinition> FIELDS = DataSourceConfigDefinition.mapOf(
+        CREDENTIALS,
+        PROJECT_ID,
+        ENDPOINT,
+        TOKEN_URI,
+        AUTH
+    );
 
-        return fromFields(credentials, projectId, endpoint, tokenUri);
+    private GcsConfiguration(Map<String, Object> raw) {
+        super(raw, FIELDS);
+    }
+
+    public static GcsConfiguration fromMap(Map<String, Object> raw) {
+        return raw == null || raw.isEmpty() ? null : new GcsConfiguration(raw);
     }
 
     public static GcsConfiguration fromFields(String serviceAccountCredentials, String projectId, String endpoint) {
-        return fromFields(serviceAccountCredentials, projectId, endpoint, null);
+        return fromFields(serviceAccountCredentials, projectId, endpoint, null, null);
     }
 
     public static GcsConfiguration fromFields(String serviceAccountCredentials, String projectId, String endpoint, String tokenUri) {
-        if (serviceAccountCredentials == null && projectId == null && endpoint == null && tokenUri == null) {
-            return null;
-        }
-        return new GcsConfiguration(serviceAccountCredentials, projectId, endpoint, tokenUri);
+        return fromFields(serviceAccountCredentials, projectId, endpoint, tokenUri, null);
     }
 
-    private static String extractStringParam(Map<String, Expression> params, String key) {
-        Expression expr = params.get(key);
-        if (expr instanceof Literal literal) {
-            Object value = literal.value();
-            if (value instanceof BytesRef bytesRef) {
-                return BytesRefs.toString(bytesRef);
-            }
-            return value != null ? value.toString() : null;
-        }
-        return null;
+    public static GcsConfiguration fromFields(
+        String serviceAccountCredentials,
+        String projectId,
+        String endpoint,
+        String tokenUri,
+        String auth
+    ) {
+        var raw = buildRawMap(
+            CREDENTIALS,
+            serviceAccountCredentials,
+            PROJECT_ID,
+            projectId,
+            ENDPOINT,
+            endpoint,
+            TOKEN_URI,
+            tokenUri,
+            AUTH,
+            auth
+        );
+        return raw != null ? fromMap(raw) : null;
     }
 
-    /**
-     * Returns true if explicit service account credentials are provided.
-     */
+    public String serviceAccountCredentials() {
+        return get(CREDENTIALS.name());
+    }
+
+    public String projectId() {
+        return get(PROJECT_ID.name());
+    }
+
+    public String endpoint() {
+        return get(ENDPOINT.name());
+    }
+
+    public String tokenUri() {
+        return get(TOKEN_URI.name());
+    }
+
     public boolean hasCredentials() {
-        return serviceAccountCredentials != null;
+        return serviceAccountCredentials() != null;
     }
 }

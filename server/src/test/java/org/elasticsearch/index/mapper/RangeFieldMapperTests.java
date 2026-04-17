@@ -77,7 +77,20 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
-        checker.registerUpdateCheck(b -> b.field("coerce", false), m -> assertFalse(((RangeFieldMapper) m).coerce()));
+        checker.registerUpdateCheck("coerce", b -> b.field("coerce", false), m -> assertFalse(((RangeFieldMapper) m).coerce()));
+        if (rangeType() == RangeType.DATE) {
+            checker.registerConflictCheck("locale", b -> b.field("locale", "en_gb"));
+            checker.registerConflictCheck("format", fieldMapping(b -> {
+                b.field("type", "date_range");
+                b.field("format", DATE_FORMAT);
+            }), fieldMapping(b -> {
+                b.field("type", "date_range");
+                b.field("format", "epoch_millis");
+            }));
+        } else {
+            checker.registerIgnoredParameter("locale");
+            checker.registerIgnoredParameter("format");
+        }
     }
 
     private String getFromField() {

@@ -601,6 +601,10 @@ public final class MlIndexAndAlias {
             return i.equals(index) || (has6DigitSuffix(i) && i.length() == baseIndexName.length() + FIRST_INDEX_SIX_DIGIT_SUFFIX.length());
         }).toArray(String[]::new);
 
+        if (filtered.length == 0) {
+            return index;
+        }
+
         return MlIndexAndAlias.latestIndex(filtered);
     }
 

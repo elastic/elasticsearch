@@ -128,7 +128,7 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
         this.clusterAlias = clusterAlias;
     }
 
-    String clusterAlias() {
+    public String clusterAlias() {
         return clusterAlias;
     }
 

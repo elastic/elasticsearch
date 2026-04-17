@@ -44,6 +44,11 @@ public class DocBlock extends AbstractVectorBlock implements Block, RefCounted {
     }
 
     @Override
+    public Block slice(int beginInclusive, int endExclusive) {
+        return vector.slice(beginInclusive, endExclusive).asBlock();
+    }
+
+    @Override
     public Block filter(boolean mayContainDuplicates, int... positions) {
         return new DocBlock(vector.filter(mayContainDuplicates, positions));
     }
@@ -196,7 +201,10 @@ public class DocBlock extends AbstractVectorBlock implements Block, RefCounted {
 
         @Override
         public DocBlock build() {
-            // Pass null for singleSegmentNonDecreasing so we calculate it when we first need it.
+            return build(DocVector.config());
+        }
+
+        public DocBlock build(DocVector.Config config) {
             IntVector shards = null;
             IntVector segments = null;
             IntVector docs = null;
@@ -205,7 +213,7 @@ public class DocBlock extends AbstractVectorBlock implements Block, RefCounted {
                 shards = this.shards.build();
                 segments = this.segments.build();
                 docs = this.docs.build();
-                result = new DocVector(shardRefCounters, shards, segments, docs, DocVector.config());
+                result = new DocVector(shardRefCounters, shards, segments, docs, config);
                 return result.asBlock();
             } finally {
                 if (result == null) {

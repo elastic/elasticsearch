@@ -63,6 +63,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -1264,17 +1265,17 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * NOTE that this specifically does not return the write index of the data stream as usually retention
      * is treated differently for the write index (i.e. they first need to be rolled over)
      */
-    public List<Index> getIndicesOlderThan(
+    public Set<Index> getIndicesOlderThan(
         Function<String, IndexMetadata> indexMetadataSupplier,
         LongSupplier nowSupplier,
         TimeValue effectiveRetention,
         DatastreamIndexTypes types
     ) {
         if (effectiveRetention == null) {
-            return List.of();
+            return Set.of();
         }
 
-        List<Index> indices = new ArrayList<>();
+        Set<Index> indices = new HashSet<>();
         if (types == DatastreamIndexTypes.ALL || types == DatastreamIndexTypes.BACKING_INDICES) {
             indices.addAll(getDataStreamIndices(false).getIndices());
         }
@@ -1335,23 +1336,23 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * be filtered according to the predicate definition. This is useful for things like "return only
      * the indices that are managed by the data stream lifecycle".
      */
-    private List<Index> getNonWriteIndicesOlderThan(
-        List<Index> indices,
+    private Set<Index> getNonWriteIndicesOlderThan(
+        Set<Index> indices,
         TimeValue retentionPeriod,
         Function<String, IndexMetadata> indexMetadataSupplier,
         @Nullable Predicate<IndexMetadata> indicesPredicate,
         LongSupplier nowSupplier
     ) {
         if (indices.isEmpty()) {
-            return List.of();
+            return Set.of();
         }
-        List<Index> olderIndices = new ArrayList<>();
+        Set<Index> olderIndices = new HashSet<>();
         for (Index index : indices) {
             if (isIndexOlderThan(index, retentionPeriod.getMillis(), nowSupplier.getAsLong(), indicesPredicate, indexMetadataSupplier)) {
                 olderIndices.add(index);
             }
         }
-        return olderIndices;
+        return Set.copyOf(olderIndices);
     }
 
     private boolean isIndexOlderThan(

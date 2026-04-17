@@ -170,6 +170,10 @@ public class AllocatedPersistentTask extends CancellableTask {
      *                         persistent task.
      */
     public void markAsLocallyAborted(String localAbortReason) {
+        final String action = getAction();
+        assert action.endsWith("[c]")
+            && PersistentTasksExecutorRegistry.taskHasReassignmentOnShutdownDisabled(action.substring(0, action.length() - 3))
+            : "Task should not call markAsLocallyAborted, as it will be automatically reassigned on node shutdown";
         completeAndNotifyIfNeeded(null, Objects.requireNonNull(localAbortReason));
     }
 

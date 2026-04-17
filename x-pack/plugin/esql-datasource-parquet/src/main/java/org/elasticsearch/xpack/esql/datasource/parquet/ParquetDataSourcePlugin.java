@@ -11,8 +11,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Data source plugin that provides Parquet format support for ESQL external data sources.
@@ -35,6 +37,11 @@ import java.util.Map;
  * to avoid jar hell issues in the core ESQL plugin.
  */
 public class ParquetDataSourcePlugin extends Plugin implements DataSourcePlugin {
+
+    @Override
+    public Set<FormatSpec> formatSpecs() {
+        return Set.of(FormatSpec.of("parquet", ".parquet"));
+    }
 
     @Override
     public Map<String, FormatReaderFactory> formatReaders(Settings settings) {

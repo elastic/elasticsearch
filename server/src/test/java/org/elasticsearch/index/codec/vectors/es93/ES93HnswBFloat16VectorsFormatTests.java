@@ -10,7 +10,9 @@
 package org.elasticsearch.index.codec.vectors.es93;
 
 import org.apache.lucene.codecs.KnnVectorsFormat;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.BaseHnswBFloat16VectorsFormatTestCase;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -45,12 +47,13 @@ public class ES93HnswBFloat16VectorsFormatTests extends BaseHnswBFloat16VectorsF
     }
 
     public void testToString() {
-        String expected = "ES93HnswVectorsFormat(name=ES93HnswVectorsFormat, maxConn=10, beamWidth=20, flatVectorFormat=%s)";
+        String expected =
+            "ES93HnswVectorsFormat(name=ES93HnswVectorsFormat, maxConn=10, beamWidth=20, hnswGraphThreshold=150, flatVectorFormat=%s)";
         expected = format(Locale.ROOT, expected, "ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format=%s)");
         expected = format(
             Locale.ROOT,
             expected,
-            "ES93BFloat16FlatVectorsFormat(name=ES93BFloat16FlatVectorsFormat, flatVectorScorer=%s())"
+            "ES93BFloat16FlatVectorsFormat(name=ES93BFloat16FlatVectorsFormat, flatVectorScorer=ES93GenericFlatVectorScorer(delegate=%s()))"
         );
         String defaultScorer = format(Locale.ROOT, expected, "DefaultFlatVectorScorer");
         String memSegScorer = format(Locale.ROOT, expected, "Lucene99MemorySegmentFlatVectorsScorer");
@@ -61,10 +64,13 @@ public class ES93HnswBFloat16VectorsFormatTests extends BaseHnswBFloat16VectorsF
 
     public void testSimpleOffHeapSize() throws IOException {
         float[] vector = randomVector(random().nextInt(12, 500));
+        // Use threshold=0 to ensure HNSW graph is always built
+        var format = new ES93HnswVectorsFormat(16, 100, DenseVectorFieldMapper.ElementType.BFLOAT16, 1, null, 0);
+        IndexWriterConfig config = newIndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(format));
         try (Directory dir = newDirectory()) {
             testSimpleOffHeapSize(
                 dir,
-                newIndexWriterConfig(),
+                config,
                 vector,
                 allOf(aMapWithSize(2), hasEntry("vec", (long) vector.length * BFloat16.BYTES), hasEntry("vex", 1L))
             );

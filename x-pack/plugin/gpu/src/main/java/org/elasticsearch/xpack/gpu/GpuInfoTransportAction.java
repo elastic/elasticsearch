@@ -34,12 +34,13 @@ public class GpuInfoTransportAction extends XPackInfoFeatureTransportAction {
         TransportService transportService,
         ActionFilters actionFilters,
         XPackLicenseState licenseState,
-        Settings settings
+        Settings settings,
+        GPUSupport gpuSupport
     ) {
         super(XPackInfoFeatureAction.GPU_VECTOR_INDEXING.name(), transportService, actionFilters);
         this.licenseState = licenseState;
         GPUPlugin.GpuMode gpuMode = GPUPlugin.VECTORS_INDEXING_USE_GPU_NODE_SETTING.get(settings);
-        this.localNodeGpuEnabled = gpuMode != GPUPlugin.GpuMode.FALSE && GPUSupport.isSupported();
+        this.localNodeGpuEnabled = gpuMode != GPUPlugin.GpuMode.FALSE && gpuSupport.isSupported();
     }
 
     @Override

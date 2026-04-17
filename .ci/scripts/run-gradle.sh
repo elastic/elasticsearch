@@ -49,4 +49,4 @@ if [[ -n "${TESTS_SEED:-}" ]]; then
   echo "Using test seed: $TESTS_SEED"
 fi
 
-$GRADLEW -S --max-workers=$MAX_WORKERS $TESTS_SEED_PARAM "$@"
+$GRADLEW -S --max-workers=$MAX_WORKERS $TESTS_SEED_PARAM ${EXTRA_GRADLE_ARGS:-} "$@"

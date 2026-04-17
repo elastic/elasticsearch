@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 142915
+pr: 142933
+summary: Fix NPE on query log when CCS remotes are unavailable
+type: bug

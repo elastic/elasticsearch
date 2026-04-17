@@ -90,3 +90,6 @@ server/src/main/resources/transport/definitions/manifest.txt
 
 # JEnv
 .java-version
+
+# Vector data files
+qa/vector/.data

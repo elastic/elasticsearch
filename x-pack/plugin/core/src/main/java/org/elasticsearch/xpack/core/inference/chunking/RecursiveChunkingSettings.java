@@ -30,7 +30,7 @@ import java.util.Set;
 public class RecursiveChunkingSettings implements ChunkingSettings {
     public static final String NAME = "RecursiveChunkingSettings";
     private static final ChunkingStrategy STRATEGY = ChunkingStrategy.RECURSIVE;
-    private static final int MAX_CHUNK_SIZE_LOWER_LIMIT = 10;
+    static final int MAX_CHUNK_SIZE_LOWER_LIMIT = 10;
 
     private static final Set<String> VALID_KEYS = Set.of(
         ChunkingSettingsOptions.STRATEGY.toString(),
@@ -58,17 +58,15 @@ public class RecursiveChunkingSettings implements ChunkingSettings {
 
         if (maxChunkSize < MAX_CHUNK_SIZE_LOWER_LIMIT) {
             validationException.addValidationError(
-                ChunkingSettingsOptions.MAX_CHUNK_SIZE + "[" + maxChunkSize + "] must be above " + MAX_CHUNK_SIZE_LOWER_LIMIT
+                ChunkingSettingsOptions.MAX_CHUNK_SIZE + " [" + maxChunkSize + "] must be above " + MAX_CHUNK_SIZE_LOWER_LIMIT
             );
-
-            if (separators != null && separators.isEmpty()) {
-                validationException.addValidationError("Recursive chunking settings can not have an empty list of separators");
-            }
-
-            if (validationException.validationErrors().isEmpty() == false) {
-                throw validationException;
-            }
         }
+
+        if (separators != null && separators.isEmpty()) {
+            validationException.addValidationError("Recursive chunking settings can not have an empty list of separators");
+        }
+
+        validationException.throwIfValidationErrorsExist();
     }
 
     public static RecursiveChunkingSettings fromMap(Map<String, Object> map) {
@@ -115,9 +113,7 @@ public class RecursiveChunkingSettings implements ChunkingSettings {
             validationException.addValidationError("Recursive chunking settings can not have an empty list of separators");
         }
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new RecursiveChunkingSettings(maxChunkSize, separators);
     }

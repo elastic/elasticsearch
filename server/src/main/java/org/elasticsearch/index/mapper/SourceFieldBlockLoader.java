@@ -11,7 +11,8 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.util.IOSupplier;
+import org.apache.lucene.util.IOFunction;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
@@ -27,13 +28,13 @@ public final class SourceFieldBlockLoader implements BlockLoader {
     }
 
     @Override
-    public IOSupplier<ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) {
+    public IOFunction<CircuitBreaker, ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) {
         return null;
     }
 
     @Override
-    public RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
-        return new Source();
+    public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        return new Source(breaker);
     }
 
     @Override
@@ -52,6 +53,10 @@ public final class SourceFieldBlockLoader implements BlockLoader {
     }
 
     private static class Source extends BlockStoredFieldsReader {
+        protected Source(CircuitBreaker breaker) {
+            super(breaker);
+        }
+
         @Override
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
             // TODO support appending BytesReference

@@ -56,6 +56,7 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
             false,
             IGNORE_ABOVE,
             true,
+            false,
             null
         );
     }
@@ -91,6 +92,7 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
             false,
             IGNORE_ABOVE,
             true,
+            false,
             null
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("field", null));

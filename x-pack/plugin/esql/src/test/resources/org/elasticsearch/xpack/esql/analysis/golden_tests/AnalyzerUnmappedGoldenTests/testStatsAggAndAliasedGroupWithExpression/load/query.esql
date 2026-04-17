@@ -1,0 +1,2 @@
+SET unmapped_fields="load"; FROM employees
+| STATS sum = SUM(does_not_exist1::DOUBLE) + s0 + s1 BY s0 = does_not_exist2::DOUBLE + does_not_exist3::DOUBLE, s1 = emp_no

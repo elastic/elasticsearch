@@ -27,6 +27,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunkingSettings;
@@ -57,6 +58,7 @@ import static org.elasticsearch.action.ActionListener.assertOnce;
 import static org.elasticsearch.action.support.ActionTestUtils.assertNoFailureListener;
 import static org.elasticsearch.action.support.ActionTestUtils.assertNoSuccessListener;
 import static org.elasticsearch.core.TimeValue.THIRTY_SECONDS;
+import static org.elasticsearch.xpack.core.inference.action.UnifiedCompletionRequestTests.randomTextInputOnlyUnifiedCompletionRequest;
 import static org.elasticsearch.xpack.core.inference.action.UnifiedCompletionRequestTests.randomUnifiedCompletionRequest;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterService;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
@@ -120,13 +122,21 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
         }));
     }
 
-    public void testParsePersistedConfigWithSecrets() {
-        sageMakerService.parsePersistedConfigWithSecrets("modelId", TaskType.ANY, Map.of(), Map.of());
-        verify(modelBuilder, only()).fromStorage(eq("modelId"), eq(TaskType.ANY), eq(SageMakerService.NAME), eq(Map.of()), eq(Map.of()));
+    public void testParsePersistedConfig_WithSecrets() {
+        sageMakerService.parsePersistedConfig(
+            new UnparsedModel("modelId", TaskType.ANY, SageMakerService.NAME, Map.of(), Map.of("key", "value"))
+        );
+        verify(modelBuilder, only()).fromStorage(
+            eq("modelId"),
+            eq(TaskType.ANY),
+            eq(SageMakerService.NAME),
+            eq(Map.of()),
+            eq(Map.of("key", "value"))
+        );
     }
 
-    public void testParsePersistedConfig() {
-        sageMakerService.parsePersistedConfig("modelId", TaskType.ANY, Map.of());
+    public void testParsePersistedConfig_WithoutSecrets() {
+        sageMakerService.parsePersistedConfig(new UnparsedModel("modelId", TaskType.ANY, SageMakerService.NAME, Map.of(), null));
         verify(modelBuilder, only()).fromStorage(eq("modelId"), eq(TaskType.ANY), eq(SageMakerService.NAME), eq(Map.of()), eq(null));
     }
 
@@ -375,7 +385,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
 
         sageMakerService.unifiedCompletionInfer(
             model,
-            randomUnifiedCompletionRequest(),
+            randomTextInputOnlyUnifiedCompletionRequest(),
             THIRTY_SECONDS,
             assertNoFailureListener(ignored -> {
                 verify(schemas, only()).streamSchemaFor(eq(model));
@@ -397,7 +407,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
 
         sageMakerService.unifiedCompletionInfer(
             model,
-            randomUnifiedCompletionRequest(),
+            randomTextInputOnlyUnifiedCompletionRequest(),
             THIRTY_SECONDS,
             assertNoSuccessListener(ignored -> {
                 verify(schemas, only()).streamSchemaFor(eq(model));
@@ -425,13 +435,18 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
         when(schemas.streamSchemaFor(model)).thenReturn(schema);
         doThrow(new IllegalArgumentException("wow, rude")).when(client).invokeStream(any(), any(), any(), any());
 
-        sageMakerService.unifiedCompletionInfer(model, randomUnifiedCompletionRequest(), THIRTY_SECONDS, assertNoSuccessListener(e -> {
-            verify(schemas, only()).streamSchemaFor(eq(model));
-            verify(schema, times(1)).chatCompletionStreamRequest(eq(model), any());
-            assertThat(e, isA(ElasticsearchStatusException.class));
-            assertThat(((ElasticsearchStatusException) e).status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
-            assertThat(e.getMessage(), equalTo("Failed to call SageMaker for inference id [some id]."));
-        }));
+        sageMakerService.unifiedCompletionInfer(
+            model,
+            randomTextInputOnlyUnifiedCompletionRequest(),
+            THIRTY_SECONDS,
+            assertNoSuccessListener(e -> {
+                verify(schemas, only()).streamSchemaFor(eq(model));
+                verify(schema, times(1)).chatCompletionStreamRequest(eq(model), any());
+                assertThat(e, isA(ElasticsearchStatusException.class));
+                assertThat(((ElasticsearchStatusException) e).status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+                assertThat(e.getMessage(), equalTo("Failed to call SageMaker for inference id [some id]."));
+            })
+        );
         verify(client, only()).invokeStream(any(), any(), any(), any());
         verifyNoMoreInteractions(client, schemas, schema);
     }

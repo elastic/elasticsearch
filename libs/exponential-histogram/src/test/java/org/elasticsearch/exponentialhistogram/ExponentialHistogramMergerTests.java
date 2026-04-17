@@ -32,9 +32,6 @@ import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_INDEX;
-import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_INDEX;
-import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.adjustScale;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -105,14 +102,6 @@ public class ExponentialHistogramMergerTests extends ExponentialHistogramTestCas
         assertThat(posBuckets.hasNext(), equalTo(false));
     }
 
-    public void testMergeWithoutUpscaling() {
-        ExponentialHistogram histo = createAutoReleasedHistogram(b -> b.scale(0).setPositiveBucket(2, 42));
-        try (ExponentialHistogramMerger merger = ExponentialHistogramMerger.create(100, breaker())) {
-            merger.addWithoutUpscaling(histo);
-            assertThat(merger.get(), equalTo(histo));
-        }
-    }
-
     public void testAggregatesCorrectness() {
         double[] firstValues = randomDoubles(100).map(val -> val * 2 - 1).toArray();
         double[] secondValues = randomDoubles(50).map(val -> val * 2 - 1).toArray();
@@ -133,33 +122,6 @@ public class ExponentialHistogramMergerTests extends ExponentialHistogramTestCas
             assertThat(merged.sum(), closeTo(correctSum, 0.000001));
             assertThat(merged.min(), equalTo(correctMin));
             assertThat(merged.max(), equalTo(correctMax));
-        }
-    }
-
-    public void testUpscalingDoesNotExceedIndexLimits() {
-        for (int i = 0; i < 4; i++) {
-
-            boolean isPositive = i % 2 == 0;
-            boolean useMinIndex = i > 1;
-
-            long index = useMinIndex ? MIN_INDEX / 2 : MAX_INDEX / 2;
-            ExponentialHistogram histo = createAutoReleasedHistogram(b -> {
-                b.scale(20);
-                if (isPositive) {
-                    b.setPositiveBucket(index, 1);
-                } else {
-                    b.setNegativeBucket(index, 1);
-                }
-            });
-
-            try (ReleasableExponentialHistogram result = ExponentialHistogram.merge(100, breaker(), histo)) {
-                assertThat(result.scale(), equalTo(21));
-                if (isPositive) {
-                    assertThat(result.positiveBuckets().iterator().peekIndex(), equalTo(adjustScale(index, 20, 1)));
-                } else {
-                    assertThat(result.negativeBuckets().iterator().peekIndex(), equalTo(adjustScale(index, 20, 1)));
-                }
-            }
         }
     }
 

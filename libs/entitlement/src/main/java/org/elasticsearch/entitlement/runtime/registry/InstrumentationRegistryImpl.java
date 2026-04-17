@@ -48,6 +48,15 @@ public class InstrumentationRegistryImpl implements InternalInstrumentationRegis
     }
 
     @Override
+    public Object defaultValue$(String instrumentationId) {
+        DeniedEntitlementStrategy strategy = implementationIdToStrategy.get(instrumentationId);
+        if (strategy instanceof DeniedEntitlementStrategy.DefaultValueDeniedEntitlementStrategy<?> defaultValue) {
+            return defaultValue.getDefaultValue();
+        }
+        throw new IllegalStateException("No default value configured for instrumentation id [" + instrumentationId + "]");
+    }
+
+    @Override
     public Map<MethodKey, InstrumentationInfo> getInstrumentedMethods() {
         return Collections.unmodifiableMap(methodToImplementationInfo);
     }

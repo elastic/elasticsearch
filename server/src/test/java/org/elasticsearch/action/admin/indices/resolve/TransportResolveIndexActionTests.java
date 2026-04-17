@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -81,8 +82,8 @@ public class TransportResolveIndexActionTests extends ESTestCase {
                 clusterService,
                 actionFilters,
                 TestProjectResolvers.DEFAULT_PROJECT_ONLY,
-                Settings.EMPTY,
-                null
+                null,
+                CrossProjectModeDecider.NOOP
             );
 
             IllegalArgumentException ex = expectThrows(

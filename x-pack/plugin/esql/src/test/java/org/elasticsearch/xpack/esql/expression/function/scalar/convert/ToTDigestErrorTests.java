@@ -32,6 +32,6 @@ public class ToTDigestErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        return equalTo(typeErrorMessage(false, validPerPosition, signature, (v, p) -> "histogram or tdigest"));
+        return equalTo(typeErrorMessage(false, validPerPosition, signature, (v, p) -> "exponential_histogram or histogram or tdigest"));
     }
 }

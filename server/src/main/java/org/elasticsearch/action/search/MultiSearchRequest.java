@@ -12,7 +12,6 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.CheckedBiConsumer;
@@ -52,7 +51,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeSt
 /**
  * A multi search API request.
  */
-public class MultiSearchRequest extends LegacyActionRequest implements CompositeIndicesRequest, IndicesRequest.CrossProjectCandidate {
+public class MultiSearchRequest extends LegacyActionRequest implements CompositeIndicesRequest {
     public static final int MAX_CONCURRENT_SEARCH_REQUESTS_DEFAULT = 0;
 
     private int maxConcurrentSearchRequests = 0;
@@ -272,9 +271,7 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
                     )
                 ) {
                     Map<String, Object> source = parser.map();
-                    // In Jackson 2.21+, parser.map() may leave the parser past END_OBJECT
-                    // Only check for extra tokens if we're still positioned in the stream
-                    if (parser.currentToken() != null && parser.nextToken() != null) {
+                    if (parser.nextToken() != null) {
                         throw new XContentParseException(parser.getTokenLocation(), "Unexpected token after end of object");
                     }
                     Object expandWildcards = null;
@@ -362,9 +359,7 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
                 )
             ) {
                 consumer.accept(searchRequest, parser);
-                // In Jackson 2.21+, after parsing, the parser may be past END_OBJECT
-                // Only check for extra tokens if we're still positioned in the stream
-                if (parser.currentToken() != null && parser.nextToken() != null) {
+                if (parser.nextToken() != null) {
                     throw new XContentParseException(parser.getTokenLocation(), "Unexpected token after end of object");
                 }
             }
@@ -446,11 +441,6 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
                     + requests.stream().map(SearchRequest::buildDescription).collect(Collectors.joining(" | "));
             }
         };
-    }
-
-    @Override
-    public boolean allowsCrossProject() {
-        return true;
     }
 
     public void setProjectRouting(String projectRouting) {

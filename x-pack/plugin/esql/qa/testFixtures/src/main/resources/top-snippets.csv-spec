@@ -208,3 +208,21 @@ ROW content = "Sauron, the Dark Lord, has gathered to him all the Rings of Power
 snippets:keyword
 [All he lacks in his plans for dominion is the One Ring - the ring that rules them all - which has fallen into the hands of, ring that rules them all - which has fallen into the hands of the hobbit\, Bilbo Baggins.]
 ;
+
+topSnippetsWithFoldableConcatQuery
+required_capability: top_snippets_foldable_query_check
+
+FROM books
+| EVAL snippets = TOP_SNIPPETS(description, CONCAT("Tol", "kien"))
+| KEEP book_no, title, snippets
+| SORT book_no
+| LIMIT 5
+;
+
+book_no:keyword | title:text                                            | snippets:keyword
+1211            | The brothers Karamazov                                | null
+1463            | Realms of Tolkien: Images of Middle-earth             | Twenty new and familiar Tolkien artists are represented in this fabulous volume, breathing an extraordinary variety of life into 58 different scenes, each of which is accompanied by appropriate passage from The Hobbit and The Lord of the Rings and The Silmarillion
+1502            | Selected Passages from Correspondence with Friends    | null
+1937            | The Best Short Stories of Dostoevsky (Modern Library) | null
+1985            | Brothers Karamazov                                    | null
+;

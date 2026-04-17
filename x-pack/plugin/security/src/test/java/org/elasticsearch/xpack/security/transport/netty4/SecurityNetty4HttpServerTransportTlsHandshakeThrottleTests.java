@@ -52,9 +52,9 @@ import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.MetricRecorder;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.TelemetryProvider.NoopTelemetryProvider;
 import org.elasticsearch.telemetry.metric.Instrument;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -162,12 +162,7 @@ public class SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests extends 
         settingsSet.add(Netty4Plugin.SETTING_HTTP_NETTY_TLS_HANDSHAKES_MAX_DELAYED);
         final var clusterSettings = new ClusterSettings(settings, Set.copyOf(settingsSet));
 
-        final var telemetryProvider = new TelemetryProvider() {
-            @Override
-            public Tracer getTracer() {
-                return Tracer.NOOP;
-            }
-
+        final var telemetryProvider = new NoopTelemetryProvider() {
             @Override
             public MeterRegistry getMeterRegistry() {
                 return meterRegistry;

@@ -146,24 +146,18 @@ final class LongBlockHash extends BlockHash {
     }
 
     @Override
-    public LongBlock[] getKeys() {
-        if (seenNull) {
-            final int size = Math.toIntExact(hash.size() + 1);
-            final long[] keys = new long[size];
-            for (int i = 1; i < size; i++) {
-                keys[i] = hash.get(i - 1);
+    public LongBlock[] getKeys(IntVector selected) {
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(selected.getPositionCount())) {
+            for (int i = 0; i < selected.getPositionCount(); i++) {
+                int groupId = selected.getInt(i);
+                if (groupId == 0) {
+                    builder.appendNull();
+                } else {
+                    builder.appendLong(hash.get(groupId - 1));
+                }
             }
-            BitSet nulls = new BitSet(1);
-            nulls.set(0);
-            return new LongBlock[] {
-                blockFactory.newLongArrayBlock(keys, keys.length, null, nulls, Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING) };
+            return new LongBlock[] { builder.build() };
         }
-        final int size = Math.toIntExact(hash.size());
-        final long[] keys = new long[size];
-        for (int i = 0; i < size; i++) {
-            keys[i] = hash.get(i);
-        }
-        return new LongBlock[] { blockFactory.newLongArrayVector(keys, keys.length).asBlock() };
     }
 
     @Override

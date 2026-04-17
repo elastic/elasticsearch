@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.common.model.Truncation;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModelTests;
@@ -50,7 +51,7 @@ public class CohereV2EmbeddingsRequestTests extends ESTestCase {
             )
         );
 
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
         MatcherAssert.assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -87,7 +88,7 @@ public class CohereV2EmbeddingsRequestTests extends ESTestCase {
             )
         );
 
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
         MatcherAssert.assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -112,7 +113,7 @@ public class CohereV2EmbeddingsRequestTests extends ESTestCase {
             )
         );
 
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
         MatcherAssert.assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -149,7 +150,7 @@ public class CohereV2EmbeddingsRequestTests extends ESTestCase {
             )
         );
 
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
         MatcherAssert.assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -185,7 +186,7 @@ public class CohereV2EmbeddingsRequestTests extends ESTestCase {
             )
         );
 
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
         MatcherAssert.assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();

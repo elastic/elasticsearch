@@ -115,7 +115,7 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
             }
 
             if (expirationTimeMillis != -1) {
-                task.setExpirationTime(expirationTimeMillis);
+                task.setExpirationTime(expirationTimeMillis, request.getKeepAlive());
             }
             boolean added = addCompletionListener.apply(
                 task,

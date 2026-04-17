@@ -15,7 +15,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsOptions;
@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -51,6 +52,7 @@ import static org.elasticsearch.xpack.esql.expression.function.scalar.util.Chunk
 public class Chunk extends EsqlScalarFunction implements OptionalArgument {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Chunk", Chunk::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Chunk.class).binary(Chunk::new).name("chunk");
 
     static final int DEFAULT_CHUNK_SIZE = 300;
     public static final ChunkingSettings DEFAULT_CHUNKING_SETTINGS = new SentenceBoundaryChunkingSettings(DEFAULT_CHUNK_SIZE, 0);
@@ -73,7 +75,7 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
         description = """
             Use `CHUNK` to split a text field into smaller chunks.""",
         detailedDescription = """
-                Chunk can be used on fields from the text famiy like <<text, text>> and <<semantic-text, semantic_text>>.
+                Chunk can be used on fields from the text family like <<text, text>> and <<semantic-text, semantic_text>>.
                 Chunk will split a text field into smaller chunks, using a sentence-based chunking strategy.
                 The number of chunks returned, and the length of the sentences used to create the chunks can be specified.
             """,
@@ -252,7 +254,7 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         ChunkingSettings chunkingSettings = DEFAULT_CHUNKING_SETTINGS;
 
         if (chunkingSettings() != null) {

@@ -15,8 +15,11 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.TaskId;
@@ -43,6 +46,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.IMPLEMENTED_TASK_TYPES;
@@ -325,23 +329,80 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
         SubscribableListener.<ElasticInferenceServiceAuthorizationModel>newForked(
             authModelListener -> authorizationHandler.getAuthorization(authModelListener, sender)
         )
-            .andThenApply(this::getNewInferenceEndpointsToStore)
-            .<Void>andThen((storeListener, newInferenceIds) -> storePreconfiguredModels(newInferenceIds, storeListener))
+            .<ElasticInferenceServiceAuthorizationModel>andThen(
+                (nextListener, authModel) -> deleteRemovedEndpoints(authModel, nextListener)
+            )
+            .andThenApply(this::selectEndpointsToPersist)
+            .<Void>andThen((storeListener, inferenceIdsToPersist) -> storePreconfiguredModels(inferenceIdsToPersist, storeListener))
             .addListener(listener);
     }
 
-    private List<Model> getNewInferenceEndpointsToStore(ElasticInferenceServiceAuthorizationModel authModel) {
+    private void deleteRemovedEndpoints(
+        ElasticInferenceServiceAuthorizationModel authModel,
+        ActionListener<ElasticInferenceServiceAuthorizationModel> listener
+    ) {
+        var toDelete = new HashSet<>(authModel.getRemovedEndpoints());
+        toDelete.retainAll(modelRegistry.getInferenceIds());
+
+        if (toDelete.isEmpty()) {
+            listener.onResponse(authModel);
+            return;
+        }
+
+        logger.info("Deleting removed EIS inference endpoints: {}", toDelete);
+        modelRegistry.deleteModels(toDelete, ActionListener.wrap(success -> listener.onResponse(authModel), e -> {
+            logger.atWarn().withThrowable(e).log("Failed to delete removed EIS inference endpoints: {}", toDelete);
+            listener.onResponse(authModel);
+        }));
+    }
+
+    private List<Model> selectEndpointsToPersist(ElasticInferenceServiceAuthorizationModel authModel) {
         logger.debug("Received authorization response, {}", authModel);
 
         var scopedAuthModel = authModel.newLimitedToTaskTypes(EnumSet.copyOf(IMPLEMENTED_TASK_TYPES));
         logger.debug("Authorization entity limited to service task types, {}", scopedAuthModel);
 
-        var newEndpointIds = new HashSet<>(scopedAuthModel.getEndpointIds());
+        List<Model> endpoints = scopedAuthModel.getEndpoints(scopedAuthModel.getEndpointIds());
 
-        var existingInferenceIds = modelRegistry.getInferenceIds();
+        // We get all existing endpoints from the registry in a single call to ensure all decisions
+        // of a single authorization request are based on a single cluster state.
+        Map<String, MinimalServiceSettings> existingById = modelRegistry.getMinimalServiceSettings(
+            endpoints.stream().map(Model::getInferenceEntityId).collect(Collectors.toSet()),
+            false
+        );
+        return endpoints.stream()
+            .filter(model -> shouldPersistEndpoint(model, existingById.get(model.getInferenceEntityId())))
+            .collect(Collectors.toList());
+    }
 
-        newEndpointIds.removeAll(existingInferenceIds);
-        return scopedAuthModel.getEndpoints(newEndpointIds);
+    private static boolean shouldPersistEndpoint(Model newEndpoint, @Nullable MinimalServiceSettings existingEndpoint) {
+        if (existingEndpoint == null) {
+            logger.debug(
+                () -> Strings.format(
+                    "[%s] selected for persistence, because it currently does not exist",
+                    newEndpoint.getInferenceEntityId()
+                )
+            );
+            return true;
+        }
+
+        EndpointMetadata existingMetadata = existingEndpoint.endpointMetadata();
+        if (existingMetadata.fingerprintMatches(newEndpoint.getConfigurations().getEndpointMetadataOrEmpty()) == false) {
+            logger.debug(
+                () -> Strings.format(
+                    "[%s] selected for persistence, because its fingerprint has changed",
+                    newEndpoint.getInferenceEntityId()
+                )
+            );
+            return true;
+        }
+        if (newEndpoint.getConfigurations().getEndpointMetadataOrEmpty().hasNewerVersionThan(existingMetadata)) {
+            logger.debug(
+                () -> Strings.format("[%s] selected for persistence, because its version is higher", newEndpoint.getInferenceEntityId())
+            );
+            return true;
+        }
+        return false;
     }
 
     private void storePreconfiguredModels(List<Model> newEndpoints, ActionListener<Void> listener) {
@@ -351,7 +412,7 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
         }
 
         logger.info(
-            "Storing new EIS preconfigured inference endpoints with inference IDs {}",
+            "Storing EIS preconfigured inference endpoints with inference IDs {}",
             newEndpoints.stream().map(Model::getInferenceEntityId).toList()
         );
         var storeRequest = new StoreInferenceEndpointsAction.Request(newEndpoints, TimeValue.THIRTY_SECONDS);

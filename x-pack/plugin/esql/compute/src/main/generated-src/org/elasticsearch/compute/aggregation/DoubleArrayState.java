@@ -56,6 +56,12 @@ final class DoubleArrayState extends AbstractArrayState implements GroupingAggre
         trackGroupId(groupId);
     }
 
+    void increment(int groupId, double value) {
+        ensureCapacity(groupId);
+        values.increment(groupId, value);
+        trackGroupId(groupId);
+    }
+
     Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected, DriverContext driverContext) {
         if (false == trackingGroupIds()) {
             try (var builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(selected.getPositionCount())) {

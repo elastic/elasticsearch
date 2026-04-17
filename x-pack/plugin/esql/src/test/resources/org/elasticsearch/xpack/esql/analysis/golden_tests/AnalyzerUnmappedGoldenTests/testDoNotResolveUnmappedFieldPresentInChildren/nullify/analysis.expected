@@ -1,0 +1,5 @@
+Limit[1000[INTEGER],false,false]
+\_Eval[[MVMIN(nanos{r}#0) AS nanos#1]]
+  \_Filter[millis{r}#2 < 946684800000[DATETIME]]
+    \_OrderBy[[Order[millis{r}#2,ASC,LAST]]]
+      \_Row[[TODATETIME(1970-01-01T00:00:00Z[KEYWORD]) AS millis#2, TODATENANOS(1970-01-01T00:00:00Z[KEYWORD]) AS nanos#0]]

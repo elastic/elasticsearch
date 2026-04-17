@@ -48,14 +48,8 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
         private final boolean wildcardExpressionsOriginallySpecified;
         private IndicesOptions indicesOptions = IndicesOptions.builder()
             .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
-            .wildcardOptions(
-                IndicesOptions.WildcardOptions.builder()
-                    .matchOpen(true)
-                    .matchClosed(true)
-                    .resolveAliases(false)
-                    .allowEmptyExpressions(true)
-                    .build()
-            )
+            .indexAbstractionOptions(IndicesOptions.IndexAbstractionOptions.builder().resolveAliases(false).build())
+            .wildcardOptions(IndicesOptions.WildcardOptions.builder().matchOpen(true).matchClosed(true).allowEmptyExpressions(true).build())
             .gatekeeperOptions(
                 IndicesOptions.GatekeeperOptions.builder()
                     .allowAliasToMultipleIndices(false)

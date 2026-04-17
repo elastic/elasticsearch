@@ -23,8 +23,12 @@ import java.util.OptionalInt;
 import java.util.stream.IntStream;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.compute.data.BasicBlockTests.assertDeepCopy;
 import static org.elasticsearch.compute.data.BasicBlockTests.assertEmptyLookup;
+import static org.elasticsearch.compute.data.BasicBlockTests.assertFilter;
+import static org.elasticsearch.compute.data.BasicBlockTests.assertKeepMask;
 import static org.elasticsearch.compute.data.BasicBlockTests.assertLookup;
+import static org.elasticsearch.compute.data.BasicBlockTests.assertSlice;
 import static org.elasticsearch.compute.data.BasicBlockTests.positions;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -96,6 +100,13 @@ public class BigArrayVectorTests extends SerializationTestCase {
                     assertTrue(vector.allFalse());
                 }
             }
+            assertKeepMask(vector);
+            assertFilter(vector);
+            assertSlice(vector);
+            assertKeepMask(block);
+            assertFilter(block);
+            assertSlice(block);
+            assertDeepCopy(block);
         }
     }
 
@@ -138,6 +149,13 @@ public class BigArrayVectorTests extends SerializationTestCase {
             assertThat(OptionalInt.of(vector.max()), equalTo(Arrays.stream(values).max()));
             assertSerialization(block);
             assertThat(vector.toString(), containsString("IntBigArrayVector[positions=" + positionCount));
+            assertKeepMask(vector);
+            assertFilter(vector);
+            assertSlice(vector);
+            assertKeepMask(block);
+            assertFilter(block);
+            assertSlice(block);
+            assertDeepCopy(block);
         }
     }
 
@@ -178,6 +196,13 @@ public class BigArrayVectorTests extends SerializationTestCase {
             assertEmptyLookup(blockFactory, vector.asBlock());
             assertSerialization(block);
             assertThat(vector.toString(), containsString("LongBigArrayVector[positions=" + positionCount));
+            assertKeepMask(vector);
+            assertFilter(vector);
+            assertSlice(vector);
+            assertKeepMask(block);
+            assertFilter(block);
+            assertSlice(block);
+            assertDeepCopy(block);
         }
     }
 
@@ -218,6 +243,13 @@ public class BigArrayVectorTests extends SerializationTestCase {
             assertEmptyLookup(blockFactory, vector.asBlock());
             assertSerialization(block);
             assertThat(vector.toString(), containsString("DoubleBigArrayVector[positions=" + positionCount));
+            assertKeepMask(vector);
+            assertFilter(vector);
+            assertSlice(vector);
+            assertKeepMask(block);
+            assertFilter(block);
+            assertSlice(block);
+            assertDeepCopy(block);
         }
     }
 

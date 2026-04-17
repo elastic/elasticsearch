@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -47,6 +48,10 @@ import static org.elasticsearch.xpack.sql.proto.CoreProtocol.ALLOW_PARTIAL_SEARC
  * Request to perform an sql query
  */
 public class SqlQueryRequest extends AbstractSqlQueryRequest {
+    public static final TransportVersion OPTIONAL_ALLOW_PARTIAL_SEARCH_RESULTS = TransportVersion.fromName(
+        "sql_optional_allow_partial_search_results"
+    );
+
     private static final ObjectParser<SqlQueryRequest, Void> PARSER = objectParser(SqlQueryRequest::new);
     static final ParseField COLUMNAR = new ParseField(COLUMNAR_NAME);
     static final ParseField FIELD_MULTI_VALUE_LENIENCY = new ParseField(FIELD_MULTI_VALUE_LENIENCY_NAME);
@@ -106,7 +111,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
     private boolean keepOnCompletion = DEFAULT_KEEP_ON_COMPLETION;
     private TimeValue keepAlive = DEFAULT_KEEP_ALIVE;
 
-    private boolean allowPartialSearchResults = Protocol.ALLOW_PARTIAL_SEARCH_RESULTS;
+    private Boolean allowPartialSearchResults;
 
     public SqlQueryRequest() {
         super();
@@ -130,7 +135,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         TimeValue waitForCompletionTimeout,
         boolean keepOnCompletion,
         TimeValue keepAlive,
-        boolean allowPartialSearchResults
+        Boolean allowPartialSearchResults
     ) {
         super(query, params, filter, runtimeMappings, zoneId, catalog, fetchSize, requestTimeout, pageTimeout, requestInfo);
         this.cursor = cursor;
@@ -162,7 +167,11 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         this.waitForCompletionTimeout = in.readOptionalTimeValue();
         this.keepOnCompletion = in.readBoolean();
         this.keepAlive = in.readOptionalTimeValue();
-        allowPartialSearchResults = in.readBoolean();
+        if (in.getTransportVersion().supports(OPTIONAL_ALLOW_PARTIAL_SEARCH_RESULTS)) {
+            allowPartialSearchResults = in.readOptionalBoolean();
+        } else {
+            allowPartialSearchResults = in.readBoolean();
+        }
     }
 
     /**
@@ -256,12 +265,12 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         return keepAlive;
     }
 
-    public SqlQueryRequest allowPartialSearchResults(boolean allowPartialSearchResults) {
+    public SqlQueryRequest allowPartialSearchResults(Boolean allowPartialSearchResults) {
         this.allowPartialSearchResults = allowPartialSearchResults;
         return this;
     }
 
-    public boolean allowPartialSearchResults() {
+    public Boolean allowPartialSearchResults() {
         return allowPartialSearchResults;
     }
 
@@ -294,7 +303,11 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         out.writeOptionalTimeValue(waitForCompletionTimeout);
         out.writeBoolean(keepOnCompletion);
         out.writeOptionalTimeValue(keepAlive);
-        out.writeBoolean(allowPartialSearchResults);
+        if (out.getTransportVersion().supports(OPTIONAL_ALLOW_PARTIAL_SEARCH_RESULTS)) {
+            out.writeOptionalBoolean(allowPartialSearchResults);
+        } else {
+            out.writeBoolean(allowPartialSearchResults != null && allowPartialSearchResults);
+        }
     }
 
     @Override
@@ -320,7 +333,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
             && indexIncludeFrozen == ((SqlQueryRequest) obj).indexIncludeFrozen
             && Objects.equals(binaryCommunication, ((SqlQueryRequest) obj).binaryCommunication)
             && keepOnCompletion == ((SqlQueryRequest) obj).keepOnCompletion
-            && allowPartialSearchResults == ((SqlQueryRequest) obj).allowPartialSearchResults
+            && Objects.equals(allowPartialSearchResults, ((SqlQueryRequest) obj).allowPartialSearchResults)
             && Objects.equals(cursor, ((SqlQueryRequest) obj).cursor)
             && Objects.equals(columnar, ((SqlQueryRequest) obj).columnar)
             && Objects.equals(waitForCompletionTimeout, ((SqlQueryRequest) obj).waitForCompletionTimeout)

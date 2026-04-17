@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
-  - 141876
-pr: 141890
-summary: "Fix ILM's 'skipping policy' logging level"
-type: enhancement

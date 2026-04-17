@@ -10,10 +10,10 @@
 package org.elasticsearch.benchmark.indices.common;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -62,11 +62,9 @@ import java.util.concurrent.TimeUnit;
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 @State(Scope.Benchmark)
 public class MappingParsingBenchmark {
+
     static {
-        // For Elasticsearch900Lucene101Codec:
-        LogConfigurator.loadLog4jPlugins();
-        LogConfigurator.configureESLogging();
-        LogConfigurator.setNodeName("test");
+        Utils.configureBenchmarkLogging();
     }
 
     private static final String MAPPING = """

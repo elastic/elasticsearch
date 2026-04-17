@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.core.async;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -13,10 +14,13 @@ import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -346,6 +350,98 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
         } finally {
             executionLatch.countDown();
         }
+    }
+
+    public void testOnResponseAfterTimeoutCallbackIsInvoked() throws Exception {
+        CountDownLatch executionLatch = new CountDownLatch(1);
+        CountDownLatch callbackLatch = new CountDownLatch(1);
+        AsyncTaskManagementService<TestRequest, TestResponse, TestTask> service = createManagementService(new TestOperation() {
+            @Override
+            public void execute(TestRequest request, TestTask task, ActionListener<TestResponse> listener) {
+                executorService.submit(() -> {
+                    try {
+                        // Keep execution blocked so the request path times out first.
+                        assertThat(executionLatch.await(10, TimeUnit.SECONDS), equalTo(true));
+                    } catch (InterruptedException ex) {
+                        fail("Shouldn't be here");
+                    }
+                    super.execute(request, task, listener);
+                });
+            }
+
+            @Override
+            public void onResponseAfterTimeout(TestResponse response) {
+                callbackLatch.countDown();
+            }
+        });
+
+        PlainActionFuture<TestResponse> submit = new PlainActionFuture<>();
+        service.asyncExecute(
+            new TestRequest(randomAlphaOfLength(8), TimeValue.timeValueMinutes(5)),
+            TimeValue.timeValueMillis(1),
+            true,
+            submit
+        );
+        // We returned due to timeout, so only the initial async response is available.
+        assertThat(submit.get().string, nullValue());
+        executionLatch.countDown();
+        // Once execution completes in the background, the post-timeout callback must fire.
+        assertThat(callbackLatch.await(10, TimeUnit.SECONDS), equalTo(true));
+    }
+
+    public void testOnFailureAfterTimeoutCallbackIsInvoked() throws Exception {
+        CountDownLatch executionLatch = new CountDownLatch(1);
+        CountDownLatch callbackLatch = new CountDownLatch(1);
+        AsyncTaskManagementService<TestRequest, TestResponse, TestTask> service = createManagementService(new TestOperation() {
+            @Override
+            public void execute(TestRequest request, TestTask task, ActionListener<TestResponse> listener) {
+                executorService.submit(() -> {
+                    try {
+                        // Keep execution blocked so the request path times out first.
+                        assertThat(executionLatch.await(10, TimeUnit.SECONDS), equalTo(true));
+                    } catch (InterruptedException ex) {
+                        fail("Shouldn't be here");
+                    }
+                    super.execute(request, task, listener);
+                });
+            }
+
+            @Override
+            public void onFailureAfterTimeout(Exception exception) {
+                callbackLatch.countDown();
+            }
+        });
+
+        PlainActionFuture<TestResponse> submit = new PlainActionFuture<>();
+        service.asyncExecute(new TestRequest("die", TimeValue.timeValueMinutes(5)), TimeValue.timeValueMillis(1), true, submit);
+        // We returned due to timeout, so only the initial async response is available.
+        assertThat(submit.get().string, nullValue());
+        executionLatch.countDown();
+        // The operation fails after timeout, so the post-timeout failure callback must fire.
+        assertThat(callbackLatch.await(10, TimeUnit.SECONDS), equalTo(true));
+    }
+
+    public void testStoreResultFailureStatusClassification() {
+        assertThat(
+            AsyncTaskManagementService.storeResultFailureStatus(new IllegalStateException("boom")),
+            equalTo(RestStatus.INTERNAL_SERVER_ERROR)
+        );
+        assertThat(
+            AsyncTaskManagementService.storeResultFailureStatus(new IllegalArgumentException("bad request")),
+            equalTo(RestStatus.BAD_REQUEST)
+        );
+        assertThat(
+            AsyncTaskManagementService.storeResultFailureStatus(
+                new ElasticsearchStatusException("too many requests", RestStatus.TOO_MANY_REQUESTS)
+            ),
+            equalTo(RestStatus.TOO_MANY_REQUESTS)
+        );
+        assertThat(
+            AsyncTaskManagementService.storeResultFailureStatus(
+                new CircuitBreakingException("too much memory", CircuitBreaker.Durability.PERMANENT)
+            ),
+            equalTo(RestStatus.TOO_MANY_REQUESTS)
+        );
     }
 
     private StoredAsyncResponse<TestResponse> getResponse(String id, TimeValue timeout) throws InterruptedException {

@@ -9,11 +9,14 @@ package org.elasticsearch.compute.data;
 
 // begin generated imports
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.ReleasableIterator;
+
+import java.util.Arrays;
 // end generated imports
 
 /**
@@ -36,6 +39,12 @@ final class ConstantBytesRefVector extends AbstractVector implements BytesRefVec
         scratch.bytes = value.bytes;
         scratch.offset = value.offset;
         scratch.length = value.length;
+        return scratch;
+    }
+
+    @Override
+    public PagedBytesCursor get(int position, PagedBytesCursor scratch) {
+        scratch.init(value.bytes, value.offset, value.length);
         return scratch;
     }
 
@@ -106,6 +115,15 @@ final class ConstantBytesRefVector extends AbstractVector implements BytesRefVec
     }
 
     @Override
+    public BytesRefVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        return blockFactory().newConstantBytesRefVector(value, endExclusive - beginInclusive);
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.BYTES_REF;
     }
@@ -124,9 +142,23 @@ final class ConstantBytesRefVector extends AbstractVector implements BytesRefVec
         return BASE_RAM_BYTES_USED + RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + value.length);
     }
 
+    /**
+     * Estimates the RAM usage of this vector, applying an overestimate multiplier when the
+     * value's byte length exceeds {@code overestimateThreshold}. This compensates for heap
+     * overhead that {@link RamUsageEstimator} does not track, such as when loading large text
+     * fields from {@code _source}.
+     */
+    public static long ramBytesEstimated(BytesRef value, long overestimateThreshold, double overestimateFactor) {
+        long valueBytes = RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + value.length);
+        if (value.length > overestimateThreshold) {
+            valueBytes = Math.round(valueBytes * overestimateFactor);
+        }
+        return BASE_RAM_BYTES_USED + valueBytes;
+    }
+
     @Override
     public long ramBytesUsed() {
-        return ramBytesUsedWithLength(value);
+        return ramBytesEstimated(value, blockFactory().bytesRefRamOverestimateThreshold(), blockFactory().bytesRefRamOverestimateFactor());
     }
 
     @Override

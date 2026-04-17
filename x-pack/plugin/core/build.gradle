@@ -43,7 +43,6 @@ configurations {
 }
 
 dependencies {
-  compileOnly project(":server")
   api project(':libs:grok')
   api project(":libs:ssl-config")
 
@@ -75,6 +74,7 @@ dependencies {
   testImplementation project(path: ':modules:aggregations')
   testImplementation project(path: ':modules:data-streams')
   testImplementation project(':modules:mapper-extras')
+  testImplementation(testArtifact(project(':server')))
 
   // security deps
   api "com.unboundid:unboundid-ldapsdk:${versions.ldapsdk}"

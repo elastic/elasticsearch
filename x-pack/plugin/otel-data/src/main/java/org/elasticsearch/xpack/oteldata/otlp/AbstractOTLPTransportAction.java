@@ -11,7 +11,7 @@ import com.google.protobuf.MessageLite;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -51,40 +51,35 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
 
     @Override
     protected void doExecute(Task task, OTLPActionRequest request, ActionListener<OTLPActionResponse> listener) {
-        ProcessingContext context = ProcessingContext.EMPTY;
         try {
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
-            context = prepareBulkRequest(request, bulkRequestBuilder);
+            ProcessingContext context = prepareBulkRequest(request, bulkRequestBuilder);
             if (bulkRequestBuilder.numberOfActions() == 0) {
                 if (context.getIgnoredDataPoints() == 0) {
-                    handleEmptyRequest(listener);
+                    listener.onResponse(new OTLPActionResponse(BytesArray.EMPTY));
                 } else {
-                    // all data points were ignored
-                    handlePartialSuccess(listener, context);
+                    listener.onFailure(
+                        new ElasticsearchStatusException(
+                            context.getIgnoredDataPointsMessage(IGNORED_DATA_POINTS_MESSAGE_LIMIT),
+                            RestStatus.BAD_REQUEST
+                        )
+                    );
                 }
                 return;
             }
 
             ProcessingContext finalContext = context;
-            bulkRequestBuilder.execute(new ActionListener<>() {
-                @Override
-                public void onResponse(BulkResponse bulkItemResponses) {
-                    if (bulkItemResponses.hasFailures() || finalContext.getIgnoredDataPoints() > 0) {
-                        handlePartialSuccess(bulkItemResponses, finalContext, listener);
-                    } else {
-                        handleSuccess(listener);
-                    }
+            bulkRequestBuilder.execute(listener.delegateFailure((delegate, bulkResponse) -> {
+                if (bulkResponse.hasFailures() || finalContext.getIgnoredDataPoints() > 0) {
+                    handlePartialSuccess(bulkResponse, finalContext, delegate);
+                } else {
+                    delegate.onResponse(new OTLPActionResponse(BytesArray.EMPTY));
                 }
-
-                @Override
-                public void onFailure(Exception e) {
-                    handleFailure(listener, e, finalContext);
-                }
-            });
+            }));
 
         } catch (Exception e) {
             logger.error("failed to execute otlp request", e);
-            handleFailure(listener, e, context);
+            listener.onFailure(e);
         }
     }
 
@@ -138,30 +133,6 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
     protected abstract ProcessingContext prepareBulkRequest(OTLPActionRequest request, BulkRequestBuilder bulkRequestBuilder)
         throws IOException;
 
-    public void handleSuccess(ActionListener<OTLPActionResponse> listener) {
-        listener.onResponse(new OTLPActionResponse(RestStatus.OK, BytesArray.EMPTY));
-    }
-
-    public void handleEmptyRequest(ActionListener<OTLPActionResponse> listener) {
-        // If the server receives an empty request
-        // (a request that does not carry any telemetry data)
-        // the server SHOULD respond with success.
-        // https://opentelemetry.io/docs/specs/otlp/#full-success-1
-        handleSuccess(listener);
-    }
-
-    public void handlePartialSuccess(ActionListener<OTLPActionResponse> listener, ProcessingContext context) {
-        // If the request is only partially accepted
-        // (i.e. when the server accepts only parts of the data and rejects the rest),
-        // the server MUST respond with HTTP 200 OK.
-        // https://opentelemetry.io/docs/specs/otlp/#partial-success-1
-        MessageLite response = responseWithRejectedDataPoints(
-            context.getIgnoredDataPoints(),
-            context.getIgnoredDataPointsMessage(IGNORED_DATA_POINTS_MESSAGE_LIMIT)
-        );
-        listener.onResponse(new OTLPActionResponse(RestStatus.BAD_REQUEST, response));
-    }
-
     private void handlePartialSuccess(
         BulkResponse bulkItemResponses,
         ProcessingContext context,
@@ -184,7 +155,7 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
                 if (failure.getStatus() == RestStatus.TOO_MANY_REQUESTS) {
                     // If the server receives more requests than the client is allowed or the server is overloaded,
                     // the server SHOULD respond with HTTP 429 Too Many Requests or HTTP 503 Service Unavailable
-                    // and MAY include “Retry-After” header with a recommended time interval in seconds to wait before retrying.
+                    // and MAY include "Retry-After" header with a recommended time interval in seconds to wait before retrying.
                     // https://opentelemetry.io/docs/specs/otlp/#otlphttp-throttling
                     status = RestStatus.TOO_MANY_REQUESTS;
                 }
@@ -215,20 +186,16 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
             }
         }
         failureMessageBuilder.append(context.getIgnoredDataPointsMessage(10));
-        MessageLite response = responseWithRejectedDataPoints(failures + context.getIgnoredDataPoints(), failureMessageBuilder.toString());
-        listener.onResponse(new OTLPActionResponse(status, response));
+        String message = failureMessageBuilder.toString();
+        if (status == RestStatus.TOO_MANY_REQUESTS) {
+            listener.onFailure(new ElasticsearchStatusException(message, RestStatus.TOO_MANY_REQUESTS));
+        } else {
+            MessageLite response = responseWithRejectedDataPoints(failures + context.getIgnoredDataPoints(), message);
+            listener.onResponse(new OTLPActionResponse(response));
+        }
     }
 
     record FailureGroup(AtomicInteger failureCount, String failureMessageSample) {}
-
-    public void handleFailure(ActionListener<OTLPActionResponse> listener, Exception e, ProcessingContext context) {
-        // https://opentelemetry.io/docs/specs/otlp/#failures-1
-        // If the processing of the request fails,
-        // the server MUST respond with appropriate HTTP 4xx or HTTP 5xx status code.
-        listener.onResponse(
-            new OTLPActionResponse(ExceptionsHelper.status(e), responseWithRejectedDataPoints(context.totalDataPoints(), e.getMessage()))
-        );
-    }
 
     /**
      * Builds the response for a request that had some rejected data points.

@@ -4,6 +4,7 @@
 
 // AwaitsFix: multifile CSV test data (iceberg-fixtures/multifile/) not yet created; glob matches no files
 readAllEmployeesMultiFile-Ignore
+required_capability: external_command
 EXTERNAL "{{employees_multifile}}"
 | STATS count = COUNT(*);
 
@@ -12,6 +13,7 @@ count:long
 ;
 
 aggregateMultiFileByGender-Ignore
+required_capability: external_command
 EXTERNAL "{{employees_multifile}}"
 | STATS count = COUNT(*) BY gender
 | SORT gender;
@@ -23,6 +25,7 @@ count:long | gender:keyword
 ;
 
 multiFileSalaryStats-Ignore
+required_capability: external_command
 EXTERNAL "{{employees_multifile}}"
 | STATS min_salary = MIN(salary), max_salary = MAX(salary), avg_salary = AVG(salary);
 

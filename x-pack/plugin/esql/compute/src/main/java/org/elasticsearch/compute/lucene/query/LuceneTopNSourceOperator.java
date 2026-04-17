@@ -67,6 +67,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             IndexedByShardId<? extends ShardContext> contexts,
             Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
             DataPartitioning dataPartitioning,
+            DataPartitioning.AutoStrategy autoStrategy,
             int taskConcurrency,
             int maxPageSize,
             int limit,
@@ -78,7 +79,10 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 contexts,
                 queryFunction,
                 dataPartitioning,
-                query -> LuceneSliceQueue.PartitioningStrategy.SHARD,
+                dataPartitioning == DataPartitioning.AUTO ? autoStrategy.pickStrategy(limit) : query -> {
+                    throw new UnsupportedOperationException("locked in " + dataPartitioning);
+                },
+                LuceneOperator.SMALL_INDEX_BOUNDARY,
                 taskConcurrency,
                 limit,
                 needsScore,
@@ -309,6 +313,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             }
 
             int shardId = shardContext.index();
+            shardRowsEmitted[shardId] += size;
             shard = blockFactory.newConstantIntBlockWith(shardId, size).asVector();
             segments = currentSegmentBuilder.build();
             docs = currentDocsBuilder.build();

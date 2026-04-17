@@ -12,4 +12,10 @@ package org.elasticsearch.entitlement.bridge;
 public interface InstrumentationRegistry {
 
     void check$(String instrumentationId, Class<?> callingClass, Object... args) throws Exception;
+
+    /**
+     * Returns the configured default reference value for the given instrumentation id.
+     * Called from bytecode catch handlers when a reference-type default is needed on denial.
+     */
+    Object defaultValue$(String instrumentationId);
 }

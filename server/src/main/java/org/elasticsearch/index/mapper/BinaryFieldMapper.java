@@ -70,6 +70,11 @@ public class BinaryFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public BinaryFieldMapper build(MapperBuilderContext context) {
             return new BinaryFieldMapper(
                 leafName(),
@@ -247,7 +252,11 @@ public class BinaryFieldMapper extends FieldMapper {
             try {
                 bytesList.sort(Arrays::compareUnsigned);
                 CollectionUtils.uniquify(bytesList, Arrays::compareUnsigned);
-                int bytesSize = bytesList.stream().map(a -> a.length).reduce(0, Integer::sum);
+                // avoiding a streaming map/reduce for efficiency reasons
+                int bytesSize = 0;
+                for (byte[] bytes : bytesList) {
+                    bytesSize += bytes.length;
+                }
                 int n = bytesList.size();
                 BytesStreamOutput out = new BytesStreamOutput(bytesSize + (n + 1) * 5);
                 out.writeVInt(n);  // write total number of values

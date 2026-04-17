@@ -355,11 +355,20 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
                 content,
                 null,
                 null,
+                null,
+                null,
                 null
             );
             case ContentBlockDelta.Type.TOOL_USE -> {
                 var toolCall = handleToolUseDelta(event.delta());
-                yield new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(content, null, null, List.of(toolCall));
+                yield new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(
+                    content,
+                    null,
+                    null,
+                    List.of(toolCall),
+                    null,
+                    null
+                );
             }
             default -> {
                 logger.debug("unknown content block delta type [{}].", type);
@@ -399,7 +408,8 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
             outputTokens,
             promptTokens,
             totalTokens,
-            event.usage().cacheReadInputTokens()
+            event.usage().cacheReadInputTokens(),
+            null
         );
     }
 }

@@ -14,9 +14,6 @@ import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.Callable;
 
 /**
  * concurrent implementation of Lloyd's k-means
@@ -46,19 +43,16 @@ class LloydKMeansLocalConcurrent extends LloydKMeansLocal {
         int[] assignments,
         NeighborHood[] neighborHoods
     ) throws IOException {
-        assert numWorkers == centroidChangedSlices.length;
-        final int len = vectors.size() / numWorkers;
-        final List<Callable<Boolean>> runners = new ArrayList<>(numWorkers);
-        for (int i = 0; i < numWorkers; i++) {
-            final int start = i * len;
-            final int end = i == numWorkers - 1 ? vectors.size() : (i + 1) * len;
-            final FixedBitSet centroidChangedSlice = centroidChangedSlices[i];
-            runners.add(
-                () -> stepLloydSlice(vectors.copy(), ordTranslator, centroids, centroidChangedSlice, assignments, neighborHoods, start, end)
-            );
-        }
-        final List<Boolean> hasChanges = executor.invokeAll(runners);
-        return hasChanges.stream().anyMatch(Boolean::booleanValue);
+        return stepLloydSliceConcurrent(
+            executor,
+            numWorkers,
+            vectors,
+            ordTranslator,
+            centroids,
+            centroidChangedSlices,
+            assignments,
+            neighborHoods
+        );
     }
 
     @Override
@@ -68,17 +62,7 @@ class LloydKMeansLocalConcurrent extends LloydKMeansLocal {
         NeighborHood[] neighborhoods,
         float soarLambda
     ) throws IOException {
-        final int len = vectors.size() / numWorkers;
-        final List<Callable<Void>> runners = new ArrayList<>(numWorkers);
-        for (int i = 0; i < numWorkers; i++) {
-            final int start = i * len;
-            final int end = i == numWorkers - 1 ? vectors.size() : (i + 1) * len;
-            runners.add(() -> {
-                assignSpilledSlice(vectors.copy(), kmeansIntermediate, neighborhoods, soarLambda, start, end);
-                return null;
-            });
-        }
-        executor.invokeAll(runners);
+        assignSpilledConcurrent(executor, numWorkers, vectors, kmeansIntermediate, neighborhoods, soarLambda);
     }
 
     @Override

@@ -117,4 +117,12 @@ public interface ESVectorUtilSupport {
     void pow2CombineAndScale(float[] v1, float[] v2, float a, float eps, float[] result);
 
     boolean contains(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength);
+
+    void linearCombination(float scaleOther, float[] other, float scaleDest, float[] dest);
+
+    float logSumExpNQT(float[] vector);
+
+    float logSumExpNQTDiff(float[] v1, float[] v2, float eps);
+
+    void pow2DiffAndScaleNQT(float[] v1, float[] v2, float a, float eps, float[] result);
 }

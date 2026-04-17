@@ -1307,8 +1307,7 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         for (; i < limit; i += FLOAT_SPECIES.length()) {
             FloatVector destVec = FloatVector.fromArray(FLOAT_SPECIES, dest, i);
             FloatVector otherVec = FloatVector.fromArray(FLOAT_SPECIES, other, i);
-            destVec = destVec.mul(scaleDest);
-            destVec = destVec.add(otherVec.mul(scaleOther));
+            destVec = destVec.mul(scaleDest).add(otherVec.mul(scaleOther));
             destVec.intoArray(dest, i);
         }
 
@@ -1316,50 +1315,6 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         for (; i < dest.length; i++) {
             dest[i] = scaleOther * other[i] + scaleDest * dest[i];
         }
-    }
-
-    @Override
-    public float logSumExpBase2(float[] vector) {
-        assert vector.length > 0;
-
-        // Uses a vectorized implementation of a
-        // <a href="https://www.nowozin.net/sebastian/blog/streaming-log-sum-exp-computation.html">streaming algorithm</a>.
-        FloatVector maxVec = FloatVector.broadcast(FLOAT_SPECIES, Float.NEGATIVE_INFINITY);
-        FloatVector sum = FloatVector.broadcast(FLOAT_SPECIES, 0);
-        FloatVector base = FloatVector.broadcast(FLOAT_SPECIES, (float) 2);
-
-        final int limit = FLOAT_SPECIES.loopBound(vector.length);
-        int i = 0;
-        for (; i < limit; i += FLOAT_SPECIES.length()) {
-            FloatVector vec = FloatVector.fromArray(FLOAT_SPECIES, vector, i);
-            FloatVector newMaxVec = maxVec.max(vec);
-            FloatVector diff1 = maxVec.sub(newMaxVec);
-            FloatVector diff2 = vec.sub(newMaxVec);
-            sum = sum.mul(base.pow(diff1));
-            sum = sum.add(base.pow(diff2));
-            maxVec = newMaxVec;
-        }
-
-        // In the case vector.length >= FLOAT_SPECIES.length(), each lane has its own max, so we need to use the same one throughout
-        float reducedSum = 0;
-        float maxVal = maxVec.reduceLanes(MAX);
-        // If vector.length < FLOAT_SPECIES.length(), maxVal == Float.NEGATIVE_INFINITY
-        if (Float.isFinite(maxVal)) {
-            FloatVector diff = maxVec.sub(maxVal);
-            sum = sum.mul(base.pow(diff));
-            reducedSum = sum.reduceLanes(ADD);
-        }
-
-        // tail
-        for (; i < vector.length; i++) {
-            float v = vector[i];
-            float newMaxVal = Math.max(maxVal, v);
-            reducedSum *= (float) Math.pow(2, maxVal - newMaxVal);
-            reducedSum += (float) Math.pow(2, v - newMaxVal);
-            maxVal = newMaxVal;
-        }
-
-        return maxVal + (float) (Math.log(reducedSum) / Math.log(2));
     }
 
     @Override
@@ -1376,22 +1331,13 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         for (; i < limit; i += FLOAT_SPECIES.length()) {
             FloatVector vec = FloatVector.fromArray(FLOAT_SPECIES, vector, i);
             FloatVector newMaxVec = maxVec.max(vec);
-            FloatVector diff1 = maxVec.sub(newMaxVec);
-            FloatVector diff2 = vec.sub(newMaxVec);
-            sum = sum.mul(pow2NQT(diff1));
-            sum = sum.add(pow2NQT(diff2));
+            sum = sum.mul(pow2NQT(maxVec.sub(newMaxVec))).add(pow2NQT(vec.sub(newMaxVec)));
             maxVec = newMaxVec;
         }
 
         // In the case vector.length >= FLOAT_SPECIES.length(), each lane has its own max, so we need to use the same one throughout
-        float reducedSum = 0;
         float maxVal = maxVec.reduceLanes(MAX);
-        // If vector.length < FLOAT_SPECIES.length(), maxVal == Float.NEGATIVE_INFINITY
-        if (Float.isFinite(maxVal)) {
-            FloatVector diff = maxVec.sub(maxVal);
-            sum = sum.mul(pow2NQT(diff));
-            reducedSum = sum.reduceLanes(ADD);
-        }
+        float reducedSum = reduceLogSumExpLanes(sum, maxVec, maxVal);
 
         // tail
         for (; i < vector.length; i++) {
@@ -1406,7 +1352,7 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public float logSumExpNQT(float[] v1, float[] v2, float eps) {
+    public float logSumExpNQTDiff(float[] v1, float[] v2, float eps) {
         assert v1.length > 0;
         assert v1.length == v2.length;
 
@@ -1423,22 +1369,13 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
             FloatVector vec = vec1.sub(vec2).div(eps);
 
             FloatVector newMaxVec = maxVec.max(vec);
-            FloatVector diff1 = maxVec.sub(newMaxVec);
-            FloatVector diff2 = vec.sub(newMaxVec);
-            sum = sum.mul(pow2NQT(diff1));
-            sum = sum.add(pow2NQT(diff2));
+            sum = sum.mul(pow2NQT(maxVec.sub(newMaxVec))).add(pow2NQT(vec.sub(newMaxVec)));
             maxVec = newMaxVec;
         }
 
         // In the case vector.length >= FLOAT_SPECIES.length(), each lane has its own max, so we need to use the same one throughout
-        float reducedSum = 0;
         float maxVal = maxVec.reduceLanes(MAX);
-        // If vector.length < FLOAT_SPECIES.length(), maxVal == Float.NEGATIVE_INFINITY
-        if (Float.isFinite(maxVal)) {
-            FloatVector diff = maxVec.sub(maxVal);
-            sum = sum.mul(pow2NQT(diff));
-            reducedSum = sum.reduceLanes(ADD);
-        }
+        float reducedSum = reduceLogSumExpLanes(sum, maxVec, maxVal);
 
         // tail
         for (; i < v1.length; i++) {
@@ -1452,8 +1389,19 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         return maxVal + MathUtils.log2NQT(reducedSum);
     }
 
+    private static float reduceLogSumExpLanes(FloatVector sum, FloatVector maxVec, float maxVal) {
+        // In the case vector.length >= FLOAT_SPECIES.length(), each lane has its own max, so we need to use the same one throughout
+        float reducedSum = 0;
+        // If vector.length < FLOAT_SPECIES.length(), maxVal == Float.NEGATIVE_INFINITY
+        if (Float.isFinite(maxVal)) {
+            sum = sum.mul(pow2NQT(maxVec.sub(maxVal)));
+            reducedSum = sum.reduceLanes(ADD);
+        }
+        return reducedSum;
+    }
+
     @Override
-    public void pow2CombineAndScale(float[] v1, float[] v2, float a, float eps, float[] result) {
+    public void pow2DiffAndScaleNQT(float[] v1, float[] v2, float a, float eps, float[] result) {
         assert v1.length > 0;
         assert v1.length == v2.length;
         assert v1.length == result.length;
@@ -1465,8 +1413,7 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         for (; i < limit; i += FLOAT_SPECIES.length()) {
             FloatVector vec1 = FloatVector.fromArray(FLOAT_SPECIES, v1, i);
             FloatVector vec2 = FloatVector.fromArray(FLOAT_SPECIES, v2, i);
-            FloatVector vec = vec1.sub(vec2).add(a).div(eps);
-            pow2NQT(vec).intoArray(result, i);
+            pow2NQT(vec1.sub(vec2).add(a).div(eps)).intoArray(result, i);
         }
 
         for (; i < v1.length; i++) {
@@ -1475,16 +1422,24 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     // Computes pow(2, exponent) using the NQT approximation
-    public static FloatVector pow2NQT(FloatVector exponent) {
-        // lanewise(F2I) is a floor operation
-        IntVector p = exponent.add(1).convert(VectorOperators.F2I, 0).reinterpretAsInts();
+    static FloatVector pow2NQT(FloatVector exponent) {
+        IntVector ones = IntVector.broadcast(INTEGER_SPECIES, 1);
+        IntVector negOnes = IntVector.broadcast(INTEGER_SPECIES, -1);
+        IntVector signs = ones.blend(negOnes, exponent.compare(VectorOperators.LT, 0.0f).cast(INTEGER_SPECIES));
+
+        // The next line implements the floor(exponent + 1)
+        IntVector p = (IntVector) exponent.lanewise(VectorOperators.ABS)
+            .add(1, exponent.compare(VectorOperators.GT, 0.0f))
+            .convert(VectorOperators.F2I, 0)
+            .mul(signs);
         p = p.max(-30).min(30);
-        FloatVector pFloat = p.convert(VectorOperators.I2F, 0).reinterpretAsFloats();
-        FloatVector m = exponent.sub(pFloat).div(2).add(1);
-        IntVector one = IntVector.broadcast(INTEGER_SPECIES, 1);
-        VectorMask<Float> pMask = pFloat.lt(0);
-        FloatVector powerOf2 = one.lanewise(LSHL, p.lanewise(VectorOperators.ABS)).convert(VectorOperators.I2F, 0).reinterpretAsFloats();
-        FloatVector result = m.div(powerOf2, pMask).mul(powerOf2, pMask.not());
-        return result.max(0);
+        FloatVector pFloat = (FloatVector) p.convert(VectorOperators.I2F, 0);
+        // Replace div(2) with mul(0.5f)
+        FloatVector m = exponent.sub(pFloat).mul(0.5f).add(1.0f);
+        // Build 2^p using direct IEEE-754 bit manipulation
+        // Add EXPONENT_BIAS and shift left by MANTISSA_BITS bits to hit the float exponent field
+        IntVector pBits = p.add(MathUtils.EXPONENT_BIAS).lanewise(VectorOperators.LSHL, MathUtils.MANTISSA_BITS);
+        FloatVector powerOf2 = pBits.reinterpretAsFloats();
+        return m.mul(powerOf2).max(0.0f);
     }
 }

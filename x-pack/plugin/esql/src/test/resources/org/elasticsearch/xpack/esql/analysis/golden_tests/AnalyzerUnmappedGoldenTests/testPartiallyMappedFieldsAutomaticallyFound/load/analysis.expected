@@ -1,0 +1,2 @@
+Limit[1000[INTEGER],false,false]
+\_EsRelation[sample_data,no_mapping_sample_data][@timestamp{f}#0, client_ip{f}#1, event_duration{f}#2, message{f(PotentiallyUnmappedKeywordEsField)}#3]

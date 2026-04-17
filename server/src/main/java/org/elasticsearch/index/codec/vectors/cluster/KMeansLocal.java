@@ -9,13 +9,17 @@
 
 package org.elasticsearch.index.codec.vectors.cluster;
 
+import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
 import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.simdvec.MathUtils;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
+import java.util.concurrent.Callable;
 
 /**
  * k-means implementation specific to the needs of the {@link HierarchicalKMeans} algorithm that deals specifically
@@ -94,6 +98,31 @@ abstract class KMeansLocal {
         }
     }
 
+    protected static boolean stepLloydSliceConcurrent(
+        TaskExecutor executor,
+        int numWorkers,
+        ClusteringFloatVectorValues vectors,
+        IntToIntFunction ordTranslator,
+        float[][] centroids,
+        FixedBitSet[] centroidChangedSlices,
+        int[] assignments,
+        NeighborHood[] neighborHoods
+    ) throws IOException {
+        assert numWorkers == centroidChangedSlices.length;
+        final int len = vectors.size() / numWorkers;
+        final List<Callable<Boolean>> runners = new ArrayList<>(numWorkers);
+        for (int i = 0; i < numWorkers; i++) {
+            final int start = i * len;
+            final int end = i == numWorkers - 1 ? vectors.size() : (i + 1) * len;
+            final FixedBitSet centroidChangedSlice = centroidChangedSlices[i];
+            runners.add(
+                () -> stepLloydSlice(vectors.copy(), ordTranslator, centroids, centroidChangedSlice, assignments, neighborHoods, start, end)
+            );
+        }
+        final List<Boolean> hasChanges = executor.invokeAll(runners);
+        return hasChanges.stream().anyMatch(Boolean::booleanValue);
+    }
+
     /** Assign vectors from {@code startOrd} to {@code endOrd} to the SOAR centroid. */
     protected static void assignSpilledSlice(
         ClusteringFloatVectorValues vectors,
@@ -111,6 +140,27 @@ abstract class KMeansLocal {
         assert spilledAssignments.length == vectors.size();
         float[][] centroids = kmeansIntermediate.centroids();
         vectors.assignSpilled(startOrd, endOrd, centroids, neighborhoods, soarLambda, assignments, spilledAssignments);
+    }
+
+    protected static void assignSpilledConcurrent(
+        TaskExecutor executor,
+        int numWorkers,
+        ClusteringFloatVectorValues vectors,
+        KMeansIntermediate kmeansIntermediate,
+        NeighborHood[] neighborhoods,
+        float soarLambda
+    ) throws IOException {
+        final int len = vectors.size() / numWorkers;
+        final List<Callable<Void>> runners = new ArrayList<>(numWorkers);
+        for (int i = 0; i < numWorkers; i++) {
+            final int start = i * len;
+            final int end = i == numWorkers - 1 ? vectors.size() : (i + 1) * len;
+            runners.add(() -> {
+                assignSpilledSlice(vectors.copy(), kmeansIntermediate, neighborhoods, soarLambda, start, end);
+                return null;
+            });
+        }
+        executor.invokeAll(runners);
     }
 
     /**

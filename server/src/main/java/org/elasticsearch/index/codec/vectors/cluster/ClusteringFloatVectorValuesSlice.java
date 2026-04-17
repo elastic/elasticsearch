@@ -9,20 +9,24 @@
 
 package org.elasticsearch.index.codec.vectors.cluster;
 
+import org.apache.lucene.util.hnsw.IntToIntFunction;
+
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Random;
 
-final class ClusteringFloatVectorValuesSlice extends ClusteringFloatVectorValues {
+public final class ClusteringFloatVectorValuesSlice extends ClusteringFloatVectorValues {
 
     private final ClusteringFloatVectorValues allValues;
-    private final int[] slice;
+    private final IntToIntFunction ordTranslator;
+    private final int size;
 
-    ClusteringFloatVectorValuesSlice(ClusteringFloatVectorValues allValues, int[] slice) {
-        assert slice != null;
-        assert slice.length <= allValues.size();
+    public ClusteringFloatVectorValuesSlice(ClusteringFloatVectorValues allValues, IntToIntFunction ordTranslator, int size) {
+        assert ordTranslator != null;
+        assert allValues.size() >= size;
         this.allValues = allValues;
-        this.slice = slice;
+        this.ordTranslator = ordTranslator;
+        this.size = size;
     }
 
     ClusteringFloatVectorValuesSlice(ClusteringFloatVectorValues allValues, int size) {
@@ -34,7 +38,7 @@ final class ClusteringFloatVectorValuesSlice extends ClusteringFloatVectorValues
 
     @Override
     public float[] vectorValue(int ord) throws IOException {
-        return this.allValues.vectorValue(this.slice[ord]);
+        return this.allValues.vectorValue(ordTranslator.apply(ord));
     }
 
     @Override
@@ -44,17 +48,17 @@ final class ClusteringFloatVectorValuesSlice extends ClusteringFloatVectorValues
 
     @Override
     public int size() {
-        return slice.length;
+        return size;
     }
 
     @Override
     public int ordToDoc(int ord) {
-        return this.slice[ord];
+        return ordTranslator.apply(ord);
     }
 
     @Override
     public ClusteringFloatVectorValuesSlice copy() throws IOException {
-        return new ClusteringFloatVectorValuesSlice(this.allValues.copy(), this.slice);
+        return new ClusteringFloatVectorValuesSlice(this.allValues.copy(), this.ordTranslator, size);
     }
 
     /**
@@ -82,7 +86,7 @@ final class ClusteringFloatVectorValuesSlice extends ClusteringFloatVectorValues
         int[] samples = reservoirSample(origin.size(), k, seed);
         // sort to prevent random backwards access weirdness
         Arrays.sort(samples);
-        return new ClusteringFloatVectorValuesSlice(origin, samples);
+        return new ClusteringFloatVectorValuesSlice(origin, i -> samples[i], k);
     }
 
     /**

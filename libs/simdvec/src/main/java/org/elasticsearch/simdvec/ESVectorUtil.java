@@ -585,18 +585,6 @@ public class ESVectorUtil {
     }
 
     /**
-     * Calculates the LogSumExp of the input array in base 2.
-     * The formula used is: log2(sum_i(pow(2, x[i]))).
-     * This implementation uses the log-sum-exp trick for numerical stability.
-     *
-     * @param vector The input array of double values (log probabilities/values).
-     * @return The log-sum-exp result.
-     */
-    public static float logSumExpBase2(float[] vector) {
-        return IMPL.logSumExpBase2(vector);
-    }
-
-    /**
      * Calculates an approximation of the LogSumExp of the input array in base 2.
      * The formula used is: log2(sum_i(pow(2, x[i]))).
      * This implementation uses the log-sum-exp trick for numerical stability and Not-Quite-Trascendental functions for speed.
@@ -618,8 +606,8 @@ public class ESVectorUtil {
      * @param eps The normalization constant (that is, the temperature parameter).
      * @return The log-sum-exp result.
      */
-    public static float logSumExpNQT(float[] v1, float[] v2, float eps) {
-        return IMPL.logSumExpNQT(v1, v2, eps);
+    public static float logSumExpNQTDiff(float[] v1, float[] v2, float eps) {
+        return IMPL.logSumExpNQTDiff(v1, v2, eps);
     }
 
     /**
@@ -632,8 +620,7 @@ public class ESVectorUtil {
      * @param eps The normalization constant (that is, the temperature parameter).
      * @param result The output array.
      */
-    public static void pow2CombineAndScale(float[] v1, float[] v2, float a, float eps, float[] result) {
-        IMPL.pow2CombineAndScale(v1, v2, a, eps, result);
+    public static void pow2DiffAndScaleNQT(float[] v1, float[] v2, float a, float eps, float[] result) {
+        IMPL.pow2DiffAndScaleNQT(v1, v2, a, eps, result);
     }
-
 }

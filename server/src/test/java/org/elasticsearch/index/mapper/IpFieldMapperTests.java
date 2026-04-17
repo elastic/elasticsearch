@@ -406,6 +406,11 @@ public class IpFieldMapperTests extends MapperTestCase {
             if (ignoreMalformed) {
                 b.field("ignore_malformed", true);
             }
+            if (FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() && randomBoolean()) {
+                b.startObject("doc_values");
+                b.field("cardinality", ESTestCase.randomFrom("low", "high"));
+                b.endObject();
+            }
         }
 
         @Override

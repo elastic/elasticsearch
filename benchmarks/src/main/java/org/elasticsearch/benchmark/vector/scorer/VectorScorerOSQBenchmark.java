@@ -74,7 +74,7 @@ public class VectorScorerOSQBenchmark {
         VECTORIZED
     }
 
-    @Param({ "384", "768", "1024" })
+    @Param({ "96", "128", "192", "256", "384", "768", "1024" })
     public int dims;
 
     @Param({ "1", "2", "4", "7" })

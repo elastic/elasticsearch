@@ -291,10 +291,8 @@ public final class ShardSplittingQuery extends Query {
     private final class Visitor {
         final LeafReader leafReader;
         final StoredFields storedFields;
-        final StoredFieldVisitor storedFieldVisitor;
+        final BaseFieldVisitor storedFieldVisitor;
         final RoutingDocValuesReader routingDocValuesReader;
-        /** Number of stored fields still to be visited; routing counts only when it is a stored field. */
-        private int leftToVisit;
         private String routing;
         private String id;
 
@@ -306,26 +304,37 @@ public final class ShardSplittingQuery extends Query {
             if (routingHasDocValues) {
                 this.storedFieldVisitor = new IdStoredFieldVisitor();
                 this.routingDocValuesReader = new RoutingDocValuesReader(leafReader);
-                this.leftToVisit = 1;
             } else {
                 this.storedFieldVisitor = new IdAndRoutingStoredFieldVisitor();
                 this.routingDocValuesReader = null;
-                this.leftToVisit = 2;
             }
         }
 
         boolean matches(int doc) throws IOException {
             routing = id = null;
-            leftToVisit = routingDocValuesReader == null ? 2 : 1;
+            storedFieldVisitor.reset();
             storedFields.document(doc, storedFieldVisitor);
             assert id != null : "docID must not be null - we might have hit a nested document";
-            if (routing == null && routingDocValuesReader != null) {
+            if (routingDocValuesReader != null) {
+                assert routing == null;
                 routing = routingDocValuesReader.read(doc);
             }
             return shardMatcher.test(id, routing) == false;
         }
 
-        class IdStoredFieldVisitor extends StoredFieldVisitor {
+        abstract class BaseFieldVisitor extends StoredFieldVisitor {
+
+            final int fieldsToVisit;
+            int leftToVisit;
+
+            BaseFieldVisitor(int leftToVisit) {
+                this.fieldsToVisit = leftToVisit;
+                this.leftToVisit = leftToVisit;
+            }
+
+            void reset() {
+                this.leftToVisit = fieldsToVisit;
+            }
 
             @Override
             public void binaryField(FieldInfo fieldInfo, byte[] value) throws IOException {
@@ -333,6 +342,13 @@ public final class ShardSplittingQuery extends Query {
                     case IdFieldMapper.NAME -> id = Uid.decodeId(value);
                     default -> throw new IllegalStateException("Unexpected field: " + fieldInfo.name);
                 }
+            }
+        }
+
+        final class IdStoredFieldVisitor extends BaseFieldVisitor {
+
+            IdStoredFieldVisitor() {
+                super(1);
             }
 
             @Override
@@ -349,7 +365,11 @@ public final class ShardSplittingQuery extends Query {
 
         }
 
-        final class IdAndRoutingStoredFieldVisitor extends IdStoredFieldVisitor {
+        final class IdAndRoutingStoredFieldVisitor extends BaseFieldVisitor {
+
+            IdAndRoutingStoredFieldVisitor() {
+                super(2);
+            }
 
             @Override
             public void stringField(FieldInfo fieldInfo, String value) throws IOException {
@@ -365,7 +385,6 @@ public final class ShardSplittingQuery extends Query {
                 switch (fieldInfo.name) {
                     case IdFieldMapper.NAME:
                     case RoutingFieldMapper.NAME:
-                        assert routingDocValuesReader == null;
                         leftToVisit--;
                         return Status.YES;
                     default:

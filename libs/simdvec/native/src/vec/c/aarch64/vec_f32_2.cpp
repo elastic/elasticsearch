@@ -18,6 +18,14 @@
 #include "vec_common.h"
 #include "aarch64/aarch64_vec_common.h"
 
+/*
+ * Float single operation. Iterates over 8 sets of dimensions at a time
+ *
+ * Template parameters:
+ * inner_op: SIMD per-dimension vector operation, takes pred, sum, a, b, returns new sum
+ *
+ * This should compile to a single inline method, with no function callouts.
+ */
 template <
     svfloat32_t(*inner_op)(const svbool_t, const svfloat32_t, const svfloat32_t, const svfloat32_t)
 >
@@ -62,11 +70,11 @@ static inline f32_t call_f32_inner(const f32_t* a, const f32_t* b, const int32_t
         sum = inner_op(pg, sum, svld1(pg, a + i), svld1(pg, b + i));
     }
 
-    return svaddv_f32(svptrue_b32(), sum);
+    return svaddv_f32(all, sum);
 }
 
 /*
- * Float bulk operation. Iterates over 4 sequential vectors at a time.
+ * Float bulk operation. Iterates over 8 sequential vectors at a time.
  *
  * Template parameters:
  * mapper: gets the nth vector from the input array.
@@ -150,9 +158,6 @@ static inline svfloat32_t dotf32_vector(const svbool_t pg, const svfloat32_t sum
     return svmla_f32_m(pg, sum, a, b);
 }
 
-// const f32_t* a  pointer to the first float vector
-// const f32_t* b  pointer to the second float vector
-// const int32_t elementCount  the number of floating point elements
 EXPORT f32_t vec_dotf32_2(const f32_t* a, const f32_t* b, const int32_t elementCount) {
     return call_f32_inner<dotf32_vector>(a, b, elementCount);
 }

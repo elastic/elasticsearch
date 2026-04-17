@@ -43,9 +43,11 @@ public class QuerySettingsTests extends ESTestCase {
 
     private static SettingsValidationContext SNAPSHOT_CTX_WITH_CPS_DISABLED = new SettingsValidationContext(false, true);
 
-    private static SettingsValidationContext randomSettingsValidationContext() {
-        return randomFrom(NON_SNAPSHOT_CTX_WITH_CPS_ENABLED, SNAPSHOT_CTX_WITH_CPS_ENABLED, SNAPSHOT_CTX_WITH_CPS_DISABLED);
-    }
+    private static List<SettingsValidationContext> allSettingsValidationContexts = List.of(
+        NON_SNAPSHOT_CTX_WITH_CPS_ENABLED,
+        SNAPSHOT_CTX_WITH_CPS_ENABLED,
+        SNAPSHOT_CTX_WITH_CPS_DISABLED
+    );
 
     public void testValidate_NonExistingSetting() {
         String settingName = "non_existing";
@@ -113,13 +115,16 @@ public class QuerySettingsTests extends ESTestCase {
         }
 
         assertInvalid(setting.name(), of(12), "Setting [" + setting.name() + "] must be of type KEYWORD");
-        assertInvalid(
-            setting.name(),
-            randomSettingsValidationContext(),
-            of("UNKNOWN"),
-            "Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution [UNKNOWN], must be one of "
-                + Arrays.toString(values)
-        );
+
+        for (SettingsValidationContext ctx : allSettingsValidationContexts) {
+            assertInvalid(
+                setting.name(),
+                ctx,
+                of("UNKNOWN"),
+                "Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution [UNKNOWN], must be one of "
+                    + Arrays.toString(values)
+            );
+        }
     }
 
     public void testValidate_Approximation() {

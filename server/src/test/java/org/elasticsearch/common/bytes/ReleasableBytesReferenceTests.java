@@ -123,6 +123,7 @@ public class ReleasableBytesReferenceTests extends AbstractBytesReferenceTestCas
         assertTrue(wrapped.hasReferences());
         wrapped.decRef();
         assertTrue(released.get());
+        assertFalse(wrapped.hasReferences());
     }
 
     /**

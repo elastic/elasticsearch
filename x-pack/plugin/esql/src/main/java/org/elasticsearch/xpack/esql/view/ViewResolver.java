@@ -180,7 +180,9 @@ public class ViewResolver {
                 }
                 case Fork fork -> {
                     replaceViewsFork(fork, parser, seenInner, viewQueries, depth, planListener.delegateFailureAndWrap((l, result) -> {
-                        plan.forEachDown(resolvedPlans::add);
+                        if (result.equals(fork) == false) {
+                            result.forEachDown(resolvedPlans::add);
+                        }
                         l.onResponse(result);
                     }));
                     return;
@@ -194,7 +196,10 @@ public class ViewResolver {
                         viewQueries,
                         depth,
                         planListener.delegateFailureAndWrap((l, result) -> {
-                            plan.forEachDown(resolvedPlans::add);
+                            if (result.equals(ur) == false) {
+                                // A view was resolved — mark the resolved result to prevent double-processing
+                                result.forEachDown(resolvedPlans::add);
+                            }
                             l.onResponse(result);
                         })
                     );

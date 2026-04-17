@@ -471,15 +471,30 @@ public class TestAnalyzer {
      * Build the analyzer, parse the query, and analyze it.
      */
     public LogicalPlan query(String query, QueryParams params) {
-        return buildAnalyzer().analyze(InSubqueryResolver.resolve(parseQuery(query, params)));
+        return buildAnalyzer().analyze(resolveViewsAndInSubqueries(parseQuery(query, params)));
     }
 
     private LogicalPlan parseQuery(String query, QueryParams params) {
-        var parsed = EsqlTestUtils.TEST_PARSER.parseQuery(query, params);
-        if (views.isEmpty()) {
-            return parsed;
+        return EsqlTestUtils.TEST_PARSER.parseQuery(query, params);
+    }
+
+    /**
+     * Iteratively resolves views and IN subquery expressions until a fixed point is reached.
+     * Views may contain IN subqueries, and IN subqueries may reference views, so both resolvers
+     * need to alternate until neither produces changes.
+     */
+    private LogicalPlan resolveViewsAndInSubqueries(LogicalPlan plan) {
+        for (int i = 0; i < 10; i++) {
+            LogicalPlan afterViews = views.isEmpty() ? plan : resolveViews(plan);
+            boolean viewsExpanded = afterViews != plan;
+            LogicalPlan afterInSubquery = InSubqueryResolver.resolve(afterViews);
+            boolean inSubqueryResolved = afterInSubquery != afterViews;
+            if (viewsExpanded == false && inSubqueryResolved == false) {
+                return afterInSubquery;
+            }
+            plan = afterInSubquery;
         }
-        return resolveViews(parsed);
+        throw new IllegalStateException("Too many view/IN subquery resolution iterations");
     }
 
     // This most primitive view resolution only works for the simple cases being tested
@@ -572,7 +587,7 @@ public class TestAnalyzer {
     public LogicalPlan statement(String query) {
         var statement = TEST_PARSER.createStatement(query);
         unmappedResolution = statement.setting(QuerySettings.UNMAPPED_FIELDS);
-        var analyzed = buildAnalyzer().analyze(InSubqueryResolver.resolve(statement.plan()));
+        var analyzed = buildAnalyzer().analyze(resolveViewsAndInSubqueries(statement.plan()));
         var failures = new Failures();
         PlanConsistencyChecker.checkPlan(analyzed, failures);
         if (failures.hasFailures()) {

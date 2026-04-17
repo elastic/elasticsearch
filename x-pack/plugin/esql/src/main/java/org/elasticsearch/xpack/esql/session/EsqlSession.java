@@ -124,6 +124,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toSet;
@@ -262,20 +263,74 @@ public class EsqlSession {
         parsingProfile.stop();
         TimeSpanMarker viewResolutionProfile = executionInfo.queryProfile().viewResolution();
         viewResolutionProfile.start();
-        viewResolver.replaceViews(
+        BiFunction<String, String, LogicalPlan> viewParser = (query, viewName) -> parser.parseView(
+            query,
+            request.params(),
+            SettingsValidationContext.from(remoteClusterService),
+            inferenceService.inferenceSettings(),
+            viewName
+        ).plan();
+        resolveViewsAndInSubqueries(
             statement.plan(),
-            (query, viewName) -> parser.parseView(
-                query,
-                request.params(),
-                SettingsValidationContext.from(remoteClusterService),
-                inferenceService.inferenceSettings(),
-                viewName
-            ).plan(),
+            viewParser,
+            new HashMap<>(),
+            0,
             listener.delegateFailureAndWrap((l, viewResolution) -> {
                 viewResolutionProfile.stop();
                 analyseAndExecute(request, executionInfo, planRunner, statement, viewResolution, l);
             })
         );
+    }
+
+    /**
+     * Iteratively resolves views and IN subquery expressions until a fixed point is reached.
+     * <p>
+     * Views and IN subqueries form a mutually recursive expansion problem: a view definition may
+     * contain an IN subquery, and an IN subquery may reference a view. Each iteration:
+     * <ol>
+     *   <li>ViewResolver expands view references → may introduce new InSubquery expressions</li>
+     *   <li>InSubqueryResolver converts InSubquery to SemiJoin/AntiJoin → may expose new view references
+     *       (previously hidden inside InSubquery expression trees)</li>
+     * </ol>
+     * The loop terminates when neither resolver produces changes, then validates that no unresolved
+     * InSubquery expressions remain.
+     *
+     * @param accumulatedViewQueries accumulates view queries across iterations for the Configuration
+     * @param depth current iteration count for cycle detection
+     */
+    private void resolveViewsAndInSubqueries(
+        LogicalPlan plan,
+        BiFunction<String, String, LogicalPlan> viewParser,
+        Map<String, String> accumulatedViewQueries,
+        int depth,
+        ActionListener<ViewResolver.ViewResolutionResult> listener
+    ) {
+        if (depth > 10) {
+            listener.onFailure(new VerificationException("Too many view/IN subquery resolution iterations: " + depth));
+            return;
+        }
+
+        // Step 1: Resolve views
+        viewResolver.replaceViews(plan, viewParser, listener.delegateFailureAndWrap((l, viewResult) -> {
+            boolean viewsExpanded = viewResult.viewQueries().isEmpty() == false;
+            accumulatedViewQueries.putAll(viewResult.viewQueries());
+            LogicalPlan afterViews = viewResult.plan();
+
+            // Step 2: Resolve InSubquery expressions with validation.
+            // Throws VerificationException immediately if InSubquery is used in an unsupported position
+            // (e.g. EVAL, SORT), so we fail fast without continuing to iterate.
+            LogicalPlan afterInSubquery = InSubqueryResolver.resolve(afterViews);
+            boolean inSubqueryResolved = afterInSubquery != afterViews;
+
+            // Step 3: Check if another round is needed
+            // - If InSubquery was resolved (plan changed), new plan nodes may contain view references → need ViewResolver
+            // - If views were expanded, InSubqueryResolver may have resolved new InSubquery from view definitions
+            if (inSubqueryResolved || viewsExpanded) {
+                resolveViewsAndInSubqueries(afterInSubquery, viewParser, accumulatedViewQueries, depth + 1, l);
+            } else {
+                l.onResponse(new ViewResolver.ViewResolutionResult(afterInSubquery, accumulatedViewQueries));
+            }
+        }));
     }
 
     private void analyseAndExecute(
@@ -922,37 +977,34 @@ public class EsqlSession {
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
 
-        // Resolve InSubquery expressions to SemiJoin/AntiJoin before PreAnalyzer,
-        // so that subquery plans are visible to standard plan tree traversals.
-        // If any InSubquery expressions remain (unsupported usage), the listener receives a VerificationException.
-        InSubqueryResolver.resolve(parsed, logicalPlanListener.delegateFailureAndWrap((l, resolved) -> {
-            TimeSpanMarker preAnalysisProfile = executionInfo.queryProfile().preAnalysis();
-            preAnalysisProfile.start();
-            PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(resolved);
-            preAnalysisProfile.stop();
-            // Initialize the PreAnalysisResult with the local cluster's minimum transport version, so our planning will be correct also
-            // in case of ROW queries. ROW queries can still require inter-node communication (for ENRICH and LOOKUP JOIN execution) with
-            // an older node in the same cluster; so assuming that all nodes are on the same version as this node will be wrong and may
-            // cause bugs.
-            PreAnalysisResult result = FieldNameUtils.resolveFieldNames(
-                resolved,
-                preAnalysis.enriches().isEmpty() == false,
-                unmappedResolution == UnmappedResolution.LOAD
-            ).withMinimumTransportVersion(localClusterMinimumVersion);
-            String description = requestFilter == null ? "the only attempt without filter" : "first attempt with filter";
+        // InSubquery expressions have already been resolved by resolveViewsAndInSubqueries().
+        // Proceed directly to PreAnalyzer.
+        TimeSpanMarker preAnalysisProfile = executionInfo.queryProfile().preAnalysis();
+        preAnalysisProfile.start();
+        PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
+        preAnalysisProfile.stop();
+        // Initialize the PreAnalysisResult with the local cluster's minimum transport version, so our planning will be correct also
+        // in case of ROW queries. ROW queries can still require inter-node communication (for ENRICH and LOOKUP JOIN execution) with
+        // an older node in the same cluster; so assuming that all nodes are on the same version as this node will be wrong and may
+        // cause bugs.
+        PreAnalysisResult result = FieldNameUtils.resolveFieldNames(
+            parsed,
+            preAnalysis.enriches().isEmpty() == false,
+            unmappedResolution == UnmappedResolution.LOAD
+        ).withMinimumTransportVersion(localClusterMinimumVersion);
+        String description = requestFilter == null ? "the only attempt without filter" : "first attempt with filter";
 
-            resolveIndicesAndAnalyze(
-                resolved,
-                unmappedResolution,
-                configuration,
-                executionInfo,
-                description,
-                requestFilter,
-                preAnalysis,
-                result,
-                l
-            );
-        }));
+        resolveIndicesAndAnalyze(
+            parsed,
+            unmappedResolution,
+            configuration,
+            executionInfo,
+            description,
+            requestFilter,
+            preAnalysis,
+            result,
+            logicalPlanListener
+        );
     }
 
     private void resolveIndicesAndAnalyze(

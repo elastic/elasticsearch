@@ -294,7 +294,17 @@ public class CsvTestsDataLoader {
         new ViewConfig("employees_rehired"),
         new ViewConfig("employees_not_rehired"),
         new ViewConfig("employees_all"),
-        new ViewConfig("employees_extra")
+        new ViewConfig("employees_extra"),
+        new ViewConfig("employees_in_subquery"),
+        new ViewConfig("employees_in_subquery_stats"),
+        new ViewConfig("employees_in_subquery_conjunction"),
+        new ViewConfig("employees_in_subquery_disjunction"),
+        new ViewConfig("employees_in_subquery_nested"),
+        new ViewConfig("employees_in_subquery_view"),
+        new ViewConfig("employees_in_subquery_stats_view"),
+        new ViewConfig("employees_in_subquery_conjunction_view"),
+        new ViewConfig("employees_in_subquery_disjunction_view"),
+        new ViewConfig("employees_in_subquery_nested_view")
     ).collect(toMap(ViewConfig::name, Function.identity()));
 
     /**

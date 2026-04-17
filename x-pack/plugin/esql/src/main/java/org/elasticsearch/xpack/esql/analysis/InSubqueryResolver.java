@@ -67,7 +67,7 @@ public class InSubqueryResolver {
     }
 
     /**
-     * For test only. Synchronous variant for use in tests that don't need the listener pattern.
+     * Synchronous variant for use in tests that don't need the listener pattern.
      * Throws {@link VerificationException} directly if unresolved {@link InSubquery} expressions remain.
      */
     public static LogicalPlan resolve(LogicalPlan plan) {
@@ -80,11 +80,21 @@ public class InSubqueryResolver {
         return plan.transformUp(Filter.class, InSubqueryResolver::resolveInSubqueryInFilter);
     }
 
+    private static boolean hasInSubquery(LogicalPlan plan) {
+        boolean[] found = { false };
+        plan.forEachDown(p -> {
+            if (found[0] == false) {
+                p.forEachExpression(InSubquery.class, inSub -> found[0] = true);
+            }
+        });
+        return found[0];
+    }
+
     /**
      * Checks the plan for any remaining {@link InSubquery} expressions that were not resolved.
      * These indicate unsupported usage such as IN subquery inside EVAL, SORT, or STATS BY.
      */
-    private static void checkForUnresolvedInSubquery(LogicalPlan plan) {
+    public static void checkForUnresolvedInSubquery(LogicalPlan plan) {
         Failures failures = new Failures();
         plan.forEachDown(
             p -> p.forEachExpression(

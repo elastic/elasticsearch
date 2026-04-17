@@ -8,12 +8,14 @@
 package org.elasticsearch.xpack.inference.services.azureopenai.request;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
+import org.elasticsearch.xpack.inference.external.request.ChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionModel;
 
 import java.util.Objects;
 
-public class AzureOpenAiChatCompletionRequest extends AzureOpenAiRequest<AzureOpenAiCompletionModel> {
+public class AzureOpenAiChatCompletionRequest extends AzureOpenAiRequest<AzureOpenAiCompletionModel> implements ChatCompletionRequest {
 
     private final UnifiedChatInput chatInput;
 
@@ -25,6 +27,11 @@ public class AzureOpenAiChatCompletionRequest extends AzureOpenAiRequest<AzureOp
     private static String createRequestEntity(UnifiedChatInput chatInput, AzureOpenAiCompletionModel model) {
         var user = model.getTaskSettings().user().orElse(null);
         return Strings.toString(new AzureOpenAiChatCompletionRequestEntity(chatInput, user));
+    }
+
+    @Override
+    public TaskType getTaskType() {
+        return model.getTaskType();
     }
 
     @Override

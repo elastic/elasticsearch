@@ -29,6 +29,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Strings;
@@ -147,12 +148,15 @@ import static org.mockito.Mockito.when;
 
 public class SemanticTextFieldMapperTests extends MapperTestCase {
     private static class VariableLicenseDiskBBQPlugin extends DiskBBQPlugin {
+        private static final Settings STATELESS_SETTINGS = Settings.builder()
+            .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true)
+            .build();
         static VariableLicenseDiskBBQPlugin BASIC = new VariableLicenseDiskBBQPlugin(
-            Settings.EMPTY,
+            STATELESS_SETTINGS,
             new XPackLicenseState(() -> 0L, new XPackLicenseStatus(License.OperationMode.BASIC, true, null))
         );
         static VariableLicenseDiskBBQPlugin ENTERPRISE = new VariableLicenseDiskBBQPlugin(
-            Settings.EMPTY,
+            STATELESS_SETTINGS,
             new XPackLicenseState(() -> 0L, new XPackLicenseStatus(License.OperationMode.ENTERPRISE, true, null))
         );
 
@@ -2032,6 +2036,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             defaultDenseVectorIndexOptions(
                 indexVersionCreated,
                 operationMode == License.OperationMode.ENTERPRISE,
+                true,
                 dims,
                 elementType,
                 experimentalFeaturesEnabled

@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
@@ -38,6 +39,11 @@ public class Variance extends AggregateFunction implements ToAggregator {
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Variance.class)
         .unary(Variance::new)
         .name("variance", "std_var");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .acrossSeries(Variance::new)
+        .description("Calculates the population standard variance across the input vector.")
+        .example("stdvar(http_requests_total)")
+        .name("stdvar");
 
     @FunctionInfo(
         returnType = "double",

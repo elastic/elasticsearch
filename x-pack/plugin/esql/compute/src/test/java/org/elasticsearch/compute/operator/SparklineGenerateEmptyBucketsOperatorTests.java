@@ -108,6 +108,57 @@ public class SparklineGenerateEmptyBucketsOperatorTests extends OperatorTestCase
         assertThat(map, nullValue());
     }
 
+    /**
+     * Shows that {@link SparklineGenerateEmptyBucketsOperator} can make {@code n + 1}
+     * buckets when the last bucket lines up precisely with the last output timestamp.
+     * This is almost certainly not what we want.
+     */
+    public void testMaxDateBoundaryIsInclusive() {
+        long minDate = 0L;
+        long maxDate = 10L * 86_400_000L;
+        Rounding.Prepared dailyRounding = Rounding.builder(TimeValue.timeValueDays(1)).build().prepareForUnknown();
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
+        LongBlock values;
+        LongBlock dates;
+        try (
+            LongBlock.Builder valueBuilder = blockFactory.newLongBlockBuilder(10);
+            LongBlock.Builder dateBuilder = blockFactory.newLongBlockBuilder(10)
+        ) {
+            valueBuilder.beginPositionEntry();
+            dateBuilder.beginPositionEntry();
+            for (int i = 0; i < 10; i++) {
+                valueBuilder.appendLong(i);
+                dateBuilder.appendLong((long) i * 86_400_000L);
+            }
+            valueBuilder.endPositionEntry();
+            dateBuilder.endPositionEntry();
+            values = valueBuilder.build();
+            dates = dateBuilder.build();
+        }
+        try (
+            SparklineGenerateEmptyBucketsOperator op = new SparklineGenerateEmptyBucketsOperator(ctx, 1, dailyRounding, minDate, maxDate)
+        ) {
+            op.addInput(new Page(values, dates));
+            op.finish();
+            Page result = op.getOutput();
+            assertNotNull(result);
+            try {
+                LongBlock out = result.getBlock(0);
+                assertThat(out.getPositionCount(), equalTo(1));
+                // 10 data buckets (days 0–9) plus 1 trailing empty bucket (day 10)
+                assertThat(out.getValueCount(0), equalTo(11));
+                int start = out.getFirstValueIndex(0);
+                for (int i = 0; i < 10; i++) {
+                    assertThat(out.getLong(start + i), equalTo((long) i));
+                }
+                assertThat(out.getLong(start + 10), equalTo(0L));
+            } finally {
+                result.releaseBlocks();
+            }
+        }
+    }
+
     private void assertOutputMatchesExpected(LongBlock outputValues, long[][] expected) {
         assertThat(outputValues.getPositionCount(), equalTo(expected.length));
         for (int pos = 0; pos < expected.length; pos++) {

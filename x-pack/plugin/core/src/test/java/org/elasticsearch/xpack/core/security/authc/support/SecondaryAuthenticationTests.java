@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.Map;
 import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -28,6 +29,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class SecondaryAuthenticationTests extends ESTestCase {
@@ -47,7 +49,7 @@ public class SecondaryAuthenticationTests extends ESTestCase {
     }
 
     public void testCannotCreateObjectWithNullAuthentication() {
-        expectThrows(NullPointerException.class, () -> new SecondaryAuthentication(securityContext, null));
+        expectThrows(NullPointerException.class, () -> new SecondaryAuthentication(securityContext, null, Map.of()));
     }
 
     public void testSynchronousExecuteInSecondaryContext() {
@@ -62,7 +64,7 @@ public class SecondaryAuthenticationTests extends ESTestCase {
                 .user(new User("u2", "role2"))
                 .realmRef(realm())
                 .build();
-            final SecondaryAuthentication secondaryAuth = new SecondaryAuthentication(securityContext, authentication2);
+            final SecondaryAuthentication secondaryAuth = new SecondaryAuthentication(securityContext, authentication2, Map.of());
 
             assertThat(securityContext.getUser().principal(), equalTo("u1"));
             var result = secondaryAuth.execute(original -> {
@@ -87,7 +89,7 @@ public class SecondaryAuthenticationTests extends ESTestCase {
                 .user(new User("u2", "role2"))
                 .realmRef(realm())
                 .build();
-            final SecondaryAuthentication secondaryAuth = new SecondaryAuthentication(securityContext, authentication2);
+            final SecondaryAuthentication secondaryAuth = new SecondaryAuthentication(securityContext, authentication2, Map.of());
 
             assertThat(securityContext.getUser().principal(), equalTo("u1"));
             final AtomicReference<ThreadContext.StoredContext> secondaryContext = new AtomicReference<>();
@@ -117,7 +119,7 @@ public class SecondaryAuthenticationTests extends ESTestCase {
                 .user(new User("u2", "role2"))
                 .realmRef(realm())
                 .build();
-            final SecondaryAuthentication secondaryAuth = new SecondaryAuthentication(securityContext, authentication2);
+            final SecondaryAuthentication secondaryAuth = new SecondaryAuthentication(securityContext, authentication2, Map.of());
 
             assertThat(securityContext.getUser().principal(), equalTo("u1"));
             final Semaphore semaphore = new Semaphore(0);
@@ -160,7 +162,7 @@ public class SecondaryAuthenticationTests extends ESTestCase {
                 .user(new User("u2", "role2"))
                 .realmRef(realm())
                 .build();
-            final SecondaryAuthentication secondaryAuth = new SecondaryAuthentication(securityContext, authentication2);
+            final SecondaryAuthentication secondaryAuth = new SecondaryAuthentication(securityContext, authentication2, Map.of());
 
             assertThat(securityContext.getUser().principal(), equalTo("u1"));
 
@@ -190,6 +192,75 @@ public class SecondaryAuthenticationTests extends ESTestCase {
             assertThat(threadUser.get(), notNullValue());
             assertThat(threadUser.get().principal(), equalTo("u1"));
             assertThat(listenerUser.get().principal(), equalTo("u2"));
+        });
+    }
+
+    public void testCapturedTransientsAreRestoredDuringExecute() {
+        final User user1 = new User("u1", "role1");
+        setUser(user1, () -> {
+            final Authentication authentication2 = AuthenticationTestHelper.builder()
+                .user(new User("u2", "role2"))
+                .realmRef(realm())
+                .build();
+            final Map<String, Object> transients = Map.of(
+                "_secondary_auth_captured_string",
+                "captured-value",
+                "_secondary_auth_captured_number",
+                42
+            );
+            final SecondaryAuthentication secondaryAuth = new SecondaryAuthentication(securityContext, authentication2, transients);
+
+            var result = secondaryAuth.execute(original -> {
+                assertThat(securityContext.getAuthentication(), sameInstance(authentication2));
+                assertThat(threadPool.getThreadContext().getTransient("_secondary_auth_captured_string"), equalTo("captured-value"));
+                assertThat(threadPool.getThreadContext().getTransient("_secondary_auth_captured_number"), equalTo(42));
+                return "ok";
+            });
+            assertThat(result, equalTo("ok"));
+
+            assertThat(threadPool.getThreadContext().getTransient("_secondary_auth_captured_string"), nullValue());
+            assertThat(threadPool.getThreadContext().getTransient("_secondary_auth_captured_number"), nullValue());
+        });
+    }
+
+    public void testCapturedTransientsAreRestoredDuringWrap() {
+        final User user1 = new User("u1", "role1");
+        setUser(user1, () -> {
+            final Authentication authentication2 = AuthenticationTestHelper.builder()
+                .user(new User("u2", "role2"))
+                .realmRef(realm())
+                .build();
+            final Map<String, Object> transients = Map.of("_secondary_auth_captured_credential", "credential-value");
+            final SecondaryAuthentication secondaryAuth = new SecondaryAuthentication(securityContext, authentication2, transients);
+
+            final AtomicReference<Object> capturedTransient = new AtomicReference<>();
+            Runnable wrapped = secondaryAuth.wrap(() -> {
+                capturedTransient.set(threadPool.getThreadContext().getTransient("_secondary_auth_captured_credential"));
+            });
+
+            assertThat(threadPool.getThreadContext().getTransient("_secondary_auth_captured_credential"), nullValue());
+            wrapped.run();
+            assertThat(capturedTransient.get(), equalTo("credential-value"));
+            assertThat(threadPool.getThreadContext().getTransient("_secondary_auth_captured_credential"), nullValue());
+        });
+    }
+
+    public void testEmptyCapturedTransientsWorkCorrectly() {
+        final User user1 = new User("u1", "role1");
+        setUser(user1, () -> {
+            final Authentication authentication2 = AuthenticationTestHelper.builder()
+                .user(new User("u2", "role2"))
+                .realmRef(realm())
+                .build();
+            final SecondaryAuthentication secondaryAuth = new SecondaryAuthentication(securityContext, authentication2, Map.of());
+
+            assertThat(secondaryAuth.getTransientHeaders(), equalTo(Map.of()));
+
+            var result = secondaryAuth.execute(original -> {
+                assertThat(securityContext.getAuthentication(), sameInstance(authentication2));
+                return "ok";
+            });
+            assertThat(result, equalTo("ok"));
         });
     }
 

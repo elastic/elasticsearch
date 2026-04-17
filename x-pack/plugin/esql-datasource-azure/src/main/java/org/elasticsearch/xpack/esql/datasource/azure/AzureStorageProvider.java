@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.esql.datasource.azure;
 
 import com.azure.identity.DefaultAzureCredentialBuilder;
+import com.azure.storage.blob.BlobAsyncClient;
 import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.BlobContainerClient;
+import com.azure.storage.blob.BlobServiceAsyncClient;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.BlobServiceClientBuilder;
 import com.azure.storage.blob.models.BlobItem;
@@ -41,17 +43,36 @@ import java.util.NoSuchElementException;
  *   <li>path: /container/path/to/blob (first segment = container, remainder = blob name)</li>
  * </ul>
  * <p>
+ * Maintains both a sync {@link BlobServiceClient} and an async {@link BlobServiceAsyncClient},
+ * built from the same {@link BlobServiceClientBuilder} (same pattern as {@code repository-azure}'s
+ * {@code AzureClientProvider}). Both clients share credentials, endpoint, and HTTP pipeline config.
+ * <ul>
+ *   <li><b>Sync client</b> — used for streaming reads ({@code openInputStream} returns a live
+ *       {@code InputStream}), metadata ({@code getProperties}), existence checks, and listing.
+ *       These are inherently blocking or return streaming results.</li>
+ *   <li><b>Async client</b> — used for {@code readBytesAsync} range reads in
+ *       {@link AzureStorageObject} via {@code BlobAsyncClient.downloadWithResponse}. Reactor
+ *       Netty handles concurrent range reads without blocking a thread per request.</li>
+ * </ul>
+ * <p>
+ * The async dependencies ({@code azure-core-http-netty}, Reactor Netty, Netty) are already
+ * bundled in this plugin's classloader. Versions are aligned with {@code repository-azure}.
+ * <p>
  * Authentication can be provided via connection string, account+key, SAS token,
  * or DefaultAzureCredential when no explicit credentials are configured.
  */
 public final class AzureStorageProvider implements StorageProvider {
-    private volatile BlobServiceClient blobServiceClient;
+
+    private record Clients(BlobServiceClient sync, BlobServiceAsyncClient async) {}
+
+    private volatile Clients clients;
     private final AzureConfiguration config;
 
     public AzureStorageProvider(AzureConfiguration config) {
         this.config = config;
         if (config != null && (config.hasCredentials() || config.isAnonymous())) {
-            this.blobServiceClient = buildBlobServiceClient(config);
+            BlobServiceClientBuilder builder = configureBlobServiceClientBuilder(config, null);
+            this.clients = new Clients(builder.buildClient(), builder.buildAsyncClient());
         }
     }
 
@@ -60,26 +81,24 @@ public final class AzureStorageProvider implements StorageProvider {
      */
     public AzureStorageProvider(BlobServiceClient blobServiceClient) {
         this.config = null;
-        this.blobServiceClient = blobServiceClient;
+        this.clients = new Clients(blobServiceClient, null);
     }
 
-    private BlobServiceClient client(String accountFromPath) {
-        if (blobServiceClient != null) {
-            return blobServiceClient;
+    private Clients clients(String accountFromPath) {
+        Clients c = clients;
+        if (c != null) {
+            return c;
         }
         synchronized (this) {
-            if (blobServiceClient == null) {
-                blobServiceClient = buildBlobServiceClient(config, accountFromPath);
+            if (clients == null) {
+                BlobServiceClientBuilder builder = configureBlobServiceClientBuilder(config, accountFromPath);
+                clients = new Clients(builder.buildClient(), builder.buildAsyncClient());
             }
         }
-        return blobServiceClient;
+        return clients;
     }
 
-    private static BlobServiceClient buildBlobServiceClient(AzureConfiguration config) {
-        return buildBlobServiceClient(config, null);
-    }
-
-    private static BlobServiceClient buildBlobServiceClient(AzureConfiguration config, String accountFromPath) {
+    private static BlobServiceClientBuilder configureBlobServiceClientBuilder(AzureConfiguration config, String accountFromPath) {
         BlobServiceClientBuilder builder = new BlobServiceClientBuilder();
 
         if (config != null && config.isAnonymous()) {
@@ -97,8 +116,6 @@ public final class AzureStorageProvider implements StorageProvider {
                         + "(wasbs://account.blob.core.windows.net/...) or WITH (endpoint = '...')"
                 );
             }
-            // No credential — Azure SDK sends unauthenticated requests for public containers
-            return builder.buildClient();
         } else if (config != null && config.hasCredentials()) {
             if (config.connectionString() != null && config.connectionString().isEmpty() == false) {
                 builder.connectionString(config.connectionString());
@@ -137,7 +154,7 @@ public final class AzureStorageProvider implements StorageProvider {
             builder.endpoint(endpoint).credential(new DefaultAzureCredentialBuilder().build());
         }
 
-        return builder.buildClient();
+        return builder;
     }
 
     @Override
@@ -145,8 +162,10 @@ public final class AzureStorageProvider implements StorageProvider {
         validateAzureScheme(path);
         ParsedPath parsed = parsePath(path);
         String account = extractAccountFromHost(parsed.host);
-        BlobClient blobClient = client(account).getBlobContainerClient(parsed.container).getBlobClient(parsed.blobName);
-        return new AzureStorageObject(blobClient, parsed.container, parsed.blobName, path);
+        Clients c = clients(account);
+        BlobClient blobClient = c.sync().getBlobContainerClient(parsed.container).getBlobClient(parsed.blobName);
+        BlobAsyncClient blobAsyncClient = resolveAsyncClient(c, parsed);
+        return new AzureStorageObject(blobClient, blobAsyncClient, parsed.container, parsed.blobName, path);
     }
 
     @Override
@@ -154,8 +173,10 @@ public final class AzureStorageProvider implements StorageProvider {
         validateAzureScheme(path);
         ParsedPath parsed = parsePath(path);
         String account = extractAccountFromHost(parsed.host);
-        BlobClient blobClient = client(account).getBlobContainerClient(parsed.container).getBlobClient(parsed.blobName);
-        return new AzureStorageObject(blobClient, parsed.container, parsed.blobName, path, length);
+        Clients c = clients(account);
+        BlobClient blobClient = c.sync().getBlobContainerClient(parsed.container).getBlobClient(parsed.blobName);
+        BlobAsyncClient blobAsyncClient = resolveAsyncClient(c, parsed);
+        return new AzureStorageObject(blobClient, blobAsyncClient, parsed.container, parsed.blobName, path, length);
     }
 
     @Override
@@ -163,8 +184,18 @@ public final class AzureStorageProvider implements StorageProvider {
         validateAzureScheme(path);
         ParsedPath parsed = parsePath(path);
         String account = extractAccountFromHost(parsed.host);
-        BlobClient blobClient = client(account).getBlobContainerClient(parsed.container).getBlobClient(parsed.blobName);
-        return new AzureStorageObject(blobClient, parsed.container, parsed.blobName, path, length, lastModified);
+        Clients c = clients(account);
+        BlobClient blobClient = c.sync().getBlobContainerClient(parsed.container).getBlobClient(parsed.blobName);
+        BlobAsyncClient blobAsyncClient = resolveAsyncClient(c, parsed);
+        return new AzureStorageObject(blobClient, blobAsyncClient, parsed.container, parsed.blobName, path, length, lastModified);
+    }
+
+    private static BlobAsyncClient resolveAsyncClient(Clients c, ParsedPath parsed) {
+        BlobServiceAsyncClient async = c.async();
+        if (async == null) {
+            return null;
+        }
+        return async.getBlobContainerAsyncClient(parsed.container).getBlobAsyncClient(parsed.blobName);
     }
 
     @Override
@@ -172,7 +203,7 @@ public final class AzureStorageProvider implements StorageProvider {
         validateAzureScheme(prefix);
         ParsedPath parsed = parsePathForListing(prefix);
         String account = extractAccountFromHost(parsed.host);
-        BlobContainerClient containerClient = client(account).getBlobContainerClient(parsed.container);
+        BlobContainerClient containerClient = clients(account).sync().getBlobContainerClient(parsed.container);
         ListBlobsOptions options = new ListBlobsOptions().setPrefix(parsed.blobName);
         Iterable<BlobItem> blobItems = recursive
             ? containerClient.listBlobs(options, null)
@@ -185,7 +216,7 @@ public final class AzureStorageProvider implements StorageProvider {
         validateAzureScheme(path);
         ParsedPath parsed = parsePath(path);
         String account = extractAccountFromHost(parsed.host);
-        BlobClient blobClient = client(account).getBlobContainerClient(parsed.container).getBlobClient(parsed.blobName);
+        BlobClient blobClient = clients(account).sync().getBlobContainerClient(parsed.container).getBlobClient(parsed.blobName);
         try {
             return blobClient.exists();
         } catch (Exception e) {
@@ -222,13 +253,21 @@ public final class AzureStorageProvider implements StorageProvider {
 
     @Override
     public void close() throws IOException {
-        BlobServiceClient client = blobServiceClient;
-        blobServiceClient = null;
-        if (client != null) {
+        Clients c = clients;
+        clients = null;
+        if (c != null) {
             try {
-                closeHttpClient(client.getHttpPipeline().getHttpClient());
+                closeHttpClient(c.sync().getHttpPipeline().getHttpClient());
             } catch (Exception e) {
                 throw new IOException("Failed to close Azure BlobServiceClient", e);
+            } finally {
+                if (c.async() != null) {
+                    try {
+                        closeHttpClient(c.async().getHttpPipeline().getHttpClient());
+                    } catch (Exception e) {
+                        throw new IOException("Failed to close Azure BlobServiceAsyncClient", e);
+                    }
+                }
             }
         }
     }

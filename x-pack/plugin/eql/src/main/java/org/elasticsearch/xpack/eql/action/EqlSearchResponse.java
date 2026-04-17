@@ -274,7 +274,9 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
     // Event
     public static class Event implements Writeable, ToXContentObject {
 
-        public static final Event MISSING_EVENT = new Event("", "", new BytesArray("{}".getBytes(StandardCharsets.UTF_8)), null, true);
+        private static final BytesArray EMPTY_SOURCE = new BytesArray("{}".getBytes(StandardCharsets.UTF_8));
+
+        public static final Event MISSING_EVENT = new Event("", "", EMPTY_SOURCE, null, true);
 
         private static final class Fields {
             static final String INDEX = GetResult._INDEX;
@@ -347,7 +349,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
 
         private static ReleasableBytesReference normalizeSourceBytes(@Nullable BytesReference src) {
             if (src == null) {
-                return ReleasableBytesReference.wrap(new BytesArray("{}".getBytes(StandardCharsets.UTF_8)));
+                return ReleasableBytesReference.wrap(EMPTY_SOURCE);
             }
             // Retain refcount on pooled / composite _source bytes (CCS, fetch) without copying the buffer payload.
             return ReleasableBytesReference.adopt(src);

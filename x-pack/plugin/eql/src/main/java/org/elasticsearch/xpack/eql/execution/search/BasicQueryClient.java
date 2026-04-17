@@ -181,7 +181,6 @@ public class BasicQueryClient implements QueryClient {
                             SearchHit previous = row.set(col, doc);
                             if (previous != null) {
                                 previous.decRef();
-                                releaseMatrixHits(seq);
                                 throw new EqlIllegalArgumentException(
                                     "Overriding sequence match [{}] with [{}]",
                                     new HitReference(previous),

@@ -372,11 +372,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 }
                 indexExpression = split[1];
             }
-            Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(
-                clusterState,
-                searchRequest.indicesOptions(),
-                indexExpression
-            );
+            // Always set ignore_unavailable for the options
+            var options = IndicesOptions.builder(searchRequest.indicesOptions())
+                .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
+                .build();
+
+            Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(clusterState, options, indexExpression);
 
             for (Index concreteIndex : concreteIndices) {
                 concreteIndexBoosts.putIfAbsent(concreteIndex.getUUID(), ib.getBoost());

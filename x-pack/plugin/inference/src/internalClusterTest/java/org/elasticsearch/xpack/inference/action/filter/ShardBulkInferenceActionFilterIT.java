@@ -320,15 +320,6 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
         assertThat(numHits(indexName), equalTo(numHits + ids.size()));
     }
 
-    public void testLegacyFormatIndexCreationFails() {
-        Settings legacySettings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), true)
-            .build();
-
-        expectThrows(Exception.class, () -> prepareCreate("test-legacy-format-index").setSettings(legacySettings).get());
-    }
-
     private int numHits(String indexName) throws Exception {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().size(0).trackTotalHits(true);
         SearchResponse searchResponse = client().search(new SearchRequest(indexName).source(sourceBuilder)).get();

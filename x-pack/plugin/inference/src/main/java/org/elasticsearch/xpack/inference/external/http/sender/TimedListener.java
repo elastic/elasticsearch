@@ -31,7 +31,12 @@ public class TimedListener<Response> {
     private final AtomicBoolean completed = new AtomicBoolean();
 
     public TimedListener(@Nullable TimeValue timeout, ActionListener<Response> listener, ThreadPool threadPool, String inferenceId) {
-        listenerWithTimeout = getListener(Objects.requireNonNull(listener), timeout, Objects.requireNonNull(threadPool), inferenceId);
+        listenerWithTimeout = getListener(
+            Objects.requireNonNull(listener),
+            timeout,
+            Objects.requireNonNull(threadPool),
+            Objects.requireNonNull(inferenceId)
+        );
     }
 
     private ActionListener<Response> getListener(

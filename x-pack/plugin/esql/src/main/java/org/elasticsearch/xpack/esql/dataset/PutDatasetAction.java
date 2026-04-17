@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.esql.dataset;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
@@ -35,11 +37,16 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
     public static final PutDatasetAction INSTANCE = new PutDatasetAction();
     public static final String NAME = EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME;
 
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.builder()
+        .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+        .indexAbstractionOptions(IndicesOptions.IndexAbstractionOptions.builder().resolveDatasets(true).build())
+        .build();
+
     private PutDatasetAction() {
         super(NAME);
     }
 
-    public static class Request extends AcknowledgedRequest<Request> {
+    public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest {
         private final String name;
         private final String dataSource;
         private final String resource;
@@ -146,6 +153,16 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
         @Override
         public int hashCode() {
             return Objects.hash(name, dataSource, resource, description, rawSettings);
+        }
+
+        @Override
+        public String[] indices() {
+            return new String[] { name };
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return DEFAULT_INDICES_OPTIONS;
         }
     }
 }

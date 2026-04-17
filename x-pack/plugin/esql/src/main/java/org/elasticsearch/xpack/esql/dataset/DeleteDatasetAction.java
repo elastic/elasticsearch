@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.esql.dataset;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
@@ -30,12 +32,17 @@ public class DeleteDatasetAction extends ActionType<AcknowledgedResponse> {
     public static final DeleteDatasetAction INSTANCE = new DeleteDatasetAction();
     public static final String NAME = EsqlDatasetActionNames.ESQL_DELETE_DATASET_ACTION_NAME;
 
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.builder()
+        .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+        .indexAbstractionOptions(IndicesOptions.IndexAbstractionOptions.builder().resolveDatasets(true).build())
+        .build();
+
     private DeleteDatasetAction() {
         super(NAME);
     }
 
-    public static class Request extends AcknowledgedRequest<Request> {
-        private final String name;
+    public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest.Replaceable {
+        private String name;
 
         public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String name) {
             super(masterNodeTimeout, ackTimeout);
@@ -76,6 +83,25 @@ public class DeleteDatasetAction extends ActionType<AcknowledgedResponse> {
         @Override
         public int hashCode() {
             return Objects.hash(name);
+        }
+
+        @Override
+        public String[] indices() {
+            return new String[] { name };
+        }
+
+        @Override
+        public IndicesRequest indices(String... indices) {
+            // Single-name delete today; pick the first if the resolver expands and replaces.
+            if (indices != null && indices.length > 0) {
+                this.name = indices[0];
+            }
+            return this;
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return DEFAULT_INDICES_OPTIONS;
         }
     }
 }

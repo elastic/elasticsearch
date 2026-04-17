@@ -47,6 +47,12 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
         this.settings = settings;
     }
 
+    // package-private for testing: pre-initializes resources, bypasses OTLP exporter creation
+    OtelSdkExportMeterSupplier(OTelMetricsResources resources) {
+        this.settings = Settings.EMPTY;
+        this.resources = resources;
+    }
+
     @Override
     public Meter get() {
         synchronized (mutex) {
@@ -144,7 +150,7 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
         }
     }
 
-    private record OTelMetricsResources(
+    record OTelMetricsResources(
         SdkMeterProvider systemMeterProvider,
         SdkMeterProvider meterHealthMeterProvider,
         RuntimeTelemetry runtimeTelemetry

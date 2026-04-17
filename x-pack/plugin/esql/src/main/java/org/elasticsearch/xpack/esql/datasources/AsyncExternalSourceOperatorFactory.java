@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.io.IOException;
-import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -574,13 +573,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                                     errorPolicy
                                 );
                             } else {
-                                StorageObject obj = storageProvider.newObject(fileSplit.path(), fileSplit.length());
-                                boolean firstSplit = true;
+                                StorageObject obj = FileSplitProvider.storageObjectForSplit(storageProvider, fileSplit);
+                                boolean firstSplit = fileSplit.offset() == 0
+                                    || "true".equals(fileSplit.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
                                 boolean lastSplit = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY));
-                                if (fileSplit.offset() > 0) {
-                                    obj = new RangeStorageObject(obj, fileSplit.offset(), fileSplit.length());
-                                    firstSplit = "true".equals(fileSplit.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
-                                }
                                 FormatReadContext ctx = FormatReadContext.builder()
                                     .projectedColumns(cols)
                                     .batchSize(batchSize)
@@ -633,11 +629,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     if (buffer.noMoreInputs() || (rowLimit != FormatReader.NO_LIMIT && rowsRemaining <= 0)) {
                         break;
                     }
-                    StorageObject obj = storageProvider.newObject(
-                        fileList.path(i),
-                        fileList.size(i),
-                        Instant.ofEpochMilli(fileList.lastModifiedMillis(i))
-                    );
+                    // Open by path only: {@link StorageProvider#newObject(StoragePath)} matches the resolver's
+                    // metadata probe and performs a normal full-object read. Passing cached length and mtime from
+                    // {@link FileList} into {@link StorageProvider#newObject(StoragePath, long, java.time.Instant)}
+                    // produced empty NDJSON/CSV reads over HTTP/S3/Azure in integration tests.
+                    StorageObject obj = storageProvider.newObject(fileList.path(i));
                     CloseableIterator<Page> pages;
                     if (useParallel) {
                         pages = ParallelParsingCoordinator.parallelRead(

@@ -1421,7 +1421,7 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     // Computes pow(2, exponent) using the NQT approximation
-    public static FloatVector pow2NQT(FloatVector exponent) {
+    static FloatVector pow2NQT(FloatVector exponent) {
         IntVector ones = IntVector.broadcast(INTEGER_SPECIES, 1);
         IntVector negOnes = IntVector.broadcast(INTEGER_SPECIES, -1);
         IntVector signs = ones.blend(negOnes, exponent.compare(VectorOperators.LT, 0.0f).cast(INTEGER_SPECIES));

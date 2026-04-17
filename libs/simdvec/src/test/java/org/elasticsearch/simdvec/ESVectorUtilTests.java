@@ -825,11 +825,7 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         }
 
         float referenceResult = defaultedProvider.getVectorUtilSupport().logSumExpNQT(x);
-        assertEquals(
-            referenceResult,
-            defOrPanamaProvider.getVectorUtilSupport().logSumExpNQT(x),
-            1e-2 * referenceResult
-        );
+        assertEquals(referenceResult, defOrPanamaProvider.getVectorUtilSupport().logSumExpNQT(x), 1e-2 * referenceResult);
     }
 
     public void testLinearCombination() {
@@ -847,7 +843,7 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         float scaleY = randomFloat();
 
         defaultedProvider.getVectorUtilSupport().linearCombination(scaleX, x, scaleY, y1);
-        defOrPanamaProvider.getVectorUtilSupport().linearCombination(scaleX, x, scaleY, y2);;
+        defOrPanamaProvider.getVectorUtilSupport().linearCombination(scaleX, x, scaleY, y2);
 
         assertArrayEquals(y1, y2, 0);
     }
@@ -864,11 +860,7 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         float eps = randomFloat();
 
         float referenceResult = defaultedProvider.getVectorUtilSupport().logSumExpNQTDiff(x, y, eps);
-        assertEquals(
-            referenceResult,
-            defOrPanamaProvider.getVectorUtilSupport().logSumExpNQTDiff(x, y, eps),
-            1e-2 * referenceResult
-        );
+        assertEquals(referenceResult, defOrPanamaProvider.getVectorUtilSupport().logSumExpNQTDiff(x, y, eps), 1e-2 * referenceResult);
     }
 
     public void testPow2DiffAndScale() {
@@ -887,7 +879,7 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         float[] result2 = new float[19];
 
         defaultedProvider.getVectorUtilSupport().pow2DiffAndScaleNQT(x, y, a, eps, result1);
-        defOrPanamaProvider.getVectorUtilSupport().pow2DiffAndScaleNQT(x, y, a, eps, result2);;
+        defOrPanamaProvider.getVectorUtilSupport().pow2DiffAndScaleNQT(x, y, a, eps, result2);
 
         assertArrayEquals(result1, result2, 1e-2f);
     }

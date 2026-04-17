@@ -63,16 +63,7 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
         List<Alias> rerankFields,
         Attribute scoreAttribute
     ) {
-        this(
-            source,
-            child,
-            Literal.keyword(Source.EMPTY, DEFAULT_INFERENCE_ID),
-            rowLimit,
-            queryText,
-            rerankFields,
-            scoreAttribute,
-            null
-        );
+        this(source, child, Literal.keyword(Source.EMPTY, DEFAULT_INFERENCE_ID), rowLimit, queryText, rerankFields, scoreAttribute, null);
     }
 
     public Rerank(
@@ -248,17 +239,7 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(
-            this,
-            Rerank::new,
-            child(),
-            inferenceId(),
-            rowLimit(),
-            queryText,
-            rerankFields,
-            scoreAttribute,
-            timeout
-        );
+        return NodeInfo.create(this, Rerank::new, child(), inferenceId(), rowLimit(), queryText, rerankFields, scoreAttribute, timeout);
     }
 
     @Override

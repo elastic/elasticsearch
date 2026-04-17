@@ -134,12 +134,7 @@ class CompletionRequestIterator implements BulkInferenceRequestItemIterator {
 
         @Override
         public BulkInferenceRequestItemIterator create(Page inputPage) {
-            return new CompletionRequestIterator(
-                inferenceId,
-                (BytesRefBlock) promptEvaluator.eval(inputPage),
-                taskSettings,
-                timeout
-            );
+            return new CompletionRequestIterator(inferenceId, (BytesRefBlock) promptEvaluator.eval(inputPage), taskSettings, timeout);
         }
 
         @Override

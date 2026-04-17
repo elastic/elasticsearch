@@ -35,14 +35,7 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
         final String inferenceId = randomIdentifier();
         final BytesRefBlock inputBlock = randomInputBlock(0);
 
-        try (
-            EmbeddingRequestIterator requestIterator = new EmbeddingRequestIterator(
-                inferenceId,
-                inputBlock,
-                DataType.TEXT,
-                null
-            )
-        ) {
+        try (EmbeddingRequestIterator requestIterator = new EmbeddingRequestIterator(inferenceId, inputBlock, DataType.TEXT, null)) {
             assertFalse(requestIterator.hasNext());
             assertThat(requestIterator.estimatedSize(), equalTo(0));
         }
@@ -55,14 +48,7 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
         final int size = between(10, 100);
         final BytesRefBlock inputBlock = randomInputBlockWithNulls(size);
 
-        try (
-            EmbeddingRequestIterator requestIterator = new EmbeddingRequestIterator(
-                inferenceId,
-                inputBlock,
-                DataType.TEXT,
-                null
-            )
-        ) {
+        try (EmbeddingRequestIterator requestIterator = new EmbeddingRequestIterator(inferenceId, inputBlock, DataType.TEXT, null)) {
             int totalPositionsProcessed = 0;
 
             while (requestIterator.hasNext()) {
@@ -112,14 +98,7 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
 
             BytesRefBlock inputBlock = blockBuilder.build();
 
-            try (
-                EmbeddingRequestIterator requestIterator = new EmbeddingRequestIterator(
-                    inferenceId,
-                    inputBlock,
-                    DataType.TEXT,
-                    null
-                )
-            ) {
+            try (EmbeddingRequestIterator requestIterator = new EmbeddingRequestIterator(inferenceId, inputBlock, DataType.TEXT, null)) {
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem requestItem1 = requestIterator.next();
 
@@ -158,14 +137,7 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
 
             BytesRefBlock inputBlock = blockBuilder.build();
 
-            try (
-                EmbeddingRequestIterator requestIterator = new EmbeddingRequestIterator(
-                    inferenceId,
-                    inputBlock,
-                    DataType.TEXT,
-                    null
-                )
-            ) {
+            try (EmbeddingRequestIterator requestIterator = new EmbeddingRequestIterator(inferenceId, inputBlock, DataType.TEXT, null)) {
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem requestItem = requestIterator.next();
 
@@ -196,14 +168,7 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
 
             BytesRefBlock inputBlock = blockBuilder.build();
 
-            try (
-                EmbeddingRequestIterator requestIterator = new EmbeddingRequestIterator(
-                    inferenceId,
-                    inputBlock,
-                    DataType.TEXT,
-                    null
-                )
-            ) {
+            try (EmbeddingRequestIterator requestIterator = new EmbeddingRequestIterator(inferenceId, inputBlock, DataType.TEXT, null)) {
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem requestItem = requestIterator.next();
 
@@ -237,14 +202,7 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
 
             BytesRefBlock inputBlock = blockBuilder.build();
 
-            try (
-                EmbeddingRequestIterator requestIterator = new EmbeddingRequestIterator(
-                    inferenceId,
-                    inputBlock,
-                    DataType.TEXT,
-                    null
-                )
-            ) {
+            try (EmbeddingRequestIterator requestIterator = new EmbeddingRequestIterator(inferenceId, inputBlock, DataType.TEXT, null)) {
                 // First batch: "text1" with trailing null
                 BulkInferenceRequestItem requestItem1 = requestIterator.next();
                 assertThat(requestItem1.positionValueCounts().length, equalTo(2));
@@ -281,14 +239,7 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
         final int size = between(10, 1000);
         final BytesRefBlock inputBlock = randomInputBlock(size);
 
-        try (
-            EmbeddingRequestIterator requestIterator = new EmbeddingRequestIterator(
-                inferenceId,
-                inputBlock,
-                DataType.TEXT,
-                null
-            )
-        ) {
+        try (EmbeddingRequestIterator requestIterator = new EmbeddingRequestIterator(inferenceId, inputBlock, DataType.TEXT, null)) {
             assertThat(requestIterator.estimatedSize(), equalTo(size));
         }
 
@@ -303,14 +254,7 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
             blockBuilder.appendBytesRef(new BytesRef(dataUri));
             BytesRefBlock inputBlock = blockBuilder.build();
 
-            try (
-                EmbeddingRequestIterator requestIterator = new EmbeddingRequestIterator(
-                    inferenceId,
-                    inputBlock,
-                    DataType.IMAGE,
-                    null
-                )
-            ) {
+            try (EmbeddingRequestIterator requestIterator = new EmbeddingRequestIterator(inferenceId, inputBlock, DataType.IMAGE, null)) {
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem requestItem = requestIterator.next();
 
@@ -348,14 +292,7 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
 
             BytesRefBlock inputBlock = blockBuilder.build();
 
-            try (
-                EmbeddingRequestIterator requestIterator = new EmbeddingRequestIterator(
-                    inferenceId,
-                    inputBlock,
-                    DataType.TEXT,
-                    null
-                )
-            ) {
+            try (EmbeddingRequestIterator requestIterator = new EmbeddingRequestIterator(inferenceId, inputBlock, DataType.TEXT, null)) {
                 BytesRef scratch = new BytesRef();
                 int iterationCount = 0;
 
@@ -388,14 +325,7 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
             blockBuilder.appendBytesRef(new BytesRef("data:image/jpeg;base64,VGhpcyBpcyBhbiBpbWFnZQ=="));
             BytesRefBlock inputBlock = blockBuilder.build();
 
-            try (
-                EmbeddingRequestIterator requestIterator = new EmbeddingRequestIterator(
-                    inferenceId,
-                    inputBlock,
-                    DataType.IMAGE,
-                    null
-                )
-            ) {
+            try (EmbeddingRequestIterator requestIterator = new EmbeddingRequestIterator(inferenceId, inputBlock, DataType.IMAGE, null)) {
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem requestItem = requestIterator.next();
 
@@ -422,14 +352,7 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
             blockBuilder.appendBytesRef(new BytesRef("some text"));
             BytesRefBlock inputBlock = blockBuilder.build();
 
-            try (
-                EmbeddingRequestIterator requestIterator = new EmbeddingRequestIterator(
-                    inferenceId,
-                    inputBlock,
-                    DataType.TEXT,
-                    null
-                )
-            ) {
+            try (EmbeddingRequestIterator requestIterator = new EmbeddingRequestIterator(inferenceId, inputBlock, DataType.TEXT, null)) {
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem requestItem = requestIterator.next();
 
@@ -449,14 +372,7 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
         final String inferenceId = randomIdentifier();
         final BytesRefBlock inputBlock = randomInputBlock(size, dataType);
 
-        try (
-            EmbeddingRequestIterator requestIterator = new EmbeddingRequestIterator(
-                inferenceId,
-                inputBlock,
-                dataType,
-                null
-            )
-        ) {
+        try (EmbeddingRequestIterator requestIterator = new EmbeddingRequestIterator(inferenceId, inputBlock, dataType, null)) {
             BytesRef scratch = new BytesRef();
             int iterationCount = 0;
 

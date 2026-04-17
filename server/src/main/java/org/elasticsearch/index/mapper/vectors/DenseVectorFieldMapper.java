@@ -2601,7 +2601,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         final boolean doPrecondition;
         final boolean experimentalFeaturesEnabled;
 
-        BBQIVFIndexOptions(
+        public BBQIVFIndexOptions(
             int clusterSize,
             int flatIndexThreshold,
             double defaultVisitPercentage,

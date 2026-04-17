@@ -25,6 +25,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.TimestampBoundsAware;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison;
@@ -69,9 +71,10 @@ public class PromqlCommand extends UnaryPlan
     private final String valueColumnName;
     private final NameId valueId;
     private final NameId stepId;
+    private final boolean collapsed;
     private List<Attribute> output;
 
-    // Range query constructor
+    // Range query constructor (collapsed=false)
     public PromqlCommand(
         Source source,
         LogicalPlan child,
@@ -84,7 +87,52 @@ public class PromqlCommand extends UnaryPlan
         String valueColumnName,
         Expression timestamp
     ) {
-        this(source, child, promqlPlan, start, end, step, buckets, scrapeInterval, valueColumnName, new NameId(), new NameId(), timestamp);
+        this(
+            source,
+            child,
+            promqlPlan,
+            start,
+            end,
+            step,
+            buckets,
+            scrapeInterval,
+            valueColumnName,
+            new NameId(),
+            new NameId(),
+            timestamp,
+            false
+        );
+    }
+
+    // Range query constructor with collapsed flag
+    public PromqlCommand(
+        Source source,
+        LogicalPlan child,
+        LogicalPlan promqlPlan,
+        Literal start,
+        Literal end,
+        Literal step,
+        Literal buckets,
+        Literal scrapeInterval,
+        String valueColumnName,
+        Expression timestamp,
+        boolean collapsed
+    ) {
+        this(
+            source,
+            child,
+            promqlPlan,
+            start,
+            end,
+            step,
+            buckets,
+            scrapeInterval,
+            valueColumnName,
+            new NameId(),
+            new NameId(),
+            timestamp,
+            collapsed
+        );
     }
 
     // Range query constructor
@@ -102,6 +150,25 @@ public class PromqlCommand extends UnaryPlan
         NameId stepId,
         Expression timestamp
     ) {
+        this(source, child, promqlPlan, start, end, step, buckets, scrapeInterval, valueColumnName, valueId, stepId, timestamp, false);
+    }
+
+    // Full constructor with collapsed flag
+    public PromqlCommand(
+        Source source,
+        LogicalPlan child,
+        LogicalPlan promqlPlan,
+        Literal start,
+        Literal end,
+        Literal step,
+        Literal buckets,
+        Literal scrapeInterval,
+        String valueColumnName,
+        NameId valueId,
+        NameId stepId,
+        Expression timestamp,
+        boolean collapsed
+    ) {
         super(source, child);
         this.promqlPlan = promqlPlan;
         this.start = start;
@@ -113,13 +180,28 @@ public class PromqlCommand extends UnaryPlan
         this.valueId = valueId;
         this.stepId = stepId;
         this.timestamp = timestamp;
+        this.collapsed = collapsed;
     }
 
     @Override
     protected NodeInfo<PromqlCommand> info() {
         return NodeInfo.create(
             this,
-            PromqlCommand::new,
+            (s, child, plan, st, en, stp, bk, si, vcn, vi, sti, ts, col) -> new PromqlCommand(
+                s,
+                child,
+                plan,
+                st,
+                en,
+                stp,
+                bk,
+                si,
+                vcn,
+                vi,
+                sti,
+                ts,
+                col
+            ),
             child(),
             promqlPlan(),
             start(),
@@ -130,7 +212,8 @@ public class PromqlCommand extends UnaryPlan
             valueColumnName(),
             valueId(),
             stepId(),
-            timestamp()
+            timestamp(),
+            isCollapsed()
         );
     }
 
@@ -148,7 +231,8 @@ public class PromqlCommand extends UnaryPlan
             valueColumnName(),
             valueId(),
             stepId(),
-            timestamp()
+            timestamp(),
+            collapsed
         );
     }
 
@@ -168,7 +252,8 @@ public class PromqlCommand extends UnaryPlan
             valueColumnName(),
             valueId(),
             stepId(),
-            timestamp()
+            timestamp(),
+            collapsed
         );
     }
 
@@ -196,8 +281,31 @@ public class PromqlCommand extends UnaryPlan
             valueColumnName(),
             valueId(),
             stepId(),
-            timestamp()
+            timestamp(),
+            collapsed
         );
+    }
+
+    public PromqlCommand withCollapsed(boolean collapsed) {
+        return new PromqlCommand(
+            source(),
+            child(),
+            promqlPlan(),
+            start(),
+            end(),
+            step(),
+            buckets(),
+            scrapeInterval(),
+            valueColumnName(),
+            valueId(),
+            stepId(),
+            timestamp(),
+            collapsed
+        );
+    }
+
+    public boolean isCollapsed() {
+        return collapsed;
     }
 
     @Override
@@ -305,7 +413,20 @@ public class PromqlCommand extends UnaryPlan
 
     @Override
     public int hashCode() {
-        return Objects.hash(child(), promqlPlan, start, end, step, buckets, scrapeInterval, valueColumnName, valueId, stepId, timestamp);
+        return Objects.hash(
+            child(),
+            promqlPlan,
+            start,
+            end,
+            step,
+            buckets,
+            scrapeInterval,
+            valueColumnName,
+            valueId,
+            stepId,
+            timestamp,
+            collapsed
+        );
     }
 
     @Override
@@ -323,15 +444,15 @@ public class PromqlCommand extends UnaryPlan
                 && Objects.equals(valueColumnName, other.valueColumnName)
                 && Objects.equals(valueId, other.valueId)
                 && Objects.equals(stepId, other.stepId)
-                && Objects.equals(timestamp, other.timestamp);
+                && Objects.equals(timestamp, other.timestamp)
+                && collapsed == other.collapsed;
         }
 
         return false;
     }
 
     @Override
-    public String nodeString(NodeStringFormat format) {
-        StringBuilder sb = new StringBuilder();
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
         sb.append(nodeName());
         sb.append(" start=[").append(start);
         sb.append("] end=[").append(end);
@@ -342,7 +463,6 @@ public class PromqlCommand extends UnaryPlan
         sb.append("] promql=[<>\n");
         sb.append(promqlPlan.toString());
         sb.append("\n<>]]");
-        return sb.toString();
     }
 
     @Override
@@ -437,6 +557,7 @@ public class PromqlCommand extends UnaryPlan
                     }
                 }
                 case PromqlFunctionCall functionCall -> {
+                    validateCounterSupport(functionCall, failures);
                 }
                 case ScalarFunction scalarFunction -> {
                     // ok
@@ -495,5 +616,49 @@ public class PromqlCommand extends UnaryPlan
 
     private static boolean usesWithoutGrouping(LogicalPlan plan) {
         return plan.anyMatch(p -> p instanceof AcrossSeriesAggregate agg && agg.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT);
+    }
+
+    /**
+     * Validates that the metric field type is compatible with the function's counter support.
+     * Only checks when the function's direct child is a RangeSelector, because InstantSelectors
+     * are implicitly wrapped in LastOverTime during translation, which converts counter types
+     * to their numeric base types. RangeSelectors pass the raw field type through to the function.
+     */
+    private static void validateCounterSupport(PromqlFunctionCall functionCall, Failures failures) {
+        if (functionCall.child() instanceof RangeSelector s && s.series() instanceof FieldAttribute seriesField) {
+            DataType seriesType = seriesField.dataType();
+            if (DataType.isNull(seriesType)) {
+                return;
+            }
+            var metadata = PromqlFunctionRegistry.INSTANCE.functionMetadata(functionCall.functionName());
+            if (metadata == null) {
+                return;
+            }
+            var counterSupport = metadata.counterSupport();
+            if (DataType.isCounter(seriesType) && counterSupport == PromqlFunctionDefinition.CounterSupport.UNSUPPORTED) {
+                failures.add(
+                    fail(
+                        functionCall,
+                        "function [{}] does not support counter metric [{}] of type [{}];"
+                            + " use rate() or increase() to convert counters first [{}]",
+                        functionCall.functionName(),
+                        seriesField.name(),
+                        seriesType.typeName(),
+                        functionCall.sourceText()
+                    )
+                );
+            } else if (DataType.isCounter(seriesType) == false && counterSupport == PromqlFunctionDefinition.CounterSupport.REQUIRED) {
+                failures.add(
+                    fail(
+                        functionCall,
+                        "function [{}] requires a counter metric, but [{}] has type [{}] [{}]",
+                        functionCall.functionName(),
+                        seriesField.name(),
+                        seriesType.typeName(),
+                        functionCall.sourceText()
+                    )
+                );
+            }
+        }
     }
 }

@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -73,6 +74,7 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.compari
 public class Match extends SingleFieldFullTextFunction implements OptionalArgument {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Match", Match::readFrom);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Match.class).ternary(Match::new).name("match");
     public static final Set<DataType> FIELD_DATA_TYPES = Set.of(
         NULL,
         KEYWORD,

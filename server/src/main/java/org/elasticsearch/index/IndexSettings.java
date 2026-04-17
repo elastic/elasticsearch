@@ -29,12 +29,14 @@ import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.codec.bloomfilter.SyntheticIdBloomFilterSettings;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.Node;
@@ -636,8 +638,15 @@ public final class IndexSettings {
     );
 
     public static final FeatureFlag TIME_SERIES_TEMPORALITY_FEATURE_FLAG = new FeatureFlag("time_series_temporality");
+
     /**
      * Defines the name of the field storing the metric temporality.
+     * The corresponding field must be a keyword field (or keyword-like, e.g. constant_keyword).
+     * It should only store two values: either {@code delta} or {@code cumulative}.
+     * <br>
+     * The value of this field will then define how counters and histograms in the same document are interpreted.
+     * Note that if the temporality is not provided in an index (or in a document,({@code null} value)),
+     * ES|QL will assume a default, backwards compatible temporality: cumulative for counters and delta for histograms.
      */
     public static final Setting<String> TIME_SERIES_TEMPORALITY_FIELD = Setting.simpleString(
         "index.time_series.temporality_field",
@@ -718,30 +727,15 @@ public final class IndexSettings {
         Property.ServerlessPublic
     );
 
-    public static final boolean TSDB_SYNTHETIC_ID_FEATURE_FLAG = new FeatureFlag("tsdb_synthetic_id").isEnabled();
     public static final Setting<Boolean> SYNTHETIC_ID = Setting.boolSetting("index.mapping.synthetic_id", settings -> {
         IndexVersion indexVersion = SETTING_INDEX_VERSION_CREATED.get(settings);
         boolean isTimeSeries = IndexMode.TIME_SERIES.equals(MODE.get(settings));
         boolean isValidCodec = isValidCodecForSyntheticId(INDEX_CODEC_SETTING.get(settings), indexVersion);
-        boolean onByDefault = indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT);
-        return TSDB_SYNTHETIC_ID_FEATURE_FLAG && isTimeSeries && isValidCodec && onByDefault
-            ? Boolean.TRUE.toString()
-            : Boolean.FALSE.toString();
+        boolean onByDefault = indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD);
+        return isTimeSeries && isValidCodec && onByDefault ? Boolean.TRUE.toString() : Boolean.FALSE.toString();
     }, new Setting.Validator<>() {
         @Override
-        public void validate(Boolean enabled) {
-            if (enabled) {
-                if (TSDB_SYNTHETIC_ID_FEATURE_FLAG == false) {
-                    throw new IllegalArgumentException(
-                        String.format(
-                            Locale.ROOT,
-                            "The setting [%s] is only permitted when the feature flag is enabled.",
-                            SYNTHETIC_ID.getKey()
-                        )
-                    );
-                }
-            }
-        }
+        public void validate(Boolean enabled) {}
 
         @Override
         public void validate(Boolean enabled, Map<Setting<?>, Object> settings) {
@@ -1004,18 +998,16 @@ public final class IndexSettings {
         );
     }
 
-    public static final boolean DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG = new FeatureFlag("disable_sequence_numbers").isEnabled();
-
     public static final Setting<SeqNoFieldMapper.SeqNoIndexOptions> SEQ_NO_INDEX_OPTIONS_SETTING = Setting.enumSetting(
         SeqNoFieldMapper.SeqNoIndexOptions.class,
         settings -> {
-            if (DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG && settings.getAsBoolean("index.disable_sequence_numbers", false)) {
+            IndexVersion indexVersionCreated = SETTING_INDEX_VERSION_CREATED.get(settings);
+            if (settings.getAsBoolean("index.disable_sequence_numbers", false)) {
                 return SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY.toString();
             }
             final IndexMode indexMode = IndexSettings.MODE.get(settings);
             if ((indexMode == IndexMode.LOGSDB || indexMode == IndexMode.TIME_SERIES)
-                && (IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.SEQ_NO_WITHOUT_POINTS)
-                    || IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).equals(IndexVersions.ZERO))) {
+                && (indexVersionCreated.onOrAfter(IndexVersions.SEQ_NO_WITHOUT_POINTS) || indexVersionCreated.equals(IndexVersions.ZERO))) {
                 return SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY.toString();
             }
             return SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES.toString();
@@ -1054,17 +1046,7 @@ public final class IndexSettings {
         false,
         new Setting.Validator<>() {
             @Override
-            public void validate(Boolean enabled) {
-                if (enabled && DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG == false) {
-                    throw new IllegalArgumentException(
-                        String.format(
-                            Locale.ROOT,
-                            "The setting [%s] is only permitted when the feature flag is enabled.",
-                            DISABLE_SEQUENCE_NUMBERS.getKey()
-                        )
-                    );
-                }
-            }
+            public void validate(Boolean enabled) {}
 
             @Override
             public void validate(Boolean enabled, Map<Setting<?>, Object> settings) {
@@ -1200,6 +1182,7 @@ public final class IndexSettings {
     private volatile long mappingDepthLimit;
     private volatile long mappingFieldNameLengthLimit;
     private volatile long mappingDimensionFieldsLimit;
+    private volatile boolean requestCacheEnabled;
     private volatile boolean skipIgnoredSourceWrite;
     private volatile boolean skipIgnoredSourceRead;
     private final SourceFieldMapper.Mode indexMappingSourceMode;
@@ -1208,6 +1191,7 @@ public final class IndexSettings {
     private final boolean useDocValuesSkipper;
     private final boolean useDocValuesSkipperForHostname;
     private final boolean useTimeSeriesSyntheticId;
+    private final SyntheticIdBloomFilterSettings syntheticIdBloomFilterSettings;
     private final boolean useTimeSeriesDocValuesFormat;
     private final boolean useTimeSeriesDocValuesFormatLargeNumericBlockSize;
     private final boolean useTimeSeriesDocValuesFormatLargeBinaryBlockSize;
@@ -1400,6 +1384,7 @@ public final class IndexSettings {
         indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
         sourceKeepMode = scopedSettings.get(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING);
         es87TSDBCodecEnabled = scopedSettings.get(TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING);
+        requestCacheEnabled = scopedSettings.get(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING);
         logsdbRouteOnSortFields = scopedSettings.get(LOGSDB_ROUTE_ON_SORT_FIELDS);
         logsdbSortOnHostName = scopedSettings.get(LOGSDB_SORT_ON_HOST_NAME);
         logsdbAddHostNameField = scopedSettings.get(LOGSDB_ADD_HOST_NAME_FIELD);
@@ -1421,7 +1406,8 @@ public final class IndexSettings {
         useTimeSeriesDocValuesFormatLargeBinaryBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE);
         useEs812PostingsFormat = scopedSettings.get(USE_ES_812_POSTINGS_FORMAT);
         intraMergeParallelismEnabled = scopedSettings.get(INTRA_MERGE_PARALLELISM_ENABLED_SETTING);
-        useTimeSeriesSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && scopedSettings.get(SYNTHETIC_ID);
+        useTimeSeriesSyntheticId = scopedSettings.get(SYNTHETIC_ID);
+        syntheticIdBloomFilterSettings = SyntheticIdBloomFilterSettings.fromScopedSettings(scopedSettings);
         if (indexMetadata.useTimeSeriesSyntheticId() != useTimeSeriesSyntheticId) {
             throw new IllegalArgumentException(
                 String.format(
@@ -1454,8 +1440,7 @@ public final class IndexSettings {
                 );
             }
         }
-        disableSequenceNumbers = DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG && DISABLE_SEQUENCE_NUMBERS.get(settings);
-
+        disableSequenceNumbers = DISABLE_SEQUENCE_NUMBERS.get(settings);
         scopedSettings.addSettingsUpdateConsumer(
             MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,
             mergePolicyConfig::setCompoundFormatThreshold
@@ -1541,6 +1526,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_DEPTH_LIMIT_SETTING, this::setMappingDepthLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING, this::setMappingFieldNameLengthLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING, this::setMappingDimensionFieldsLimit);
+        scopedSettings.addSettingsUpdateConsumer(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING, this::setRequestCacheEnabled);
         scopedSettings.addSettingsUpdateConsumer(
             IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING,
             this::setSkipIgnoredSourceWrite
@@ -2189,6 +2175,10 @@ public final class IndexSettings {
         return useTimeSeriesSyntheticId;
     }
 
+    public SyntheticIdBloomFilterSettings syntheticIdBloomFilterSettings() {
+        return syntheticIdBloomFilterSettings;
+    }
+
     /**
      * @return Whether the time series doc value format should be used.
      */
@@ -2218,6 +2208,17 @@ public final class IndexSettings {
      */
     public boolean useEs812PostingsFormat() {
         return useEs812PostingsFormat;
+    }
+
+    /**
+     * Returns <code>true</code> if request cache is enabled.
+     */
+    public boolean isRequestCacheEnabled() {
+        return requestCacheEnabled;
+    }
+
+    private void setRequestCacheEnabled(boolean requestCacheEnabled) {
+        this.requestCacheEnabled = requestCacheEnabled;
     }
 
     /**

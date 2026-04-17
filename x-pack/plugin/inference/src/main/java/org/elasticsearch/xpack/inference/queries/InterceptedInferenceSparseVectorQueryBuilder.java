@@ -67,17 +67,17 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
     }
 
     private InterceptedInferenceSparseVectorQueryBuilder(
-        InterceptedInferenceQueryBuilder<SparseVectorQueryBuilder> other,
+        InterceptedInferenceSparseVectorQueryBuilder other,
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
         PlainActionFuture<InferenceQueryUtils.InferenceInfo> inferenceInfoFuture,
         boolean interceptedCcsRequest
     ) {
         super(other, inferenceResultsMap, inferenceInfoFuture, interceptedCcsRequest);
-        this.queryVectorSupplier = null;
+        this.queryVectorSupplier = other.queryVectorSupplier;
     }
 
     private InterceptedInferenceSparseVectorQueryBuilder(
-        InterceptedInferenceQueryBuilder<SparseVectorQueryBuilder> other,
+        InterceptedInferenceSparseVectorQueryBuilder other,
         SparseVectorQueryBuilder originalQuery,
         SetOnce<TextExpansionResults> queryVectorSupplier
     ) {
@@ -120,6 +120,18 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
     @Override
     protected InterceptedInferenceSparseVectorQueryBuilder customDoRewriteWaitForInferenceResults(QueryRewriteContext queryRewriteContext) {
         return getQueryVector(this, queryRewriteContext);
+    }
+
+    @Override
+    protected QueryBuilder rewriteToOriginalQuery() {
+        QueryBuilder rewritten = originalQuery;
+        if (queryVectorSupplier != null) {
+            // We are in the process of generating a query vector for the original query. Return the current query builder to allow this to
+            // complete before we rewrite to the original query.
+            rewritten = this;
+        }
+
+        return rewritten;
     }
 
     private static InterceptedInferenceSparseVectorQueryBuilder getQueryVector(

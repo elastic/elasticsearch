@@ -1,0 +1,6 @@
+area: EQL
+issues:
+ - 145402
+pr: 145813
+summary: Fix propagation of filters on join keys for missing events
+type: bug

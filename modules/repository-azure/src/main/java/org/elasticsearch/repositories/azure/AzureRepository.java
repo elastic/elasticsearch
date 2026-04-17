@@ -23,6 +23,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.SnapshotMetrics;
@@ -105,6 +106,15 @@ public class AzureRepository extends MeteredBlobStoreRepository {
          * The maximum number of concurrent batch deletes
          */
         static final Setting<Integer> MAX_CONCURRENT_BATCH_DELETES_SETTING = Setting.intSetting("max_concurrent_batch_deletes", 10, 1, 100);
+
+        /**
+         * Duration between each poll for the copy status during a copy operation
+         */
+        static final Setting<TimeValue> COPY_POLL_INTERVAL = Setting.timeSetting(
+            "copy_poll_interval",
+            TimeValue.timeValueSeconds(1),
+            Property.NodeScope
+        );
     }
 
     private final ByteSizeValue chunkSize;

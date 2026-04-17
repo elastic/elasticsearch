@@ -21,22 +21,22 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.RatioValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
@@ -44,6 +44,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
@@ -296,22 +297,8 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         final int numThreads = randomIntBetween(1, 10);
         final float hotspotUtilizationThreshold = randomFloatBetween(0.5f, 0.9f, true);
         final float allocationUtilizationThreshold = randomFloatBetween(0.5f, 0.9f, true);
-        final long highLatencyThreshold = randomLongBetween(1000, 10000);
-        final var settings = Settings.builder()
-            .put(
-                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
-                WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
-            )
-            .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_THRESHOLD_SETTING.getKey(), hotspotUtilizationThreshold)
-            .put(
-                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ALLOCATION_UTILIZATION_THRESHOLD_SETTING.getKey(),
-                allocationUtilizationThreshold
-            )
-            .put(
-                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING.getKey(),
-                TimeValue.timeValueMillis(highLatencyThreshold)
-            )
-            .build();
+        final TimeValue highLatencyThreshold = randomTimeValue(1000, 10000, TimeUnit.MILLISECONDS);
+        final var settings = createSettings(allocationUtilizationThreshold, hotspotUtilizationThreshold, highLatencyThreshold, null);
 
         final var state = ClusterStateCreationUtils.state(2, new String[] { indexName }, 4);
         final var balancedShardsAllocator = new BalancedShardsAllocator(settings);
@@ -328,7 +315,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                             new ThreadPoolUsageStats(
                                 numThreads,
                                 randomFloatBetween(hotspotUtilizationThreshold, 1.1f, false),
-                                randomLongBetween(highLatencyThreshold, highLatencyThreshold * 2)
+                                randomLongBetween(highLatencyThreshold.millis(), highLatencyThreshold.millis() * 2)
                             )
                         )
                     ),
@@ -340,7 +327,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                             new ThreadPoolUsageStats(
                                 numThreads,
                                 randomFloatBetween(0.0f, allocationUtilizationThreshold / 2, true),
-                                randomLongBetween(0, highLatencyThreshold / 2)
+                                randomLongBetween(0, highLatencyThreshold.millis() / 2)
                             )
                         )
                     )
@@ -358,14 +345,10 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
 
         final var clusterSettings = createBuiltInClusterSettings(settings);
         final var writeLoadConstraintDecider = new WriteLoadConstraintDecider(clusterSettings);
-        final var routingAllocation = new RoutingAllocation(
-            new AllocationDeciders(List.of(writeLoadConstraintDecider)),
-            state.getRoutingNodes().mutableCopy(),
-            state,
-            clusterInfo,
-            SnapshotShardSizeInfo.EMPTY,
-            randomLong()
-        );
+        final var routingAllocation = TestRoutingAllocationFactory.forClusterState(state)
+            .allocationDeciders(writeLoadConstraintDecider)
+            .clusterInfo(clusterInfo)
+            .mutable();
 
         // This should move a shard in an attempt to resolve the hot-spot
         balancedShardsAllocator.allocate(routingAllocation);
@@ -386,14 +369,12 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         // This should run through the balancer without moving any shards back
         ClusterInfo simulatedClusterInfo = clusterInfoSimulator.getClusterInfo();
         balancedShardsAllocator.allocate(
-            new RoutingAllocation(
-                routingAllocation.deciders(),
-                routingAllocation.routingNodes(),
-                routingAllocation.getClusterState(),
-                simulatedClusterInfo,
-                routingAllocation.snapshotShardSizeInfo(),
-                randomLong()
-            )
+            TestRoutingAllocationFactory.forClusterState(routingAllocation.getClusterState())
+                .allocationDeciders(routingAllocation.deciders())
+                .routingNodes(routingAllocation.routingNodes())
+                .clusterInfo(simulatedClusterInfo)
+                .shardSizeInfo(routingAllocation.snapshotShardSizeInfo())
+                .mutable()
         );
         assertEquals(1, routingAllocation.routingNodes().node(overloadedNode.getId()).numberOfOwningShards());
         assertEquals(3, routingAllocation.routingNodes().node(otherNode.getId()).numberOfOwningShards());
@@ -403,21 +384,8 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         final var indexName = randomIdentifier();
         final int numThreads = randomIntBetween(1, 10);
         final float allocationUtilizationThreshold = randomFloatBetween(0.5f, 0.9f, true);
-        final long highLatencyThreshold = randomLongBetween(1000, 10000);
-        final var settings = Settings.builder()
-            .put(
-                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
-                WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
-            )
-            .put(
-                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ALLOCATION_UTILIZATION_THRESHOLD_SETTING.getKey(),
-                allocationUtilizationThreshold
-            )
-            .put(
-                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING.getKey(),
-                TimeValue.timeValueMillis(highLatencyThreshold)
-            )
-            .build();
+        final TimeValue highLatencyThreshold = randomTimeValue(1000, 10000, TimeUnit.MILLISECONDS);
+        final var settings = createSettings(allocationUtilizationThreshold, null, highLatencyThreshold, null);
 
         final var state = ClusterStateCreationUtils.state(2, new String[] { indexName }, 4);
         final var overloadedNode = randomFrom(state.nodes().getAllNodes());
@@ -433,7 +401,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                             new ThreadPoolUsageStats(
                                 numThreads,
                                 randomFloatBetween(0.0f, allocationUtilizationThreshold - .0001f, false),
-                                randomLongBetween(0, highLatencyThreshold - 1)
+                                randomLongBetween(0, highLatencyThreshold.millis() - 1)
                             )
                         )
                     ),
@@ -445,7 +413,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                             new ThreadPoolUsageStats(
                                 numThreads,
                                 randomFloatBetween(0.0f, allocationUtilizationThreshold - .0001f, false),
-                                randomLongBetween(0, highLatencyThreshold - 1)
+                                randomLongBetween(0, highLatencyThreshold.millis() - 1)
                             )
                         )
                     )
@@ -455,14 +423,10 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
             .build();
 
         final var writeLoadConstraintDecider = createWriteLoadConstraintDecider(settings);
-        final var routingAllocation = new RoutingAllocation(
-            new AllocationDeciders(List.of(writeLoadConstraintDecider)),
-            state.getRoutingNodes().mutableCopy(),
-            state,
-            clusterInfo,
-            SnapshotShardSizeInfo.EMPTY,
-            randomLong()
-        );
+        final var routingAllocation = TestRoutingAllocationFactory.forClusterState(state)
+            .allocationDeciders(writeLoadConstraintDecider)
+            .clusterInfo(clusterInfo)
+            .mutable();
         routingAllocation.setDebugMode(RoutingAllocation.DebugMode.ON);
 
         var overloadedRoutingNode = routingAllocation.routingNodes().node(overloadedNode.getId());
@@ -488,19 +452,10 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         final float hotspotUtilizationThreshold = randomFloatBetween(0.5f, 0.9f, true);
         final String hotspotUtilizationThresholdString = RatioValue.parseRatioValue(String.valueOf(hotspotUtilizationThreshold))
             .formatNoTrailingZerosPercent();
-        final long highLatencyThreshold = randomLongBetween(1000, 10000);
-        final String highLatencyThresholdString = new TimeValue(highLatencyThreshold).toHumanReadableString(2);
-        final var settings = Settings.builder()
-            .put(
-                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
-                WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
-            )
-            .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_THRESHOLD_SETTING.getKey(), hotspotUtilizationThreshold)
-            .put(
-                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING.getKey(),
-                TimeValue.timeValueMillis(highLatencyThreshold)
-            )
-            .build();
+        final TimeValue highLatencyThreshold = randomTimeValue(1000, 10000, TimeUnit.MILLISECONDS);
+        final String highLatencyThresholdString = highLatencyThreshold.toHumanReadableString(2);
+        final int maxShardWriteLoadProportionPercent = randomIntBetween(80, 95);
+        final var settings = createSettings(null, hotspotUtilizationThreshold, highLatencyThreshold, maxShardWriteLoadProportionPercent);
         final var decider = createWriteLoadConstraintDecider(settings);
         final var indexName = randomIdentifier();
         final var state = ClusterStateCreationUtils.state(1, new String[] { indexName }, 4);
@@ -508,8 +463,8 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
 
         // test utilization low, latency high
         var utilization = randomFloatBetween(0.0f, hotspotUtilizationThreshold, true);
-        var latency = randomLongBetween(highLatencyThreshold + 1, 2 * highLatencyThreshold);
-        var routingAllocation = buildRoutingAllocation(state, decider, hotspotNode.getId(), utilization, latency);
+        var latencyMillis = randomLongBetween(highLatencyThreshold.millis() + 1, 2 * highLatencyThreshold.millis());
+        var routingAllocation = buildRoutingAllocation(state, decider, hotspotNode.getId(), utilization, latencyMillis);
         var hotspotRoutingNode = routingAllocation.routingNodes().node(hotspotNode.getId());
         var shardRouting = routingAllocation.routingNodes()
             .node(hotspotNode.getId())
@@ -531,7 +486,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                     """
                         Node \\[.*\\]'s queue latency of \\[%d\\] does not exceed the latency threshold of \\[%s\\], or the thread pool \
                         utilization of \\[%f\\] does not exceed the utilization threshold of \\[%s\\]""",
-                    latency,
+                    latencyMillis,
                     highLatencyThresholdString,
                     utilization,
                     hotspotUtilizationThresholdString
@@ -541,8 +496,8 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
 
         // test utilization high, latency low
         utilization = randomFloatBetween(hotspotUtilizationThreshold, 1.2f, false);
-        latency = randomLongBetween(0, highLatencyThreshold - 1);
-        routingAllocation = buildRoutingAllocation(state, decider, hotspotNode.getId(), utilization, latency);
+        latencyMillis = randomLongBetween(0, highLatencyThreshold.millis() - 1);
+        routingAllocation = buildRoutingAllocation(state, decider, hotspotNode.getId(), utilization, latencyMillis);
         hotspotRoutingNode = routingAllocation.routingNodes().node(hotspotNode.getId());
         shardRouting = routingAllocation.routingNodes()
             .node(hotspotNode.getId())
@@ -559,7 +514,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                     """
                         Node \\[.*\\]'s queue latency of \\[%d\\] does not exceed the latency threshold of \\[%s\\], or the thread pool \
                         utilization of \\[%f\\] does not exceed the utilization threshold of \\[%s\\]""",
-                    latency,
+                    latencyMillis,
                     highLatencyThresholdString,
                     utilization,
                     hotspotUtilizationThresholdString
@@ -569,8 +524,8 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
 
         // test utilization high and latency high
         utilization = randomFloatBetween(hotspotUtilizationThreshold, 1.2f, false);
-        latency = randomLongBetween(highLatencyThreshold + 1, highLatencyThreshold * 2);
-        routingAllocation = buildRoutingAllocation(state, decider, hotspotNode.getId(), utilization, latency);
+        latencyMillis = randomLongBetween(highLatencyThreshold.millis() + 1, highLatencyThreshold.millis() * 2);
+        routingAllocation = buildRoutingAllocation(state, decider, hotspotNode.getId(), utilization, latencyMillis);
         hotspotRoutingNode = routingAllocation.routingNodes().node(hotspotNode.getId());
         shardRouting = routingAllocation.routingNodes()
             .node(hotspotNode.getId())
@@ -587,13 +542,264 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                     """
                         Node \\[.*\\] has a queue latency of \\[%d\\] millis that exceeds the queue latency threshold of \\[%s\\] and a \
                         thread pool utilization of \\[%f\\] that exceeds the utilization threshold of \\[%s\\]. This node is \
-                        hot-spotting. Shard write load \\[.*\\]. Should move shard\\(s\\) away""",
-                    latency,
+                        hot-spotting. Shard write load \\[.*\\]. The max shard write-load proportion on this node is 0.0%%, below \
+                        the single-hot-shard threshold of %d%%. Should move shard\\(s\\) away""",
+                    latencyMillis,
+                    highLatencyThresholdString,
+                    utilization,
+                    hotspotUtilizationThresholdString,
+                    maxShardWriteLoadProportionPercent
+                )
+            )
+        );
+    }
+
+    /**
+     * Test that when {@code maxShardWriteLoadThreshold == 0.0} (the feature is disabled) and the node is hotspotting
+     * (both latency and utilization thresholds exceeded), the explain string says "Max shard proportion is disabled"
+     * rather than reporting a calculated proportion.
+     */
+    public void testCanRemainExplainStringWhenMaxShardProportionDisabledAndNodeHotspotting() {
+        final float hotspotUtilizationThreshold = randomFloatBetween(0.5f, 0.9f, true);
+        final String hotspotUtilizationThresholdString = RatioValue.parseRatioValue(String.valueOf(hotspotUtilizationThreshold))
+            .formatNoTrailingZerosPercent();
+        final TimeValue highLatencyThreshold = randomTimeValue(1000, 10000, TimeUnit.MILLISECONDS);
+        final String highLatencyThresholdString = highLatencyThreshold.toHumanReadableString(2);
+
+        final var settings = createSettings(null, hotspotUtilizationThreshold, highLatencyThreshold, 0);
+        final var decider = createWriteLoadConstraintDecider(settings);
+        final var indexName = randomIdentifier();
+        final var state = ClusterStateCreationUtils.state(1, new String[] { indexName }, 4);
+        final var hotspotNode = randomFrom(state.nodes().getAllNodes());
+
+        final float utilization = randomFloatBetween(hotspotUtilizationThreshold, 1.2f, false);
+        final long latencyMillis = randomLongBetween(highLatencyThreshold.millis() + 1, highLatencyThreshold.millis() * 2);
+        final var routingAllocation = buildRoutingAllocation(state, decider, hotspotNode.getId(), utilization, latencyMillis);
+        final var hotspotRoutingNode = routingAllocation.routingNodes().node(hotspotNode.getId());
+        final var shardRouting = routingAllocation.routingNodes()
+            .node(hotspotNode.getId())
+            .shardsWithState(ShardRoutingState.STARTED)
+            .findFirst()
+            .orElseThrow();
+
+        final Decision decision = decider.canRemain(
+            state.metadata().getProject().index(indexName),
+            shardRouting,
+            hotspotRoutingNode,
+            routingAllocation
+        );
+        assertEquals(Decision.Type.NOT_PREFERRED, decision.type());
+        assertThat(
+            decision.getExplanation(),
+            matchesPattern(
+                Strings.format(
+                    """
+                        Node \\[.*\\] has a queue latency of \\[%d\\] millis that exceeds the queue latency threshold of \\[%s\\] and a \
+                        thread pool utilization of \\[%f\\] that exceeds the utilization threshold of \\[%s\\]. This node is hot-spotting. \
+                        Shard write load \\[.*\\]. Max shard write-load proportion is disabled. Should move shard\\(s\\) away""",
+                    latencyMillis,
                     highLatencyThresholdString,
                     utilization,
                     hotspotUtilizationThresholdString
                 )
             )
+        );
+    }
+
+    public void testMaxSingleShardWriteLoadSingleShard() {
+        ShardId testShardId = new ShardId(randomIndexName(), randomUUID(), 0);
+
+        // only shard means 1.0
+        assertThat(
+            WriteLoadConstraintDecider.maxShardWriteLoadProportion(
+                List.of(testShardId),
+                Map.of(testShardId, randomDoubleBetween(0.001, 20.0, false))
+            ),
+            equalTo(1.0)
+        );
+
+        // inexplicably not in map means 0.0
+        assertThat(WriteLoadConstraintDecider.maxShardWriteLoadProportion(List.of(testShardId), Map.of()), equalTo(0.0));
+
+        // shard is in map with zero load
+        assertThat(WriteLoadConstraintDecider.maxShardWriteLoadProportion(List.of(testShardId), Map.of(testShardId, 0.0)), equalTo(0.0));
+
+        // shard with 0 load
+        assertThat(
+            WriteLoadConstraintDecider.maxShardWriteLoadProportion(
+                List.of(testShardId),
+                Map.of(testShardId, 0.0, new ShardId(randomIndexName(), randomUUID(), 0), randomDoubleBetween(0.0001, 20.0, true))
+            ),
+            equalTo(0.0)
+        );
+    }
+
+    public void testmaxSingleShardWriteLoadMultipleShards() {
+        ShardId testShardId1 = new ShardId(randomIndexName(), randomUUID(), 0);
+        ShardId testShardId2 = new ShardId(randomIndexName(), randomUUID(), 0);
+
+        double shard1Load = randomDoubleBetween(0.0001, 10.0, true);
+        double shard2Load = randomDoubleBetween(shard1Load, 20.0, false);
+
+        // picks the biggest one
+        assertThat(
+            WriteLoadConstraintDecider.maxShardWriteLoadProportion(
+                List.of(testShardId1, testShardId2),
+                Map.of(testShardId1, shard1Load, testShardId2, shard2Load)
+            ),
+            equalTo(shard2Load / (shard1Load + shard2Load))
+        );
+
+        // both zero
+        assertThat(
+            WriteLoadConstraintDecider.maxShardWriteLoadProportion(
+                List.of(testShardId1, testShardId2),
+                Map.of(testShardId1, 0.0, testShardId2, 0.0)
+            ),
+            equalTo(0.0)
+        );
+
+        // not in map
+        assertThat(WriteLoadConstraintDecider.maxShardWriteLoadProportion(List.of(testShardId1, testShardId2), Map.of()), equalTo(0.0));
+
+        // one in map
+        assertThat(
+            WriteLoadConstraintDecider.maxShardWriteLoadProportion(List.of(testShardId1, testShardId2), Map.of(testShardId1, 0.0)),
+            equalTo(0.0)
+        );
+
+        // one shard has 100% of the load
+        assertThat(
+            WriteLoadConstraintDecider.maxShardWriteLoadProportion(
+                List.of(testShardId1, testShardId2),
+                randomBoolean()
+                    ? Map.of(testShardId1, randomDoubleBetween(0.0001, 10.0, true), testShardId2, 0.0)
+                    : Map.of(testShardId1, randomDoubleBetween(0.0001, 10.0, true))
+            ),
+            equalTo(1.0)
+        );
+
+        // totally random map entry
+        assertThat(
+            WriteLoadConstraintDecider.maxShardWriteLoadProportion(
+                List.of(testShardId1, testShardId2),
+                Map.of(new ShardId(randomIndexName(), randomUUID(), 0), randomDoubleBetween(0.0001, 20.0, true))
+            ),
+            equalTo(0.0)
+        );
+    }
+
+    public void testHotspotUtilizationSingleShardProportionCheck() {
+        /* Test that a hotspot that is too focused on a single shard (over 90%) is left alone, as
+         * rebalancing won't do anything and the hotspot shard should not be moved. Test that when this
+         * proportion is not exceeded, the same check sees both shards flagged for migration away */
+        var writeLoadDecider = createWriteLoadConstraintDecider(createSettings(null, null, null, 90));
+
+        String indexName = randomIndexName();
+        int numberOfShards = 3;
+
+        ClusterState clusterState = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(
+            new String[] { indexName },
+            numberOfShards,
+            randomIntBetween(0, 2)
+        );
+
+        var node = clusterState.nodes().iterator().next();
+        var indexMetadata = clusterState.metadata().getProject().index(indexName);
+        var index = indexMetadata.getIndex();
+
+        var hotspotStats = createNodeUsageStatsForThreadPools(node, 8, 0.99f, 15_000);
+
+        ShardId highShard = new ShardId(index, 0);
+        ShardId lowShard = new ShardId(index, 1);
+        // a shard that is not on the node, to test correct exclusion and calculation
+        ShardId allocatedElsewhereShard = new ShardId(index, 2);
+
+        var usageStats = Map.of(node.getId(), hotspotStats);
+        var hotspotIds = Set.of(node.getId());
+
+        double scalar = randomDoubleBetween(0.1, 20.0, true);
+        var writeLoadsRemain = Map.of(
+            highShard,
+            0.95 * scalar,
+            lowShard,
+            0.05 * scalar,
+            allocatedElsewhereShard,
+            randomDoubleBetween(20.0, 40.0, true)
+        );
+
+        ClusterInfo clusterInfo = ClusterInfo.builder()
+            .nodeUsageStatsForThreadPools(usageStats)
+            .shardWriteLoads(writeLoadsRemain)
+            .nodeIdsWriteLoadHotspotting(hotspotIds)
+            .build();
+
+        var routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState).clusterInfo(clusterInfo).build();
+        routingAllocation.setDebugMode(RoutingAllocation.DebugMode.ON);
+
+        ShardRouting highShardRouting = TestShardRouting.newShardRouting(highShard, node.getId(), null, true, ShardRoutingState.STARTED);
+
+        ShardRouting lowShardRouting = TestShardRouting.newShardRouting(lowShard, node.getId(), null, true, ShardRoutingState.STARTED);
+
+        RoutingNode routingNode = RoutingNodesHelper.routingNode(node.getId(), node, highShardRouting, lowShardRouting);
+
+        // both high and low shards decide YES to canRemain, as the proportion
+        // of load is above 90% on one shard
+        Decision moveDecision = writeLoadDecider.canRemain(indexMetadata, highShardRouting, routingNode, routingAllocation);
+        assertEquals(Decision.Type.YES, moveDecision.type());
+        String explanationRegex = Strings.format("""
+            Node \\[%s\\] is hot-spotting due to a single shard executing \\[95.00\\] percent of the writes. But since this is above the \
+            single shard write load threshold \\(\\[90%%\\]\\), moving shards away from this node is not expected to resolve the \
+            hot-spot.""", node.getShortNodeDescription());
+
+        assertThat(moveDecision.getExplanation(), matchesPattern(explanationRegex));
+
+        moveDecision = writeLoadDecider.canRemain(indexMetadata, lowShardRouting, routingNode, routingAllocation);
+        assertEquals(Decision.Type.YES, moveDecision.type());
+        assertThat(moveDecision.getExplanation(), matchesPattern(explanationRegex));
+
+        // retry test, but turn off setting with a 0 value
+        var writeLoadDeciderProportionDisabled = createWriteLoadConstraintDecider(createSettings(null, null, null, 0));
+
+        assertEquals(
+            Decision.Type.NOT_PREFERRED,
+            writeLoadDeciderProportionDisabled.canRemain(indexMetadata, highShardRouting, routingNode, routingAllocation).type()
+        );
+
+        assertEquals(
+            Decision.Type.NOT_PREFERRED,
+            writeLoadDeciderProportionDisabled.canRemain(indexMetadata, lowShardRouting, routingNode, routingAllocation).type()
+        );
+
+        // retry test, with proportions under the threshold
+        scalar = randomDoubleBetween(0.1, 20.0, true);
+        var writeLoadsMigrate = Map.of(
+            highShard,
+            0.85 * scalar,
+            lowShard,
+            0.15 * scalar,
+            allocatedElsewhereShard,
+            randomDoubleBetween(20.0, 40.0, true)
+        );
+
+        clusterInfo = ClusterInfo.builder()
+            .nodeUsageStatsForThreadPools(usageStats)
+            .shardWriteLoads(writeLoadsMigrate)
+            .nodeIdsWriteLoadHotspotting(hotspotIds)
+            .build();
+
+        routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState).clusterInfo(clusterInfo).build();
+
+        // both high and low shards decide NOT_PREFERRED to canRemain, as the proportion
+        // of load is under 90% on any one shard
+        assertEquals(
+            Decision.Type.NOT_PREFERRED,
+            writeLoadDecider.canRemain(indexMetadata, highShardRouting, routingNode, routingAllocation).type()
+        );
+
+        assertEquals(
+            Decision.Type.NOT_PREFERRED,
+            writeLoadDecider.canRemain(indexMetadata, lowShardRouting, routingNode, routingAllocation).type()
         );
     }
 
@@ -616,14 +822,10 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
             )
             .build();
 
-        var routingAllocation = new RoutingAllocation(
-            new AllocationDeciders(List.of(decider)),
-            state.getRoutingNodes().mutableCopy(),
-            state,
-            clusterInfo,
-            SnapshotShardSizeInfo.EMPTY,
-            randomLong()
-        );
+        var routingAllocation = TestRoutingAllocationFactory.forClusterState(state)
+            .allocationDeciders(decider)
+            .clusterInfo(clusterInfo)
+            .mutable();
         routingAllocation.setDebugMode(RoutingAllocation.DebugMode.ON);
         return routingAllocation;
     }
@@ -647,6 +849,44 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         ShardRouting shardRoutingOnNodeAboveQueueThreshold,
         ShardRouting unassignedShardRouting
     ) {}
+
+    /**
+     * Create settings with write load decider enabled, and the given configurations set if they're not null
+     */
+    private static Settings createSettings(
+        @Nullable Float allocationUtilizationThreshold,
+        @Nullable Float hotspotUtilizationThreshold,
+        @Nullable TimeValue highLatencyThreshold,
+        @Nullable Integer maxShardWriteLoadProportion
+    ) {
+        Settings.Builder builder = Settings.builder()
+            .put(
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
+                WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
+            );
+        if (allocationUtilizationThreshold != null) {
+            builder.put(
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ALLOCATION_UTILIZATION_THRESHOLD_SETTING.getKey(),
+                allocationUtilizationThreshold
+            );
+        }
+        if (hotspotUtilizationThreshold != null) {
+            builder.put(
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_THRESHOLD_SETTING.getKey(),
+                hotspotUtilizationThreshold
+            );
+        }
+        if (maxShardWriteLoadProportion != null) {
+            builder.put(
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_MAX_SHARD_WRITE_LOAD_PROPORTION_THRESHOLD_SETTING.getKey(),
+                maxShardWriteLoadProportion + "%"
+            );
+        }
+        if (highLatencyThreshold != null) {
+            builder.put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING.getKey(), highLatencyThreshold);
+        }
+        return builder.build();
+    }
 
     /**
      * Creates all the cluster state and objects needed to test the {@link WriteLoadConstraintDecider}.
@@ -768,14 +1008,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
          * Create the RoutingAllocation from the ClusterState and ClusterInfo above, and set up the other input for the WriteLoadDecider.
          */
 
-        var routingAllocation = new RoutingAllocation(
-            null,
-            RoutingNodes.immutable(clusterState.globalRoutingTable(), clusterState.nodes()),
-            clusterState,
-            clusterInfo,
-            null,
-            System.nanoTime()
-        );
+        var routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState).clusterInfo(clusterInfo).build();
 
         ShardRouting shardRoutingOnNodeExceedingUtilThreshold = TestShardRouting.newShardRouting(
             testShardId1,
@@ -841,7 +1074,8 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         RoutingNode aboveQueuingThresholdRoutingNode = RoutingNodesHelper.routingNode(
             queuingAboveThresholdDiscoveryNode5.getId(),
             queuingAboveThresholdDiscoveryNode5,
-            shardRoutingOnNodeAboveQueueThreshold
+            shardRoutingOnNodeAboveQueueThreshold,
+            shardRoutingOnNodeBelowQueueThreshold
         );
         RoutingNode belowUtilisationThresholdButHighQueueLatencyNode = RoutingNodesHelper.routingNode(
             belowThresholdWithHighQueueLatencyNode6.getId(),

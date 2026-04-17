@@ -22,6 +22,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ResponseListener;
@@ -30,19 +31,25 @@ import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -472,6 +479,47 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
         );
         assertTrue("listener should have received success", success.get());
         assertArrayEquals(pitIdBytes, BytesReference.toBytes(capturedPitId[0]));
+    }
+
+    /**
+     * Verifies that open PIT sends {@code index_filter} in the JSON body when the source {@link SearchRequest} has a query
+     */
+    public void testOpenPitSuccessWithIndexFilterInRequestBody() throws IOException {
+        byte[] pitIdBytes = randomByteArrayOfLength(between(1, 64));
+        String base64Id = Base64.getUrlEncoder().encodeToString(pitIdBytes);
+        String json = "{\"id\":\"" + base64Id + "\"}";
+        Response response = mock(Response.class);
+        when(response.getEntity()).thenReturn(new StringEntity(json, ContentType.APPLICATION_JSON));
+        mockSuccess(response);
+
+        String index = randomAlphaOfLength(between(1, 10));
+        SearchRequest searchRequest = new SearchRequest().indices(index);
+        searchRequest.source(new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value")));
+        AtomicBoolean success = new AtomicBoolean(false);
+        BytesReference[] capturedPitId = new BytesReference[1];
+        RemoteReindexingUtils.openPit(
+            searchRequest,
+            new String[] { index },
+            TimeValue.timeValueMillis(between(1, 60000)),
+            RejectAwareActionListener.wrap(pitId -> {
+                capturedPitId[0] = pitId;
+                success.set(true);
+            }, e -> fail("unexpected failure"), e -> fail("unexpected rejection")),
+            threadPool,
+            client
+        );
+        assertTrue("listener should have received success", success.get());
+        assertArrayEquals(pitIdBytes, BytesReference.toBytes(capturedPitId[0]));
+
+        ArgumentCaptor<Request> requestCaptor = ArgumentCaptor.forClass(Request.class);
+        verify(client, times(1)).performRequestAsync(requestCaptor.capture(), any());
+        Request capturedRequest = requestCaptor.getValue();
+        assertNotNull(capturedRequest.getEntity());
+        String body = Streams.copyToString(new InputStreamReader(capturedRequest.getEntity().getContent(), StandardCharsets.UTF_8));
+        assertThat(body, containsString("\"index_filter\""));
+        assertThat(body, containsString("term"));
+        assertThat(body, containsString("\"field\""));
+        assertThat(body, containsString("\"value\""));
     }
 
     /**

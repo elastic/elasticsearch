@@ -24,7 +24,8 @@ import java.io.IOException;
 // end generated imports
 
 /**
- * Arrow buffer backed DoubleVector.
+ * Implementation of DoubleVector backed by an Arrow buffer holding 64 bits floats.
+ * <p>
  * This class is generated. Edit {@code X-ArrowBufVector.java.st} instead.
  */
 public final class DoubleArrowBufVector extends AbstractArrowBufVector<DoubleVector, DoubleBlock> implements DoubleVector {
@@ -56,8 +57,8 @@ public final class DoubleArrowBufVector extends AbstractArrowBufVector<DoubleVec
     }
 
     @Override
-    public double getDouble(int position) {
-        return valueBuffer.getDouble((long) position * Double.BYTES);
+    public double getDouble(int valueIndex) {
+        return valueBuffer.getDouble((long) valueIndex * Double.BYTES);
     }
 
     @Override

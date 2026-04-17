@@ -452,12 +452,10 @@ public class KnnIndexTester {
     }
 
     /**
-     * Bundles the vector reader, document factory, total doc count, and optional index sort
+     * Bundles the vector reader, document factory and total doc count
      * needed to create an index. Created via {@link DataGenerator#createIndexingSetup()}.
      */
-    public record IndexingSetup(IndexVectorReader reader, KnnIndexer.DocumentFactory factory, int totalDocs, Sort sort)
-        implements
-            Closeable {
+    public record IndexingSetup(IndexVectorReader reader, KnnIndexer.DocumentFactory factory, int totalDocs) implements Closeable {
 
         @Override
         public void close() throws IOException {
@@ -504,7 +502,14 @@ public class KnnIndexTester {
                 if (testConfiguration.reindex()) {
                     Directory writeDir = sharedDir != null ? sharedDir : dirConfig.factory().create(indexPath);
                     try (var setup = dataGenerator.createIndexingSetup()) {
-                        knnIndexer.createIndex(indexResults, writeDir, setup.reader(), setup.factory(), setup.totalDocs(), setup.sort());
+                        knnIndexer.createIndex(
+                            indexResults,
+                            writeDir,
+                            setup.reader(),
+                            setup.factory(),
+                            setup.totalDocs(),
+                            dataGenerator.getIndexSort()
+                        );
                     } finally {
                         if (writeDir != sharedDir) {
                             writeDir.close();
@@ -514,7 +519,7 @@ public class KnnIndexTester {
                     throw new IllegalArgumentException("Index path does not exist: " + indexPath);
                 }
                 if (testConfiguration.forceMerge()) {
-                    forceMerge(knnIndexer, indexResults, sharedDir, testConfiguration);
+                    forceMerge(knnIndexer, indexResults, sharedDir, testConfiguration, dataGenerator.getIndexSort());
                 }
             }
             numSegments(indexPath, indexResults, sharedDir);
@@ -543,12 +548,17 @@ public class KnnIndexTester {
         }
     }
 
-    static void forceMerge(KnnIndexer knnIndexer, Results indexResults, Directory sharedDir, TestConfiguration testConfiguration)
-        throws Exception {
+    static void forceMerge(
+        KnnIndexer knnIndexer,
+        Results indexResults,
+        Directory sharedDir,
+        TestConfiguration testConfiguration,
+        Sort indexSort
+    ) throws Exception {
         if (sharedDir != null) {
-            knnIndexer.forceMerge(indexResults, testConfiguration.forceMergeMaxNumSegments(), sharedDir);
+            knnIndexer.forceMerge(indexResults, testConfiguration.forceMergeMaxNumSegments(), sharedDir, indexSort);
         } else {
-            knnIndexer.forceMerge(indexResults, testConfiguration.forceMergeMaxNumSegments());
+            knnIndexer.forceMerge(indexResults, testConfiguration.forceMergeMaxNumSegments(), indexSort);
         }
     }
 

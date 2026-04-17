@@ -16,6 +16,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -32,7 +33,7 @@ import java.util.Map;
  */
 class FlattenedFieldParser {
     static final String SEPARATOR = "\0";
-    private static final byte SEPARATOR_BYTE = '\0';
+    static final byte SEPARATOR_BYTE = '\0';
 
     private final String rootFieldFullPath;
     private final String keyedFieldFullPath;
@@ -46,8 +47,11 @@ class FlattenedFieldParser {
     private final boolean usesBinaryDocValues;
     private final boolean hasRootDocValues;
     private final boolean storeIgnoredFieldsInBinaryDocValues;
+    private final IndexVersion indexVersion;
 
     private final Map<String, FieldMapper> mappedSubFields;
+
+    private final FlattenedFieldMapper.PreserveLeafArrays preserveLeafArrays;
 
     FlattenedFieldParser(
         String rootFieldFullPath,
@@ -60,7 +64,9 @@ class FlattenedFieldParser {
         boolean usesBinaryDocValues,
         boolean hasRootDocValues,
         Map<String, FieldMapper> mappedSubFields,
-        boolean storeIgnoredFieldsInBinaryDocValues
+        boolean storeIgnoredFieldsInBinaryDocValues,
+        FlattenedFieldMapper.PreserveLeafArrays preserveLeafArrays,
+        IndexVersion indexVersion
     ) {
         this.rootFieldFullPath = rootFieldFullPath;
         this.keyedFieldFullPath = keyedFieldFullPath;
@@ -73,15 +79,17 @@ class FlattenedFieldParser {
         this.hasRootDocValues = hasRootDocValues;
         this.mappedSubFields = mappedSubFields;
         this.storeIgnoredFieldsInBinaryDocValues = storeIgnoredFieldsInBinaryDocValues;
+        this.preserveLeafArrays = preserveLeafArrays;
+        this.indexVersion = indexVersion;
     }
 
-    public void parse(final DocumentParserContext documentParserContext) throws IOException {
+    public void parse(final DocumentParserContext documentParserContext, FlattenedFieldArrayContext arrayContext) throws IOException {
         XContentParser parser = documentParserContext.parser();
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
 
         ContentPath path = new ContentPath();
 
-        var context = new Context(parser, documentParserContext);
+        var context = new Context(parser, documentParserContext, arrayContext);
         parseObject(context, path);
     }
 
@@ -128,11 +136,18 @@ class FlattenedFieldParser {
             addField(context, path, currentName, value);
         } else if (token == XContentParser.Token.VALUE_NULL) {
             String key = path.pathAsText(currentName);
+            if (key.contains(SEPARATOR)) {
+                throw new IllegalArgumentException(
+                    "Keys in [flattened] fields cannot contain the reserved character \\0. Offending key: [" + key + "]."
+                );
+            }
             FieldMapper mappedSubField = mappedSubFields.get(key);
             if (mappedSubField != null) {
                 mappedSubField.parse(context.documentParserContext());
             } else if (nullValue != null) {
                 addField(context, path, currentName, nullValue);
+            } else if (preserveLeafArrays == FlattenedFieldMapper.PreserveLeafArrays.EXACT) {
+                context.arrayContext.recordNull(key);
             }
         } else {
             // Note that we throw an exception here just to be safe. We don't actually expect to reach
@@ -162,15 +177,17 @@ class FlattenedFieldParser {
 
         if (value.length() > ignoreAbove) {
             if (context.documentParserContext().mappingLookup().isSourceSynthetic()) {
+                if (preserveLeafArrays == FlattenedFieldMapper.PreserveLeafArrays.EXACT) {
+                    context.arrayContext.recordOffset(key, new BytesRef(value));
+                }
                 if (storeIgnoredFieldsInBinaryDocValues) {
-                    MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) context.documentParserContext.doc()
-                        .getByKey(keyedIgnoredValuesFieldFullPath);
-                    if (field == null) {
-                        // deduplicate and sort to match the behavior of other fields that use binary doc values for ignored fields
-                        field = new MultiValuedBinaryDocValuesField.IntegratedCount(keyedIgnoredValuesFieldFullPath, false);
-                        context.documentParserContext.doc().addWithKey(keyedIgnoredValuesFieldFullPath, field);
-                    }
-                    field.add(BytesRef.deepCopyOf(bytesKeyedValue));
+                    MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
+                        context.documentParserContext.doc(),
+                        keyedIgnoredValuesFieldFullPath,
+                        BytesRef.deepCopyOf(bytesKeyedValue),
+                        MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE,
+                        indexVersion
+                    );
                 } else {
                     context.documentParserContext.doc().add(new StoredField(keyedIgnoredValuesFieldFullPath, bytesKeyedValue));
                 }
@@ -204,22 +221,28 @@ class FlattenedFieldParser {
         if (fieldType.hasDocValues()) {
             if (usesBinaryDocValues) {
                 if (hasRootDocValues) {
-                    MultiValuedBinaryDocValuesField.SeparateCount.addToSeparateCountMultiBinaryFieldInDoc(
+                    MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
                         context.documentParserContext.doc(),
                         rootFieldFullPath,
-                        bytesValue
+                        bytesValue,
+                        MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
                     );
                 }
-                MultiValuedBinaryDocValuesField.SeparateCount.addToSeparateCountMultiBinaryFieldInDoc(
+                MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
                     context.documentParserContext.doc(),
                     keyedFieldFullPath,
-                    bytesKeyedValue
+                    bytesKeyedValue,
+                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
                 );
             } else {
                 if (hasRootDocValues) {
                     context.documentParserContext.doc().add(new SortedSetDocValuesField(rootFieldFullPath, bytesValue));
                 }
                 context.documentParserContext.doc().add(new SortedSetDocValuesField(keyedFieldFullPath, bytesKeyedValue));
+            }
+
+            if (preserveLeafArrays == FlattenedFieldMapper.PreserveLeafArrays.EXACT) {
+                context.arrayContext.recordOffset(key, bytesValue);
             }
 
             if (fieldType.isDimension() == false || context.documentParserContext().getRoutingFields().isNoop()) {
@@ -267,5 +290,5 @@ class FlattenedFieldParser {
         return new BytesRef(keyedValue.bytes, valueStart, keyedValue.length - (length + 1));
     }
 
-    private record Context(XContentParser parser, DocumentParserContext documentParserContext) {}
+    private record Context(XContentParser parser, DocumentParserContext documentParserContext, FlattenedFieldArrayContext arrayContext) {}
 }

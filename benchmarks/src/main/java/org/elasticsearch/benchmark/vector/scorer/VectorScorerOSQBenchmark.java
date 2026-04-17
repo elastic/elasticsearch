@@ -19,9 +19,10 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
-import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
+import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
+import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
+import org.elasticsearch.simdvec.internal.vectorization.PanamaESVectorizationProvider;
 import org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectoryFactory;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -71,17 +72,18 @@ public class VectorScorerOSQBenchmark {
 
     public enum VectorImplementation {
         SCALAR,
-        VECTORIZED
+        PANAMA,
+        NATIVE
     }
 
-    @Param({ "384", "768", "1024" })
+    @Param({ "96", "128", "192", "256", "384", "768", "1024" })
     public int dims;
 
     @Param({ "1", "2", "4", "7" })
     public byte bits;
 
     @Param({ "STRIPED", "PACKED_NIBBLE" })
-    public ESNextOSQVectorsScorer.SymmetricInt4Encoding int4Encoding;
+    public ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding;
 
     @Param
     public VectorImplementation implementation;
@@ -92,15 +94,15 @@ public class VectorScorerOSQBenchmark {
     @Param
     public VectorSimilarityFunction similarityFunction;
 
-    static final int BULK_SIZE = ESNextOSQVectorsScorer.BULK_SIZE;
-    static final int NUM_VECTORS = ESNextOSQVectorsScorer.BULK_SIZE * 10;
+    static final int BULK_SIZE = ES940OSQVectorsScorer.BULK_SIZE;
+    static final int NUM_VECTORS = ES940OSQVectorsScorer.BULK_SIZE * 10;
     static final int NUM_QUERIES = 10;
 
     VectorScorerTestUtils.OSQVectorData[] binaryQueries;
     float centroidDp;
 
     byte[] scratch;
-    ESNextOSQVectorsScorer scorer;
+    ES940OSQVectorsScorer scorer;
 
     Path tempDir;
     Directory directory;
@@ -124,36 +126,36 @@ public class VectorScorerOSQBenchmark {
         int sparseOffsetsCount
     ) {}
 
-    private static ESNextOSQVectorsScorer.SymmetricInt4Encoding resolveInt4Encoding(
+    private static ES940OSQVectorsScorer.SymmetricInt4Encoding resolveInt4Encoding(
         byte bits,
-        ESNextOSQVectorsScorer.SymmetricInt4Encoding int4Encoding
+        ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding
     ) {
-        return bits == 4 ? int4Encoding : ESNextOSQVectorsScorer.SymmetricInt4Encoding.STRIPED;
+        return bits == 4 ? int4Encoding : ES940OSQVectorsScorer.SymmetricInt4Encoding.STRIPED;
     }
 
-    private static int docPackedLength(int dims, byte bits, ESNextOSQVectorsScorer.SymmetricInt4Encoding int4Encoding) {
-        if (bits == 4 && int4Encoding == ESNextOSQVectorsScorer.SymmetricInt4Encoding.STRIPED) {
-            int discretized = ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(bits).discretizedDimensions(dims);
+    private static int docPackedLength(int dims, byte bits, ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding) {
+        if (bits == 4 && int4Encoding == ES940OSQVectorsScorer.SymmetricInt4Encoding.STRIPED) {
+            int discretized = ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(bits).discretizedDimensions(dims);
             return 4 * ((discretized + 7) / 8);
         }
-        return ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(bits).getDocPackedLength(dims);
+        return ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(bits).getDocPackedLength(dims);
     }
 
-    private static int queryPackedLength(int dims, byte bits, ESNextOSQVectorsScorer.SymmetricInt4Encoding int4Encoding) {
-        if (bits == 4 && int4Encoding == ESNextOSQVectorsScorer.SymmetricInt4Encoding.STRIPED) {
+    private static int queryPackedLength(int dims, byte bits, ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding) {
+        if (bits == 4 && int4Encoding == ES940OSQVectorsScorer.SymmetricInt4Encoding.STRIPED) {
             return docPackedLength(dims, bits, int4Encoding);
         }
-        return ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(bits).getQueryPackedLength(dims);
+        return ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(bits).getQueryPackedLength(dims);
     }
 
     static VectorData generateRandomVectorData(
         Random random,
         int dims,
         byte bits,
-        ESNextOSQVectorsScorer.SymmetricInt4Encoding int4Encoding,
+        ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding,
         VectorSimilarityFunction similarityFunction
     ) {
-        ESNextOSQVectorsScorer.SymmetricInt4Encoding resolvedEncoding = resolveInt4Encoding(bits, int4Encoding);
+        ES940OSQVectorsScorer.SymmetricInt4Encoding resolvedEncoding = resolveInt4Encoding(bits, int4Encoding);
         int binaryIndexLength = docPackedLength(dims, bits, resolvedEncoding);
 
         final float[] centroid = new float[dims];
@@ -291,19 +293,28 @@ public class VectorScorerOSQBenchmark {
             }
             default -> throw new IllegalArgumentException("Unsupported bits: " + bits);
         };
-        ESNextOSQVectorsScorer.SymmetricInt4Encoding resolvedEncoding = resolveInt4Encoding(bits, int4Encoding);
+        ES940OSQVectorsScorer.SymmetricInt4Encoding resolvedEncoding = resolveInt4Encoding(bits, int4Encoding);
         this.scorer = switch (implementation) {
-            case SCALAR -> new ESNextOSQVectorsScorer(
+            case SCALAR -> new ES940OSQVectorsScorer(
                 input,
                 (byte) queryBits,
                 (byte) docBits,
                 dims,
                 data.binaryIndexLength,
-                ESNextOSQVectorsScorer.BULK_SIZE,
+                ES940OSQVectorsScorer.BULK_SIZE,
                 resolvedEncoding
             );
-            case VECTORIZED -> ESVectorizationProvider.getInstance()
-                .newESNextOSQVectorsScorer(
+            case PANAMA -> new PanamaESVectorizationProvider(false).newES940OSQVectorsScorer(
+                input,
+                (byte) queryBits,
+                (byte) docBits,
+                dims,
+                data.binaryIndexLength,
+                BULK_SIZE,
+                resolvedEncoding
+            );
+            case NATIVE -> ESVectorizationProvider.getInstance()
+                .newES940OSQVectorsScorer(
                     input,
                     (byte) queryBits,
                     (byte) docBits,

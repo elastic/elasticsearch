@@ -17,9 +17,11 @@ import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.util.List;
@@ -28,12 +30,22 @@ import java.util.List;
  * Similar to {@link Percentile}, but it is used to calculate the percentile value over a time series of values from the given field.
  */
 public class PercentileOverTime extends TimeSeriesAggregateFunction implements OnlySurrogateExpression, ToAggregator {
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(PercentileOverTime.class)
+        .binary(PercentileOverTime::new)
+        .name("percentile_over_time");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .withinSeriesOverTimeBinary(PromqlFunctionDefinition.QUANTILE, PercentileOverTime::new)
+        .description("Returns the φ-quantile (0 ≤ φ ≤ 1) of the values in the specified time range.")
+        .example("quantile_over_time(0.5, http_requests_total[1h])")
+        .name("quantile_over_time");
+
     @FunctionInfo(
         returnType = "double",
         description = "Calculates the percentile over time of a field.",
         type = FunctionType.TIME_SERIES_AGGREGATE,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") },
-        preview = true,
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") },
         examples = { @Example(file = "k8s-timeseries", tag = "percentile_over_time") }
     )
     public PercentileOverTime(

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.test.knn.data;
 
+import org.apache.lucene.search.Sort;
 import org.elasticsearch.test.knn.KnnIndexTester;
 import org.elasticsearch.test.knn.KnnSearcher;
 import org.elasticsearch.test.knn.SearchParameters;
@@ -24,7 +25,7 @@ import java.io.IOException;
 public interface DataGenerator {
 
     /**
-     * Creates the indexing setup (vector reader, document factory, doc count, sort) for this dataset.
+     * Creates the indexing setup (vector reader, document factory, doc count) for this dataset.
      */
     KnnIndexTester.IndexingSetup createIndexingSetup() throws IOException;
 
@@ -37,4 +38,9 @@ public interface DataGenerator {
      * Whether this generator can provide query vectors for searching.
      */
     boolean hasQueries();
+
+    /**
+     * Returns the index sort or null if these data does not require one.
+     */
+    Sort getIndexSort();
 }

@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -150,10 +151,12 @@ public class DLMConvertToFrozenCleanupTests extends ESTestCase {
         assertThat(modifyRequest, is(notNullValue()));
         assertThat(modifyRequest.getActions().size(), is(2));
         // First action should remove the original index
+        assertThat(modifyRequest.getActions().get(0).getType(), equalTo(DataStreamAction.Type.REMOVE_BACKING_INDEX));
         assertThat(modifyRequest.getActions().get(0).getDataStream(), equalTo(dataStreamName));
         assertThat(modifyRequest.getActions().get(0).getIndex(), equalTo(indexName));
         // Second action should add the frozen index
         String frozenIndexName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + indexName;
+        assertThat(modifyRequest.getActions().get(1).getType(), equalTo(DataStreamAction.Type.ADD_BACKING_INDEX));
         assertThat(modifyRequest.getActions().get(1).getDataStream(), equalTo(dataStreamName));
         assertThat(modifyRequest.getActions().get(1).getIndex(), equalTo(frozenIndexName));
 

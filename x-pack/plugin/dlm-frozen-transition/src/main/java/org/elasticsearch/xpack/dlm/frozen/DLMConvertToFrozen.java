@@ -404,7 +404,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         ProjectState projectState = getProjectState();
         ProjectMetadata projectMetadata = projectState.metadata();
         String snapshotName = snapshotName(forceMergeIndex);
-        String mountedIndexName = frozenIndexName();
+        String mountedIndexName = snapshotName(indexName);
 
         // We ignore these settings when mounting the snapshot to frozen:
         // - ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING:
@@ -473,7 +473,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         // Check if the old index is still part of a datastream, swap if so
         String dataStreamName = resolveDataStreamName(indexName, projectMetadata);
         if (dataStreamName != null) {
-            maybeSwapBackingIndexInDataStream(dataStreamName);
+            swapIndicesInDataStream(dataStreamName);
         }
         // Delete the force merge index if it is different from the original.
         if (indexName.equals(forceMergeIndex) == false) {
@@ -538,7 +538,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             return false;
         }
         // return false if frozen index is not in a datastream (swap hasn't occurred yet)
-        return resolveDataStreamName(frozenIndexName(), projectMetadata) != null;
+        return resolveDataStreamName(snapshotName(indexName), projectMetadata) != null;
     }
 
     /**
@@ -1037,19 +1037,12 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
     }
 
     /**
-     * Returns the expected name of the frozen index after mounting the snapshot.
-     */
-    String frozenIndexName() {
-        return SNAPSHOT_NAME_PREFIX + indexName;
-    }
-
-    /**
      * Checks whether the snapshot for the index is already mounted by
      * looking for an index with the expected mounted name in the project metadata.
      */
     boolean isSnapshotMounted() {
         ProjectMetadata projectMetadata = getProjectState().metadata();
-        return projectMetadata.indices().containsKey(frozenIndexName());
+        return projectMetadata.indices().containsKey(snapshotName(indexName));
     }
 
     /**
@@ -1073,7 +1066,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
      * with a remove action for the old index and an add action for the new frozen index.
      * @param dataStreamName the name of the data stream
      */
-    void maybeSwapBackingIndexInDataStream(String dataStreamName) {
+    void swapIndicesInDataStream(String dataStreamName) {
         ProjectState projectState = getProjectState();
 
         ModifyDataStreamsAction.Request request = new ModifyDataStreamsAction.Request(
@@ -1081,7 +1074,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             TimeValue.MAX_VALUE,
             List.of(
                 DataStreamAction.removeBackingIndex(dataStreamName, indexName),
-                DataStreamAction.addBackingIndex(dataStreamName, frozenIndexName())
+                DataStreamAction.addBackingIndex(dataStreamName, snapshotName(indexName))
             )
         );
 
@@ -1098,14 +1091,14 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             logger.info(
                 "DLM successfully swapped backing index [{}] with [{}] in data stream [{}]",
                 indexName,
-                frozenIndexName(),
+                snapshotName(indexName),
                 dataStreamName
             );
         } else {
             throw new ElasticsearchException(
                 "DLM failed to acknowledge swap of backing index [{}] with [{}] in data stream [{}]",
                 indexName,
-                frozenIndexName(),
+                snapshotName(indexName),
                 dataStreamName
             );
         }

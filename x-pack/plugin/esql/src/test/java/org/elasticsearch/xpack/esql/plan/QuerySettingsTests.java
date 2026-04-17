@@ -257,8 +257,6 @@ public class QuerySettingsTests extends ESTestCase {
     public static void generateDocs() throws Exception {
         List<QuerySettings.QuerySettingDef<?>> settings = QuerySettings.SETTINGS_BY_NAME.values()
             .stream()
-            // TODO this is non-snapshot, but we don't want to expose it yet
-            .filter(def -> def != QuerySettings.PROJECT_ROUTING)
             .sorted(Comparator.comparing(QuerySettings.QuerySettingDef::name))
             .toList();
 
@@ -270,14 +268,6 @@ public class QuerySettingsTests extends ESTestCase {
             );
             settingsDocsSupport.renderDocs();
         }
-
-        // TODO remote this when project routing is public
-        // we only want the Kibana JSON for now
-        new DocsV3Support.SettingsDocsSupport(
-            QuerySettings.PROJECT_ROUTING,
-            QuerySettingsTests.class,
-            DocsV3Support.callbacksFromSystemProperty()
-        ).renderKibanaCommandDefinition();
 
         DocsV3Support.SettingsTocDocsSupport toc = new DocsV3Support.SettingsTocDocsSupport(
             settings,

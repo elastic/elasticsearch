@@ -1,6 +1,6 @@
 {
   "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
-  "type" : "scalar",
+  "type" : "time",
   "name" : "year",
   "description" : "returns the year of each of those timestamps (in UTC)",
   "signatures" : [
@@ -14,7 +14,7 @@
         }
       ],
       "variadic" : false,
-      "returnType" : "scalar"
+      "returnType" : "instant_vector"
     }
   ],
   "examples" : [

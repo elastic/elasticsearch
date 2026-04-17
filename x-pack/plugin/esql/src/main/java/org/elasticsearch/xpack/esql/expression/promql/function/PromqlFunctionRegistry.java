@@ -157,6 +157,9 @@ public class PromqlFunctionRegistry {
         }
     }
 
+    /**
+     * Carries the PromQL evaluation context needed by function builders to construct ES|QL expressions.
+     */
     public record PromqlContext(Expression timestamp, Expression window, Expression step, Configuration configuration) {}
 
     // PromQL function names not yet implemented

@@ -64,6 +64,9 @@ public final class PromqlFunctionDefinition {
         UNSUPPORTED
     }
 
+    /**
+     * Builds an ES|QL expression for a PromQL date/time extraction function (e.g. year, month, day_of_month).
+     */
     @FunctionalInterface
     public interface DateTimeFunctionBuilder {
         Expression build(Source source, Expression date, Configuration configuration);
@@ -82,6 +85,9 @@ public final class PromqlFunctionDefinition {
             return new PromqlParamInfo(name, type, description, true, false);
         }
 
+        /**
+         * Creates a parameter that is both optional and acts as the primary child expression for the function.
+         */
         public static PromqlParamInfo optionalChild(String name, PromqlDataType type, String description) {
             return new PromqlParamInfo(name, type, description, true, true);
         }
@@ -375,7 +381,7 @@ public final class PromqlFunctionDefinition {
          * When the argument is a numeric value (seconds since epoch), it is converted to a datetime first.
          */
         public PromqlFunctionDefinition.Builder dateTime(DateTimeFunctionBuilder ctorRef) {
-            this.functionType = FunctionType.SCALAR;
+            this.functionType = FunctionType.TIME_EXTRACTION;
             this.arity = PromqlFunctionArity.optional(1);
             this.builder = (source, target, ctx, extraParams) -> {
                 var step = ctx.step();

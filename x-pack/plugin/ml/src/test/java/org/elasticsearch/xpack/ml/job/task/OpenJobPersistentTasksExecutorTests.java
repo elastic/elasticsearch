@@ -261,7 +261,9 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
             new OpenJobAction.JobParams(jobId),
             new PersistentTasksCustomMetadata.Assignment(
                 nodeId,
-                PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED,
+                nodeId != null
+                    ? PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED
+                    : PersistentTasksCustomMetadata.Assignment.Reason.UNEXPECTED_PRE_9_5,
                 "test assignment"
             )
         );

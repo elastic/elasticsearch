@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,8 +30,10 @@ import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTask
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Arrays;
 
@@ -280,7 +283,7 @@ public class PersistentTasksCustomMetadataTests extends BasePersistentTasksCusto
                     TestPersistentTasksPlugin.TestPersistentTasksExecutor.NAME,
                     new TestPersistentTasksPlugin.TestParams(randomAlphaOfLength(10)),
                     1L,
-                    new PersistentTasksCustomMetadata.Assignment(executorNode, reason, randomAlphaOfLength(10))
+                    new PersistentTasksCustomMetadata.Assignment(executorNode, reason, explanationForReason(reason))
                 );
             PersistentTasksCustomMetadata.PersistentTask<?> copy = copyWriteable(
                 task,
@@ -348,6 +351,91 @@ public class PersistentTasksCustomMetadataTests extends BasePersistentTasksCusto
         );
         copy = copyWriteable(task, getNamedWriteableRegistry(), PersistentTasksCustomMetadata.PersistentTask::new, oldVersion);
         assertEquals(PersistentTasksCustomMetadata.Assignment.Reason.UNEXPECTED_PRE_9_5, copy.getAssignment().getReason());
+    }
+
+    public void testAssignmentReasonXContentRoundTrip() throws Exception {
+        for (PersistentTasksCustomMetadata.Assignment.Reason reason : PersistentTasksCustomMetadata.Assignment.Reason.values()) {
+            String executorNode = reason == PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED ? randomAlphaOfLength(10) : null;
+            PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder()
+                .addTask(
+                    "task-id",
+                    TestPersistentTasksPlugin.TestPersistentTasksExecutor.NAME,
+                    new TestPersistentTasksPlugin.TestParams(randomAlphaOfLength(10)),
+                    new PersistentTasksCustomMetadata.Assignment(executorNode, reason, explanationForReason(reason))
+                );
+            PersistentTasksCustomMetadata original = tasks.build();
+
+            XContentBuilder builder = XContentBuilder.builder(randomFrom(XContentType.values()).xContent());
+            builder.startObject();
+            original.toXContentChunked(ToXContent.EMPTY_PARAMS).forEachRemaining(chunk -> {
+                try {
+                    chunk.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            builder.endObject();
+
+            try (XContentParser parser = createParser(builder.contentType().xContent(), BytesReference.bytes(builder))) {
+                PersistentTasksCustomMetadata parsed = PersistentTasksCustomMetadata.fromXContent(parser);
+                assertEquals(reason, parsed.getTask("task-id").getAssignment().getReason());
+            }
+        }
+    }
+
+    public void testAssignmentReasonXContentBackwardCompatibility() throws Exception {
+        // Simulate old XContent without reason field: parser should infer reason via fromExplanation
+        // Use the real serialization then re-parse without the reason field
+        PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder()
+            .addTask(
+                "task-id",
+                TestPersistentTasksPlugin.TestPersistentTasksExecutor.NAME,
+                new TestPersistentTasksPlugin.TestParams("test"),
+                new PersistentTasksCustomMetadata.Assignment(
+                    null,
+                    PersistentTasksCustomMetadata.Assignment.Reason.TASK_CREATED,
+                    "waiting for initial assignment"
+                )
+            );
+        PersistentTasksCustomMetadata original = tasks.build();
+
+        // Serialize to JSON in API context
+        XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
+        builder.startObject();
+        original.toXContentChunked(ToXContent.EMPTY_PARAMS).forEachRemaining(chunk -> {
+            try {
+                chunk.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+        builder.endObject();
+
+        // Remove the reason field to simulate pre-9.5 XContent
+        String json = BytesReference.bytes(builder).utf8ToString();
+        json = json.replace("\"reason\":\"TASK_CREATED\",", "");
+
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), json)) {
+            PersistentTasksCustomMetadata parsed = PersistentTasksCustomMetadata.fromXContent(parser);
+            assertEquals(
+                PersistentTasksCustomMetadata.Assignment.Reason.TASK_CREATED,
+                parsed.getTask("task-id").getAssignment().getReason()
+            );
+        }
+    }
+
+    private static String explanationForReason(PersistentTasksCustomMetadata.Assignment.Reason reason) {
+        return switch (reason) {
+            case ASSIGNED -> "";
+            case TASK_CREATED -> "waiting for initial assignment";
+            case NODE_LEFT -> "awaiting reassignment after node loss";
+            case ASSIGNMENT_DISABLED -> "no persistent task assignments are allowed due to cluster settings";
+            case NO_NODE_FOUND -> "no appropriate nodes found for the assignment";
+            case AWAITING_LAZY_ASSIGNMENT -> "persistent task is awaiting node assignment.";
+            case AWAITING_UPGRADE -> "persistent task cannot be assigned while upgrade mode is enabled.";
+            case RESET_IN_PROGRESS -> "persistent task will not be assigned as a feature reset is in progress.";
+            case UNEXPECTED_PRE_9_5 -> "some unknown reason";
+        };
     }
 
     private PersistentTaskParams emptyTaskParams(String taskName) {

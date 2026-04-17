@@ -271,6 +271,9 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
             this.reason = reason;
             assert explanation != null;
             this.explanation = explanation;
+            assert reason == Reason.UNEXPECTED_PRE_9_5
+                || reason == Reason.NO_NODE_FOUND
+                || reason == Reason.fromExplanation(executorNode, explanation) : "reason does not round-trip via fromExplanation";
         }
 
         @Nullable

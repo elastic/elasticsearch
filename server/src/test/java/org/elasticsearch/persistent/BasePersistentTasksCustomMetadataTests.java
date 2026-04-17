@@ -255,10 +255,7 @@ public abstract class BasePersistentTasksCustomMetadataTests<T extends Metadata.
             } else {
                 return new PersistentTasksCustomMetadata.Assignment(
                     null,
-                    randomValueOtherThan(
-                        PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED,
-                        () -> randomFrom(PersistentTasksCustomMetadata.Assignment.Reason.values())
-                    ),
+                    PersistentTasksCustomMetadata.Assignment.Reason.UNEXPECTED_PRE_9_5,
                     randomAlphaOfLength(10)
                 );
             }

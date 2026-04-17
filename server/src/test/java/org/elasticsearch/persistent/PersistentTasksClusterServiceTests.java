@@ -1221,7 +1221,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             clusterStateBuilder,
             metadata,
             tasks,
-            new Assignment(node, Assignment.Reason.ASSIGNED, randomAlphaOfLength(10)),
+            new Assignment(node, node != null ? Assignment.Reason.ASSIGNED : Assignment.Reason.UNEXPECTED_PRE_9_5, randomAlphaOfLength(10)),
             randomAlphaOfLength(10)
         );
     }
@@ -1249,7 +1249,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             id,
             TestPersistentTasksExecutor.NAME,
             new TestParams(param),
-            new Assignment(node, Assignment.Reason.ASSIGNED, "explanation: " + param)
+            new Assignment(node, node != null ? Assignment.Reason.ASSIGNED : Assignment.Reason.UNEXPECTED_PRE_9_5, "explanation: " + param)
         );
         return id;
     }

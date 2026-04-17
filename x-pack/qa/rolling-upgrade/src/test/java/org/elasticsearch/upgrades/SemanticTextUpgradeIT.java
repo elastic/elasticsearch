@@ -89,7 +89,8 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
             case OLD -> {
                 assumeFalse(
                     "Legacy format index creation is not supported when cluster has ["
-                        + SemanticTextFieldMapper.SEMANTIC_TEXT_PREVENT_LEGACY_FORMAT_NEW_INDICES.id() + "] feature",
+                        + SemanticTextFieldMapper.SEMANTIC_TEXT_PREVENT_LEGACY_FORMAT_NEW_INDICES.id()
+                        + "] feature",
                     useLegacyFormat && clusterHasFeature(SemanticTextFieldMapper.SEMANTIC_TEXT_PREVENT_LEGACY_FORMAT_NEW_INDICES)
                 );
                 createAndPopulateIndex();

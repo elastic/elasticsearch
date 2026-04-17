@@ -132,13 +132,20 @@ setup:
 
 ---
 "Indices boost for nonexistent index/alias":
+  - requires:
+      cluster_features: ["search.indices_boost_remote_index_support"]
+      reason: "indices_boost remote index support contains the change"
   - do:
-      catch: /no such index/
       search:
         rest_total_hits_as_int: true
         index: _all
+        ignore_unavailable: false
         body:
           indices_boost: [{nonexistent: 2.0}, {test_1: 1.0}, {test_2: 2.0}]
+
+  - match: { hits.total: 2}
+  - match: { hits.hits.0._index: test_2 }
+  - match: { hits.hits.1._index: test_1 }
 
   - do:
       search:

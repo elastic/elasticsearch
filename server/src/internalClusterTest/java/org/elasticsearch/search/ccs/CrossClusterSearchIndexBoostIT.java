@@ -32,11 +32,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.fail;
 
 /**
- * End-to-end {@code indices_boost} checks for cross-cluster search with {@code ccs_minimize_roundtrips=true}.
- * Each cluster resolves boosts on its own leg (via subrequest), so local and remote
- * indices can be boosted independently, including _origin: qualified
- * entries on the querying cluster. The {@code ccs_minimize_roundtrips=false} path is not covered here; it does
- * not apply remote-targeted boosts correctly from the coordinating node.
+ * End-to-end {@code indices_boost} checks for cross-cluster search.
  */
 public class CrossClusterSearchIndexBoostIT extends AbstractCrossClusterSearchTestCase {
 
@@ -46,6 +42,11 @@ public class CrossClusterSearchIndexBoostIT extends AbstractCrossClusterSearchTe
 
     private static final String ORIGIN_LOCAL = "local";
     private static final String ORIGIN_REMOTE = "remote";
+
+    @Override
+    protected boolean reuseClusters() {
+        return true;
+    }
 
     private static void indexOneDocument(Client client, String index, String origin) {
         client.prepareIndex(index).setId("1").setSource(Map.of("k", "v", "origin", origin)).get();

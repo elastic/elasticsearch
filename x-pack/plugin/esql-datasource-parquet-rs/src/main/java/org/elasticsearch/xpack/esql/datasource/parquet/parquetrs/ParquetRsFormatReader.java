@@ -11,7 +11,6 @@ import org.apache.arrow.c.ArrowArray;
 import org.apache.arrow.c.ArrowSchema;
 import org.apache.arrow.c.Data;
 import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.elasticsearch.compute.Describable;
@@ -296,7 +295,7 @@ public class ParquetRsFormatReader implements FormatReader {
         ParquetRsBatchIterator(long handle, BlockFactory blockFactory) {
             this.handle = handle;
             this.blockFactory = blockFactory;
-            this.allocator = new RootAllocator(Long.MAX_VALUE);
+            this.allocator = blockFactory.arrowAllocator();
         }
 
         @Override

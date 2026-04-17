@@ -11,7 +11,9 @@ use jni::EnvUnowned;
 use jni::errors::{Error as JniError, Result as JniResult, ThrowRuntimeExAndDefault};
 use jni::objects::{JClass, JObjectArray, JString};
 use jni::sys::{JNI_FALSE, JNI_TRUE, jboolean, jint, jlong};
+use object_store::ObjectStore;
 use object_store::aws::AmazonS3Builder;
+use object_store::local::LocalFileSystem;
 use parquet::arrow::ProjectionMask;
 use parquet::arrow::arrow_reader::{ArrowReaderBuilder, ArrowReaderMetadata, ArrowReaderOptions, ParquetRecordBatchReader, RowFilter};
 use parquet::file::metadata::PageIndexPolicy;
@@ -94,7 +96,7 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parq
         let kind = if file_path_str.starts_with("s3://") {
             open_s3(&file_path_str, projected_cols, batch_size, limit, filter, s3_concurrency())?
         } else {
-            open_local(&file_path_str, projected_cols, batch_size, limit, filter)?
+            open_local_async(&file_path_str, projected_cols, batch_size, limit, filter, local_concurrency())?
         };
 
         let remaining = if limit > 0 { Some(limit as usize) } else { None };
@@ -155,7 +157,32 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parq
     .resolve::<ThrowRuntimeExAndDefault>()
 }
 
-/// Open a local Parquet file (synchronous).
+fn local_concurrency() -> usize {
+    std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(4)
+        .min(8)
+}
+
+/// Open a local Parquet file via the async path with multi-worker row group parallelism.
+/// Uses `object_store::local::LocalFileSystem` which dispatches I/O to blocking threads
+/// via `spawn_blocking` when called from a tokio context.
+fn open_local_async(
+    file_path: &str,
+    projected_cols: Option<Vec<String>>,
+    batch_size: jint,
+    limit: jlong,
+    filter: Option<Arc<FilterExpr>>,
+    max_concurrency: usize,
+) -> JniResult<ReaderKind> {
+    let local_fs = LocalFileSystem::new_with_prefix("/").map_err(err)?;
+    let store: Arc<dyn ObjectStore> = Arc::new(local_fs);
+    let normalized = file_path.strip_prefix('/').unwrap_or(file_path);
+    let object_path = object_store::path::Path::from(normalized);
+    open_async(store, object_path, projected_cols, batch_size, limit, filter, max_concurrency)
+}
+
+/// Open a local Parquet file (synchronous, single-threaded).
 fn open_local(
     file_path: &str,
     projected_cols: Option<Vec<String>>,
@@ -174,24 +201,135 @@ fn open_local(
     Ok(ReaderKind::Sync(reader))
 }
 
+/// Spawn worker tasks for a single file, sending decoded batches into `tx`.
+/// Returns the number of surviving row groups (0 means the file was fully pruned).
+async fn spawn_file_workers(
+    obj_reader: ParquetObjectReader,
+    arrow_meta: ArrowReaderMetadata,
+    projected_cols: &Option<Vec<String>>,
+    batch_size: jint,
+    limit: jlong,
+    filter: &Option<Arc<FilterExpr>>,
+    max_concurrency: usize,
+    tx: &mpsc::Sender<Result<RecordBatch, ParquetError>>,
+) -> Result<usize, JniError> {
+    let metadata = arrow_meta.metadata().clone();
+    let arrow_schema = arrow_meta.schema().clone();
+    let parquet_schema = arrow_meta.parquet_schema().clone();
+
+    let surviving: Vec<usize> = (0..metadata.num_row_groups())
+        .filter(|&rg_idx| {
+            if let Some(expr) = filter {
+                filter::row_group_matches(expr, metadata.row_group(rg_idx), &parquet_schema)
+            } else {
+                true
+            }
+        })
+        .collect();
+
+    if surviving.is_empty() {
+        return Ok(0);
+    }
+
+    let n_workers = max_concurrency.min(surviving.len()).max(1);
+    let chunks: Vec<Vec<usize>> = (0..n_workers)
+        .map(|w| surviving.iter().skip(w).step_by(n_workers).copied().collect())
+        .filter(|c: &Vec<usize>| c.is_empty() == false)
+        .collect();
+
+    for chunk in chunks {
+        let mut builder =
+            parquet::arrow::async_reader::ParquetRecordBatchStreamBuilder::new_with_metadata(
+                obj_reader.clone(),
+                arrow_meta.clone(),
+            );
+
+        builder = builder.with_batch_size(batch_size as usize);
+        if limit > 0 {
+            builder = builder.with_limit(limit as usize);
+        }
+
+        if let Some(cols) = projected_cols {
+            let indices: Vec<usize> = cols
+                .iter()
+                .map(|name| arrow_schema.index_of(name).map_err(err))
+                .collect::<std::result::Result<_, _>>()?;
+            let mask = ProjectionMask::roots(&parquet_schema, indices);
+            builder = builder.with_projection(mask);
+        }
+
+        builder = builder.with_row_groups(chunk.clone());
+
+        if let Some(expr) = filter {
+            let row_filter = filter::build_row_filter(expr, arrow_schema.clone(), &parquet_schema);
+            builder = builder.with_row_filter(row_filter);
+        }
+
+        let mut stream = builder.build().map_err(err)?;
+        let tx = tx.clone();
+        tokio::spawn(async move {
+            while let Some(reader) = stream.next_row_group().await.transpose() {
+                let reader = match reader {
+                    Ok(r) => r,
+                    Err(e) => { let _ = tx.send(Err(e)).await; break; }
+                };
+                for batch in reader {
+                    if tx.send(batch.map_err(Into::into)).await.is_err() {
+                        return;
+                    }
+                }
+            }
+        });
+    }
+
+    Ok(surviving.len())
+}
+
+/// Async reader shared by both local and S3 paths.
+///
+/// Reads file metadata once, prunes row groups with the predicate's column
+/// statistics, then splits surviving row groups into N chunks
+/// (N = `max_concurrency`). Each chunk gets its own `ParquetRecordBatchStream`
+/// running as a spawned tokio task, with decoded batches sent through an mpsc
+/// channel. Within each task, `next_row_group()` pipelines I/O and decode.
+fn open_async(
+    store: Arc<dyn ObjectStore>,
+    object_path: object_store::path::Path,
+    projected_cols: Option<Vec<String>>,
+    batch_size: jint,
+    limit: jlong,
+    filter: Option<Arc<FilterExpr>>,
+    max_concurrency: usize,
+) -> JniResult<ReaderKind> {
+    let rx = ASYNC_RUNTIME.block_on(async move {
+        let inner = async {
+            let mut obj_reader = ParquetObjectReader::new(store, object_path);
+
+            let arrow_meta = ArrowReaderMetadata::load_async(
+                &mut obj_reader, ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Required),
+            ).await.map_err(err)?;
+
+            let n_workers = max_concurrency;
+            let (tx, rx) = mpsc::channel::<Result<RecordBatch, ParquetError>>(n_workers * 2);
+
+            spawn_file_workers(
+                obj_reader, arrow_meta, &projected_cols, batch_size, limit,
+                &filter, max_concurrency, &tx,
+            ).await?;
+
+            drop(tx);
+            Ok::<_, JniError>(rx)
+        };
+
+        tokio::time::timeout(std::time::Duration::from_secs(300), inner)
+            .await
+            .map_err(|_| err("Parquet async open timed out after 300s"))?
+    })?;
+
+    Ok(ReaderKind::Async(rx))
+}
+
 /// Open a Parquet file on S3 (async via object_store).
-///
-/// **Concurrency model:** matches DataFusion's `ParquetExec`. We read the file
-/// metadata once, prune row groups with the predicate's column statistics,
-/// then split surviving row groups into N chunks (N = `s3_concurrency()`).
-/// Each chunk gets its own `ParquetRecordBatchStream` running as a spawned
-/// tokio task, with decoded batches sent through an mpsc channel. This gives
-/// true parallel decode across tokio worker threads, matching how DataFusion
-/// spawns independent tasks per partition.
-///
-/// Within each task, we use `next_row_group()` to overlap I/O and decode:
-/// the next row group's column chunks are fetched from S3 while the current
-/// row group is being decoded into batches. This pipeline hides S3 latency
-/// and matches how DataFusion's `ParquetExec` prefetches data.
-///
-/// `with_preload_column_index(true)` / `with_preload_offset_index(true)`
-/// batch the page-index fetches into a single coalesced request per stream,
-/// matching what `ParquetExec` does (`enable_page_index = true` by default).
 ///
 /// Uses the default AWS credential chain: env vars (AWS_ACCESS_KEY_ID, etc.)
 /// → ~/.aws/credentials → IMDS (EC2 instance profile).
@@ -214,92 +352,10 @@ fn open_s3(
         .with_bucket_name(bucket)
         .build()
         .map_err(err)?;
-    let store: Arc<dyn object_store::ObjectStore> = Arc::new(s3);
+    let store: Arc<dyn ObjectStore> = Arc::new(s3);
     let object_path = object_store::path::Path::from(key);
 
-    let rx = ASYNC_RUNTIME.block_on(async move {
-        let mut obj_reader = ParquetObjectReader::new(store, object_path);
-
-        let arrow_meta = ArrowReaderMetadata::load_async(
-            &mut obj_reader, ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Required),
-        ).await.map_err(err)?;
-        let metadata = arrow_meta.metadata().clone();
-        let arrow_schema = arrow_meta.schema().clone();
-        let parquet_schema = arrow_meta.parquet_schema().clone();
-
-        let surviving: Vec<usize> = (0..metadata.num_row_groups())
-            .filter(|&rg_idx| {
-                if let Some(ref expr) = filter {
-                    filter::row_group_matches(expr, metadata.row_group(rg_idx), &parquet_schema)
-                } else {
-                    true
-                }
-            })
-            .collect();
-
-        if surviving.is_empty() {
-            let (_tx, rx) = mpsc::channel::<Result<RecordBatch, ParquetError>>(1);
-            return Ok::<_, JniError>(rx);
-        }
-
-        let n_workers = max_concurrency.min(surviving.len()).max(1);
-        let chunks: Vec<Vec<usize>> = (0..n_workers)
-            .map(|w| surviving.iter().skip(w).step_by(n_workers).copied().collect())
-            .filter(|c: &Vec<usize>| !c.is_empty())
-            .collect();
-
-        let (tx, rx) = mpsc::channel::<Result<RecordBatch, ParquetError>>(n_workers * 2);
-
-        for chunk in chunks {
-            let mut builder =
-                parquet::arrow::async_reader::ParquetRecordBatchStreamBuilder::new_with_metadata(
-                    obj_reader.clone(),
-                    arrow_meta.clone(),
-                );
-
-            builder = builder.with_batch_size(batch_size as usize);
-            if limit > 0 {
-                builder = builder.with_limit(limit as usize);
-            }
-
-            if let Some(ref cols) = projected_cols {
-                let indices: Vec<usize> = cols
-                    .iter()
-                    .map(|name| arrow_schema.index_of(name).map_err(err))
-                    .collect::<std::result::Result<_, _>>()?;
-                let mask = ProjectionMask::roots(&parquet_schema, indices);
-                builder = builder.with_projection(mask);
-            }
-
-            builder = builder.with_row_groups(chunk.clone());
-
-            if let Some(ref expr) = filter {
-                let row_filter = filter::build_row_filter(expr, arrow_schema.clone(), &parquet_schema);
-                builder = builder.with_row_filter(row_filter);
-            }
-
-            let mut stream = builder.build().map_err(err)?;
-            let tx = tx.clone();
-            tokio::spawn(async move {
-                while let Some(reader) = stream.next_row_group().await.transpose() {
-                    let reader = match reader {
-                        Ok(r) => r,
-                        Err(e) => { let _ = tx.send(Err(e)).await; break; }
-                    };
-                    for batch in reader {
-                        if tx.send(batch.map_err(Into::into)).await.is_err() {
-                            return;
-                        }
-                    }
-                }
-            });
-        }
-        drop(tx);
-
-        Ok::<_, JniError>(rx)
-    })?;
-
-    Ok(ReaderKind::Async(rx))
+    open_async(store, object_path, projected_cols, batch_size, limit, filter, max_concurrency)
 }
 
 /// Open multiple S3 Parquet files with parallel metadata fetching.
@@ -314,7 +370,6 @@ fn open_s3_multi(
     max_concurrency: usize,
 ) -> JniResult<ReaderKind> {
     let rx = ASYNC_RUNTIME.block_on(async {
-        // Parse all URLs and build object stores
         let mut file_infos = Vec::with_capacity(file_paths.len());
         for path in file_paths {
             let url = Url::parse(path).map_err(err)?;
@@ -324,12 +379,11 @@ fn open_s3_multi(
                 .with_bucket_name(bucket)
                 .build()
                 .map_err(err)?;
-            let store: Arc<dyn object_store::ObjectStore> = Arc::new(s3);
+            let store: Arc<dyn ObjectStore> = Arc::new(s3);
             let object_path = object_store::path::Path::from(key);
             file_infos.push((store, object_path));
         }
 
-        // Fetch all metadata in parallel
         let meta_options = ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Required);
         let meta_futs: Vec<_> = file_infos.iter().map(|(store, path)| {
             let mut reader = ParquetObjectReader::new(Arc::clone(store), path.clone());
@@ -344,76 +398,11 @@ fn open_s3_multi(
         let n_workers = max_concurrency;
         let (tx, rx) = mpsc::channel::<Result<RecordBatch, ParquetError>>(n_workers * 2);
 
-        // For each file, determine surviving row groups and spawn workers
         for (obj_reader, arrow_meta) in all_meta {
-            let metadata = arrow_meta.metadata().clone();
-            let arrow_schema = arrow_meta.schema().clone();
-            let parquet_schema = arrow_meta.parquet_schema().clone();
-
-            let surviving: Vec<usize> = (0..metadata.num_row_groups())
-                .filter(|&rg_idx| {
-                    if let Some(ref expr) = filter {
-                        filter::row_group_matches(expr, metadata.row_group(rg_idx), &parquet_schema)
-                    } else {
-                        true
-                    }
-                })
-                .collect();
-
-            if surviving.is_empty() {
-                continue;
-            }
-
-            let file_workers = n_workers.min(surviving.len()).max(1);
-            let chunks: Vec<Vec<usize>> = (0..file_workers)
-                .map(|w| surviving.iter().skip(w).step_by(file_workers).copied().collect())
-                .filter(|c: &Vec<usize>| !c.is_empty())
-                .collect();
-
-            for chunk in chunks {
-                let mut builder =
-                    parquet::arrow::async_reader::ParquetRecordBatchStreamBuilder::new_with_metadata(
-                        obj_reader.clone(),
-                        arrow_meta.clone(),
-                    );
-
-                builder = builder.with_batch_size(batch_size as usize);
-                if limit > 0 {
-                    builder = builder.with_limit(limit as usize);
-                }
-
-                if let Some(ref cols) = projected_cols {
-                    let indices: Vec<usize> = cols
-                        .iter()
-                        .map(|name| arrow_schema.index_of(name).map_err(err))
-                        .collect::<std::result::Result<_, _>>()?;
-                    let mask = ProjectionMask::roots(&parquet_schema, indices);
-                    builder = builder.with_projection(mask);
-                }
-
-                builder = builder.with_row_groups(chunk.clone());
-
-                if let Some(ref expr) = filter {
-                    let row_filter = filter::build_row_filter(expr, arrow_schema.clone(), &parquet_schema);
-                    builder = builder.with_row_filter(row_filter);
-                }
-
-                let mut stream = builder.build().map_err(err)?;
-                let tx = tx.clone();
-                tokio::spawn(async move {
-                    while let Some(reader) = stream.next_row_group().await.transpose() {
-                        let reader = match reader {
-                            Ok(r) => r,
-                            Err(e) => { let _ = tx.send(Err(e)).await; break; }
-                        };
-                        for batch in reader {
-                            if tx.send(batch.map_err(Into::into)).await.is_err() {
-                                return;
-                            }
-                        }
-                    }
-                });
-            }
+            spawn_file_workers(
+                obj_reader, arrow_meta, &projected_cols, batch_size, limit,
+                &filter, max_concurrency, &tx,
+            ).await?;
         }
         drop(tx);
 
@@ -509,9 +498,9 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parq
                 None => None,
                 Some(r) => Some(r.map_err(err)),
             },
-            ReaderKind::Async(rx) => match ASYNC_RUNTIME.block_on(rx.recv()) {
-                None => None,
+            ReaderKind::Async(rx) => match rx.blocking_recv() {
                 Some(r) => Some(r.map_err(err)),
+                None => None,
             },
         };
 

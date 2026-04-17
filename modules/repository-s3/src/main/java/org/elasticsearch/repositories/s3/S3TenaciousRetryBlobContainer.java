@@ -17,6 +17,9 @@ import org.elasticsearch.common.blobstore.support.TenaciousRetryBlobContainer;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 
 import static software.amazon.awssdk.http.HttpStatusCode.FORBIDDEN;
+import static software.amazon.awssdk.http.HttpStatusCode.REQUEST_TIMEOUT;
+import static software.amazon.awssdk.http.HttpStatusCode.SERVICE_UNAVAILABLE;
+import static software.amazon.awssdk.http.HttpStatusCode.THROTTLING;
 
 public class S3TenaciousRetryBlobContainer extends TenaciousRetryBlobContainer {
 
@@ -38,7 +41,15 @@ public class S3TenaciousRetryBlobContainer extends TenaciousRetryBlobContainer {
 
     @Override
     protected boolean isExceptionRetryable(Exception e) {
-        return e instanceof S3Exception && ((S3Exception) e).statusCode() == FORBIDDEN;
+        if (e instanceof S3Exception == false) {
+            return false;
+        }
+
+        S3Exception exception = (S3Exception) e;
+        return exception.statusCode() == FORBIDDEN
+            || exception.statusCode() == SERVICE_UNAVAILABLE
+            || exception.statusCode() == THROTTLING
+            || exception.statusCode() == REQUEST_TIMEOUT;
     }
 
     @Override

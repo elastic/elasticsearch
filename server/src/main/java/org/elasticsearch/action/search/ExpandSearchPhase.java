@@ -25,6 +25,7 @@ import org.elasticsearch.search.collapse.CollapseBuilder;
 
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 /**
  * This search phase is an optional phase that will be executed once all hits are fetched from the shards that executes
@@ -112,20 +113,25 @@ class ExpandSearchPhase extends SearchPhase {
         }
         context.getSearchTransport().sendExecuteMultiSearch(multiRequest, context.getTask(), ActionListener.wrap(response -> {
             Iterator<MultiSearchResponse.Item> it = response.iterator();
-            for (SearchHit hit : searchHits.getHits()) {
+            SearchHit[] outerHits = searchHits.getHits();
+            for (int i = 0; i < outerHits.length; i++) {
+                SearchHit hit = outerHits[i];
+                Map<String, SearchHits> innerHitsMap = Maps.newMapWithExpectedSize(innerHitBuilders.size());
                 for (InnerHitBuilder innerHitBuilder : innerHitBuilders) {
                     MultiSearchResponse.Item item = it.next();
                     if (item.isFailure()) {
+                        innerHitsMap.values().forEach(SearchHits::decRef);
                         phaseFailure(item.getFailure());
                         return;
                     }
                     SearchHits innerHits = item.getResponse().getHits();
-                    if (hit.getInnerHits() == null) {
-                        hit.setInnerHits(Maps.newMapWithExpectedSize(innerHitBuilders.size()));
-                    }
-                    hit.getInnerHits().put(innerHitBuilder.getName(), innerHits);
-                    assert hit.isPooled() : "hit should be pooled";
                     innerHits.mustIncRef();
+                    innerHitsMap.put(innerHitBuilder.getName(), innerHits);
+                }
+                if (hit.isPooled()) {
+                    hit.setInnerHits(innerHitsMap);
+                } else {
+                    searchHits.replaceHit(i, hit.withInnerHits(innerHitsMap));
                 }
             }
             onPhaseDone();

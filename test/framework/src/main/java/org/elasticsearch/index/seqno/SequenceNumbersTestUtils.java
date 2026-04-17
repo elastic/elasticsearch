@@ -207,7 +207,7 @@ public final class SequenceNumbersTestUtils {
      *
      * Uses the default {@link ESIntegTestCase#internalCluster()}.
      */
-    public static void persistGlobalCheckpointOnPrimaryShards(String index) throws IOException {
+    public static void persistGlobalCheckpointOnPrimaryShards(String index) {
         persistGlobalCheckpointOnPrimaryShards(internalCluster(), index);
     }
 
@@ -220,11 +220,14 @@ public final class SequenceNumbersTestUtils {
      * @param cluster the cluster containing the index
      * @param index   the name of the index
      */
-    public static void persistGlobalCheckpointOnPrimaryShards(InternalTestCluster cluster, String index) throws IOException {
+    public static void persistGlobalCheckpointOnPrimaryShards(InternalTestCluster cluster, String index) {
         final var future = new PlainActionFuture<Void>();
         try (var listeners = new RefCountingListener(future)) {
             for (String node : cluster.nodesInclude(index)) {
                 for (IndexService indexService : cluster.getInstance(IndicesService.class, node)) {
+                    if (indexService.index().getName().equals(index) == false) {
+                        continue;
+                    }
                     for (IndexShard indexShard : indexService) {
                         if (indexShard.routingEntry().primary() == false) {
                             continue;
@@ -234,8 +237,6 @@ public final class SequenceNumbersTestUtils {
                             indexShard.routingEntry().active(),
                             equalTo(true)
                         );
-
-                        indexShard.sync();
 
                         final var globalCheckpoint = indexShard.getLastKnownGlobalCheckpoint();
                         final var listener = listeners.acquire(

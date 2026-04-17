@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 145361
+summary: Use ref-counted `SearchHits` in data frame analytics paths
+type: enhancement

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResolvedIndexExpressions;
@@ -22,6 +23,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
@@ -29,6 +31,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -202,37 +205,47 @@ public class IndexResolver {
         boolean trackUnmappedFieldIndices,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
-        var mergeResponseListener = new GroupedActionListener<EsqlResolveFieldsResponse>(
-            2,
-            listener.delegateFailureAndWrap((l, responses) -> {
-                var response = merge(responses);
-                var overallMinimumVersion = TransportVersion.min(minimumVersion, response.minTransportVersion());
-                var indexPattern = String.join(",", requiredIndexPattern, optionalIndexPattern);
-                FieldsInfo info = new FieldsInfo(
-                    response,
-                    overallMinimumVersion,
-                    Build.current().isSnapshot(),
-                    useAggregateMetricDoubleWhenNotSupported,
-                    useDenseVectorWhenNotSupported,
-                    hasTimeSeriesAggregation
-                );
-                l.onResponse(
-                    new Versioned<>(
-                        mergedMappings(
-                            indexPattern,
-                            true,
-                            info,
-                            trackUnmappedFieldIndices,
-                            (ignored, fieldCapabilitiesResponse) -> Maps.transformValues(
-                                EsqlResolvedIndexExpression.from(fieldCapabilitiesResponse),
-                                v -> List.copyOf(v.expression())
-                            )
-                        ),
-                        info.minTransportVersion()
-                    )
-                );
-            })
-        );
+        var mergeResponseListener = new GroupedActionListener<EsqlResolveFieldsResponse>(2, new ActionListener<>() {
+            @Override
+            public void onResponse(Collection<EsqlResolveFieldsResponse> responses) {
+                try {
+                    var response = merge(responses);
+                    var overallMinimumVersion = TransportVersion.min(minimumVersion, response.minTransportVersion());
+                    var indexPattern = String.join(",", requiredIndexPattern, optionalIndexPattern);
+                    FieldsInfo info = new FieldsInfo(
+                        response,
+                        overallMinimumVersion,
+                        Build.current().isSnapshot(),
+                        useAggregateMetricDoubleWhenNotSupported,
+                        useDenseVectorWhenNotSupported,
+                        hasTimeSeriesAggregation
+                    );
+                    listener.onResponse(
+                        new Versioned<>(
+                            mergedMappings(
+                                indexPattern,
+                                true,
+                                info,
+                                trackUnmappedFieldIndices,
+                                (ignored, fieldCapabilitiesResponse) -> Maps.transformValues(
+                                    EsqlResolvedIndexExpression.from(fieldCapabilitiesResponse),
+                                    v -> List.copyOf(v.expression())
+                                )
+                            ),
+                            info.minTransportVersion()
+                        )
+                    );
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                var infe = (IndexNotFoundException) ExceptionsHelper.unwrap(e, IndexNotFoundException.class);
+                listener.onFailure(infe != null ? new VerificationException("Unknown index [" + infe.getIndex().getName() + "]") : e);
+            }
+        });
         if (requiredIndexPattern.isEmpty()) {
             mergeResponseListener.onResponse(null);
         } else {

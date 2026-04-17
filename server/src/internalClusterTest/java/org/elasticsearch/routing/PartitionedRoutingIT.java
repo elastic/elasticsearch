@@ -32,9 +32,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
 
     public void testVariousPartitionSizes() throws Exception {
         boolean routingDocValues = randomBoolean();
-        String mapping = routingDocValues
-            ? "{\"_routing\":{\"required\":true,\"doc_values\":true}}"
-            : "{\"_routing\":{\"required\":true}}";
+        String mapping = routingDocValues ? "{\"_routing\":{\"required\":true,\"doc_values\":true}}" : "{\"_routing\":{\"required\":true}}";
         for (int shards = 1; shards <= 4; shards++) {
             for (int partitionSize = 1; partitionSize < shards; partitionSize++) {
                 String index = "index_" + shards + "_" + partitionSize;
@@ -70,9 +68,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
         String index = "index_" + currentShards;
 
         boolean routingDocValues = randomBoolean();
-        String mapping = routingDocValues
-            ? "{\"_routing\":{\"required\":true,\"doc_values\":true}}"
-            : "{\"_routing\":{\"required\":true}}";
+        String mapping = routingDocValues ? "{\"_routing\":{\"required\":true,\"doc_values\":true}}" : "{\"_routing\":{\"required\":true}}";
         indicesAdmin().prepareCreate(index)
             .setSettings(
                 indexSettings(currentShards, numberOfReplicas()).put("index.number_of_routing_shards", currentShards)

@@ -118,7 +118,16 @@ public class RoutingFieldTypeTests extends FieldTypeTestCase {
 
         ElasticsearchException ee = expectThrows(
             ElasticsearchException.class,
-            () -> RoutingFieldMapper.DOC_VALUES_FIELD_TYPE.rangeQuery("foo", "qux", true, false, null, null, null, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
+            () -> RoutingFieldMapper.DOC_VALUES_FIELD_TYPE.rangeQuery(
+                "foo",
+                "qux",
+                true,
+                false,
+                null,
+                null,
+                null,
+                MOCK_CONTEXT_DISALLOW_EXPENSIVE
+            )
         );
         assertEquals(
             "Cannot search on field [_routing] since it is not indexed and 'search.allow_expensive_queries' is set to false.",
@@ -130,10 +139,7 @@ public class RoutingFieldTypeTests extends FieldTypeTestCase {
         Query expected = new PrefixQuery(new Term("_routing", new BytesRef("foo")), MultiTermQuery.DOC_VALUES_REWRITE);
         assertEquals(expected, RoutingFieldMapper.DOC_VALUES_FIELD_TYPE.prefixQuery("foo", null, false, MOCK_CONTEXT));
         // doc values prefix queries are not blocked by allow_expensive_queries
-        assertEquals(
-            expected,
-            RoutingFieldMapper.DOC_VALUES_FIELD_TYPE.prefixQuery("foo", null, false, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
-        );
+        assertEquals(expected, RoutingFieldMapper.DOC_VALUES_FIELD_TYPE.prefixQuery("foo", null, false, MOCK_CONTEXT_DISALLOW_EXPENSIVE));
     }
 
     public void testWildcardQueryDocValues() {

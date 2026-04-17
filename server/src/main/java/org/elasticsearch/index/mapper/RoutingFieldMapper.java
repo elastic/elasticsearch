@@ -160,7 +160,13 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, SearchExecutionContext context) {
+        public Query rangeQuery(
+            Object lowerTerm,
+            Object upperTerm,
+            boolean includeLower,
+            boolean includeUpper,
+            SearchExecutionContext context
+        ) {
             failIfNotIndexedNorDocValuesFallback(context);
             if (indexType.hasDocValues()) {
                 return SortedDocValuesField.newSlowRangeQuery(
@@ -176,7 +182,15 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions, SearchExecutionContext context, MultiTermQuery.RewriteMethod rewriteMethod) {
+        public Query fuzzyQuery(
+            Object value,
+            Fuzziness fuzziness,
+            int prefixLength,
+            int maxExpansions,
+            boolean transpositions,
+            SearchExecutionContext context,
+            MultiTermQuery.RewriteMethod rewriteMethod
+        ) {
             if (indexType.hasDocValues()) {
                 return new FuzzyQuery(
                     new Term(name(), indexedValueForSearch(value)),
@@ -192,7 +206,12 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, SearchExecutionContext context) {
+        public Query prefixQuery(
+            String value,
+            MultiTermQuery.RewriteMethod method,
+            boolean caseInsensitive,
+            SearchExecutionContext context
+        ) {
             if (indexType.hasDocValues()) {
                 if (caseInsensitive == false) {
                     Term prefix = new Term(name(), indexedValueForSearch(value));
@@ -211,7 +230,12 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query wildcardQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, SearchExecutionContext context) {
+        public Query wildcardQuery(
+            String value,
+            MultiTermQuery.RewriteMethod method,
+            boolean caseInsensitive,
+            SearchExecutionContext context
+        ) {
             if (indexType.hasDocValues()) {
                 if (getTextSearchInfo().searchAnalyzer() != null) {
                     value = normalizeWildcardPattern(name(), value, getTextSearchInfo().searchAnalyzer());

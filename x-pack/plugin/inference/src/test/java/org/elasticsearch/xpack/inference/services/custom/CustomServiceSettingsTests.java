@@ -65,10 +65,13 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
     private static final String TEST_REQUEST_CONTENT_STRING = "test-request-content-string";
     private static final String INITIAL_TEST_REQUEST_CONTENT_STRING = "initial-test-request-content-string";
     private static final CustomResponseParser TEST_RESPONSE_PARSER = new DenseEmbeddingResponseParser(
-        "$.data.embeddings[*].embedding",
+        "$.some.path.embeddings[*].embedding",
         CustomServiceEmbeddingType.FLOAT
     );
-    private static final CustomResponseParser INITIAL_TEST_RESPONSE_PARSER = new NoopResponseParser();
+    private static final CustomResponseParser INITIAL_TEST_RESPONSE_PARSER = new DenseEmbeddingResponseParser(
+        "$.some.other.path.embeddings[*].embedding",
+        CustomServiceEmbeddingType.FLOAT
+    );
     private static final int TEST_RATE_LIMIT = 20;
     private static final int INITIAL_TEST_RATE_LIMIT = 30;
     private static final Integer INITIAL_TEST_BATCH_SIZE = 5;
@@ -138,7 +141,8 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
     public void testUpdateServiceSettings_AllFields_UpdatesMutableFields() {
         HashMap<String, Object> requestSettingsMap = createSettingsMap();
 
-        var updatedServiceSettings = createInitialCustomServiceSettings().updateServiceSettings(requestSettingsMap);
+        var originalServiceSettings = createInitialCustomServiceSettings();
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(requestSettingsMap);
 
         assertThat(
             updatedServiceSettings,
@@ -203,7 +207,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                         Map.of(
                             CustomServiceSettings.JSON_PARSER,
                             new HashMap<>(
-                                Map.of(DenseEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.data.embeddings[*].embedding")
+                                Map.of(DenseEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.some.path.embeddings[*].embedding")
                             )
                         )
                     )

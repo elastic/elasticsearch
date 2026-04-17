@@ -396,11 +396,16 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
     private CustomResponseParser extractCustomResponseParser(Map<String, Object> serviceSettings, ValidationException validationException) {
         var extractedResponseParserMap = extractOptionalMap(serviceSettings, RESPONSE, validationException);
 
-        var extractedJsonParserMap = extractOptionalMap(
-            Objects.requireNonNullElse(extractedResponseParserMap, new HashMap<>()),
-            JSON_PARSER,
-            validationException
-        );
+        if (extractedResponseParserMap == null) {
+            // The response block was not included in the update — preserve the existing parser unchanged.
+            return NoopResponseParser.INSTANCE;
+        }
+
+        var extractedJsonParserMap = extractRequiredMap(extractedResponseParserMap, JSON_PARSER, RESPONSE_SCOPE, validationException);
+
+        if (extractedJsonParserMap == null) {
+            return NoopResponseParser.INSTANCE;
+        }
 
         var updatedResponseJsonParser = this.responseJsonParser.updateFromMap(extractedJsonParserMap, RESPONSE_SCOPE, validationException);
 

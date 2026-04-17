@@ -171,6 +171,7 @@ public class SparklineGenerateEmptyBucketsOperator implements Operator {
 
     @Override
     public Page getOutput() {
+        // TODO this could probably stream buckets rather than accumulate
         if (finished == false || outputPages.isEmpty()) {
             return null;
         }
@@ -198,6 +199,7 @@ public class SparklineGenerateEmptyBucketsOperator implements Operator {
             for (int v = 0; v < numValueColumns; v++) {
                 Block valueBlock = inputPage.getBlock(v);
                 try (
+                    // TODO we could probably build the output on the fly
                     OutputBucketedSort outputBucketedSort = new OutputBucketedSort(
                         valueBlock,
                         driverContext.bigArrays(),
@@ -233,6 +235,7 @@ public class SparklineGenerateEmptyBucketsOperator implements Operator {
             throw e;
         }
 
+        // TODO appendBlocks?
         Page outputPage = new Page(outputValueBlocks);
         int passthroughStart = numValueColumns + 1;
         for (int i = passthroughStart; i < inputPage.getBlockCount(); i++) {
@@ -254,6 +257,8 @@ public class SparklineGenerateEmptyBucketsOperator implements Operator {
     }
 
     private static class OutputBucketedSort implements Releasable {
+        // TODO replace BucketedSort with a little hand built copy-and-expand
+        // TODO if the input block is *perfect* just use it
         private final Block valueBlock;
         private final Releasable bucketedSort;
 

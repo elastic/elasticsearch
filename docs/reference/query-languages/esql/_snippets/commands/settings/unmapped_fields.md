@@ -45,7 +45,7 @@ FROM partial_mapping_sample_data
 | --- | --- |
 | 725447 | null |
 
-## Example
+#### Example
 
 Field `unmapped_message` is not mapped; it doesn't appear in the mapping of index `partial_mapping_sample_data`. It appears,
 however, in the stored `_source` of all documents in this index.

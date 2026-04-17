@@ -41,7 +41,7 @@ import java.util.Objects;
  *       {@link #sourceMetadata()} and passed through without core understanding it</li>
  *   <li><b>Opaque pushed filter</b>: The {@link #pushedFilter()} is an opaque Object that only
  *       the source-specific operator factory interprets. It is NOT serialized; it is created
- *       locally on each data node by the LocalPhysicalPlanOptimizer via FilterPushdownRegistry</li>
+ *       locally on each data node by the LocalPhysicalPlanOptimizer via FormatReader.filterPushdownSupport()</li>
  *   <li><b>Data node execution</b>: Created on data nodes by LocalMapper from
  *       {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation} inside FragmentExec</li>
  * </ul>

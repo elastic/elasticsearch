@@ -22,6 +22,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class InferenceService {
 
+    public static final String COMPLETION_PRODUCT_USE_CASE = "internal_completion";
+
     private InferenceSettings inferenceSettings;
 
     private final Client client;

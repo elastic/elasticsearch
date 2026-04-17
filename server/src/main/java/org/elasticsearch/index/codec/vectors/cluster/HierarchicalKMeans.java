@@ -16,7 +16,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.Callable;
 
 /**
@@ -589,7 +588,7 @@ public class HierarchicalKMeans {
     ) throws IOException {
         int[] assignments = kMeansIntermediate.assignments();
         float[][] centroids = kMeansIntermediate.centroids();
-        
+
         boolean[] isSplit = new boolean[centroids.length];
         boolean hasSplitOrEmpty = false;
         for (int c = 0; c < centroids.length; c++) {
@@ -626,9 +625,7 @@ public class HierarchicalKMeans {
             if (isSplit[c]) {
                 int finalC = c;
                 int[] slice = clusterSlices[c];
-                ClusteringFloatVectorValues sample = new ClusteringFloatVectorValuesSlice(
-                    vectors, i -> slice[i], centroidVectorCount[c]
-                );
+                ClusteringFloatVectorValues sample = new ClusteringFloatVectorValuesSlice(vectors, i -> slice[i], centroidVectorCount[c]);
                 KMeansIntermediate subPartitions = clusterAndSplit(sample, targetSize);
                 subPartitionsList[c] = subPartitions;
                 newCentroidsCount += subPartitions.centroids().length;

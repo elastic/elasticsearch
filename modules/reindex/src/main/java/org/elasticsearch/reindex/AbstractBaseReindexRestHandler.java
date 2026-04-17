@@ -61,7 +61,11 @@ public abstract class AbstractBaseReindexRestHandler<
             params.put(BulkByScrollTask.Status.INCLUDE_CREATED, Boolean.toString(includeCreated));
             params.put(BulkByScrollTask.Status.INCLUDE_UPDATED, Boolean.toString(includeUpdated));
 
-            return channel -> client.executeLocally(action, internal, new BulkIndexByScrollResponseContentListener(channel, params));
+            return channel -> client.executeLocally(
+                action,
+                internal,
+                wrapBulkByScrollResponseListener(new BulkIndexByScrollResponseContentListener(channel, params))
+            );
         } else {
             internal.setShouldStoreResult(true);
         }
@@ -88,6 +92,10 @@ public abstract class AbstractBaseReindexRestHandler<
         });
         responseListener.addListener(loggingListener);
         return sendTask(client.getLocalNodeId(), task);
+    }
+
+    protected ActionListener<BulkByScrollResponse> wrapBulkByScrollResponseListener(ActionListener<BulkByScrollResponse> listener) {
+        return listener;
     }
 
     /**

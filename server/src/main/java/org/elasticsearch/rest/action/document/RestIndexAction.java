@@ -30,6 +30,8 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.trace.RequestStatsListener;
+import org.elasticsearch.trace.RequestStatsService;
 
 import java.io.IOException;
 import java.util.List;
@@ -156,7 +158,10 @@ public class RestIndexAction extends BaseRestHandler {
             client.index(
                 indexRequest,
                 ActionListener.releaseAfter(
-                    new RestToXContentListener<>(channel, DocWriteResponse::status, r -> r.getLocation(indexRequest.routing())),
+                    RequestStatsListener.wrapIfEnabled(
+                        RequestStatsService.RequestKind.WRITE,
+                        new RestToXContentListener<>(channel, DocWriteResponse::status, r -> r.getLocation(indexRequest.routing()))
+                    ),
                     source
                 )
             );

@@ -131,7 +131,8 @@ public class VersionStatsTests extends AbstractWireSerializingTestCase<VersionSt
             new SearchUsageStats(),
             RepositoryUsageStats.EMPTY,
             null,
-            null
+            null,
+            RequestStats.empty()
         );
 
         stats = VersionStats.of(metadata, Collections.singletonList(nodeResponse));

@@ -19,6 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.trace.RequestStatsService;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -38,6 +39,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
     final RepositoryUsageStats repositoryUsageStats;
     final CCSTelemetrySnapshot ccsMetrics;
     final CCSTelemetrySnapshot esqlMetrics;
+    final RequestStats requestStats;
     final long timestamp;
     final String clusterUUID;
     private final Map<String, RemoteClusterStats> remoteClustersStats;
@@ -65,6 +67,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         indicesStats = new ClusterStatsIndices(nodes, mappingStats, analysisStats, versionStats);
         ccsMetrics = new CCSTelemetrySnapshot(skipMRT == false);
         esqlMetrics = new CCSTelemetrySnapshot(false);
+        requestStats = RequestStatsService.getInstance().isEnabled() ? aggregateRequestStats(nodes) : RequestStats.empty();
         ClusterHealthStatus status = null;
         for (ClusterStatsNodeResponse response : nodes) {
             // only the master node populates the status
@@ -118,6 +121,10 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         return remoteClustersStats;
     }
 
+    public RequestStats getRequestStats() {
+        return requestStats;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         TransportAction.localOnly();
@@ -167,9 +174,33 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
             builder.endObject();
         }
 
+        if (RequestStatsService.getInstance().isEnabled()) {
+            builder.startObject("requests");
+            builder.startObject("cluster");
+            requestStats.toXContent(builder, params);
+            builder.endObject();
+            builder.startArray("nodes");
+            for (ClusterStatsNodeResponse nodeResponse : getNodes()) {
+                builder.startObject();
+                builder.field("node_id", nodeResponse.getNode().getId());
+                nodeResponse.getRequestStats().toXContent(builder, params);
+                builder.endObject();
+            }
+            builder.endArray();
+            builder.endObject();
+        }
+
         builder.endObject();
 
         return builder;
+    }
+
+    private static RequestStats aggregateRequestStats(List<ClusterStatsNodeResponse> nodes) {
+        RequestStats aggregated = RequestStats.empty();
+        for (ClusterStatsNodeResponse nodeResponse : nodes) {
+            aggregated.add(nodeResponse.getRequestStats());
+        }
+        return aggregated;
     }
 
     @Override

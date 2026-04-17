@@ -9,13 +9,17 @@
 
 package org.elasticsearch.reindex;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.trace.RequestStatsListener;
+import org.elasticsearch.trace.RequestStatsService;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -67,5 +71,10 @@ public class RestDeleteByQueryAction extends AbstractBulkByQueryRestHandler<Dele
         parseInternalRequest(internal, request, clusterSupportsFeature, consumers);
 
         return internal;
+    }
+
+    @Override
+    protected ActionListener<BulkByScrollResponse> wrapBulkByScrollResponseListener(ActionListener<BulkByScrollResponse> listener) {
+        return RequestStatsListener.wrapIfEnabled(RequestStatsService.RequestKind.WRITE, listener);
     }
 }

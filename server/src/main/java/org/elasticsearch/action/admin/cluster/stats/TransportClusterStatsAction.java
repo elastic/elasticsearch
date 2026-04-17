@@ -59,6 +59,7 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.trace.RequestStatsService;
 import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.RemoteClusterConnection;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -320,6 +321,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         final RepositoryUsageStats repositoryUsageStats = repositoriesService.getUsageStats();
         final CCSTelemetrySnapshot ccsTelemetry = ccsUsageHolder.getCCSTelemetrySnapshot();
         final CCSTelemetrySnapshot esqlTelemetry = esqlUsageHolder.getCCSTelemetrySnapshot();
+        final RequestStats requestStats = RequestStatsService.getInstance().snapshot();
 
         return new ClusterStatsNodeResponse(
             nodeInfo.getNode(),
@@ -330,7 +332,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             searchUsageStats,
             repositoryUsageStats,
             ccsTelemetry,
-            esqlTelemetry
+            esqlTelemetry,
+            requestStats
         );
     }
 

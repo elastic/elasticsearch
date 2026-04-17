@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
@@ -16,6 +17,9 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 /**
  * Merges unmapped fields into the output of the ES relation. This marking is necessary for the block loaders to force loading from _source
@@ -34,24 +38,26 @@ public class PropgateUnmappedFields extends Rule<LogicalPlan, LogicalPlan> {
             }
         });
         var unmappedFields = unmappedFieldsBuilder.build();
-        return unmappedFields.isEmpty()
-            ? logicalPlan
-            : logicalPlan.transformUp(
-                EsRelation.class,
-                er -> hasPotentiallyUnmappedKeywordEsField(er)
-                    ? er
-                    : er.withAttributes(NamedExpressions.mergeOutputAttributes(new ArrayList<>(unmappedFields), er.output()))
-            );
-    }
-
-    // Checks if the EsRelation already has a PotentiallyUnmappedKeywordEsField. If true SET load_unmapped="load" is applied.
-    // This is used to practically disable the rule, since it changes the output order (mergeOutputAttributes()).
-    private static boolean hasPotentiallyUnmappedKeywordEsField(EsRelation er) {
-        for (var attr : er.output()) {
-            if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField) {
-                return true;
-            }
+        if (unmappedFields.isEmpty()) {
+            return logicalPlan;
         }
-        return false;
+        return logicalPlan.transformUp(EsRelation.class, er -> {
+            Set<String> existingPuks = new HashSet<>();
+            for (Attribute attr : er.output()) {
+                if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField) {
+                    existingPuks.add(fa.fieldName().string());
+                }
+            }
+            // Only propagate PUK fields that are not already in the relation's output, so we preserve the existing order.
+            // Partially-mapped keyword fields are already wrapped as PUKs by the index resolver; this rule just merges in
+            // PUKs introduced elsewhere (e.g. by INSIST on a field that is not in the index).
+            List<Attribute> missing = new ArrayList<>();
+            for (Attribute attr : unmappedFields) {
+                if (attr instanceof FieldAttribute fa && existingPuks.contains(fa.fieldName().string()) == false) {
+                    missing.add(fa);
+                }
+            }
+            return missing.isEmpty() ? er : er.withAttributes(NamedExpressions.mergeOutputAttributes(missing, er.output()));
+        });
     }
 }

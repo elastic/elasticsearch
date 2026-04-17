@@ -648,6 +648,29 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         validatePipelineWithBulkUpsert(indexRequestName, WITH_DEFAULT_PIPELINE_ALIAS);
     }
 
+    public void testBulkUpsertsDoNotReusePipelinesForDifferentIndices() throws Exception {
+        BulkRequest bulkRequest = new BulkRequest();
+        IndexRequest firstUpsert = new IndexRequest().id("id1").source(Collections.emptyMap());
+        IndexRequest secondUpsert = new IndexRequest().id("id2").source(Collections.emptyMap());
+        bulkRequest.add(new UpdateRequest(WITH_DEFAULT_PIPELINE_ALIAS, "id1").doc(firstUpsert).docAsUpsert(true));
+        bulkRequest.add(new UpdateRequest("index_without_pipeline", "id2").doc(secondUpsert).docAsUpsert(true));
+
+        ActionTestUtils.execute(action, null, bulkRequest, ActionTestUtils.assertNoFailureListener(response -> {}));
+
+        verify(ingestService).executeBulkRequest(
+            eq(projectId),
+            eq(bulkRequest.numberOfActions()),
+            bulkDocsItr.capture(),
+            any(),
+            any(),
+            any(),
+            failureHandler.capture(),
+            listener.capture()
+        );
+        assertEquals("default_pipeline", firstUpsert.getPipeline());
+        assertEquals(IngestService.NOOP_PIPELINE_NAME, secondUpsert.getPipeline());
+    }
+
     private void validatePipelineWithBulkUpsert(@Nullable String indexRequestIndexName, String updateRequestIndexName) throws Exception {
         Exception exception = new Exception("fake exception");
         BulkRequest bulkRequest = new BulkRequest();

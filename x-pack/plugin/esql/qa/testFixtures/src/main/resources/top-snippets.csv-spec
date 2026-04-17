@@ -361,7 +361,7 @@ ROW content = CONCAT(
     "## Policy Changes\n",
     "Government regulations can accelerate the transition to clean energy through carbon pricing and renewable energy mandates.")
 | EVAL chunked_content = CHUNK(content, {"strategy": "recursive", "max_chunk_size": 30, "separators": ["##", "\n\n"]})
-| EVAL snippets = TOP_SNIPPETS(chunked_content, "clean energy", {"num_words": "0", "num_snippets": 1, "highlight":true})
+| EVAL snippets = TOP_SNIPPETS(chunked_content, "clean energy", {"num_words": 0, "num_snippets": 1, "highlight":true})
 | KEEP snippets 
 // end::top-snippets-num-words-zero-highlight-preceding-chunk[]
 ;

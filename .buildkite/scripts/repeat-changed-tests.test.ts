@@ -418,7 +418,7 @@ describe("generateBatchCommand", () => {
 });
 
 describe("generatePipeline", () => {
-  test("single batch uses type label without number", () => {
+  test("single batch has no parallelism", () => {
     const tests: ClassifiedTest[] = [
       { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "org.elasticsearch.index.IndexTests" },
     ];
@@ -429,12 +429,18 @@ describe("generatePipeline", () => {
 
     const step = pipeline.steps[0].steps[0];
     expect(step.label).toBe("unit tests");
+    expect(step.key).toBe("repeat-changed-tests");
+    expect(step.parallelism).toBeUndefined();
+    expect(step.env).toBeUndefined();
+    expect(step.command).toBe(
+      ".ci/scripts/run-gradle.sh -Dtests.iters=100 :server:test --tests org.elasticsearch.index.IndexTests"
+    );
     expect(step.timeout_in_minutes).toBe(60);
     expect(step.agents.provider).toBe("gcp");
     expect(step.agents.machineType).toBe("n4-custom-32-98304");
   });
 
-  test("multiple batches get numbered", () => {
+  test("multiple batches use parallelism with env dispatch", () => {
     const tests: ClassifiedTest[] = [];
     for (let i = 0; i < 5; i++) {
       tests.push({
@@ -448,12 +454,19 @@ describe("generatePipeline", () => {
     const pipeline = generatePipeline(tests);
     const group = pipeline.steps[0];
     expect(group.group).toBe("repeat-changed-tests");
-    expect(group.steps).toHaveLength(2);
-    expect(group.steps[0].label).toBe("java rest tests (1)");
-    expect(group.steps[1].label).toBe("java rest tests (2)");
+    expect(group.steps).toHaveLength(1);
+
+    const step = group.steps[0];
+    expect(step.label).toBe("java rest tests");
+    expect(step.key).toBe("repeat-changed-tests");
+    expect(step.parallelism).toBe(2);
+    expect(step.env).toBeDefined();
+    expect(step.env!["BATCH_COMMAND_0"]).toContain("repeat-rest-test.sh");
+    expect(step.env!["BATCH_COMMAND_1"]).toContain("repeat-rest-test.sh");
+    expect(step.command).toContain("BUILDKITE_PARALLEL_JOB");
   });
 
-  test("all test kinds appear in single group", () => {
+  test("all test kinds appear in single group with shared key", () => {
     const tests: ClassifiedTest[] = [
       { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "org.elasticsearch.SomeTests" },
       {
@@ -469,7 +482,9 @@ describe("generatePipeline", () => {
     expect(pipeline.steps[0].group).toBe("repeat-changed-tests");
     expect(pipeline.steps[0].steps).toHaveLength(2);
     expect(pipeline.steps[0].steps[0].label).toBe("unit tests");
+    expect(pipeline.steps[0].steps[0].key).toBe("repeat-changed-tests");
     expect(pipeline.steps[0].steps[1].label).toBe("integ tests");
+    expect(pipeline.steps[0].steps[1].key).toBe("repeat-changed-tests");
   });
 
   test("yaml runners and suites get separate labels", () => {

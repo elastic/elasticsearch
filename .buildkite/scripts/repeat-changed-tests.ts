@@ -52,9 +52,12 @@ export interface ClassifiedTest {
 
 interface PipelineStep {
   label: string;
+  key: string;
   command: string;
   timeout_in_minutes: number;
   agents: typeof AGENTS;
+  parallelism?: number;
+  env?: Record<string, string>;
 }
 
 interface PipelineGroup {
@@ -221,17 +224,31 @@ export function generatePipeline(tests: ClassifiedTest[]): Pipeline {
     const totalBatches = Math.ceil(kindTests.length / cap);
     const typeLabel = KIND_LABELS[kind];
 
+    const batchCommands: string[] = [];
     for (let i = 0; i < kindTests.length; i += cap) {
       const batch = kindTests.slice(i, i + cap);
-      const batchNum = Math.floor(i / cap) + 1;
-      const label = totalBatches === 1 ? typeLabel : `${typeLabel} (${batchNum})`;
-      allSteps.push({
-        label,
-        command: generateBatchCommand(batch),
-        timeout_in_minutes: 60,
-        agents: { ...AGENTS },
-      });
+      batchCommands.push(generateBatchCommand(batch));
     }
+
+    const step: PipelineStep = {
+      label: typeLabel,
+      key: "repeat-changed-tests",
+      command: batchCommands[0],
+      timeout_in_minutes: 60,
+      agents: { ...AGENTS },
+    };
+
+    if (totalBatches > 1) {
+      const env: Record<string, string> = {};
+      for (let i = 0; i < batchCommands.length; i++) {
+        env[`BATCH_COMMAND_${i}`] = batchCommands[i];
+      }
+      step.command = 'VARNAME="BATCH_COMMAND_${BUILDKITE_PARALLEL_JOB}"; eval "${!VARNAME}"';
+      step.parallelism = totalBatches;
+      step.env = env;
+    }
+
+    allSteps.push(step);
   }
 
   return {

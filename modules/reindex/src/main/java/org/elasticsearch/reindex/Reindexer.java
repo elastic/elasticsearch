@@ -367,10 +367,13 @@ public class Reindexer {
 
     /**
      * Wraps a listener to close the PIT when the task completes (success or failure).
-     * Skips closing when the failure is TaskRelocatedException, since the relocated task will close it.
-     * Skips closing when the task has relocation requested, since the relocated task will use it.
-     * Skips closing on response when {@code shouldNotCloseOnResponse} returns true (e.g. sliced workers share
-     * the PIT; only the leader should close when all workers complete).
+     * <p>
+     * On <strong>response</strong>: closes the PIT unless the response carries {@link BulkByScrollResponse#getTaskResumeInfo()}
+     * (relocation handoff to another node) or {@code shouldNotCloseOnResponse} is true (e.g. a sliced worker whose leader
+     * owns the shared PIT).
+     * <p>
+     * On <strong>failure</strong>: skips closing when the failure is {@link TaskRelocatedException}, or when
+     * {@link BulkByScrollTask#isRelocationRequested()} is true so a relocated task can still adopt the PIT.
      * Visible for testing
      */
     static ActionListener<BulkByScrollResponse> wrapListenerWithClosePit(
@@ -398,8 +401,9 @@ public class Reindexer {
 
     /**
      * Same as {@link #wrapListenerWithClosePit(BytesReference, ActionListener, Consumer, BulkByScrollTask, BooleanSupplier)}
-     * but with {@code onSkipClosePit}: when the PIT is not closed (relocation or sliced worker), this runs before
-     * delegating to the listener. For local PIT use {@link Runnable#run}; for remote PIT use
+     * but with {@code onSkipClosePit}: when the PIT is not closed on response (resume info present or slice worker),
+     * or not closed on failure (relocation in progress), this runs before delegating to the listener.
+     * For local PIT use {@link Runnable#run}; for remote PIT use
      * {@code next -> closeRestClientAndRun(restClient, next)} so the RestClient is closed before notifying.
      */
     static ActionListener<BulkByScrollResponse> wrapListenerWithClosePit(
@@ -816,11 +820,14 @@ public class Reindexer {
     }
 
     /**
-     * Returns a supplier that indicates whether the PIT should not be closed on response.
-     * True when the task is relocating or is a sliced worker (parent handles PIT close).
+     * Returns a supplier that indicates whether the PIT should not be closed on the <strong>response</strong> path.
+     * True only for a sliced worker whose {@linkplain #getReindexParent(BulkByScrollTask) reindex parent} closes the
+     * shared PIT when all slices complete. Relocation handoff is indicated by non-empty
+     * {@link BulkByScrollResponse#getTaskResumeInfo()} on the response, not by {@link BulkByScrollTask#isRelocationRequested()},
+     * so a task that requested relocation but finishes in place without relocating must still close the PIT here.
      */
     private BooleanSupplier shouldNotClosePitOnResponse(BulkByScrollTask task) {
-        return () -> task != null && (task.isRelocationRequested() || getReindexParent(task).isPresent());
+        return () -> task != null && getReindexParent(task).isPresent();
     }
 
     private Supplier<Optional<String>> getWorkerNodeToRelocateToSupplier(final BulkByScrollTask workerTask) {

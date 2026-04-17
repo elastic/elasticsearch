@@ -210,7 +210,10 @@ abstract class BalancedASKMeansLocal extends KMeansLocal {
                 // the vectors are unique) for simplicity. To be more precise, we could sample without replacement but the current
                 // approach seems good enough.
                 ClusteringFloatVectorValues sampledVectors = ClusteringFloatVectorValuesSlice.createRandomSlice(
-                    vectors, miniBatchSizeLocal, t++, miniBatchSamples
+                    vectors,
+                    miniBatchSizeLocal,
+                    t++,
+                    miniBatchSamples
                 );
 
                 IntToIntFunction assigner = i -> {

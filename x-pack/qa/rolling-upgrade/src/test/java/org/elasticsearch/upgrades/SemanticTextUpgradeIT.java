@@ -33,6 +33,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
+import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.model.TestModel;
 import org.junit.BeforeClass;
 
@@ -84,12 +85,15 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     public void testSemanticTextOperations() throws Exception {
-        assumeFalse(
-            "Legacy format index creation is not supported when the old cluster is running the current version",
-            useLegacyFormat && isOriginalClusterCurrent()
-        );
         switch (CLUSTER_TYPE) {
-            case OLD -> createAndPopulateIndex();
+            case OLD -> {
+                assumeFalse(
+                    "Legacy format index creation is not supported when cluster has ["
+                        + SemanticTextFieldMapper.SEMANTIC_TEXT_PREVENT_LEGACY_FORMAT_NEW_INDICES.id() + "] feature",
+                    useLegacyFormat && clusterHasFeature(SemanticTextFieldMapper.SEMANTIC_TEXT_PREVENT_LEGACY_FORMAT_NEW_INDICES)
+                );
+                createAndPopulateIndex();
+            }
             case MIXED, UPGRADED -> performIndexQueryHighlightOps();
             default -> throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
         }

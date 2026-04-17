@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
@@ -421,6 +422,11 @@ public class OrcFormatReader implements RangeAwareFormatReader {
             return pushedExpressions.toSearchArgument(schema);
         }
         return null;
+    }
+
+    @Override
+    public FilterPushdownSupport filterPushdownSupport() {
+        return new OrcFilterPushdownSupport();
     }
 
     @Override

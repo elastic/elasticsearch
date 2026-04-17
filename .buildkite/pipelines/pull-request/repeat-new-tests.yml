@@ -1,6 +1,0 @@
-steps:
-  - label: repeat-new-tests
-    command: |
-      npm install -g bun@1.0.4
-      bun .buildkite/scripts/repeat-new-tests.ts
-    timeout_in_minutes: 10

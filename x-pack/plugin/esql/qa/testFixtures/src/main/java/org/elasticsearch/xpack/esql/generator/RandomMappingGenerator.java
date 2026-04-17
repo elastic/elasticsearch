@@ -222,7 +222,7 @@ public final class RandomMappingGenerator {
                 optionalPut(s, "doc_values", randomBoolean());
                 optionalPut(s, "store", randomBoolean());
             }
-            case "text", "match_only_text" -> optionalPut(s, "store", randomBoolean());
+            case "text" -> optionalPut(s, "store", randomBoolean());
             case "integer", "long", "short", "byte", "float", "double", "half_float" -> {
                 optionalPut(s, "doc_values", randomBoolean());
                 optionalPut(s, "coerce", randomBoolean());

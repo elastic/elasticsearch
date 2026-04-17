@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -20,223 +19,179 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalsOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOrEqualOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.lessThanOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.lessThanOrEqualOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.notEqualsOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SplitFilterClassifier.SplitMatch.AMBIGUOUS;
 import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SplitFilterClassifier.SplitMatch.MATCH;
 import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SplitFilterClassifier.SplitMatch.MISS;
+import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SplitFilterClassifier.classifyExpression;
+import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SplitFilterClassifier.classifySplit;
+import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SplitFilterClassifier.compareValues;
 
 public class SplitFilterClassifierTests extends ESTestCase {
+
+    private static final String COL = "age";
+    private static final ReferenceAttribute AGE = referenceAttribute(COL, DataType.LONG);
+
+    /** Standard stats: age in [10, 20], 100 rows, no nulls. */
+    private static final Map<String, Object> STATS_10_20 = colStats(COL, 10L, 20L, 100L, 0L);
+    /** Stats: age in [30, 50], 100 rows, no nulls. */
+    private static final Map<String, Object> STATS_30_50 = colStats(COL, 30L, 50L, 100L, 0L);
+    /** Stats: constant column age = 42, 100 rows, no nulls. */
+    private static final Map<String, Object> STATS_CONST_42 = colStats(COL, 42L, 42L, 100L, 0L);
 
     // --- GreaterThan ---
 
     public void testGreaterThanMatch() {
-        Map<String, Object> stats = splitStats(10L, 20L, 100L, 0L);
-        Expression filter = gt(ref("age"), lit(5L));
-        assertEquals(MATCH, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(MATCH, classify(greaterThanOf(AGE, of(5L)), STATS_10_20));
     }
 
     public void testGreaterThanMiss() {
-        Map<String, Object> stats = splitStats(10L, 20L, 100L, 0L);
-        Expression filter = gt(ref("age"), lit(25L));
-        assertEquals(MISS, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(MISS, classify(greaterThanOf(AGE, of(25L)), STATS_10_20));
     }
 
     public void testGreaterThanMissAtBoundary() {
-        Map<String, Object> stats = splitStats(10L, 20L, 100L, 0L);
-        Expression filter = gt(ref("age"), lit(20L));
-        assertEquals(MISS, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(MISS, classify(greaterThanOf(AGE, of(20L)), STATS_10_20));
     }
 
     public void testGreaterThanAmbiguous() {
-        Map<String, Object> stats = splitStats(10L, 20L, 100L, 0L);
-        Expression filter = gt(ref("age"), lit(15L));
-        assertEquals(AMBIGUOUS, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(AMBIGUOUS, classify(greaterThanOf(AGE, of(15L)), STATS_10_20));
     }
 
     public void testGreaterThanAmbiguousWithNulls() {
-        Map<String, Object> stats = splitStats(10L, 20L, 100L, 5L);
-        Expression filter = gt(ref("age"), lit(5L));
-        assertEquals(AMBIGUOUS, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        var stats = colStats(COL, 10L, 20L, 100L, 5L);
+        assertEquals(AMBIGUOUS, classify(greaterThanOf(AGE, of(5L)), stats));
     }
 
     // --- GreaterThanOrEqual ---
 
     public void testGreaterThanOrEqualMatch() {
-        Map<String, Object> stats = splitStats(10L, 20L, 100L, 0L);
-        Expression filter = gte(ref("age"), lit(10L));
-        assertEquals(MATCH, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(MATCH, classify(greaterThanOrEqualOf(AGE, of(10L)), STATS_10_20));
     }
 
     public void testGreaterThanOrEqualMiss() {
-        Map<String, Object> stats = splitStats(10L, 20L, 100L, 0L);
-        Expression filter = gte(ref("age"), lit(21L));
-        assertEquals(MISS, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(MISS, classify(greaterThanOrEqualOf(AGE, of(21L)), STATS_10_20));
     }
 
     public void testGreaterThanOrEqualAmbiguous() {
-        Map<String, Object> stats = splitStats(10L, 20L, 100L, 0L);
-        Expression filter = gte(ref("age"), lit(15L));
-        assertEquals(AMBIGUOUS, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(AMBIGUOUS, classify(greaterThanOrEqualOf(AGE, of(15L)), STATS_10_20));
     }
 
     // --- LessThan ---
 
     public void testLessThanMatch() {
-        Map<String, Object> stats = splitStats(10L, 20L, 100L, 0L);
-        Expression filter = lt(ref("age"), lit(25L));
-        assertEquals(MATCH, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(MATCH, classify(lessThanOf(AGE, of(25L)), STATS_10_20));
     }
 
     public void testLessThanMiss() {
-        Map<String, Object> stats = splitStats(10L, 20L, 100L, 0L);
-        Expression filter = lt(ref("age"), lit(5L));
-        assertEquals(MISS, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(MISS, classify(lessThanOf(AGE, of(5L)), STATS_10_20));
     }
 
     public void testLessThanMissAtBoundary() {
-        Map<String, Object> stats = splitStats(10L, 20L, 100L, 0L);
-        Expression filter = lt(ref("age"), lit(10L));
-        assertEquals(MISS, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(MISS, classify(lessThanOf(AGE, of(10L)), STATS_10_20));
     }
 
     public void testLessThanAmbiguous() {
-        Map<String, Object> stats = splitStats(10L, 20L, 100L, 0L);
-        Expression filter = lt(ref("age"), lit(15L));
-        assertEquals(AMBIGUOUS, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(AMBIGUOUS, classify(lessThanOf(AGE, of(15L)), STATS_10_20));
     }
 
     // --- LessThanOrEqual ---
 
     public void testLessThanOrEqualMatch() {
-        Map<String, Object> stats = splitStats(10L, 20L, 100L, 0L);
-        Expression filter = lte(ref("age"), lit(20L));
-        assertEquals(MATCH, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(MATCH, classify(lessThanOrEqualOf(AGE, of(20L)), STATS_10_20));
     }
 
     public void testLessThanOrEqualMiss() {
-        Map<String, Object> stats = splitStats(10L, 20L, 100L, 0L);
-        Expression filter = lte(ref("age"), lit(9L));
-        assertEquals(MISS, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(MISS, classify(lessThanOrEqualOf(AGE, of(9L)), STATS_10_20));
     }
 
     // --- Equals ---
 
     public void testEqualsMatch() {
-        Map<String, Object> stats = splitStats(42L, 42L, 100L, 0L);
-        Expression filter = eq(ref("age"), lit(42L));
-        assertEquals(MATCH, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(MATCH, classify(equalsOf(AGE, of(42L)), STATS_CONST_42));
     }
 
     public void testEqualsMissBelowRange() {
-        Map<String, Object> stats = splitStats(10L, 20L, 100L, 0L);
-        Expression filter = eq(ref("age"), lit(5L));
-        assertEquals(MISS, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(MISS, classify(equalsOf(AGE, of(5L)), STATS_10_20));
     }
 
     public void testEqualsMissAboveRange() {
-        Map<String, Object> stats = splitStats(10L, 20L, 100L, 0L);
-        Expression filter = eq(ref("age"), lit(25L));
-        assertEquals(MISS, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(MISS, classify(equalsOf(AGE, of(25L)), STATS_10_20));
     }
 
     public void testEqualsAmbiguous() {
-        Map<String, Object> stats = splitStats(10L, 20L, 100L, 0L);
-        Expression filter = eq(ref("age"), lit(15L));
-        assertEquals(AMBIGUOUS, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(AMBIGUOUS, classify(equalsOf(AGE, of(15L)), STATS_10_20));
     }
 
     // --- NotEquals ---
 
     public void testNotEqualsMatch() {
-        Map<String, Object> stats = splitStats(42L, 42L, 100L, 0L);
-        Expression filter = neq(ref("age"), lit(99L));
-        assertEquals(MATCH, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(MATCH, classify(notEqualsOf(AGE, of(99L)), STATS_CONST_42));
     }
 
     public void testNotEqualsMiss() {
-        Map<String, Object> stats = splitStats(42L, 42L, 100L, 0L);
-        Expression filter = neq(ref("age"), lit(42L));
-        assertEquals(MISS, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(MISS, classify(notEqualsOf(AGE, of(42L)), STATS_CONST_42));
     }
 
     public void testNotEqualsAmbiguous() {
-        Map<String, Object> stats = splitStats(10L, 20L, 100L, 0L);
-        Expression filter = neq(ref("age"), lit(15L));
-        assertEquals(AMBIGUOUS, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(AMBIGUOUS, classify(notEqualsOf(AGE, of(15L)), STATS_10_20));
     }
 
     // --- Reversed operand order (literal on left) ---
 
     public void testReversedGreaterThan() {
-        Map<String, Object> stats = splitStats(10L, 20L, 100L, 0L);
-        // 25 > age ⟹ age < 25
-        Expression filter = gt(lit(25L), ref("age"));
-        assertEquals(MATCH, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        // 25 > age => age < 25
+        assertEquals(MATCH, classify(greaterThanOf(of(25L), AGE), STATS_10_20));
     }
 
     public void testReversedLessThan() {
-        Map<String, Object> stats = splitStats(10L, 20L, 100L, 0L);
-        // 5 < age ⟹ age > 5
-        Expression filter = lt(lit(5L), ref("age"));
-        assertEquals(MATCH, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        // 5 < age => age > 5
+        assertEquals(MATCH, classify(lessThanOf(of(5L), AGE), STATS_10_20));
     }
 
     // --- AND conjunction ---
 
     public void testConjunctionAllMatch() {
-        Map<String, Object> stats = splitStats(10L, 20L, 100L, 0L);
-        Expression f1 = gte(ref("age"), lit(10L));
-        Expression f2 = lte(ref("age"), lit(20L));
-        assertEquals(MATCH, SplitFilterClassifier.classifySplit(List.of(f1, f2), stats));
+        assertEquals(MATCH, classifySplit(List.of(greaterThanOrEqualOf(AGE, of(10L)), lessThanOrEqualOf(AGE, of(20L))), STATS_10_20));
     }
 
     public void testConjunctionOneMiss() {
-        Map<String, Object> stats = splitStats(10L, 20L, 100L, 0L);
-        Expression f1 = gte(ref("age"), lit(10L));
-        Expression f2 = lt(ref("age"), lit(5L));
-        assertEquals(MISS, SplitFilterClassifier.classifySplit(List.of(f1, f2), stats));
+        assertEquals(MISS, classifySplit(List.of(greaterThanOrEqualOf(AGE, of(10L)), lessThanOf(AGE, of(5L))), STATS_10_20));
     }
 
     public void testConjunctionMixedMatchAndAmbiguous() {
-        Map<String, Object> stats = splitStats(10L, 20L, 100L, 0L);
-        Expression f1 = gte(ref("age"), lit(10L));  // MATCH
-        Expression f2 = lt(ref("age"), lit(15L));    // AMBIGUOUS
-        assertEquals(AMBIGUOUS, SplitFilterClassifier.classifySplit(List.of(f1, f2), stats));
+        assertEquals(AMBIGUOUS, classifySplit(List.of(greaterThanOrEqualOf(AGE, of(10L)), lessThanOf(AGE, of(15L))), STATS_10_20));
     }
 
     // --- Edge cases ---
 
     public void testEmptyConjuncts() {
-        Map<String, Object> stats = splitStats(10L, 20L, 100L, 0L);
-        assertEquals(AMBIGUOUS, SplitFilterClassifier.classifySplit(List.of(), stats));
+        assertEquals(AMBIGUOUS, classifySplit(List.of(), STATS_10_20));
     }
 
     public void testNullStats() {
-        Expression filter = gt(ref("age"), lit(5L));
-        assertEquals(AMBIGUOUS, SplitFilterClassifier.classifySplit(List.of(filter), null));
+        assertEquals(AMBIGUOUS, classifySplit(List.of(greaterThanOf(AGE, of(5L))), null));
     }
 
     public void testEmptyStats() {
-        Expression filter = gt(ref("age"), lit(5L));
-        assertEquals(AMBIGUOUS, SplitFilterClassifier.classifySplit(List.of(filter), Map.of()));
+        assertEquals(AMBIGUOUS, classifySplit(List.of(greaterThanOf(AGE, of(5L))), Map.of()));
     }
 
     public void testMissingColumnStats() {
-        Map<String, Object> stats = new HashMap<>();
-        stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
-        Expression filter = gt(ref("age"), lit(5L));
-        assertEquals(AMBIGUOUS, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        var stats = Map.<String, Object>of(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
+        assertEquals(AMBIGUOUS, classify(greaterThanOf(AGE, of(5L)), stats));
     }
 
     public void testMissingNullCount() {
@@ -244,9 +199,7 @@ public class SplitFilterClassifierTests extends ESTestCase {
         stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
         stats.put("_stats.columns.age.min", 10L);
         stats.put("_stats.columns.age.max", 20L);
-        // min > 5, but no null_count → can't confirm MATCH (could have nulls)
-        Expression filter = gt(ref("age"), lit(5L));
-        assertEquals(AMBIGUOUS, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(AMBIGUOUS, classify(greaterThanOf(AGE, of(5L)), stats));
     }
 
     public void testMissDoesNotRequireNullCount() {
@@ -254,141 +207,108 @@ public class SplitFilterClassifierTests extends ESTestCase {
         stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
         stats.put("_stats.columns.age.min", 10L);
         stats.put("_stats.columns.age.max", 20L);
-        // max <= 5, so all non-null rows miss; null rows also miss (NULL > 5 → UNKNOWN → FALSE)
-        Expression filter = gt(ref("age"), lit(25L));
-        assertEquals(MISS, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(MISS, classify(greaterThanOf(AGE, of(25L)), stats));
     }
 
     // --- Type coercion ---
 
     public void testIntegerStatLongLiteral() {
-        Map<String, Object> stats = splitStats(10, 20, 100L, 0L);
-        Expression filter = gt(ref("age"), lit(5L));
-        assertEquals(MATCH, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        var stats = colStats(COL, 10, 20, 100L, 0L);
+        assertEquals(MATCH, classify(greaterThanOf(AGE, of(5L)), stats));
     }
 
     public void testDoubleStats() {
+        ReferenceAttribute score = referenceAttribute("score", DataType.DOUBLE);
         Map<String, Object> stats = new HashMap<>();
         stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
         stats.put("_stats.columns.score.min", 1.5);
         stats.put("_stats.columns.score.max", 9.5);
         stats.put("_stats.columns.score.null_count", 0L);
-        Expression filter = gt(ref("score"), lit(0.5));
-        assertEquals(MATCH, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(MATCH, classify(greaterThanOf(score, of(0.5)), stats));
     }
 
     public void testStringStats() {
+        ReferenceAttribute name = referenceAttribute("name", DataType.KEYWORD);
         Map<String, Object> stats = new HashMap<>();
         stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
         stats.put("_stats.columns.name.min", "alice");
         stats.put("_stats.columns.name.max", "charlie");
         stats.put("_stats.columns.name.null_count", 0L);
-        Expression filter = gt(ref("name"), lit("aaron"));
-        assertEquals(MATCH, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(MATCH, classify(greaterThanOf(name, of("aaron")), stats));
     }
 
     // --- Or ---
 
     public void testOrBothMatch() {
-        Map<String, Object> stats = splitStats(30L, 50L, 100L, 0L);
-        Expression filter = or(gt(ref("age"), lit(20L)), lt(ref("age"), lit(60L)));
-        assertEquals(MATCH, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(MATCH, classify(or(greaterThanOf(AGE, of(20L)), lessThanOf(AGE, of(60L))), STATS_30_50));
     }
 
     public void testOrLeftMatchRightMiss() {
-        Map<String, Object> stats = splitStats(30L, 50L, 100L, 0L);
-        Expression filter = or(gt(ref("age"), lit(20L)), lt(ref("age"), lit(10L)));
-        assertEquals(MATCH, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(MATCH, classify(or(greaterThanOf(AGE, of(20L)), lessThanOf(AGE, of(10L))), STATS_30_50));
     }
 
     public void testOrLeftMissRightMatch() {
-        Map<String, Object> stats = splitStats(30L, 50L, 100L, 0L);
-        Expression filter = or(gt(ref("age"), lit(60L)), lt(ref("age"), lit(60L)));
-        assertEquals(MATCH, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(MATCH, classify(or(greaterThanOf(AGE, of(60L)), lessThanOf(AGE, of(60L))), STATS_30_50));
     }
 
     public void testOrBothMiss() {
-        Map<String, Object> stats = splitStats(30L, 50L, 100L, 0L);
-        Expression filter = or(gt(ref("age"), lit(60L)), lt(ref("age"), lit(20L)));
-        assertEquals(MISS, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(MISS, classify(or(greaterThanOf(AGE, of(60L)), lessThanOf(AGE, of(20L))), STATS_30_50));
     }
 
     public void testOrOneAmbiguous() {
-        Map<String, Object> stats = splitStats(30L, 50L, 100L, 0L);
-        Expression filter = or(gt(ref("age"), lit(40L)), lt(ref("age"), lit(20L)));
-        assertEquals(AMBIGUOUS, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(AMBIGUOUS, classify(or(greaterThanOf(AGE, of(40L)), lessThanOf(AGE, of(20L))), STATS_30_50));
     }
 
     public void testOrBothAmbiguous() {
-        Map<String, Object> stats = splitStats(30L, 50L, 100L, 0L);
-        Expression filter = or(gt(ref("age"), lit(35L)), lt(ref("age"), lit(45L)));
-        assertEquals(AMBIGUOUS, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(AMBIGUOUS, classify(or(greaterThanOf(AGE, of(35L)), lessThanOf(AGE, of(45L))), STATS_30_50));
     }
 
     // --- Not ---
 
     public void testNotOfMatchBecomesMiss() {
-        Map<String, Object> stats = splitStats(30L, 50L, 100L, 0L);
-        Expression filter = not(gt(ref("age"), lit(20L)));
-        assertEquals(MISS, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(MISS, classify(not(greaterThanOf(AGE, of(20L))), STATS_30_50));
     }
 
     public void testNotOfMissBecomesAmbiguous() {
-        Map<String, Object> stats = splitStats(30L, 50L, 100L, 0L);
-        Expression filter = not(gt(ref("age"), lit(60L)));
-        assertEquals(AMBIGUOUS, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(AMBIGUOUS, classify(not(greaterThanOf(AGE, of(60L))), STATS_30_50));
     }
 
     public void testNotOfAmbiguousStaysAmbiguous() {
-        Map<String, Object> stats = splitStats(30L, 50L, 100L, 0L);
-        Expression filter = not(gt(ref("age"), lit(40L)));
-        assertEquals(AMBIGUOUS, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(AMBIGUOUS, classify(not(greaterThanOf(AGE, of(40L))), STATS_30_50));
     }
 
     public void testNotNotOfMatch() {
-        Map<String, Object> stats = splitStats(30L, 50L, 100L, 0L);
-        Expression filter = not(not(gt(ref("age"), lit(20L))));
-        assertEquals(AMBIGUOUS, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(AMBIGUOUS, classify(not(not(greaterThanOf(AGE, of(20L)))), STATS_30_50));
     }
 
-    // --- Nested And Or Not ---
+    // --- Nested And/Or/Not ---
 
     public void testAndInsideOr() {
-        Map<String, Object> stats = splitStats(30L, 50L, 100L, 0L);
-        Expression filter = or(and(gt(ref("age"), lit(20L)), lt(ref("age"), lit(60L))), gt(ref("age"), lit(70L)));
-        assertEquals(MATCH, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        Expression filter = or(and(greaterThanOf(AGE, of(20L)), lessThanOf(AGE, of(60L))), greaterThanOf(AGE, of(70L)));
+        assertEquals(MATCH, classify(filter, STATS_30_50));
     }
 
     public void testOrInsideAnd() {
-        Map<String, Object> stats = splitStats(30L, 50L, 100L, 0L);
-        Expression filter = and(or(gt(ref("age"), lit(60L)), lt(ref("age"), lit(20L))), gt(ref("age"), lit(20L)));
-        assertEquals(MISS, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        Expression filter = and(or(greaterThanOf(AGE, of(60L)), lessThanOf(AGE, of(20L))), greaterThanOf(AGE, of(20L)));
+        assertEquals(MISS, classify(filter, STATS_30_50));
     }
 
     public void testNotInsideOr() {
-        Map<String, Object> stats = splitStats(30L, 50L, 100L, 0L);
-        Expression filter = or(not(gt(ref("age"), lit(60L))), gt(ref("age"), lit(20L)));
-        assertEquals(MATCH, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(MATCH, classify(or(not(greaterThanOf(AGE, of(60L))), greaterThanOf(AGE, of(20L))), STATS_30_50));
     }
 
-    // --- IS NULL tests ---
+    // --- IS NULL ---
 
     public void testIsNullMissWhenNoNulls() {
-        Map<String, Object> stats = splitStats(30L, 50L, 100L, 0L);
-        Expression filter = isNull(ref("age"));
-        assertEquals(MISS, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(MISS, classify(isNull(AGE), STATS_30_50));
     }
 
     public void testIsNullMatchWhenAllNull() {
-        Map<String, Object> stats = splitStats(30L, 50L, 100L, 100L);
-        Expression filter = isNull(ref("age"));
-        assertEquals(MATCH, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(MATCH, classify(isNull(AGE), colStats(COL, 30L, 50L, 100L, 100L)));
     }
 
     public void testIsNullAmbiguousWhenSomeNulls() {
-        Map<String, Object> stats = splitStats(30L, 50L, 100L, 50L);
-        Expression filter = isNull(ref("age"));
-        assertEquals(AMBIGUOUS, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(AMBIGUOUS, classify(isNull(AGE), colStats(COL, 30L, 50L, 100L, 50L)));
     }
 
     public void testIsNullAmbiguousWhenNoNullCount() {
@@ -396,140 +316,86 @@ public class SplitFilterClassifierTests extends ESTestCase {
         stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
         stats.put("_stats.columns.age.min", 30L);
         stats.put("_stats.columns.age.max", 50L);
-        Expression filter = isNull(ref("age"));
-        assertEquals(AMBIGUOUS, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(AMBIGUOUS, classify(isNull(AGE), stats));
     }
 
-    // --- IS NOT NULL tests ---
+    // --- IS NOT NULL ---
 
     public void testIsNotNullMatchWhenNoNulls() {
-        Map<String, Object> stats = splitStats(30L, 50L, 100L, 0L);
-        Expression filter = isNotNull(ref("age"));
-        assertEquals(MATCH, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(MATCH, classify(isNotNull(AGE), STATS_30_50));
     }
 
     public void testIsNotNullMissWhenAllNull() {
-        Map<String, Object> stats = splitStats(30L, 50L, 100L, 100L);
-        Expression filter = isNotNull(ref("age"));
-        assertEquals(MISS, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(MISS, classify(isNotNull(AGE), colStats(COL, 30L, 50L, 100L, 100L)));
     }
 
     public void testIsNotNullAmbiguousWhenSomeNulls() {
-        Map<String, Object> stats = splitStats(30L, 50L, 100L, 50L);
-        Expression filter = isNotNull(ref("age"));
-        assertEquals(AMBIGUOUS, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(AMBIGUOUS, classify(isNotNull(AGE), colStats(COL, 30L, 50L, 100L, 50L)));
     }
 
-    // --- IN tests ---
+    // --- IN ---
 
     public void testInMissAllLiteralsOutOfRange() {
-        Map<String, Object> stats = splitStats(30L, 50L, 100L, 0L);
-        Expression filter = in(ref("age"), lit(10L), lit(15L), lit(60L));
-        assertEquals(MISS, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(MISS, classify(in(AGE, of(10L), of(15L), of(60L)), STATS_30_50));
     }
 
     public void testInAmbiguousWhenLiteralInRange() {
-        Map<String, Object> stats = splitStats(30L, 50L, 100L, 0L);
-        Expression filter = in(ref("age"), lit(10L), lit(40L), lit(60L));
-        assertEquals(AMBIGUOUS, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(AMBIGUOUS, classify(in(AGE, of(10L), of(40L), of(60L)), STATS_30_50));
     }
 
     public void testInMatchWhenConstantColumnEqualsLiteral() {
-        Map<String, Object> stats = splitStats(42L, 42L, 100L, 0L);
-        Expression filter = in(ref("age"), lit(10L), lit(42L), lit(60L));
-        assertEquals(MATCH, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(MATCH, classify(in(AGE, of(10L), of(42L), of(60L)), STATS_CONST_42));
     }
 
     public void testInAmbiguousWhenConstantColumnNotInList() {
-        Map<String, Object> stats = splitStats(42L, 42L, 100L, 0L);
-        Expression filter = in(ref("age"), lit(10L), lit(20L), lit(60L));
-        assertEquals(MISS, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(MISS, classify(in(AGE, of(10L), of(20L), of(60L)), STATS_CONST_42));
     }
 
     public void testInAmbiguousWithNulls() {
-        Map<String, Object> stats = splitStats(42L, 42L, 100L, 5L);
-        Expression filter = in(ref("age"), lit(42L));
-        assertEquals(AMBIGUOUS, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        assertEquals(AMBIGUOUS, classify(in(AGE, of(42L)), colStats(COL, 42L, 42L, 100L, 5L)));
     }
 
     public void testInWithAndFilter() {
-        Map<String, Object> stats = splitStats(30L, 50L, 100L, 0L);
-        Expression filter = and(in(ref("age"), lit(10L), lit(15L)), gt(ref("age"), lit(20L)));
-        assertEquals(MISS, SplitFilterClassifier.classifySplit(List.of(filter), stats));
+        Expression filter = and(in(AGE, of(10L), of(15L)), greaterThanOf(AGE, of(20L)));
+        assertEquals(MISS, classify(filter, STATS_30_50));
     }
 
     // --- compareValues ---
 
     public void testCompareValuesLongs() {
-        assertEquals(-1, Integer.signum(SplitFilterClassifier.compareValues(5L, 10L)));
-        assertEquals(0, SplitFilterClassifier.compareValues(10L, 10L));
-        assertEquals(1, Integer.signum(SplitFilterClassifier.compareValues(15L, 10L)));
+        assertEquals(-1, Integer.signum(compareValues(5L, 10L)));
+        assertEquals(0, compareValues(10L, 10L));
+        assertEquals(1, Integer.signum(compareValues(15L, 10L)));
     }
 
     public void testCompareValuesIntAndLong() {
-        assertEquals(0, SplitFilterClassifier.compareValues(10, 10L));
-        assertEquals(-1, Integer.signum(SplitFilterClassifier.compareValues(5, 10L)));
+        assertEquals(0, compareValues(10, 10L));
+        assertEquals(-1, Integer.signum(compareValues(5, 10L)));
     }
 
     public void testCompareValuesDoubles() {
-        assertEquals(-1, Integer.signum(SplitFilterClassifier.compareValues(1.5, 2.5)));
-        assertEquals(0, SplitFilterClassifier.compareValues(1.5, 1.5));
+        assertEquals(-1, Integer.signum(compareValues(1.5, 2.5)));
+        assertEquals(0, compareValues(1.5, 1.5));
     }
 
     public void testCompareValuesNull() {
-        assertEquals(Integer.MIN_VALUE, SplitFilterClassifier.compareValues(null, 10L));
-        assertEquals(Integer.MIN_VALUE, SplitFilterClassifier.compareValues(10L, null));
+        assertEquals(Integer.MIN_VALUE, compareValues(null, 10L));
+        assertEquals(Integer.MIN_VALUE, compareValues(10L, null));
     }
 
     // --- helpers ---
 
-    private static Map<String, Object> splitStats(Object min, Object max, long rowCount, long nullCount) {
+    private static SplitFilterClassifier.SplitMatch classify(Expression filter, Map<String, Object> stats) {
+        return classifyExpression(filter, stats);
+    }
+
+    private static Map<String, Object> colStats(String colName, Object min, Object max, long rowCount, long nullCount) {
         Map<String, Object> stats = new HashMap<>();
         stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, rowCount);
-        stats.put("_stats.columns.age.min", min);
-        stats.put("_stats.columns.age.max", max);
-        stats.put("_stats.columns.age.null_count", nullCount);
+        stats.put("_stats.columns." + colName + ".min", min);
+        stats.put("_stats.columns." + colName + ".max", max);
+        stats.put("_stats.columns." + colName + ".null_count", nullCount);
         return stats;
-    }
-
-    private static ReferenceAttribute ref(String name) {
-        return new ReferenceAttribute(Source.EMPTY, name, DataType.LONG);
-    }
-
-    private static Literal lit(long value) {
-        return new Literal(Source.EMPTY, value, DataType.LONG);
-    }
-
-    private static Literal lit(double value) {
-        return new Literal(Source.EMPTY, value, DataType.DOUBLE);
-    }
-
-    private static Literal lit(String value) {
-        return new Literal(Source.EMPTY, new BytesRef(value), DataType.KEYWORD);
-    }
-
-    private static Expression gt(Expression left, Expression right) {
-        return new GreaterThan(Source.EMPTY, left, right, null);
-    }
-
-    private static Expression gte(Expression left, Expression right) {
-        return new GreaterThanOrEqual(Source.EMPTY, left, right, null);
-    }
-
-    private static Expression lt(Expression left, Expression right) {
-        return new LessThan(Source.EMPTY, left, right, null);
-    }
-
-    private static Expression lte(Expression left, Expression right) {
-        return new LessThanOrEqual(Source.EMPTY, left, right, null);
-    }
-
-    private static Expression eq(Expression left, Expression right) {
-        return new Equals(Source.EMPTY, left, right, null);
-    }
-
-    private static Expression neq(Expression left, Expression right) {
-        return new NotEquals(Source.EMPTY, left, right, null);
     }
 
     private static Expression or(Expression left, Expression right) {

@@ -125,11 +125,6 @@ static inline void call_f32_bulk_512(
             });
         }
 
-        f32_t res[batches];
-        apply_indexed<batches>([&](auto I) {
-            res[I] = _mm512_reduce_add_ps(sums[I]);
-        });
-
         // Masked tail for remaining dimensions
         const int remaining = dims - i;
         if (remaining > 0) {
@@ -137,12 +132,13 @@ static inline void call_f32_bulk_512(
             __m512 bi = _mm512_maskz_loadu_ps(mask, b + i);
             apply_indexed<batches>([&](auto I) {
                 __m512 ai = _mm512_maskz_loadu_ps(mask, as[I] + i);
-                __m512 partial = inner_op(ai, bi, _mm512_setzero_ps());
-                res[I] += _mm512_reduce_add_ps(partial);
+                sums[I] = inner_op(ai, bi, sums[I]);
             });
         }
 
-        std::copy_n(res, batches, results + c);
+        apply_indexed<batches>([&](auto I) {
+            results[c + I] = _mm512_reduce_add_ps(sums[I]);
+        });
     }
 
     for (; c < count; c++) {

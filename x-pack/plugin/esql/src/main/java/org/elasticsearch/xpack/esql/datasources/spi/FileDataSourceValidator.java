@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.cluster.metadata.DataSourceSetting;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.xpack.esql.datasources.PartitionConfig;
 
@@ -14,13 +15,19 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator.rejectUnknownFields;
-import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator.validateEnum;
-import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator.validateInt;
+import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidationUtils.rejectUnknownFields;
+import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidationUtils.validateEnum;
+import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidationUtils.validateInt;
 
 /**
  * {@link DataSourceValidator} for file-based external sources (S3, GCS, Azure).
+ *
+ * <p>Plugins pass their {@code supportedSchemes()} (e.g. {@code Set.of("s3", "s3a", "s3n")})
+ * directly to the constructor — the validator appends {@code "://"} internally when
+ * matching resource URIs, so plugins do not need to duplicate the scheme list with
+ * URI suffixes.
  */
 public class FileDataSourceValidator implements DataSourceValidator {
 
@@ -33,16 +40,16 @@ public class FileDataSourceValidator implements DataSourceValidator {
 
     private final String type;
     private final Function<Map<String, Object>, DataSourceConfiguration> configFactory;
-    private final Set<String> validSchemes;
+    private final Set<String> supportedSchemes;
 
     public FileDataSourceValidator(
         String type,
         Function<Map<String, Object>, DataSourceConfiguration> configFactory,
-        Set<String> validSchemes
+        Set<String> supportedSchemes
     ) {
         this.type = type;
         this.configFactory = configFactory;
-        this.validSchemes = validSchemes;
+        this.supportedSchemes = supportedSchemes;
     }
 
     @Override
@@ -51,17 +58,17 @@ public class FileDataSourceValidator implements DataSourceValidator {
     }
 
     @Override
-    public Map<String, DataSourceStoredSetting> validateDatasource(Map<String, Object> settings) {
-        if (settings == null || settings.isEmpty()) {
+    public Map<String, DataSourceSetting> validateDatasource(Map<String, Object> datasourceSettings) {
+        if (datasourceSettings == null || datasourceSettings.isEmpty()) {
             return Map.of();
         }
-        DataSourceConfiguration config = configFactory.apply(settings);
+        DataSourceConfiguration config = configFactory.apply(datasourceSettings);
         return config != null ? config.toStoredSettings() : Map.of();
     }
 
     @Override
     public Map<String, Object> validateDataset(
-        Map<String, DataSourceStoredSetting> datasourceSettings,
+        Map<String, DataSourceSetting> datasourceSettings,
         String resource,
         Map<String, Object> datasetSettings
     ) {
@@ -95,16 +102,21 @@ public class FileDataSourceValidator implements DataSourceValidator {
             errors.addValidationError("[resource] is required");
             return;
         }
-        // Case-insensitive scheme match, consistent with DataSourceCapabilities.supportsScheme()
+        // Case-insensitive scheme match. Each plugin declares scheme names without "://" via supportedSchemes();
+        // we append "://" here to ensure prefix matching is unambiguous (so e.g. "s3foo://" doesn't match "s3").
         boolean schemeMatch = false;
-        for (String scheme : validSchemes) {
-            if (resource.regionMatches(true, 0, scheme, 0, scheme.length())) {
+        for (String scheme : supportedSchemes) {
+            String prefix = scheme + "://";
+            if (resource.regionMatches(true, 0, prefix, 0, prefix.length())) {
                 schemeMatch = true;
                 break;
             }
         }
         if (schemeMatch == false) {
-            errors.addValidationError("[resource] must start with one of " + validSchemes + " but was [" + resource + "]");
+            String supportedPrefixes = supportedSchemes.stream().map(s -> s + "://").collect(Collectors.joining(", ", "[", "]"));
+            errors.addValidationError(
+                "[resource] must use one of the supported URI schemes " + supportedPrefixes + " but was [" + resource + "]"
+            );
         }
     }
 }

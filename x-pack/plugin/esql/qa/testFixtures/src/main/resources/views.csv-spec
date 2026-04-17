@@ -615,8 +615,6 @@ count:long
 wildcardExcludeEmployeeViewsNoFalseCircularReference
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
-required_capability: join_lookup_v12
-required_capability: lookup_join_on_boolean_expression
 required_capability: views_false_circular_reference_fix
 
 // Reproduces https://github.com/elastic/elasticsearch/issues/146208
@@ -634,8 +632,6 @@ true
 wildcardExcludeNestedEmployeeViewsNoFalseCircularReference
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
-required_capability: join_lookup_v12
-required_capability: lookup_join_on_boolean_expression
 required_capability: views_false_circular_reference_fix
 
 // Reproduces https://github.com/elastic/elasticsearch/issues/146208

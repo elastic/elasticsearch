@@ -136,7 +136,13 @@ public interface IndexAbstraction {
          * An index abstraction that refers to an ESQL query.
          * The ESQL query can target multiple indices, aliases, or data streams.
          */
-        VIEW("view");
+        VIEW("view"),
+
+        /**
+         * An index abstraction that refers to a named external dataset.
+         * Datasets inherit credentials from a parent data source and point to external data.
+         */
+        DATASET("dataset");
 
         private final String displayName;
 

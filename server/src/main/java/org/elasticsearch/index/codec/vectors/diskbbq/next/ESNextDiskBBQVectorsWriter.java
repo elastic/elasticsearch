@@ -125,10 +125,16 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         this.sliceField = sliceField;
         if (sliceField != null) {
             Sort sort = state.segmentInfo.getIndexSort();
-            assert sort != null && sort.getSort().length > 0 : "sliceField requires index sort";
+            if (sort == null || sort.getSort().length == 0) {
+                throw new IllegalStateException("sliceField requires index sort");
+            }
             SortField primary = sort.getSort()[0];
-            assert sliceField.equals(primary.getField()) : "sliceField must be primary index sort";
-            assert primary.getType() == SortField.Type.STRING : "sliceField must be SortedDocValues string";
+            if (sliceField.equals(primary.getField()) == false) {
+                throw new IllegalStateException("sliceField must be primary index sort");
+            }
+            if (primary.getType() != SortField.Type.STRING) {
+                throw new IllegalStateException("sliceField requires primary index sort");
+            }
         }
     }
 
@@ -314,6 +320,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             postingsOutput.writeByte(encoding);
             if (sliceField != null) {
                 // We are not writing the docIds as we know they are writing in vector ord order.
+                // we will ise the delegated FloatVectorValue instance on read to do the translation for us.
                 assert centroidSupplier.size() == 1;
                 bulkWriter.writeVectors(onHeapQuantizedVectors, null);
             } else {

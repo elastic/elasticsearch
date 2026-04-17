@@ -84,12 +84,16 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
     protected int getNumberOfVectors(NextFieldEntry entry, FloatVectorValues values, IndexInput centroidSlice, ESAcceptDocs esAcceptDocs)
         throws IOException {
         int size = values.size();
+        assert esAcceptDocs == null
+            || entry.numSlices >= 0 && esAcceptDocs.sliceOrd() >= 0
+            || entry.numSlices == -1 && esAcceptDocs.sliceOrd() == -1;
         if (entry.numSlices > 0) {
             long fp = centroidSlice.getFilePointer();
             final int bitsRequired = DirectWriter.bitsRequired(entry.maxSliceSize);
             final long sizeLookup = DirectWriter.bytesRequired(entry.numSlices, bitsRequired);
-            if (esAcceptDocs != null && esAcceptDocs.sliceOrd() >= 0) {
+            if (esAcceptDocs != null) {
                 int sliceOrd = esAcceptDocs.sliceOrd();
+                assert sliceOrd < entry.numSlices : "sliceOrd out of range for centroid slices";
                 final LongValues longValues = DirectReader.getInstance(centroidSlice.randomAccessSlice(fp, sizeLookup), bitsRequired);
                 size = (int) longValues.get(sliceOrd);
             }
@@ -218,27 +222,26 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         if (acceptDocs instanceof ESAcceptDocs esAcceptDocs) {
             // build a parent centroids filter
             int slice = esAcceptDocs.sliceOrd();
-            if (slice != -1) {
-                assert slice >= 0 && slice < numSlices : "sliceOrd out of range for centroid slices";
-                final int startOffset;
-                final int endOffset;
-                if (slice == 0) {
-                    startOffset = 0;
-                    endOffset = centroids.readInt();
-                } else {
-                    centroids.skipBytes((long) (slice - 1) * Integer.BYTES);
-                    startOffset = centroids.readInt();
-                    endOffset = centroids.readInt();
-                }
-                if (numParents > 0) {
-                    acceptParents = new FixedBitSet(numParents);
-                    assert startOffset >= 0 && endOffset <= numParents;
-                } else {
-                    acceptParents = new FixedBitSet(numCentroids);
-                    assert startOffset >= 0 && endOffset <= numCentroids;
-                }
-                acceptParents.set(startOffset, endOffset);
+            // a slice must be provided
+            assert slice >= 0 && slice < numSlices : "sliceOrd out of range for centroid slices";
+            final int startOffset;
+            final int endOffset;
+            if (slice == 0) {
+                startOffset = 0;
+                endOffset = centroids.readInt();
+            } else {
+                centroids.skipBytes((long) (slice - 1) * Integer.BYTES);
+                startOffset = centroids.readInt();
+                endOffset = centroids.readInt();
             }
+            if (numParents > 0) {
+                acceptParents = new FixedBitSet(numParents);
+                assert startOffset >= 0 && endOffset <= numParents;
+            } else {
+                acceptParents = new FixedBitSet(numCentroids);
+                assert startOffset >= 0 && endOffset <= numCentroids;
+            }
+            acceptParents.set(startOffset, endOffset);
         }
         centroids.seek(fp + (long) numSlices * Integer.BYTES);
         return acceptParents;
@@ -315,6 +318,9 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         private final ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding;
         protected final long preconditionerOffset;
         protected final long preconditionerLength;
+        // -1 "not sliced".
+        // 0 "sliced but on flush".
+        // > 0 "sliced but on merge, is the number of slices".
         final int numSlices;
         final int maxSliceSize;
 

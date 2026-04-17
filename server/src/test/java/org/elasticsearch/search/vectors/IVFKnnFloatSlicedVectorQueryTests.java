@@ -13,7 +13,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
@@ -27,9 +26,6 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.tests.analysis.MockAnalyzer;
-import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
@@ -39,9 +35,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.function.BooleanSupplier;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomFloat;
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween;
 import static org.hamcrest.Matchers.equalTo;
 
 public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQueryTestCase {
@@ -65,13 +59,19 @@ public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQuery
         );
     }
 
+    @Override
+    IVFKnnFloatVectorQuery getStableKnnVectorQuery(String field, float[] query, int k, Query queryFilter, float visitRatio) {
+        return new IVFKnnFloatVectorQuery(field, query, k, k, queryFilter, visitRatio, random().nextBoolean());
+    }
+
     @Before
     @Override
     public void setUp() throws Exception {
         super.setUp();
         format = new ESNextDiskBBQVectorsFormat(128, 4, null);
+        // only one slice so it behaves as a normal index
         this.numSlices = 1;
-        querySlice = new BytesRef("" + random().nextInt(numSlices));
+        querySlice = new BytesRef("" + 0);
     }
 
     @Override
@@ -112,38 +112,15 @@ public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQuery
     }
 
     @Override
-    Directory getIndexStore(String field, VectorSimilarityFunction vectorSimilarityFunction, float[]... contents) throws IOException {
-        Directory indexStore = newDirectoryForTest();
-        IndexWriterConfig indexWriterConfig = LuceneTestCase.newIndexWriterConfig(random(), new MockAnalyzer(random()));
-        indexWriterConfig.setCodec(TestUtil.alwaysKnnVectorsFormat(format));
-        RandomIndexWriter writer = new RandomIndexWriter(random(), indexStore, indexWriterConfig);
-        for (int i = 0; i < contents.length; ++i) {
-            Document doc = new Document();
-            doc.add(SortedDocValuesField.indexedField(SLICE_FIELD, new BytesRef("" + random().nextInt(numSlices))));
-            doc.add(getKnnVectorField(field, contents[i], vectorSimilarityFunction));
-            doc.add(new StringField("id", "id" + i, Field.Store.YES));
-            writer.addDocument(doc);
-            if (randomBoolean()) {
-                // Add some documents without a vector
-                for (int j = 0; j < randomIntBetween(1, 5); j++) {
-                    doc = new Document();
-                    doc.add(SortedDocValuesField.indexedField(SLICE_FIELD, new BytesRef("" + random().nextInt(numSlices))));
-                    doc.add(new StringField("other", "value", Field.Store.NO));
-                    // Add fields that will be matched by our test filters but won't have vectors
-                    doc.add(new StringField("id", "id" + j, Field.Store.YES));
-                    writer.addDocument(doc);
-                }
-            }
-        }
-        // Add some documents without a vector
-        for (int i = 0; i < 5; i++) {
-            Document doc = new Document();
-            doc.add(new StringField("other", "value", Field.Store.NO));
-            doc.add(SortedDocValuesField.indexedField(SLICE_FIELD, new BytesRef("" + random().nextInt(numSlices))));
-            writer.addDocument(doc);
-        }
-        writer.close();
-        return indexStore;
+    protected Document getDocumentToIndex() {
+        Document doc = new Document();
+        doc.add(SortedDocValuesField.indexedField(SLICE_FIELD, new BytesRef("" + random().nextInt(numSlices))));
+        return doc;
+    }
+
+    @Override
+    protected void decorateIWC(IndexWriterConfig indexWriterConfig) {
+        indexWriterConfig.setIndexSort(new Sort(new SortField(SLICE_FIELD, SortField.Type.STRING)));
     }
 
     public void testSlicesDense() throws IOException {

@@ -16,6 +16,8 @@ import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.Weight;
@@ -55,38 +57,48 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
         BytesRef sliceId
     ) {
         super(field, query, k, numCands, filter, visitRatio, doPrecondition);
-        this.sliceField = sliceField;
-        this.sliceId = sliceId;
+        this.sliceField = Objects.requireNonNull(sliceField);
+        this.sliceId = Objects.requireNonNull(sliceId);
     }
 
     @Override
     TopDocs getLeafResults(LeafReaderContext ctx, Weight filterWeight, IVFCollectorManager knnCollectorManager, float visitRatio)
         throws IOException {
         final LeafReader reader = ctx.reader();
+        if (reader.numDocs() == 0) {
+            return TopDocsCollector.EMPTY_TOPDOCS;
+        }
         final Bits liveDocs = reader.getLiveDocs();
         final int maxDoc = reader.maxDoc();
-
-        AcceptDocs acceptDocs;
-        final int sliceOrd;
-        final IOSupplier<ESAcceptDocs.SliceAcceptDocs> sliceAcceptDocsSupplier;
-        if (sliceId != null) {
-            var sortedDocValues = ctx.reader().getSortedDocValues(sliceField);
-            if (sortedDocValues != null) {
-                sliceOrd = sortedDocValues.lookupTerm(sliceId);
-                if (sliceOrd < 0) {
-                    return TopDocsCollector.EMPTY_TOPDOCS;
-                }
-                var skipper = ctx.reader().getDocValuesSkipper(sliceField);
-                assert skipper.docCount() == maxDoc; // dense
-                sliceAcceptDocsSupplier = () -> getSliceAcceptDocsSupplier(sortedDocValues, skipper, sliceOrd);
-            } else {
-                sliceOrd = -1;
-                sliceAcceptDocsSupplier = null;
-            }
-        } else {
-            sliceOrd = -1;
-            sliceAcceptDocsSupplier = null;
+        final Sort sort = reader.getMetaData().sort();
+        if (sort == null
+            || sort.getSort().length == 0
+            || sort.getSort()[0].getField().equals(sliceField) == false
+            || sort.getSort()[0].getType() != SortField.Type.STRING) {
+            throw new IllegalArgumentException("sliceField must be the first field of the index sort and of type STRING");
         }
+
+        final SortedDocValues sortedDocValues = ctx.reader().getSortedDocValues(sliceField);
+        assert sortedDocValues != null : "sliceField must have doc values";
+        final int sliceOrd = sortedDocValues.lookupTerm(sliceId);
+        if (sliceOrd < 0) {
+            return TopDocsCollector.EMPTY_TOPDOCS;
+        }
+        var skipper = ctx.reader().getDocValuesSkipper(sliceField);
+        if (skipper == null) {
+            throw new IllegalArgumentException("sliceField [" + sliceField + "] must be indexed as a DocValuesSkipper field");
+        }
+        if (skipper.docCount() != maxDoc) {
+            throw new IllegalArgumentException(
+                "DocValuesSkipper for sliceField [" + sliceField + "] must have a doc count equal to maxDoc"
+            );
+        }
+        final IOSupplier<ESAcceptDocs.SliceAcceptDocs> sliceAcceptDocsSupplier = () -> getSliceAcceptDocsSupplier(
+            sortedDocValues,
+            skipper,
+            sliceOrd
+        );
+        final AcceptDocs acceptDocs;
         if (filterWeight == null) {
             acceptDocs = liveDocs == null
                 ? new ESAcceptDocs.ESAcceptDocsAll(sliceOrd, sliceAcceptDocsSupplier)

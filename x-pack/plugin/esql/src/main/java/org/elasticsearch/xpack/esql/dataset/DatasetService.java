@@ -47,11 +47,13 @@ public class DatasetService {
     private static final Logger logger = LogManager.getLogger(DatasetService.class);
 
     // Operator-only: not exposed to end users. Change to Dynamic (+ ServerlessPublic) later to open.
+    // TODO(max-count): defaults copied from ViewService.MAX_VIEWS_COUNT_SETTING as a placeholder;
+    // revisit against real product expectations + cluster-state impact.
     public static final Setting<Integer> MAX_DATASETS_COUNT_SETTING = Setting.intSetting(
         "esql.datasets.max_count",
-        5_000,
+        500,
         0,
-        100_000,
+        10_000,
         Setting.Property.NodeScope,
         Setting.Property.OperatorDynamic
     );

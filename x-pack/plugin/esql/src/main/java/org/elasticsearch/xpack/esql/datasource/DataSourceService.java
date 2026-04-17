@@ -51,6 +51,8 @@ public class DataSourceService {
     private static final Logger logger = LogManager.getLogger(DataSourceService.class);
 
     // Operator-only: not exposed to end users. Change to Dynamic (+ ServerlessPublic) later to open.
+    // TODO(max-count): defaults copied from ViewService.MAX_VIEWS_COUNT_SETTING as a placeholder;
+    // revisit against real product expectations + cluster-state impact.
     public static final Setting<Integer> MAX_DATA_SOURCES_COUNT_SETTING = Setting.intSetting(
         "esql.data_sources.max_count",
         500,

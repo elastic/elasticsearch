@@ -12,12 +12,29 @@ package org.elasticsearch.action.admin.cluster.node.tasks.list;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.reindex.ReindexAction;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.tasks.TaskResult;
+import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
+import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class TransportListTasksActionTests extends ESTestCase {
 
@@ -32,7 +49,7 @@ public class TransportListTasksActionTests extends ESTestCase {
     }
 
     private static TaskInfo randomTaskInfoWithTaskId(final TaskId taskId) {
-        return randomTaskInfoWithTaskId(taskId, taskId, randomNonNegativeLong());
+        return randomTaskInfoWithTaskIdAndOriginalAndRunningTime(taskId, taskId, randomNonNegativeLong());
     }
 
     private static TaskInfo randomTaskInfoWithRunningTimeNanos(final long runningTimeNanos) {
@@ -40,10 +57,14 @@ public class TransportListTasksActionTests extends ESTestCase {
     }
 
     private static TaskInfo randomTaskInfoWithTaskIdAndRunningTimeNanos(final TaskId taskId, final long runningTimeNanos) {
-        return randomTaskInfoWithTaskId(taskId, taskId, runningTimeNanos);
+        return randomTaskInfoWithTaskIdAndOriginalAndRunningTime(taskId, taskId, runningTimeNanos);
     }
 
-    private static TaskInfo randomTaskInfoWithTaskId(final TaskId taskId, final TaskId originalTaskId, final long runningTimeNanos) {
+    private static TaskInfo randomTaskInfoWithTaskIdAndOriginalAndRunningTime(
+        final TaskId taskId,
+        final TaskId originalTaskId,
+        final long runningTimeNanos
+    ) {
         final boolean cancellable = randomBoolean();
         return new TaskInfo(
             taskId,
@@ -63,6 +84,69 @@ public class TransportListTasksActionTests extends ESTestCase {
         );
     }
 
+    private static TaskInfo randomTaskInfoWithParentId(final TaskId parentTaskId) {
+        return randomTaskInfoWithTaskIdActionAndParent(randomTaskId(), randomAlphaOfLength(10), parentTaskId);
+    }
+
+    private static TaskInfo randomTaskInfoWithTaskIdActionAndParent(final TaskId taskId, final String action, final TaskId parentTaskId) {
+        final boolean cancellable = randomBoolean();
+        return new TaskInfo(
+            taskId,
+            randomAlphaOfLength(10),
+            taskId.getNodeId(),
+            action,
+            randomAlphaOfLength(10),
+            null,
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            cancellable,
+            cancellable && randomBoolean(),
+            parentTaskId,
+            Map.of(),
+            taskId,
+            randomNonNegativeLong()
+        );
+    }
+
+    private static GetResponse buildTasksIndexResponse(String docId, TaskResult taskResult) {
+        BytesReference source;
+        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+            taskResult.toXContent(builder, org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS);
+            source = BytesReference.bytes(builder);
+        } catch (IOException e) {
+            throw new AssertionError("failed to serialize task result", e);
+        }
+        return new GetResponse(
+            new GetResult(
+                TaskResultsService.TASK_INDEX,
+                docId,
+                SequenceNumbers.UNASSIGNED_SEQ_NO,
+                SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
+                1,
+                true,
+                source,
+                null,
+                null
+            )
+        );
+    }
+
+    private static GetResponse notFoundGetResponse() {
+        return new GetResponse(
+            new GetResult(
+                TaskResultsService.TASK_INDEX,
+                randomAlphaOfLength(10),
+                SequenceNumbers.UNASSIGNED_SEQ_NO,
+                SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
+                -1,
+                false,
+                null,
+                null,
+                null
+            )
+        );
+    }
+
     private static TaskOperationFailure taskFailureWithNodeAndTaskId(String nodeId, long taskId) {
         return new TaskOperationFailure(nodeId, taskId, new IllegalStateException(randomAlphaOfLength(10)));
     }
@@ -76,27 +160,37 @@ public class TransportListTasksActionTests extends ESTestCase {
     public void testPreferNewerReturnsTaskInfoWithLowerRuntime() {
         final long high = randomLongBetween(1, Long.MAX_VALUE);
         final long low = randomLongBetween(0, high - 1);
-        final TaskInfo higher = randomTaskInfoWithRunningTimeNanos(high);
-        final TaskInfo lower = randomTaskInfoWithRunningTimeNanos(low);
-        assertSame(lower, TransportListTasksAction.preferNewer(higher, lower));
+        final TaskInfo older = randomTaskInfoWithRunningTimeNanos(high);
+        final TaskInfo newer = randomTaskInfoWithRunningTimeNanos(low);
+        assertSame(newer, TransportListTasksAction.preferNewer(older, newer));
     }
 
     public void testPreferNewerReturnsExistingWhenEqual() {
         final long runtime = randomNonNegativeLong();
-        final TaskInfo firstEqual = randomTaskInfoWithRunningTimeNanos(runtime);
-        final TaskInfo secondEqual = randomTaskInfoWithRunningTimeNanos(runtime);
-        assertSame(firstEqual, TransportListTasksAction.preferNewer(firstEqual, secondEqual));
+        final TaskInfo existing = randomTaskInfoWithRunningTimeNanos(runtime);
+        final TaskInfo newEqual = randomTaskInfoWithRunningTimeNanos(runtime);
+        assertSame(existing, TransportListTasksAction.preferNewer(existing, newEqual));
     }
 
     // -- deduplicateTasks --
 
-    public void testDeduplicateTasksNoDuplicates() {
-        final TaskInfo a1 = randomTaskInfo();
-        final TaskInfo a2 = randomTaskInfo();
-        final TaskInfo b1 = randomTaskInfo();
-        final TaskInfo b2 = randomTaskInfo();
+    public void testDeduplicateTasksOnOriginalTaskIdNoDuplicates() {
+        final List<TaskId> uniqueParentTaskIds = randomValueOtherThanMany(
+            t -> t.size() != 4,
+            () -> randomSet(4, 4, TransportListTasksActionTests::randomTaskId)
+        ).stream().toList();
+        assertThat(uniqueParentTaskIds, hasSize(4));
+        assertThat(
+            "has no duplicates",
+            uniqueParentTaskIds.stream().allMatch(t -> Collections.frequency(uniqueParentTaskIds, t) == 1),
+            equalTo(true)
+        );
+        final TaskInfo a1 = randomTaskInfoWithParentId(uniqueParentTaskIds.get(0));
+        final TaskInfo a2 = randomTaskInfoWithParentId(uniqueParentTaskIds.get(1));
+        final TaskInfo b1 = randomTaskInfoWithParentId(uniqueParentTaskIds.get(2));
+        final TaskInfo b2 = randomTaskInfoWithParentId(uniqueParentTaskIds.get(3));
 
-        final Map<TaskId, TaskInfo> result = TransportListTasksAction.deduplicateTasks(List.of(a1, a2), List.of(b1, b2));
+        final Map<TaskId, TaskInfo> result = TransportListTasksAction.deduplicateTasksOnOriginalTaskId(List.of(b1, b2), List.of(a1, a2));
         assertEquals(4, result.size());
         assertSame(a1, result.get(a1.originalTaskId()));
         assertSame(a2, result.get(a2.originalTaskId()));
@@ -104,80 +198,86 @@ public class TransportListTasksActionTests extends ESTestCase {
         assertSame(b2, result.get(b2.originalTaskId()));
     }
 
-    public void testDeduplicateTasksIntraPrimaryCollision() {
+    public void testDeduplicateTasksOnOriginalTaskIdIntraPrimaryCollision() {
         TaskId originalId = randomTaskId();
         long high = randomLongBetween(1, Long.MAX_VALUE);
         long low = randomLongBetween(0, high - 1);
-        TaskInfo older = randomTaskInfoWithTaskId(randomTaskId(), originalId, high);
-        TaskInfo newer = randomTaskInfoWithTaskId(randomTaskId(), originalId, low);
+        TaskInfo older = randomTaskInfoWithTaskIdAndOriginalAndRunningTime(randomTaskId(), originalId, high);
+        TaskInfo newer = randomTaskInfoWithTaskIdAndOriginalAndRunningTime(randomTaskId(), originalId, low);
 
-        Map<TaskId, TaskInfo> result = TransportListTasksAction.deduplicateTasks(List.of(older, newer), List.of());
+        Map<TaskId, TaskInfo> result = TransportListTasksAction.deduplicateTasksOnOriginalTaskId(List.of(), List.of(older, newer));
         assertEquals(1, result.size());
         assertSame(newer, result.get(originalId));
     }
 
-    public void testDeduplicateTasksIntraSecondaryCollision() {
+    public void testDeduplicateTasksOnOriginalTaskIdIntraSecondaryCollision() {
         TaskId originalId = randomTaskId();
         long high = randomLongBetween(1, Long.MAX_VALUE);
         long low = randomLongBetween(0, high - 1);
-        TaskInfo older = randomTaskInfoWithTaskId(randomTaskId(), originalId, high);
-        TaskInfo newer = randomTaskInfoWithTaskId(randomTaskId(), originalId, low);
+        TaskInfo older = randomTaskInfoWithTaskIdAndOriginalAndRunningTime(randomTaskId(), originalId, high);
+        TaskInfo newer = randomTaskInfoWithTaskIdAndOriginalAndRunningTime(randomTaskId(), originalId, low);
 
-        Map<TaskId, TaskInfo> result = TransportListTasksAction.deduplicateTasks(List.of(), List.of(older, newer));
+        Map<TaskId, TaskInfo> result = TransportListTasksAction.deduplicateTasksOnOriginalTaskId(List.of(older, newer), List.of());
         assertEquals(1, result.size());
         assertSame(newer, result.get(originalId));
     }
 
-    public void testDeduplicateTasksCrossListPrimaryWins() {
+    public void testDeduplicateTasksOnOriginalTaskIdCrossListPrimaryWins() {
         TaskId originalId = randomTaskId();
         long highRuntime = randomLongBetween(1, Long.MAX_VALUE);
         long lowRuntime = randomLongBetween(0, highRuntime - 1);
 
-        TaskInfo primaryTask = randomTaskInfoWithTaskId(randomTaskId(), originalId, highRuntime);
-        TaskInfo secondaryTask = randomTaskInfoWithTaskId(randomTaskId(), originalId, lowRuntime);
+        TaskInfo primaryTask = randomTaskInfoWithTaskIdAndOriginalAndRunningTime(randomTaskId(), originalId, highRuntime);
+        TaskInfo secondaryTask = randomTaskInfoWithTaskIdAndOriginalAndRunningTime(randomTaskId(), originalId, lowRuntime);
 
-        Map<TaskId, TaskInfo> result = TransportListTasksAction.deduplicateTasks(List.of(primaryTask), List.of(secondaryTask));
+        Map<TaskId, TaskInfo> result = TransportListTasksAction.deduplicateTasksOnOriginalTaskId(
+            List.of(secondaryTask),
+            List.of(primaryTask)
+        );
         assertEquals(1, result.size());
         assertSame(primaryTask, result.get(originalId));
     }
 
-    public void testDeduplicateTasksFourWay() {
-        TaskId originalId = randomTaskId();
-        long r1 = randomLongBetween(100, 200);
-        long r2 = randomLongBetween(0, 99);
-        long r3 = randomLongBetween(300, 400);
-        long r4 = randomLongBetween(0, 50);
+    public void testDeduplicateTasksOnOriginalTaskIdFourWay() {
+        TaskId sharedParent = randomTaskId();
+        long a1 = randomLongBetween(0, 99);
+        long a2 = randomLongBetween(100, 200);
+        long b1 = randomLongBetween(0, 50);
+        long b2 = randomLongBetween(300, 400);
 
-        TaskInfo pOlder = randomTaskInfoWithTaskId(randomTaskId(), originalId, r1);
-        TaskInfo pNewer = randomTaskInfoWithTaskId(randomTaskId(), originalId, r2);
-        TaskInfo sOlder = randomTaskInfoWithTaskId(randomTaskId(), originalId, r3);
-        TaskInfo sNewer = randomTaskInfoWithTaskId(randomTaskId(), originalId, r4);
+        TaskInfo primaryNewest = randomTaskInfoWithTaskIdAndOriginalAndRunningTime(randomTaskId(), sharedParent, a1);
+        TaskInfo primaryOlder = randomTaskInfoWithTaskIdAndOriginalAndRunningTime(randomTaskId(), sharedParent, a2);
+        TaskInfo secondaryNewest = randomTaskInfoWithTaskIdAndOriginalAndRunningTime(randomTaskId(), sharedParent, b1);
+        TaskInfo secondaryOlder = randomTaskInfoWithTaskIdAndOriginalAndRunningTime(randomTaskId(), sharedParent, b2);
 
-        Map<TaskId, TaskInfo> result = TransportListTasksAction.deduplicateTasks(List.of(pOlder, pNewer), List.of(sOlder, sNewer));
+        Map<TaskId, TaskInfo> result = TransportListTasksAction.deduplicateTasksOnOriginalTaskId(
+            List.of(secondaryOlder, secondaryNewest),
+            List.of(primaryOlder, primaryNewest)
+        );
         assertEquals(1, result.size());
-        assertSame(pNewer, result.get(originalId));
+        assertSame(primaryNewest, result.get(sharedParent));
     }
 
-    public void testDeduplicateTasksMixedUniqueAndDuplicated() {
-        TaskId sharedOriginal = randomTaskId();
-        TaskInfo primaryShared = randomTaskInfoWithTaskId(randomTaskId(), sharedOriginal, randomNonNegativeLong());
-        TaskInfo secondaryShared = randomTaskInfoWithTaskId(randomTaskId(), sharedOriginal, randomNonNegativeLong());
+    public void testDeduplicateTasksOnOriginalTaskIdMixedUniqueAndDuplicated() {
+        TaskId sharedParent = randomTaskId();
+        TaskInfo primaryShared = randomTaskInfoWithTaskIdAndOriginalAndRunningTime(randomTaskId(), sharedParent, randomNonNegativeLong());
+        TaskInfo secondaryShared = randomTaskInfoWithTaskIdAndOriginalAndRunningTime(randomTaskId(), sharedParent, randomNonNegativeLong());
 
         TaskInfo primaryUnique = randomTaskInfoWithTaskId(randomTaskId());
         TaskInfo secondaryUnique = randomTaskInfoWithTaskId(randomTaskId());
 
-        Map<TaskId, TaskInfo> result = TransportListTasksAction.deduplicateTasks(
-            List.of(primaryShared, primaryUnique),
-            List.of(secondaryShared, secondaryUnique)
+        Map<TaskId, TaskInfo> result = TransportListTasksAction.deduplicateTasksOnOriginalTaskId(
+            List.of(secondaryShared, secondaryUnique),
+            List.of(primaryShared, primaryUnique)
         );
         assertEquals(3, result.size());
-        assertSame(primaryShared, result.get(sharedOriginal));
+        assertSame(primaryShared, result.get(sharedParent));
         assertSame(primaryUnique, result.get(primaryUnique.originalTaskId()));
         assertSame(secondaryUnique, result.get(secondaryUnique.originalTaskId()));
     }
 
-    public void testDeduplicateTasksEmptyLists() {
-        Map<TaskId, TaskInfo> result = TransportListTasksAction.deduplicateTasks(List.of(), List.of());
+    public void testDeduplicateTasksOnOriginalTaskIdEmptyLists() {
+        Map<TaskId, TaskInfo> result = TransportListTasksAction.deduplicateTasksOnOriginalTaskId(List.of(), List.of());
         assertTrue(result.isEmpty());
     }
 
@@ -191,28 +291,28 @@ public class TransportListTasksActionTests extends ESTestCase {
 
         List<TaskOperationFailure> result = TransportListTasksAction.deduplicateTaskFailures(
             Map.of(),
-            List.of(primaryFailure),
-            List.of(secondaryFailure)
+            List.of(secondaryFailure),
+            List.of(primaryFailure)
         );
         assertEquals(1, result.size());
-        assertSame(primaryFailure, result.get(0));
+        assertSame(primaryFailure, result.getFirst());
     }
 
     public void testDeduplicateTaskFailuresExclusion() {
         TaskId originalId = randomTaskId();
-        TaskInfo captured = randomTaskInfoWithTaskId(randomTaskId(), originalId, randomNonNegativeLong());
+        TaskInfo captured = randomTaskInfoWithTaskIdAndOriginalAndRunningTime(randomTaskId(), originalId, randomNonNegativeLong());
 
-        TaskOperationFailure excludable = taskFailureWithNodeAndTaskId(originalId.getNodeId(), originalId.getId());
+        TaskOperationFailure excluded = taskFailureWithNodeAndTaskId(originalId.getNodeId(), originalId.getId());
 
         TaskOperationFailure unrelated = taskFailureWithNodeAndTaskId(randomAlphaOfLength(5), randomNonNegativeLong());
 
         List<TaskOperationFailure> result = TransportListTasksAction.deduplicateTaskFailures(
             Map.of(originalId, captured),
-            List.of(excludable, unrelated),
-            List.of()
+            List.of(),
+            List.of(excluded, unrelated)
         );
         assertEquals(1, result.size());
-        assertSame(unrelated, result.get(0));
+        assertSame(unrelated, result.getFirst());
     }
 
     public void testDeduplicateTaskFailuresGapCase() {
@@ -227,18 +327,18 @@ public class TransportListTasksActionTests extends ESTestCase {
 
         List<TaskOperationFailure> result = TransportListTasksAction.deduplicateTaskFailures(
             Map.of(originalId, nonRelocated),
-            List.of(failureForRelocated),
-            List.of()
+            List.of(),
+            List.of(failureForRelocated)
         );
         assertEquals(1, result.size());
-        assertSame(failureForRelocated, result.get(0));
+        assertSame(failureForRelocated, result.getFirst());
     }
 
     public void testDeduplicateTaskFailuresEmptyTasksMap() {
         TaskOperationFailure f1 = taskFailureWithNodeAndTaskId(randomAlphaOfLength(5), randomNonNegativeLong());
         TaskOperationFailure f2 = taskFailureWithNodeAndTaskId(randomAlphaOfLength(5), randomNonNegativeLong());
 
-        List<TaskOperationFailure> result = TransportListTasksAction.deduplicateTaskFailures(Map.of(), List.of(f1), List.of(f2));
+        List<TaskOperationFailure> result = TransportListTasksAction.deduplicateTaskFailures(Map.of(), List.of(f2), List.of(f1));
         assertEquals(2, result.size());
         assertSame(f1, result.get(0));
         assertSame(f2, result.get(1));
@@ -248,7 +348,7 @@ public class TransportListTasksActionTests extends ESTestCase {
         TaskOperationFailure pf = taskFailureWithNodeAndTaskId(randomAlphaOfLength(5), randomNonNegativeLong());
         TaskOperationFailure sf = taskFailureWithNodeAndTaskId(randomAlphaOfLength(5), randomNonNegativeLong());
 
-        List<TaskOperationFailure> result = TransportListTasksAction.deduplicateTaskFailures(Map.of(), List.of(pf), List.of(sf));
+        List<TaskOperationFailure> result = TransportListTasksAction.deduplicateTaskFailures(Map.of(), List.of(sf), List.of(pf));
         assertEquals(2, result.size());
         assertTrue(result.contains(pf));
         assertTrue(result.contains(sf));
@@ -261,9 +361,9 @@ public class TransportListTasksActionTests extends ESTestCase {
         FailedNodeException primaryFne = nodeFailureWithNodeId(nodeId);
         FailedNodeException secondaryFne = nodeFailureWithNodeId(nodeId);
 
-        List<ElasticsearchException> result = TransportListTasksAction.deduplicateNodeFailures(List.of(primaryFne), List.of(secondaryFne));
+        List<ElasticsearchException> result = TransportListTasksAction.deduplicateNodeFailures(List.of(secondaryFne), List.of(primaryFne));
         assertEquals(1, result.size());
-        assertSame(primaryFne, result.get(0));
+        assertSame(primaryFne, result.getFirst());
     }
 
     public void testDeduplicateNodeFailuresNonFNEByMessage() {
@@ -271,9 +371,9 @@ public class TransportListTasksActionTests extends ESTestCase {
         ElasticsearchException primaryEx = new ElasticsearchException(message);
         ElasticsearchException secondaryEx = new ElasticsearchException(message);
 
-        List<ElasticsearchException> result = TransportListTasksAction.deduplicateNodeFailures(List.of(primaryEx), List.of(secondaryEx));
+        List<ElasticsearchException> result = TransportListTasksAction.deduplicateNodeFailures(List.of(secondaryEx), List.of(primaryEx));
         assertEquals(1, result.size());
-        assertSame(primaryEx, result.get(0));
+        assertSame(primaryEx, result.getFirst());
     }
 
     public void testDeduplicateNodeFailuresMixedTypes() {
@@ -281,7 +381,7 @@ public class TransportListTasksActionTests extends ESTestCase {
         FailedNodeException fne = nodeFailureWithNodeId(nodeId);
         ElasticsearchException ex = new ElasticsearchException(randomAlphaOfLength(10));
 
-        List<ElasticsearchException> result = TransportListTasksAction.deduplicateNodeFailures(List.of(fne, ex), List.of());
+        List<ElasticsearchException> result = TransportListTasksAction.deduplicateNodeFailures(List.of(), List.of(fne, ex));
         assertEquals(2, result.size());
         assertSame(fne, result.get(0));
         assertSame(ex, result.get(1));
@@ -293,7 +393,7 @@ public class TransportListTasksActionTests extends ESTestCase {
         ElasticsearchException ex1 = new ElasticsearchException(randomAlphaOfLength(10));
         ElasticsearchException ex2 = new ElasticsearchException(randomAlphaOfLength(10));
 
-        List<ElasticsearchException> result = TransportListTasksAction.deduplicateNodeFailures(List.of(fne1, ex1), List.of(fne2, ex2));
+        List<ElasticsearchException> result = TransportListTasksAction.deduplicateNodeFailures(List.of(fne2, ex2), List.of(fne1, ex1));
         assertEquals(4, result.size());
     }
 
@@ -301,8 +401,8 @@ public class TransportListTasksActionTests extends ESTestCase {
 
     public void testDeduplicateAndMerge() {
         TaskId sharedOriginal = randomTaskId();
-        TaskInfo primaryTask = randomTaskInfoWithTaskId(randomTaskId(), sharedOriginal, randomNonNegativeLong());
-        TaskInfo secondaryTask = randomTaskInfoWithTaskId(randomTaskId(), sharedOriginal, randomNonNegativeLong());
+        TaskInfo primaryTask = randomTaskInfoWithTaskIdAndOriginalAndRunningTime(randomTaskId(), sharedOriginal, randomNonNegativeLong());
+        TaskInfo secondaryTask = randomTaskInfoWithTaskIdAndOriginalAndRunningTime(randomTaskId(), sharedOriginal, randomNonNegativeLong());
         TaskInfo primaryOnly = randomTaskInfoWithTaskId(randomTaskId());
         TaskInfo secondaryOnly = randomTaskInfoWithTaskId(randomTaskId());
 
@@ -328,10 +428,13 @@ public class TransportListTasksActionTests extends ESTestCase {
             List.of(sNodeFailure, sUniqueNodeFailure)
         );
 
-        ListTasksResponse merged = TransportListTasksAction.deduplicateAndMerge(primary, secondary);
+        ListTasksResponse merged = TransportListTasksAction.deduplicateAndMerge(secondary, primary);
 
         assertEquals(3, merged.getTasks().size());
-        Map<TaskId, TaskInfo> mergedTasks = TransportListTasksAction.deduplicateTasks(primary.getTasks(), secondary.getTasks());
+        Map<TaskId, TaskInfo> mergedTasks = TransportListTasksAction.deduplicateTasksOnOriginalTaskId(
+            secondary.getTasks(),
+            primary.getTasks()
+        );
         for (TaskInfo t : merged.getTasks()) {
             assertSame(mergedTasks.get(t.originalTaskId()), t);
         }
@@ -343,5 +446,157 @@ public class TransportListTasksActionTests extends ESTestCase {
         assertEquals(2, merged.getNodeFailures().size());
         assertSame(pNodeFailure, merged.getNodeFailures().get(0));
         assertSame(sUniqueNodeFailure, merged.getNodeFailures().get(1));
+    }
+
+    // -- copyWithoutWaitForCompletion --
+
+    public void testCopyWithoutWaitForCompletion() {
+        ListTasksRequest original = new ListTasksRequest();
+        original.setActions(randomAlphaOfLength(5), randomAlphaOfLength(5));
+        original.setNodes(randomAlphaOfLength(5), randomAlphaOfLength(5));
+        original.setTargetTaskId(randomTaskId());
+        original.setTargetParentTaskId(randomTaskId());
+        original.setTimeout(randomTimeValue());
+        original.setDetailed(randomBoolean());
+        original.setWaitForCompletion(randomBoolean());
+        original.setDescriptions(randomAlphaOfLength(5), randomAlphaOfLength(5));
+        original.setParentTask(randomTaskId());
+
+        ListTasksRequest copy = TransportListTasksAction.copyWithoutWaitForCompletion(original);
+
+        assertArrayEquals(original.getActions(), copy.getActions());
+        assertArrayEquals(original.getNodes(), copy.getNodes());
+        assertEquals(original.getTargetTaskId(), copy.getTargetTaskId());
+        assertEquals(original.getTargetParentTaskId(), copy.getTargetParentTaskId());
+        assertEquals(original.getTimeout(), copy.getTimeout());
+        assertEquals(original.getDetailed(), copy.getDetailed());
+        assertFalse(copy.getWaitForCompletion());
+        assertArrayEquals(original.getDescriptions(), copy.getDescriptions());
+        assertEquals(original.getParentTask(), copy.getParentTask());
+    }
+
+    // -- parseTaskInfoFromIndexResponse --
+
+    public void testParseTaskInfoFromIndexResponseValid() {
+        TaskInfo original = randomTaskInfo();
+        TaskResult taskResult = new TaskResult(true, original);
+        GetResponse response = buildTasksIndexResponse(original.taskId().toString(), taskResult);
+
+        Optional<TaskInfo> parsed = TransportListTasksAction.parseTaskInfoFromIndexResponse(xContentRegistry(), response);
+
+        assertTrue(parsed.isPresent());
+        assertEquals(original.taskId(), parsed.get().taskId());
+        assertEquals(original.action(), parsed.get().action());
+        assertEquals(original.startTime(), parsed.get().startTime());
+        assertEquals(original.runningTimeNanos(), parsed.get().runningTimeNanos());
+        assertEquals(original.cancellable(), parsed.get().cancellable());
+        assertEquals(original.parentTaskId(), parsed.get().parentTaskId());
+        assertEquals(original.originalTaskId(), parsed.get().originalTaskId());
+    }
+
+    public void testParseTaskInfoFromIndexResponseNotExists() {
+        Optional<TaskInfo> parsed = TransportListTasksAction.parseTaskInfoFromIndexResponse(xContentRegistry(), notFoundGetResponse());
+        assertTrue(parsed.isEmpty());
+    }
+
+    public void testParseTaskInfoFromIndexResponseMalformed() {
+        GetResponse malformed = new GetResponse(
+            new GetResult(
+                TaskResultsService.TASK_INDEX,
+                randomAlphaOfLength(10),
+                SequenceNumbers.UNASSIGNED_SEQ_NO,
+                SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
+                1,
+                true,
+                new BytesArray("{\"garbage\": true}"),
+                null,
+                null
+            )
+        );
+        Optional<TaskInfo> parsed = TransportListTasksAction.parseTaskInfoFromIndexResponse(xContentRegistry(), malformed);
+        assertTrue(parsed.isEmpty());
+    }
+
+    // -- findMissedRelocations --
+
+    public void testFindMissedRelocationsNoMissing() {
+        TaskInfo snapshotTask = randomTaskInfoWithTaskIdActionAndParent(randomTaskId(), ReindexAction.NAME, TaskId.EMPTY_TASK_ID);
+        TaskInfo wfcTask = randomTaskInfoWithTaskIdAndOriginalAndRunningTime(
+            randomTaskId(),
+            snapshotTask.originalTaskId(),
+            randomNonNegativeLong()
+        );
+
+        TransportListTasksAction.MissedRelocations result = TransportListTasksAction.findMissedRelocations(
+            List.of(snapshotTask),
+            List.of(wfcTask)
+        );
+        assertTrue(result.parents().isEmpty());
+        assertTrue(result.children().isEmpty());
+    }
+
+    public void testFindMissedRelocationsParentWithChildren() {
+        TaskId parentId = randomTaskId();
+        TaskInfo parent = randomTaskInfoWithTaskIdActionAndParent(parentId, ReindexAction.NAME, TaskId.EMPTY_TASK_ID);
+        TaskInfo child1 = randomTaskInfoWithTaskIdActionAndParent(randomTaskId(), randomAlphaOfLength(10), parentId);
+        TaskInfo child2 = randomTaskInfoWithTaskIdActionAndParent(randomTaskId(), randomAlphaOfLength(10), parentId);
+        TaskInfo unrelatedTask = randomTaskInfoWithTaskIdActionAndParent(randomTaskId(), ReindexAction.NAME, TaskId.EMPTY_TASK_ID);
+
+        TaskInfo wfcUnrelated = randomTaskInfoWithTaskIdAndOriginalAndRunningTime(
+            randomTaskId(),
+            unrelatedTask.originalTaskId(),
+            randomNonNegativeLong()
+        );
+
+        TransportListTasksAction.MissedRelocations result = TransportListTasksAction.findMissedRelocations(
+            List.of(parent, child1, child2, unrelatedTask),
+            List.of(wfcUnrelated)
+        );
+        assertEquals(List.of(parent), result.parents());
+        assertEquals(2, result.children().size());
+        assertTrue(result.children().contains(child1));
+        assertTrue(result.children().contains(child2));
+    }
+
+    public void testFindMissedRelocationsNonReindexIgnored() {
+        TaskInfo nonReindexParent = randomTaskInfoWithTaskIdActionAndParent(randomTaskId(), randomAlphaOfLength(10), TaskId.EMPTY_TASK_ID);
+
+        TransportListTasksAction.MissedRelocations result = TransportListTasksAction.findMissedRelocations(
+            List.of(nonReindexParent),
+            List.of()
+        );
+        assertTrue(result.parents().isEmpty());
+        assertTrue(result.children().isEmpty());
+    }
+
+    public void testFindMissedRelocationsChildTaskIgnored() {
+        TaskInfo childReindex = randomTaskInfoWithTaskIdActionAndParent(randomTaskId(), ReindexAction.NAME, randomTaskId());
+
+        TransportListTasksAction.MissedRelocations result = TransportListTasksAction.findMissedRelocations(
+            List.of(childReindex),
+            List.of()
+        );
+        assertTrue(result.parents().isEmpty());
+        assertTrue(result.children().isEmpty());
+    }
+
+    public void testFindMissedRelocationsMultipleParents() {
+        TaskId parent1Id = randomTaskId();
+        TaskId parent2Id = randomTaskId();
+        TaskInfo parent1 = randomTaskInfoWithTaskIdActionAndParent(parent1Id, ReindexAction.NAME, TaskId.EMPTY_TASK_ID);
+        TaskInfo parent2 = randomTaskInfoWithTaskIdActionAndParent(parent2Id, ReindexAction.NAME, TaskId.EMPTY_TASK_ID);
+        TaskInfo child1 = randomTaskInfoWithTaskIdActionAndParent(randomTaskId(), randomAlphaOfLength(10), parent1Id);
+        TaskInfo child2 = randomTaskInfoWithTaskIdActionAndParent(randomTaskId(), randomAlphaOfLength(10), parent2Id);
+
+        TransportListTasksAction.MissedRelocations result = TransportListTasksAction.findMissedRelocations(
+            List.of(parent1, parent2, child1, child2),
+            List.of()
+        );
+        assertEquals(2, result.parents().size());
+        assertTrue(result.parents().contains(parent1));
+        assertTrue(result.parents().contains(parent2));
+        assertEquals(2, result.children().size());
+        assertTrue(result.children().contains(child1));
+        assertTrue(result.children().contains(child2));
     }
 }

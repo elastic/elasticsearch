@@ -44,6 +44,7 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
     private TaskId targetParentTaskId = TaskId.EMPTY_TASK_ID;
 
     private TaskId targetTaskId = TaskId.EMPTY_TASK_ID;
+    // if you're adding new fields, also update the copyFieldsFrom method
 
     // NOTE: This constructor is only needed, because the setters in this class,
     // otherwise it can be removed and above fields can be made final.
@@ -193,5 +194,15 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
 
     public boolean canMatchAction(final String action) {
         return CollectionUtils.isEmpty(getActions()) || Regex.simpleMatch(getActions(), action);
+    }
+
+    public BaseTasksRequest<Request> copyFieldsFrom(final BaseTasksRequest<Request> request) {
+        super.copyFieldsFrom(request);
+        this.targetTaskId = request.targetTaskId;
+        this.targetParentTaskId = request.targetParentTaskId;
+        this.timeout = request.timeout;
+        this.actions = request.actions;
+        this.nodes = request.nodes;
+        return this;
     }
 }

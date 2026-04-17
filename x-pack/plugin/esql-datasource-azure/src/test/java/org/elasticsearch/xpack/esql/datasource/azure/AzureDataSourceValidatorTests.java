@@ -123,7 +123,7 @@ public class AzureDataSourceValidatorTests extends ESTestCase {
         settings.put("account", "myaccount");
         settings.put("endpoint", null);
         var result = validator.validateDatasource(settings);
-        assertEquals("myaccount", result.get("account").value());
+        assertEquals("myaccount", result.get("account").nonSecretValue());
         assertNull(result.get("endpoint"));
     }
 
@@ -153,6 +153,6 @@ public class AzureDataSourceValidatorTests extends ESTestCase {
         assertFalse(result.get("account").secret());
         assertTrue(result.get("key").secret());
         assertTrue(result.get("sas_token").secret());
-        assertEquals("myaccount", result.get("account").value());
+        assertEquals("myaccount", result.get("account").nonSecretValue());
     }
 }

@@ -1,0 +1,5 @@
+area: PromQL
+issues: []
+pr: 146116
+summary: "PromQL: absent labels must match empty-string label matchers"
+type: bug

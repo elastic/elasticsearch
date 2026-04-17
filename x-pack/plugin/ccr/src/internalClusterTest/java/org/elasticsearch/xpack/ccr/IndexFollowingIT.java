@@ -56,6 +56,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -64,7 +65,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.CheckedRunnable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -301,9 +301,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
         assertBusy(() -> {
             for (var entry : routingPerDoc.entrySet()) {
-                final GetResponse getResponse = followerClient().prepareGet("index2", entry.getKey())
-                    .setRouting(entry.getValue())
-                    .get();
+                final GetResponse getResponse = followerClient().prepareGet("index2", entry.getKey()).setRouting(entry.getValue()).get();
                 assertTrue("Doc with id [" + entry.getKey() + "] is missing", getResponse.isExists());
             }
             assertHitCount(leaderClient().prepareSearch("index1").setSize(0), totalDocs);

@@ -84,7 +84,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     private static final Logger notPreferredLogger = LogManager.getLogger(BalancedShardsAllocator.class.getName() + ".not_preferred");
     public static final String MOVE_NOT_PREFERRED_REASON = "move(not-preferred)";
     public static final String MOVE_CANNOT_REMAIN_REASON = "move(cannot-remain)";
-    public static final String REBALANCE_REASON = "rebalance";
+    public static final String REBALANCE_REASON = "move(rebalance)";
 
     public static final Setting<Float> SHARD_BALANCE_FACTOR_SETTING = Setting.floatSetting(
         "cluster.routing.allocation.balance.shard",

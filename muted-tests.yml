@@ -238,12 +238,6 @@ tests:
 - class: org.elasticsearch.search.fetch.FetchPhaseDocsIteratorTests
   method: testIterateAsyncVisitsLeavesInDocIdOrder
   issue: https://github.com/elastic/elasticsearch/issues/146078
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {csv-spec:text-embedding.text_embedding with multiple knn queries in fork}
-  issue: https://github.com/elastic/elasticsearch/issues/146091
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:text-embedding.text_embedding with multiple knn queries in fork}
-  issue: https://github.com/elastic/elasticsearch/issues/146092
 - class: org.elasticsearch.xpack.security.transport.filter.IpFilteringIntegrationTests
   method: testThatIpFilteringIsIntegratedIntoNettyPipelineViaHttp
   issue: https://github.com/elastic/elasticsearch/issues/146102
@@ -292,42 +286,18 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=indices.resolve_cluster/20_resolve_system_index/Resolve system index via resolve/cluster}
   issue: https://github.com/elastic/elasticsearch/issues/146312
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:text-embedding.text_embedding scores by stable sort}
-  issue: https://github.com/elastic/elasticsearch/issues/146338
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:text-embedding.text_embedding with multiple knn queries in fork}
-  issue: https://github.com/elastic/elasticsearch/issues/146339
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:text-embedding.text_embedding with multiple knn queries in fork}
-  issue: https://github.com/elastic/elasticsearch/issues/146341
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:text-embedding.text_embedding scores by stable sort}
-  issue: https://github.com/elastic/elasticsearch/issues/146342
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:stats.sumAsSurrogateWithOverflowGroupingRow}
   issue: https://github.com/elastic/elasticsearch/issues/146376
 - class: org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT
   method: testForceSleepsProfile {SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/146377
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
-  method: test {csv-spec:text-embedding.text_embedding scores by stable sort}
-  issue: https://github.com/elastic/elasticsearch/issues/146409
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
-  method: test {csv-spec:text-embedding.text_embedding with multiple knn queries in fork}
-  issue: https://github.com/elastic/elasticsearch/issues/146091
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=mget/60_realtime_refresh/Realtime Refresh}
   issue: https://github.com/elastic/elasticsearch/issues/146410
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {csv-spec:text-embedding.text_embedding scores by stable sort}
-  issue: https://github.com/elastic/elasticsearch/issues/146409
 - class: org.elasticsearch.xpack.diskbbq.DiskBbqTrialLicenseIT
   method: testDefaultIndexOptionsForDenseVector
   issue: https://github.com/elastic/elasticsearch/issues/146415
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:text-embedding.text_embedding scores by stable sort}
-  issue: https://github.com/elastic/elasticsearch/issues/146416
 - class: org.elasticsearch.index.reindex.ReindexClientYamlTestSuiteIT
   method: test {yaml=reindex/10_basic/Response format for version conflict with conflicts=proceed}
   issue: https://github.com/elastic/elasticsearch/issues/146419

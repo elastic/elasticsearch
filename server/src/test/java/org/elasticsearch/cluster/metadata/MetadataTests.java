@@ -906,8 +906,9 @@ public class MetadataTests extends ESTestCase {
                       "id": "health-node",
                       "task": { "health-node": {"params":{}} },
                       "assignment": {
+                        "executor_node": null,
                         "explanation": "waiting for initial assignment",
-                        "executor_node": null
+                        "reason": "TASK_CREATED"
                       },
                       "allocation_id": %s
                     }

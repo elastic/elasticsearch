@@ -145,7 +145,11 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                 + String.join(",", unavailableIndices)
                 + "]";
             logger.debug(reason);
-            return new PersistentTasksCustomMetadata.Assignment(null, reason);
+            return new PersistentTasksCustomMetadata.Assignment(
+                null,
+                PersistentTasksCustomMetadata.Assignment.Reason.NO_NODE_FOUND,
+                reason
+            );
         }
         Map<String, String> explainWhyAssignmentFailed = new TreeMap<>();
         DiscoveryNode discoveryNode = selectLeastLoadedNode(
@@ -176,10 +180,18 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                 + "]";
 
             logger.debug(reason);
-            return new PersistentTasksCustomMetadata.Assignment(null, reason);
+            return new PersistentTasksCustomMetadata.Assignment(
+                null,
+                PersistentTasksCustomMetadata.Assignment.Reason.NO_NODE_FOUND,
+                reason
+            );
         }
 
-        return new PersistentTasksCustomMetadata.Assignment(discoveryNode.getId(), "");
+        return new PersistentTasksCustomMetadata.Assignment(
+            discoveryNode.getId(),
+            PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED,
+            ""
+        );
     }
 
     static List<String> verifyIndicesPrimaryShardsAreActive(ClusterState clusterState, IndexNameExpressionResolver resolver) {

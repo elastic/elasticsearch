@@ -256,7 +256,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
             }
         ).enableUpdateModelTests(new UpdateModelConfiguration() {
             @Override
-            protected NvidiaEmbeddingsModel createEmbeddingModel(SimilarityMeasure similarityMeasure) {
+            protected NvidiaEmbeddingsModel createEmbeddingModel(SimilarityMeasure similarityMeasure, TaskType taskType) {
                 return createInternalEmbeddingModel(similarityMeasure);
             }
         }).build();

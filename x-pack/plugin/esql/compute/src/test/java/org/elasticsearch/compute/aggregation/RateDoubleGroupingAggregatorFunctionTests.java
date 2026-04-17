@@ -55,8 +55,9 @@ public class RateDoubleGroupingAggregatorFunctionTests extends ComputeTestCase {
             BlockFactory blockFactory = blockFactory();
             try (
                 var valuesBuilder = blockFactory.newDoubleBlockBuilder(positions);
-                var timestampsBuilder = blockFactory.newLongBlockBuilder(positions)
+                var timestampsBuilder = blockFactory.newLongBlockBuilder(positions);
             ) {
+                var temporalities = blockFactory.newConstantNullBlock(positions);
                 for (int p = 0; p < positions; p++) {
                     valuesBuilder.appendDouble(values[positions - p - 1]);
                     timestampsBuilder.appendLong(timestamps[positions - p - 1]);
@@ -66,17 +67,18 @@ public class RateDoubleGroupingAggregatorFunctionTests extends ComputeTestCase {
                         blockFactory.newConstantIntBlockWith(0, positions),
                         valuesBuilder.build(),
                         timestampsBuilder.build(),
+                        temporalities,
                         blockFactory.newConstantIntBlockWith(interval, positions),
                         blockFactory.newConstantLongBlockWith(Long.MAX_VALUE, positions)
                     )
                 );
             }
         }
-        // values, timestamps, slice, future_timestamps
+        // values, timestamps, temporality, slice, future_timestamps
         AggregatorMode aggregatorMode = AggregatorMode.INITIAL;
         var aggregatorFactory = new RateDoubleGroupingAggregatorFunction.FunctionSupplier(false, false).groupingAggregatorFactory(
             aggregatorMode,
-            List.of(1, 2, 3, 4)
+            List.of(1, 2, 3, 4, 5)
         );
         final List<BlockHash.GroupSpec> groupSpecs = List.of(new BlockHash.GroupSpec(0, ElementType.INT));
         HashAggregationOperator hashAggregationOperator = new HashAggregationOperator.Builder().mode(aggregatorMode)

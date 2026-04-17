@@ -23,8 +23,7 @@ import java.util.concurrent.ExecutionException;
  * {@link Client#execute} returns a future whose {@code onResponse} uses {@code RefCountedFuture} for
  * {@link org.elasticsearch.core.RefCounted} results: the future {@code mustIncRef}s the response, and the caller of
  * {@link java.util.concurrent.Future#get()} must {@link EqlSearchResponse#decRef()} when finished (see
- * {@code AbstractClient.RefCountedFuture}). Use {@link #assertWithEqlResponse} for listener-based execution, or
- * {@code try/finally} with {@link #decRefEql} after {@code .get()}.
+ * {@code AbstractClient.RefCountedFuture}). Use {@code try/finally} with {@link #decRefEql} after {@code .get()}.
  */
 final class EqlSearchResponseIntegTestHelpers {
 
@@ -33,29 +32,6 @@ final class EqlSearchResponseIntegTestHelpers {
     static void decRefEql(EqlSearchResponse response) {
         if (response != null) {
             response.decRef();
-        }
-    }
-
-    static void assertWithEqlResponse(Client client, EqlSearchRequest request, CheckedConsumer<EqlSearchResponse, Exception> assertions)
-        throws Exception {
-        PlainActionFuture<Void> done = new PlainActionFuture<>();
-        client.execute(EqlSearchAction.INSTANCE, request, ActionListener.wrap(r -> {
-            try {
-                assertions.accept(r);
-                done.onResponse(null);
-            } catch (AssertionError e) {
-                done.onFailure(new RuntimeException(e));
-            } catch (Exception e) {
-                done.onFailure(e);
-            }
-        }, done::onFailure));
-        try {
-            done.get();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw e;
-        } catch (ExecutionException e) {
-            propagateExecutionException(e);
         }
     }
 

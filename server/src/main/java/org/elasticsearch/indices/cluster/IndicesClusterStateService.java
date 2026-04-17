@@ -387,9 +387,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 iterator.remove();
             } else {
                 final long cachedTerm = cacheEntry.getValue().primaryTerm();
-                final long currentTerm = state.metadata().indexMetadata(routing.index()).primaryTerm(routing.id());
-                if (currentTerm > cachedTerm) {
-                    // Entry is stale. The master already processed the failure and re-allocated the shard.
+                final Optional<IndexMetadata> indexMetadata = state.metadata().findIndex(routing.index());
+                if (indexMetadata.isEmpty() || indexMetadata.get().primaryTerm(routing.id()) > cachedTerm) {
+                    // Index was deleted, or the master already processed the failure and bumped the primary term.
+                    // Either way, the cache entry is stale and can be discarded.
                     iterator.remove();
                 } else if (masterNode != null) { // TODO: can we remove this? Is resending shard failures the responsibility of
                                                  // shardStateAction?
@@ -1180,22 +1181,23 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     }
 
     private void sendFailShard(ShardRouting shardRouting, String message, @Nullable Exception failure, ClusterState state) {
+        final ShardId shardId = shardRouting.shardId();
+        final String index = shardRouting.getIndexName();
         try {
-            logger.warn(() -> format("%s marking and sending shard failed due to [%s]", shardRouting.shardId(), message), failure);
-            final long primaryTerm = state.metadata().indexMetadata(shardRouting.index()).primaryTerm(shardRouting.id());
+            final Optional<IndexMetadata> indexMetadata = state.metadata().findIndex(shardRouting.index());
+            if (indexMetadata.isEmpty()) {
+                logger.debug(
+                    () -> format("Not marking shard [%s][%s] failed (reason: [%s]): index no longer exists", index, shardId, message)
+                );
+                return;
+            }
+            logger.warn(() -> format("Marking and sending shard failed [%s][%s] due to [%s]", index, shardId, message), failure);
+            final long primaryTerm = indexMetadata.get().primaryTerm(shardRouting.id());
             failedShardsCache.put(shardRouting.shardId(), new FailedShardCacheEntry(shardRouting, primaryTerm));
             shardStateAction.localShardFailed(shardRouting, message, failure, ActionListener.noop(), state);
         } catch (Exception inner) {
             if (failure != null) inner.addSuppressed(failure);
-            logger.warn(
-                () -> format(
-                    "[%s][%s] failed to mark shard as failed (because of [%s])",
-                    shardRouting.getIndexName(),
-                    shardRouting.getId(),
-                    message
-                ),
-                inner
-            );
+            logger.warn(() -> format("[%s][%s] failed to mark shard as failed (because of [%s])", index, shardId, message), inner);
         }
     }
 

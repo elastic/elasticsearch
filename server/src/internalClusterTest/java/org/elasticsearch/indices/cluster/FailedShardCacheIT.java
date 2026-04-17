@@ -91,6 +91,11 @@ public class FailedShardCacheIT extends ESIntegTestCase {
             final boolean shouldDrop = seenInitializing.get() == false && primary != null && primary.unassigned();
             if (shouldDrop) {
                 logger.info("---> COMMIT intercepted and dropped: primary={}", primary);
+                // We respond with an empty success response rather than an error or no response, which slightly
+                // artificial. This is meant to avoid test instability. A network error would eject the data
+                // node from the cluster, and lowering the timeout could cause master failures.
+                // In the "real" production path for this bug, the node would not respond and the master would move on
+                // after timeout.
                 channel.sendResponse(ActionResponse.Empty.INSTANCE);
             } else {
                 handler.messageReceived(request, channel, task);

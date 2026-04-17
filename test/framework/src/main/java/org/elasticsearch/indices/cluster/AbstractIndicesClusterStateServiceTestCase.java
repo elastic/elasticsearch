@@ -111,7 +111,24 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
                     }
                 } else {
                     if (failedShard != null && failedShard.routing().isSameAllocation(shardRouting) == false) {
-                        fail("Shard cache has not been properly cleaned for " + failedShard);
+                        fail(
+                            "Shard cache has not been properly cleaned. Cached allocation id ["
+                                + failedShard.routing().allocationId()
+                                + "] does not match current allocation id ["
+                                + shardRouting.allocationId()
+                                + "] for "
+                                + failedShard
+                        );
+                    }
+                    if (failedShard != null && failedShard.primaryTerm() < indexMetadata.primaryTerm(shardRouting.id())) {
+                        fail(
+                            "Shard cache has not been properly cleaned. Cached primary term ["
+                                + failedShard.primaryTerm()
+                                + "] is lower than current primary term ["
+                                + indexMetadata.primaryTerm(shardRouting.id())
+                                + "] for "
+                                + failedShard
+                        );
                     }
                     if (shard == null && failedShard == null) {
                         // shard must either be there or there must be a failure

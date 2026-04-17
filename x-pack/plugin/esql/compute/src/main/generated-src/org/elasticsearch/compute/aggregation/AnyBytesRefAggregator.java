@@ -153,6 +153,8 @@ public class AnyBytesRefAggregator {
 
         /**
          * The group-indexed values
+         * TODO: apply the firstValue/tailValues optimization from X-AllValueByTimestampAggregator.java.st
+         * to inline single-element groups and avoid the ~64 byte ObjectArray wrapper overhead.
          */
         private ObjectArray<BytesRefArray> values;
 

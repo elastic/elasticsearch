@@ -1,0 +1,11 @@
+ProjectExec[[message{f}#0]]
+\_LimitExec[1000[INTEGER],null]
+  \_ExchangeExec[[message{f}#0],false]
+    \_ProjectExec[[message{f}#0]]
+      \_FieldExtractExec[message{f}#0]<[],[],[]>
+        \_EsQueryExec[sample_data], indexMode[standard], [_doc{f}#1], limit[1000], sort[] estimatedRowSize[54] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  "expressionQueryBuilder" : {
+    "field" : "_index",
+    "expression" : "_index LIKE (\"sample*\", \"no_match*\")"
+  }
+}, tags=[]]]]

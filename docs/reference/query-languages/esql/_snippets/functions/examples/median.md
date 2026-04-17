@@ -34,4 +34,16 @@ TS exp_histo_sample
 | --- |
 | 0.0211 |
 
+`MEDIAN` can also operate on `tdigest` and casted `histogram` fields, approximating the median of the values which were used to construct the digests.
+
+```esql
+TS histogram_timeseries_index
+| WHERE instance == "instance-0"
+| STATS p50 = ROUND(MEDIAN(responseTime::tdigest), 2)
+```
+
+| p50:double |
+| --- |
+| 0.02 |
+
 

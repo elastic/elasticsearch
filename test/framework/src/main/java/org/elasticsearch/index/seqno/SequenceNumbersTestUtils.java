@@ -17,6 +17,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -24,6 +25,7 @@ import org.elasticsearch.test.InternalTestCluster;
 import java.io.IOException;
 
 import static org.elasticsearch.test.ESIntegTestCase.internalCluster;
+import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.elasticsearch.test.ESTestCase.assertThat;
 import static org.elasticsearch.test.ESTestCase.safeGet;
 import static org.hamcrest.Matchers.equalTo;
@@ -186,7 +188,7 @@ public final class SequenceNumbersTestUtils {
      * @param expectedRetainingSeqNo    the expected retaining sequence number for every lease
      */
     public static void assertRetentionLeasesAdvanced(Client client, String indexName, long expectedRetainingSeqNo) throws Exception {
-        ESIntegTestCase.assertBusy(() -> {
+        assertBusy(() -> {
             var stats = client.admin().indices().prepareStats(indexName).get();
             for (var shardStats : stats.getShards()) {
                 for (RetentionLease lease : shardStats.getRetentionLeaseStats().retentionLeases().leases()) {
@@ -208,7 +210,7 @@ public final class SequenceNumbersTestUtils {
      *
      * Uses the default {@link ESIntegTestCase#internalCluster()}.
      */
-    public static void persistGlobalCheckpointOnPrimaryShards(String index) throws IOException {
+    public static void persistGlobalCheckpointOnPrimaryShards(String index) throws Exception {
         persistGlobalCheckpointOnPrimaryShards(internalCluster(), index);
     }
 
@@ -221,7 +223,7 @@ public final class SequenceNumbersTestUtils {
      * @param cluster the cluster containing the index
      * @param index   the name of the index
      */
-    public static void persistGlobalCheckpointOnPrimaryShards(InternalTestCluster cluster, String index) throws IOException {
+    public static void persistGlobalCheckpointOnPrimaryShards(InternalTestCluster cluster, String index) throws Exception {
         final var future = new PlainActionFuture<Void>();
         try (var listeners = new RefCountingListener(future)) {
             for (String node : cluster.nodesInclude(index)) {
@@ -238,24 +240,23 @@ public final class SequenceNumbersTestUtils {
                             indexShard.routingEntry().active(),
                             equalTo(true)
                         );
+
+                        final var maxSeqNo = indexShard.withEngine(Engine::getMaxSeqNo);
+
                         indexShard.sync(); // sync to ensure local checkpoint is processed
 
-                        final var globalCheckpoint = indexShard.withEngine(Engine::getMaxSeqNo);
-
-                        // in case the durability is async, ensure local checkpoint updated in ReplicationTracker
-                        indexShard.updateLocalCheckpointForShard(
-                            indexShard.routingEntry().allocationId().getId(),
-                            indexShard.getLocalCheckpoint()
-                        );
+                        if (indexShard.getTranslogDurability() == Translog.Durability.ASYNC) {
+                            assertBusy(() -> assertThat(indexShard.getLastKnownGlobalCheckpoint(), equalTo(maxSeqNo)));
+                        }
 
                         final var listener = listeners.acquire(
                             ignored -> assertThat(
                                 "Global checkpoint not synced for shard: " + indexShard.routingEntry(),
                                 indexShard.getLastSyncedGlobalCheckpoint(),
-                                equalTo(globalCheckpoint)
+                                equalTo(maxSeqNo)
                             )
                         );
-                        indexShard.syncGlobalCheckpoint(globalCheckpoint, e -> {
+                        indexShard.syncGlobalCheckpoint(maxSeqNo, e -> {
                             if (e == null) {
                                 listener.onResponse(null);
                             } else {

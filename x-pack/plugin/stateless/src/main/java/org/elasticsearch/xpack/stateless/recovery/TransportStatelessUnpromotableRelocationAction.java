@@ -264,7 +264,7 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
                     segmentsFileName,
                     metadata,
                     indexShard::wrapSearcher,
-                    new ActionListener<SearcherSupplier>() {
+                    new ActionListener<>() {
                         @Override
                         public void onResponse(SearcherSupplier searcherSupplier) {
                             IndexShardState shardState = shard.state();
@@ -283,7 +283,11 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
                                 && shardState.equals(IndexShardState.POST_RECOVERY) == false)
                                 : "relocating pit but shard is already in shard state: " + shardState;
                             logger.debug("delaying ReaderContext creation because shard [{}] state is [{}]:", shardId, shardState);
-                            pitRelocationService.addRelocatingContext(shardId, readerContextCreation);
+                            // If the shard is already closed, we don't need to create a new reader context.
+                            // The SearchEngine would take care of closing the reader.
+                            if (shardState.equals(IndexShardState.CLOSED) == false) {
+                                pitRelocationService.addRelocatingContext(shardId, readerContextCreation);
+                            }
                             listener.onResponse(null);
                         }
 

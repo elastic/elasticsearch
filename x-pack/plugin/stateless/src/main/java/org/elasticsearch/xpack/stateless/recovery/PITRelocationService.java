@@ -61,7 +61,12 @@ public class PITRelocationService implements IndexEventListener {
                     Set<Runnable> cleanupRelocationContexts = relocatingContexts.remove(shardId);
                     if (cleanupRelocationContexts != null) {
                         for (Runnable contextSupplier : cleanupRelocationContexts) {
-                            contextSupplier.run();
+                            try {
+                                contextSupplier.run();
+                            } catch (Exception e) {
+                                // We don't want to fail the recovery process because of a PIT context relocation issue
+                                logger.warn("failed to run PIT relocation context supplier", e);
+                            }
                         }
                     }
                 }

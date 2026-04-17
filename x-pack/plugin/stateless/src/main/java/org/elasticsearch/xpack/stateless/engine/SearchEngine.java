@@ -22,7 +22,6 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
-import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
@@ -137,6 +136,14 @@ public class SearchEngine extends Engine {
 
     // Guarded by the openReaders monitor
     private final Map<DirectoryReader, OpenReaderInfo> openReaders = new HashMap<>();
+    private final RelocatedPITReaderTracker relocatedPITReaderTracker = new RelocatedPITReaderTracker(
+        (wrapper, referenceManager) -> acquireSearcherSupplier(
+            wrapper,
+            SearcherScope.EXTERNAL,
+            SplitShardCountSummary.UNSET,
+            referenceManager
+        )
+    );
 
     @SuppressWarnings("this-escape")
     public SearchEngine(
@@ -629,7 +636,7 @@ public class SearchEngine extends Engine {
                 // Save any active reader information to the ClosedShardService BEFORE potentially closing the store. The ClosedShardService
                 // is hooked into store closure, so we don't want to race with it!
                 closedShardService.onShardClose(shardId, getAcquiredPrimaryTermAndGenerations());
-                IOUtils.close(this::failSegmentGenerationListeners, readerManager, store::decRef);
+                IOUtils.close(this::failSegmentGenerationListeners, readerManager, relocatedPITReaderTracker, store::decRef);
                 assert segmentGenerationListeners.isEmpty() : segmentGenerationListeners;
             } catch (Exception ex) {
                 logger.warn("failed to close reader", ex);
@@ -1204,62 +1211,76 @@ public class SearchEngine extends Engine {
         ActionListener<SearcherSupplier> listener
     ) {
         // we use a task queue to serialize opening readers for old commits with processing commit notifications
-        processCommitTaskRunner.enqueueTask(new ActionListener<>() {
-
-            @Override
-            public void onResponse(Releasable releasable) {
-                // do the work of opening the reader inside the task runner to serialize with commit processing
-                try (releasable) {
-                    // merging metadata is necessary to allow opening an old commit from SearchDirectory
-                    searchDirectory.mergeMetadata(metadata);
-                    SegmentInfos segmentCommitInfos = SegmentInfos.readCommit(
-                        directory,
-                        segmentsFileName,
-                        IndexVersions.MINIMUM_READONLY_COMPATIBLE.luceneVersion().major
-                    );
-                    IndexCommit indexCommit = Lucene.getIndexCommit(segmentCommitInfos, directory);
-                    ElasticsearchDirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(
-                        StandardDirectoryReader.open(indexCommit),
-                        shardId
-                    );
-                    ElasticsearchReaderManager readerManager = wrapForAssertions(new ElasticsearchReaderManager(directoryReader), config());
-                    Set<PrimaryTermAndGeneration> bccDeps = new HashSet<>();
-                    for (BlobLocation blobLocation : metadata.values()) {
-                        bccDeps.add(blobLocation.getBatchedCompoundCommitTermAndGeneration());
-                    }
-                    trackLocalOpenReader(directoryReader, indexCommit, Collections.unmodifiableSet(bccDeps));
-                    final SearcherSupplier delegate = acquireSearcherSupplier(
-                        wrapper,
-                        SearcherScope.EXTERNAL,
-                        SplitShardCountSummary.UNSET,
-                        readerManager
-                    );
-                    listener.onResponse(new SearcherSupplier(Function.identity()) {
-                        @Override
-                        protected void doClose() {
-                            delegate.close();
-                            try {
-                                IOUtils.close(readerManager);
-                            } catch (IOException ex) {
-                                logger.warn("failed to close reader", ex);
-                            }
-                        }
-
-                        @Override
-                        protected Searcher acquireSearcherInternal(String source) {
-                            return delegate.acquireSearcher(source);
-                        }
-                    });
-                } catch (IOException e) {
-                    onFailure(e);
+        processCommitTaskRunner.enqueueTask(listener.map(releasable -> {
+            Closeable currentReaderRef = null;
+            Closeable storeRef = null;
+            Closeable relocatedPitReaderRef = null;
+            try (releasable) {
+                ensureOpen();
+                // Ensure that the store is not closed while opening the PIT searchers, since this runs async and we don't want to
+                // leak open readers in that case.
+                if (store.isClosing() || store.tryIncRef() == false) {
+                    throw new AlreadyClosedException("Unable to acquire searcher for commit [" + segmentsFileName + "] for PIT reader");
                 }
-            }
+                storeRef = store::decRef;
 
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
+                // Acquire the current reader so we can use it as the base for openIfChanged below.
+                // If openIfChanged returns a new reader, this reference is released in the finally block.
+                // If openIfChanged returns null (PIT is on the same commit), currentReaderRef is set to
+                // null so the finally block skips the release — the reader stays alive as relocatedPitReader.
+                ElasticsearchDirectoryReader currentReader = readerManager.acquire();
+                currentReaderRef = () -> readerManager.release(currentReader);
+
+                // merging metadata is necessary to allow opening an old commit from SearchDirectory
+                // TODO: transfer replicated headers/footers and pre-warm to speed up recoveries
+                searchDirectory.mergePITReaderMetadata(metadata);
+                // The current reader directory has a reference to the store directory (directory variable)
+                // and it does a reference comparison to see if the directory is the same. Therefore we have
+                // to use that directory to get the index commit;
+                SegmentInfos segmentCommitInfos = SegmentInfos.readCommit(
+                    directory,
+                    segmentsFileName,
+                    IndexVersions.MINIMUM_READONLY_COMPATIBLE.luceneVersion().major
+                );
+                IndexCommit indexCommit = Lucene.getIndexCommit(segmentCommitInfos, directory);
+                // Use openIfChanged rather than directly opening the commit so that Lucene can reuse
+                // any segment core readers that are shared with the current reader. This avoids
+                // redundant I/O against the blob store and, crucially, ensures that all reader
+                // wrappers (e.g. SoftDeletesDirectoryReaderWrapper) installed by the existing Lucene
+                // infrastructure are inherited — otherwise soft-deleted documents would incorrectly
+                // resurface in PIT results.
+                DirectoryReader pitReader = DirectoryReader.openIfChanged(currentReader, indexCommit);
+                // If the PIT is referencing the latest commit, we just need to keep the reference that we acquired
+                if (pitReader == null) {
+                    // If the relocated PIT references the same commit as the current reader,
+                    // we just transfer the reference that we acquired to the relocated PIT.
+                    currentReaderRef = null;
+                    pitReader = currentReader;
+                }
+                assert pitReader instanceof ElasticsearchDirectoryReader;
+
+                ElasticsearchDirectoryReader relocatedPitReader = (ElasticsearchDirectoryReader) pitReader;
+                var pitReaderManager = wrapForAssertions(new ElasticsearchReaderManager(relocatedPitReader), config());
+                relocatedPitReaderRef = () -> pitReaderManager.release(relocatedPitReader);
+                Set<PrimaryTermAndGeneration> bccDeps = new HashSet<>();
+                for (BlobLocation blobLocation : metadata.values()) {
+                    bccDeps.add(blobLocation.getBatchedCompoundCommitTermAndGeneration());
+                }
+                trackLocalOpenReader(relocatedPitReader, indexCommit, Collections.unmodifiableSet(bccDeps));
+                // Register the relocated PIT reader with relocatedPITReaderTracker so it is closed
+                // when the engine closes, even if the returned SearcherSupplier is never used (e.g.
+                // because the shard closes before the PIT context is registered with SearchService).
+                var searcherSupplier = relocatedPITReaderTracker.addRelocatedPitReader(
+                    new RelocatedPITReader(pitReaderManager, wrapper, store::decRef)
+                );
+                // From now on, the relocated PIT reader is owned by the relocatedPITReaderTracker
+                storeRef = null;
+                relocatedPitReaderRef = null;
+                return searcherSupplier;
+            } finally {
+                IOUtils.closeWhileHandlingException(currentReaderRef, relocatedPitReaderRef, storeRef);
             }
-        });
+        }));
     }
 
     private record OpenReaderInfo(Collection<String> files, Set<PrimaryTermAndGeneration> referencedBCCs) {
@@ -1291,4 +1312,112 @@ public class SearchEngine extends Engine {
             return segmentInfos.getGeneration();
         }
     }
+
+    private static class RelocatedPITReaderTracker implements Closeable {
+
+        @FunctionalInterface
+        interface SearcherSupplierFactory {
+            SearcherSupplier create(Function<Searcher, Searcher> wrapper, ReferenceManager<ElasticsearchDirectoryReader> referenceManager);
+        }
+
+        private final SearcherSupplierFactory searcherSupplierFactory;
+        private final Set<RelocatedPITReader> trackedReaders = new HashSet<>();
+        private boolean closed = false;
+
+        RelocatedPITReaderTracker(SearcherSupplierFactory searcherSupplierFactory) {
+            this.searcherSupplierFactory = searcherSupplierFactory;
+        }
+
+        synchronized SearcherSupplier addRelocatedPitReader(RelocatedPITReader relocatedPITReader) {
+            ensureOpen();
+            trackedReaders.add(relocatedPITReader);
+            return new SearcherSupplier(Function.identity()) {
+                // The delegate is lazily initialised because we don't want to acquire a searcher
+                // from the reader manager while this SearcherSupplier is held in PITRelocationService
+                // waiting for the shard to transition to STARTED. If the shard is never started
+                // (e.g. recovery fails), no searcher is ever acquired.
+                private SearcherSupplier delegate = null;
+                private boolean closed = false;
+
+                @Override
+                protected synchronized void doClose() {
+                    closed = true;
+                    IOUtils.closeWhileHandlingException(delegate);
+                }
+
+                @Override
+                protected synchronized Searcher acquireSearcherInternal(String source) {
+                    if (closed) {
+                        throw new AlreadyClosedException("SearcherSupplier was closed");
+                    }
+
+                    if (delegate == null) {
+                        delegate = doAcquireSearchSupplierForPITReader(relocatedPITReader);
+                    }
+
+                    return delegate.acquireSearcher(source);
+                }
+            };
+        }
+
+        private synchronized SearcherSupplier doAcquireSearchSupplierForPITReader(RelocatedPITReader relocatedPITReader) {
+            ensureOpen();
+            var removed = trackedReaders.remove(relocatedPITReader);
+            assert removed : "Expected to find relocated PIT reader [" + relocatedPITReader + "] in trackedReaders";
+            var pitReaderManager = relocatedPITReader.pitReaderManager();
+            var storeRef = relocatedPITReader.storeRef();
+
+            try (storeRef) {
+                SearcherSupplier delegate = searcherSupplierFactory.create(relocatedPITReader.wrapper, pitReaderManager);
+                // searcherSupplierFactory.create() acquires its own store ref for the delegate's
+                // lifetime, so we can release ours (via the try-with-resources block) here.
+                return new SearcherSupplier(Function.identity()) {
+                    @Override
+                    protected void doClose() {
+                        // We need to close the readerManager before the delegate searcher supplier because it
+                        // holds the directory reader that holds the file handles to the commit's files.
+                        // We need to ensure those are released before closing the delegate searcher supplier,
+                        // which might close the store and thereby the underlying directory if it is the thing using it.
+                        IOUtils.closeWhileHandlingException(pitReaderManager, delegate);
+                    }
+
+                    @Override
+                    protected Searcher acquireSearcherInternal(String source) {
+                        return delegate.acquireSearcher(source);
+                    }
+                };
+            } catch (Exception e) {
+                IOUtils.closeWhileHandlingException(pitReaderManager);
+                throw e;
+            }
+        }
+
+        private void ensureOpen() {
+            assert Thread.holdsLock(this);
+            if (closed) {
+                throw new AlreadyClosedException("RelocatedPITReaderTracker is closed");
+            }
+        }
+
+        @Override
+        public synchronized void close() {
+            if (closed) {
+                return;
+            }
+            closed = true;
+            IOUtils.closeWhileHandlingException(trackedReaders);
+        }
+    }
+
+    private record RelocatedPITReader(
+        ElasticsearchReaderManager pitReaderManager,
+        Function<Searcher, Searcher> wrapper,
+        Releasable storeRef
+    ) implements Closeable {
+        @Override
+        public void close() {
+            IOUtils.closeWhileHandlingException(pitReaderManager, storeRef);
+        }
+    }
+
 }

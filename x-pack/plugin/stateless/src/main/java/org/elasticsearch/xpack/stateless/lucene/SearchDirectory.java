@@ -175,82 +175,19 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
      */
     public boolean updateCommit(StatelessCompoundCommit newCommit, Map<String, BlobFileRanges> commitFilesRangesOverride) {
         assert blobContainer.get() != null : shardId + " must have the blob container set before any commit update";
-        assert assertCompareAndSetUpdatingCommitThread(null, Thread.currentThread());
 
-        var previousGenerationalFilesTermAndGen = this.lastAcquiredGenerationalFilesTermAndGen;
-        try {
-            final var updatedMetadata = new HashMap<>(currentMetadata);
-            PrimaryTermAndGeneration generationalFilesTermAndGen = null;
-            long commitSize = 0L;
-            for (var entry : newCommit.commitFiles().entrySet()) {
-                var fileName = entry.getKey();
-                var blobLocationFromCommit = entry.getValue();
-                BlobFileRanges commitFileRanges = commitFilesRangesOverride.get(fileName);
-                if (commitFileRanges == null) {
-                    commitFileRanges = new BlobFileRanges(blobLocationFromCommit);
-                } else {
-                    assert commitFileRanges.blobLocation().equals(blobLocationFromCommit)
-                        : "BlobFileRanges override for ["
-                            + fileName
-                            + "] must use the same blob location as the commit; override="
-                            + commitFileRanges.blobLocation()
-                            + ", commit="
-                            + blobLocationFromCommit;
-                }
-                if (isGenerationalFile(fileName)) {
-                    // blob locations for generational files are not updated: we pin the file to the first blob location that we know about.
-                    // we expect generational files to be opened when the reader is refreshed and picks up the generational files for the
-                    // first time and never reopened them after that (as segment core readers are handed over between refreshed reader
-                    // instances).
-                    updatedMetadata.putIfAbsent(fileName, commitFileRanges);
-                    if (generationalFilesTermAndGen == null) {
-                        generationalFilesTermAndGen = commitFileRanges.blobLocation().getBatchedCompoundCommitTermAndGeneration();
-                    }
-                    assert commitFileRanges.blobLocation().getBatchedCompoundCommitTermAndGeneration().equals(generationalFilesTermAndGen)
-                        : "Because they are either new or copied, generational files should all belong to the same BCC, but "
-                            + fileName
-                            + " has location "
-                            + commitFileRanges.blobLocation()
-                            + " which is different from "
-                            + generationalFilesTermAndGen;
-                } else {
-                    updatedMetadata.put(fileName, commitFileRanges);
-                }
-                commitSize += commitFileRanges.blobLocation().fileLength();
-            }
-            // If we have generational file(s) in the new commit, we create a ref counted instance that holds the term/generation of the
-            // batched compound commit so that it can be reported as used to the indexing shard in new commit responses. The ref counted
-            // instance will be decRef on the next commit update or when the directory is closed. Any generational file opened between two
-            // commits update should incRef the instance to indicate that the BCC term/generation is in use and decRef it once the file is
-            // closed. When fully decRefed, the BCC term/gen is removed from the set of used generations.
-            if (generationalFilesTermAndGen != null) {
-                var releasable = addGenerationalFileTermAndGeneration(generationalFilesTermAndGen);
-                // use releaseOnce to decRef only once, either on commit update or directory close
-                this.lastAcquiredGenerationalFilesTermAndGen = Releasables.releaseOnce(releasable);
+        mergeMetadata(newCommit.commitFiles(), commitFilesRangesOverride, false);
+        // TODO: Commits may not arrive in order. However, the maximum commit we have received is the commit of this directory since the
+        // TODO: files always accumulate
+        return currentCommit.accumulateAndGet(newCommit, (current, contender) -> {
+            if (current == null) {
+                return contender;
+            } else if (current.generation() > contender.generation()) {
+                return current;
             } else {
-                // commit has no generational files
-                this.lastAcquiredGenerationalFilesTermAndGen = null;
+                return contender;
             }
-            currentMetadata = Map.copyOf(updatedMetadata);
-            currentDataSetSizeInBytes = commitSize;
-            // TODO: Commits may not arrive in order. However, the maximum commit we have received is the commit of this directory since the
-            // TODO: files always accumulate
-            return currentCommit.accumulateAndGet(newCommit, (current, contender) -> {
-                if (current == null) {
-                    return contender;
-                } else if (current.generation() > contender.generation()) {
-                    return current;
-                } else {
-                    return contender;
-                }
-            }).generation() == newCommit.generation();
-        } finally {
-            try {
-                Releasables.close(previousGenerationalFilesTermAndGen);
-            } finally {
-                assert assertCompareAndSetUpdatingCommitThread(Thread.currentThread(), null);
-            }
-        }
+        }).generation() == newCommit.generation();
     }
 
     /**
@@ -518,16 +455,86 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
      * Merge the incoming metadata into the current metadata.
      * This is used to merge file metadata from other PIT contexts coming from other nodes.
      */
-    public void mergeMetadata(Map<String, BlobLocation> incomingMetadata) {
-        final var updated = new HashMap<>(currentMetadata);
-        for (Map.Entry<String, BlobLocation> entry : incomingMetadata.entrySet()) {
-            String fileName = entry.getKey();
-            if (currentMetadata.containsKey(fileName)) {
-                assert currentMetadata.get(fileName).blobLocation().equals(entry.getValue());
+    public void mergePITReaderMetadata(Map<String, BlobLocation> commitFilesRanges) {
+        mergeMetadata(commitFilesRanges, Map.of(), true);
+    }
+
+    private void mergeMetadata(
+        Map<String, BlobLocation> commitFilesRanges,
+        Map<String, BlobFileRanges> commitFilesRangesOverride,
+        boolean pitContextRelocationTransfer
+    ) {
+        assert assertCompareAndSetUpdatingCommitThread(null, Thread.currentThread());
+
+        var previousGenerationalFilesTermAndGen = this.lastAcquiredGenerationalFilesTermAndGen;
+        try {
+            final var updatedMetadata = new HashMap<>(currentMetadata);
+            PrimaryTermAndGeneration generationalFilesTermAndGen = null;
+            long commitSize = 0L;
+            for (var entry : commitFilesRanges.entrySet()) {
+                var fileName = entry.getKey();
+                var blobLocationFromCommit = entry.getValue();
+                BlobFileRanges commitFileRanges = commitFilesRangesOverride.get(fileName);
+                if (commitFileRanges == null) {
+                    commitFileRanges = new BlobFileRanges(blobLocationFromCommit);
+                } else {
+                    assert commitFileRanges.blobLocation().equals(blobLocationFromCommit)
+                        : "BlobFileRanges override for ["
+                            + fileName
+                            + "] must use the same blob location as the commit; override="
+                            + commitFileRanges.blobLocation()
+                            + ", commit="
+                            + blobLocationFromCommit;
+                }
+                if (isGenerationalFile(fileName)) {
+                    // blob locations for generational files are not updated: we pin the file to the first blob location that we know about.
+                    // we expect generational files to be opened when the reader is refreshed and picks up the generational files for the
+                    // first time and never reopened them after that (as segment core readers are handed over between refreshed reader
+                    // instances).
+                    updatedMetadata.putIfAbsent(fileName, commitFileRanges);
+                    if (generationalFilesTermAndGen == null) {
+                        generationalFilesTermAndGen = commitFileRanges.blobLocation().getBatchedCompoundCommitTermAndGeneration();
+                    }
+                    assert commitFileRanges.blobLocation().getBatchedCompoundCommitTermAndGeneration().equals(generationalFilesTermAndGen)
+                        : "Because they are either new or copied, generational files should all belong to the same BCC, but "
+                            + fileName
+                            + " has location "
+                            + commitFileRanges.blobLocation()
+                            + " which is different from "
+                            + generationalFilesTermAndGen;
+                } else {
+                    updatedMetadata.put(fileName, commitFileRanges);
+                }
+                commitSize += commitFileRanges.blobLocation().fileLength();
+            }
+            // If we have generational file(s) in the new commit, we create a ref counted instance that holds the term/generation of the
+            // batched compound commit so that it can be reported as used to the indexing shard in new commit responses. The ref counted
+            // instance will be decRef on the next commit update or when the directory is closed. Any generational file opened between two
+            // commits update should incRef the instance to indicate that the BCC term/generation is in use and decRef it once the file is
+            // closed. When fully decRefed, the BCC term/gen is removed from the set of used generations.
+            if (generationalFilesTermAndGen != null) {
+                var releasable = addGenerationalFileTermAndGeneration(generationalFilesTermAndGen);
+                // use releaseOnce to decRef only once, either on commit update or directory close
+                this.lastAcquiredGenerationalFilesTermAndGen = Releasables.releaseOnce(releasable);
+            } else if (pitContextRelocationTransfer) {
+                // commit has no generational files, and we're opening a PIT reader during relocation,
+                // in that case we don't want to decRef the current generational files term/gen until a
+                // new commit notification arrives and mutates it accordingly
+                previousGenerationalFilesTermAndGen = null;
             } else {
-                updated.put(fileName, new BlobFileRanges(entry.getValue()));
+                // commit has no generational files, and we're not opening a PIT reader during relocation
+                this.lastAcquiredGenerationalFilesTermAndGen = null;
+            }
+            currentMetadata = Map.copyOf(updatedMetadata);
+            if (pitContextRelocationTransfer == false) {
+                currentDataSetSizeInBytes = commitSize;
+            }
+        } finally {
+            try {
+                Releasables.close(previousGenerationalFilesTermAndGen);
+            } finally {
+                assert assertCompareAndSetUpdatingCommitThread(Thread.currentThread(), null);
             }
         }
-        currentMetadata = updated;
     }
 }

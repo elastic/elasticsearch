@@ -168,8 +168,8 @@ public class StatelessShardsAvailabilityHealthIndicatorService extends ShardsAva
                 || primaries.searchableSnapshotsState.getRedSearchableSnapshots().isEmpty() == false) {
                 return RED;
             } else if (replicas.areAllAvailableOrProvisionallyUnavailable() == false) {
-                if (replicas.doAnyIndicesHaveAllUnavailable()) {
-                    // Some index has all of its replica copies unavailable (non-provisionally)
+                if (replicas.doAnyIndicesHaveAllUnassigned()) {
+                    // Some index has all of its replica copies unassigned (non-provisionally)
                     return RED;
                 } else {
                     return YELLOW;
@@ -240,14 +240,14 @@ public class StatelessShardsAvailabilityHealthIndicatorService extends ShardsAva
         @Override
         public List<HealthIndicatorImpact> getImpacts() {
             List<HealthIndicatorImpact> impacts = new ArrayList<>(super.getImpacts());
-            if (replicas.doAnyIndicesHaveAllUnavailable()) {
+            if (replicas.doAnyIndicesHaveAllUnassigned()) {
                 String impactDescription = String.format(
                     Locale.ROOT,
                     "Not all data is searchable. No searchable copies of the data exist on %d %s [%s].",
-                    replicas.indicesWithAllShardsUnavailable.size(),
-                    replicas.indicesWithAllShardsUnavailable.size() == 1 ? "index" : "indices",
+                    replicas.indicesWithAllShardsUnassigned.size(),
+                    replicas.indicesWithAllShardsUnassigned.size() == 1 ? "index" : "indices",
                     getTruncatedProjectIndices(
-                        replicas.indicesWithAllShardsUnavailable,
+                        replicas.indicesWithAllShardsUnassigned,
                         clusterMetadata,
                         projectResolver.supportsMultipleProjects()
                     )
@@ -255,7 +255,7 @@ public class StatelessShardsAvailabilityHealthIndicatorService extends ShardsAva
                 impacts.add(
                     new HealthIndicatorImpact(NAME, ALL_REPLICAS_UNASSIGNED_IMPACT_ID, 1, impactDescription, List.of(ImpactArea.SEARCH))
                 );
-                if (replicas.indicesWithUnavailableShards.equals(replicas.indicesWithAllShardsUnavailable)) {
+                if (replicas.indicesWithUnavailableShards.equals(replicas.indicesWithAllShardsUnassigned)) {
                     // Remove the other replica message, because all indices are already covered by the impact added above
                     impacts.removeIf(indicator -> indicator.id().equals(REPLICA_UNASSIGNED_IMPACT_ID));
                 }

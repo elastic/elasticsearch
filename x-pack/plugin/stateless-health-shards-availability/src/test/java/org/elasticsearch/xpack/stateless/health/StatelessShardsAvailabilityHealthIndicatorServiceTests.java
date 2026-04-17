@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -58,6 +59,9 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.routing.ShardRouting.newUnassigned;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
@@ -72,40 +76,51 @@ public class StatelessShardsAvailabilityHealthIndicatorServiceTests extends ESTe
         .filter(UnassignedInfo.Reason::isExpectedTransient)
         .toList();
 
-    public void testHealthWhileReplicaShardsUnavailableWithReplicaBuffer() {
+    private record InactiveShard(ShardRoutingState state, UnassignedInfo unassignedInfo) {}
+
+    public void testHealthWhileReplicaShardsInactiveWithReplicaBuffer() {
         final var projectId = randomProjectIdOrDefault();
         final int totalReplicas = randomIntBetween(1, 5);
-        final int unassignedReplicaCount = randomIntBetween(0, totalReplicas - 1);
-        final int assignedReplicaCount = totalReplicas - unassignedReplicaCount;
+        final int inactiveReplicaCount = randomIntBetween(0, totalReplicas - 1);
+        final int activeReplicaCount = totalReplicas - inactiveReplicaCount;
 
-        int expectedProvisionallyUnassignedReplicas = 0;
+        int expectedCreatingReplicas = 0;
+        int expectedInitializingReplicas = 0;
         int expectedUnassignedReplicas = 0;
+        int expectedReplicasBeyondGrace = 0;
 
         final long nowMillis = System.currentTimeMillis();
         final var withinReplicaBuffer = new TimeValue(nowMillis + TimeValue.timeValueSeconds(30).millis(), TimeUnit.MILLISECONDS);
         final var beyondReplicaBuffer = new TimeValue(nowMillis - TimeValue.timeValueSeconds(30).millis(), TimeUnit.MILLISECONDS);
 
-        final var assignedReplicas = new HashSet<String>();
-        while (assignedReplicas.size() < assignedReplicaCount) {
-            assignedReplicas.add(randomNodeId());
+        final var activeReplicas = new HashSet<String>();
+        while (activeReplicas.size() < activeReplicaCount) {
+            activeReplicas.add(randomNodeId());
         }
-        final var unassignedReplicas = new LinkedList<UnassignedInfo>();
-        for (int i = 0; i < unassignedReplicaCount; i++) {
-            final boolean withinBufferForThisReplica = randomBoolean();
-            if (withinBufferForThisReplica) {
-                expectedProvisionallyUnassignedReplicas++;
+        final var inactiveReplicas = new LinkedList<InactiveShard>();
+        for (int i = 0; i < inactiveReplicaCount; i++) {
+            final boolean withinBuffer = randomBoolean();
+            final var unassignedAt = withinBuffer ? withinReplicaBuffer : beyondReplicaBuffer;
+            final var info = unassignedInfo(randomFrom(TRANSIENT_UNASSIGNED_REASONS), unassignedAt);
+            final var inactiveReplica = new InactiveShard(randomBoolean() ? INITIALIZING : UNASSIGNED, info);
+
+            if (inactiveReplica.state() == INITIALIZING) {
+                expectedInitializingReplicas++;
+            } else if (withinBuffer) {
+                expectedCreatingReplicas++;
             } else {
                 expectedUnassignedReplicas++;
             }
-            final var reason = randomFrom(TRANSIENT_UNASSIGNED_REASONS);
-            final var unassignedAt = withinBufferForThisReplica ? withinReplicaBuffer : beyondReplicaBuffer;
-            unassignedReplicas.add(unassignedInfo(reason, unassignedAt));
+            inactiveReplicas.add(inactiveReplica);
+            if (withinBuffer == false) {
+                expectedReplicasBeyondGrace++;
+            }
         }
 
-        final var state = clusterState(projectId, routingTableForIndex(randomNodeId(), assignedReplicas, unassignedReplicas));
+        final var state = clusterState(projectId, routingTableForIndex(randomNodeId(), activeReplicas, inactiveReplicas));
         final var service = createStatelessIndicator(
             projectId,
-            Settings.builder().put(ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_BUFFER_TIME.getKey(), "20s").build(),
+            Settings.builder().put(ShardsAvailabilityHealthIndicatorService.REPLICA_INACTIVE_BUFFER_TIME.getKey(), "20s").build(),
             state
         );
 
@@ -115,22 +130,23 @@ public class StatelessShardsAvailabilityHealthIndicatorServiceTests extends ESTe
         assertThat(details.get("indices_with_unavailable_primaries"), nullValue());
         assertThat(details.get("indices_with_provisionally_unavailable_primaries"), nullValue());
 
-        assertThat(details.get("creating_replicas"), equalTo(expectedProvisionallyUnassignedReplicas));
+        assertThat(details.get("creating_replicas"), equalTo(expectedCreatingReplicas));
+        assertThat(details.get("initializing_replicas"), equalTo(expectedInitializingReplicas));
         assertThat(details.get("unassigned_replicas"), equalTo(expectedUnassignedReplicas));
-        assertThat(details.get("started_replicas"), equalTo(assignedReplicaCount));
+        assertThat(details.get("started_replicas"), equalTo(activeReplicaCount));
 
-        if (unassignedReplicaCount == 0) {
+        if (inactiveReplicaCount == 0) {
             assertThat(result.status(), equalTo(HealthStatus.GREEN));
             assertThat(details.get("indices_with_unavailable_replicas"), nullValue());
             assertThat(details.get("indices_with_provisionally_unavailable_replicas"), nullValue());
-        } else if (expectedUnassignedReplicas == 0) {
+        } else if (expectedReplicasBeyondGrace == 0) {
             assertThat(result.status(), equalTo(HealthStatus.GREEN));
             assertThat(details.get("indices_with_unavailable_replicas"), nullValue());
             assertThat(details.get("indices_with_provisionally_unavailable_replicas"), equalTo(INDEX_NAME));
         } else {
             assertThat(result.status(), equalTo(HealthStatus.YELLOW));
             assertThat(details.get("indices_with_unavailable_replicas"), equalTo(INDEX_NAME));
-            if (expectedProvisionallyUnassignedReplicas > 0) {
+            if (expectedReplicasBeyondGrace < inactiveReplicas.size()) {
                 assertThat(details.get("indices_with_provisionally_unavailable_replicas"), equalTo(INDEX_NAME));
             } else {
                 assertThat(details.get("indices_with_provisionally_unavailable_replicas"), nullValue());
@@ -138,23 +154,23 @@ public class StatelessShardsAvailabilityHealthIndicatorServiceTests extends ESTe
         }
     }
 
-    public void testHealthWhilePrimaryUnassignedWithPrimaryBuffer() {
+    public void testHealthWhilePrimaryInactiveWithPrimaryBuffer() {
         final var projectId = randomProjectIdOrDefault();
         final long nowMillis = System.currentTimeMillis();
         final var withinPrimaryBuffer = new TimeValue(nowMillis - TimeValue.timeValueSeconds(5).millis(), TimeUnit.MILLISECONDS);
         final var beyondPrimaryBuffer = new TimeValue(nowMillis - TimeValue.timeValueSeconds(60).millis(), TimeUnit.MILLISECONDS);
 
-        final var primaryUnassignedInfo = randomUnassignedInfo(withinPrimaryBuffer, beyondPrimaryBuffer);
-
-        final var state = clusterState(
-            projectId,
-            routingTableWithUnassigned(primaryUnassignedInfo, recoverySourceFrom(primaryUnassignedInfo), Set.of())
+        final var primaryInactive = new InactiveShard(
+            randomBoolean() ? INITIALIZING : UNASSIGNED,
+            randomUnassignedInfo(withinPrimaryBuffer, beyondPrimaryBuffer)
         );
+
+        final var state = clusterState(projectId, routingTableWithUnassigned(primaryInactive, List.of()));
         final var service = createStatelessIndicator(
             projectId,
             Settings.builder()
-                .put(ShardsAvailabilityHealthIndicatorService.PRIMARY_UNASSIGNED_BUFFER_TIME.getKey(), "20s")
-                .put(ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_BUFFER_TIME.getKey(), "0s")
+                .put(ShardsAvailabilityHealthIndicatorService.PRIMARY_INACTIVE_BUFFER_TIME.getKey(), "20s")
+                .put(ShardsAvailabilityHealthIndicatorService.REPLICA_INACTIVE_BUFFER_TIME.getKey(), "0s")
                 .build(),
             state
         );
@@ -162,39 +178,52 @@ public class StatelessShardsAvailabilityHealthIndicatorServiceTests extends ESTe
         final var result = service.calculate(true, 10, HealthInfo.EMPTY_HEALTH_INFO);
         final var details = ((SimpleHealthIndicatorDetails) result.details()).details();
 
-        if (expectProvisionallyGreen(primaryUnassignedInfo, withinPrimaryBuffer, true)) {
+        if (expectProvisionallyGreen(primaryInactive.unassignedInfo(), withinPrimaryBuffer, true)) {
             assertThat(result.status(), equalTo(HealthStatus.GREEN));
-            assertThat(details.get("creating_primaries"), equalTo(1));
+            if (primaryInactive.state() == INITIALIZING) {
+                assertThat(details.get("initializing_primaries"), equalTo(1));
+                assertThat(details.get("creating_primaries"), equalTo(0));
+            } else {
+                assertThat(details.get("creating_primaries"), equalTo(1));
+                assertThat(details.get("initializing_primaries"), equalTo(0));
+            }
             assertThat(details.get("unassigned_primaries"), equalTo(0));
             assertThat(details.get("indices_with_provisionally_unavailable_primaries"), equalTo(INDEX_NAME));
             assertThat(details.get("indices_with_unavailable_primaries"), nullValue());
         } else {
             assertThat(result.status(), equalTo(HealthStatus.RED));
-            assertThat(details.get("creating_primaries"), equalTo(0));
-            assertThat(details.get("unassigned_primaries"), equalTo(1));
+            if (primaryInactive.state() == INITIALIZING) {
+                assertThat(details.get("initializing_primaries"), equalTo(1));
+                assertThat(details.get("creating_primaries"), equalTo(0));
+                assertThat(details.get("unassigned_primaries"), equalTo(0));
+            } else {
+                assertThat(details.get("creating_primaries"), equalTo(0));
+                assertThat(details.get("initializing_primaries"), equalTo(0));
+                assertThat(details.get("unassigned_primaries"), equalTo(1));
+            }
             assertThat(details.get("indices_with_unavailable_primaries"), equalTo(INDEX_NAME));
             assertThat(details.get("indices_with_provisionally_unavailable_primaries"), nullValue());
         }
     }
 
-    public void testHealthWhilePrimaryAndReplicaUnassignedWithBuffer() {
+    public void testHealthWhilePrimaryAndReplicaInactiveWithBuffer() {
         final var projectId = randomProjectIdOrDefault();
         final long nowMillis = System.currentTimeMillis();
         final var withinBuffer = new TimeValue(nowMillis + TimeValue.timeValueSeconds(5).millis(), TimeUnit.MILLISECONDS);
         final var beyondBuffer = new TimeValue(nowMillis - TimeValue.timeValueSeconds(60).millis(), TimeUnit.MILLISECONDS);
 
-        final var primaryInfo = randomUnassignedInfo(withinBuffer, beyondBuffer);
-        final var replicaInfo = randomUnassignedInfo(withinBuffer, beyondBuffer);
-
-        final var state = clusterState(
-            projectId,
-            routingTableWithUnassigned(primaryInfo, recoverySourceFrom(primaryInfo), Set.of(replicaInfo))
+        final var primaryInactive = new InactiveShard(
+            randomBoolean() ? INITIALIZING : UNASSIGNED,
+            randomUnassignedInfo(withinBuffer, beyondBuffer)
         );
+        final var replicaInactive = new InactiveShard(UNASSIGNED, randomUnassignedInfo(withinBuffer, beyondBuffer));
+
+        final var state = clusterState(projectId, routingTableWithUnassigned(primaryInactive, List.of(replicaInactive)));
         final var service = createStatelessIndicator(
             projectId,
             Settings.builder()
-                .put(ShardsAvailabilityHealthIndicatorService.PRIMARY_UNASSIGNED_BUFFER_TIME.getKey(), "20s")
-                .put(ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_BUFFER_TIME.getKey(), "20s")
+                .put(ShardsAvailabilityHealthIndicatorService.PRIMARY_INACTIVE_BUFFER_TIME.getKey(), "20s")
+                .put(ShardsAvailabilityHealthIndicatorService.REPLICA_INACTIVE_BUFFER_TIME.getKey(), "20s")
                 .build(),
             state
         );
@@ -202,32 +231,47 @@ public class StatelessShardsAvailabilityHealthIndicatorServiceTests extends ESTe
         final var result = service.calculate(true, 10, HealthInfo.EMPTY_HEALTH_INFO);
         final var details = ((SimpleHealthIndicatorDetails) result.details()).details();
 
-        final boolean primaryProvisional = expectProvisionallyGreen(primaryInfo, withinBuffer, true);
-        final boolean replicaNew = primaryInfo.reason() == UnassignedInfo.Reason.INDEX_CREATED && primaryProvisional;
-        final boolean replicaProvisional = expectProvisionallyGreen(replicaInfo, withinBuffer, false) || replicaNew;
+        final boolean primaryProvisional = expectProvisionallyGreen(primaryInactive.unassignedInfo(), withinBuffer, true);
+        final boolean replicaNew = primaryInactive.unassignedInfo().reason() == UnassignedInfo.Reason.INDEX_CREATED && primaryProvisional;
+        final boolean replicaProvisional = expectProvisionallyGreen(replicaInactive.unassignedInfo(), withinBuffer, false) || replicaNew;
 
         assertThat(result.status(), equalTo(primaryProvisional && replicaProvisional ? HealthStatus.GREEN : HealthStatus.RED));
 
         if (primaryProvisional) {
-            assertThat(details.get("creating_primaries"), equalTo(1));
+            if (primaryInactive.state() == INITIALIZING) {
+                assertThat(details.get("initializing_primaries"), equalTo(1));
+                assertThat(details.get("creating_primaries"), equalTo(0));
+            } else {
+                assertThat(details.get("creating_primaries"), equalTo(1));
+                assertThat(details.get("initializing_primaries"), equalTo(0));
+            }
             assertThat(details.get("unassigned_primaries"), equalTo(0));
             assertThat(details.get("indices_with_provisionally_unavailable_primaries"), equalTo(INDEX_NAME));
             assertThat(details.get("indices_with_unavailable_primaries"), nullValue());
         } else {
-            assertThat(details.get("creating_primaries"), equalTo(0));
-            assertThat(details.get("unassigned_primaries"), equalTo(1));
+            if (primaryInactive.state() == INITIALIZING) {
+                assertThat(details.get("initializing_primaries"), equalTo(1));
+                assertThat(details.get("creating_primaries"), equalTo(0));
+                assertThat(details.get("unassigned_primaries"), equalTo(0));
+            } else {
+                assertThat(details.get("creating_primaries"), equalTo(0));
+                assertThat(details.get("initializing_primaries"), equalTo(0));
+                assertThat(details.get("unassigned_primaries"), equalTo(1));
+            }
             assertThat(details.get("indices_with_unavailable_primaries"), equalTo(INDEX_NAME));
             assertThat(details.get("indices_with_provisionally_unavailable_primaries"), nullValue());
         }
         if (replicaProvisional) {
             assertThat(details.get("started_replicas"), equalTo(0));
             assertThat(details.get("creating_replicas"), equalTo(1));
+            assertThat(details.get("initializing_replicas"), equalTo(0));
             assertThat(details.get("unassigned_replicas"), equalTo(0));
             assertThat(details.get("indices_with_provisionally_unavailable_replicas"), equalTo(INDEX_NAME));
             assertThat(details.get("indices_with_unavailable_replicas"), nullValue());
         } else {
             assertThat(details.get("started_replicas"), equalTo(0));
             assertThat(details.get("creating_replicas"), equalTo(0));
+            assertThat(details.get("initializing_replicas"), equalTo(0));
             assertThat(details.get("unassigned_replicas"), equalTo(1));
             assertThat(details.get("indices_with_provisionally_unavailable_replicas"), nullValue());
             assertThat(details.get("indices_with_unavailable_replicas"), equalTo(INDEX_NAME));
@@ -318,71 +362,70 @@ public class StatelessShardsAvailabilityHealthIndicatorServiceTests extends ESTe
             .build();
     }
 
-    /// Builds an `IndexRoutingTable` with an unassigned primary and zero or more unassigned replicas.
-    private static IndexRoutingTable routingTableWithUnassigned(
-        UnassignedInfo primaryUnassignedInfo,
-        RecoverySource recoverySource,
-        Set<UnassignedInfo> replicasUnassignedInfo
-    ) {
+    /// Builds an `IndexRoutingTable` with an inactive primary and zero or more inactive replicas.
+    private static IndexRoutingTable routingTableWithUnassigned(InactiveShard primaryInactive, List<InactiveShard> inactiveReplicas) {
         final var indexMetadata = IndexMetadata.builder(INDEX_NAME)
             .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
             .numberOfShards(1)
-            .numberOfReplicas(replicasUnassignedInfo.size())
+            .numberOfReplicas(inactiveReplicas.size())
             .build();
         final var idx = indexMetadata.getIndex();
         final var shardId = new ShardId(idx, 0);
-        final var primary = newUnassigned(shardId, true, recoverySource, primaryUnassignedInfo, ShardRouting.Role.DEFAULT);
+        final var primary = shardRouting(shardId, true, randomNodeId(), primaryInactive.unassignedInfo(), primaryInactive.state());
         final var indexRoutingTable = IndexRoutingTable.builder(idx).addShard(primary);
-        replicasUnassignedInfo.forEach(
-            info -> indexRoutingTable.addShard(
-                newUnassigned(shardId, false, RecoverySource.PeerRecoverySource.INSTANCE, info, ShardRouting.Role.DEFAULT)
-            )
+        inactiveReplicas.forEach(
+            ir -> indexRoutingTable.addShard(shardRouting(shardId, false, randomNodeId(), ir.unassignedInfo(), ir.state()))
         );
         return indexRoutingTable.build();
     }
 
     private static IndexRoutingTable routingTableForIndex(
         String primaryNodeId,
-        Set<String> assignedReplicasNodes,
-        List<UnassignedInfo> unassignedReplicaInfos
+        Set<String> activeReplicasNodes,
+        List<InactiveShard> inactiveReplicas
     ) {
         final var indexMetadata = IndexMetadata.builder(INDEX_NAME)
             .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
             .numberOfShards(1)
-            .numberOfReplicas(assignedReplicasNodes.size() + unassignedReplicaInfos.size())
+            .numberOfReplicas(activeReplicasNodes.size() + inactiveReplicas.size())
             .build();
         final var idx = indexMetadata.getIndex();
         final var shardId = new ShardId(idx, 0);
         final var builder = IndexRoutingTable.builder(idx);
-        builder.addShard(shardRouting(shardId, true, primaryNodeId, null));
-        for (var replicaNode : assignedReplicasNodes) {
-            builder.addShard(shardRouting(shardId, false, replicaNode, null));
+        builder.addShard(shardRouting(shardId, true, primaryNodeId, null, STARTED));
+        for (var replicaNode : activeReplicasNodes) {
+            builder.addShard(shardRouting(shardId, false, replicaNode, null, STARTED));
         }
-        for (var unassignedInfo : unassignedReplicaInfos) {
-            builder.addShard(shardRouting(shardId, false, randomNodeId(), unassignedInfo));
+        for (var ir : inactiveReplicas) {
+            builder.addShard(shardRouting(shardId, false, randomNodeId(), ir.unassignedInfo(), ir.state()));
         }
         return builder.build();
     }
 
-    /// If unassignedInfo is `null`, the shard is started on `nodeId`. Otherwise, it is unassigned with the provided info
-    private static ShardRouting shardRouting(ShardId shardId, boolean primary, String nodeId, @Nullable UnassignedInfo unassignedInfo) {
-        final var initialInfo = unassignedInfo != null ? unassignedInfo : new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null);
+    /// If unassignedInfo is `null`, the shard is started on `nodeId`. Otherwise, the shard is inactive with the
+    /// provided unassignment info.
+    private static ShardRouting shardRouting(
+        ShardId shardId,
+        boolean primary,
+        String nodeId,
+        @Nullable UnassignedInfo unassignedInfo,
+        ShardRoutingState state
+    ) {
+        final var info = unassignedInfo != null ? unassignedInfo : new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null);
         final var recoverySource = primary
-            ? RecoverySource.ExistingStoreRecoverySource.INSTANCE
+            ? (unassignedInfo != null ? recoverySourceFrom(unassignedInfo) : RecoverySource.ExistingStoreRecoverySource.INSTANCE)
             : RecoverySource.PeerRecoverySource.INSTANCE;
 
-        var routing = newUnassigned(shardId, primary, recoverySource, initialInfo, ShardRouting.Role.DEFAULT);
-        if (unassignedInfo != null
-            && (unassignedInfo.reason() == UnassignedInfo.Reason.INDEX_CREATED
-                || unassignedInfo.reason() == UnassignedInfo.Reason.REPLICA_ADDED)) {
+        var routing = newUnassigned(shardId, primary, recoverySource, info, ShardRouting.Role.DEFAULT);
+        if (state == ShardRoutingState.UNASSIGNED) {
             return routing;
         }
         routing = routing.initialize(nodeId, null, 0);
-        routing = routing.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
-        if (unassignedInfo == null) {
+        if (state == INITIALIZING) {
             return routing;
         }
-        return routing.moveToUnassigned(unassignedInfo);
+        routing = routing.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+        return routing;
     }
 
     private static StatelessShardsAvailabilityHealthIndicatorService createStatelessIndicator(

@@ -114,6 +114,9 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
             if (Strings.hasText(resource) == false) {
                 validationException = addValidationError("dataset resource is missing or empty", validationException);
             }
+            if (rawSettings == null) {
+                validationException = addValidationError("dataset settings are missing", validationException);
+            }
             return validationException;
         }
 

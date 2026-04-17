@@ -24,10 +24,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 
 import java.util.HashMap;
@@ -42,6 +43,8 @@ import java.util.Set;
  * {@code ensureNoNameCollisions}, so no collision check lives here.
  */
 public class DatasetService {
+
+    private static final Logger logger = LogManager.getLogger(DatasetService.class);
 
     // Operator-only: not exposed to end users. Change to Dynamic (+ ServerlessPublic) later to open.
     public static final Setting<Integer> MAX_DATASETS_COUNT_SETTING = Setting.intSetting(
@@ -80,59 +83,86 @@ public class DatasetService {
      * data-source deletion racing a dataset PUT fails cleanly.
      */
     public void putDataset(ProjectId projectId, PutDatasetAction.Request request, ActionListener<AcknowledgedResponse> listener) {
-        // 1. Look up parent data source directly from cluster state.
+        // 1. Look up parent data source directly from cluster state (best-effort — the task re-reads and re-validates).
         final ProjectMetadata projectMetadata = clusterService.state().metadata().getProject(projectId);
         final DataSource parent = DataSourceMetadata.get(projectMetadata).get(request.dataSource());
         if (parent == null) {
+            logger.warn("rejected put for dataset [{}]: parent data source [{}] not found", request.name(), request.dataSource());
             listener.onFailure(new ResourceNotFoundException("data source [{}] not found", request.dataSource()));
             return;
         }
 
-        // 2. Validator dispatch via the parent type's validator.
+        // 2. Validator dispatch via the parent type's validator — catch broadly; a validator that leaks a
+        // non-ValidationException should still surface as a 4xx-ish failure on the listener, not 500.
         final DataSourceValidator validator = validatorsByType.get(parent.type());
         if (validator == null) {
             // This would indicate a cluster state with a data source whose type has no registered plugin — defensive.
+            logger.warn("rejected put for dataset [{}]: no validator for parent type [{}]", request.name(), parent.type());
             listener.onFailure(new IllegalStateException("no validator registered for data source type [" + parent.type() + "]"));
             return;
         }
         final Map<String, Object> validatedSettings;
         try {
+            // Validate once up front to surface errors cleanly. Re-validated under CAS inside the task body below
+            // in case the parent data source is mutated between dispatch and task execution.
             validatedSettings = validator.validateDataset(parent.settings(), request.resource(), request.rawSettings());
-        } catch (ValidationException e) {
+        } catch (Exception e) {
+            logger.warn(() -> "validator for type [" + parent.type() + "] rejected put for dataset [" + request.name() + "]", e);
             listener.onFailure(e);
             return;
         }
 
-        final Dataset dataset = new Dataset(
+        // 3. No-op fast path — best-effort, reads local node state (may lag master).
+        final Dataset probeDataset = new Dataset(
             request.name(),
             new DataSourceReference(request.dataSource()),
             request.resource(),
             request.description(),
             validatedSettings
         );
-
-        // 3. No-op fast path.
-        final Dataset existing = getMetadata(projectMetadata).get(dataset.name());
-        if (dataset.equals(existing)) {
+        final Dataset existing = getMetadata(projectMetadata).get(probeDataset.name());
+        if (probeDataset.equals(existing)) {
             listener.onResponse(AcknowledgedResponse.TRUE);
             return;
         }
 
-        // 4. Cluster-state update — re-check parent existence + count limit under CAS. Name collisions
-        // with other abstractions are enforced by ProjectMetadata.Builder.build() via ensureNoNameCollisions.
+        // 4. Cluster-state update — re-resolve the parent, re-run the validator, and re-check count limit under CAS.
+        // Name collisions with other abstractions are enforced by ProjectMetadata.Builder.build() via
+        // ensureNoNameCollisions. Re-validating inside the task guards against the parent being deleted
+        // and re-created with different settings between dispatch and task execution.
+        logger.debug("submitting put dataset [{}] with parent [{}]", request.name(), request.dataSource());
         final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(request, listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 final ProjectMetadata project = currentState.metadata().getProject(projectId);
+                final DataSource currentParent = DataSourceMetadata.get(project).get(request.dataSource());
+                if (currentParent == null) {
+                    throw new ResourceNotFoundException("data source [{}] not found", request.dataSource());
+                }
+                // Re-dispatch the validator — parent's type may have changed (delete+recreate) since pre-task.
+                final DataSourceValidator currentValidator = validatorsByType.get(currentParent.type());
+                if (currentValidator == null) {
+                    throw new IllegalStateException("no validator registered for data source type [" + currentParent.type() + "]");
+                }
+                final Map<String, Object> freshSettings = currentValidator.validateDataset(
+                    currentParent.settings(),
+                    request.resource(),
+                    request.rawSettings()
+                );
+                final Dataset dataset = new Dataset(
+                    request.name(),
+                    new DataSourceReference(request.dataSource()),
+                    request.resource(),
+                    request.description(),
+                    freshSettings
+                );
                 final DatasetMetadata metadata = getMetadata(project);
                 final Dataset current = metadata.get(dataset.name());
                 if (dataset.equals(current)) {
                     return currentState; // another writer got here first with the same value
                 }
-                if (DataSourceMetadata.get(project).get(dataset.dataSource().getName()) == null) {
-                    throw new ResourceNotFoundException("data source [{}] not found", dataset.dataSource().getName());
-                }
                 if (current == null && metadata.datasets().size() >= maxDatasetsCount) {
+                    logger.warn("rejected put for dataset [{}]: maximum count [{}] reached", dataset.name(), maxDatasetsCount);
                     throw new IllegalArgumentException(
                         "cannot add dataset, the maximum number of datasets is reached: " + maxDatasetsCount
                     );
@@ -142,7 +172,7 @@ public class DatasetService {
                 return ClusterState.builder(currentState).putProjectMetadata(ProjectMetadata.builder(project).datasets(updated)).build();
             }
         };
-        taskQueue.submitTask("update-esql-dataset-metadata-[" + dataset.name() + "]", task, task.timeout());
+        taskQueue.submitTask("update-esql-dataset-metadata-[" + request.name() + "]", task, task.timeout());
     }
 
     /** Delete a dataset by name. Surfaces 404 if the dataset doesn't exist at task-execution time. */
@@ -153,6 +183,7 @@ public class DatasetService {
         String name,
         ActionListener<AcknowledgedResponse> listener
     ) {
+        logger.debug("submitting delete dataset [{}]", name);
         final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(masterNodeTimeout, ackTimeout, listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {

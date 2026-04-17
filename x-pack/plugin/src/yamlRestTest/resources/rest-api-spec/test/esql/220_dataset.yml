@@ -54,6 +54,7 @@ setup:
         name: ds
         body:
           resource: "s3://x/"
+          settings: { }
 
 ---
 "missing-resource":
@@ -63,6 +64,16 @@ setup:
         name: ds
         body:
           data_source: parent
+
+---
+"missing-settings":
+  - do:
+      catch: /settings are missing/
+      esql.put_dataset:
+        name: ds
+        body:
+          data_source: parent
+          resource: "s3://x/"
 
 ---
 "parent-data-source-not-found":
@@ -76,6 +87,7 @@ setup:
         body:
           data_source: parent_does_not_exist
           resource: "s3://x/"
+          settings: { }
 
 ---
 "delete-missing":

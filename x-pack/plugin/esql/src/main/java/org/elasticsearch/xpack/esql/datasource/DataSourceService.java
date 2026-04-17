@@ -24,10 +24,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 
@@ -46,6 +47,8 @@ import java.util.Set;
  * dataset creation racing a data source deletion.
  */
 public class DataSourceService {
+
+    private static final Logger logger = LogManager.getLogger(DataSourceService.class);
 
     // Operator-only: not exposed to end users. Change to Dynamic (+ ServerlessPublic) later to open.
     public static final Setting<Integer> MAX_DATA_SOURCES_COUNT_SETTING = Setting.intSetting(
@@ -86,19 +89,22 @@ public class DataSourceService {
         // 1. Validator dispatch — unknown type or validation error returns cleanly without touching cluster state.
         DataSourceValidator validator = validatorsByType.get(request.type());
         if (validator == null) {
+            logger.warn("rejected put for data source [{}]: unknown type [{}]", request.name(), request.type());
             listener.onFailure(new IllegalArgumentException("unknown data source type [" + request.type() + "]"));
             return;
         }
-        Map<String, org.elasticsearch.cluster.metadata.DataSourceSetting> validated;
+        final Map<String, org.elasticsearch.cluster.metadata.DataSourceSetting> validated;
         try {
             validated = validator.validateDatasource(request.rawSettings());
-        } catch (ValidationException e) {
+        } catch (Exception e) {
+            logger.warn(() -> "validator for type [" + request.type() + "] rejected put for data source [" + request.name() + "]", e);
             listener.onFailure(e);
             return;
         }
         final DataSource dataSource = new DataSource(request.name(), request.type(), request.description(), validated);
 
-        // 2. No-op fast path — if the already-present value equals what we're about to write, skip the task.
+        // 2. No-op fast path — best-effort optimization. Reads local node state, which may lag the master.
+        // A false miss triggers the task (which rechecks); a false hit returns TRUE on a stale match (safe).
         final ProjectMetadata projectMetadata = clusterService.state().metadata().getProject(projectId);
         final DataSource existing = getMetadata(projectMetadata).get(dataSource.name());
         if (dataSource.equals(existing)) {
@@ -107,6 +113,7 @@ public class DataSourceService {
         }
 
         // 3. Cluster-state update — re-validate under CAS for count limit.
+        logger.debug("submitting put data source [{}] of type [{}]", dataSource.name(), dataSource.type());
         final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(request, listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -117,6 +124,7 @@ public class DataSourceService {
                     return currentState; // another writer got here first with the same value
                 }
                 if (current == null && metadata.dataSources().size() >= maxDataSourcesCount) {
+                    logger.warn("rejected put for data source [{}]: maximum count [{}] reached", dataSource.name(), maxDataSourcesCount);
                     throw new IllegalArgumentException(
                         "cannot add data source, the maximum number of data sources is reached: " + maxDataSourcesCount
                     );
@@ -137,6 +145,13 @@ public class DataSourceService {
      * Delete a data source by name. Referential integrity is enforced inside the task: the delete
      * fails with 409 if any dataset references this data source. A 404 is surfaced if the data source
      * doesn't exist at task-execution time.
+     *
+     * <p>The delete-vs-dataset-put race is serialized by {@code MasterService}, not by shared task
+     * queuing — the data source queue and the dataset queue are distinct. {@code MasterService}
+     * applies cluster-state updates one at a time, so whichever task runs second sees the other's
+     * effect: a dataset-put task racing a data-source-delete will either create the dataset before
+     * the delete observes it (409 on delete) or find the parent gone when it executes
+     * ({@code ResourceNotFoundException} in {@code DatasetService.putDataset}).
      */
     public void deleteDataSource(
         ProjectId projectId,
@@ -145,6 +160,7 @@ public class DataSourceService {
         String name,
         ActionListener<AcknowledgedResponse> listener
     ) {
+        logger.debug("submitting delete data source [{}]", name);
         final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(masterNodeTimeout, ackTimeout, listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -162,6 +178,7 @@ public class DataSourceService {
                     .map(Dataset::name)
                     .toList();
                 if (dependents.isEmpty() == false) {
+                    logger.warn("rejected delete for data source [{}]: referenced by datasets {}", name, dependents);
                     throw new ElasticsearchStatusException(
                         "cannot delete data source [" + name + "]: referenced by datasets " + dependents,
                         RestStatus.CONFLICT

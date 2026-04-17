@@ -542,17 +542,8 @@ final class SplitFilterClassifier {
             }
             return Double.compare(na.doubleValue(), nb.doubleValue());
         }
-        if (a instanceof Comparable ca && b.getClass().isAssignableFrom(a.getClass())) {
-            try {
-                return ca.compareTo(b);
-            } catch (ClassCastException e) {
-                return Integer.MIN_VALUE;
-            }
-        }
-        if (a instanceof Comparable && b instanceof Comparable) {
-            String sa = a.toString();
-            String sb = b.toString();
-            return sa.compareTo(sb);
+        if (a instanceof Comparable ca && a.getClass() == b.getClass()) {
+            return ca.compareTo(b);
         }
         return Integer.MIN_VALUE;
     }

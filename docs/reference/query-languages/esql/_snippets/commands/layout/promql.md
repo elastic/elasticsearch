@@ -52,7 +52,7 @@ The options are inspired by the Prometheus [HTTP API](https://prometheus.io/docs
 `end`
 :   End time of the query, inclusive.
     Uses the end based on Kibana's date picker or unrestricted if missing.
-    Example: `PROMQL start=?_tstart end=?_tend sum(rate(http_requests_total))`
+    Example: `PROMQL start="2026-04-01T00:00:00Z" end="2026-04-01T02:00:00Z" sum(rate(http_requests_total))`
 
 `scrape_interval`
 :   The expected metric collection interval.

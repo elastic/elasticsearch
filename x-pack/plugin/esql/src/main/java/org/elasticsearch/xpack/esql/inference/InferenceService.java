@@ -13,6 +13,9 @@ import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunner;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunnerConfig;
 
 public class InferenceService {
+
+    public static final String COMPLETION_PRODUCT_USE_CASE = "internal_completion";
+
     private final InferenceResolver.Factory inferenceResolverFactory;
 
     private final BulkInferenceRunner.Factory bulkInferenceRunnerFactory;

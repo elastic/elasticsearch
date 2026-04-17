@@ -1,11 +1,12 @@
 use super::jni_utils::*;
 use arrow::array::{
-    Array, BinaryArray, BooleanArray, Date32Array, Date64Array, Float32Array, Float64Array,
-    Int16Array, Int32Array, Int64Array, Int8Array, StringArray, TimestampMicrosecondArray,
-    TimestampMillisecondArray, TimestampNanosecondArray, TimestampSecondArray, UInt16Array,
-    UInt32Array, UInt64Array, UInt8Array,
+    Array, ArrayRef, BinaryArray, BooleanArray, Date32Array, Date64Array, Float32Array,
+    Float64Array, Int16Array, Int32Array, Int64Array, Int8Array, Scalar, StringArray,
+    TimestampMicrosecondArray, TimestampMillisecondArray, TimestampNanosecondArray,
+    TimestampSecondArray, UInt16Array, UInt32Array, UInt64Array, UInt8Array,
 };
-use arrow::datatypes::SchemaRef;
+use arrow::compute::kernels::cmp;
+use arrow::datatypes::{DataType, SchemaRef};
 use arrow::record_batch::RecordBatch;
 use jni::EnvUnowned;
 use jni::errors::{Result as JniResult, ThrowRuntimeExAndDefault};
@@ -321,12 +322,12 @@ pub fn build_row_filter(
 fn evaluate_filter(expr: &FilterExpr, batch: &RecordBatch) -> arrow::error::Result<BooleanArray> {
     let num_rows = batch.num_rows();
     match expr {
-        FilterExpr::Eq(left, right) => eval_comparison(left, right, batch, |o| o == std::cmp::Ordering::Equal),
-        FilterExpr::NotEq(left, right) => eval_comparison(left, right, batch, |o| o != std::cmp::Ordering::Equal),
-        FilterExpr::Lt(left, right) => eval_comparison(left, right, batch, |o| o == std::cmp::Ordering::Less),
-        FilterExpr::LtEq(left, right) => eval_comparison(left, right, batch, |o| o != std::cmp::Ordering::Greater),
-        FilterExpr::Gt(left, right) => eval_comparison(left, right, batch, |o| o == std::cmp::Ordering::Greater),
-        FilterExpr::GtEq(left, right) => eval_comparison(left, right, batch, |o| o != std::cmp::Ordering::Less),
+        FilterExpr::Eq(left, right) => eval_comparison(left, right, batch, cmp::eq),
+        FilterExpr::NotEq(left, right) => eval_comparison(left, right, batch, cmp::neq),
+        FilterExpr::Lt(left, right) => eval_comparison(left, right, batch, cmp::lt),
+        FilterExpr::LtEq(left, right) => eval_comparison(left, right, batch, cmp::lt_eq),
+        FilterExpr::Gt(left, right) => eval_comparison(left, right, batch, cmp::gt),
+        FilterExpr::GtEq(left, right) => eval_comparison(left, right, batch, cmp::gt_eq),
         FilterExpr::And(a, b) => {
             let la = evaluate_filter(a, batch)?;
             let lb = evaluate_filter(b, batch)?;
@@ -381,89 +382,79 @@ fn find_column(batch: &RecordBatch, name: &str) -> Option<Arc<dyn Array>> {
         .map(|(i, _)| batch.column(i).clone())
 }
 
+/// Build a scalar array matching the column's data type from a FilterExpr literal.
+/// Returns None if the literal type is incompatible with the column type.
+fn make_scalar(col: &dyn Array, lit: &FilterExpr) -> Option<ArrayRef> {
+    let dt = col.data_type();
+    match lit {
+        FilterExpr::LiteralInt(v) => match dt {
+            DataType::Int32 => Some(Arc::new(Int32Array::from(vec![*v]))),
+            DataType::Int64 => Some(Arc::new(Int64Array::from(vec![*v as i64]))),
+            DataType::Int16 => Some(Arc::new(Int16Array::from(vec![*v as i16]))),
+            DataType::Int8 => Some(Arc::new(Int8Array::from(vec![*v as i8]))),
+            DataType::UInt64 => Some(Arc::new(UInt64Array::from(vec![*v as u64]))),
+            DataType::UInt32 => Some(Arc::new(UInt32Array::from(vec![*v as u32]))),
+            DataType::UInt16 => Some(Arc::new(UInt16Array::from(vec![*v as u16]))),
+            DataType::UInt8 => Some(Arc::new(UInt8Array::from(vec![*v as u8]))),
+            _ => None,
+        },
+        FilterExpr::LiteralLong(v) | FilterExpr::LiteralTimestampMillis(v) => match dt {
+            DataType::Int64 => Some(Arc::new(Int64Array::from(vec![*v]))),
+            DataType::Int32 => Some(Arc::new(Int32Array::from(vec![*v as i32]))),
+            DataType::Date32 => Some(Arc::new(Date32Array::from(vec![*v as i32]))),
+            DataType::Date64 => Some(Arc::new(Date64Array::from(vec![*v]))),
+            DataType::Timestamp(arrow::datatypes::TimeUnit::Millisecond, tz) => {
+                Some(Arc::new(TimestampMillisecondArray::from(vec![*v]).with_timezone_opt(tz.clone())))
+            }
+            DataType::Timestamp(arrow::datatypes::TimeUnit::Microsecond, tz) => {
+                Some(Arc::new(TimestampMicrosecondArray::from(vec![*v * 1000]).with_timezone_opt(tz.clone())))
+            }
+            DataType::Timestamp(arrow::datatypes::TimeUnit::Nanosecond, tz) => {
+                Some(Arc::new(TimestampNanosecondArray::from(vec![*v * 1_000_000]).with_timezone_opt(tz.clone())))
+            }
+            DataType::Timestamp(arrow::datatypes::TimeUnit::Second, tz) => {
+                Some(Arc::new(TimestampSecondArray::from(vec![*v / 1000]).with_timezone_opt(tz.clone())))
+            }
+            DataType::UInt64 => Some(Arc::new(UInt64Array::from(vec![*v as u64]))),
+            DataType::UInt32 => Some(Arc::new(UInt32Array::from(vec![*v as u32]))),
+            _ => None,
+        },
+        FilterExpr::LiteralDouble(v) => match dt {
+            DataType::Float64 => Some(Arc::new(Float64Array::from(vec![*v]))),
+            DataType::Float32 => Some(Arc::new(Float32Array::from(vec![*v as f32]))),
+            _ => None,
+        },
+        FilterExpr::LiteralBool(v) => match dt {
+            DataType::Boolean => Some(Arc::new(BooleanArray::from(vec![*v]))),
+            _ => None,
+        },
+        FilterExpr::LiteralString(v) => match dt {
+            DataType::Utf8 => Some(Arc::new(StringArray::from(vec![v.as_str()]))),
+            DataType::Binary => Some(Arc::new(BinaryArray::from(vec![v.as_bytes()]))),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+type CmpFn = fn(&dyn arrow::array::Datum, &dyn arrow::array::Datum) -> arrow::error::Result<BooleanArray>;
+
 fn eval_comparison(
     left: &FilterExpr,
     right: &FilterExpr,
     batch: &RecordBatch,
-    accept: fn(std::cmp::Ordering) -> bool,
+    cmp_fn: CmpFn,
 ) -> arrow::error::Result<BooleanArray> {
     let num_rows = batch.num_rows();
     if let FilterExpr::Column(name) = left {
         if let Some(col) = find_column(batch, name) {
-            return compare_column_to_literal(col, right, num_rows, accept);
+            if let Some(scalar_arr) = make_scalar(col.as_ref(), right) {
+                let scalar = Scalar::new(scalar_arr);
+                return cmp_fn(&col, &scalar);
+            }
         }
     }
     Ok(BooleanArray::from(vec![true; num_rows]))
-}
-
-/// Extract a column value at row `i` as i64, handling all integer, unsigned, date, and timestamp types.
-fn column_value_as_i64(col: &dyn Array, i: usize) -> Option<i64> {
-    if let Some(a) = col.as_any().downcast_ref::<Int64Array>() { return Some(a.value(i)); }
-    if let Some(a) = col.as_any().downcast_ref::<Int32Array>() { return Some(a.value(i) as i64); }
-    if let Some(a) = col.as_any().downcast_ref::<Int16Array>() { return Some(a.value(i) as i64); }
-    if let Some(a) = col.as_any().downcast_ref::<Int8Array>() { return Some(a.value(i) as i64); }
-    if let Some(a) = col.as_any().downcast_ref::<UInt64Array>() { return Some(a.value(i) as i64); }
-    if let Some(a) = col.as_any().downcast_ref::<UInt32Array>() { return Some(a.value(i) as i64); }
-    if let Some(a) = col.as_any().downcast_ref::<UInt16Array>() { return Some(a.value(i) as i64); }
-    if let Some(a) = col.as_any().downcast_ref::<UInt8Array>() { return Some(a.value(i) as i64); }
-    if let Some(a) = col.as_any().downcast_ref::<Date32Array>() { return Some(a.value(i) as i64); }
-    if let Some(a) = col.as_any().downcast_ref::<Date64Array>() { return Some(a.value(i)); }
-    if let Some(a) = col.as_any().downcast_ref::<TimestampMillisecondArray>() { return Some(a.value(i)); }
-    if let Some(a) = col.as_any().downcast_ref::<TimestampMicrosecondArray>() { return Some(a.value(i) / 1000); }
-    if let Some(a) = col.as_any().downcast_ref::<TimestampNanosecondArray>() { return Some(a.value(i) / 1_000_000); }
-    if let Some(a) = col.as_any().downcast_ref::<TimestampSecondArray>() { return Some(a.value(i) * 1000); }
-    None
-}
-
-fn compare_column_to_literal(
-    col: Arc<dyn Array>,
-    lit: &FilterExpr,
-    num_rows: usize,
-    accept: fn(std::cmp::Ordering) -> bool,
-) -> arrow::error::Result<BooleanArray> {
-    let mut results = Vec::with_capacity(num_rows);
-    for i in 0..num_rows {
-        if col.is_null(i) {
-            results.push(Some(false));
-            continue;
-        }
-        let ord = match lit {
-            FilterExpr::LiteralInt(v) => {
-                column_value_as_i64(col.as_ref(), i).and_then(|cv| (cv as i32).partial_cmp(v))
-            }
-            FilterExpr::LiteralLong(v) | FilterExpr::LiteralTimestampMillis(v) => {
-                column_value_as_i64(col.as_ref(), i).and_then(|cv| cv.partial_cmp(v))
-            }
-            FilterExpr::LiteralDouble(v) => {
-                if let Some(arr) = col.as_any().downcast_ref::<Float64Array>() {
-                    arr.value(i).partial_cmp(v)
-                } else if let Some(arr) = col.as_any().downcast_ref::<Float32Array>() {
-                    (arr.value(i) as f64).partial_cmp(v)
-                } else {
-                    None
-                }
-            }
-            FilterExpr::LiteralBool(v) => {
-                if let Some(arr) = col.as_any().downcast_ref::<BooleanArray>() {
-                    arr.value(i).partial_cmp(v)
-                } else {
-                    None
-                }
-            }
-            FilterExpr::LiteralString(v) => {
-                if let Some(arr) = col.as_any().downcast_ref::<StringArray>() {
-                    arr.value(i).partial_cmp(v.as_str())
-                } else if let Some(arr) = col.as_any().downcast_ref::<BinaryArray>() {
-                    arr.value(i).partial_cmp(v.as_bytes())
-                } else {
-                    None
-                }
-            }
-            _ => None,
-        };
-        results.push(ord.map(accept));
-    }
-    Ok(BooleanArray::from(results))
 }
 
 fn eval_in_list(
@@ -471,38 +462,18 @@ fn eval_in_list(
     items: &[FilterExpr],
     num_rows: usize,
 ) -> arrow::error::Result<BooleanArray> {
-    let mut results = Vec::with_capacity(num_rows);
-    for i in 0..num_rows {
-        if col.is_null(i) {
-            results.push(Some(false));
-            continue;
+    let mut combined: Option<BooleanArray> = None;
+    for item in items {
+        if let Some(scalar_arr) = make_scalar(col.as_ref(), item) {
+            let scalar = Scalar::new(scalar_arr);
+            let eq_result = cmp::eq(&col, &scalar)?;
+            combined = Some(match combined {
+                Some(prev) => arrow::compute::kernels::boolean::or(&prev, &eq_result)?,
+                None => eq_result,
+            });
         }
-        let mut matched = false;
-        for item in items {
-            let eq = match item {
-                FilterExpr::LiteralInt(v) => {
-                    column_value_as_i64(col.as_ref(), i).map(|cv| cv as i32 == *v).unwrap_or(false)
-                }
-                FilterExpr::LiteralLong(v) | FilterExpr::LiteralTimestampMillis(v) => {
-                    column_value_as_i64(col.as_ref(), i).map(|cv| cv == *v).unwrap_or(false)
-                }
-                FilterExpr::LiteralDouble(v) => col.as_any().downcast_ref::<Float64Array>().map(|a| a.value(i) == *v).unwrap_or(false),
-                FilterExpr::LiteralString(v) => {
-                    col.as_any().downcast_ref::<StringArray>().map(|a| a.value(i) == v.as_str())
-                        .or_else(|| col.as_any().downcast_ref::<BinaryArray>().map(|a| a.value(i) == v.as_bytes()))
-                        .unwrap_or(false)
-                }
-                FilterExpr::LiteralBool(v) => col.as_any().downcast_ref::<BooleanArray>().map(|a| a.value(i) == *v).unwrap_or(false),
-                _ => false,
-            };
-            if eq {
-                matched = true;
-                break;
-            }
-        }
-        results.push(Some(matched));
     }
-    Ok(BooleanArray::from(results))
+    Ok(combined.unwrap_or_else(|| BooleanArray::from(vec![false; num_rows])))
 }
 
 fn eval_like(

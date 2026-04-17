@@ -622,7 +622,10 @@ public class ReindexerTests extends ESTestCase {
         final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(
             pitId,
             delegate,
-            id -> closeCount.incrementAndGet()
+            (id, done) -> {
+                closeCount.incrementAndGet();
+                done.onResponse(null);
+            }
         );
 
         wrapped.onResponse(reindexResponseWithResumeInfo());
@@ -641,7 +644,10 @@ public class ReindexerTests extends ESTestCase {
         final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(
             pitId,
             delegate,
-            id -> closeCount.incrementAndGet()
+            (id, done) -> {
+                closeCount.incrementAndGet();
+                done.onResponse(null);
+            }
         );
 
         wrapped.onFailure(new TaskRelocatedException());
@@ -660,7 +666,10 @@ public class ReindexerTests extends ESTestCase {
         final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(
             pitId,
             delegate,
-            id -> closeCount.incrementAndGet()
+            (id, done) -> {
+                closeCount.incrementAndGet();
+                done.onResponse(null);
+            }
         );
 
         wrapped.onResponse(reindexResponseWithBulkAndSearchFailures(null, null));
@@ -680,7 +689,10 @@ public class ReindexerTests extends ESTestCase {
         final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(
             initialPitId,
             delegate,
-            id -> closedPitId[0] = id
+            (id, done) -> {
+                closedPitId[0] = id;
+                done.onResponse(null);
+            }
         );
 
         wrapped.onResponse(reindexResponseWithPitId(latestPitId));
@@ -699,7 +711,10 @@ public class ReindexerTests extends ESTestCase {
         final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(
             initialPitId,
             delegate,
-            id -> closedPitId[0] = id
+            (id, done) -> {
+                closedPitId[0] = id;
+                done.onResponse(null);
+            }
         );
 
         wrapped.onResponse(reindexResponseWithBulkAndSearchFailures(null, null));
@@ -718,7 +733,10 @@ public class ReindexerTests extends ESTestCase {
         final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(
             pitId,
             delegate,
-            id -> closeCount.incrementAndGet(),
+            (id, done) -> {
+                closeCount.incrementAndGet();
+                done.onResponse(null);
+            },
             null,
             () -> true
         );
@@ -739,7 +757,10 @@ public class ReindexerTests extends ESTestCase {
         final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(
             pitId,
             delegate,
-            id -> closeCount.incrementAndGet()
+            (id, done) -> {
+                closeCount.incrementAndGet();
+                done.onResponse(null);
+            }
         );
 
         wrapped.onFailure(new RuntimeException("other failure"));
@@ -762,7 +783,10 @@ public class ReindexerTests extends ESTestCase {
         final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(
             pitId,
             delegate,
-            id -> closeCount.incrementAndGet(),
+            (id, done) -> {
+                closeCount.incrementAndGet();
+                done.onResponse(null);
+            },
             task,
             () -> false
         );
@@ -788,7 +812,10 @@ public class ReindexerTests extends ESTestCase {
         final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(
             pitId,
             delegate,
-            id -> closeCount.incrementAndGet(),
+            (id, done) -> {
+                closeCount.incrementAndGet();
+                done.onResponse(null);
+            },
             task,
             () -> true
         );
@@ -2149,7 +2176,7 @@ public class ReindexerTests extends ESTestCase {
                     return;
                 }
                 if (path.contains("_pit") && "DELETE".equals(method)) {
-                    exchange.sendResponseHeaders(200, -1);
+                    respondJson(exchange, 200, "{}");
                     return;
                 }
                 exchange.sendResponseHeaders(404, -1);
@@ -2794,13 +2821,22 @@ public class ReindexerTests extends ESTestCase {
         TransportService transportService,
         TaskResultsService taskResultsService
     ) {
+        return reindexerWithRelocation(clusterService, transportService, taskResultsService, mock(Client.class));
+    }
+
+    private static Reindexer reindexerWithRelocation(
+        ClusterService clusterService,
+        TransportService transportService,
+        TaskResultsService taskResultsService,
+        Client searchClient
+    ) {
         final ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.generic()).thenReturn(mock(ExecutorService.class));
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         return new Reindexer(
             clusterService,
             mock(ProjectResolver.class),
-            mock(Client.class),
+            searchClient,
             threadPool,
             mock(ScriptService.class),
             mock(ReindexSslConfig.class),

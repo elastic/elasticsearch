@@ -41,9 +41,9 @@ public final class S3StorageObject implements StorageObject {
     private final String key;
     private final StoragePath path;
 
-    private Long cachedLength;
-    private Instant cachedLastModified;
-    private Boolean cachedExists;
+    private volatile Long cachedLength;
+    private volatile Instant cachedLastModified;
+    private volatile Boolean cachedExists;
 
     public S3StorageObject(S3Client s3Client, String bucket, String key, StoragePath path) {
         this(s3Client, null, bucket, key, path);
@@ -124,8 +124,8 @@ public final class S3StorageObject implements StorageObject {
         if (position < 0) {
             throw new IllegalArgumentException("position must be non-negative, got: " + position);
         }
-        if (length < 0) {
-            throw new IllegalArgumentException("length must be non-negative, got: " + length);
+        if (length <= 0) {
+            throw new IllegalArgumentException("length must be positive, got: " + length);
         }
 
         long endPosition = position + length - 1;
@@ -256,8 +256,8 @@ public final class S3StorageObject implements StorageObject {
             listener.onFailure(new IllegalArgumentException("position must be non-negative, got: " + position));
             return;
         }
-        if (length < 0) {
-            listener.onFailure(new IllegalArgumentException("length must be non-negative, got: " + length));
+        if (length <= 0) {
+            listener.onFailure(new IllegalArgumentException("length must be positive, got: " + length));
             return;
         }
 

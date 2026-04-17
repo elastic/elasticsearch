@@ -154,13 +154,12 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
                 tag = "top-snippets-num-words-zero-highlight-preceding-chunk",
                 applies_to = "stack: preview 9.4.1",
                 explanation = """
-                    This is another example of setting `num_words` to 0, this time applied to an input that has
-                    already been chunked with the `CHUNK` command. The markdown text is chunked by sections first, and
-                    because the text is pre-chunked, no further splitting is needed. Setting `num_words` to 0 disables
-                    chunking so that each chunk is scored and highlighted individually.
-                """
-            ),
-        }
+                        This is another example of setting `num_words` to 0, this time applied to an input that has
+                        already been chunked with the `CHUNK` command. The markdown text is chunked by sections first, and
+                        because the text is pre-chunked, no further splitting is needed. Setting `num_words` to 0 disables
+                        chunking so that each chunk is scored and highlighted individually.
+                    """
+            ), }
     )
     public TopSnippets(
         Source source,

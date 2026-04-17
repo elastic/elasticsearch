@@ -18,6 +18,53 @@
 #include "vec_common.h"
 #include "aarch64/aarch64_vec_common.h"
 
+template <
+    svfloat32_t(*inner_op)(const svbool_t, const svfloat32_t, const svfloat32_t, const svfloat32_t)
+>
+static inline f32_t call_f32_inner(const f32_t* a, const f32_t* b, const int32_t elementCount) {
+    constexpr int batches = 8;
+    int i = 0;
+
+    svfloat32_t sum0 = svdup_f32(0.0f);
+    svfloat32_t sum1 = svdup_f32(0.0f);
+    svfloat32_t sum2 = svdup_f32(0.0f);
+    svfloat32_t sum3 = svdup_f32(0.0f);
+    svfloat32_t sum4 = svdup_f32(0.0f);
+    svfloat32_t sum5 = svdup_f32(0.0f);
+    svfloat32_t sum6 = svdup_f32(0.0f);
+    svfloat32_t sum7 = svdup_f32(0.0f);
+
+    const int elements = svcntw();
+    const int stride = elements * batches;
+    const svbool_t all = svptrue_b32();
+    for (; i + stride <= elementCount; i += stride) {
+        sum0 = inner_op(all, sum0, svld1_vnum(all, a + i, 0), svld1_vnum(all, b + i, 0));
+        sum1 = inner_op(all, sum1, svld1_vnum(all, a + i, 1), svld1_vnum(all, b + i, 1));
+        sum2 = inner_op(all, sum2, svld1_vnum(all, a + i, 2), svld1_vnum(all, b + i, 2));
+        sum3 = inner_op(all, sum3, svld1_vnum(all, a + i, 3), svld1_vnum(all, b + i, 3));
+        sum4 = inner_op(all, sum4, svld1_vnum(all, a + i, 4), svld1_vnum(all, b + i, 4));
+        sum5 = inner_op(all, sum5, svld1_vnum(all, a + i, 5), svld1_vnum(all, b + i, 5));
+        sum6 = inner_op(all, sum6, svld1_vnum(all, a + i, 6), svld1_vnum(all, b + i, 6));
+        sum7 = inner_op(all, sum7, svld1_vnum(all, a + i, 7), svld1_vnum(all, b + i, 7));
+    }
+
+    svfloat32_t sum = svadd_f32_x(all,
+        svadd_f32_x(all,
+            svadd_f32_x(all, sum0, sum1),
+            svadd_f32_x(all, sum2, sum3)),
+        svadd_f32_x(all,
+             svadd_f32_x(all, sum4, sum5),
+             svadd_f32_x(all, sum6, sum7)));
+
+    // unstrided tail
+    for (; i < elementCount; i += elements) {
+        svbool_t pg = svwhilelt_b32(i, elementCount);
+        sum = inner_op(pg, sum, svld1(pg, a + i), svld1(pg, b + i));
+    }
+
+    return svaddv_f32(svptrue_b32(), sum);
+}
+
 /*
  * Float bulk operation. Iterates over 4 sequential vectors at a time.
  *
@@ -99,55 +146,15 @@ static inline void call_f32_bulk(
     }
 }
 
+static inline svfloat32_t dotf32_vector(const svbool_t pg, const svfloat32_t sum, const svfloat32_t a, const svfloat32_t b) {
+    return svmla_f32_m(pg, sum, a, b);
+}
+
 // const f32_t* a  pointer to the first float vector
 // const f32_t* b  pointer to the second float vector
 // const int32_t elementCount  the number of floating point elements
 EXPORT f32_t vec_dotf32_2(const f32_t* a, const f32_t* b, const int32_t elementCount) {
-    constexpr int batches = 8;
-    int i = 0;
-
-    svfloat32_t sum0 = svdup_f32(0.0f);
-    svfloat32_t sum1 = svdup_f32(0.0f);
-    svfloat32_t sum2 = svdup_f32(0.0f);
-    svfloat32_t sum3 = svdup_f32(0.0f);
-    svfloat32_t sum4 = svdup_f32(0.0f);
-    svfloat32_t sum5 = svdup_f32(0.0f);
-    svfloat32_t sum6 = svdup_f32(0.0f);
-    svfloat32_t sum7 = svdup_f32(0.0f);
-
-    const int elements = svcntw();
-    const int stride = elements * batches;
-    const svbool_t all = svptrue_b32();
-    for (; i + stride <= elementCount; i += stride) {
-        sum0 = svmla_f32_x(all, sum0, svld1_vnum(all, a + i, 0), svld1_vnum(all, b + i, 0));
-        sum1 = svmla_f32_x(all, sum1, svld1_vnum(all, a + i, 1), svld1_vnum(all, b + i, 1));
-        sum2 = svmla_f32_x(all, sum2, svld1_vnum(all, a + i, 2), svld1_vnum(all, b + i, 2));
-        sum3 = svmla_f32_x(all, sum3, svld1_vnum(all, a + i, 3), svld1_vnum(all, b + i, 3));
-        sum4 = svmla_f32_x(all, sum4, svld1_vnum(all, a + i, 4), svld1_vnum(all, b + i, 4));
-        sum5 = svmla_f32_x(all, sum5, svld1_vnum(all, a + i, 5), svld1_vnum(all, b + i, 5));
-        sum6 = svmla_f32_x(all, sum6, svld1_vnum(all, a + i, 6), svld1_vnum(all, b + i, 6));
-        sum7 = svmla_f32_x(all, sum7, svld1_vnum(all, a + i, 7), svld1_vnum(all, b + i, 7));
-    }
-
-    svfloat32_t sum = svadd_f32_x(all,
-        svadd_f32_x(all,
-            svadd_f32_x(all, sum0, sum1),
-            svadd_f32_x(all, sum2, sum3)),
-        svadd_f32_x(all,
-             svadd_f32_x(all, sum4, sum5),
-             svadd_f32_x(all, sum6, sum7)));
-
-    // unstrided tail
-    for (; i < elementCount; i += elements) {
-        svbool_t pg = svwhilelt_b32(i, elementCount);
-        sum = svmla_f32_m(pg, sum, svld1(pg, a + i), svld1(pg, b + i));
-    }
-
-    return svaddv_f32(svptrue_b32(), sum);
-}
-
-static inline svfloat32_t dotf32_vector(const svbool_t pg, const svfloat32_t acc, const svfloat32_t a, const svfloat32_t b) {
-    return svmla_f32_m(pg, acc, a, b);
+    return call_f32_inner<dotf32_vector>(a, b, elementCount);
 }
 
 EXPORT void vec_dotf32_bulk_2(const f32_t* a, const f32_t* b, const int32_t dims, const int32_t count, f32_t* results) {
@@ -164,46 +171,21 @@ EXPORT void vec_dotf32_bulk_offsets_2(
     f32_t* results) {
     call_f32_bulk<f32_t, offsets_mapper, dotf32_vector, vec_dotf32_2>(a, b, dims, pitch / sizeof(f32_t), offsets, count, results);
 }
-/*
-static inline float32x4_t sqrf32_vector(float32x4_t sum, float32x4_t a, float32x4_t b) {
-    float32x4_t diff = vsubq_f32(a, b);
-    return vmlaq_f32(sum, diff, diff);
+
+static inline svfloat32_t sqrf32_vector(const svbool_t pg, const svfloat32_t sum, const svfloat32_t a, const svfloat32_t b) {
+    svfloat32_t diff = svsub_f32_x(pg, a, b);
+    return svmla_f32_m(pg, sum, diff, diff);
 }
 
-EXPORT f32_t vec_sqrf32(const f32_t* a, const f32_t* b, const int32_t elementCount) {
-    constexpr int batches = 8;
-
-    float32x4_t sums[batches];
-    apply_indexed<batches>([&](auto I) {
-        sums[I] = vdupq_n_f32(0.0f);
-    });
-
-    int i = 0;
-    // each value has <elements> floats, and we iterate over <stride> floats at a time
-    constexpr int elements = sizeof(float32x4_t) / sizeof(f32_t);
-    constexpr int stride = sizeof(float32x4_t) / sizeof(f32_t) * batches;
-    for (; i < (elementCount & ~(stride - 1)); i += stride) {
-        apply_indexed<batches>([&](auto I) {
-            sums[I] = sqrf32_vector(sums[I], vld1q_f32(a + i + I * elements), vld1q_f32(b + i + I * elements));
-        });
-    }
-
-    float32x4_t total = tree_reduce<batches, float32x4_t, vaddq_f32>(sums);
-    f32_t result = vaddvq_f32(total);
-
-    // Handle remaining elements
-    for (; i < elementCount; ++i) {
-        result += sqr_scalar(a[i], b[i]);
-    }
-
-    return result;
+EXPORT f32_t vec_sqrf32_2(const f32_t* a, const f32_t* b, const int32_t elementCount) {
+    return call_f32_inner<sqrf32_vector>(a, b, elementCount);
 }
 
-EXPORT void vec_sqrf32_bulk(const f32_t* a, const f32_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    call_f32_bulk<f32_t, sequential_mapper, sqrf32_vector, sqr_scalar, vec_sqrf32>(a, b, dims, dims, NULL, count, results);
+EXPORT void vec_sqrf32_bulk_2(const f32_t* a, const f32_t* b, const int32_t dims, const int32_t count, f32_t* results) {
+    call_f32_bulk<f32_t, sequential_mapper, sqrf32_vector, vec_sqrf32_2>(a, b, dims, dims, NULL, count, results);
 }
 
-EXPORT void vec_sqrf32_bulk_offsets(
+EXPORT void vec_sqrf32_bulk_offsets_2(
     const f32_t* a,
     const f32_t* b,
     const int32_t dims,
@@ -211,6 +193,5 @@ EXPORT void vec_sqrf32_bulk_offsets(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    call_f32_bulk<f32_t, offsets_mapper, sqrf32_vector, sqr_scalar, vec_sqrf32>(a, b, dims, pitch / sizeof(f32_t), offsets, count, results);
+    call_f32_bulk<f32_t, offsets_mapper, sqrf32_vector, vec_sqrf32_2>(a, b, dims, pitch / sizeof(f32_t), offsets, count, results);
 }
-*/

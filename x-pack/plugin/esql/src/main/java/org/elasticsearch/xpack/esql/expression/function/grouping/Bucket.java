@@ -75,6 +75,8 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
 
     private record DateRoundingPicker(int buckets, long from, long to, ZoneId zoneId, long offset) {
 
+        // TODO maybe we should just cover the whole of representable dates here - like ten years, 100 years, 1000 years, all the way up.
+        // That way you never end up with more than the target number of buckets.
         static final Unit[] PRIMARY_UNITS = {
             Unit.of(Rounding.DateTimeUnit.DAY_OF_MONTH),
             Unit.of(TimeValue.timeValueHours(12)),
@@ -120,21 +122,23 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             }
         }
 
+        // The offset only shifts bucket boundaries, not bucket width;
+        // we do not use offset for candidate probes to avoid false negative.
+        // E.g., for a query range [10:00;11:00] and target=60,
+        // the one-minute candidate would be falsely rejected otherwise:
+        // offset=0: [0th <10:00:00>][1st <10:01:00>] ... [60th <10:59:00>] <= target 1m is finest.
+        // offset=+30s: [0th <09:59:30>][1st <10:00:30>] ... [61st <10:59:30>] > target 1m is NOT finest.
         Rounding pickRounding() {
             Unit best = findLastOk(PRIMARY_UNITS);
             if (best != null) {
-                return best.rounding(zoneId);
+                return best.rounding(zoneId, offset);
             }
-
-            int unitIdx = 0;
-            int length = SECONDARY_UNITS.length;
-            for (; unitIdx < length; unitIdx++) {
-                if (roundingIsOk(SECONDARY_UNITS[unitIdx].rounding(zoneId))) {
-                    break;
+            for (Unit unit : SECONDARY_UNITS) {
+                if (roundingIsOk(unit.rounding(zoneId))) {
+                    return unit.rounding(zoneId, offset);
                 }
             }
-
-            return SECONDARY_UNITS[Integer.min(unitIdx, length - 1)].rounding(zoneId);
+            return SECONDARY_UNITS[SECONDARY_UNITS.length - 1].rounding(zoneId, offset);
         }
 
         private Unit findLastOk(Unit[] candidates) {

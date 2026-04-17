@@ -724,7 +724,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         Field field = new Field(fieldType().name(), value.string(), fieldType);
         context.doc().add(field);
         context.addToFieldNames(fieldType().name());
-        
+
         final var utfBytes = value.bytes();
 
         // match_only_text isn't stored, so if synthetic source needs to be supported, we must do something about it

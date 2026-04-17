@@ -53,8 +53,9 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
             @Override
             public boolean isVectorIndexTypeAllowed(IndexVersion indexVersionCreated, DenseVectorFieldMapper.VectorIndexType indexType) {
                 return indexType != DenseVectorFieldMapper.VectorIndexType.BBQ_DISK
-                    || indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_LICENSE_ENFORCEMENT) == false
-                    || (statelessNode && DISK_BBQ_FEATURE.check(getLicenseState()));
+                    || indexVersionCreated.before(IndexVersions.DISK_BBQ_LICENSE_ENFORCEMENT)
+                    || statelessNode
+                    || DISK_BBQ_FEATURE.check(getLicenseState());
             }
 
             @Override

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.diskbbq;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -19,11 +20,12 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.instanceOf;
 
-public class DiskBBQDenseVectorFieldMapperUnlicensedDefaultsTests extends MapperServiceTestCase {
+public class DiskBBQDenseVectorFieldMapperServerlessDefaultsTests extends MapperServiceTestCase {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return List.of(new BasicLicenseStateDiskBBQPlugin(Settings.EMPTY));
+        Settings statelessSettings = Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true).build();
+        return List.of(new BasicLicenseStateDiskBBQPlugin(statelessSettings));
     }
 
     public void testDoesNotDefaultToBBQDiskWhenUnlicensed() throws IOException {
@@ -36,7 +38,7 @@ public class DiskBBQDenseVectorFieldMapperUnlicensedDefaultsTests extends Mapper
 
         DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.mappingLookup().getMapper("field");
         assertNotNull(mapper);
-        assertThat(mapper.fieldType().getIndexOptions(), instanceOf(DenseVectorFieldMapper.BBQHnswIndexOptions.class));
-        assertEquals(DenseVectorFieldMapper.VectorIndexType.BBQ_HNSW, mapper.fieldType().getIndexOptions().getType());
+        assertThat(mapper.fieldType().getIndexOptions(), instanceOf(DenseVectorFieldMapper.BBQIVFIndexOptions.class));
+        assertEquals(DenseVectorFieldMapper.VectorIndexType.BBQ_DISK, mapper.fieldType().getIndexOptions().getType());
     }
 }

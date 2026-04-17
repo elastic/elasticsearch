@@ -1276,21 +1276,19 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
     /**
      * {@snippet lang="text":
      * Limit[1000[INTEGER],false,false]
-     * \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS z#28]]
-     *   \_Fork[[z{r}#82]]
-     *     |_Project[[$$COUNT$count(*)::int$0{r$}#94 AS z#7]]
+     * \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS y#28]]
+     *   \_Fork[[]]
+     *     |_Project[[]]
      *     | \_Filter[NOT(STARTSWITH(gender{f}#31,v[KEYWORD]))]
-     *     |   \_Aggregate[[gender{f}#31],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$count(*)::int$0#94, gender{f}#3
-     * 1]]
+     *     |   \_Aggregate[[gender{f}#31],[gender{f}#31]]
      *     |     \_EsRelation[employees][_meta_field{f}#35, emp_no{f}#29, first_name{f}#30, ..]
-     *     |_Project[[z{r}#14]]
+     *     |_Project[[]]
      *     | \_Filter[salary{f}#45 > 100000[INTEGER]]
-     *     |   \_Aggregate[[salary{f}#45],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS z#14, salary{f}#45]]
+     *     |   \_Aggregate[[salary{f}#45],[salary{f}#45]]
      *     |     \_EsRelation[employees][_meta_field{f}#46, emp_no{f}#40, first_name{f}#41, ..]
-     *     \_Project[[z{r}#80]]
-     *       \_Eval[[null[LONG] AS z#80]]
-     *         \_Filter[emp_no{f}#51 > 10000[INTEGER]]
-     *           \_EsRelation[employees][_meta_field{f}#57, emp_no{f}#51, first_name{f}#52, ..]
+     *     \_Project[[]]
+     *       \_Filter[emp_no{f}#51 > 10000[INTEGER]]
+     *         \_EsRelation[employees][_meta_field{f}#57, emp_no{f}#51, first_name{f}#52, ..]
      * }
      */
     public void testPruneColumnsInForkBranchesWithFinalCountStats() {
@@ -1305,41 +1303,40 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
                    ( where emp_no > 10000
                     | eval gender = gender::keyword )
             | sort salary
-            | stats z = count(*) // this removes all existing columns
+            | stats y = count(*) // this removes all existing columns
             """;
 
         var plan = optimizedPlan(query);
         var limit = as(plan, Limit.class);
         var aggregate = as(limit.child(), Aggregate.class);
         assertThat(aggregate.aggregates().size(), equalTo(1));
-        assertThat(Expressions.names(aggregate.aggregates()), contains("z"));
+        assertThat(Expressions.names(aggregate.aggregates()), contains("y"));
         var fork = as(aggregate.child(), Fork.class);
-        assertThat(Expressions.names(fork.output()), equalTo(List.of("z")));
 
+        assertThat(fork.output().size(), equalTo(0));
         assertThat(fork.children().size(), equalTo(3));
 
         var firstBranch = fork.children().getFirst();
         var firstBranchProject = as(firstBranch, Project.class);
         var firstBranchFilter = as(firstBranchProject.child(), Filter.class);
         var firstBranchAggregate = as(firstBranchFilter.child(), Aggregate.class);
-        assertThat(firstBranchAggregate.aggregates().size(), equalTo(2));
-        assertThat(Expressions.names(firstBranchAggregate.aggregates()), contains("$$COUNT$count(*)::int$0", "gender"));
+        assertThat(firstBranchAggregate.aggregates().size(), equalTo(1));
+        assertThat(Expressions.names(firstBranchAggregate.aggregates()), contains("gender"));
         var firstBranchRelation = as(firstBranchAggregate.child(), EsRelation.class);
-        assertThat(firstBranchRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("salary", "gender"));
+        assertThat(firstBranchRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("gender"));
 
         var secondBranch = fork.children().get(1);
         var secondBranchProject = as(secondBranch, Project.class);
         var secondBranchFilter = as(secondBranchProject.child(), Filter.class);
         var secondBranchAggregate = as(secondBranchFilter.child(), Aggregate.class);
-        assertThat(secondBranchAggregate.aggregates().size(), equalTo(2));
-        assertThat(Expressions.names(secondBranchAggregate.aggregates()), contains("z", "salary"));
+        assertThat(secondBranchAggregate.aggregates().size(), equalTo(1));
+        assertThat(Expressions.names(secondBranchAggregate.aggregates()), contains("salary"));
         var secondBranchRelation = as(secondBranchAggregate.child(), EsRelation.class);
-        assertThat(secondBranchRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("salary", "gender"));
+        assertThat(secondBranchRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("salary"));
 
         var thirdBranch = fork.children().get(2);
         var thirdBranchProject = as(thirdBranch, Project.class);
-        var thirdBranchEval = as(thirdBranchProject.child(), Eval.class);
-        var thirdBranchFilter = as(thirdBranchEval.child(), Filter.class);
+        var thirdBranchFilter = as(thirdBranchProject.child(), Filter.class);
         var thirdBranchRelation = as(thirdBranchFilter.child(), EsRelation.class);
         assertThat(thirdBranchRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("emp_no", "gender"));
     }
@@ -1348,10 +1345,10 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * {@snippet lang="text":
      * Limit[1000[INTEGER],false,false]
      * \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS y#12]]
-     *   \_Fork[[y{r}#25]]
-     *     \_Project[[x{r}#5 AS y#7]]
+     *   \_Fork[[]]
+     *     \_Project[[]]
      *       \_Filter[emp_no{f}#13 > 10000[INTEGER]]
-     *         \_Aggregate[[emp_no{f}#13],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS x#5, emp_no{f}#13]]
+     *         \_Aggregate[[emp_no{f}#13],[emp_no{f}#13]]
      *           \_EsRelation[employees][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
      * }
      */
@@ -1370,16 +1367,15 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(aggregate.aggregates().size(), equalTo(1));
         assertThat(Expressions.names(aggregate.aggregates()), contains("y"));
         var fork = as(aggregate.child(), Fork.class);
-        assertThat(Expressions.names(fork.output()), equalTo(List.of("y")));
-
+        assertThat(fork.output().size(), equalTo(0));
         assertThat(fork.children().size(), equalTo(1));
 
         var project = as(fork.children().getFirst(), Project.class);
-        assertThat(Expressions.names(project.projections()), equalTo(List.of("y")));
+        assertThat(project.projections().size(), equalTo(0));
         var filter = as(project.child(), Filter.class);
         var branchAggregate = as(filter.child(), Aggregate.class);
-        assertThat(branchAggregate.aggregates().size(), equalTo(2));
-        assertThat(Expressions.names(branchAggregate.aggregates()), contains("x", "emp_no"));
+        assertThat(branchAggregate.aggregates().size(), equalTo(1));
+        assertThat(Expressions.names(branchAggregate.aggregates()), contains("emp_no"));
         var relation = as(branchAggregate.child(), EsRelation.class);
         assertThat(relation.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("emp_no"));
     }

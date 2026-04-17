@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.integration;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
@@ -24,6 +25,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.inference.Utils.storeDenseModel;
 import static org.elasticsearch.xpack.inference.Utils.storeSparseModel;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -382,6 +384,374 @@ public class SemanticTextFieldMappingLegacyFormatIT extends SemanticTextLegacyFo
                     )
                     .get()
             );
+        } finally {
+            IntegrationTestUtils.deleteIndex(client(), optionsIndex);
+        }
+    }
+
+    /**
+     * Ported from "Can't be used as a multifield" in {@code 10_semantic_text_field_mapping_bwc.yml}.
+     * Verifies that a {@code semantic_text} field cannot be configured as a multi-field of another field.
+     */
+    public void testLegacyFormatCantBeUsedAsMultifield() throws Exception {
+        assertThrows(
+            Exception.class,
+            () -> prepareCreate(indexName + "_multi").setSettings(legacyIndexSettings())
+                .setMapping(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("properties")
+                        .startObject("text_field")
+                        .field("type", "text")
+                        .startObject("fields")
+                        .startObject("semantic")
+                        .field("type", "semantic_text")
+                        .field("inference_id", SPARSE_INFERENCE_ID)
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+                .get()
+        );
+    }
+
+    /**
+     * Ported from "Can't have multifields" in {@code 10_semantic_text_field_mapping_bwc.yml}.
+     * Verifies that a {@code semantic_text} field cannot itself have multi-fields.
+     */
+    public void testLegacyFormatCantHaveMultifields() throws Exception {
+        assertThrows(
+            Exception.class,
+            () -> prepareCreate(indexName + "_multi").setSettings(legacyIndexSettings())
+                .setMapping(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("properties")
+                        .startObject("semantic")
+                        .field("type", "semantic_text")
+                        .field("inference_id", SPARSE_INFERENCE_ID)
+                        .startObject("fields")
+                        .startObject("keyword_field")
+                        .field("type", "keyword")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+                .get()
+        );
+    }
+
+    /**
+     * Ported from "Can't configure copy_to in semantic_text" in {@code 10_semantic_text_field_mapping_bwc.yml}.
+     * Verifies that a {@code semantic_text} field cannot have a {@code copy_to} parameter.
+     */
+    public void testLegacyFormatCantConfigureCopyTo() throws Exception {
+        assertThrows(
+            Exception.class,
+            () -> prepareCreate(indexName + "_copy_to").setSettings(legacyIndexSettings())
+                .setMapping(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("properties")
+                        .startObject("semantic")
+                        .field("type", "semantic_text")
+                        .field("inference_id", SPARSE_INFERENCE_ID)
+                        .field("copy_to", "another_field")
+                        .endObject()
+                        .startObject("another_field")
+                        .field("type", "keyword")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+                .get()
+        );
+    }
+
+    /**
+     * Ported from "Specifying incompatible dense vector index options will fail" in {@code 10_semantic_text_field_mapping_bwc.yml}.
+     * Verifies that providing incompatible dense vector index options (e.g. {@code bbq_flat} with
+     * {@code ef_construction}) is rejected when creating a legacy-format index.
+     */
+    public void testLegacyFormatIncompatibleDenseIndexOptionsFails() throws Exception {
+        assertThrows(
+            Exception.class,
+            () -> prepareCreate(indexName + "_incompat_opts").setSettings(legacyIndexSettings())
+                .setMapping(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("properties")
+                        .startObject("semantic_field")
+                        .field("type", "semantic_text")
+                        .field("inference_id", DENSE_INFERENCE_ID)
+                        .startObject("index_options")
+                        .startObject("dense_vector")
+                        .field("type", "bbq_flat")
+                        .field("ef_construction", 100)
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+                .get()
+        );
+    }
+
+    /**
+     * Ported from "Specifying unsupported index option types will fail" in {@code 10_semantic_text_field_mapping_bwc.yml}.
+     * Verifies that an unknown dense-vector index options type is rejected, and that sparse-vector
+     * index options with an invalid structure are also rejected.
+     */
+    public void testLegacyFormatUnsupportedIndexOptionTypeFails() throws Exception {
+        assertThrows(
+            Exception.class,
+            () -> prepareCreate(indexName + "_invalid_dense").setSettings(legacyIndexSettings())
+                .setMapping(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("properties")
+                        .startObject("semantic_field")
+                        .field("type", "semantic_text")
+                        .field("inference_id", DENSE_INFERENCE_ID)
+                        .startObject("index_options")
+                        .startObject("dense_vector")
+                        .field("type", "foo")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+                .get()
+        );
+        assertThrows(
+            Exception.class,
+            () -> prepareCreate(indexName + "_invalid_sparse").setSettings(legacyIndexSettings())
+                .setMapping(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("properties")
+                        .startObject("semantic_field")
+                        .field("type", "semantic_text")
+                        .startObject("index_options")
+                        .startObject("sparse_vector")
+                        .field("type", "int8_hnsw")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+                .get()
+        );
+    }
+
+    /**
+     * Ported from "Index option type is required when specifying more than element_type" in
+     * {@code 10_semantic_text_field_mapping_bwc.yml}.
+     * Verifies that specifying additional dense-vector index option parameters beyond
+     * {@code element_type} without also providing {@code type} is rejected.
+     */
+    public void testLegacyFormatIndexOptionTypeRequiredWhenMoreThanElementType() throws Exception {
+        Exception e = expectThrows(
+            Exception.class,
+            () -> prepareCreate(indexName + "_type_required").setSettings(legacyIndexSettings())
+                .setMapping(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("properties")
+                        .startObject("semantic_field")
+                        .field("type", "semantic_text")
+                        .field("inference_id", DENSE_INFERENCE_ID)
+                        .startObject("index_options")
+                        .startObject("dense_vector")
+                        .field("foo", "bar")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+                .get()
+        );
+        assertThat(
+            ExceptionsHelper.unwrapCause(e).getMessage(),
+            containsString("[type] is required when specifying more params than [element_type]")
+        );
+    }
+
+    /**
+     * Ported from "Index option element_type or type is required" in {@code 10_semantic_text_field_mapping_bwc.yml}.
+     * Verifies that specifying an empty {@code dense_vector} block (neither {@code element_type}
+     * nor {@code type}) is rejected.
+     */
+    public void testLegacyFormatIndexOptionElementTypeOrTypeRequired() throws Exception {
+        Exception e = expectThrows(
+            Exception.class,
+            () -> prepareCreate(indexName + "_elem_type_req").setSettings(legacyIndexSettings())
+                .setMapping(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("properties")
+                        .startObject("semantic_field")
+                        .field("type", "semantic_text")
+                        .field("inference_id", DENSE_INFERENCE_ID)
+                        .startObject("index_options")
+                        .startObject("dense_vector")
+                        // empty — neither element_type nor type
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+                .get()
+        );
+        assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), containsString("Must specify at least [element_type] or [type]"));
+    }
+
+    /**
+     * Ported from "Invalid element type" in {@code 10_semantic_text_field_mapping_bwc.yml}.
+     * Verifies that specifying an unknown {@code element_type} value is rejected.
+     */
+    public void testLegacyFormatInvalidElementType() throws Exception {
+        Exception e = expectThrows(
+            Exception.class,
+            () -> prepareCreate(indexName + "_invalid_elem").setSettings(legacyIndexSettings())
+                .setMapping(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("properties")
+                        .startObject("semantic_field")
+                        .field("type", "semantic_text")
+                        .field("inference_id", DENSE_INFERENCE_ID)
+                        .startObject("index_options")
+                        .startObject("dense_vector")
+                        .field("element_type", "foo")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+                .get()
+        );
+        assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), containsString("Invalid element_type [foo]"));
+    }
+
+    /**
+     * Ported from "Specifying index options requires model information" in {@code 10_semantic_text_field_mapping_bwc.yml}.
+     * Verifies two things:
+     * <ol>
+     *   <li>Specifying {@code index_options} when the inference endpoint does not exist fails with
+     *       a meaningful error.</li>
+     *   <li>Creating a field without {@code index_options} using a nonexistent endpoint succeeds.</li>
+     * </ol>
+     */
+    public void testLegacyFormatIndexOptionsRequiresModelInformation() throws Exception {
+        // Part 1: providing index_options with a nonexistent inference ID must fail
+        assertThrows(
+            Exception.class,
+            () -> prepareCreate(indexName + "_model_info_fail").setSettings(legacyIndexSettings())
+                .setMapping(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("properties")
+                        .startObject("semantic_field")
+                        .field("type", "semantic_text")
+                        .field("inference_id", "nonexistent-inference-id")
+                        .startObject("index_options")
+                        .startObject("dense_vector")
+                        .field("type", "int8_hnsw")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+                .get()
+        );
+
+        // Part 2: creating without index_options using a nonexistent endpoint must succeed
+        String noOptionsIndex = indexName + "_model_info_ok";
+        assertAcked(
+            prepareCreate(noOptionsIndex).setSettings(legacyIndexSettings())
+                .setMapping(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("properties")
+                        .startObject("semantic_field")
+                        .field("type", "semantic_text")
+                        .field("inference_id", "nonexistent-inference-id")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+                .get()
+        );
+        try {
+            assertMappingHasNoIndexOptions(noOptionsIndex, "semantic_field");
+        } finally {
+            IntegrationTestUtils.deleteIndex(client(), noOptionsIndex);
+        }
+    }
+
+    /**
+     * Ported from "Cannot update element type in index options" in {@code 10_semantic_text_field_mapping_bwc.yml}.
+     * Verifies that once an {@code element_type} is set in the dense-vector index options it cannot
+     * be changed to a different explicit value (e.g. {@code bfloat16}).
+     */
+    public void testLegacyFormatCannotUpdateElementTypeInIndexOptions() throws Exception {
+        String optionsIndex = indexName + "_elem_type_update";
+        assertAcked(
+            prepareCreate(optionsIndex).setSettings(legacyIndexSettings())
+                .setMapping(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("properties")
+                        .startObject("semantic_field")
+                        .field("type", "semantic_text")
+                        .field("inference_id", DENSE_INFERENCE_ID)
+                        .startObject("index_options")
+                        .startObject("dense_vector")
+                        .field("element_type", "float")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+                .get()
+        );
+        try {
+            // Explicit update to bfloat16 must fail
+            Exception e = expectThrows(
+                Exception.class,
+                () -> indicesAdmin().preparePutMapping(optionsIndex)
+                    .setSource(
+                        XContentFactory.jsonBuilder()
+                            .startObject()
+                            .startObject("properties")
+                            .startObject("semantic_field")
+                            .field("type", "semantic_text")
+                            .field("inference_id", DENSE_INFERENCE_ID)
+                            .startObject("index_options")
+                            .startObject("dense_vector")
+                            .field("element_type", "bfloat16")
+                            .endObject()
+                            .endObject()
+                            .endObject()
+                            .endObject()
+                            .endObject()
+                    )
+                    .get()
+            );
+            assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), containsString("Cannot update parameter [element_type]"));
         } finally {
             IntegrationTestUtils.deleteIndex(client(), optionsIndex);
         }

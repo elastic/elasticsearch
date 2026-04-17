@@ -367,7 +367,7 @@ public class SplitSourceService {
                     sourceShard.withEngine(engine -> {
                         logger.debug("handoff: flushing {} for {} after acquiring permits", sourceShard.shardId(), targetShardId);
                         // Don't stop copying commits until anything outstanding has been flushed.
-                        engine.flush(/* force */ true, /* waitIfOngoing */ true, ActionListener.wrap(fr -> {
+                        engine.flush(/* force */ false, /* waitIfOngoing */ true, ActionListener.wrap(fr -> {
                             // No commits need to be copied after the flush, but it is possible that some might be if the engine generates
                             // commits spontaneously even though indexing permits are held. These are harmless to copy.
                             logger.debug("handoff: stopping commit copy from {} to {}", sourceShard.shardId(), targetShardId);

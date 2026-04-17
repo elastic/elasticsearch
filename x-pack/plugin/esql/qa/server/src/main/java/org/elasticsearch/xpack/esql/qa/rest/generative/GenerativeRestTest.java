@@ -364,7 +364,11 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isFieldFullTextError(ctx.errorMessage, ctx.query, ctx.previousCommands, ctx.currentSchema),
         ctx -> isFullTextAfterSampleBug(ctx.errorMessage, ctx.query),
         ctx -> isFullTextAfterWhereBugs(ctx.errorMessage),
-        ctx -> isLenientFalseFailedToCreateFullTextQueryError(ctx.errorMessage, ctx.query), };
+        ctx -> isLenientFalseFailedToCreateFullTextQueryError(ctx.errorMessage, ctx.query),
+        // https://github.com/elastic/elasticsearch/issues/146479
+        ctx -> isHashAggregationBug(ctx.errorMessage, ctx.query),
+        // https://github.com/elastic/elasticsearch/issues/146418
+        ctx -> isForkPruneColumnsBug(ctx.errorMessage, ctx.query), };
 
     private static boolean isAllowedFailure(FailureContext ctx) {
         if (ctx == null || ctx.errorMessage == null) {
@@ -775,6 +779,40 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             return false;
         }
         return MATCH_LENIENT_FALSE_PATTERN.matcher(query).find() || QSTR_LENIENT_FALSE_PATTERN.matcher(query).find();
+    }
+
+    private static final Pattern STATS_BY_PATTERN = Pattern.compile("\\bstats\\b[^|]*\\bby\\b", Pattern.CASE_INSENSITIVE);
+    private static final Pattern BLOCK_CAST_PATTERN = Pattern.compile("\\b\\w+Block cannot be cast to class \\S*\\w+Block\\b");
+
+    // https://github.com/elastic/elasticsearch/issues/146479
+    static boolean isHashAggregationBug(String errorMessage, String query) {
+        if (query == null || errorMessage == null) {
+            return false;
+        }
+        String normalized = normalizeErrorMessage(errorMessage);
+        if (normalized.contains("HashAggregationOperator") == false && normalized.contains("BlockHash") == false) {
+            return false;
+        }
+        boolean hasExpectedException = normalized.contains("ArrayIndexOutOfBoundsException")
+            || (normalized.contains("ClassCastException") && BLOCK_CAST_PATTERN.matcher(normalized).find());
+        if (hasExpectedException == false) {
+            return false;
+        }
+        return STATS_BY_PATTERN.matcher(query).find();
+    }
+
+    private static final Pattern FORK_PATTERN = Pattern.compile("\\bfork\\b", Pattern.CASE_INSENSITIVE);
+
+    // https://github.com/elastic/elasticsearch/issues/146418
+    static boolean isForkPruneColumnsBug(String errorMessage, String query) {
+        if (query == null || errorMessage == null) {
+            return false;
+        }
+        String normalized = normalizeErrorMessage(errorMessage);
+        if (normalized.contains("optimized incorrectly due to missing attributes in subplans") == false) {
+            return false;
+        }
+        return FORK_PATTERN.matcher(query).find();
     }
 
     @Override

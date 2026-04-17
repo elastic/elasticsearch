@@ -1427,18 +1427,16 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         IntVector signs = ones.blend(negOnes, exponent.compare(VectorOperators.LT, 0.0f).cast(INTEGER_SPECIES));
 
         // The next line implements the floor(exponent + 1)
-        IntVector p = exponent.lanewise(VectorOperators.ABS)
+        IntVector p = (IntVector) exponent.lanewise(VectorOperators.ABS)
             .add(1, exponent.compare(VectorOperators.GT, 0.0f))
-            .convert(VectorOperators.F2I, 0)
-            .reinterpretAsInts()
-            .mul(signs);
+            .convert(VectorOperators.F2I, 0).mul(signs);
         p = p.max(-30).min(30);
         FloatVector pFloat = (FloatVector) p.convert(VectorOperators.I2F, 0);
         // Replace div(2) with mul(0.5f)
         FloatVector m = exponent.sub(pFloat).mul(0.5f).add(1.0f);
         // Build 2^p using direct IEEE-754 bit manipulation
-        // Add bias (127) and shift left by 23 bits to hit the float exponent field
-        IntVector pBits = p.add(127).lanewise(VectorOperators.LSHL, 23);
+        // Add bias (127) and shift left by (Float.PRECISION - 1) bits (23) to hit the float exponent field
+        IntVector pBits = p.add(127).lanewise(VectorOperators.LSHL, Float.PRECISION - 1);
         FloatVector powerOf2 = pBits.reinterpretAsFloats();
         return m.mul(powerOf2).max(0.0f);
     }

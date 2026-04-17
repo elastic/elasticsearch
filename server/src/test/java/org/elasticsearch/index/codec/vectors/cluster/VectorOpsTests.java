@@ -123,9 +123,7 @@ public class VectorOpsTests extends ESTestCase {
         float[] result = new float[19];
         ESVectorUtil.pow2DiffAndScaleNQT(x, y, a, eps, result);
 
-        for (int i = 0; i < result.length; i++) {
-            assertEquals(exactResult[i], result[i], 0.1 * exactResult[i]);
-        }
+        assertArrayEqualsPercent(exactResult, result, 0.1f);
     }
 
     private static void pow2DiffAndScale(float[] v1, float[] v2, float a, float eps, float[] result) {

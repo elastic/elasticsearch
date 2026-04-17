@@ -13,8 +13,11 @@ import org.apache.lucene.search.TaskExecutor;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.Callable;
 
 /**
  * An implementation of the hierarchical k-means algorithm that better partitions data than naive k-means
@@ -451,15 +454,33 @@ public class HierarchicalKMeans {
         }
 
         kMeansIntermediate.setSoarAssignments(new int[vectors.size()]);
-        vectors.assignSpilled(
-            0,
-            vectors.size(),
-            centroids,
-            neighborhoods,
-            soarLambda,
-            kMeansIntermediate.assignments(),
-            kMeansIntermediate.soarAssignments()
-        );
+        int effectiveWorkers = Math.min(numWorkers, vectors.size() / MIN_VECTORS_PRE_THREAD);
+        if (executor != null && effectiveWorkers >= 2) {
+            final int len = vectors.size() / effectiveWorkers;
+            final List<Callable<Void>> runners = new ArrayList<>(effectiveWorkers);
+            final int[] assignments = kMeansIntermediate.assignments();
+            final int[] soarAssignments = kMeansIntermediate.soarAssignments();
+            final NeighborHood[] nh = neighborhoods;
+            for (int i = 0; i < effectiveWorkers; i++) {
+                final int start = i * len;
+                final int end = i == effectiveWorkers - 1 ? vectors.size() : (i + 1) * len;
+                runners.add(() -> {
+                    vectors.copy().assignSpilled(start, end, centroids, nh, soarLambda, assignments, soarAssignments);
+                    return null;
+                });
+            }
+            executor.invokeAll(runners);
+        } else {
+            vectors.assignSpilled(
+                0,
+                vectors.size(),
+                centroids,
+                neighborhoods,
+                soarLambda,
+                kMeansIntermediate.assignments(),
+                kMeansIntermediate.soarAssignments()
+            );
+        }
     }
 
     /**

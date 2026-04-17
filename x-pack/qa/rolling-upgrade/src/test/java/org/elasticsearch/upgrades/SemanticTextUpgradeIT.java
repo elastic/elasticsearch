@@ -95,7 +95,13 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
                 );
                 createAndPopulateIndex();
             }
-            case MIXED, UPGRADED -> performIndexQueryHighlightOps();
+            case MIXED, UPGRADED -> {
+                assumeTrue(
+                    "Skipping because legacy format index was not created in the old cluster phase",
+                    useLegacyFormat == false || indexExists(getIndexName())
+                );
+                performIndexQueryHighlightOps();
+            }
             default -> throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
         }
     }

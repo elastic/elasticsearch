@@ -2528,6 +2528,12 @@ public class EsqlCapabilities {
          */
         FIX_STARTS_WITH_ENDS_WITH_PUSHDOWN_ON_INDEX,
 
+        /**
+         * Fixed false circular view reference errors when multiple sibling views are resolved together.
+         * See https://github.com/elastic/elasticsearch/issues/146208
+         */
+        VIEWS_FALSE_CIRCULAR_REFERENCE_FIX,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

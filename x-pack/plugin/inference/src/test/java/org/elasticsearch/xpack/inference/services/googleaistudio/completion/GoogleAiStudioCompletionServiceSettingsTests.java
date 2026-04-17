@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.googleaistudio.completion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -25,6 +24,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhitespaceInJsonString;
 import static org.hamcrest.Matchers.is;
 
 public class GoogleAiStudioCompletionServiceSettingsTests extends AbstractWireSerializingTestCase<GoogleAiStudioCompletionServiceSettings> {
@@ -107,14 +107,14 @@ public class GoogleAiStudioCompletionServiceSettingsTests extends AbstractWireSe
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, is(XContentHelper.stripWhitespace(Strings.format("""
+        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString(Strings.format("""
             {
               "model_id": "%s",
               "rate_limit": {
                 "requests_per_minute": %d
               }
             }
-            """, TEST_MODEL_ID, TEST_RATE_LIMIT))));
+            """, TEST_MODEL_ID, TEST_RATE_LIMIT)));
     }
 
     @Override

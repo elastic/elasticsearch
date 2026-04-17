@@ -143,15 +143,15 @@ public class TransportReshardSplitAction extends TransportAction<TransportReshar
              Install a cluster state observer to observe handoff or source/target shard primary term change and
              complete the listener accordingly. The retryable action below, retries requests for HANDOFF until this
              cluster state observer sets shouldRetry to false.
-                ┌────────────────────┐
+                ┌─────────────────────┐
                 │ RetryableAction     │───► sends HANDOFF RPCs
                 │ (transport layer)   │
-                └─────────▲──────────┘
+                └─────────▲───────────┘
                           │ shouldRetry
-                ┌─────────┴──────────┐
+                ┌─────────┴───────────┐
                 │ ClusterStateObserver│───► decides success/failure
                 │ (metadata truth)    │
-                └────────────────────┘
+                └─────────────────────┘
              */
             AtomicBoolean shouldRetry = new AtomicBoolean(true);  // should retry until cluster state converges
             splitSourceService.waitForHandoffSuccessOrFailure(

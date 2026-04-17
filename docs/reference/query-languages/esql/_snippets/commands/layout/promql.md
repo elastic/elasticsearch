@@ -9,37 +9,59 @@ source command allowing you to query time series data using [**Prometheus Query 
 ::::{note}
 In 9.4, the `PROMQL` command is available as a preview feature. The most notable gaps:
 
-- **Group modifiers** like `on(chip) group_left(chip_name)` are not yet supported.
-- **Binary set operators** (`or`, `and`, `unless`) are not yet available.
-- **Some functions** are still missing, including `histogram_quantile`, `predict_linear`, and `label_join`.
+- **Group modifiers** like `on(chip) group_left(chip_name)`.
+- **Set operators** like `or`, `and`, `unless`.
+- **Some functions** including `histogram_quantile`, `predict_linear`, and `label_join`.
 ::::
 
 
 ## Syntax
 
+The `PROMQL` command accepts zero or more space-separated key value options followed by named PromQL expression.
+
 ```esql
-PROMQL [index=<pattern>] [step=<duration>] [start=<timestamp>] [end=<timestamp>]
-  [<result_name>=](<PromQL Expression>)
+PROMQL [ <option> ... ] <name> = ( <expression> )
 ```
 
-## Parameters
+## Options
 
-The parameters mirror the [Prometheus API](https://prometheus.io/docs/prometheus/latest/querying/api/#range-queries).
+The options are inspired by the Prometheus [HTTP API](https://prometheus.io/docs/prometheus/latest/querying/api/#range-queries) with some additions specific to ES|QL.
 
-`index_pattern`
+`index`
 :   A list of indices, data streams or aliases. Supports wildcards and date math.
+    Defaults to `*` querying all indices with [`index.mode: time_series`](/reference/current/tsds.md).
+    Example: `PROMQL index=metrics-*.otel-* sum(rate(http_requests_total))`
 
 `step`
 :   Query resolution step width.
+    Automatically determined given the number of target `buckets` and the selected time range.
+    Example: `PROMQL step=1m sum(rate(http_requests_total[5m]))`
+
+`buckets`
+:   Target number of buckets for auto-step derivation.
+    Defaults to `100`. Mutually exclusive with `step`. Requires a known time range, either by setting
+    `start` and `end` explicitly or implicitly through Kibana's time range filter.
+    Example: `PROMQL buckets=50 start="2026-04-01T00:00:00Z" end="2026-04-01T01:00:00Z" sum(rate(http_requests_total))`
 
 `start`
 :   Start time of the query, inclusive.
+    Uses the start based on Kibana's date picker or unrestricted if missing.
+    Example: `PROMQL start="2026-04-01T00:00:00Z" end="2026-04-01T01:00:00Z" sum(rate(http_requests_total))`
 
 `end`
 :   End time of the query, inclusive.
+    Uses the end based on Kibana's date picker or unrestricted if missing.
+    Example: `PROMQL start=?_tstart end=?_tend sum(rate(http_requests_total))`
+
+`scrape_interval`
+:   The expected metric collection interval.
+    Defaults to `1m`. Used to determine implicit range selector windows as `max(step, scrape_interval)`.
+    Example: `PROMQL scrape_interval=15s sum(rate(http_requests_total))`
 
 `result_name`
 :   Name of the output column with the query result timeseries.
+    By default, the name of the output column is the text of the PromQL expression itself.
+    Example: `PROMQL http_rate=(sum by (instance) (rate(http_requests_total))) | SORT http_rate DESC`
 
 
 ## Description
@@ -57,7 +79,7 @@ The result contains the following columns:
 | `step` | `date` | The timestamp for each evaluation step |
 | Grouping labels (if any) | `keyword` | One column per grouping label from `by` clauses |
 
-When the PromQL expression includes a cross-series aggregation like `sum by (instance)`, it gets
+When the PromQL expression includes a cross-series aggregation like `sum by (instance)`, each grouping label gets
 its own output column. When there is no cross-series aggregation, all labels are returned in a single `_timeseries`
 column as a JSON string.
 
@@ -68,39 +90,51 @@ If omitted, it defaults to `*`, which queries all indices configured with
 [`index.mode: time_series`](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md).
 In production, specifying an explicit index pattern avoids scanning unrelated data.
 
-### Smart defaults
+### Implicit range selectors
 
-The `PROMQL` command has several features that simplify queries by inferring parameters automatically.
-
-**Auto-step**: If you omit the `step` parameter, the command derives it automatically based on the time range and a
-target bucket count. You can set the target explicitly with `buckets=<n>`. This uses the same
-date-rounding logic as the ES|QL
-[`BUCKET`](/reference/query-languages/esql/functions-operators/grouping-functions.md#esql-bucket) function.
-
-**Inferred start and end**: Kibana adds a time range filter to every ES|QL request via a Query DSL `range` filter on
-`@timestamp`. The `PROMQL` command extracts those bounds and uses them as `start` and `end` when they are not specified
-in the query. The command picks up the date picker range from the request context without any additional configuration.
-
-**Implicit range selectors**: In standard PromQL, functions like `rate` require a range selector:
-`rate(http_requests_total[5m])`. The `PROMQL` command allows omitting the range selector entirely. When the range
-selector is absent, the window is determined automatically as `max(step, scrape_interval)`. The `scrape_interval`
-defaults to `1m` and can be overridden with the `scrape_interval` parameter if your data has a different collection
-interval, for example: `PROMQL scrape_interval=15s sum(rate(http_requests_total))`.
-
-Combining all three defaults, a fully adaptive query in Kibana looks like this:
-
-```esql
-PROMQL sum(rate(http_requests_total))
-```
-
-This query responds to the date picker, adjusts the step size to the selected time range, and sizes the range selector
-window accordingly.
+In standard PromQL, functions like `rate` require a range selector: `rate(http_requests_total[5m])`.
+The `PROMQL` command allows omitting the range selector entirely. When the range selector is absent, the window is
+determined automatically as `max(step, scrape_interval)`.
+For example: `PROMQL scrape_interval=15s sum(rate(http_requests_total))`.
 
 ## Examples
 
-### Basic range query
+### Fully adaptive query
 
-Calculate the per-second rate of HTTP requests over a sliding 5-minute window, grouped by instance:
+Rely on Kibana's date picker for the time range, and let `step` and range selectors be inferred automatically:
+
+```esql
+PROMQL index=metrics-* sum by (instance) (rate(http_requests_total))
+```
+
+This is the recommended pattern for Kibana dashboards. The query responds to the date picker, adjusts the step size
+to the selected time range, and sizes the range selector window accordingly.
+
+### Ad-hoc query with explicit time range
+
+For queries outside Kibana, set `start` and `end` explicitly. The step and range selector are still inferred
+automatically from the time range and the default `buckets` count:
+
+```esql
+PROMQL index=metrics-*
+  start="2026-04-01T00:00:00Z"
+  end="2026-04-01T01:00:00Z"
+  sum by (instance) (rate(http_requests_total))
+```
+
+### Name the value column
+
+Assign a custom name to the value column to reference it in downstream commands:
+
+```esql
+PROMQL index=metrics-*
+  http_rate=(sum by (instance) (rate(http_requests_total)))
+| SORT http_rate DESC
+```
+
+### Fully explicit parameters
+
+All parameters can be set explicitly when full control is needed:
 
 ```esql
 PROMQL index=metrics-*
@@ -110,32 +144,11 @@ PROMQL index=metrics-*
   sum by (instance) (rate(http_requests_total[5m]))
 ```
 
-### Name the value column
-
-Assign a custom name to the value column to make it easier to reference in downstream commands:
-
-```esql
-PROMQL index=metrics-*
-  step=1m
-  start="2026-04-01T00:00:00Z"
-  end="2026-04-01T01:00:00Z"
-  http_rate=(sum by (instance) (rate(http_requests_total[5m])))
-| SORT http_rate DESC
-```
-
-### Fully adaptive query
-
-Rely on Kibana's date picker for the time range, and let `step` and range selectors be inferred automatically:
-
-```esql
-PROMQL index=metrics-* sum(rate(http_requests_total))
-```
-
 ### Filter results
 
 ```esql
 PROMQL index=metrics-*
-  http_rate=(sum by (instance) (rate(http_requests_total[5m])))
+  http_rate=(sum by (instance) (rate(http_requests_total)))
 | WHERE http_rate > 100
 ```
 
@@ -143,7 +156,7 @@ PROMQL index=metrics-*
 
 ```esql
 PROMQL index=metrics-*
-  http_rate=(sum by (instance) (rate(http_requests_total[5m])))
+  http_rate=(sum by (instance) (rate(http_requests_total)))
 | SORT http_rate DESC
 | LIMIT 10
 ```
@@ -154,6 +167,6 @@ Join PromQL results with external data using ES|QL commands:
 
 ```esql
 PROMQL index=metrics-*
-  http_rate=(sum by (instance) (rate(http_requests_total[5m])))
+  http_rate=(sum by (instance) (rate(http_requests_total)))
 | LOOKUP JOIN instance_metadata ON instance
 ```

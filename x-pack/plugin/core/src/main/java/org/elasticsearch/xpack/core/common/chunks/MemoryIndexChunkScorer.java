@@ -47,6 +47,7 @@ public class MemoryIndexChunkScorer {
      * @param analyzer the analyzer used for indexing chunks and parsing query text.
      */
     public MemoryIndexChunkScorer(Analyzer analyzer) {
+        assert analyzer != null : "Analyzer should be set"
         this.analyzer = (analyzer != null) ? analyzer : new StandardAnalyzer();
     }
 

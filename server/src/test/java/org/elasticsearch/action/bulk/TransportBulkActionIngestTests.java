@@ -633,14 +633,14 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         ActionTestUtils.execute(action, null, bulkRequest, ActionTestUtils.assertNoFailureListener(response -> {}));
 
         verify(ingestService).executeBulkRequest(
-            eq(projectId),
             eq(bulkRequest.numberOfActions()),
             bulkDocsItr.capture(),
             any(),
             any(),
             any(),
             failureHandler.capture(),
-            listener.capture()
+            completionHandler.capture(),
+            same(writeExecutor)
         );
         assertEquals("default_pipeline", firstUpsert.getPipeline());
         assertEquals(IngestService.NOOP_PIPELINE_NAME, secondUpsert.getPipeline());

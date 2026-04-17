@@ -71,7 +71,7 @@ public class CustomService extends SenderService<CustomModel> implements Reranki
 
     private static final TransportVersion INFERENCE_CUSTOM_SERVICE_ADDED = TransportVersion.fromName("inference_custom_service_added");
 
-    protected static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(
+    private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(
         TaskType.TEXT_EMBEDDING,
         TaskType.SPARSE_EMBEDDING,
         TaskType.RERANK,

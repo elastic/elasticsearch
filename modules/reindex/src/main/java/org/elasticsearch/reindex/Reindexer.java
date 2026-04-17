@@ -423,10 +423,7 @@ public class Reindexer {
             public void onResponse(BulkByScrollResponse response) {
                 if (response.getTaskResumeInfo().isEmpty() && shouldNotCloseOnResponse.getAsBoolean() == false) {
                     BytesReference idToClose = response.getPitId().orElse(pitId);
-                    closePit.accept(
-                        idToClose,
-                        ActionListener.wrap(v -> listener.onResponse(response), listener::onFailure)
-                    );
+                    closePit.accept(idToClose, ActionListener.wrap(v -> listener.onResponse(response), listener::onFailure));
                 } else {
                     onSkipClosePit.accept(() -> listener.onResponse(response));
                 }

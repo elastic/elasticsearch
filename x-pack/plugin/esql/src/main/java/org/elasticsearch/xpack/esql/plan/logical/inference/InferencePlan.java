@@ -37,6 +37,7 @@ public abstract class InferencePlan<PlanType extends InferencePlan<PlanType>> ex
         SurrogateLogicalPlan {
 
     protected static final TransportVersion ESQL_INFERENCE_ROW_LIMIT = TransportVersion.fromName("esql_inference_row_limit");
+    public static final TransportVersion ESQL_INFERENCE_ACCEPT_TIMEOUT = TransportVersion.fromName("esql_inference_accept_timeout");
 
     public static final String INFERENCE_ID_OPTION_NAME = "inference_id";
     public static final List<String> VALID_INFERENCE_OPTION_NAMES = List.of(INFERENCE_ID_OPTION_NAME);

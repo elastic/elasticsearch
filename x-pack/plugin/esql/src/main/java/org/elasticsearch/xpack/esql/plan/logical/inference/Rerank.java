@@ -11,7 +11,9 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -43,12 +45,15 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Rerank", Rerank::new);
 
+    public static final String TIMEOUT_OPTION_NAME = "timeout";
+
     private static final Literal DEFAULT_ROW_LIMIT = Literal.integer(Source.EMPTY, RERANK_ROW_LIMIT_SETTING.getDefault(Settings.EMPTY));
     private static final String DEFAULT_INFERENCE_ID = ".rerank-v1-elasticsearch";
 
     private final Attribute scoreAttribute;
     private final Expression queryText;
     private final List<Alias> rerankFields;
+    private final TimeValue timeout;
     private List<Attribute> lazyOutput;
 
     public Rerank(
@@ -59,7 +64,16 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
         List<Alias> rerankFields,
         Attribute scoreAttribute
     ) {
-        this(source, child, Literal.keyword(Source.EMPTY, DEFAULT_INFERENCE_ID), rowLimit, queryText, rerankFields, scoreAttribute);
+        this(
+            source,
+            child,
+            Literal.keyword(Source.EMPTY, DEFAULT_INFERENCE_ID),
+            rowLimit,
+            queryText,
+            rerankFields,
+            scoreAttribute,
+            InferenceAction.Request.DEFAULT_TIMEOUT
+        );
     }
 
     public Rerank(
@@ -71,10 +85,24 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
         List<Alias> rerankFields,
         Attribute scoreAttribute
     ) {
+        this(source, child, inferenceId, rowLimit, queryText, rerankFields, scoreAttribute, InferenceAction.Request.DEFAULT_TIMEOUT);
+    }
+
+    public Rerank(
+        Source source,
+        LogicalPlan child,
+        Expression inferenceId,
+        Expression rowLimit,
+        Expression queryText,
+        List<Alias> rerankFields,
+        Attribute scoreAttribute,
+        TimeValue timeout
+    ) {
         super(source, child, inferenceId, rowLimit);
         this.queryText = queryText;
         this.rerankFields = rerankFields;
         this.scoreAttribute = scoreAttribute;
+        this.timeout = timeout;
     }
 
     public Rerank(StreamInput in) throws IOException {
@@ -85,7 +113,8 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
             in.getTransportVersion().supports(ESQL_INFERENCE_ROW_LIMIT) ? in.readNamedWriteable(Expression.class) : DEFAULT_ROW_LIMIT,
             in.readNamedWriteable(Expression.class),
             in.readCollectionAsList(Alias::new),
-            in.readNamedWriteable(Attribute.class)
+            in.readNamedWriteable(Attribute.class),
+            in.getTransportVersion().supports(ESQL_INFERENCE_ACCEPT_TIMEOUT) ? in.readTimeValue() : InferenceAction.Request.DEFAULT_TIMEOUT
         );
     }
 
@@ -95,6 +124,9 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
         out.writeNamedWriteable(queryText);
         out.writeCollection(rerankFields());
         out.writeNamedWriteable(scoreAttribute);
+        if (out.getTransportVersion().supports(ESQL_INFERENCE_ACCEPT_TIMEOUT)) {
+            out.writeTimeValue(timeout);
+        }
     }
 
     @Override
@@ -114,9 +146,18 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
         return scoreAttribute;
     }
 
+    public TimeValue timeout() {
+        return timeout;
+    }
+
     @Override
     public TaskType taskType() {
         return TaskType.RERANK;
+    }
+
+    @Override
+    public List<String> validOptionNames() {
+        return List.of(INFERENCE_ID_OPTION_NAME, TIMEOUT_OPTION_NAME);
     }
 
     @Override
@@ -124,7 +165,7 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
         if (inferenceId().equals(newInferenceId)) {
             return this;
         }
-        return new Rerank(source(), child(), newInferenceId, rowLimit(), queryText, rerankFields, scoreAttribute);
+        return new Rerank(source(), child(), newInferenceId, rowLimit(), queryText, rerankFields, scoreAttribute, timeout);
     }
 
     public Rerank withRerankFields(List<Alias> newRerankFields) {
@@ -132,7 +173,7 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
             return this;
         }
 
-        return new Rerank(source(), child(), inferenceId(), rowLimit(), queryText, newRerankFields, scoreAttribute);
+        return new Rerank(source(), child(), inferenceId(), rowLimit(), queryText, newRerankFields, scoreAttribute, timeout);
     }
 
     public Rerank withScoreAttribute(Attribute newScoreAttribute) {
@@ -140,12 +181,19 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
             return this;
         }
 
-        return new Rerank(source(), child(), inferenceId(), rowLimit(), queryText, rerankFields, newScoreAttribute);
+        return new Rerank(source(), child(), inferenceId(), rowLimit(), queryText, rerankFields, newScoreAttribute, timeout);
+    }
+
+    public Rerank withTimeout(TimeValue newTimeout) {
+        if (timeout.equals(newTimeout)) {
+            return this;
+        }
+        return new Rerank(source(), child(), inferenceId(), rowLimit(), queryText, rerankFields, scoreAttribute, newTimeout);
     }
 
     @Override
     public UnaryPlan replaceChild(LogicalPlan newChild) {
-        return new Rerank(source(), newChild, inferenceId(), rowLimit(), queryText, rerankFields, scoreAttribute);
+        return new Rerank(source(), newChild, inferenceId(), rowLimit(), queryText, rerankFields, scoreAttribute, timeout);
     }
 
     @Override
@@ -167,7 +215,8 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
             rowLimit(),
             queryText,
             rerankFields,
-            this.renameScoreAttribute(newNames.get(0))
+            this.renameScoreAttribute(newNames.get(0)),
+            timeout
         );
     }
 
@@ -200,7 +249,17 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Rerank::new, child(), inferenceId(), rowLimit(), queryText, rerankFields, scoreAttribute);
+        return NodeInfo.create(
+            this,
+            Rerank::new,
+            child(),
+            inferenceId(),
+            rowLimit(),
+            queryText,
+            rerankFields,
+            scoreAttribute,
+            timeout
+        );
     }
 
     @Override
@@ -235,12 +294,13 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
         Rerank rerank = (Rerank) o;
         return Objects.equals(queryText, rerank.queryText)
             && Objects.equals(rerankFields, rerank.rerankFields)
-            && Objects.equals(scoreAttribute, rerank.scoreAttribute);
+            && Objects.equals(scoreAttribute, rerank.scoreAttribute)
+            && Objects.equals(timeout, rerank.timeout);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), queryText, rerankFields, scoreAttribute);
+        return Objects.hash(super.hashCode(), queryText, rerankFields, scoreAttribute, timeout);
     }
 
     @Override

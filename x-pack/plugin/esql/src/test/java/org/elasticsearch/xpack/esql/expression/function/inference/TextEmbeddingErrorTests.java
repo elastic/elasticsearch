@@ -33,7 +33,7 @@ public class TextEmbeddingErrorTests extends ErrorsForCasesWithoutExamplesTestCa
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new TextEmbedding(source, args.get(0), args.get(1));
+        return new TextEmbedding(source, args.get(0), args.get(1), null);
     }
 
     @Override

@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.test.TestDriverRunner;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.esql.inference.InferenceOperatorTestCase;
@@ -56,7 +57,8 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
             QUERY_TEXT,
             inputChannels.stream().map(this::evaluatorFactory).toList(),
             scoreChannel,
-            BATCH_SIZE
+            BATCH_SIZE,
+            InferenceAction.Request.DEFAULT_TIMEOUT
         );
     }
 
@@ -196,7 +198,8 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
                     QUERY_TEXT,
                     inputChannels.stream().map(this::evaluatorFactory).toList(),
                     2,
-                    BATCH_SIZE
+                    BATCH_SIZE,
+                    InferenceAction.Request.DEFAULT_TIMEOUT
                 );
 
                 // Verify factory is created correctly
@@ -282,7 +285,8 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
                     QUERY_TEXT,
                     inputChannels.stream().map(this::evaluatorFactory).toList(),
                     scoreChannel,
-                    BATCH_SIZE
+                    BATCH_SIZE,
+                    InferenceAction.Request.DEFAULT_TIMEOUT
                 );
 
                 List<Page> results = runner.run(factory);
@@ -371,7 +375,8 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
             QUERY_TEXT,
             List.of(evaluatorFactory(inputChannel)),
             scoreChannel,
-            BATCH_SIZE
+            BATCH_SIZE,
+            InferenceAction.Request.DEFAULT_TIMEOUT
         );
 
         var runner = new TestDriverRunner().builder(driverContext());

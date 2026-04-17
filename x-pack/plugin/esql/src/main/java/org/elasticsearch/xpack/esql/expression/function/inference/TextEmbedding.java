@@ -8,8 +8,17 @@
 package org.elasticsearch.xpack.esql.expression.function.inference;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
+import org.elasticsearch.xpack.esql.common.Failure;
+import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -19,13 +28,18 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.MapParam;
+import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
@@ -33,13 +47,17 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 /**
  * TEXT_EMBEDDING function converts text to dense vector embeddings using an inference endpoint.
  */
-public class TextEmbedding extends InferenceFunction<TextEmbedding> {
+public class TextEmbedding extends InferenceFunction<TextEmbedding> implements OptionalArgument, PostOptimizationVerificationAware {
+
+    private static final String OPTION_TIMEOUT = "timeout";
+    private static final Map<String, DataType> ALLOWED_OPTIONS = Map.of(OPTION_TIMEOUT, DataType.KEYWORD);
 
     private final Expression inferenceId;
     private final Expression inputText;
+    private final Expression inputOptions;
 
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(TextEmbedding.class)
-        .binary(TextEmbedding::new)
+        .ternary(TextEmbedding::new)
         .name("text_embedding");
 
     @FunctionInfo(
@@ -75,11 +93,23 @@ public class TextEmbedding extends InferenceFunction<TextEmbedding> {
                 entityType = Param.Hint.ENTITY_TYPE.INFERENCE_ENDPOINT,
                 constraints = { @Param.Hint.Constraint(name = "task_type", value = "text_embedding") }
             )
-        ) Expression inferenceId
+        ) Expression inferenceId,
+        @MapParam(
+            name = "options",
+            description = "(Optional) Options for the inference request.",
+            params = {
+                @MapParam.MapParamEntry(
+                    name = "timeout",
+                    type = { "keyword" },
+                    description = "Timeout for the inference request (e.g. \"30s\", \"1m\")."
+                ) },
+            optional = true
+        ) Expression inputOptions
     ) {
-        super(source, List.of(inputText, inferenceId));
+        super(source, inputOptions == null ? List.of(inputText, inferenceId) : List.of(inputText, inferenceId, inputOptions));
         this.inferenceId = inferenceId;
         this.inputText = inputText;
+        this.inputOptions = inputOptions;
     }
 
     @Override
@@ -99,6 +129,18 @@ public class TextEmbedding extends InferenceFunction<TextEmbedding> {
     @Override
     public Expression inferenceId() {
         return inferenceId;
+    }
+
+    private String optionStringValue(String key) {
+        if (inputOptions == null) return null;
+        Expression valueExpr = ((MapExpression) inputOptions).get(key);
+        if (valueExpr == null) return null;
+        return BytesRefs.toString(((Literal) valueExpr).value());
+    }
+
+    public TimeValue inputTimeout() {
+        String value = optionStringValue(OPTION_TIMEOUT);
+        return value == null ? InferenceAction.Request.DEFAULT_TIMEOUT : TimeValue.parseTimeValue(value, OPTION_TIMEOUT);
     }
 
     @Override
@@ -132,7 +174,30 @@ public class TextEmbedding extends InferenceFunction<TextEmbedding> {
             return inferenceIdResolution;
         }
 
+        if (inputOptions != null) {
+            TypeResolution optionsResolution = Options.resolve(inputOptions, source(), THIRD, ALLOWED_OPTIONS, optionsMap -> {
+                try {
+                    inputTimeout();
+                } catch (IllegalArgumentException e) {
+                    throw new InvalidArgumentException("Invalid options for TEXT_EMBEDDING: " + e.getMessage());
+                }
+            });
+            if (optionsResolution.unresolved()) {
+                return optionsResolution;
+            }
+        }
+
         return TypeResolution.TYPE_RESOLVED;
+    }
+
+    @Override
+    public void postOptimizationVerification(Failures failures) {
+        if (inputText.foldable() == false) {
+            failures.add(Failure.fail(this, "first argument for [" + sourceText() + "] must be a constant string"));
+        }
+        if (inferenceId.foldable() == false) {
+            failures.add(Failure.fail(this, "second argument for [" + sourceText() + "] must be a constant string"));
+        }
     }
 
     @Override
@@ -142,17 +207,17 @@ public class TextEmbedding extends InferenceFunction<TextEmbedding> {
 
     @Override
     public TextEmbedding withInferenceResolutionError(String inferenceId, String error) {
-        return new TextEmbedding(source(), inputText, new UnresolvedAttribute(inferenceId().source(), inferenceId, error));
+        return new TextEmbedding(source(), inputText, new UnresolvedAttribute(inferenceId().source(), inferenceId, error), inputOptions);
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new TextEmbedding(source(), newChildren.get(0), newChildren.get(1));
+        return new TextEmbedding(source(), newChildren.get(0), newChildren.get(1), newChildren.size() > 2 ? newChildren.get(2) : null);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, TextEmbedding::new, inputText, inferenceId);
+        return NodeInfo.create(this, TextEmbedding::new, inputText, inferenceId, inputOptions);
     }
 
     @Override

@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
@@ -207,7 +208,7 @@ public final class SequenceNumbersTestUtils {
      *
      * Uses the default {@link ESIntegTestCase#internalCluster()}.
      */
-    public static void persistGlobalCheckpointOnPrimaryShards(String index) {
+    public static void persistGlobalCheckpointOnPrimaryShards(String index) throws IOException {
         persistGlobalCheckpointOnPrimaryShards(internalCluster(), index);
     }
 
@@ -220,7 +221,7 @@ public final class SequenceNumbersTestUtils {
      * @param cluster the cluster containing the index
      * @param index   the name of the index
      */
-    public static void persistGlobalCheckpointOnPrimaryShards(InternalTestCluster cluster, String index) {
+    public static void persistGlobalCheckpointOnPrimaryShards(InternalTestCluster cluster, String index) throws IOException {
         final var future = new PlainActionFuture<Void>();
         try (var listeners = new RefCountingListener(future)) {
             for (String node : cluster.nodesInclude(index)) {
@@ -237,8 +238,16 @@ public final class SequenceNumbersTestUtils {
                             indexShard.routingEntry().active(),
                             equalTo(true)
                         );
+                        indexShard.sync(); // sync to ensure local checkpoint is processed
 
-                        final var globalCheckpoint = indexShard.getLastKnownGlobalCheckpoint();
+                        final var globalCheckpoint = indexShard.withEngine(Engine::getMaxSeqNo);
+
+                        // in case the durability is async, ensure local checkpoint updated in ReplicationTracker
+                        indexShard.updateLocalCheckpointForShard(
+                            indexShard.routingEntry().allocationId().getId(),
+                            indexShard.getLocalCheckpoint()
+                        );
+
                         final var listener = listeners.acquire(
                             ignored -> assertThat(
                                 "Global checkpoint not synced for shard: " + indexShard.routingEntry(),

@@ -59,7 +59,7 @@ public class RerankExecSerializationTests extends AbstractPhysicalPlanSerializat
     }
 
     private TimeValue randomTimeout() {
-        return TimeValue.timeValueMillis(randomLongBetween(1, 300_000));
+        return randomBoolean() ? null : TimeValue.timeValueMillis(randomLongBetween(1, 300_000));
     }
 
     private List<Alias> randomFields() {

@@ -55,7 +55,7 @@ public class CompletionExecSerializationTests extends AbstractPhysicalPlanSerial
     }
 
     private TimeValue randomTimeout() {
-        return TimeValue.timeValueMillis(randomLongBetween(1, 300_000));
+        return randomBoolean() ? null : TimeValue.timeValueMillis(randomLongBetween(1, 300_000));
     }
 
     private Literal randomInferenceId() {

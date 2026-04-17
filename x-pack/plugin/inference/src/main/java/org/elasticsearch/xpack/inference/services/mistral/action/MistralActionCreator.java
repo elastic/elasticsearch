@@ -29,11 +29,10 @@ import org.elasticsearch.xpack.inference.services.mistral.response.MistralEmbedd
 import org.elasticsearch.xpack.inference.services.openai.OpenAiChatCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
 
-import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
-
 import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
 
 /**
  * MistralActionCreator is responsible for creating executable actions for Mistral models.

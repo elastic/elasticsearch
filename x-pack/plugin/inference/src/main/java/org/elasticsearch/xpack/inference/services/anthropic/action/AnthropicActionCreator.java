@@ -58,6 +58,11 @@ public class AnthropicActionCreator implements AnthropicActionVisitor {
             ),
             ChatCompletionInput.class
         );
-        return new SingleInputSenderExecutableAction(sender, requestManager, constructFailedToSendRequestMessage(ERROR_PREFIX), ERROR_PREFIX);
+        return new SingleInputSenderExecutableAction(
+            sender,
+            requestManager,
+            constructFailedToSendRequestMessage(ERROR_PREFIX),
+            ERROR_PREFIX
+        );
     }
 }

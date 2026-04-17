@@ -43,18 +43,27 @@ static inline void call_f32_bulk(
     const int32_t count,
     f32_t* results
 ) {
+    constexpr int batches = 8;
     int c = 0;
 
-    for (; c + 4 <= count; c += 4) {
+    for (; c + batches <= count; c += batches) {
         const f32_t* a0 = mapper(a, c + 0, offsets, pitch);
         const f32_t* a1 = mapper(a, c + 1, offsets, pitch);
         const f32_t* a2 = mapper(a, c + 2, offsets, pitch);
         const f32_t* a3 = mapper(a, c + 3, offsets, pitch);
+        const f32_t* a4 = mapper(a, c + 4, offsets, pitch);
+        const f32_t* a5 = mapper(a, c + 5, offsets, pitch);
+        const f32_t* a6 = mapper(a, c + 6, offsets, pitch);
+        const f32_t* a7 = mapper(a, c + 7, offsets, pitch);
 
         svfloat32_t sum0 = svdup_f32(0.0f);
         svfloat32_t sum1 = svdup_f32(0.0f);
         svfloat32_t sum2 = svdup_f32(0.0f);
         svfloat32_t sum3 = svdup_f32(0.0f);
+        svfloat32_t sum4 = svdup_f32(0.0f);
+        svfloat32_t sum5 = svdup_f32(0.0f);
+        svfloat32_t sum6 = svdup_f32(0.0f);
+        svfloat32_t sum7 = svdup_f32(0.0f);
 
         int i = 0;
         for (; i < dims; i += svcntw()) {
@@ -66,6 +75,10 @@ static inline void call_f32_bulk(
             sum1 = inner_op(pg, sum1, svld1(pg, a1 + i), bv);
             sum2 = inner_op(pg, sum2, svld1(pg, a2 + i), bv);
             sum3 = inner_op(pg, sum3, svld1(pg, a3 + i), bv);
+            sum4 = inner_op(pg, sum4, svld1(pg, a4 + i), bv);
+            sum5 = inner_op(pg, sum5, svld1(pg, a5 + i), bv);
+            sum6 = inner_op(pg, sum6, svld1(pg, a6 + i), bv);
+            sum7 = inner_op(pg, sum7, svld1(pg, a7 + i), bv);
         }
 
         // Horizontal reduction of the vector accumulators
@@ -73,6 +86,10 @@ static inline void call_f32_bulk(
         results[c + 1] = svaddv(svptrue_b32(), sum1);
         results[c + 2] = svaddv(svptrue_b32(), sum2);
         results[c + 3] = svaddv(svptrue_b32(), sum3);
+        results[c + 4] = svaddv(svptrue_b32(), sum4);
+        results[c + 5] = svaddv(svptrue_b32(), sum5);
+        results[c + 6] = svaddv(svptrue_b32(), sum6);
+        results[c + 7] = svaddv(svptrue_b32(), sum7);
     }
 
     // Tail-handling: remaining vectors
@@ -86,26 +103,39 @@ static inline void call_f32_bulk(
 // const f32_t* b  pointer to the second float vector
 // const int32_t elementCount  the number of floating point elements
 EXPORT f32_t vec_dotf32_2(const f32_t* a, const f32_t* b, const int32_t elementCount) {
+    constexpr int batches = 8;
     int i = 0;
 
     svfloat32_t sum0 = svdup_f32(0.0f);
     svfloat32_t sum1 = svdup_f32(0.0f);
     svfloat32_t sum2 = svdup_f32(0.0f);
     svfloat32_t sum3 = svdup_f32(0.0f);
+    svfloat32_t sum4 = svdup_f32(0.0f);
+    svfloat32_t sum5 = svdup_f32(0.0f);
+    svfloat32_t sum6 = svdup_f32(0.0f);
+    svfloat32_t sum7 = svdup_f32(0.0f);
 
     const int elements = svcntw();
-    const int stride = elements * 4;
+    const int stride = elements * batches;
     const svbool_t all = svptrue_b32();
     for (; i + stride <= elementCount; i += stride) {
         sum0 = svmla_f32_x(all, sum0, svld1_vnum(all, a + i, 0), svld1_vnum(all, b + i, 0));
         sum1 = svmla_f32_x(all, sum1, svld1_vnum(all, a + i, 1), svld1_vnum(all, b + i, 1));
         sum2 = svmla_f32_x(all, sum2, svld1_vnum(all, a + i, 2), svld1_vnum(all, b + i, 2));
         sum3 = svmla_f32_x(all, sum3, svld1_vnum(all, a + i, 3), svld1_vnum(all, b + i, 3));
+        sum4 = svmla_f32_x(all, sum4, svld1_vnum(all, a + i, 4), svld1_vnum(all, b + i, 4));
+        sum5 = svmla_f32_x(all, sum5, svld1_vnum(all, a + i, 5), svld1_vnum(all, b + i, 5));
+        sum6 = svmla_f32_x(all, sum6, svld1_vnum(all, a + i, 6), svld1_vnum(all, b + i, 6));
+        sum7 = svmla_f32_x(all, sum7, svld1_vnum(all, a + i, 7), svld1_vnum(all, b + i, 7));
     }
 
     svfloat32_t sum = svadd_f32_x(all,
-        svadd_f32_x(all, sum0, sum1),
-        svadd_f32_x(all, sum2, sum3));
+        svadd_f32_x(all,
+            svadd_f32_x(all, sum0, sum1),
+            svadd_f32_x(all, sum2, sum3)),
+        svadd_f32_x(all,
+             svadd_f32_x(all, sum4, sum5),
+             svadd_f32_x(all, sum6, sum7)));
 
     // unstrided tail
     for (; i < elementCount; i += elements) {

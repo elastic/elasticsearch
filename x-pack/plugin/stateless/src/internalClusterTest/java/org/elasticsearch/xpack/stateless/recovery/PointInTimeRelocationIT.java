@@ -18,7 +18,12 @@
 package org.elasticsearch.xpack.stateless.recovery;
 
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.store.FilterIndexInput;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.ClosePointInTimeResponse;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
@@ -27,29 +32,44 @@ import org.elasticsearch.action.search.SearchContextId;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryPlugin;
+import org.elasticsearch.xpack.stateless.StatelessMockRepositoryStrategy;
 import org.elasticsearch.xpack.stateless.TestUtils;
+import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
+import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.engine.SearchEngine;
-import org.elasticsearch.xpack.stateless.lucene.GenerationalDocValuesIT;
+import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -60,12 +80,16 @@ import static org.elasticsearch.search.SearchService.PIT_RELOCATION_FEATURE_FLAG
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessUnpromotableRelocationAction.START_HANDOFF_ACTION_NAME;
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
 public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCase {
@@ -78,20 +102,89 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
         plugins.remove(TestUtils.StatelessPluginWithTrialLicense.class);
-        plugins.add(GenerationalDocValuesIT.GenerationalFilesTrackingStatelessPlugin.class);
+        plugins.add(PITRelocationTestPlugin.class);
         plugins.add(StatelessMockRepositoryPlugin.class);
         return plugins;
+    }
+
+    /**
+     * Stateless plugin that wraps every {@link SearchDirectory} with a tracking subclass.
+     * The tracker records any {@link IndexInput}s that are still open when the directory closes,
+     * exposing reader-manager leaks as test failures.
+     */
+    public static class PITRelocationTestPlugin extends TestUtils.StatelessPluginWithTrialLicense {
+
+        public PITRelocationTestPlugin(Settings settings) {
+            super(settings);
+        }
+
+        @Override
+        protected SearchDirectory createSearchDirectory(
+            StatelessSharedBlobCacheService cacheService,
+            CacheBlobReaderService cacheBlobReaderService,
+            MutableObjectStoreUploadTracker objectStoreUploadTracker,
+            ShardId shardId
+        ) {
+            return new TrackingSearchDirectory(cacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId);
+        }
+
+        private static class TrackingSearchDirectory extends SearchDirectory {
+
+            /** Maps the unwrapped delegate IndexInput to its file name so we can report what was leaked. */
+            private final Map<IndexInput, String> openInputs = new ConcurrentHashMap<>();
+
+            TrackingSearchDirectory(
+                StatelessSharedBlobCacheService cacheService,
+                CacheBlobReaderService cacheBlobReaderService,
+                MutableObjectStoreUploadTracker objectStoreUploadTracker,
+                ShardId shardId
+            ) {
+                super(cacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId);
+            }
+
+            @Override
+            protected IndexInput doOpenInput(String name, IOContext context, BlobFileRanges blobFileRanges) {
+                final IndexInput delegate = super.doOpenInput(name, context, blobFileRanges);
+                openInputs.put(delegate, name);
+                return new FilterIndexInput("tracked(" + name + ")", delegate) {
+                    private final AtomicBoolean closed = new AtomicBoolean(false);
+
+                    @Override
+                    public void close() throws IOException {
+                        if (closed.compareAndSet(false, true)) {
+                            try {
+                                super.close();
+                            } finally {
+                                openInputs.remove(delegate);
+                            }
+                        }
+                    }
+                };
+            }
+
+            @Override
+            public void close() throws IOException {
+                super.close();
+                assert openInputs.isEmpty() : "open inputs " + openInputs.values() + " not closed";
+            }
+        }
     }
 
     @Override
     protected Settings.Builder nodeSettings() {
         return super.nodeSettings().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
+            // ensure that we don't upload immediately to the object store, since some tests rely on it
+            .put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 100)
             .put(disableIndexingDiskAndMemoryControllersNodeSettings());
     }
 
     private final Settings nodeSettings = Settings.builder()
         // speed up search context keepalive checks
         .put(SearchService.KEEPALIVE_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+        .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
+        // ensure that we don't upload immediately to the object store, since some tests rely on it
+        .put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 100)
+        .put(disableIndexingDiskAndMemoryControllersNodeSettings())
         .build();
 
     public void testPointInTimeRelocation() throws Exception {
@@ -514,6 +607,419 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         assertEquals("Open contexts on node " + searchNodeNext + ".", 0L, searchService2.getActivePITContexts());
     }
 
+    public void testPointInTimeRelocationWithUpdatesAndDeletes() {
+        assumeTrue("Requires pit relocation feature flag", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
+        var indexNode = startMasterAndIndexNode(nodeSettings);
+        var searchNodeA = startSearchNode(nodeSettings);
+        var searchNodeB = startSearchNode(nodeSettings);
+
+        var indexName = randomIdentifier();
+        int numberOfShards = 1;
+        createIndex(indexName, indexSettings(numberOfShards, 1).build());
+        ensureGreen(indexName);
+
+        var commitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
+        var shardId = new ShardId(resolveIndex(indexName), 0);
+
+        // Index initial documents and collect their auto-generated IDs
+        int initialDocs = randomIntBetween(20, 100);
+        var bulkResponse = indexDocs(indexName, initialDocs);
+        List<String> docIds = Arrays.stream(bulkResponse.getItems()).map(BulkItemResponse::getId).toList();
+
+        final long pit1Generation;
+        if (randomBoolean()) {
+            flush(indexName);
+            var latestUploadedBcc = commitService.getLatestUploadedBcc(shardId);
+            assertThat(latestUploadedBcc, is(notNullValue()));
+            pit1Generation = lastUploadedCompoundCommitGeneration(latestUploadedBcc);
+        } else {
+            refresh(indexName);
+            var currentVirtualBCC = commitService.getCurrentVirtualBcc(shardId);
+            pit1Generation = currentVirtualBCC.getMaxGeneration();
+        }
+        awaitUntilSearchNodeGetsCommit(indexName, pit1Generation);
+
+        // Open PIT1 capturing the initial state before any modifications
+        var pitId1 = openPointInTime(indexName, TimeValue.timeValueMinutes(1)).getPointInTimeId();
+        assertNotNull(pitId1);
+        int numDocsPit1 = initialDocs;
+
+        // Update a random subset of documents (update some documents — count stays the same)
+        List<String> idsToUpdate = randomSubsetOf(randomIntBetween(1, initialDocs / 2), docIds);
+        var updateBulk = client().prepareBulk();
+        for (String id : idsToUpdate) {
+            updateBulk.add(client().prepareIndex(indexName).setId(id).setSource(Map.of("value", "updated")));
+        }
+        assertNoFailures(updateBulk.get());
+
+        // Delete a different random subset of documents
+        List<String> remainingIds = new ArrayList<>(docIds);
+        remainingIds.removeAll(idsToUpdate);
+        List<String> idsToDelete = randomSubsetOf(randomIntBetween(1, Math.max(1, remainingIds.size() / 2)), remainingIds);
+        var deleteBulk = client().prepareBulk();
+        for (String id : idsToDelete) {
+            deleteBulk.add(client().prepareDelete(indexName, id));
+        }
+        assertNoFailures(deleteBulk.get());
+
+        // Index additional new documents
+        int additionalDocs = randomIntBetween(1, 50);
+        indexDocs(indexName, additionalDocs);
+        final long pit2Generation;
+        if (randomBoolean()) {
+            flush(indexName);
+            var latestUploadedBcc = commitService.getLatestUploadedBcc(shardId);
+            assertThat(latestUploadedBcc, is(notNullValue()));
+            pit2Generation = lastUploadedCompoundCommitGeneration(latestUploadedBcc);
+        } else {
+            refresh(indexName);
+            var currentVirtualBCC = commitService.getCurrentVirtualBcc(shardId);
+            pit2Generation = currentVirtualBCC.getMaxGeneration();
+        }
+        awaitUntilSearchNodeGetsCommit(indexName, pit2Generation);
+
+        int numDocsPit2 = initialDocs - idsToDelete.size() + additionalDocs;
+
+        // Open PIT2 capturing the state after updates, deletes, and additions
+        var pitId2 = openPointInTime(indexName, TimeValue.timeValueMinutes(1)).getPointInTimeId();
+        assertNotNull(pitId2);
+
+        // Index even more documents after PIT2
+        int additionalDocsAfterPit2 = randomIntBetween(1, 100);
+        indexDocs(indexName, additionalDocsAfterPit2);
+        flushAndRefresh(indexName);
+        int totalDocsBeforeRelocation = numDocsPit2 + additionalDocsAfterPit2;
+
+        if (randomBoolean()) {
+            forceMerge(true);
+        }
+
+        // Verify both PITs return the correct counts before relocation
+        assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId1)), resp -> {
+            assertThat(resp.pointInTimeId(), equalTo(pitId1));
+            assertHitCount(resp, numDocsPit1);
+        });
+
+        pitId2 = searchAllPagesAndAssertHitCount(pitId2, numDocsPit2);
+        assertResponse(
+            prepareSearch().setPointInTime(new PointInTimeBuilder(pitId2)).setQuery(termQuery("value", "updated")),
+            resp -> assertHitCount(resp, idsToUpdate.size())
+        );
+
+        assertResponse(prepareSearch(), resp -> { assertHitCount(resp, totalDocsBeforeRelocation); });
+
+        var searchNodeCurrent = internalCluster().nodesInclude(indexName).contains(searchNodeA) ? searchNodeA : searchNodeB;
+        var searchNodeNext = internalCluster().nodesInclude(indexName).contains(searchNodeA) ? searchNodeB : searchNodeA;
+
+        // Relocate shards to the other search node
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", searchNodeCurrent));
+        ensureGreen(indexName);
+        assertThat(internalCluster().nodesInclude(indexName), hasItem(searchNodeNext));
+
+        // search should still work without PIT
+        assertResponse(prepareSearch(), resp -> { assertHitCount(resp, totalDocsBeforeRelocation); });
+
+        var updatedPit1 = new AtomicReference<BytesReference>();
+        // PIT1 must still see the original document count (before updates/deletes)
+        assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId1)), resp -> {
+            assertHitCount(resp, numDocsPit1);
+            updatedPit1.set(resp.pointInTimeId());
+        });
+        var maybeUpdatedPit1 = searchAllPagesAndAssertHitCount(updatedPit1.get(), numDocsPit1);
+        updatedPit1.set(maybeUpdatedPit1);
+
+        var updatedPit2 = new AtomicReference<BytesReference>();
+        // PIT2 must see the count after deletes and additions (updates don't change count)
+        assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId2)), resp -> {
+            assertHitCount(resp, numDocsPit2);
+            updatedPit2.set(resp.pointInTimeId());
+        });
+        var maybeUpdatedPit2 = searchAllPagesAndAssertHitCount(updatedPit2.get(), numDocsPit2);
+        updatedPit2.set(maybeUpdatedPit2);
+        assertResponse(
+            prepareSearch().setPointInTime(new PointInTimeBuilder(updatedPit2.get())).setQuery(termQuery("value", "updated")),
+            resp -> assertHitCount(resp, idsToUpdate.size())
+        );
+
+        // Index more documents after relocation
+        var indexResponseAfterRelocation = indexDocs(indexName, randomIntBetween(1, 100));
+        var newDocIds = Arrays.stream(indexResponseAfterRelocation.getItems()).map(BulkItemResponse::getId).toList();
+        if (randomBoolean()) {
+            flush(indexName);
+        } else {
+            refresh(indexName);
+        }
+
+        forceMerge(true);
+
+        // Ensure that the PIT with updates/deletes still returns the correct count after the force merge
+        var maybeUpdatedPit2AfterForceMerge = searchAllPagesAndAssertHitCount(updatedPit2.get(), numDocsPit2);
+        updatedPit2.set(maybeUpdatedPit2AfterForceMerge);
+        assertResponse(
+            prepareSearch().setPointInTime(new PointInTimeBuilder(updatedPit2.get())).setQuery(termQuery("value", "updated")),
+            resp -> assertHitCount(resp, idsToUpdate.size())
+        );
+
+        // Delete more documents after relocation to ensure that generational files still work properly
+        var newDocIdsToDelete = randomNonEmptySubsetOf(newDocIds);
+        var deleteBulkAfterRelocation = client().prepareBulk();
+        for (String id : newDocIdsToDelete) {
+            deleteBulkAfterRelocation.add(client().prepareDelete(indexName, id));
+        }
+        assertNoFailures(deleteBulkAfterRelocation.get());
+        flush(indexName);
+        final long generationAfterPostRelocationWrites = lastUploadedCompoundCommitGeneration(commitService.getLatestUploadedBcc(shardId));
+        awaitUntilSearchNodeGetsCommit(indexName, generationAfterPostRelocationWrites);
+        var totalDocsAfterRelocation = totalDocsBeforeRelocation + newDocIds.size() - newDocIdsToDelete.size();
+
+        assertResponse(prepareSearch(), resp -> { assertHitCount(resp, totalDocsAfterRelocation); });
+
+        // close the PITs
+        closePointInTime(updatedPit1.get());
+        closePointInTime(updatedPit2.get());
+    }
+
+    public void testPointInTimeRelocationReferencingTheSameCommit() {
+        assumeTrue("Requires pit relocation feature flag", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
+        var indexNode = startMasterAndIndexNode(nodeSettings);
+        var searchNodeA = startSearchNode(nodeSettings);
+        var searchNodeB = startSearchNode(nodeSettings);
+
+        var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+
+        var commitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
+        var shardId = new ShardId(resolveIndex(indexName), 0);
+
+        int numDocs = randomIntBetween(1, 100);
+        indexDocs(indexName, numDocs);
+        flushAndRefresh(indexName);
+
+        var latestUploadedBcc = commitService.getLatestUploadedBcc(shardId);
+        assertThat(latestUploadedBcc, is(notNullValue()));
+        var generation = lastUploadedCompoundCommitGeneration(latestUploadedBcc);
+        awaitUntilSearchNodeGetsCommit(indexName, generation);
+
+        var pitId = openPointInTime(indexName, TimeValue.timeValueMinutes(1)).getPointInTimeId();
+        assertNotNull(pitId);
+
+        // Verify PIT works before relocation
+        assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), resp -> {
+            assertThat(resp.pointInTimeId(), equalTo(pitId));
+            assertHitCount(resp, numDocs);
+        });
+
+        var searchNodeCurrent = internalCluster().nodesInclude(indexName).contains(searchNodeA) ? searchNodeA : searchNodeB;
+        var searchNodeNext = internalCluster().nodesInclude(indexName).contains(searchNodeA) ? searchNodeB : searchNodeA;
+
+        // Relocate the search shard to the other node
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", searchNodeCurrent));
+        ensureGreen(indexName);
+        assertThat(internalCluster().nodesInclude(indexName), hasItem(searchNodeNext));
+
+        // PIT search should still work after relocation, with an updated PIT id
+        var updatedPitId = new AtomicReference<BytesReference>();
+        assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), resp -> {
+            assertFalse("PIT id should have changed after relocation.", isEquivalentId(resp.pointInTimeId(), pitId));
+            assertHitCount(resp, numDocs);
+            updatedPitId.set(resp.pointInTimeId());
+        });
+
+        // Close the PIT with the updated id
+        closePointInTime(updatedPitId.get());
+    }
+
+    /**
+     * Verifies that no {@link IndexInput}s are leaked when the target shard's engine closes while
+     * a PIT relocation handoff is in progress.
+     * <p>
+     * Two PITs are opened on different commits. The blob read for one of the two PIT BCCs is randomly
+     * blocked so that both cleanup paths are exercised: a reader registered before engine close (cleaned
+     * up by {@code relocatedPITsReadersManager}) and a reader whose registration races with engine close
+     * (cleaned up in the {@code acquireSearcherForCommit} finally block).
+     * <p>
+     * Leaks are detected by {@link PITRelocationTestPlugin.TrackingSearchDirectory}.
+     */
+    public void testRelocatedPitContextsReleasedWhenShardClosedDuringHandoff() throws Exception {
+        assumeTrue("Requires pit relocation feature flag", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
+
+        var indexNode = startMasterAndIndexNode(nodeSettings);
+        var searchNodeA = startSearchNode(nodeSettings);
+        var searchNodeB = startSearchNode(nodeSettings);
+
+        var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+        var commitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
+        var shardId = new ShardId(resolveIndex(indexName), 0);
+
+        int numDocs = randomIntBetween(1, 50);
+        indexDocs(indexName, numDocs);
+        flushAndRefresh(indexName);
+        var latestUploadedBcc = commitService.getLatestUploadedBcc(shardId);
+        assertThat(latestUploadedBcc, is(notNullValue()));
+        long pit1BccBlobGeneration = latestUploadedBcc.primaryTermAndGeneration().generation();
+        awaitUntilSearchNodeGetsCommit(indexName, lastUploadedCompoundCommitGeneration(latestUploadedBcc));
+
+        var pitId = openPointInTime(indexName, TimeValue.timeValueMinutes(1)).getPointInTimeId();
+        assertNotNull(pitId);
+
+        indexDocs(indexName, randomIntBetween(1, 50));
+        flushAndRefresh(indexName);
+        // ensure that the PIT commits do not reference between them to block the blob read
+        forceMerge(true);
+        var latestUploadedBcc2 = commitService.getLatestUploadedBcc(shardId);
+        assertThat(latestUploadedBcc2, is(notNullValue()));
+        long pit2BccBlobGeneration = latestUploadedBcc2.primaryTermAndGeneration().generation();
+        awaitUntilSearchNodeGetsCommit(indexName, lastUploadedCompoundCommitGeneration(latestUploadedBcc2));
+
+        var pitId2 = openPointInTime(indexName, TimeValue.timeValueMinutes(1)).getPointInTimeId();
+        assertNotNull(pitId2);
+
+        // Index more docs so the target's current reader is on a different commit than the PIT,
+        // ensuring openIfChanged returns a new reader (not null) during the handoff.
+        indexDocs(indexName, randomIntBetween(1, 50));
+        flushAndRefresh(indexName);
+        forceMerge(true);
+
+        var searchNodeCurrent = internalCluster().nodesInclude(indexName).contains(searchNodeA) ? searchNodeA : searchNodeB;
+        var searchNodeNext = internalCluster().nodesInclude(indexName).contains(searchNodeA) ? searchNodeB : searchNodeA;
+
+        // Block blob reads on the target for the PIT's BCC blob. This intercepts
+        // acquireSearcherForCommit while it is inside openIfChanged opening the PIT commit.
+        var blobReadStarted = new CountDownLatch(1);
+        var blobReadBlocked = new CountDownLatch(1);
+        var blobNameToBlock = BatchedCompoundCommit.blobNameFromGeneration(randomBoolean() ? pit1BccBlobGeneration : pit2BccBlobGeneration);
+        setNodeRepositoryStrategy(searchNodeNext, new StatelessMockRepositoryStrategy() {
+            @Override
+            public InputStream blobContainerReadBlob(
+                CheckedSupplier<InputStream, IOException> originalSupplier,
+                OperationPurpose purpose,
+                String blobName,
+                long position,
+                long length
+            ) throws IOException {
+                if (blobNameToBlock.equals(blobName)) {
+                    blobReadStarted.countDown();
+                    safeAwait(blobReadBlocked);
+                }
+                return super.blobContainerReadBlob(originalSupplier, purpose, blobName, position, length);
+            }
+        });
+        // Trigger the relocation; acquireSearcherForCommit will block inside openIfChanged
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", searchNodeCurrent));
+        safeAwait(blobReadStarted);
+
+        // Delete the index while one PIT relocation is opening its reader. The engine closes,
+        // disposing of any PendingPITReaders already registered by the non-blocked PIT relocation.
+        assertAcked(indicesAdmin().prepareDelete(indexName));
+
+        // Unblock. The blocked PIT relocation resumes opening its reader and tries to register it
+        // on a closed engine; the reader is cleaned up in the finally block.
+        blobReadBlocked.countDown();
+    }
+
+    public void testRelocationWithPITReferencingPinnedGenFiles() {
+        assumeTrue("Requires pit relocation feature flag", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
+        var indexNode = startMasterAndIndexNode(nodeSettings);
+        var searchNodeA = startSearchNode(nodeSettings);
+
+        var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+
+        var commitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
+        var shardId = new ShardId(resolveIndex(indexName), 0);
+
+        // Index initial documents and collect their auto-generated IDs
+        int initialDocs = randomIntBetween(75, 100);
+        var bulkResponse = indexDocs(indexName, initialDocs);
+        List<String> docIds = Arrays.stream(bulkResponse.getItems()).map(BulkItemResponse::getId).toList();
+        flush(indexName);
+
+        var idDocumentInSegment1 = "random";
+        {
+            // First generational doc values
+            var updateBulk = client().prepareBulk();
+            // Update one document from segment _0 to create a generational file targeting that segment
+            String updatedDoc = randomFrom(docIds);
+            updateBulk.add(
+                client().prepareIndex(indexName).setId(updatedDoc).setSource(Map.of("field", randomUnicodeOfCodepointLengthBetween(10, 25)))
+            );
+            // Add a new document to target the segment in a future update in segment _1
+            updateBulk.add(
+                client().prepareIndex(indexName)
+                    .setId(idDocumentInSegment1)
+                    .setSource(Map.of("field", randomUnicodeOfCodepointLengthBetween(10, 25)))
+            );
+            BulkResponse response = updateBulk.get();
+            assertNoFailures(response);
+            flush(indexName);
+        }
+
+        {
+            var updateBulk = client().prepareBulk();
+            // Update one document from segment _1 so the PIT references generational files in different commits
+            updateBulk.add(
+                client().prepareIndex(indexName)
+                    .setId(idDocumentInSegment1)
+                    .setSource(Map.of("field", randomUnicodeOfCodepointLengthBetween(10, 25)))
+            );
+            updateBulk.add(client().prepareIndex(indexName).setSource(Map.of("field", randomUnicodeOfCodepointLengthBetween(10, 25))));
+            assertNoFailures(updateBulk.get());
+            flush(indexName);
+        }
+
+        // Open the PIT capturing the second commit which would include references to generational files with two generations,
+        // the first one is pinned to the initial commit generation in the blob locations
+        var latestUploadedBcc = commitService.getLatestUploadedBcc(shardId);
+        assertThat(latestUploadedBcc, is(notNullValue()));
+        awaitUntilSearchNodeGetsCommit(indexName, lastUploadedCompoundCommitGeneration(latestUploadedBcc));
+
+        var pitId = openPointInTime(indexName, TimeValue.timeValueMinutes(1)).getPointInTimeId();
+        assertNotNull(pitId);
+
+        // Force merge so once we relocate the search shard we start with a commit without generational files
+        forceMerge(true);
+
+        var newSearchNode = startSearchNode(nodeSettings);
+
+        // Relocate shards to the other search node
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", searchNodeA));
+        ensureGreen(indexName);
+        assertThat(internalCluster().nodesInclude(indexName), hasItem(newSearchNode));
+
+        // PIT search should still work after relocation, with an updated PIT id
+        var updatedPitId = new AtomicReference<BytesReference>();
+        assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), resp -> {
+            // We index two new documents together with the updates
+            assertHitCount(resp, initialDocs + 2);
+            updatedPitId.set(resp.pointInTimeId());
+        });
+
+        // Close the PIT with the updated id
+        closePointInTime(updatedPitId.get());
+    }
+
+    /**
+     * Lucene generation of the newest compound commit contained in the uploaded BCC.
+     * {@link BatchedCompoundCommit#primaryTermAndGeneration()} is the VBCC / blob key (opening commit),
+     * which can be strictly older than {@link BatchedCompoundCommit#lastCompoundCommit()} when the
+     * batch holds multiple commits — waiting on the former can unblock before the search shard has applied the latest CC.
+     */
+    private static long lastUploadedCompoundCommitGeneration(BatchedCompoundCommit latestUploadedBcc) {
+        return latestUploadedBcc.lastCompoundCommit().generation();
+    }
+
+    private static void awaitUntilSearchNodeGetsCommit(String indexName, long generation) {
+        var primaryTerm = findIndexShard(indexName).getOperationPrimaryTerm();
+        var searchEngine = getShardEngine(findSearchShard(indexName), SearchEngine.class);
+        var uploadedBCCRefreshedListener = new SubscribableListener<Long>();
+        searchEngine.addPrimaryTermAndGenerationListener(primaryTerm, generation, uploadedBCCRefreshedListener);
+        safeAwait(uploadedBCCRefreshedListener);
+    }
+
     public void testPointInTimeRelocationHandoffBccReadFailureFallsBackToLazyReconstruction() throws Exception {
         assumeTrue("Requires pit relocation feature flag", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
         startMasterAndIndexNode(nodeSettings);
@@ -724,19 +1230,53 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         return id1.equals(id2);
     }
 
-    private static void awaitUntilSearchNodeGetsCommit(String indexName, long generation) {
-        var primaryTerm = findIndexShard(indexName).getOperationPrimaryTerm();
-        var searchEngine = getShardEngine(findSearchShard(indexName), SearchEngine.class);
-        var uploadedBCCRefreshedListener = new SubscribableListener<Long>();
-        searchEngine.addPrimaryTermAndGenerationListener(primaryTerm, generation, uploadedBCCRefreshedListener);
-        safeAwait(uploadedBCCRefreshedListener);
-    }
-
     private OpenPointInTimeResponse openPointInTime(String index, TimeValue keepAlive) {
         return client().execute(TransportOpenPointInTimeAction.TYPE, new OpenPointInTimeRequest(index).keepAlive(keepAlive)).actionGet();
     }
 
     private ClosePointInTimeResponse closePointInTime(BytesReference readerId) {
         return client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(readerId)).actionGet();
+    }
+
+    private static BytesReference searchAllPagesAndAssertHitCount(BytesReference pitId, int expectedNumDocs) {
+        var nextPitId = new AtomicReference<>(pitId);
+        var searchAfter = new AtomicReference<Object[]>();
+        var totalHits = new AtomicInteger();
+        var firstPage = new AtomicBoolean(true);
+
+        do {
+            var request = prepareSearch().setPointInTime(new PointInTimeBuilder(nextPitId.get()))
+                .setSize(randomIntBetween(1, expectedNumDocs))
+                .addSort(SortBuilders.pitTiebreaker());
+
+            if (searchAfter.get() != null && searchAfter.get().length > 0) {
+                request.searchAfter(searchAfter.get());
+            }
+
+            assertResponse(request, resp -> {
+                if (firstPage.getAndSet(false)) {
+                    assertHitCount(resp, expectedNumDocs);
+                }
+                SearchHit[] hits = resp.getHits().getHits();
+                totalHits.addAndGet(hits.length);
+                nextPitId.set(resp.pointInTimeId());
+                if (hits.length > 0) {
+                    searchAfter.set(hits[hits.length - 1].getSortValues());
+                    for (SearchHit hit : hits) {
+                        assertThat(hit.getSourceAsMap(), is(notNullValue()));
+                    }
+                } else {
+                    searchAfter.set(null);
+                }
+            });
+            assertThat(
+                "pagination returned more hits than expected — likely stuck on the same page",
+                totalHits.get(),
+                lessThanOrEqualTo(expectedNumDocs)
+            );
+
+        } while (searchAfter.get() != null);
+        assertEquals(expectedNumDocs, totalHits.get());
+        return nextPitId.get();
     }
 }

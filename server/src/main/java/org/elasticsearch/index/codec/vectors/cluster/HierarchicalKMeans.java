@@ -272,7 +272,7 @@ public class HierarchicalKMeans {
         }
         assert idx == clusterSize;
 
-        return new ClusteringFloatVectorValuesSlice(vectors, slice);
+        return new ClusteringFloatVectorValuesSlice(vectors, i -> slice[i], slice.length);
     }
 
     /**

@@ -22,7 +22,11 @@ import java.util.Arrays;
  * As a standalone and start-from-scratch algorithm, it is not very good. It does perform refinement well and fast.
  * Implementation suited to the needs of the {@link HierarchicalKMeans} algorithm that deals specifically
  * with finalizing nearby pre-established clusters and generate
- * <a href="https://research.google/blog/soar-new-algorithms-for-even-faster-vector-search-with-scann/">SOAR</a> assignments
+ * <a href="https://research.google/blog/soar-new-algorithms-for-even-faster-vector-search-with-scann/">SOAR</a> assignments.
+ * The implementation relies on the use of neighborhoods: only a subset of clusters, given by the neighborhood, is considered when
+ * assigning each vector.
+ * The regularization augments each distance by a component proportional to the current size of the corersponding cluster,
+ * so we scale this additional term by the median distance to centroids in the mini batch to balance both terms.
  */
 abstract class BalancedASKMeansLocal extends KMeansLocal {
 
@@ -31,18 +35,16 @@ abstract class BalancedASKMeansLocal extends KMeansLocal {
     private final float beta; // the amount of regularization used
     private final float forgettingFactor; // multiplicative factor in (0, 1], that allows forgetting the old soft assignments
     private final int miniBatchSize; // the mini-batch size
-    private final float learningRateShift; // The SGD learning rate is computed as 1 / (clusterCount + learningRateShift)
 
     BalancedASKMeansLocal(int sampleSize, int maxIterations) {
         this.sampleSize = sampleSize;
         this.maxIterations = maxIterations;
         // These defaults seem stable enough so that we do not need to expose them externally.
-        this.beta = 1f;
+        this.beta = 1f; // setting this parameter to 1 amounts to an equal balance of the distance and cluster-size-regularization terms
         this.forgettingFactor = 0.9f;
         // A positive number means that the actual miniBatchSize will be set to that number.
         // A negative number means that the actual miniBatchSize will be set to k * abs(this.miniBatchSize).
         this.miniBatchSize = -2;
-        learningRateShift = 100f; // using 100 so that the updates are gentle and small.
     }
 
     /** Number of workers to use for parallelism **/
@@ -114,6 +116,10 @@ abstract class BalancedASKMeansLocal extends KMeansLocal {
         int[] assignments,
         float[][] centroids
     ) throws IOException {
+        // The SGD learning rate is computed as 1 / (clusterCount + learningRateShift).
+        // Using a shift so that the updates are gentle and small.
+        float learningRateShift = 3.f * this.sampleSize / centroids.length;
+
         for (int idx = 0; idx < vectors.size(); idx++) {
             float[] vec = vectors.vectorValue(idx);
             int k = assignments[idx];
@@ -173,6 +179,8 @@ abstract class BalancedASKMeansLocal extends KMeansLocal {
 
         int[] localAssignments; // assignments of sampledVectors in the mini batch to centroids
         float[][] distances; // distances from sampledVectors in the mini batch to centroids
+        int[] miniBatchSamples = new int[miniBatchSizeLocal]; // stores the samples in the mini batch
+
         if (neighborhoods == null) {
             localAssignments = new int[miniBatchSizeLocal];
             distances = new float[miniBatchSizeLocal][k];
@@ -192,8 +200,6 @@ abstract class BalancedASKMeansLocal extends KMeansLocal {
 
         OnlineQuantileEstimator medianEstimator = null; // We cannot initialize the estimator now because we need to know its range.
 
-        ClusteringFloatVectorValuesSlice sampledVectors = new ClusteringFloatVectorValuesSlice(vectors, miniBatchSizeLocal);
-
         float[][] oldCentroids = new float[k][vectors.dimension()];
         deepCopy(centroids, oldCentroids);
 
@@ -203,7 +209,9 @@ abstract class BalancedASKMeansLocal extends KMeansLocal {
                 // This simple version performs sampling with replacement (that is, two batches can share vectors but within a batch
                 // the vectors are unique) for simplicity. To be more precise, we could sample without replacement but the current
                 // approach seems good enough.
-                sampledVectors.updateRandomSlice(t++); // passing a deterministic seed for reproducibility
+                ClusteringFloatVectorValues sampledVectors = ClusteringFloatVectorValuesSlice.createRandomSlice(
+                    vectors, miniBatchSizeLocal, t++, miniBatchSamples
+                );
 
                 IntToIntFunction assigner = i -> {
                     final int translatedOrd = sampledVectors.ordToDoc(i);

@@ -585,6 +585,17 @@ public class ESVectorUtil {
     }
 
     /**
+     * Computes dest = scale * other + dest
+     *
+     * @param scaleOther a multiplicative factor for other
+     * @param other the other vector
+     * @param dest the destination vector
+     */
+    public static void linearCombination(float scaleOther, float[] other, float[] dest) {
+        IMPL.linearCombination(scaleOther, other, dest);
+    }
+
+    /**
      * Calculates an approximation of the LogSumExp of the input array in base 2.
      * The formula used is: log2(sum_i(pow(2, x[i]))).
      * This implementation uses the log-sum-exp trick for numerical stability and Not-Quite-Trascendental functions for speed.

@@ -106,19 +106,11 @@ public interface ESVectorUtilSupport {
 
     int codePointCount(BytesRef bytesRef);
 
-    void linearCombination(float scaleOther, float[] other, float scaleDest, float[] dest);
-
-    float logSumExpBase2(float[] vector);
-
-    float logSumExpNQT(float[] vector);
-
-    float logSumExpNQT(float[] v1, float[] v2, float eps);
-
-    void pow2CombineAndScale(float[] v1, float[] v2, float a, float eps, float[] result);
-
     boolean contains(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength);
 
     void linearCombination(float scaleOther, float[] other, float scaleDest, float[] dest);
+
+    void linearCombination(float scaleOther, float[] other, float[] dest);
 
     float logSumExpNQT(float[] vector);
 

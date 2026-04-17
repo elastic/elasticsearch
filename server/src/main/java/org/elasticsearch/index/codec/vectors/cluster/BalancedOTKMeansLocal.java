@@ -63,16 +63,37 @@ abstract class BalancedOTKMeansLocal extends KMeansLocal {
         float[][] softAssignments,
         float[][] centroids
     ) throws IOException {
-        for (int idx = 0; idx < vectors.size(); idx++) {
-            ESVectorUtil.linearCombination(centroids.length, softAssignments[idx], 1, cumulativeClusterWeights);
+        int k = centroids.length;
+        int dim = vectors.dimension();
 
+        float[][] batchCentroidSums = new float[k][dim];
+        float[] batchWeights = new float[k];
+
+        // Accumulate the raw Sinkhorn weights via fast FMA loop
+        for (int idx = 0; idx < vectors.size(); idx++) {
             float[] vec = vectors.vectorValue(idx);
-            for (int k = 0; k < centroids.length; k++) {
-                float[] centroid = centroids[k];
-                // add 1 to cumulativeClusterWeights[k] to avoid 1 / epsilon numerical issues.
-                float learning_rate = 1.f / (1.f + cumulativeClusterWeights[k]);
-                float w = learning_rate * centroids.length * softAssignments[idx][k];
-                ESVectorUtil.linearCombination(w, vec, 1 - w, centroid);
+            for (int c = 0; c < k; c++) {
+                float weight = softAssignments[idx][c];
+                if (weight > 1e-7f) {
+                    batchWeights[c] += weight;
+                    ESVectorUtil.linearCombination(weight, vec, batchCentroidSums[c]);
+                }
+            }
+        }
+
+        // Apply the k scaling and update
+        for (int c = 0; c < k; c++) {
+            if (batchWeights[c] > 0) {
+                // Apply empirical k scaling to the weights to drive the learning rate.
+                float scaledBatchWeight = batchWeights[c] * k;
+
+                // Because scaledBatchWeight is added to the denominator we're good.
+                cumulativeClusterWeights[c] += scaledBatchWeight;
+                float learningRate = scaledBatchWeight / cumulativeClusterWeights[c];
+
+                // In the first argument, we divide the learning rate by batchWeights[c],
+                // which is equivalent to normalizing batchCentroidSums[c] from a sum to a mean
+                ESVectorUtil.linearCombination(learningRate / batchWeights[c], batchCentroidSums[c], 1.0f - learningRate, centroids[c]);
             }
         }
     }
@@ -130,6 +151,7 @@ abstract class BalancedOTKMeansLocal extends KMeansLocal {
 
         float[][] distances = new float[miniBatchSizeLocal][k]; // distances from sampledVectors in the mini batch to centroids
         float[][] softAssignments = new float[miniBatchSizeLocal][k]; // soft-assignments of sampledVectors in the mini batch to centroids
+        int[] miniBatchSamples = new int[miniBatchSizeLocal]; // stores the samples in the mini batch
 
         float[] cumulativeClusterWeights = new float[k]; // maintains soft cluster counts for each cluster.
                                                          // Used to compute the learning rate in the SGD update of the centroids
@@ -138,8 +160,6 @@ abstract class BalancedOTKMeansLocal extends KMeansLocal {
 
         SinkhornIterations sinkhorn = new SinkhornIterations(miniBatchSizeLocal, k);
         OnlineQuantileEstimator medianEstimator = null; // We cannot initialize the estimator now because we need to know its range.
-
-        ClusteringFloatVectorValuesSlice sampledVectors = new ClusteringFloatVectorValuesSlice(vectors, miniBatchSizeLocal);
 
         float[][] oldCentroids = new float[k][vectors.dimension()];
         deepCopy(centroids, oldCentroids);
@@ -150,7 +170,9 @@ abstract class BalancedOTKMeansLocal extends KMeansLocal {
                 // This simple version performs sampling with replacement (that is, two batches can share vectors but within a batch
                 // the vectors are unique) for simplicity. To be more precise, we could sample without replacement but the current
                 // approach seems good enough.
-                sampledVectors.updateRandomSlice(t++); // passing a deterministic seed for reproducibility
+                ClusteringFloatVectorValues sampledVectors = ClusteringFloatVectorValuesSlice.createRandomSlice(
+                    vectors, miniBatchSizeLocal, t++, miniBatchSamples
+                );
 
                 computeDistances(sampledVectors, centroids, distances);
 

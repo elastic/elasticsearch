@@ -29,13 +29,6 @@ public final class ClusteringFloatVectorValuesSlice extends ClusteringFloatVecto
         this.size = size;
     }
 
-    ClusteringFloatVectorValuesSlice(ClusteringFloatVectorValues allValues, int size) {
-        assert size <= allValues.size();
-        this.allValues = allValues;
-        // TODO maybe use bigArrays?
-        this.slice = new int[size];
-    }
-
     @Override
     public float[] vectorValue(int ord) throws IOException {
         return this.allValues.vectorValue(ordTranslator.apply(ord));
@@ -62,17 +55,6 @@ public final class ClusteringFloatVectorValuesSlice extends ClusteringFloatVecto
     }
 
     /**
-     * Update the slice by resampling its indices. The resampling uses reservoir sampling.
-     * This avoids re-allocating the underlying arrays
-     * @param seed the random seed
-     */
-    public void updateRandomSlice(long seed) {
-        innerReservoirSample(allValues.size(), seed, slice);
-        // sort to prevent random backwards access weirdness
-        Arrays.sort(slice);
-    }
-
-    /**
      * Create a new random slice by sampling indices using reservoir sampling.
      * @param origin the input vectors to sample
      * @param k the number of samples
@@ -84,6 +66,23 @@ public final class ClusteringFloatVectorValuesSlice extends ClusteringFloatVecto
         }
         // TODO maybe use bigArrays?
         int[] samples = reservoirSample(origin.size(), k, seed);
+        // sort to prevent random backwards access weirdness
+        Arrays.sort(samples);
+        return new ClusteringFloatVectorValuesSlice(origin, i -> samples[i], k);
+    }
+
+    /**
+     * Create a new random slice by sampling indices using reservoir sampling.
+     * @param origin the input vectors to sample
+     * @param k the number of samples
+     * @param seed the random seed
+     * @param samples where to store the sampled indices
+     */
+    static ClusteringFloatVectorValues createRandomSlice(ClusteringFloatVectorValues origin, int k, long seed, int[] samples) {
+        if (k >= origin.size()) {
+            return origin;
+        }
+        innerReservoirSample(origin.size(), seed, samples);
         // sort to prevent random backwards access weirdness
         Arrays.sort(samples);
         return new ClusteringFloatVectorValuesSlice(origin, i -> samples[i], k);

@@ -50,6 +50,7 @@ public class SinkhornIterations {
         float logRowSumTarget = -eps * rawLogRowSumTarget;
         float logColumnSumTarget = -eps * rawLogColumnSumTarget;
 
+        // The order of the updates does matter here. The axis that is most important in our calculation should always go last.
         for (int i = 0; i < iterations; i++) {
             // Update logRowSums (normalize across columns)
             logSumExpNQT(logColumnSums, input, eps, -eps, logRowSumTarget, logRowSums);
@@ -76,7 +77,7 @@ public class SinkhornIterations {
     // Instead of base-2 logarithms and powers, it uses NQT.
     private static void createTransportPlan(float[] rowVector, float[] columnvector, float[][] matrix, float eps, float[][] result) {
         for (int i = 0; i < rowVector.length; i++) {
-            ESVectorUtil.pow2CombineAndScale(columnvector, matrix[i], rowVector[i], eps, result[i]);
+            ESVectorUtil.pow2DiffAndScaleNQT(columnvector, matrix[i], rowVector[i], eps, result[i]);
         }
     }
 
@@ -86,7 +87,7 @@ public class SinkhornIterations {
     public static void logSumExpNQT(float[] vector, float[][] matrix, float eps, float a, float b, float[] result) {
         int nRows = matrix.length;
         for (int i = 0; i < nRows; i++) {
-            result[i] = a * ESVectorUtil.logSumExpNQT(vector, matrix[i], eps) + b;
+            result[i] = a * ESVectorUtil.logSumExpNQTDiff(vector, matrix[i], eps) + b;
         }
     }
 }

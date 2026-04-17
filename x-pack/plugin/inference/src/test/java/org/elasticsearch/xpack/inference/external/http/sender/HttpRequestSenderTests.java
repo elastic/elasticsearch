@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.apache.http.HttpHeaders;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -374,10 +374,10 @@ public class HttpRequestSenderTests extends ESTestCase {
                 listener
             );
 
-            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+            var thrownException = expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(TIMEOUT));
 
             assertThat(thrownException.getMessage(), is(format("Request timed out after [%s] for inference id [%s]", ONE_NANOSECOND, INFERENCE_ID)));
-            assertThat(thrownException.status(), is(RestStatus.GATEWAY_TIMEOUT));
+            assertThat(thrownException.status(), is(RestStatus.TOO_MANY_REQUESTS));
         }
     }
 
@@ -401,10 +401,10 @@ public class HttpRequestSenderTests extends ESTestCase {
                 listener
             );
 
-            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+            var thrownException = expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(TIMEOUT));
 
             assertThat(thrownException.getMessage(), is(format("Request timed out after [%s] for inference id [%s]", ONE_NANOSECOND, INFERENCE_ID)));
-            assertThat(thrownException.status(), is(RestStatus.GATEWAY_TIMEOUT));
+            assertThat(thrownException.status(), is(RestStatus.TOO_MANY_REQUESTS));
         }
     }
 
@@ -431,10 +431,10 @@ public class HttpRequestSenderTests extends ESTestCase {
                 listener
             );
 
-            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+            var thrownException = expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(TIMEOUT));
 
             assertThat(thrownException.getMessage(), is(format("Request timed out after [%s] for inference id [%s]", ONE_NANOSECOND, INFERENCE_ID)));
-            assertThat(thrownException.status(), is(RestStatus.GATEWAY_TIMEOUT));
+            assertThat(thrownException.status(), is(RestStatus.TOO_MANY_REQUESTS));
         }
     }
 

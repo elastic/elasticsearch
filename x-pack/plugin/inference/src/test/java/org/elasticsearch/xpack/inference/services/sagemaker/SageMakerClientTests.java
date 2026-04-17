@@ -18,7 +18,7 @@ import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointWith
 import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointWithResponseStreamResponseHandler;
 import software.amazon.awssdk.services.sagemakerruntime.model.ResponseStream;
 
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.cache.CacheLoader;
 import org.elasticsearch.common.settings.SecureString;
@@ -126,7 +126,7 @@ public class SageMakerClientTests extends ESTestCase {
     private static void verifyTimeout(TimeValue timeout, ActionListener<?> listener) {
         verify(listener, times(1)).onFailure(assertArg(e -> {
             assertThat(e.getMessage(), equalTo(Strings.format("Request timed out after [%s] for inference id [%s]", timeout, INFERENCE_ID)));
-            assertThat(((ElasticsearchStatusException) e).status(), equalTo(RestStatus.GATEWAY_TIMEOUT));
+            assertThat(((ElasticsearchTimeoutException) e).status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
         }));
     }
 

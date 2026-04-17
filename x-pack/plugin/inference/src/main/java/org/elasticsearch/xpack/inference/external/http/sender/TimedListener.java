@@ -7,13 +7,11 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ListenerTimeouts;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Objects;
@@ -59,7 +57,7 @@ public class TimedListener<Response> {
             timeout,
             threadPool.executor(UTILITY_THREAD_POOL_NAME),
             notificationListener,
-            (ignored) -> notificationListener.onFailure(gatewayTimeoutException(timeout, inferenceId))
+            (ignored) -> notificationListener.onFailure(timeoutException(timeout, inferenceId))
         );
     }
 
@@ -72,16 +70,12 @@ public class TimedListener<Response> {
     }
 
     /**
-     * Creates an {@link ElasticsearchStatusException} with a message indicating that the request timed out and a status of
-     * {@link RestStatus#GATEWAY_TIMEOUT}.
+     * Creates an {@link ElasticsearchTimeoutException} with a message indicating that the request timed out.
      * @param timeout the timeout that was reached
      * @param inferenceId the id of the inference request that timed out
-     * @return an {@link ElasticsearchStatusException} indicating a timeout occurred
+     * @return an {@link ElasticsearchTimeoutException} indicating a timeout occurred
      */
-    public static ElasticsearchStatusException gatewayTimeoutException(TimeValue timeout, String inferenceId) {
-        return new ElasticsearchStatusException(
-            Strings.format("Request timed out after [%s] for inference id [%s]", timeout, inferenceId),
-            RestStatus.GATEWAY_TIMEOUT
-        );
+    public static ElasticsearchTimeoutException timeoutException(TimeValue timeout, String inferenceId) {
+        return new ElasticsearchTimeoutException("Request timed out after [{}] for inference id [{}]", timeout, inferenceId);
     }
 }

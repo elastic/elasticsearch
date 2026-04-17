@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
@@ -271,10 +271,10 @@ public class RequestExecutorServiceTests extends ESTestCase {
             listener
         );
 
-        var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+        var thrownException = expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(TIMEOUT));
 
         assertThat(thrownException.getMessage(), is(format("Request timed out after [%s] for inference id [%s]", TimeValue.timeValueNanos(1), INFERENCE_ID)));
-        assertThat(thrownException.status(), is(RestStatus.GATEWAY_TIMEOUT));
+        assertThat(thrownException.status(), is(RestStatus.TOO_MANY_REQUESTS));
     }
 
     public void testExecute_PreservesThreadContext() throws InterruptedException, ExecutionException, TimeoutException {

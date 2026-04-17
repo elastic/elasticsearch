@@ -30,7 +30,7 @@ The options are inspired by the Prometheus [HTTP API](https://prometheus.io/docs
 
 `index`
 :   A list of indices, data streams or aliases. Supports wildcards and date math.
-    Defaults to `*` querying all indices with [`index.mode: time_series`](/reference/current/tsds.md).
+    Defaults to `*` querying all indices with [`index.mode: time_series`](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md).
     Example: `PROMQL index=metrics-*.otel-* sum(rate(http_requests_total))`
 
 `step`

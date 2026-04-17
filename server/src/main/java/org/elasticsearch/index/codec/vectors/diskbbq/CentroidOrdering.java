@@ -57,11 +57,12 @@ public final class CentroidOrdering {
     private static final int MIN_CENTROID_COUNT = 16;
     private static final int HILBERT_ORDER = 16;
     private static final float[] TEMPERATURES = { 8.0f, 4.0f, 2.0f, 1.0f, 0.5f, 0.25f };
-    private static final int PROBES = 24;
+    private static final int PROBES = 8;
     private static final int MIN_PARTITION_SIZE = 8;
     private static final int LOCAL_1_OPT_ROUNDS = 128;
     private static final float WEIGHT_CAP = 5.0f;
     private static final float MARGIN_SCALE = 0.08f;
+    private static final float SYMMETRY_REPLACEMENT_DISTANCE_RATIO = 1.2f;
     private static final long RNG_SEED = 42L;
 
     private CentroidOrdering() {}
@@ -213,6 +214,7 @@ public final class CentroidOrdering {
 
     private static void symmetrizeNeighbors(int[][] neighbors, float[][] distances, int k) {
         int n = neighbors.length;
+        // A single pass is intentional: repeated passes can churn edges and evict stable neighbors.
         for (int i = 0; i < n; i++) {
             int[] localNeighbors = neighbors[i];
             float[] localDistances = distances[i];
@@ -230,6 +232,9 @@ public final class CentroidOrdering {
                     continue;
                 }
                 if (insertAt >= neighbors[neighbor].length) {
+                    continue;
+                }
+                if (localDistances[j] >= SYMMETRY_REPLACEMENT_DISTANCE_RATIO * distances[neighbor][insertAt]) {
                     continue;
                 }
                 neighbors[neighbor][insertAt] = i;
@@ -254,7 +259,7 @@ public final class CentroidOrdering {
             return -1;
         }
         int worstIndex = 0;
-        float worstDistance = distances[distances.length - 1];
+        float worstDistance = distances[0];
         for (int i = 1; i < limit; i++) {
             if (distances[i] > worstDistance) {
                 worstDistance = distances[i];

@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.function.Consumer;
 import java.util.concurrent.Callable;
 
 /**
@@ -174,7 +175,7 @@ abstract class KMeansLocal {
      * @throws IOException is thrown if vectors is inaccessible
      */
     final void cluster(ClusteringFloatVectorValues vectors, KMeansIntermediate kMeansIntermediate) throws IOException {
-        doCluster(vectors, kMeansIntermediate, -1, -1);
+        doCluster(vectors, kMeansIntermediate, -1, -1, null);
     }
 
     /**
@@ -201,7 +202,20 @@ abstract class KMeansLocal {
         if (clustersPerNeighborhood < 2) {
             throw new IllegalArgumentException("clustersPerNeighborhood must be at least 2, got [" + clustersPerNeighborhood + "]");
         }
-        doCluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
+        doCluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda, null);
+    }
+
+    final void cluster(
+        ClusteringFloatVectorValues vectors,
+        KMeansIntermediate kMeansIntermediate,
+        int clustersPerNeighborhood,
+        float soarLambda,
+        Consumer<NeighborHood[]> neighborhoodsConsumer
+    ) throws IOException {
+        if (clustersPerNeighborhood < 2) {
+            throw new IllegalArgumentException("clustersPerNeighborhood must be at least 2, got [" + clustersPerNeighborhood + "]");
+        }
+        doCluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda, neighborhoodsConsumer);
     }
 
     /**
@@ -222,7 +236,8 @@ abstract class KMeansLocal {
         ClusteringFloatVectorValues vectors,
         KMeansIntermediate kMeansIntermediate,
         int clustersPerNeighborhood,
-        float soarLambda
+        float soarLambda,
+        Consumer<NeighborHood[]> neighborhoodsConsumer
     ) throws IOException {
         float[][] centroids = kMeansIntermediate.centroids();
         boolean neighborAware = clustersPerNeighborhood != -1 && centroids.length > 1;
@@ -230,6 +245,9 @@ abstract class KMeansLocal {
         // if there are very few centroids, don't bother with neighborhoods or neighbor aware clustering
         if (neighborAware && centroids.length > clustersPerNeighborhood) {
             neighborhoods = computeNeighborhoods(centroids, clustersPerNeighborhood);
+        }
+        if (neighborhoodsConsumer != null && neighborhoods != null) {
+            neighborhoodsConsumer.accept(neighborhoods);
         }
         innerCluster(vectors, kMeansIntermediate, neighborhoods);
         if (neighborAware && soarLambda >= 0) {

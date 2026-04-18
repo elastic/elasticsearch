@@ -177,6 +177,7 @@ public class WriteLoadConstraintSettings {
     private volatile double hotspotUtilizationThreshold;
     private volatile String hotspotUtilizationThresholdString;
     private volatile double hotspotMaxShardWriteLoadProportionThreshold;
+    private volatile String hotspotMaxShardWriteLoadProportionThresholdString;
 
     public WriteLoadConstraintSettings(ClusterSettings clusterSettings) {
         clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_ENABLED_SETTING, status -> this.writeLoadDeciderStatus = status);
@@ -196,6 +197,7 @@ public class WriteLoadConstraintSettings {
         });
         clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_HOTSPOT_MAX_SHARD_WRITE_LOAD_PROPORTION_THRESHOLD_SETTING, value -> {
             hotspotMaxShardWriteLoadProportionThreshold = value.getAsRatio();
+            hotspotMaxShardWriteLoadProportionThresholdString = value.formatNoTrailingZerosPercent();
         });
     }
 
@@ -233,6 +235,10 @@ public class WriteLoadConstraintSettings {
      */
     public double getHotspotMaxShardWriteLoadProportionThreshold() {
         return this.hotspotMaxShardWriteLoadProportionThreshold;
+    }
+
+    public String getHotspotMaxShardWriteLoadProportionThresholdString() {
+        return this.hotspotMaxShardWriteLoadProportionThresholdString;
     }
 
     /**

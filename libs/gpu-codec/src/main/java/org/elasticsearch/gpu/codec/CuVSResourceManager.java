@@ -18,8 +18,8 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
+import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Objects;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -51,7 +51,7 @@ public interface CuVSResourceManager {
      * another resource or wait for a resources to be returned before giving out another.
      */
     ManagedCuVSResources acquire(int numVectors, int dims, CuVSMatrix.DataType dataType, CagraIndexParams cagraIndexParams)
-        throws InterruptedException;
+        throws InterruptedException, IOException;
 
     /** Marks the resources as finished with regard to compute. */
     void finishedComputation(ManagedCuVSResources resources);
@@ -124,7 +124,12 @@ public interface CuVSResourceManager {
                 }
             }
             if (createdCount < capacity) {
-                var res = new ManagedCuVSResources(Objects.requireNonNull(createNew()));
+                var delegate = createNew();
+                if (delegate == null) {
+                    logger.warn("Failed to create new GPU resource, will wait for an existing one");
+                    return null;
+                }
+                var res = new ManagedCuVSResources(delegate);
                 pool[createdCount++] = res;
                 return res;
             }
@@ -144,7 +149,7 @@ public interface CuVSResourceManager {
 
         @Override
         public ManagedCuVSResources acquire(int numVectors, int dims, CuVSMatrix.DataType dataType, CagraIndexParams cagraIndexParams)
-            throws InterruptedException {
+            throws InterruptedException, IOException {
             try {
                 var started = System.nanoTime();
                 lock.lock();
@@ -190,6 +195,9 @@ public interface CuVSResourceManager {
                         enoughMemory = requiredMemoryInBytes <= availableMemoryInBytes;
                         logger.debug("Free device memory [{} B], enoughMemory[{}]", availableMemoryInBytes, enoughMemory);
                     } else {
+                        if (createdCount == 0) {
+                            throw new IOException("No GPU resources available and unable to create new ones");
+                        }
                         logger.debug("No resources available in pool");
                         enoughMemory = false;
                     }

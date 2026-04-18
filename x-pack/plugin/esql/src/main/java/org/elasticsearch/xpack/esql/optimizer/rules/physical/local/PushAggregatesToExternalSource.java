@@ -34,8 +34,6 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.OptionalLong;
 
 /**
  * Replaces {@code AggregateExec → ExternalSourceExec} with {@code LocalSourceExec}
@@ -145,15 +143,13 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
             }
             Expression target = count.field();
             if (target.foldable()) {
-                // COUNT(*)
-                OptionalLong rc = SourceStatisticsSerializer.extractRowCount(sourceMetadata);
-                return rc.isPresent() ? rc.getAsLong() : null;
+                return SourceStatisticsSerializer.extractRowCount(sourceMetadata);
             }
             if (target instanceof Attribute ref) {
-                OptionalLong rc = SourceStatisticsSerializer.extractRowCount(sourceMetadata);
-                OptionalLong nc = SourceStatisticsSerializer.extractColumnNullCount(sourceMetadata, ref.name());
-                if (rc.isPresent() && nc.isPresent()) {
-                    return rc.getAsLong() - nc.getAsLong();
+                Long rc = SourceStatisticsSerializer.extractRowCount(sourceMetadata);
+                Long nc = SourceStatisticsSerializer.extractColumnNullCount(sourceMetadata, ref.name());
+                if (rc != null && nc != null) {
+                    return rc - nc;
                 }
             }
             return null;
@@ -162,8 +158,7 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
                 return null;
             }
             if (min.field() instanceof Attribute ref) {
-                Optional<Object> minVal = SourceStatisticsSerializer.extractColumnMin(sourceMetadata, ref.name());
-                return minVal.orElse(null);
+                return SourceStatisticsSerializer.extractColumnMin(sourceMetadata, ref.name());
             }
             return null;
         } else if (aggFunction instanceof Max max) {
@@ -171,8 +166,7 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
                 return null;
             }
             if (max.field() instanceof Attribute ref) {
-                Optional<Object> maxVal = SourceStatisticsSerializer.extractColumnMax(sourceMetadata, ref.name());
-                return maxVal.orElse(null);
+                return SourceStatisticsSerializer.extractColumnMax(sourceMetadata, ref.name());
             }
             return null;
         }

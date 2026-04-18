@@ -18,10 +18,9 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesRangeQuery;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermQuery;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
-import org.elasticsearch.search.runtime.IpScriptFieldRangeQuery;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -107,9 +106,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
         assertEquals(query, ftOnlyIndex.termQuery(prefix, MOCK_CONTEXT));
         assertEquals(convertToDocValuesQuery(query), ftOnlyDocValues.termQuery(prefix, MOCK_CONTEXT));
         assertEquals(
-            new IpScriptFieldRangeQuery(
-                new Script(""),
-                ctx -> null,
+            new SlowCustomBinaryDocValuesRangeQuery(
                 "field",
                 new BytesRef(((PointRangeQuery) query).getLowerPoint()),
                 new BytesRef(((PointRangeQuery) query).getUpperPoint())

@@ -373,6 +373,42 @@ tests:
 - class: org.elasticsearch.transport.RemoteClusterClientTests
   method: testConnectAndExecuteRequest
   issue: https://github.com/elastic/elasticsearch/issues/146693
+- class: org.elasticsearch.synonyms.SynonymsManagementAPIServiceTests
+  method: testBulkUpdateEmptySet
+  issue: https://github.com/elastic/elasticsearch/issues/146695
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/146553
+- class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
+  method: testReindexTaskRelocatesOnNodeShutdown
+  issue: https://github.com/elastic/elasticsearch/issues/146696
+- class: org.elasticsearch.transport.TransportHandshakerTests
+  method: testHandshakeError
+  issue: https://github.com/elastic/elasticsearch/issues/146697
+- class: org.elasticsearch.transport.ClusterConnectionManagerTests
+  method: testDisconnectLogging
+  issue: https://github.com/elastic/elasticsearch/issues/146698
+- class: org.elasticsearch.transport.RemoteClusterClientTests
+  method: testEnsureWeReconnect
+  issue: https://github.com/elastic/elasticsearch/issues/146699
+- class: org.elasticsearch.simdvec.ESVectorUtilTests
+  method: testLogSumExpDiff
+  issue: https://github.com/elastic/elasticsearch/issues/146700
+- class: org.elasticsearch.transport.TransportHandshakerTests
+  method: testHandshakeResponseFromOlderNodeWithPatchedProtocol
+  issue: https://github.com/elastic/elasticsearch/issues/146702
+- class: org.elasticsearch.transport.TransportHandshakerTests
+  method: testHandshakeResponseFromOlderNode
+  issue: https://github.com/elastic/elasticsearch/issues/146703
+- class: org.elasticsearch.transport.ClusterConnectionManagerTests
+  method: testConnectAfterClose
+  issue: https://github.com/elastic/elasticsearch/issues/146704
+- class: org.elasticsearch.transport.ClusterConnectionManagerTests
+  method: testConnectFailsDuringValidation
+  issue: https://github.com/elastic/elasticsearch/issues/146709
+- class: org.elasticsearch.transport.TransportHandshakerTests
+  method: testIncompatibleHandshakeRequest
+  issue: https://github.com/elastic/elasticsearch/issues/146711
 
 # Examples:
 #

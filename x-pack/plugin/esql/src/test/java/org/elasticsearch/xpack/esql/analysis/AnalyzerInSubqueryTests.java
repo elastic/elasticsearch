@@ -2288,7 +2288,7 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
      * View {@code top3_emps} is defined as {@code FROM employees | WHERE emp_no IN (FROM test | KEEP emp_no) | KEEP emp_no, salary}.
      * Query: {@code FROM test | WHERE emp_no IN (FROM top3_emps | WHERE salary > 50000 | KEEP emp_no)}
      * <p>
-     * Requires 3 iterations of the resolveViewsAndInSubqueries loop:
+     * Requires 3 iterations of the ViewAndInSubqueryResolver loop:
      * <ol>
      *   <li>InSubqueryResolver converts the outer IN subquery to SemiJoin, exposing the view reference</li>
      *   <li>ViewResolver expands {@code top3_emps}, introducing the view's IN subquery;

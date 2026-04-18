@@ -101,6 +101,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
+import org.elasticsearch.xpack.esql.session.ViewAndInSubqueryResolver;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.GetViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
@@ -324,7 +325,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD,
                 ViewService.MAX_VIEWS_COUNT_SETTING,
                 ViewService.MAX_VIEW_LENGTH_SETTING,
-                ViewResolver.MAX_VIEW_DEPTH_SETTING
+                ViewResolver.MAX_VIEW_DEPTH_SETTING,
+                ViewAndInSubqueryResolver.MAX_VIEW_IN_SUBQUERY_RESOLUTION_ITERATIONS_SETTING
             )
         );
         settings.addAll(PlannerSettings.settings());

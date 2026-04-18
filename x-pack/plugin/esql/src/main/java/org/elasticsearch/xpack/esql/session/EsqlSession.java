@@ -49,7 +49,6 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
-import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
@@ -167,7 +166,7 @@ public class EsqlSession {
     private final AnalyzerSettings analyzerSettings;
     private final IndexResolver indexResolver;
     private final EnrichPolicyResolver enrichPolicyResolver;
-    private final ViewResolver viewResolver;
+    private final ViewAndInSubqueryResolver viewAndInSubqueryResolver;
     private final ExternalSourceResolver externalSourceResolver;
 
     private final EsqlParser parser;
@@ -218,7 +217,7 @@ public class EsqlSession {
         this.analyzerSettings = analyzerSettings;
         this.indexResolver = indexResolver;
         this.enrichPolicyResolver = enrichPolicyResolver;
-        this.viewResolver = viewResolver;
+        this.viewAndInSubqueryResolver = new ViewAndInSubqueryResolver(viewResolver, services.clusterService());
         this.externalSourceResolver = externalSourceResolver;
         this.parser = parser;
         this.preAnalyzer = preAnalyzer;
@@ -270,66 +269,9 @@ public class EsqlSession {
             inferenceService.inferenceSettings(),
             viewName
         ).plan();
-        resolveViewsAndInSubqueries(
-            statement.plan(),
-            viewParser,
-            new HashMap<>(),
-            0,
-            listener.delegateFailureAndWrap((l, viewResolution) -> {
-                viewResolutionProfile.stop();
-                analyseAndExecute(request, executionInfo, planRunner, statement, viewResolution, l);
-            })
-        );
-    }
-
-    /**
-     * Iteratively resolves views and IN subquery expressions until a fixed point is reached.
-     * <p>
-     * Views and IN subqueries form a mutually recursive expansion problem: a view definition may
-     * contain an IN subquery, and an IN subquery may reference a view. Each iteration:
-     * <ol>
-     *   <li>ViewResolver expands view references → may introduce new InSubquery expressions</li>
-     *   <li>InSubqueryResolver converts InSubquery to SemiJoin/AntiJoin → may expose new view references
-     *       (previously hidden inside InSubquery expression trees)</li>
-     * </ol>
-     * The loop terminates when neither resolver produces changes, then validates that no unresolved
-     * InSubquery expressions remain.
-     *
-     * @param accumulatedViewQueries accumulates view queries across iterations for the Configuration
-     * @param depth current iteration count for cycle detection
-     */
-    private void resolveViewsAndInSubqueries(
-        LogicalPlan plan,
-        BiFunction<String, String, LogicalPlan> viewParser,
-        Map<String, String> accumulatedViewQueries,
-        int depth,
-        ActionListener<ViewResolver.ViewResolutionResult> listener
-    ) {
-        if (depth > 10) {
-            listener.onFailure(new VerificationException("Too many view/IN subquery resolution iterations: " + depth));
-            return;
-        }
-
-        // Step 1: Resolve views
-        viewResolver.replaceViews(plan, viewParser, listener.delegateFailureAndWrap((l, viewResult) -> {
-            boolean viewsExpanded = viewResult.viewQueries().isEmpty() == false;
-            accumulatedViewQueries.putAll(viewResult.viewQueries());
-            LogicalPlan afterViews = viewResult.plan();
-
-            // Step 2: Resolve InSubquery expressions with validation.
-            // Throws VerificationException immediately if InSubquery is used in an unsupported position
-            // (e.g. EVAL, SORT), so we fail fast without continuing to iterate.
-            LogicalPlan afterInSubquery = InSubqueryResolver.resolve(afterViews);
-            boolean inSubqueryResolved = afterInSubquery != afterViews;
-
-            // Step 3: Check if another round is needed
-            // - If InSubquery was resolved (plan changed), new plan nodes may contain view references → need ViewResolver
-            // - If views were expanded, InSubqueryResolver may have resolved new InSubquery from view definitions
-            if (inSubqueryResolved || viewsExpanded) {
-                resolveViewsAndInSubqueries(afterInSubquery, viewParser, accumulatedViewQueries, depth + 1, l);
-            } else {
-                l.onResponse(new ViewResolver.ViewResolutionResult(afterInSubquery, accumulatedViewQueries));
-            }
+        viewAndInSubqueryResolver.resolve(statement.plan(), viewParser, listener.delegateFailureAndWrap((l, viewResolution) -> {
+            viewResolutionProfile.stop();
+            analyseAndExecute(request, executionInfo, planRunner, statement, viewResolution, l);
         }));
     }
 
@@ -977,7 +919,7 @@ public class EsqlSession {
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
 
-        // InSubquery expressions have already been resolved by resolveViewsAndInSubqueries().
+        // InSubquery expressions have already been resolved by ViewAndInSubqueryResolver.
         // Proceed directly to PreAnalyzer.
         TimeSpanMarker preAnalysisProfile = executionInfo.queryProfile().preAnalysis();
         preAnalysisProfile.start();

@@ -3,5 +3,3 @@ ALL-UNNAMED:
   - files:
     - path: "/lib/ld-musl-x86_64.so.1"
       mode: "read"
-    - path: "/lib/ld-musl-aarch64.so.1"
-      mode: "read"

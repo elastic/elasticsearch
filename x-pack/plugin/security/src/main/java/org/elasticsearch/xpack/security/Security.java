@@ -131,6 +131,7 @@ import org.elasticsearch.xpack.core.security.SecuritySettings;
 import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
+import org.elasticsearch.xpack.core.security.action.SecurityMigrationAction;
 import org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequestTranslator;
@@ -286,6 +287,7 @@ import org.elasticsearch.xpack.security.action.service.TransportGetServiceAccoun
 import org.elasticsearch.xpack.security.action.settings.TransportGetSecuritySettingsAction;
 import org.elasticsearch.xpack.security.action.settings.TransportReloadRemoteClusterCredentialsAction;
 import org.elasticsearch.xpack.security.action.settings.TransportUpdateSecuritySettingsAction;
+import org.elasticsearch.xpack.security.action.TransportSecurityMigrationAction;
 import org.elasticsearch.xpack.security.action.stats.TransportSecurityStatsAction;
 import org.elasticsearch.xpack.security.action.token.TransportCreateTokenAction;
 import org.elasticsearch.xpack.security.action.token.TransportInvalidateTokenAction;
@@ -805,7 +807,7 @@ public class Security extends Plugin
 
         systemIndices.init(client, featureService, clusterService, projectResolver);
 
-        this.migrationManager.set(new SecurityMigrations.Manager(clusterService, persistentTasksService, systemIndices));
+        this.migrationManager.set(new SecurityMigrations.Manager(clusterService, client, systemIndices));
 
         scriptServiceReference.set(scriptService);
         // We need to construct the checks here while the secure settings are still available.
@@ -1271,6 +1273,8 @@ public class Security extends Plugin
         }
 
         cacheInvalidatorRegistry.validate();
+
+        components.add(new SecurityMigrations.Holder(systemIndices.getMainIndexManager(), SecurityMigrations.MIGRATIONS_BY_VERSION));
 
         setClosableAndReloadableComponents(components);
         return components;
@@ -1828,6 +1832,7 @@ public class Security extends Plugin
             new ActionHandler(GetSecuritySettingsAction.INSTANCE, TransportGetSecuritySettingsAction.class),
             new ActionHandler(UpdateSecuritySettingsAction.INSTANCE, TransportUpdateSecuritySettingsAction.class),
             new ActionHandler(ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION, TransportReloadRemoteClusterCredentialsAction.class),
+            new ActionHandler(SecurityMigrationAction.INSTANCE, TransportSecurityMigrationAction.class),
             new ActionHandler(UpdateIndexMigrationVersionAction.INSTANCE, UpdateIndexMigrationVersionAction.TransportAction.class),
             new ActionHandler(GetSecurityStatsAction.INSTANCE, TransportSecurityStatsAction.class),
             usageAction,
@@ -2661,8 +2666,7 @@ public class Security extends Plugin
         SettingsModule settingsModule,
         IndexNameExpressionResolver expressionResolver
     ) {
-        final SecurityMigrations.Manager manager = this.migrationManager.get();
-        return manager == null ? List.of() : List.of(manager.getPersistentTasksExecutor(client, threadPool));
+        return List.of();
     }
 
     List<ReservedProjectStateHandler<?>> reservedProjectStateHandlers() {

@@ -50,12 +50,10 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authz.RoleMappingMetadata;
-import org.elasticsearch.xpack.core.security.support.SecurityMigrationTaskParams;
 import org.elasticsearch.xpack.security.SecurityFeatures;
 import org.elasticsearch.xpack.security.action.rolemapping.ReservedRoleMappingAction;
 
@@ -850,9 +848,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             project,
             migrationsVersion
         );
-        var persistentTaskCustomMetadata = PersistentTasksCustomMetadata.get(project.metadata());
-        final boolean securityMigrationRunning = persistentTaskCustomMetadata != null
-            && persistentTaskCustomMetadata.getTask(SecurityMigrationTaskParams.TASK_NAME) != null;
+        final boolean securityMigrationRunning = false;
         final boolean mappingIsUpToDate = indexMetadata == null || checkIndexMappingUpToDate(project);
         final SystemIndexDescriptor.MappingsVersion minClusterMappingVersion = getMinSecurityIndexMappingVersion(project);
         final int indexMappingVersion = loadIndexMappingVersion(systemIndexDescriptor.getAliasName(), project.metadata());

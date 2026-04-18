@@ -87,4 +87,31 @@ public class SlowCustomBinaryDocValuesRangeQueryTests extends ESTestCase {
             }
         }
     }
+
+    public void testRewriteToTermQueryWhenBoundsEqual() throws Exception {
+        BytesRef term = encodeIp("192.168.1.1");
+        SlowCustomBinaryDocValuesRangeQuery range = new SlowCustomBinaryDocValuesRangeQuery("field", term, term);
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+                try (IndexReader reader = writer.getReader()) {
+                    IndexSearcher searcher = newSearcher(reader);
+                    assertEquals(new SlowCustomBinaryDocValuesTermQuery("field", term), range.rewrite(searcher));
+                }
+            }
+        }
+    }
+
+    public void testRewriteKeepsTrueRange() throws Exception {
+        BytesRef lower = encodeIp("192.168.1.0");
+        BytesRef upper = encodeIp("192.168.1.255");
+        SlowCustomBinaryDocValuesRangeQuery range = new SlowCustomBinaryDocValuesRangeQuery("field", lower, upper);
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+                try (IndexReader reader = writer.getReader()) {
+                    IndexSearcher searcher = newSearcher(reader);
+                    assertSame(range, range.rewrite(searcher));
+                }
+            }
+        }
+    }
 }

@@ -10,11 +10,11 @@
 package org.elasticsearch.lucene.queries;
 
 import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.network.InetAddresses;
 
+import java.io.IOException;
 import java.util.Objects;
 import java.util.function.Predicate;
 
@@ -24,6 +24,9 @@ import java.util.function.Predicate;
  * fields.
  * <p>
  * This implementation is slow, because it potentially scans binary doc values for each document.
+ * <p>
+ * When the lower and upper bound are identical, {@link #rewrite(IndexSearcher)} returns a
+ * {@link SlowCustomBinaryDocValuesTermQuery}.
  */
 public final class SlowCustomBinaryDocValuesRangeQuery extends AbstractBinaryDocValuesQuery {
 
@@ -42,19 +45,21 @@ public final class SlowCustomBinaryDocValuesRangeQuery extends AbstractBinaryDoc
     }
 
     @Override
+    public Query rewrite(IndexSearcher indexSearcher) throws IOException {
+        if (lower.bytesEquals(upper)) {
+            return new SlowCustomBinaryDocValuesTermQuery(fieldName, lower);
+        }
+        return super.rewrite(indexSearcher);
+    }
+
+    @Override
     protected float matchCost() {
         return 20; // two comparisons per candidate value
     }
 
     @Override
     public String toString(String field) {
-        return "SlowCustomBinaryDocValuesRangeQuery(fieldName="
-            + field
-            + ",lower="
-            + InetAddresses.toAddrString(InetAddressPoint.decode(BytesReference.toBytes(new BytesArray(lower))))
-            + ",upper="
-            + InetAddresses.toAddrString(InetAddressPoint.decode(BytesReference.toBytes(new BytesArray(upper))))
-            + ")";
+        return "SlowCustomBinaryDocValuesRangeQuery(fieldName=" + field + ",lower=" + lower.toString() + ",upper=" + upper.toString() + ")";
     }
 
     @Override

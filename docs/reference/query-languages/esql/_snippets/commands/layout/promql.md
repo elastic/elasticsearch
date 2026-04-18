@@ -9,10 +9,10 @@ source command allowing you to query time series data using [**Prometheus Query 
 ::::{note}
 In 9.4, `PROMQL` command is available as a preview feature. Current limitations include:
 
-- **Group modifiers**, such as on(chip) group_left(chip_name)
-- **Set operators**, such as or, and, and unless
-- **Some functions**, including histogram_quantile, predict_linear, and label_join
-- **Time buckets** align to fixed calendar boundaries rather than the query start time. This can cause slight differences from Prometheus, especially for short ranges or large step sizes.
+- Group modifiers such as `on(chip) group_left(chip_name)` are not supported.
+- Set operators such as `or`, `and`, and `unless` are not supported.
+- Some functions including `histogram_quantile`, `predict_linear`, and `label_join` are not supported.
+- Time buckets align to fixed calendar boundaries rather than the query start time. This can cause slight differences from Prometheus, especially for short ranges or large step sizes.
 ::::
 
 
@@ -29,7 +29,7 @@ PROMQL [ <option> ... ] <name> = ( <expression> )
 The options are inspired by the Prometheus [HTTP API](https://prometheus.io/docs/prometheus/latest/querying/api/#range-queries) with some additions specific to ES|QL.
 
 `index`
-:   A list of indices, data streams or aliases. Supports wildcards and date math.
+:   A list of indices, data streams, or aliases. Supports wildcards and date math.
     Defaults to `*` querying all indices with [`index.mode: time_series`](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md).
     Example: `PROMQL index=metrics-*.otel-* sum(rate(http_requests_total))`
 
@@ -67,8 +67,8 @@ The options are inspired by the Prometheus [HTTP API](https://prometheus.io/docs
 
 ## Description
 
-The `PROMQL` command takes standard PromQL parameters and a PromQL expression, executes the query, and returns the
-results as regular ES|QL columns that you can continue to process with other ES|QL commands.
+The `PROMQL` command takes standard PromQL parameters and a PromQL expression, runs the query, and returns the
+results as regular ES|QL columns . You can continue to process the columns with other ES|QL commands.
 
 ### Output columns
 

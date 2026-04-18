@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -251,6 +252,25 @@ public interface BlockLoader {
          * or {@code null} if this optimization is not supported by the underlying data.
          */
         default DocIdSetIterator tryContainsIterator(BytesRef containsTerm) throws IOException {
+            return null;
+        }
+    }
+
+    /**
+     * An interface for numeric doc values readers that can produce a {@link DocIdSetIterator}
+     * matching documents whose value falls within a given range, without going through a
+     * {@link org.apache.lucene.search.TwoPhaseIterator}.
+     */
+    interface OptionalNumericRangeReader {
+        /**
+         * Returns a {@link DocIdSetIterator} that matches documents whose numeric value is in
+         * [{@code lowerValue}, {@code upperValue}], or {@code null} if not supported.
+         * <p>
+         * If {@code skipper} is non-null the implementation should use it to skip over blocks
+         * whose min/max values exclude the range before doing fine-grained per-doc scanning.
+         */
+        default DocIdSetIterator tryRangeIterator(long lowerValue, long upperValue, DocValuesSkipper skipper)
+            throws IOException {
             return null;
         }
     }

@@ -10,6 +10,7 @@
 package org.elasticsearch.lucene.queries;
 
 import org.apache.lucene.index.DocValues;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -133,6 +134,12 @@ public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRang
                         );
                         if (psIterator != null) {
                             return ConstantScoreScorerSupplier.fromIterator(psIterator, score(), scoreMode, maxDoc);
+                        }
+                    }
+                    if (singleton instanceof BlockLoader.OptionalNumericRangeReader rangeReader) {
+                        final DocIdSetIterator rangeIterator = rangeReader.tryRangeIterator(lowerValue, upperValue, skipper);
+                        if (rangeIterator != null) {
+                            return ConstantScoreScorerSupplier.fromIterator(rangeIterator, score(), scoreMode, maxDoc);
                         }
                     }
                     iterator = new TwoPhaseIterator(singleton) {

@@ -1221,6 +1221,49 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertEquals("parquet", metadata.sourceType());
     }
 
+    public void testStatisticsSurviveEmbedding() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .named("age")
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("score")
+            .named("stats_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < 100; i++) {
+                Group g = factory.newGroup();
+                g.add("age", 20 + (i % 60));
+                g.add("score", (long) (i * 10));
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertTrue("statistics() should be present", metadata.statistics().isPresent());
+
+        var stats = metadata.statistics().get();
+        assertTrue("Row count should be present", stats.rowCount().isPresent());
+        assertEquals(100L, stats.rowCount().getAsLong());
+
+        var enriched = org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer.embedStatistics(
+            metadata.sourceMetadata(),
+            stats
+        );
+
+        assertEquals(100L, enriched.get("_stats.row_count"));
+        assertEquals(0L, enriched.get("_stats.columns.age.null_count"));
+        assertEquals(20, enriched.get("_stats.columns.age.min"));
+        assertEquals(79, enriched.get("_stats.columns.age.max"));
+        assertEquals(0L, enriched.get("_stats.columns.score.null_count"));
+        assertNotNull("Score min should be present", enriched.get("_stats.columns.score.min"));
+        assertNotNull("Score max should be present", enriched.get("_stats.columns.score.max"));
+    }
+
     public void testDiscoverSplitRangesMultipleRowGroups() throws Exception {
         byte[] parquetData = createWideMultiRowGroupFile(500);
 

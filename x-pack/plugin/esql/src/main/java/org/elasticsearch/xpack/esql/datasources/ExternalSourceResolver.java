@@ -241,7 +241,10 @@ public class ExternalSourceResolver {
             SchemaCacheKey schemaKey = SchemaCacheKey.build(anchorPath.toString(), anchorMtime, formatType, config);
             SchemaCacheEntry schemaEntry = cacheService.getOrComputeSchema(schemaKey, k -> {
                 SourceMetadata meta = resolveSingleSource(anchorPath.toString(), config);
-                return SchemaCacheEntry.from(meta.schema(), meta.sourceType(), meta.location(), meta.sourceMetadata());
+                Map<String, Object> enrichedMeta = meta.statistics()
+                    .map(stats -> SourceStatisticsSerializer.embedStatistics(meta.sourceMetadata(), stats))
+                    .orElse(meta.sourceMetadata());
+                return SchemaCacheEntry.from(meta.schema(), meta.sourceType(), meta.location(), enrichedMeta);
             });
             List<Attribute> schema = schemaEntry.toAttributes();
             extMetadata = buildMetadataFromCache(schemaEntry, schema, config);
@@ -423,6 +426,9 @@ public class ExternalSourceResolver {
     ) {
         Map<String, Object> mergedConfig = mergeConfigs(referenceMeta.config(), queryConfig);
         List<Attribute> schema = List.copyOf(unifiedSchema);
+        Map<String, Object> enrichedSourceMetadata = referenceMeta.statistics()
+            .map(stats -> SourceStatisticsSerializer.embedStatistics(referenceMeta.sourceMetadata(), stats))
+            .orElse(referenceMeta.sourceMetadata());
         return new ExternalSourceMetadata() {
             @Override
             public String location() {
@@ -441,7 +447,7 @@ public class ExternalSourceResolver {
 
             @Override
             public Map<String, Object> sourceMetadata() {
-                return referenceMeta.sourceMetadata();
+                return enrichedSourceMetadata;
             }
 
             @Override
@@ -647,6 +653,10 @@ public class ExternalSourceResolver {
             mergedConfig = queryConfig;
         }
 
+        Map<String, Object> enrichedSourceMetadata = metadata.statistics()
+            .map(stats -> SourceStatisticsSerializer.embedStatistics(metadata.sourceMetadata(), stats))
+            .orElse(metadata.sourceMetadata());
+
         return new ExternalSourceMetadata() {
             @Override
             public String location() {
@@ -665,7 +675,7 @@ public class ExternalSourceResolver {
 
             @Override
             public Map<String, Object> sourceMetadata() {
-                return metadata.sourceMetadata();
+                return enrichedSourceMetadata;
             }
 
             @Override

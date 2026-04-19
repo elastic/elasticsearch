@@ -334,7 +334,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                             "fileName"
                         ),
                         new BlobFileRanges(getLastInternalLocation().getValue()),
-                        null,
+                        BlobCacheMetrics.NOOP,
                         System::currentTimeMillis
                     ),
                     null,
@@ -687,7 +687,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                 cacheFile,
                 cacheBlobReader,
                 new BlobFileRanges(internalLocation.getValue()),
-                null,
+                BlobCacheMetrics.NOOP,
                 System::currentTimeMillis
             );
             final long availableDataLength = BlobCacheUtils.toPageAlignedSize(vbccSize);

@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 146748
+summary: Fix SearchResponse lifecycle in ExpandSearchPhaseTests to avoid double decRef
+type: bug

@@ -33,11 +33,11 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
-import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -152,16 +152,8 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
         List<Attribute> expectedOutput = agg.output();
 
         LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
-        assertEquals(
-            "LocalSourceExec output must match AggregateExec.output() for INITIAL mode",
-            expectedOutput,
-            local.output()
-        );
-        assertEquals(
-            "Block count must match output attribute count",
-            local.output().size(),
-            local.supplier().get().getBlockCount()
-        );
+        assertEquals("LocalSourceExec output must match AggregateExec.output() for INITIAL mode", expectedOutput, local.output());
+        assertEquals("Block count must match output attribute count", local.output().size(), local.supplier().get().getBlockCount());
     }
 
     public void testInitialModeMultiAggOutputMatchesAggregateExecOutput() {
@@ -196,16 +188,8 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
         List<Attribute> expectedOutput = agg.output();
 
         LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
-        assertEquals(
-            "LocalSourceExec output must match AggregateExec.output() for SINGLE mode",
-            expectedOutput,
-            local.output()
-        );
-        assertEquals(
-            "Block count must match output attribute count",
-            local.output().size(),
-            local.supplier().get().getBlockCount()
-        );
+        assertEquals("LocalSourceExec output must match AggregateExec.output() for SINGLE mode", expectedOutput, local.output());
+        assertEquals("Block count must match output attribute count", local.output().size(), local.supplier().get().getBlockCount());
     }
 
     // --- Not-pushed cases ---
@@ -342,11 +326,7 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
     }
 
     public void testPushedWithMultipleSplitsInInitialMode() {
-        ExternalSourceExec ext = externalSourceWithSplits(
-            Map.of(),
-            statsMetadata(100L, null, null),
-            statsMetadata(200L, null, null)
-        );
+        ExternalSourceExec ext = externalSourceWithSplits(Map.of(), statsMetadata(100L, null, null), statsMetadata(200L, null, null));
         var agg = aggregateExec(AggregatorMode.INITIAL, ext, countStarAlias());
 
         LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);

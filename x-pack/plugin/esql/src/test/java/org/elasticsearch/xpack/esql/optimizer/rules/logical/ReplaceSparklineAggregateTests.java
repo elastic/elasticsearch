@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FromPartial;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
@@ -411,5 +412,41 @@ public class ReplaceSparklineAggregateTests extends AbstractLogicalPlanOptimizer
         Aggregate secondPhase = as(sparkline.child(), Aggregate.class);
         Aggregate firstPhase = as(secondPhase.child(), Aggregate.class);
         validateAggregates(secondPhase, firstPhase, sparklineAggregateNames, List.of(), List.of("last_name"));
+    }
+
+    /**
+     * Verifies that when the sparkline inner aggregate's field is a non-trivial scalar expression
+     * (e.g. {@code SUM(SIN(salary))}), the scalar is extracted into a preceding {@code Eval} so
+     * that the physical aggregator receives a correctly-typed channel.
+     * <p>
+     *     Without this extraction, {@code SumDoubleGroupingAggregatorFunction} is assigned
+     *     {@code salary}'s INTEGER-typed channel instead of a DOUBLE-typed channel,
+     *     causing a {@code ClassCastException} at runtime.
+     * </p>
+     */
+    public void testSparklineWithNestedScalarInAggField() {
+        UnaryPlan plan = as(
+            plan("from test | stats s = sparkline(sum(sin(salary)), hire_date, 10, \"2024-01-01\", \"2024-12-31\")"),
+            UnaryPlan.class
+        );
+        SparklineGenerateEmptyBuckets sparkline = as(plan.child(), SparklineGenerateEmptyBuckets.class);
+        Aggregate secondPhase = as(sparkline.child(), Aggregate.class);
+        Aggregate firstPhase = as(secondPhase.child(), Aggregate.class);
+
+        // The SUM in phase 1 must reference an Attribute (pointing to an Eval-extracted SIN alias),
+        // not the raw SIN(salary) expression. If this assertion fails, the physical planner assigns
+        // salary's INTEGER channel to SumDoubleGroupingAggregatorFunction, causing a ClassCastException.
+        NamedExpression sAlias = firstPhase.aggregates()
+            .stream()
+            .filter(agg -> agg.name().equals("s"))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("first-phase aggregate missing 's'"));
+        assertThat(sAlias, instanceOf(Alias.class));
+        Sum sum = as(((Alias) sAlias).child(), Sum.class);
+        assertThat(
+            "SUM's field must be an Attribute (extracted to Eval), not a raw scalar expression",
+            sum.field(),
+            instanceOf(Attribute.class)
+        );
     }
 }

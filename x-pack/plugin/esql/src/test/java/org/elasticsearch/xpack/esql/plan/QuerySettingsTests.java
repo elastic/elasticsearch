@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.plan;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -43,6 +42,12 @@ public class QuerySettingsTests extends ESTestCase {
     private static SettingsValidationContext SNAPSHOT_CTX_WITH_CPS_ENABLED = new SettingsValidationContext(true, true);
 
     private static SettingsValidationContext SNAPSHOT_CTX_WITH_CPS_DISABLED = new SettingsValidationContext(false, true);
+
+    private static List<SettingsValidationContext> allSettingsValidationContexts = List.of(
+        NON_SNAPSHOT_CTX_WITH_CPS_ENABLED,
+        SNAPSHOT_CTX_WITH_CPS_ENABLED,
+        SNAPSHOT_CTX_WITH_CPS_DISABLED
+    );
 
     public void testValidate_NonExistingSetting() {
         String settingName = "non_existing";
@@ -99,27 +104,9 @@ public class QuerySettingsTests extends ESTestCase {
         assertValid(setting, of("UTC"), equalTo(ZoneId.of("UTC")), NON_SNAPSHOT_CTX_WITH_CPS_ENABLED);
     }
 
-    public void testValidate_UnmappedFields_techPreview() {
-        assumeFalse("Requires no snapshot", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
-
-        validateUnmappedFields("DEFAULT", "NULLIFY", "LOAD");
-        var settingName = QuerySettings.UNMAPPED_FIELDS.name();
-        assertInvalid(
-            settingName,
-            NON_SNAPSHOT_CTX_WITH_CPS_ENABLED,
-            of("UNKNOWN"),
-            "Error validating setting [unmapped_fields]: "
-                + "Invalid unmapped_fields resolution [UNKNOWN], must be one of [DEFAULT, NULLIFY, LOAD]"
-        );
-    }
-
-    public void testValidate_UnmappedFields_allValues() {
-        assumeTrue("Requires unmapped fields", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
-        validateUnmappedFields("DEFAULT", "NULLIFY", "LOAD");
-    }
-
-    private void validateUnmappedFields(String... values) {
+    public void testValidate_UnmappedFields() {
         var setting = QuerySettings.UNMAPPED_FIELDS;
+        String[] values = new String[] { "DEFAULT", "NULLIFY", "LOAD" };
 
         assertDefault(setting, equalTo(UnmappedResolution.DEFAULT));
 
@@ -128,12 +115,16 @@ public class QuerySettingsTests extends ESTestCase {
         }
 
         assertInvalid(setting.name(), of(12), "Setting [" + setting.name() + "] must be of type KEYWORD");
-        assertInvalid(
-            setting.name(),
-            of("UNKNOWN"),
-            "Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution [UNKNOWN], must be one of "
-                + Arrays.toString(values)
-        );
+
+        for (SettingsValidationContext ctx : allSettingsValidationContexts) {
+            assertInvalid(
+                setting.name(),
+                ctx,
+                of("UNKNOWN"),
+                "Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution [UNKNOWN], must be one of "
+                    + Arrays.toString(values)
+            );
+        }
     }
 
     public void testValidate_Approximation() {

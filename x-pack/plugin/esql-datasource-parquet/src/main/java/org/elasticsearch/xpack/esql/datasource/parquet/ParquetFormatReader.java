@@ -195,12 +195,17 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         Map<String, long[]> nullCounts = new HashMap<>();
         Map<String, Comparable[]> mins = new HashMap<>();
         Map<String, Comparable[]> maxs = new HashMap<>();
+        Map<String, long[]> colSizes = new HashMap<>();
 
         for (BlockMetaData rowGroup : rowGroups) {
             totalRows += rowGroup.getRowCount();
             totalSize += rowGroup.getTotalByteSize();
             for (ColumnChunkMetaData col : rowGroup.getColumns()) {
                 String colName = col.getPath().toDotString();
+                colSizes.merge(colName, new long[] { col.getTotalUncompressedSize() }, (a, b) -> {
+                    a[0] += b[0];
+                    return a;
+                });
                 Statistics stats = col.getStatistics();
                 if (stats == null || stats.isEmpty()) {
                     continue;
@@ -234,10 +239,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             long[] nc = nullCounts.get(name);
             Comparable[] mn = mins.get(name);
             Comparable[] mx = maxs.get(name);
-            if (nc != null || mn != null || mx != null) {
+            long[] cs = colSizes.get(name);
+            if (nc != null || mn != null || mx != null || cs != null) {
                 final long nullCount = nc != null ? nc[0] : 0;
                 final Object minVal = mn != null ? mn[0] : null;
                 final Object maxVal = mx != null ? mx[0] : null;
+                final long colSize = cs != null ? cs[0] : -1;
                 columnStats.put(name, new SourceStatistics.ColumnStatistics() {
                     @Override
                     public OptionalLong nullCount() {
@@ -257,6 +264,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
                     @Override
                     public Optional<Object> maxValue() {
                         return Optional.ofNullable(maxVal);
+                    }
+
+                    @Override
+                    public OptionalLong sizeInBytes() {
+                        return colSize >= 0 ? OptionalLong.of(colSize) : OptionalLong.empty();
                     }
                 });
             }
@@ -399,6 +411,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         stats.put(SourceStatisticsSerializer.STATS_SIZE_BYTES, rowGroup.getTotalByteSize());
         for (ColumnChunkMetaData col : rowGroup.getColumns()) {
             String colName = col.getPath().toDotString();
+            stats.put(SourceStatisticsSerializer.columnSizeBytesKey(colName), col.getTotalUncompressedSize());
             Statistics colStats = col.getStatistics();
             if (colStats == null || colStats.isEmpty()) {
                 continue;

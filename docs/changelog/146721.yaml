@@ -1,0 +1,6 @@
+pr: 146721
+summary: Convert SecurityMigrationExecutor to transport action
+area: Security
+type: enhancement
+issues:
+  - 146662

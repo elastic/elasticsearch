@@ -234,6 +234,7 @@ import org.elasticsearch.xpack.core.ssl.action.TransportGetCertificateInfoAction
 import org.elasticsearch.xpack.core.ssl.rest.RestGetCertificateInfoAction;
 import org.elasticsearch.xpack.security.action.TransportClearSecurityCacheAction;
 import org.elasticsearch.xpack.security.action.TransportDelegatePkiAuthenticationAction;
+import org.elasticsearch.xpack.security.action.TransportSecurityMigrationAction;
 import org.elasticsearch.xpack.security.action.apikey.TransportBulkUpdateApiKeyAction;
 import org.elasticsearch.xpack.security.action.apikey.TransportCloneApiKeyAction;
 import org.elasticsearch.xpack.security.action.apikey.TransportCreateApiKeyAction;
@@ -287,7 +288,6 @@ import org.elasticsearch.xpack.security.action.service.TransportGetServiceAccoun
 import org.elasticsearch.xpack.security.action.settings.TransportGetSecuritySettingsAction;
 import org.elasticsearch.xpack.security.action.settings.TransportReloadRemoteClusterCredentialsAction;
 import org.elasticsearch.xpack.security.action.settings.TransportUpdateSecuritySettingsAction;
-import org.elasticsearch.xpack.security.action.TransportSecurityMigrationAction;
 import org.elasticsearch.xpack.security.action.stats.TransportSecurityStatsAction;
 import org.elasticsearch.xpack.security.action.token.TransportCreateTokenAction;
 import org.elasticsearch.xpack.security.action.token.TransportInvalidateTokenAction;

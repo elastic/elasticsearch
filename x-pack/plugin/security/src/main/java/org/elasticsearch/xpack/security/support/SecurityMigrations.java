@@ -390,12 +390,7 @@ public class SecurityMigrations {
             incrementAttemptCount(projectId);
             client.execute(
                 SecurityMigrationAction.INSTANCE,
-                new SecurityMigrationAction.Request(
-                    TimeValue.MAX_VALUE,
-                    projectId,
-                    migrationsVersion,
-                    securityMigrationNeeded
-                ),
+                new SecurityMigrationAction.Request(TimeValue.MAX_VALUE, projectId, migrationsVersion, securityMigrationNeeded),
                 ActionListener.wrap(response -> {
                     inFlight.set(false);
                     logger.debug("Security migration action completed");

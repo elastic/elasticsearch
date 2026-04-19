@@ -453,6 +453,37 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
         verify(client, never()).execute(same(CloseJobAction.INSTANCE), any(), any());
     }
 
+    public void testCloseIdleJobsSkipsJobWithNoDataCounts() throws InterruptedException {
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        addJobTask(tasksBuilder, "no-data-job", JobState.OPENED);
+
+        when(clusterService.state()).thenReturn(createClusterStateWithTasks(tasksBuilder.build()));
+        doAnswer(withDatafeedResponse("no-data-job")).when(client).execute(same(GetDatafeedsAction.INSTANCE), any(), any());
+
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[2];
+            SearchResponse response = SearchResponseUtils.successfulResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
+            try {
+                listener.onResponse(response);
+            } finally {
+                response.decRef();
+            }
+            return null;
+        }).when(client).execute(same(TransportSearchAction.TYPE), any(), any());
+
+        MlDailyMaintenanceService service = createMaintenanceService();
+
+        CountDownLatch latch = new CountDownLatch(1);
+        service.triggerCloseIdleJobsWithStoppedDatafeeds(ActionListener.wrap(r -> {
+            assertTrue(r.isAcknowledged());
+            latch.countDown();
+        }, e -> fail(e.getMessage())));
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+
+        verify(client, never()).execute(same(CloseJobAction.INSTANCE), any(), any());
+    }
+
     private MlDailyMaintenanceService createMaintenanceService() {
         return new MlDailyMaintenanceService(
             Settings.EMPTY,

@@ -7,11 +7,16 @@
 
 package org.elasticsearch.xpack.esql.dataset;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.esql.dataset.DeleteDatasetAction.Request;
 
 import java.util.Locale;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Round-trip wire test for {@link Request} ({@code AcknowledgedRequest} subclass, transported
@@ -38,5 +43,17 @@ public class DeleteDatasetActionRequestTests extends AbstractWireSerializingTest
         Request mutated = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, instance.name() + "_mutated");
         mutated.indices(mutated.name());
         return mutated;
+    }
+
+    // -- validate() ------------------------------------------------------------------------------
+
+    public void testValidateAcceptsCleanRequest() {
+        assertThat(new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "my_ds").validate(), nullValue());
+    }
+
+    public void testValidateRejectsEmptyName() {
+        ActionRequestValidationException v = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "").validate();
+        assertThat(v, notNullValue());
+        assertThat(v.getMessage(), containsString("dataset name is missing"));
     }
 }

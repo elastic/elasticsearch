@@ -17,8 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.datasources.FileSplit;
-import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
@@ -33,7 +32,6 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Pushes ungrouped aggregate functions (COUNT, MIN, MAX) to external sources when the
@@ -51,8 +49,9 @@ import java.util.Map;
  * against per-split statistics when present.
  * <p>
  * Supports multi-split queries when per-split statistics are available in
- * {@link FileSplit#statistics()}. Statistics are merged across splits (sum row counts,
- * min-of-mins, max-of-maxes). Falls back to normal execution when any split lacks stats.
+ * {@link org.elasticsearch.xpack.esql.datasources.FileSplit#splitStats()}.
+ * Statistics are merged across splits (sum row counts, min-of-mins, max-of-maxes).
+ * Falls back to normal execution when any split lacks stats.
  * <p>
  * Note: MIN/MAX pushdown uses raw values from file metadata. For DATE/TIMESTAMP columns,
  * the raw values may not match ESQL's millisecond representation. A future enhancement
@@ -86,13 +85,13 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
             filterForClassification = filterCondition.transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r));
         }
 
-        Map<String, Object> sourceMetadata;
+        SplitStats stats;
         if (filterForClassification != null) {
-            sourceMetadata = ExternalSourceAggregatePushdown.resolveFilteredMetadata(externalExec, filterForClassification);
+            stats = ExternalSourceAggregatePushdown.resolveFilteredStats(externalExec, filterForClassification);
         } else {
-            sourceMetadata = SourceStatisticsSerializer.resolveEffectiveMetadata(externalExec.splits(), externalExec.sourceMetadata());
+            stats = SplitStats.resolveEffectiveStats(externalExec.splits(), externalExec.sourceMetadata());
         }
-        if (sourceMetadata == null) {
+        if (stats == null) {
             return aggregateExec;
         }
         List<? extends NamedExpression> aggregates = aggregateExec.aggregates();
@@ -109,7 +108,7 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
             if (aliasReplacedBy.isEmpty() == false) {
                 aggExpr = aggExpr.transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r));
             }
-            Object value = resolveFromMetadata(aggExpr, sourceMetadata);
+            Object value = resolveFromStats(aggExpr, stats);
             if (value == null) {
                 return aggregateExec;
             }
@@ -133,53 +132,52 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
         return new LocalSourceExec(aggregateExec.source(), outputAttrs, LocalSupplier.of(new Page(blocks)));
     }
 
-    private static Object resolveFromMetadata(Expression aggFunction, Map<String, Object> sourceMetadata) {
+    private static Object resolveFromStats(Expression aggFunction, SplitStats stats) {
         if (aggFunction instanceof Count count) {
-            return resolveCount(count, sourceMetadata);
+            return resolveCount(count, stats);
         } else if (aggFunction instanceof Min min) {
-            return resolveMin(min, sourceMetadata);
+            return resolveMin(min, stats);
         } else if (aggFunction instanceof Max max) {
-            return resolveMax(max, sourceMetadata);
+            return resolveMax(max, stats);
         }
         return null;
     }
 
-    private static Object resolveCount(Count count, Map<String, Object> sourceMetadata) {
+    private static Object resolveCount(Count count, SplitStats stats) {
         if (count.hasFilter()) {
             return null;
         }
         Expression target = count.field();
         if (target.foldable()) {
-            return SourceStatisticsSerializer.extractRowCount(sourceMetadata);
+            return stats.rowCount();
         }
         if (target instanceof ReferenceAttribute ref) {
-            Long rc = SourceStatisticsSerializer.extractRowCount(sourceMetadata);
-            Long nc = SourceStatisticsSerializer.extractColumnNullCount(sourceMetadata, ref.name());
-            if (rc != null && nc != null) {
-                return rc - nc;
+            long nc = stats.columnNullCount(ref.name());
+            if (nc >= 0) {
+                return stats.rowCount() - nc;
             }
         }
         return null;
     }
 
-    private static Object resolveMin(Min min, Map<String, Object> sourceMetadata) {
+    private static Object resolveMin(Min min, SplitStats stats) {
         if (min.hasFilter()) {
             return null;
         }
         Expression target = min.field();
         if (target instanceof ReferenceAttribute ref) {
-            return SourceStatisticsSerializer.extractColumnMin(sourceMetadata, ref.name());
+            return stats.columnMin(ref.name());
         }
         return null;
     }
 
-    private static Object resolveMax(Max max, Map<String, Object> sourceMetadata) {
+    private static Object resolveMax(Max max, SplitStats stats) {
         if (max.hasFilter()) {
             return null;
         }
         Expression target = max.field();
         if (target instanceof ReferenceAttribute ref) {
-            return SourceStatisticsSerializer.extractColumnMax(sourceMetadata, ref.name());
+            return stats.columnMax(ref.name());
         }
         return null;
     }

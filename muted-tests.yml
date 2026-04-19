@@ -412,6 +412,12 @@ tests:
 - class: org.elasticsearch.transport.TransportHandshakerTests
   method: testReadV8HandshakeRequest
   issue: https://github.com/elastic/elasticsearch/issues/146712
+- class: org.elasticsearch.transport.RemoteClusterClientTests
+  method: testRemoteClusterServiceNotEnabled
+  issue: https://github.com/elastic/elasticsearch/issues/146728
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
+  method: test {csv-spec:stats_sparkline.sparklineComplexWithGrouping}
+  issue: https://github.com/elastic/elasticsearch/issues/146729
 
 # Examples:
 #

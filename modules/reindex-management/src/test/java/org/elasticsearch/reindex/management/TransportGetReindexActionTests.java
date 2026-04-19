@@ -336,7 +336,7 @@ public class TransportGetReindexActionTests extends ESTestCase {
 
         final var firstRelocation = new TaskRelocatedException(originalTaskId, firstRelocatedTaskId);
 
-        final var secondRelocation = new TaskRelocatedException(firstRelocatedTaskId, secondRelocatedTaskId);
+        final var secondRelocation = new TaskRelocatedException(originalTaskId, secondRelocatedTaskId);
 
         final TaskInfo originalInfo = createTaskInfo(originalTaskId, ReindexAction.NAME);
         final TaskResult originalResult = new TaskResult(originalInfo, (Exception) firstRelocation);

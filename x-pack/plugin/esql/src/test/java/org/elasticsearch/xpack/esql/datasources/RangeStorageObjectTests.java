@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -17,6 +18,10 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class RangeStorageObjectTests extends ESTestCase {
 
@@ -177,6 +182,113 @@ public class RangeStorageObjectTests extends ESTestCase {
         StorageObject delegate = new InMemoryStorageObject(FILE_BYTES);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new RangeStorageObject(delegate, 0, -1));
         assertTrue(e.getMessage().contains("length must be >= 0"));
+    }
+
+    public void testSupportsNativeAsyncDelegatesToDelegate() {
+        StorageObject syncDelegate = new InMemoryStorageObject(FILE_BYTES);
+        RangeStorageObject syncRange = new RangeStorageObject(syncDelegate, 0, 10);
+        assertFalse(syncRange.supportsNativeAsync());
+
+        StorageObject asyncDelegate = new AsyncCapableStorageObject(FILE_BYTES);
+        RangeStorageObject asyncRange = new RangeStorageObject(asyncDelegate, 0, 10);
+        assertTrue(asyncRange.supportsNativeAsync());
+    }
+
+    public void testReadBytesAsyncAdjustsPosition() throws Exception {
+        StorageObject delegate = new AsyncCapableStorageObject(FILE_BYTES);
+        RangeStorageObject range = new RangeStorageObject(delegate, 7, 6);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<ByteBuffer> result = new AtomicReference<>();
+        Executor directExecutor = Runnable::run;
+
+        range.readBytesAsync(0, 6, directExecutor, new ActionListener<>() {
+            @Override
+            public void onResponse(ByteBuffer byteBuffer) {
+                result.set(byteBuffer);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("unexpected failure: " + e.getMessage());
+            }
+        });
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        ByteBuffer buf = result.get();
+        byte[] bytes = new byte[buf.remaining()];
+        buf.get(bytes);
+        assertEquals("World!", new String(bytes, StandardCharsets.UTF_8));
+    }
+
+    public void testReadBytesAsyncWithTargetBufferAdjustsPosition() throws Exception {
+        StorageObject delegate = new AsyncCapableStorageObject(FILE_BYTES);
+        RangeStorageObject range = new RangeStorageObject(delegate, 7, 6);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Integer> bytesRead = new AtomicReference<>();
+        ByteBuffer target = ByteBuffer.allocate(6);
+        Executor directExecutor = Runnable::run;
+
+        range.readBytesAsync(0, target, directExecutor, new ActionListener<>() {
+            @Override
+            public void onResponse(Integer count) {
+                bytesRead.set(count);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("unexpected failure: " + e.getMessage());
+            }
+        });
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        target.flip();
+        byte[] bytes = new byte[target.remaining()];
+        target.get(bytes);
+        assertEquals("World!", new String(bytes, StandardCharsets.UTF_8));
+    }
+
+    public void testReadBytesAsyncPastRangeReturnsMinusOne() throws Exception {
+        StorageObject delegate = new AsyncCapableStorageObject(FILE_BYTES);
+        RangeStorageObject range = new RangeStorageObject(delegate, 7, 6);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Integer> bytesRead = new AtomicReference<>();
+        ByteBuffer target = ByteBuffer.allocate(10);
+        Executor directExecutor = Runnable::run;
+
+        range.readBytesAsync(6, target, directExecutor, new ActionListener<>() {
+            @Override
+            public void onResponse(Integer count) {
+                bytesRead.set(count);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("unexpected failure: " + e.getMessage());
+            }
+        });
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertEquals(Integer.valueOf(-1), bytesRead.get());
+    }
+
+    /**
+     * StorageObject that reports native async support for testing delegation.
+     */
+    private static class AsyncCapableStorageObject extends InMemoryStorageObject {
+        AsyncCapableStorageObject(byte[] data) {
+            super(data);
+        }
+
+        @Override
+        public boolean supportsNativeAsync() {
+            return true;
+        }
     }
 
     private static class InMemoryStorageObject implements StorageObject {

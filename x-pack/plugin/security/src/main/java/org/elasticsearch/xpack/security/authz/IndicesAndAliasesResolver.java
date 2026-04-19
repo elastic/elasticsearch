@@ -577,8 +577,8 @@ class IndicesAndAliasesResolver {
     }
 
     private boolean shouldSetResolvedIndexExpressions(IndicesRequest.Replaceable replaceable, ResolvedIndexExpressions resolved) {
-        // Only store resolved expressions if cross-project mode or if views should be resolved, to avoid unnecessary memory usage. Once
-        // we've migrated from `indices()` to using resolved expressions holistically, we will always store them
+        // Only store resolved expressions if cross-project mode or if views should be resolved, to avoid unnecessary memory
+        // usage. Once we've migrated from `indices()` to using resolved expressions holistically, we will always store them.
         if (crossProjectModeDecider.crossProjectEnabled() == false
             && replaceable.indicesOptions().indexAbstractionOptions().resolveViews() == false) {
             return false;

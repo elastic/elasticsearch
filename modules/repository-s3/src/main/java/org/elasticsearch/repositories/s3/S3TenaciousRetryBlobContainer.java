@@ -9,6 +9,8 @@
 
 package org.elasticsearch.repositories.s3;
 
+import org.elasticsearch.ExceptionsHelper;
+
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import org.elasticsearch.common.BackoffPolicy;
@@ -41,11 +43,12 @@ public class S3TenaciousRetryBlobContainer extends TenaciousRetryBlobContainer {
 
     @Override
     protected boolean isExceptionRetryable(Exception e) {
-        if (e instanceof S3Exception == false) {
+        Throwable throwable = ExceptionsHelper.unwrap(e, S3Exception.class);
+        if (throwable == null) {
             return false;
         }
 
-        S3Exception exception = (S3Exception) e;
+        S3Exception exception = (S3Exception) throwable;
         return exception.statusCode() == FORBIDDEN
             || exception.statusCode() == SERVICE_UNAVAILABLE
             || exception.statusCode() == THROTTLING

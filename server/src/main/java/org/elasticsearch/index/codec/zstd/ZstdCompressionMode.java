@@ -16,13 +16,11 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.ByteBuffersDataInput;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.DirectAccessInput;
 import org.elasticsearch.nativeaccess.CloseableByteBuffer;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.nativeaccess.Zstd;
+import org.elasticsearch.simdvec.ZstdDecompressHelper;
 
 import java.io.IOException;
 
@@ -127,50 +125,20 @@ public class ZstdCompressionMode extends CompressionMode {
 
             final int compressedLength = in.readVInt();
 
-            try (CloseableByteBuffer dest = nativeAccess.newConfinedBuffer(originalLength)) {
-                final int decompressedLen;
+            final int decompressedLen = ZstdDecompressHelper.decompress(
+                in,
+                compressedLength,
+                originalLength,
+                offset,
+                length,
+                bytes,
+                nativeAccess,
+                zstd,
+                copyBuffer
+            );
 
-                // Fast path: if the input is backed by direct memory (e.g. mmap or blob cache), obtain a
-                // ByteBuffer slice directly and skip the intermediate heap copy into a native buffer.
-                if (in instanceof IndexInput indexIn && in instanceof DirectAccessInput directIn) {
-                    final long startOffset = indexIn.getFilePointer();
-                    final int[] resultHolder = { -1 };
-                    final boolean directSuccess = directIn.withByteBufferSlice(
-                        startOffset,
-                        compressedLength,
-                        srcBuf -> resultHolder[0] = zstd.decompress(dest, srcBuf)
-                    );
-                    if (directSuccess) {
-                        indexIn.seek(startOffset + compressedLength);
-                        decompressedLen = resultHolder[0];
-                    } else {
-                        decompressedLen = copyAndDecompress(in, compressedLength, nativeAccess, zstd, dest);
-                    }
-                } else {
-                    decompressedLen = copyAndDecompress(in, compressedLength, nativeAccess, zstd, dest);
-                }
-
-                if (decompressedLen != originalLength) {
-                    throw new CorruptIndexException("Expected " + originalLength + " decompressed bytes, got " + decompressedLen, in);
-                }
-
-                bytes.bytes = ArrayUtil.growNoCopy(bytes.bytes, length);
-                dest.buffer().get(offset, bytes.bytes, 0, length);
-                bytes.offset = 0;
-                bytes.length = length;
-            }
-        }
-
-        private int copyAndDecompress(DataInput in, int compressedLength, NativeAccess nativeAccess, Zstd zstd, CloseableByteBuffer dest)
-            throws IOException {
-            try (CloseableByteBuffer src = nativeAccess.newConfinedBuffer(compressedLength)) {
-                while (src.buffer().position() < compressedLength) {
-                    final int numBytes = Math.min(copyBuffer.length, compressedLength - src.buffer().position());
-                    in.readBytes(copyBuffer, 0, numBytes);
-                    src.buffer().put(copyBuffer, 0, numBytes);
-                }
-                src.buffer().flip();
-                return zstd.decompress(dest, src);
+            if (decompressedLen != originalLength) {
+                throw new CorruptIndexException("Expected " + originalLength + " decompressed bytes, got " + decompressedLen, in);
             }
         }
 

@@ -11,6 +11,7 @@ package org.elasticsearch.nativeaccess.lib;
 
 import org.elasticsearch.nativeaccess.CloseableByteBuffer;
 
+import java.lang.foreign.MemorySegment;
 import java.nio.ByteBuffer;
 
 public non-sealed interface ZstdLibrary extends NativeLibrary {
@@ -31,4 +32,11 @@ public non-sealed interface ZstdLibrary extends NativeLibrary {
      * {@code DirectAccessInput.withByteBufferSlice}).
      */
     long decompress(CloseableByteBuffer dst, ByteBuffer src);
+
+    /**
+     * Decompress variant that accepts raw {@link MemorySegment}s for both source and destination.
+     * Segments may be native (e.g. mmap) or heap-backed (on JDK 22+, via the critical linker option).
+     * This enables fully zero-copy decompression without intermediate buffer conversions.
+     */
+    long decompress(MemorySegment dst, int dstSize, MemorySegment src, int srcSize);
 }

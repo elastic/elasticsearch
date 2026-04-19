@@ -123,6 +123,12 @@ public class InMemoryDataSourceServiceTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("data source [ghost] not found"));
     }
 
+    public void testGetMissing() {
+        assertNull("missing name must return null, not throw", service.get(projectId, "ghost"));
+        IllegalArgumentException blank = expectThrows(IllegalArgumentException.class, () -> service.get(projectId, ""));
+        assertThat(blank.getMessage(), containsString("name is missing or empty"));
+    }
+
     public void testList() {
         put("a", "s3", null, Map.of());
         put("b", "s3", null, Map.of());

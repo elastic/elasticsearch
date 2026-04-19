@@ -137,45 +137,49 @@ public class DatasetService {
         final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(request, listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                final ProjectMetadata project = currentState.metadata().getProject(projectId);
-                final DataSource currentParent = DataSourceMetadata.get(project).get(request.dataSource());
-                if (currentParent == null) {
-                    throw new ResourceNotFoundException("data source [{}] not found", request.dataSource());
-                }
-                // Re-dispatch the validator — parent's type may have changed (delete+recreate) since pre-task.
-                final DataSourceValidator currentValidator = validatorsByType.get(currentParent.type());
-                if (currentValidator == null) {
-                    throw new IllegalStateException("no validator registered for data source type [" + currentParent.type() + "]");
-                }
-                final Map<String, Object> freshSettings = currentValidator.validateDataset(
-                    currentParent.settings(),
-                    request.resource(),
-                    request.rawSettings()
-                );
-                final Dataset dataset = new Dataset(
-                    request.name(),
-                    new DataSourceReference(request.dataSource()),
-                    request.resource(),
-                    request.description(),
-                    freshSettings
-                );
-                final DatasetMetadata metadata = getMetadata(project);
-                final Dataset current = metadata.get(dataset.name());
-                if (dataset.equals(current)) {
-                    return currentState; // another writer got here first with the same value
-                }
-                if (current == null && metadata.datasets().size() >= maxDatasetsCount) {
-                    logger.warn("rejected put for dataset [{}]: maximum count [{}] reached", dataset.name(), maxDatasetsCount);
-                    throw new IllegalArgumentException(
-                        "cannot add dataset, the maximum number of datasets is reached: " + maxDatasetsCount
-                    );
-                }
-                final Map<String, Dataset> updated = new HashMap<>(metadata.datasets());
-                updated.put(dataset.name(), dataset);
-                return ClusterState.builder(currentState).putProjectMetadata(ProjectMetadata.builder(project).datasets(updated)).build();
+                return executePutDatasetTaskBody(currentState, projectId, request);
             }
         };
         taskQueue.submitTask("update-esql-dataset-metadata-[" + request.name() + "]", task, task.timeout());
+    }
+
+    // Extracted so unit tests can drive the task body directly against a fabricated cluster state,
+    // pinning the dispatch-vs-task-execute race semantics without spinning up a real master service.
+    ClusterState executePutDatasetTaskBody(ClusterState currentState, ProjectId projectId, PutDatasetAction.Request request) {
+        final ProjectMetadata project = currentState.metadata().getProject(projectId);
+        final DataSource currentParent = DataSourceMetadata.get(project).get(request.dataSource());
+        if (currentParent == null) {
+            throw new ResourceNotFoundException("data source [{}] not found", request.dataSource());
+        }
+        // Re-dispatch the validator — parent's type may have changed (delete+recreate) since pre-task.
+        final DataSourceValidator currentValidator = validatorsByType.get(currentParent.type());
+        if (currentValidator == null) {
+            throw new IllegalStateException("no validator registered for data source type [" + currentParent.type() + "]");
+        }
+        final Map<String, Object> freshSettings = currentValidator.validateDataset(
+            currentParent.settings(),
+            request.resource(),
+            request.rawSettings()
+        );
+        final Dataset dataset = new Dataset(
+            request.name(),
+            new DataSourceReference(request.dataSource()),
+            request.resource(),
+            request.description(),
+            freshSettings
+        );
+        final DatasetMetadata metadata = getMetadata(project);
+        final Dataset current = metadata.get(dataset.name());
+        if (dataset.equals(current)) {
+            return currentState; // another writer got here first with the same value
+        }
+        if (current == null && metadata.datasets().size() >= maxDatasetsCount) {
+            logger.warn("rejected put for dataset [{}]: maximum count [{}] reached", dataset.name(), maxDatasetsCount);
+            throw new IllegalArgumentException("cannot add dataset, the maximum number of datasets is reached: " + maxDatasetsCount);
+        }
+        final Map<String, Dataset> updated = new HashMap<>(metadata.datasets());
+        updated.put(dataset.name(), dataset);
+        return ClusterState.builder(currentState).putProjectMetadata(ProjectMetadata.builder(project).datasets(updated)).build();
     }
 
     /** Delete a dataset by name. Surfaces 404 if the dataset doesn't exist at task-execution time. */

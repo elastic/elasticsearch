@@ -12,6 +12,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataSourceMetadata;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -137,6 +138,35 @@ public class InMemoryDatasetServiceTests extends ESTestCase {
         datasetService.deleteDataset(projectId, TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "ghost", future);
         ResourceNotFoundException ex = expectThrows(ResourceNotFoundException.class, future::actionGet);
         assertThat(ex.getMessage(), containsString("dataset [ghost] not found"));
+    }
+
+    public void testGetMissing() {
+        assertNull("missing name must return null, not throw", datasetService.get(projectId, "ghost"));
+        IllegalArgumentException blank = expectThrows(IllegalArgumentException.class, () -> datasetService.get(projectId, ""));
+        assertThat(blank.getMessage(), containsString("name is missing or empty"));
+    }
+
+    /**
+     * Companion to IT scenario 6: pins the CAS task body's re-check against a fabricated execute-time
+     * state where the parent data source has been deleted between dispatch and task execution. The IT
+     * proves the race end-to-end with a real master; this test pins the same semantics without one.
+     */
+    public void testExecutePutDatasetTaskBodyRejectsMissingParent() {
+        final ClusterState dispatchState = datasetService.clusterService().state();
+        final ProjectMetadata dispatchProject = dispatchState.metadata().getProject(projectId);
+        assertNotNull("precondition: parent exists at dispatch time", DataSourceMetadata.get(dispatchProject).get("my_s3"));
+
+        final ProjectMetadata executeProject = ProjectMetadata.builder(dispatchProject)
+            .putCustom(DataSourceMetadata.TYPE, DataSourceMetadata.EMPTY)
+            .build();
+        final ClusterState executeState = ClusterState.builder(dispatchState).putProjectMetadata(executeProject).build();
+
+        PutDatasetAction.Request request = putRequest("access_logs", "my_s3", "s3://x/", null, Map.of());
+        ResourceNotFoundException ex = expectThrows(
+            ResourceNotFoundException.class,
+            () -> datasetService.executePutDatasetTaskBody(executeState, projectId, request)
+        );
+        assertThat(ex.getMessage(), containsString("data source [my_s3] not found"));
     }
 
     /**

@@ -1123,19 +1123,22 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     return;
                 }
                 // If the range is already present, or entirely covered by pending fills, coordinate without queueing on executor.
-                final ActionListener<Void> waitIfPendingListener = ActionListener.releaseAfter(listener.map(unused -> false), this::decRef);
                 try {
+                    final ActionListener<Void> waitIfPendingListener = ActionListener.releaseAfter(
+                        listener.map(unused -> false),
+                        this::decRef
+                    );
                     if (tracker.waitForRangeIfPending(rangeToWrite, waitIfPendingListener)) {
                         return;
                     }
-                } catch (RuntimeException e) {
+                } catch (Exception e) {
                     decRef();
                     listener.onFailure(e);
                     return;
                 }
                 executor.execute(new AbstractRunnable() {
                     @Override
-                    protected void doRun() throws Exception {
+                    protected void doRun() {
                         try (RefCountingRunnable refs = new RefCountingRunnable(CacheFileRegion.this::decRef)) {
                             final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
                                 rangeToWrite,
@@ -1193,10 +1196,12 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
                     @Override
                     public void onFailure(Exception e) {
+                        decRef();
                         listener.onFailure(e);
                     }
                 });
             } catch (Exception e) {
+                assert false;
                 decRef();
                 listener.onFailure(e);
             }

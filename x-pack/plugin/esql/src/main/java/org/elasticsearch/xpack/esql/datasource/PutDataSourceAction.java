@@ -58,7 +58,7 @@ public class PutDataSourceAction extends ActionType<AcknowledgedResponse> {
             this.name = name;
             this.type = type;
             this.description = description;
-            this.rawSettings = rawSettings;
+            this.rawSettings = rawSettings == null ? Map.of() : rawSettings;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -101,9 +101,6 @@ public class PutDataSourceAction extends ActionType<AcknowledgedResponse> {
             }
             if (Strings.hasText(type) == false) {
                 validationException = addValidationError("data source type is missing or empty", validationException);
-            }
-            if (rawSettings == null) {
-                validationException = addValidationError("data source settings are missing", validationException);
             }
             return validationException;
         }

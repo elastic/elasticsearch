@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.esql.datasource.PutDataSourceAction.Request;
@@ -14,6 +15,10 @@ import org.elasticsearch.xpack.esql.datasource.PutDataSourceAction.Request;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Round-trip {@link Request} through {@code StreamInput}/{@code StreamOutput} via
@@ -82,6 +87,45 @@ public class PutDataSourceActionRequestTests extends AbstractWireSerializingTest
             default -> throw new AssertionError("unreachable");
         };
     }
+
+    // -- validate() — model on DeleteViewActionTests.java ------------------------------------------
+
+    public void testValidateAcceptsCleanRequest() {
+        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "my_ds", "s3", null, Map.of("region", "us-east-1"));
+        assertThat(r.validate(), nullValue());
+    }
+
+    public void testValidateRejectsEmptyName() {
+        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "", "s3", null, Map.of());
+        ActionRequestValidationException v = r.validate();
+        assertThat(v, notNullValue());
+        assertThat(v.getMessage(), containsString("data source name is missing"));
+    }
+
+    public void testValidateRejectsUppercaseName() {
+        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "MyDS", "s3", null, Map.of());
+        ActionRequestValidationException v = r.validate();
+        assertThat(v, notNullValue());
+        assertThat(v.getMessage(), containsString("must be lowercase"));
+    }
+
+    public void testValidateRejectsEmptyType() {
+        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "my_ds", "", null, Map.of());
+        ActionRequestValidationException v = r.validate();
+        assertThat(v, notNullValue());
+        assertThat(v.getMessage(), containsString("data source type is missing"));
+    }
+
+    public void testValidateAcceptsAbsentSettingsAsEmpty() {
+        // Matches ES-wide precedent: absent optional container ≡ empty map (see CreateIndexRequest
+        // Settings.EMPTY default, SLM optionalConstructorArg, inference removeFromMapOrDefaultEmpty).
+        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "my_ds", "s3", null, null);
+        assertThat(r.validate(), nullValue());
+        // Constructor defaults null rawSettings to Map.of() — downstream reads see an empty map.
+        assertThat(r.rawSettings(), notNullValue());
+    }
+
+    // -- helpers ---------------------------------------------------------------------------------
 
     private static String randomName() {
         return randomAlphaOfLengthBetween(1, 20).toLowerCase(Locale.ROOT);

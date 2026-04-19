@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.dataset;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.esql.dataset.PutDatasetAction.Request;
@@ -14,6 +15,10 @@ import org.elasticsearch.xpack.esql.dataset.PutDatasetAction.Request;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Round-trip wire test for {@link Request} ({@code AcknowledgedRequest} subclass, transported
@@ -94,6 +99,52 @@ public class PutDatasetActionRequestTests extends AbstractWireSerializingTestCas
             default -> throw new AssertionError("unreachable");
         };
     }
+
+    // -- validate() ------------------------------------------------------------------------------
+
+    public void testValidateAcceptsCleanRequest() {
+        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "my_ds", "parent", "s3://bucket/path", null, Map.of());
+        assertThat(r.validate(), nullValue());
+    }
+
+    public void testValidateRejectsEmptyName() {
+        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "", "parent", "s3://bucket", null, Map.of());
+        ActionRequestValidationException v = r.validate();
+        assertThat(v, notNullValue());
+        assertThat(v.getMessage(), containsString("dataset name is missing"));
+    }
+
+    public void testValidateRejectsUppercaseName() {
+        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "MyDS", "parent", "s3://bucket", null, Map.of());
+        ActionRequestValidationException v = r.validate();
+        assertThat(v, notNullValue());
+        assertThat(v.getMessage(), containsString("must be lowercase"));
+    }
+
+    public void testValidateRejectsEmptyDataSource() {
+        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "my_ds", "", "s3://bucket", null, Map.of());
+        ActionRequestValidationException v = r.validate();
+        assertThat(v, notNullValue());
+        assertThat(v.getMessage(), containsString("dataset data_source is missing"));
+    }
+
+    public void testValidateRejectsEmptyResource() {
+        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "my_ds", "parent", "", null, Map.of());
+        ActionRequestValidationException v = r.validate();
+        assertThat(v, notNullValue());
+        assertThat(v.getMessage(), containsString("dataset resource is missing"));
+    }
+
+    public void testValidateAcceptsAbsentSettingsAsEmpty() {
+        // Absent optional container ≡ empty. Datasets commonly inherit settings from the parent
+        // data source, so a client sending just {name, data_source, resource} with no settings is
+        // a normal shape.
+        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "my_ds", "parent", "s3://bucket", null, null);
+        assertThat(r.validate(), nullValue());
+        assertThat(r.rawSettings(), notNullValue());
+    }
+
+    // -- helpers ---------------------------------------------------------------------------------
 
     private static String randomName() {
         return randomAlphaOfLengthBetween(1, 20).toLowerCase(Locale.ROOT);

@@ -68,7 +68,7 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
             this.dataSource = dataSource;
             this.resource = resource;
             this.description = description;
-            this.rawSettings = rawSettings;
+            this.rawSettings = rawSettings == null ? Map.of() : rawSettings;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -113,9 +113,6 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
             }
             if (Strings.hasText(resource) == false) {
                 validationException = addValidationError("dataset resource is missing or empty", validationException);
-            }
-            if (rawSettings == null) {
-                validationException = addValidationError("dataset settings are missing", validationException);
             }
             return validationException;
         }

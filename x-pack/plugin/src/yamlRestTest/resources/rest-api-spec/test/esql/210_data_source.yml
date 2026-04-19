@@ -66,15 +66,6 @@ setup:
           settings: { }
 
 ---
-"missing-settings":
-  - do:
-      catch: /settings are missing/
-      esql.put_data_source:
-        name: my_ds
-        body:
-          type: s3
-
----
 "delete-missing":
   - do:
       catch: missing

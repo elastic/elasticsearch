@@ -190,7 +190,8 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                     new MultiSearchResponse(
                         new MultiSearchResponse.Item[] {
                             new MultiSearchResponse.Item(null, new RuntimeException("boom")),
-                            new MultiSearchResponse.Item(searchResponse, null) },
+                            new MultiSearchResponse.Item(searchResponse, null)
+                        },
                         randomIntBetween(1, 10000)
                     )
                 );

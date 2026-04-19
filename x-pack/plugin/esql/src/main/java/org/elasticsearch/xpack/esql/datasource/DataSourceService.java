@@ -51,13 +51,15 @@ public class DataSourceService {
     private static final Logger logger = LogManager.getLogger(DataSourceService.class);
 
     // Operator-only: not exposed to end users. Change to Dynamic (+ ServerlessPublic) later to open.
-    // TODO(max-count): defaults copied from ViewService.MAX_VIEWS_COUNT_SETTING as a placeholder;
-    // revisit against real product expectations + cluster-state impact.
+    // Data sources are admin-heavy config objects (one per external system, each carrying credentials
+    // and operational responsibility). Intentionally tighter than the dataset cap: operators should
+    // feel pressure to consolidate rather than proliferate. Revisited in esql-planning#502 against
+    // cluster-state cost.
     public static final Setting<Integer> MAX_DATA_SOURCES_COUNT_SETTING = Setting.intSetting(
         "esql.data_sources.max_count",
-        500,
+        100,
         0,
-        10_000,
+        1_000,
         Setting.Property.NodeScope,
         Setting.Property.OperatorDynamic
     );

@@ -47,11 +47,12 @@ public class DatasetService {
     private static final Logger logger = LogManager.getLogger(DatasetService.class);
 
     // Operator-only: not exposed to end users. Change to Dynamic (+ ServerlessPublic) later to open.
-    // TODO(max-count): defaults copied from ViewService.MAX_VIEWS_COUNT_SETTING as a placeholder;
-    // revisit against real product expectations + cluster-state impact.
+    // Datasets are logical table surfaces over a data source — each data source commonly backs many
+    // datasets, so the default and ceiling are 10x the data-source limits. The 10,000 ceiling is
+    // bounded by cluster-state cost (~1KB per dataset → ~10MB at max). Revisited in esql-planning#502.
     public static final Setting<Integer> MAX_DATASETS_COUNT_SETTING = Setting.intSetting(
         "esql.datasets.max_count",
-        500,
+        1_000,
         0,
         10_000,
         Setting.Property.NodeScope,

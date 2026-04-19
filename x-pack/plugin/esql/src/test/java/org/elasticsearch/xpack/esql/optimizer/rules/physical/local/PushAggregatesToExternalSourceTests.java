@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.compute.aggregation.AggregatorMode;
-import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.test.ESTestCase;
@@ -91,31 +89,18 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
         as(applyRule(agg), LocalSourceExec.class);
     }
 
-    // --- INITIAL mode tests ---
+    // --- INITIAL mode is NOT pushed (intermediate block layout varies per agg type) ---
 
-    public void testCountStarPushedInInitialMode() {
+    public void testNotPushedInInitialMode() {
         var agg = aggregateExec(AggregatorMode.INITIAL, externalSource(statsMetadata(500L, null, null)), countStarAlias());
 
-        LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
-        Page page = local.supplier().get();
-        assertNotNull(page);
-        assertEquals(1, page.getPositionCount());
-        assertEquals(2, page.getBlockCount());
-        assertEquals(500L, as(page.getBlock(0), LongBlock.class).getLong(0));
-        assertTrue(as(page.getBlock(1), BooleanBlock.class).getBoolean(0));
+        as(applyRule(agg), AggregateExec.class);
     }
 
-    public void testMinPushedInInitialMode() {
-        Map<String, Object> metadata = statsMetadata(100L, "age", 0L);
-        metadata.put("_stats.columns.age.min", 25);
-        var agg = aggregateExec(AggregatorMode.INITIAL, externalSource(metadata), alias("m", new Min(Source.EMPTY, AGE)));
+    public void testNotPushedInFinalMode() {
+        var agg = aggregateExec(AggregatorMode.FINAL, externalSource(statsMetadata(500L, null, null)), countStarAlias());
 
-        LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
-        Page page = local.supplier().get();
-        assertNotNull(page);
-        assertEquals(2, page.getBlockCount());
-        assertEquals(25, as(page.getBlock(0), IntBlock.class).getInt(0));
-        assertTrue(as(page.getBlock(1), BooleanBlock.class).getBoolean(0));
+        as(applyRule(agg), AggregateExec.class);
     }
 
     // --- Not-pushed cases ---

@@ -39,9 +39,10 @@ import java.util.Map;
  * Replaces {@code AggregateExec → ExternalSourceExec} with {@code LocalSourceExec}
  * when ungrouped aggregates (COUNT(*), MIN, MAX) can be computed from file-level statistics.
  * <p>
- * Works in both SINGLE mode (coordinator-only) and INITIAL mode (data node in distributed execution).
- * The coordinator's FINAL AggregateExec is never touched — it merges intermediate values from all
- * data nodes regardless of whether each data node pushed down or scanned.
+ * Only applies in SINGLE mode (coordinator-only, non-distributed execution). INITIAL mode
+ * aggregates require intermediate-format blocks whose layout varies per aggregate function
+ * (e.g. Count produces one channel while Min/Max produce two); producing incorrect intermediate
+ * blocks causes the downstream FINAL aggregation to fail with a verification error.
  * <p>
  * Statistics come from {@code ExternalSourceExec.sourceMetadata()} for single-split queries, or
  * from merged per-split statistics in {@code FileSplit.statistics()} for multi-split queries.
@@ -58,7 +59,10 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
         }
         ExternalSourceExec externalExec = (ExternalSourceExec) aggregateExec.child();
 
-        // Phase 1: Ungrouped only
+        if (aggregateExec.getMode() != AggregatorMode.SINGLE) {
+            return aggregateExec;
+        }
+
         if (aggregateExec.groupings().isEmpty() == false) {
             return aggregateExec;
         }
@@ -95,23 +99,11 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
             return aggregateExec; // Some aggregate couldn't be resolved from metadata
         }
 
-        // Build the output page based on mode
-        AggregatorMode mode = aggregateExec.getMode();
-        List<Attribute> outputAttrs;
-        Block[] blocks;
-
-        if (mode == AggregatorMode.SINGLE) {
-            // Final values — same as PushStatsToExternalSource
-            outputAttrs = new ArrayList<>(aggregateExec.aggregates().size());
-            for (NamedExpression agg : aggregateExec.aggregates()) {
-                outputAttrs.add(agg.toAttribute());
-            }
-            blocks = buildFinalBlocks(values);
-        } else {
-            // Intermediate format — value + seen boolean for each aggregate
-            outputAttrs = aggregateExec.intermediateAttributes();
-            blocks = buildIntermediateBlocks(values);
+        List<Attribute> outputAttrs = new ArrayList<>(aggregateExec.aggregates().size());
+        for (NamedExpression agg : aggregateExec.aggregates()) {
+            outputAttrs.add(agg.toAttribute());
         }
+        Block[] blocks = buildFinalBlocks(values);
 
         return new LocalSourceExec(aggregateExec.source(), outputAttrs, LocalSupplier.of(new Page(blocks)));
     }
@@ -181,20 +173,6 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
         Block[] blocks = new Block[values.size()];
         for (int i = 0; i < values.size(); i++) {
             blocks[i] = buildBlock(blockFactory, values.get(i));
-        }
-        return blocks;
-    }
-
-    /**
-     * Build blocks for INITIAL mode (intermediate format: value + seen boolean per aggregate).
-     */
-    private static Block[] buildIntermediateBlocks(List<Object> values) {
-        var blockFactory = PlannerUtils.NON_BREAKING_BLOCK_FACTORY;
-        // Each aggregate produces 2 intermediate channels: value + seen
-        Block[] blocks = new Block[values.size() * 2];
-        for (int i = 0; i < values.size(); i++) {
-            blocks[i * 2] = buildBlock(blockFactory, values.get(i));
-            blocks[i * 2 + 1] = blockFactory.newConstantBooleanBlockWith(true, 1);
         }
         return blocks;
     }

@@ -401,9 +401,10 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             return NoopResponseParser.INSTANCE;
         }
 
-        var extractedJsonParserMap = extractRequiredMap(extractedResponseParserMap, JSON_PARSER, RESPONSE_SCOPE, validationException);
+        var extractedJsonParserMap = extractOptionalMap(extractedResponseParserMap, JSON_PARSER, validationException);
 
         if (extractedJsonParserMap == null) {
+            // json_parser was not included under response — preserve the existing parser unchanged.
             return NoopResponseParser.INSTANCE;
         }
 

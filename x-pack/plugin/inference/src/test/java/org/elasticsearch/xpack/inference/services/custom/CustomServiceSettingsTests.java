@@ -173,6 +173,121 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
         assertThat(updatedServiceSettings, is(originalServiceSettings));
     }
 
+    public void testUpdateServiceSettings_ResponseOmitted_PreservesOriginalResponseParser() {
+        var originalServiceSettings = createInitialCustomServiceSettings();
+        var requestSettingsMap = createSettingsMap();
+        requestSettingsMap.remove(CustomServiceSettings.RESPONSE);
+
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(requestSettingsMap);
+
+        assertThat(
+            updatedServiceSettings,
+            is(
+                new CustomServiceSettings(
+                    new CustomServiceSettings.TextEmbeddingSettings(
+                        INITIAL_TEST_SIMILARITY_MEASURE,
+                        INITIAL_TEST_DIMENSIONS,
+                        TEST_MAX_INPUT_TOKENS
+                    ),
+                    TEST_URL,
+                    TEST_HEADERS,
+                    TEST_QUERY_PARAMETERS,
+                    TEST_REQUEST_CONTENT_STRING,
+                    INITIAL_TEST_RESPONSE_PARSER,
+                    new RateLimitSettings(TEST_RATE_LIMIT),
+                    TEST_BATCH_SIZE,
+                    TEST_INPUT_TYPE_TRANSLATOR
+                )
+            )
+        );
+    }
+
+    public void testUpdateServiceSettings_JsonParserOmitted_PreservesOriginalResponseParser() {
+        var originalServiceSettings = createInitialCustomServiceSettings();
+        var requestSettingsMap = createSettingsMap();
+        requestSettingsMap.replace(CustomServiceSettings.RESPONSE, new HashMap<>());
+
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(requestSettingsMap);
+
+        assertThat(
+            updatedServiceSettings,
+            is(
+                new CustomServiceSettings(
+                    new CustomServiceSettings.TextEmbeddingSettings(
+                        INITIAL_TEST_SIMILARITY_MEASURE,
+                        INITIAL_TEST_DIMENSIONS,
+                        TEST_MAX_INPUT_TOKENS
+                    ),
+                    TEST_URL,
+                    TEST_HEADERS,
+                    TEST_QUERY_PARAMETERS,
+                    TEST_REQUEST_CONTENT_STRING,
+                    INITIAL_TEST_RESPONSE_PARSER,
+                    new RateLimitSettings(TEST_RATE_LIMIT),
+                    TEST_BATCH_SIZE,
+                    TEST_INPUT_TYPE_TRANSLATOR
+                )
+            )
+        );
+    }
+
+    public void testUpdateServiceSettings_ReturnsError_IfJsonParserMapIsNotEmptyAfterParsing() {
+        var originalServiceSettings = createInitialCustomServiceSettings();
+        var requestSettingsMap = createSettingsMap();
+        requestSettingsMap.replace(
+            CustomServiceSettings.RESPONSE,
+            new HashMap<>(
+                Map.of(
+                    CustomServiceSettings.JSON_PARSER,
+                    new HashMap<>(
+                        Map.of(
+                            DenseEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS,
+                            "$.result.embeddings[*].embedding",
+                            "key",
+                            "value"
+                        )
+                    )
+                )
+            )
+        );
+
+        var exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> originalServiceSettings.updateServiceSettings(requestSettingsMap)
+        );
+
+        assertThat(exception.getMessage(), is("""
+            Configuration contains unknown settings [{key=value}] while parsing field [json_parser]\
+             for settings [custom_service_settings]"""));
+    }
+
+    public void testUpdateServiceSettings_ReturnsError_IfResponseMapIsNotEmptyAfterParsing() {
+        var originalServiceSettings = createInitialCustomServiceSettings();
+        var requestSettingsMap = createSettingsMap();
+        requestSettingsMap.replace(
+            CustomServiceSettings.RESPONSE,
+            new HashMap<>(
+                Map.of(
+                    CustomServiceSettings.JSON_PARSER,
+                    new HashMap<>(
+                        Map.of(DenseEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
+                    ),
+                    "key",
+                    "value"
+                )
+            )
+        );
+
+        var exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> originalServiceSettings.updateServiceSettings(requestSettingsMap)
+        );
+
+        assertThat(exception.getMessage(), is("""
+            Configuration contains unknown settings [{key=value}] while parsing field [response]\
+             for settings [custom_service_settings]"""));
+    }
+
     private static CustomServiceSettings createInitialCustomServiceSettings() {
         return new CustomServiceSettings(
             new CustomServiceSettings.TextEmbeddingSettings(

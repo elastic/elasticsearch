@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 146747
+summary: Grant file read entitlement for musl detection in ESQL compression-libs
+type: enhancement

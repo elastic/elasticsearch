@@ -29,12 +29,13 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.system_indices.action.GetFeatureUpgradeStatusAction;
 import org.elasticsearch.system_indices.action.PostFeatureUpgradeAction;
+import org.elasticsearch.system_indices.action.SystemIndexMigrationAction;
 import org.elasticsearch.system_indices.action.TransportGetFeatureUpgradeStatusAction;
 import org.elasticsearch.system_indices.action.TransportPostFeatureUpgradeAction;
+import org.elasticsearch.system_indices.action.TransportSystemIndexMigrationAction;
 import org.elasticsearch.system_indices.rest.RestGetFeatureUpgradeStatusAction;
 import org.elasticsearch.system_indices.rest.RestPostFeatureUpgradeAction;
 import org.elasticsearch.system_indices.task.FeatureMigrationResults;
-import org.elasticsearch.system_indices.task.SystemIndexMigrationExecutor;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -66,7 +67,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.ClientHelper.REINDEX_DATA_STREAM_ORIGIN;
 import static org.elasticsearch.xpack.migrate.action.ReindexDataStreamIndexTransportAction.REINDEX_MAX_REQUESTS_PER_SECOND_SETTING;
@@ -119,48 +119,43 @@ public class MigratePlugin extends Plugin implements ActionPlugin, PersistentTas
 
         actions.add(new ActionHandler(GetFeatureUpgradeStatusAction.INSTANCE, TransportGetFeatureUpgradeStatusAction.class));
         actions.add(new ActionHandler(PostFeatureUpgradeAction.INSTANCE, TransportPostFeatureUpgradeAction.class));
+        actions.add(new ActionHandler(SystemIndexMigrationAction.INSTANCE, TransportSystemIndexMigrationAction.class));
         return actions;
     }
 
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
-        return Stream.concat(
-            SystemIndexMigrationExecutor.getNamedXContentParsers().stream(),
-            Stream.of(
-                new NamedXContentRegistry.Entry(
-                    PersistentTaskState.class,
-                    new ParseField(ReindexDataStreamPersistentTaskState.NAME),
-                    ReindexDataStreamPersistentTaskState::fromXContent
-                ),
-                new NamedXContentRegistry.Entry(
-                    PersistentTaskParams.class,
-                    new ParseField(ReindexDataStreamTaskParams.NAME),
-                    ReindexDataStreamTaskParams::fromXContent
-                )
+        return List.of(
+            new NamedXContentRegistry.Entry(
+                PersistentTaskState.class,
+                new ParseField(ReindexDataStreamPersistentTaskState.NAME),
+                ReindexDataStreamPersistentTaskState::fromXContent
+            ),
+            new NamedXContentRegistry.Entry(
+                PersistentTaskParams.class,
+                new ParseField(ReindexDataStreamTaskParams.NAME),
+                ReindexDataStreamTaskParams::fromXContent
             )
-        ).toList();
+        );
     }
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return Stream.concat(
-            SystemIndexMigrationExecutor.getNamedWriteables().stream(),
-            Stream.of(
-                new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, FeatureMigrationResults.TYPE, FeatureMigrationResults::new),
-                new NamedWriteableRegistry.Entry(NamedDiff.class, FeatureMigrationResults.TYPE, FeatureMigrationResults::readDiffFrom),
-                new NamedWriteableRegistry.Entry(
-                    PersistentTaskState.class,
-                    ReindexDataStreamPersistentTaskState.NAME,
-                    ReindexDataStreamPersistentTaskState::new
-                ),
-                new NamedWriteableRegistry.Entry(
-                    PersistentTaskParams.class,
-                    ReindexDataStreamTaskParams.NAME,
-                    ReindexDataStreamTaskParams::new
-                ),
-                new NamedWriteableRegistry.Entry(Task.Status.class, ReindexDataStreamStatus.NAME, ReindexDataStreamStatus::new)
-            )
-        ).toList();
+        return List.of(
+            new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, FeatureMigrationResults.TYPE, FeatureMigrationResults::new),
+            new NamedWriteableRegistry.Entry(NamedDiff.class, FeatureMigrationResults.TYPE, FeatureMigrationResults::readDiffFrom),
+            new NamedWriteableRegistry.Entry(
+                PersistentTaskState.class,
+                ReindexDataStreamPersistentTaskState.NAME,
+                ReindexDataStreamPersistentTaskState::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                PersistentTaskParams.class,
+                ReindexDataStreamTaskParams.NAME,
+                ReindexDataStreamTaskParams::new
+            ),
+            new NamedWriteableRegistry.Entry(Task.Status.class, ReindexDataStreamStatus.NAME, ReindexDataStreamStatus::new)
+        );
     }
 
     @Override
@@ -172,13 +167,6 @@ public class MigratePlugin extends Plugin implements ActionPlugin, PersistentTas
         IndexNameExpressionResolver expressionResolver
     ) {
         return List.of(
-            new SystemIndexMigrationExecutor(
-                client,
-                clusterService,
-                systemIndices.get(),
-                settingsModule.getIndexScopedSettings(),
-                threadPool
-            ),
             new ReindexDataStreamPersistentTaskExecutor(
                 new OriginSettingClient(client, REINDEX_DATA_STREAM_ORIGIN),
                 clusterService,

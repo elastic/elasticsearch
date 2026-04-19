@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.health.node.selection.HealthNode;
@@ -23,8 +22,8 @@ import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.health.node.selection.HealthNodeTaskParams;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasks;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutorRegistry;
@@ -32,11 +31,14 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.migrate.task.ReindexDataStreamPersistentTaskExecutor;
+import org.elasticsearch.xpack.migrate.task.ReindexDataStreamTaskParams;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -60,29 +62,33 @@ import static org.mockito.Mockito.when;
 
 public class SystemIndexMigrationMetadataTests extends ESTestCase {
     public void testParseXContentFormatBeforeMultiProject() throws IOException {
-        final String json = org.elasticsearch.core.Strings.format("""
-            {
-              "meta-data": {
-                "version": 54321,
-                "cluster_uuid":"aba1aa1ababbbaabaabaab",
-                "cluster_uuid_committed":false,
-                "persistent_tasks": {
-                  "last_allocation_id": 1,
-                  "tasks": [
-                    {
-                      "id": "health-node",
-                      "task":{ "health-node": {"params":{}} }
+        final String json = org.elasticsearch.core.Strings.format(
+            """
+                {
+                  "meta-data": {
+                    "version": 54321,
+                    "cluster_uuid":"aba1aa1ababbbaabaabaab",
+                    "cluster_uuid_committed":false,
+                    "persistent_tasks": {
+                      "last_allocation_id": 1,
+                      "tasks": [
+                        {
+                          "id": "health-node",
+                          "task":{ "health-node": {"params":{}} }
+                        },
+                        {
+                          "id": "reindex-data-stream",
+                          "task":{ "reindex-data-stream": {"params":{"source_data_stream":".test-ds","start_time":0,"total_indices":0,"total_indices_to_be_upgraded":0}} }
+                        }
+                      ]
                     },
-                    {
-                      "id": "upgrade-system-indices",
-                      "task":{ "upgrade-system-indices": {"params":{}} }
-                    }
-                  ]
-                },
-                "reserved_state":{ }
-              }
-            }
-            """, IndexVersion.current(), IndexVersion.current());
+                    "reserved_state":{ }
+                  }
+                }
+                """,
+            IndexVersion.current(),
+            IndexVersion.current()
+        );
 
         final var metadata = fromJsonXContentStringWithPersistentTasks(json);
 
@@ -100,7 +106,7 @@ public class SystemIndexMigrationMetadataTests extends ESTestCase {
         final var projectTasks = PersistentTasksCustomMetadata.get(project);
         assertThat(
             projectTasks.tasks().stream().map(PersistentTasksCustomMetadata.PersistentTask::getTaskName).toList(),
-            containsInAnyOrder("upgrade-system-indices")
+            containsInAnyOrder(ReindexDataStreamTaskParams.NAME)
         );
         assertThat(clusterTasks.getLastAllocationId(), equalTo(projectTasks.getLastAllocationId()));
     }
@@ -110,21 +116,26 @@ public class SystemIndexMigrationMetadataTests extends ESTestCase {
         registry.addAll(ClusterModule.getNamedXWriteables());
         registry.addAll(IndicesModule.getNamedXContents());
         registry.addAll(HealthNodeTaskExecutor.getNamedXContentParsers());
-        registry.addAll(SystemIndexMigrationExecutor.getNamedXContentParsers());
+        registry.add(
+            new NamedXContentRegistry.Entry(
+                PersistentTaskParams.class,
+                new ParseField(ReindexDataStreamTaskParams.NAME),
+                ReindexDataStreamTaskParams::fromXContent
+            )
+        );
 
         final var clusterService = mock(ClusterService.class);
         when(clusterService.threadPool()).thenReturn(mock(ThreadPool.class));
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         when(clusterService.getClusterSettings()).thenReturn(ClusterSettings.createBuiltInClusterSettings());
         final var healthNodeTaskExecutor = new HealthNodeTaskExecutor(clusterService);
-        final var systemIndexMigrationExecutor = new SystemIndexMigrationExecutor(
+        final var reindexDataStreamExecutor = new ReindexDataStreamPersistentTaskExecutor(
             mock(Client.class),
             clusterService,
-            mock(SystemIndices.class),
-            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            ReindexDataStreamTaskParams.NAME,
             mock(ThreadPool.class)
         );
-        new PersistentTasksExecutorRegistry(List.of(healthNodeTaskExecutor, systemIndexMigrationExecutor));
+        new PersistentTasksExecutorRegistry(List.of(healthNodeTaskExecutor, reindexDataStreamExecutor));
 
         XContentParserConfiguration config = XContentParserConfiguration.EMPTY.withRegistry(new NamedXContentRegistry(registry));
         try (XContentParser parser = JsonXContent.jsonXContent.createParser(config, json)) {
@@ -143,11 +154,11 @@ public class SystemIndexMigrationMetadataTests extends ESTestCase {
                     new PersistentTasksCustomMetadata(
                         lastAllocationId,
                         Map.of(
-                            SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME,
+                            ReindexDataStreamTaskParams.NAME,
                             new PersistentTasksCustomMetadata.PersistentTask<>(
-                                SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME,
-                                SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME,
-                                new SystemIndexMigrationTaskParams(),
+                                ReindexDataStreamTaskParams.NAME,
+                                ReindexDataStreamTaskParams.NAME,
+                                new ReindexDataStreamTaskParams(".test-ds", 0L, 0, 0, Map.of()),
                                 lastAllocationId,
                                 PersistentTasks.INITIAL_ASSIGNMENT
                             )
@@ -208,7 +219,7 @@ public class SystemIndexMigrationMetadataTests extends ESTestCase {
             assertThat(objectPath.evaluate("meta-data.projects." + i + ".persistent_tasks.tasks"), hasSize(1));
             assertThat(
                 objectPath.evaluate("meta-data.projects." + i + ".persistent_tasks.tasks.0.id"),
-                equalTo(SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME)
+                equalTo(ReindexDataStreamTaskParams.NAME)
             );
         }
 
@@ -217,7 +228,7 @@ public class SystemIndexMigrationMetadataTests extends ESTestCase {
         for (var project : fromXContentMeta.projects().values()) {
             final var projectTasks = PersistentTasksCustomMetadata.get(project);
             assertThat(projectTasks.getLastAllocationId(), equalTo(lastAllocationId));
-            assertThat(projectTasks.taskMap().keySet(), equalTo(Set.of(SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME)));
+            assertThat(projectTasks.taskMap().keySet(), equalTo(Set.of(ReindexDataStreamTaskParams.NAME)));
         }
         final var clusterTasks = ClusterPersistentTasksCustomMetadata.get(fromXContentMeta);
         assertThat(clusterTasks.getLastAllocationId(), equalTo(lastAllocationId + 1));
@@ -236,11 +247,11 @@ public class SystemIndexMigrationMetadataTests extends ESTestCase {
                         new PersistentTasksCustomMetadata(
                             lastAllocationId,
                             Map.of(
-                                SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME,
+                                ReindexDataStreamTaskParams.NAME,
                                 new PersistentTasksCustomMetadata.PersistentTask<>(
-                                    SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME,
-                                    SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME,
-                                    new SystemIndexMigrationTaskParams(),
+                                    ReindexDataStreamTaskParams.NAME,
+                                    ReindexDataStreamTaskParams.NAME,
+                                    new ReindexDataStreamTaskParams(".test-ds", 0L, 0, 0, Map.of()),
                                     lastAllocationId,
                                     PersistentTasks.INITIAL_ASSIGNMENT
                                 )
@@ -283,7 +294,7 @@ public class SystemIndexMigrationMetadataTests extends ESTestCase {
                 objectPath.evaluate("meta-data.persistent_tasks.tasks.0.id"),
                 objectPath.evaluate("meta-data.persistent_tasks.tasks.1.id")
             ),
-            equalTo(Set.of(HealthNode.TASK_NAME, SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME))
+            equalTo(Set.of(HealthNode.TASK_NAME, ReindexDataStreamTaskParams.NAME))
         );
 
         // Deserialize from the XContent should separate cluster and project tasks
@@ -301,7 +312,7 @@ public class SystemIndexMigrationMetadataTests extends ESTestCase {
         assertThat(projectTasks.getLastAllocationId(), equalTo(lastAllocationId + 1));
         assertThat(
             projectTasks.tasks().stream().map(PersistentTasksCustomMetadata.PersistentTask::getId).toList(),
-            contains(SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME)
+            contains(ReindexDataStreamTaskParams.NAME)
         );
     }
 

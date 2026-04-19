@@ -20,11 +20,8 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.system_indices.task.FeatureMigrationResults;
 import org.elasticsearch.system_indices.task.SingleFeatureMigrationResult;
-import org.elasticsearch.system_indices.task.SystemIndexMigrationTaskParams;
-import org.elasticsearch.system_indices.task.SystemIndexMigrationTaskState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -37,10 +34,8 @@ import java.util.stream.Stream;
 import static org.elasticsearch.indices.SystemIndices.NO_UPGRADE_REQUIRED_INDEX_VERSION;
 import static org.elasticsearch.indices.SystemIndices.UPGRADED_INDEX_SUFFIX;
 import static org.elasticsearch.system_indices.action.GetFeatureUpgradeStatusResponse.UpgradeStatus.ERROR;
-import static org.elasticsearch.system_indices.action.GetFeatureUpgradeStatusResponse.UpgradeStatus.IN_PROGRESS;
 import static org.elasticsearch.system_indices.action.GetFeatureUpgradeStatusResponse.UpgradeStatus.MIGRATION_NEEDED;
 import static org.elasticsearch.system_indices.action.GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_MIGRATION_NEEDED;
-import static org.elasticsearch.system_indices.task.SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME;
 
 /**
  * Transport class for the get feature upgrade status action
@@ -91,16 +86,13 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
             .map(feature -> getFeatureUpgradeStatus(project, feature))
             .toList();
 
-        boolean migrationTaskExists = PersistentTasksCustomMetadata.getTaskWithId(project, SYSTEM_INDEX_UPGRADE_TASK_NAME) != null;
-        GetFeatureUpgradeStatusResponse.UpgradeStatus initalStatus = migrationTaskExists ? IN_PROGRESS : NO_MIGRATION_NEEDED;
-
-        GetFeatureUpgradeStatusResponse.UpgradeStatus status = Stream.concat(
-            Stream.of(initalStatus),
-            features.stream().map(GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus::getUpgradeStatus)
-        ).reduce(GetFeatureUpgradeStatusResponse.UpgradeStatus::combine).orElseGet(() -> {
-            assert false : "get feature statuses API doesn't have any features";
-            return NO_MIGRATION_NEEDED;
-        });
+        GetFeatureUpgradeStatusResponse.UpgradeStatus status = features.stream()
+            .map(GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus::getUpgradeStatus)
+            .reduce(GetFeatureUpgradeStatusResponse.UpgradeStatus::combine)
+            .orElseGet(() -> {
+                assert false : "get feature statuses API doesn't have any features";
+                return NO_MIGRATION_NEEDED;
+            });
 
         listener.onResponse(new GetFeatureUpgradeStatusResponse(features, status));
     }
@@ -111,13 +103,6 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
     ) {
         String featureName = feature.getName();
 
-        PersistentTasksCustomMetadata.PersistentTask<SystemIndexMigrationTaskParams> migrationTask = PersistentTasksCustomMetadata
-            .getTaskWithId(project, SYSTEM_INDEX_UPGRADE_TASK_NAME);
-        final String currentFeature = Optional.ofNullable(migrationTask)
-            .map(task -> task.getState())
-            .map(taskState -> ((SystemIndexMigrationTaskState) taskState).getCurrentFeature())
-            .orElse(null);
-
         List<GetFeatureUpgradeStatusResponse.IndexInfo> indexInfos = getIndexInfos(project, feature);
 
         IndexVersion minimumVersion = indexInfos.stream()
@@ -125,9 +110,7 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
             .min(IndexVersion::compareTo)
             .orElse(IndexVersion.current());
         GetFeatureUpgradeStatusResponse.UpgradeStatus initialStatus;
-        if (featureName.equals(currentFeature)) {
-            initialStatus = IN_PROGRESS;
-        } else if (minimumVersion.before(NO_UPGRADE_REQUIRED_INDEX_VERSION)) {
+        if (minimumVersion.before(NO_UPGRADE_REQUIRED_INDEX_VERSION)) {
             initialStatus = MIGRATION_NEEDED;
         } else {
             initialStatus = NO_MIGRATION_NEEDED;

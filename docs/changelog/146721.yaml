@@ -1,5 +1,5 @@
 pr: 146721
-summary: Convert SecurityMigrationExecutor to transport action
+summary: Convert SecurityMigrationExecutor and SystemIndexMigrationExecutor to transport actions
 area: Security
 type: enhancement
 issues:

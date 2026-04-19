@@ -9,21 +9,19 @@ package org.elasticsearch.system_indices.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.persistent.PersistentTasksService;
-import org.elasticsearch.system_indices.task.SystemIndexMigrationTaskParams;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -34,7 +32,6 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.system_indices.action.TransportGetFeatureUpgradeStatusAction.getFeatureUpgradeStatus;
-import static org.elasticsearch.system_indices.task.SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME;
 
 /**
  * Transport action for post feature upgrade action
@@ -43,7 +40,7 @@ public class TransportPostFeatureUpgradeAction extends TransportMasterNodeAction
     private static final Logger logger = LogManager.getLogger(TransportPostFeatureUpgradeAction.class);
 
     private final SystemIndices systemIndices;
-    private final PersistentTasksService persistentTasksService;
+    private final Client client;
     private final ProjectResolver projectResolver;
 
     @Inject
@@ -53,7 +50,7 @@ public class TransportPostFeatureUpgradeAction extends TransportMasterNodeAction
         ActionFilters actionFilters,
         ClusterService clusterService,
         SystemIndices systemIndices,
-        PersistentTasksService persistentTasksService,
+        Client client,
         ProjectResolver projectResolver
     ) {
         super(
@@ -67,7 +64,7 @@ public class TransportPostFeatureUpgradeAction extends TransportMasterNodeAction
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.systemIndices = systemIndices;
-        this.persistentTasksService = persistentTasksService;
+        this.client = client;
         this.projectResolver = projectResolver;
     }
 
@@ -93,20 +90,17 @@ public class TransportPostFeatureUpgradeAction extends TransportMasterNodeAction
             .toList();
 
         if (featuresToMigrate.isEmpty() == false) {
-            persistentTasksService.sendProjectStartRequest(
-                project.id(),
-                SYSTEM_INDEX_UPGRADE_TASK_NAME,
-                SYSTEM_INDEX_UPGRADE_TASK_NAME,
-                new SystemIndexMigrationTaskParams(),
-                TimeValue.THIRTY_SECONDS /* TODO should this be configurable? longer by default? infinite? */,
-                ActionListener.wrap(startedTask -> {
-                    listener.onResponse(new PostFeatureUpgradeResponse(true, featuresToMigrate, null, null));
-                }, ex -> {
-                    logger.error("failed to start system index upgrade task", ex);
-
-                    listener.onResponse(new PostFeatureUpgradeResponse(false, null, null, new ElasticsearchException(ex)));
-                })
+            // Fire-and-forget: start the migration and return immediately. The migration runs asynchronously on the master
+            // node; callers can poll progress via GET /_migration/system_indices.
+            client.execute(
+                SystemIndexMigrationAction.INSTANCE,
+                new SystemIndexMigrationAction.Request(MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT, project.id()),
+                ActionListener.wrap(
+                    ignored -> logger.debug("system index migration completed successfully"),
+                    ex -> logger.error("system index migration failed", ex)
+                )
             );
+            listener.onResponse(new PostFeatureUpgradeResponse(true, featuresToMigrate, null, null));
         } else {
             listener.onResponse(new PostFeatureUpgradeResponse(false, null, "No system indices require migration", null));
         }

@@ -1160,13 +1160,14 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                                 )
                             );
                             if (streamFactory == null) {
-                                try (var parallelGapsListener = new RefCountingListener(listener.map(unused -> true))) {
+                                try (var gapsListener = new RefCountingListener(listener.map(unused -> true))) {
+                                    // Use current thread to fill the gaps in order
                                     for (SparseFileTracker.Gap gap : gaps) {
                                         fillGapRunnable(
                                             gap,
                                             writer,
                                             null,
-                                            ActionListener.releaseAfter(parallelGapsListener.acquire(), refs.acquire())
+                                            ActionListener.releaseAfter(gapsListener.acquire(), refs.acquire())
                                         ).run();
                                     }
                                 }

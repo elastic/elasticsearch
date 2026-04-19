@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.esql.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
-import org.junit.BeforeClass;
 
 import java.nio.file.Path;
 import java.util.Collection;
@@ -92,9 +91,12 @@ import static org.hamcrest.Matchers.nullValue;
  * standard {@code AckedClusterStateUpdateTask} pattern and inherit that coverage. A dedicated multi-node
  * IT can be added later if specific propagation concerns arise for the metadata customs.
  *
- * <p><b>Feature flag</b>: enabled via {@code es.esql_external_datasources_feature_flag_enabled=true} system
- * property set in {@link #enableFeatureFlag()} before node startup. {@code FeatureFlag} reads the property
- * once per JVM at construction; {@code @BeforeClass} is the right hook.
+ * <p><b>Feature flag</b>: enabled at JVM startup via the {@code es.esql_external_datasources_feature_flag_enabled=true}
+ * system property set on the {@code internalClusterTest} task in {@code x-pack/plugin/esql/build.gradle}. Must
+ * be set at JVM startup rather than in {@code @BeforeClass}: {@code FeatureFlag} reads the system property once
+ * at {@code DataSourceMetadata} class load, which happens before any {@code @BeforeClass} runs. Gradle's
+ * {@code systemProperty} hook is also the ES-wide pattern for feature-flagged integration tests
+ * (e.g. {@code x-pack/plugin/security/build.gradle} sets {@code es.dlm_feature_flag_enabled=true}).
  *
  * <p><b>Test-plugin</b>: {@link LocalStateDataSource} composes {@link EsqlPlugin} (with SPI discovery
  * suppressed via no-op {@code loadExtensions}) and {@link TestDataSourcePlugin} (which registers a single
@@ -105,17 +107,6 @@ import static org.hamcrest.Matchers.nullValue;
 public class DataSourceCrudIT extends ESIntegTestCase {
 
     private static final TimeValue TEST_TIMEOUT = TimeValue.timeValueSeconds(30);
-
-    /**
-     * Enable the external-datasources feature flag before node startup. Must be a {@code @BeforeClass}
-     * hook, not an instance-level or {@code nodeSettings()} override: {@code FeatureFlag.isEnabled()}
-     * reads the system property once at {@code org.elasticsearch.cluster.metadata.DataSourceMetadata} class load, which happens as nodes
-     * start.
-     */
-    @BeforeClass
-    public static void enableFeatureFlag() {
-        System.setProperty("es.esql_external_datasources_feature_flag_enabled", "true");
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

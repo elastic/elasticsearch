@@ -62,7 +62,7 @@ public abstract class OffHeapBFloat16VectorValues extends BFloat16VectorValues i
         this.byteSize = byteSize;
         this.similarityFunction = similarityFunction;
         this.flatVectorsScorer = flatVectorsScorer;
-        bfloatBytes = new byte[dimension * BFloat16.BYTES];
+        bfloatBytes = new byte[byteSize];
         value = new float[dimension];
     }
 
@@ -83,7 +83,7 @@ public abstract class OffHeapBFloat16VectorValues extends BFloat16VectorValues i
 
     @Override
     public int getVectorByteLength() {
-        return dimension * BFloat16.BYTES;
+        return byteSize;
     }
 
     @Override
@@ -160,11 +160,6 @@ public abstract class OffHeapBFloat16VectorValues extends BFloat16VectorValues i
         @Override
         public DenseOffHeapVectorValues copy() throws IOException {
             return new DenseOffHeapVectorValues(dimension, size, slice.clone(), byteSize, flatVectorsScorer, similarityFunction);
-        }
-
-        @Override
-        public int ordToDoc(int ord) {
-            return ord;
         }
 
         @Override

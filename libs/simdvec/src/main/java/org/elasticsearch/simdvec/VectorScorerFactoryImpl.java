@@ -53,7 +53,7 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
         input = FilterIndexInput.unwrapOnlyTest(input);
         input = MemorySegmentAccessInputAccess.unwrap(input);
         if (input instanceof MemorySegmentAccessInput msInput) {
-            checkInvariants(values.size(), values.dimension(), input);
+            checkInvariants(values.size(), values.getVectorByteLength(), input);
             return switch (similarityType) {
                 case COSINE, DOT_PRODUCT -> Optional.of(new FloatVectorScorerSupplier.DotProductSupplier(msInput, values));
                 case EUCLIDEAN -> Optional.of(new FloatVectorScorerSupplier.EuclideanSupplier(msInput, values));
@@ -91,7 +91,7 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
         input = FilterIndexInput.unwrapOnlyTest(input);
         input = MemorySegmentAccessInputAccess.unwrap(input);
         if (input instanceof MemorySegmentAccessInput msInput) {
-            checkInvariants(values.size(), values.dimension(), input);
+            checkInvariants(values.size(), values.getVectorByteLength(), input);
             return switch (similarityType) {
                 case COSINE -> Optional.of(new ByteVectorScorerSupplier.CosineSupplier(msInput, values));
                 case DOT_PRODUCT -> Optional.of(new ByteVectorScorerSupplier.DotProductSupplier(msInput, values));
@@ -131,7 +131,7 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
         input = FilterIndexInput.unwrapOnlyTest(input);
         input = MemorySegmentAccessInputAccess.unwrap(input);
         if (input instanceof MemorySegmentAccessInput msInput) {
-            checkInvariants(values.size(), values.dimension(), input);
+            checkInvariants(values.size(), values.getVectorByteLength(), input);
             return switch (similarityType) {
                 case COSINE, DOT_PRODUCT -> Optional.of(
                     new Int7SQVectorScorerSupplier.DotProductSupplier(msInput, values, scoreCorrectionConstant)

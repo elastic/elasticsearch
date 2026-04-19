@@ -9,16 +9,11 @@
 
 package org.elasticsearch.simdvec.internal;
 
-import org.apache.lucene.codecs.lucene95.HasIndexSlice;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
-import org.elasticsearch.core.DirectAccessInput;
-import org.elasticsearch.simdvec.MemorySegmentAccessInputAccess;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -27,85 +22,22 @@ import java.util.Optional;
 import static org.elasticsearch.simdvec.internal.Similarities.cosineI8;
 import static org.elasticsearch.simdvec.internal.Similarities.dotProductI8;
 import static org.elasticsearch.simdvec.internal.Similarities.squareDistanceI8;
-import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 
-public abstract sealed class ByteVectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
-
-    final int dimensions;
-    final int vectorByteSize;
-    final IndexInput input;
-    final MemorySegment query;
-    byte[] scratch;
+public abstract sealed class ByteVectorScorer extends NativeVectorScorer {
 
     public static Optional<RandomVectorScorer> create(VectorSimilarityFunction sim, ByteVectorValues values, byte[] queryVector) {
-        if (SUPPORTS_HEAP_SEGMENTS == false) {
-            return Optional.empty();
-        }
         checkDimensions(queryVector.length, values.dimension());
-        IndexInput input = values instanceof HasIndexSlice slice ? slice.getSlice() : null;
-        if (input == null) {
-            return Optional.empty();
-        }
-        input = FilterIndexInput.unwrapOnlyTest(input);
-        input = MemorySegmentAccessInputAccess.unwrap(input);
-        if (input instanceof MemorySegmentAccessInput || input instanceof DirectAccessInput) {
-            IndexInputUtils.checkInputType(input);
-            checkInvariants(values.size(), values.getVectorByteLength(), input);
 
-            return switch (sim) {
-                case COSINE -> Optional.of(new CosineScorer(input, values, queryVector));
-                case DOT_PRODUCT -> Optional.of(new DotProductScorer(input, values, queryVector));
-                case EUCLIDEAN -> Optional.of(new EuclideanScorer(input, values, queryVector));
-                case MAXIMUM_INNER_PRODUCT -> Optional.of(new MaxInnerProductScorer(input, values, queryVector));
-            };
-        }
-        return Optional.empty();
+        return getNativeAccessibleSegment(values).map(input -> switch (sim) {
+            case COSINE -> new CosineScorer(input, values, queryVector);
+            case DOT_PRODUCT -> new DotProductScorer(input, values, queryVector);
+            case EUCLIDEAN -> new EuclideanScorer(input, values, queryVector);
+            case MAXIMUM_INNER_PRODUCT -> new MaxInnerProductScorer(input, values, queryVector);
+        });
     }
 
     ByteVectorScorer(IndexInput input, ByteVectorValues values, byte[] queryVector) {
-        super(values);
-        this.input = input;
-        assert queryVector.length == values.dimension();
-        this.dimensions = values.dimension();
-        this.vectorByteSize = values.getVectorByteLength();
-        this.query = MemorySegment.ofArray(queryVector);
-    }
-
-    byte[] getScratch(int length) {
-        if (scratch == null || scratch.length < length) {
-            scratch = new byte[length];
-        }
-        return scratch;
-    }
-
-    static void checkInvariants(int maxOrd, int vectorByteLength, IndexInput input) {
-        if (input.length() < (long) vectorByteLength * maxOrd) {
-            throw new IllegalArgumentException("input length is less than expected vector data");
-        }
-    }
-
-    final void checkOrdinal(int ord) {
-        if (ord < 0 || ord >= maxOrd()) {
-            throw new IllegalArgumentException("illegal ordinal: " + ord);
-        }
-    }
-
-    /**
-     * Resolves native memory addresses for the given node ordinals and calls
-     * the sparse scoring function. Returns true if addresses were resolved
-     * (via mmap or DirectAccessInput), false if fallback scoring is needed.
-     */
-    final boolean bulkScoreWithSparse(int[] nodes, float[] scores, int numNodes, SparseScorer sparseScorer) throws IOException {
-        if (numNodes == 0) {
-            return false;
-        }
-        long[] offsets = new long[numNodes];
-        for (int i = 0; i < numNodes; i++) {
-            offsets[i] = (long) nodes[i] * vectorByteSize;
-        }
-        return IndexInputUtils.withSliceAddresses(input, offsets, vectorByteSize, numNodes, a -> {
-            sparseScorer.score(a, query, dimensions, numNodes, MemorySegment.ofArray(scores));
-        });
+        super(input, values, MemorySegment.ofArray(queryVector));
     }
 
     public static final class DotProductScorer extends ByteVectorScorer {
@@ -239,12 +171,6 @@ public abstract sealed class ByteVectorScorer extends RandomVectorScorer.Abstrac
             } else {
                 return super.bulkScore(nodes, scores, numNodes);
             }
-        }
-    }
-
-    static void checkDimensions(int queryLen, int fieldLen) {
-        if (queryLen != fieldLen) {
-            throw new IllegalArgumentException("vector query dimension: " + queryLen + " differs from field dimension: " + fieldLen);
         }
     }
 }

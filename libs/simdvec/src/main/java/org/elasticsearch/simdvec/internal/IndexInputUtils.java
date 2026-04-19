@@ -99,6 +99,29 @@ public final class IndexInputUtils {
         return copyAndApply(in, Math.toIntExact(length), scratchSupplier, action);
     }
 
+    public static boolean trySingleSlice(IndexInput in, long length, CheckedConsumer<MemorySegment, IOException> action)
+        throws IOException {
+        checkInputType(in);
+        if (in instanceof MemorySegmentAccessInput msai) {
+            long offset = in.getFilePointer();
+            MemorySegment slice = msai.segmentSliceOrNull(offset, length);
+            if (slice != null) {
+                in.skipBytes(length);
+                action.accept(slice);
+                return true;
+            }
+        }
+        if (in instanceof DirectAccessInput dai) {
+            long offset = in.getFilePointer();
+            return dai.withByteBufferSlice(offset, length, bb -> {
+                assert bb.isDirect();
+                in.skipBytes(length);
+                action.accept(MemorySegment.ofBuffer(bb));
+            });
+        }
+        return false;
+    }
+
     /**
      * Bulk variant of {@link #withSlice}. Resolves {@code count} byte ranges
      * at the given file offsets to {@link MemorySegment}s and passes a

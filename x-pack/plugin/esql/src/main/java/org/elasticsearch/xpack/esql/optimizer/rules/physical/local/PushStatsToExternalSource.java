@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
@@ -38,6 +39,11 @@ import java.util.Map;
  * required statistics are available in the file metadata. Replaces the AggregateExec +
  * ExternalSourceExec subtree with a LocalSourceExec containing pre-computed results.
  * <p>
+ * Supports both SINGLE and INITIAL modes. In SINGLE mode the replacement produces final-value
+ * blocks (one block per aggregate). In INITIAL mode the replacement produces intermediate-format
+ * blocks matching {@link AggregateExec#intermediateAttributes()}: for each aggregate, a typed
+ * value block followed by a {@code seen} boolean block.
+ * <p>
  * Handles intermediate EvalExec (from EVAL), ProjectExec (from RENAME), and FilterExec
  * nodes between the aggregate and external source by resolving aliased attribute names
  * back to the original column names before metadata lookup, and by classifying filters
@@ -65,6 +71,11 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
         AttributeMap<Attribute> aliasReplacedBy = info.aliasReplacedBy();
         Expression filterCondition = info.filterCondition();
 
+        AggregatorMode mode = aggregateExec.getMode();
+        if (mode != AggregatorMode.SINGLE && mode != AggregatorMode.INITIAL) {
+            return aggregateExec;
+        }
+
         if (aggregateExec.groupings().isEmpty() == false) {
             return aggregateExec;
         }
@@ -86,7 +97,6 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
         List<? extends NamedExpression> aggregates = aggregateExec.aggregates();
 
         List<Object> values = new ArrayList<>(aggregates.size());
-        List<Attribute> outputAttrs = new ArrayList<>(aggregates.size());
 
         for (NamedExpression agg : aggregates) {
             if (agg instanceof Alias == false) {
@@ -102,10 +112,21 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
                 return aggregateExec;
             }
             values.add(value);
-            outputAttrs.add(agg.toAttribute());
         }
 
-        Block[] blocks = buildBlocks(values);
+        List<Attribute> outputAttrs;
+        Block[] blocks;
+        if (mode == AggregatorMode.SINGLE) {
+            outputAttrs = new ArrayList<>(aggregates.size());
+            for (NamedExpression agg : aggregates) {
+                outputAttrs.add(agg.toAttribute());
+            }
+            blocks = buildBlocks(values);
+        } else {
+            outputAttrs = aggregateExec.intermediateAttributes();
+            blocks = buildIntermediateBlocks(values);
+        }
+
         return new LocalSourceExec(aggregateExec.source(), outputAttrs, LocalSupplier.of(new Page(blocks)));
     }
 
@@ -158,6 +179,29 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
             return SourceStatisticsSerializer.extractColumnMax(sourceMetadata, ref.name());
         }
         return null;
+    }
+
+    private static Block[] buildIntermediateBlocks(List<Object> values) {
+        BlockFactory blockFactory = PlannerUtils.NON_BREAKING_BLOCK_FACTORY;
+        Block[] blocks = new Block[values.size() * 2];
+        for (int i = 0; i < values.size(); i++) {
+            Object value = values.get(i);
+            if (value instanceof Long l) {
+                blocks[i * 2] = blockFactory.newConstantLongBlockWith(l, 1);
+            } else if (value instanceof Integer n) {
+                blocks[i * 2] = blockFactory.newConstantIntBlockWith(n, 1);
+            } else if (value instanceof Double d) {
+                blocks[i * 2] = blockFactory.newConstantDoubleBlockWith(d, 1);
+            } else if (value instanceof String s) {
+                blocks[i * 2] = blockFactory.newConstantBytesRefBlockWith(new org.apache.lucene.util.BytesRef(s), 1);
+            } else if (value instanceof Number n) {
+                blocks[i * 2] = blockFactory.newConstantLongBlockWith(n.longValue(), 1);
+            } else {
+                blocks[i * 2] = blockFactory.newConstantNullBlock(1);
+            }
+            blocks[i * 2 + 1] = blockFactory.newConstantBooleanBlockWith(true, 1);
+        }
+        return blocks;
     }
 
     private static Block[] buildBlocks(List<Object> values) {

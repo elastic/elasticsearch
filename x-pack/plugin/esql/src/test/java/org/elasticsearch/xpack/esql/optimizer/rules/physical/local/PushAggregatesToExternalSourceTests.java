@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.test.ESTestCase;
@@ -32,6 +33,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
@@ -89,18 +91,121 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
         as(applyRule(agg), LocalSourceExec.class);
     }
 
-    // --- INITIAL mode is NOT pushed (intermediate block layout varies per agg type) ---
+    // --- INITIAL mode tests (intermediate blocks: value + seen) ---
 
-    public void testNotPushedInInitialMode() {
+    public void testCountStarPushedInInitialMode() {
         var agg = aggregateExec(AggregatorMode.INITIAL, externalSource(statsMetadata(500L, null, null)), countStarAlias());
 
-        as(applyRule(agg), AggregateExec.class);
+        LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
+        assertEquals(agg.intermediateAttributes(), local.output());
+        Page page = local.supplier().get();
+        assertNotNull(page);
+        assertEquals(2, page.getBlockCount());
+        assertEquals(500L, as(page.getBlock(0), LongBlock.class).getLong(0));
+        assertTrue(as(page.getBlock(1), BooleanBlock.class).getBoolean(0));
+    }
+
+    public void testMinPushedInInitialMode() {
+        Map<String, Object> metadata = statsMetadata(100L, "age", 0L);
+        metadata.put("_stats.columns.age.min", 18);
+        var agg = aggregateExec(AggregatorMode.INITIAL, externalSource(metadata), alias("m", new Min(Source.EMPTY, AGE)));
+
+        LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
+        Page page = local.supplier().get();
+        assertEquals(2, page.getBlockCount());
+        assertTrue(as(page.getBlock(1), BooleanBlock.class).getBoolean(0));
+    }
+
+    public void testMultipleAggsPushedInInitialMode() {
+        Map<String, Object> metadata = statsMetadata(500L, "score", 10L);
+        metadata.put("_stats.columns.score.min", 1.0);
+        metadata.put("_stats.columns.score.max", 100.0);
+
+        var agg = aggregateExec(
+            AggregatorMode.INITIAL,
+            externalSource(metadata),
+            countStarAlias(),
+            alias("mn", new Min(Source.EMPTY, SCORE)),
+            alias("mx", new Max(Source.EMPTY, SCORE))
+        );
+
+        LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
+        assertEquals(agg.intermediateAttributes(), local.output());
+        Page page = local.supplier().get();
+        assertEquals(6, page.getBlockCount());
+        assertEquals(500L, as(page.getBlock(0), LongBlock.class).getLong(0));
+        assertTrue(as(page.getBlock(1), BooleanBlock.class).getBoolean(0));
+        assertTrue(as(page.getBlock(3), BooleanBlock.class).getBoolean(0));
+        assertTrue(as(page.getBlock(5), BooleanBlock.class).getBoolean(0));
     }
 
     public void testNotPushedInFinalMode() {
         var agg = aggregateExec(AggregatorMode.FINAL, externalSource(statsMetadata(500L, null, null)), countStarAlias());
 
         as(applyRule(agg), AggregateExec.class);
+    }
+
+    // --- Output schema consistency (regression for VerificationException) ---
+
+    public void testInitialModeOutputMatchesAggregateExecOutput() {
+        var agg = aggregateExec(AggregatorMode.INITIAL, externalSource(statsMetadata(1000L, null, null)), countStarAlias());
+        List<Attribute> expectedOutput = agg.output();
+
+        LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
+        assertEquals(
+            "LocalSourceExec output must match AggregateExec.output() for INITIAL mode",
+            expectedOutput,
+            local.output()
+        );
+        assertEquals(
+            "Block count must match output attribute count",
+            local.output().size(),
+            local.supplier().get().getBlockCount()
+        );
+    }
+
+    public void testInitialModeMultiAggOutputMatchesAggregateExecOutput() {
+        Map<String, Object> metadata = statsMetadata(500L, "score", 10L);
+        metadata.put("_stats.columns.score.min", 1.0);
+        metadata.put("_stats.columns.score.max", 100.0);
+
+        var agg = aggregateExec(
+            AggregatorMode.INITIAL,
+            externalSource(metadata),
+            countStarAlias(),
+            alias("mn", new Min(Source.EMPTY, SCORE)),
+            alias("mx", new Max(Source.EMPTY, SCORE))
+        );
+        List<Attribute> expectedOutput = agg.output();
+
+        LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
+        assertEquals(
+            "LocalSourceExec output must match AggregateExec.output() for INITIAL mode with multiple aggs",
+            expectedOutput,
+            local.output()
+        );
+        assertEquals(
+            "Block count must match output attribute count for multiple aggs",
+            local.output().size(),
+            local.supplier().get().getBlockCount()
+        );
+    }
+
+    public void testSingleModeOutputMatchesAggregateExecOutput() {
+        var agg = aggregateExec(AggregatorMode.SINGLE, externalSource(statsMetadata(1000L, null, null)), countStarAlias());
+        List<Attribute> expectedOutput = agg.output();
+
+        LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
+        assertEquals(
+            "LocalSourceExec output must match AggregateExec.output() for SINGLE mode",
+            expectedOutput,
+            local.output()
+        );
+        assertEquals(
+            "Block count must match output attribute count",
+            local.output().size(),
+            local.supplier().get().getBlockCount()
+        );
     }
 
     // --- Not-pushed cases ---
@@ -236,6 +341,21 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
         assertEquals(600L, as(local.supplier().get().getBlock(0), LongBlock.class).getLong(0));
     }
 
+    public void testPushedWithMultipleSplitsInInitialMode() {
+        ExternalSourceExec ext = externalSourceWithSplits(
+            Map.of(),
+            statsMetadata(100L, null, null),
+            statsMetadata(200L, null, null)
+        );
+        var agg = aggregateExec(AggregatorMode.INITIAL, ext, countStarAlias());
+
+        LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
+        Page page = local.supplier().get();
+        assertEquals(2, page.getBlockCount());
+        assertEquals(300L, as(page.getBlock(0), LongBlock.class).getLong(0));
+        assertTrue(as(page.getBlock(1), BooleanBlock.class).getBoolean(0));
+    }
+
     public void testNotPushedWithMultipleSplitsWithoutStats() {
         ExternalSourceExec ext = externalSourceWithSplits(statsMetadata(1000L, null, null), (Map<String, Object>[]) null);
         var agg = aggregateExec(AggregatorMode.SINGLE, ext, countStarAlias());
@@ -295,7 +415,8 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
     }
 
     private static AggregateExec aggregateExec(AggregatorMode mode, PhysicalPlan child, NamedExpression... aggregates) {
-        return new AggregateExec(Source.EMPTY, child, List.of(), List.of(aggregates), mode, List.of(), null);
+        List<Attribute> intermediateAttrs = AbstractPhysicalOperationProviders.intermediateAttributes(List.of(aggregates), List.of());
+        return new AggregateExec(Source.EMPTY, child, List.of(), List.of(aggregates), mode, intermediateAttrs, null);
     }
 
     private static Alias countStarAlias() {

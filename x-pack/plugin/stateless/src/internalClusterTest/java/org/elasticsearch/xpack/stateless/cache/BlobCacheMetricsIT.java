@@ -220,6 +220,53 @@ public class BlobCacheMetricsIT extends AbstractStatelessPluginIntegTestCase {
         assertMetricsArePresent(otherIndexNode, BlobCacheMetrics.CachePopulationReason.Warming, CachePopulationSource.BlobStore);
     }
 
+    public void testBypassReadMetrics() {
+        startMasterAndIndexNode();
+        final var noCacheSearchNode = startSearchNode(
+            Settings.builder().put(SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ZERO).build()
+        );
+        final var normalCacheSearchNode = startSearchNode();
+        ensureStableCluster(3);
+
+        final String byPassIndexName = randomIdentifier("bypass");
+        createIndex(byPassIndexName, indexSettings(1, 1).put("index.routing.allocation.exclude._name", normalCacheSearchNode).build());
+        populateIndex(byPassIndexName);
+
+        final String regularIndexName = randomIdentifier("regular");
+        createIndex(regularIndexName, indexSettings(1, 1).put("index.routing.allocation.exclude._name", noCacheSearchNode).build());
+        populateIndex(regularIndexName);
+
+        clearShardCache(findSearchShard(byPassIndexName));
+        clearShardCache(findSearchShard(regularIndexName));
+
+        flush(byPassIndexName, regularIndexName);
+        executeSearch(byPassIndexName);
+        executeSearch(regularIndexName);
+
+        // No-cache node: all reads bypass the cache
+        final var noCacheTelemetry = getTestTelemetryPlugin(noCacheSearchNode);
+        noCacheTelemetry.collect();
+        long noCacheBypassCount = noCacheTelemetry.getLongCounterMeasurement(BlobCacheMetrics.BLOB_CACHE_BYPASS_READ_TOTAL)
+            .stream()
+            .mapToLong(Measurement::getLong)
+            .sum();
+        assertThat(noCacheBypassCount, greaterThan(0L));
+        // Bypass reads count as both reads and misses
+        assertThat(noCacheTelemetry.getLongGaugeMeasurement("es.blob_cache.read.total").getLast().getLong(), equalTo(noCacheBypassCount));
+        assertThat(noCacheTelemetry.getLongGaugeMeasurement("es.blob_cache.miss.total").getLast().getLong(), equalTo(noCacheBypassCount));
+
+        // Normal-cache node: reads and misses but no bypass reads
+        final var normalCacheTelemetry = getTestTelemetryPlugin(normalCacheSearchNode);
+        normalCacheTelemetry.collect();
+        assertThat(normalCacheTelemetry.getLongGaugeMeasurement("es.blob_cache.read.total").getLast().getLong(), greaterThan(0L));
+        assertThat(normalCacheTelemetry.getLongGaugeMeasurement("es.blob_cache.miss.total").getLast().getLong(), greaterThan(0L));
+        long normalCacheBypassCount = normalCacheTelemetry.getLongCounterMeasurement(BlobCacheMetrics.BLOB_CACHE_BYPASS_READ_TOTAL)
+            .stream()
+            .mapToLong(Measurement::getLong)
+            .sum();
+        assertThat(normalCacheBypassCount, equalTo(0L));
+    }
+
     private String createIndexWithNoReplicas(String namePrefix) {
         final String indexName = namePrefix + "-" + randomIdentifier();
         assertAcked(

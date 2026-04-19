@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.DataSource;
 import org.elasticsearch.cluster.metadata.DataSourceSetting;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -443,6 +444,42 @@ public class DataSourceCrudIT extends ESIntegTestCase {
     }
 
     // ---------------------------------------------------------------------------------------------
+    // Scenario 8 — validator-level rejection surfaces cleanly through REST + transport + service
+    // ---------------------------------------------------------------------------------------------
+
+    public void testValidatorRejectionSurfacesCleanly() throws Exception {
+        final String dsName = "rejected_ds";
+        final String datasetName = "rejected_dataset";
+        final String parentDsName = "good_parent";
+
+        // Data-source side: validator throws on PUT
+        ExecutionException dsErr = expectThrows(
+            ExecutionException.class,
+            () -> client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest(dsName, Map.of(TestValidator.REJECT_SENTINEL, true)))
+                .get()
+        );
+        assertThat(dsErr.getCause(), instanceOf(ValidationException.class));
+        assertThat(dsErr.getCause().getMessage(), containsString(TestValidator.REJECT_SENTINEL));
+        // Cluster state is untouched — a rejected PUT must NOT leave a half-written entry.
+        expectDataSourceMissing(dsName);
+
+        // Dataset side: seed a valid parent first, then put a dataset whose settings the validator rejects.
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest(parentDsName, Map.of("region", "us-east-1"))));
+        ExecutionException dsetErr = expectThrows(
+            ExecutionException.class,
+            () -> client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest(datasetName, parentDsName, "test://logs/", Map.of(TestValidator.REJECT_SENTINEL, true))
+            ).get()
+        );
+        assertThat(dsetErr.getCause(), instanceOf(ValidationException.class));
+        assertThat(dsetErr.getCause().getMessage(), containsString(TestValidator.REJECT_SENTINEL));
+        expectDatasetMissing(datasetName);
+
+        assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(parentDsName)));
+    }
+
+    // ---------------------------------------------------------------------------------------------
     // Request builders + assertions
     // ---------------------------------------------------------------------------------------------
 
@@ -568,11 +605,14 @@ public class DataSourceCrudIT extends ESIntegTestCase {
     }
 
     /**
-     * Minimal pass-through validator for IT scenarios. Accepts any map, marks keys starting with
-     * {@code secret_} as secrets. Mirrors the stub pattern in {@code TestDataSourceValidator} but
-     * inlined here to avoid a cross-source-set dependency on {@code src/test/}.
+     * Minimal validator for IT scenarios. Accepts any map, marks keys starting with {@code secret_}
+     * as secrets. Recognises a single sentinel key {@code "reject_me"} that, when present, causes
+     * the validator to throw — used by {@link #testValidatorRejectionSurfacesCleanly()} to exercise
+     * the end-to-end unhappy path through REST + transport + service + validator.
      */
     static class TestValidator implements DataSourceValidator {
+        static final String REJECT_SENTINEL = "reject_me";
+
         @Override
         public String type() {
             return "test";
@@ -580,6 +620,11 @@ public class DataSourceCrudIT extends ESIntegTestCase {
 
         @Override
         public Map<String, DataSourceSetting> validateDatasource(Map<String, Object> datasourceSettings) {
+            if (datasourceSettings.containsKey(REJECT_SENTINEL)) {
+                ValidationException ve = new ValidationException();
+                ve.addValidationError("test validator rejected: " + REJECT_SENTINEL + " sentinel present");
+                throw ve;
+            }
             Map<String, DataSourceSetting> out = new HashMap<>();
             for (Map.Entry<String, Object> e : datasourceSettings.entrySet()) {
                 boolean secret = e.getKey().startsWith("secret_");
@@ -594,6 +639,11 @@ public class DataSourceCrudIT extends ESIntegTestCase {
             String resource,
             Map<String, Object> datasetSettings
         ) {
+            if (datasetSettings.containsKey(REJECT_SENTINEL)) {
+                ValidationException ve = new ValidationException();
+                ve.addValidationError("test validator rejected dataset: " + REJECT_SENTINEL + " sentinel present");
+                throw ve;
+            }
             return new HashMap<>(datasetSettings);
         }
     }

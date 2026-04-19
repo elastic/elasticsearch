@@ -16,11 +16,9 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.DataSource;
-import org.elasticsearch.cluster.metadata.DataSourceMetadata;
 import org.elasticsearch.cluster.metadata.DataSourceSetting;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -72,7 +70,7 @@ import static org.hamcrest.Matchers.nullValue;
  *   <li><b>Secret classification round-trip</b> — secret-flagged settings survive the transport wire,
  *       cluster-state persistence, and GET path. Verifies {@code DataSourceSetting.secret()} + {@code secretValue()}.</li>
  *   <li><b>Gateway persistence</b> — PUT data source, {@code internalCluster().fullRestart()}, data source survives.
- *       Covers {@code DataSourceMetadata.context() = EnumSet.of(GATEWAY)}.</li>
+ *       Covers {@code org.elasticsearch.cluster.metadata.DataSourceMetadata.context() = EnumSet.of(GATEWAY)}.</li>
  *   <li><b>Concurrent PUT same data source</b> — two clients via {@code CountDownLatch}, last-write-wins semantics,
  *       cluster-state consistency held by {@code MasterService}'s single-threaded task queue.</li>
  *   <li><b>DELETE data source racing dataset PUT</b> — exactly one of two valid outcomes:
@@ -110,7 +108,7 @@ public class DataSourceCrudIT extends ESIntegTestCase {
     /**
      * Enable the external-datasources feature flag before node startup. Must be a {@code @BeforeClass}
      * hook, not an instance-level or {@code nodeSettings()} override: {@code FeatureFlag.isEnabled()}
-     * reads the system property once at {@code DataSourceMetadata} class load, which happens as nodes
+     * reads the system property once at {@code org.elasticsearch.cluster.metadata.DataSourceMetadata} class load, which happens as nodes
      * start.
      */
     @BeforeClass
@@ -209,7 +207,8 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         final String dsName = "persists_across_restart";
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest(dsName, Map.of("region", "us-west-2"))));
 
-        // Full-cluster restart. GATEWAY-only context ({@code DataSourceMetadata.context() = EnumSet.of(GATEWAY)})
+        // Full-cluster restart. GATEWAY-only context ({@code org.elasticsearch.cluster.metadata.DataSourceMetadata.context() =
+        // EnumSet.of(GATEWAY)})
         // means the metadata is persisted to disk via the gateway and survives restart.
         internalCluster().fullRestart();
         ensureYellow();
@@ -547,12 +546,11 @@ public class DataSourceCrudIT extends ESIntegTestCase {
 
                 @Override
                 public void loadExtensions(ExtensionLoader loader) {
-                    // No-op — keep the test closed-world with only the validators registered below,
-                    // not whatever DataSourcePlugin impls happen to be on the classpath.
+                    // No-op — keep the test closed-world. SPI discovery via SPIClassIterator in
+                    // EsqlPlugin.createComponents() still runs and finds TestDataSourcePlugin via
+                    // the META-INF/services file under src/internalClusterTest/resources/.
                 }
             });
-
-            plugins.add(new TestDataSourcePlugin());
         }
     }
 
@@ -600,9 +598,4 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         }
     }
 
-    @SuppressWarnings("unused")
-    private static final Class<?> METADATA_REF = DataSourceMetadata.class;
-
-    @SuppressWarnings("unused")
-    private static final Class<?> VALIDATION_EXCEPTION_REF = ValidationException.class;
 }

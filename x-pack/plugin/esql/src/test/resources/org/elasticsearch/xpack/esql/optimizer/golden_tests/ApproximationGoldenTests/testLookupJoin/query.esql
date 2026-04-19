@@ -1,0 +1,6 @@
+SET approximation=true;
+FROM many_numbers
+  | EVAL language_code = sv % 4 + 1
+  | LOOKUP JOIN languages_lookup ON language_code
+  | EVAL length = LENGTH(language_name)
+  | STATS AVG(length)

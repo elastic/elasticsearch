@@ -10,6 +10,8 @@
 package org.elasticsearch.analysis.common;
 
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -63,10 +65,15 @@ public class TestCommonAnalysisPluginBuilder {
         IndicesService indicesService = mock(IndicesService.class);
         when(indicesService.getCircuitBreakerService()).thenReturn(circuitBreakerService);
 
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+
         Plugin.PluginServices pluginServices = mock(Plugin.PluginServices.class);
         when(pluginServices.scriptService()).thenReturn(scriptService);
         when(pluginServices.client()).thenReturn(client);
         when(pluginServices.indicesService()).thenReturn(indicesService);
+        when(pluginServices.clusterService()).thenReturn(clusterService);
 
         CommonAnalysisPlugin plugin = new CommonAnalysisPlugin();
         plugin.createComponents(pluginServices);

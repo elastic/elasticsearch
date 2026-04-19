@@ -9,10 +9,9 @@
 
 package org.elasticsearch.repositories.s3;
 
-import org.elasticsearch.ExceptionsHelper;
-
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.support.TenaciousRetryBlobContainer;

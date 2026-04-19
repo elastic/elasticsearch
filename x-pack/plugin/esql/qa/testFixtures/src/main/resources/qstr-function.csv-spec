@@ -402,3 +402,31 @@ FROM logs
 2023-10-23T13:56:01.543Z | No response
 2023-10-23T13:56:01.544Z | Running cats (cycle 2)
 ;
+
+qstrWhereBeforeSample
+required_capability: qstr_function
+required_capability: fix_sample_after_kql_or_qstr
+
+FROM books                                         
+| WHERE QSTR("author: Faulkner")
+| SAMPLE 0.9999                                    
+| STATS count = COUNT(*)
+;                                                  
+                  
+count:long                                         
+1..18            
+;   
+
+qstrWhereAfterSample
+required_capability: qstr_function
+required_capability: fix_sample_after_kql_or_qstr
+
+FROM books                                         
+| SAMPLE 0.9999                                    
+| WHERE QSTR("author: Faulkner")
+| STATS count = COUNT(*)
+;                                                  
+                  
+count:long                                         
+1..18            
+;   

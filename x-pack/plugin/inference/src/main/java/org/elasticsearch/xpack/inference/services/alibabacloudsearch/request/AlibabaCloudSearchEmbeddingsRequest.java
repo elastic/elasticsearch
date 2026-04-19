@@ -14,7 +14,9 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.external.request.DenseEmbeddingRequest;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchAccount;
@@ -30,7 +32,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.buildUri;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 
-public class AlibabaCloudSearchEmbeddingsRequest extends AlibabaCloudSearchRequest {
+public class AlibabaCloudSearchEmbeddingsRequest extends AlibabaCloudSearchRequest implements DenseEmbeddingRequest {
 
     private final AlibabaCloudSearchAccount account;
     private final List<String> input;
@@ -42,6 +44,7 @@ public class AlibabaCloudSearchEmbeddingsRequest extends AlibabaCloudSearchReque
     private final String workspaceName;
     private final String httpSchema;
     private final String inferenceEntityId;
+    private final TaskType taskType;
 
     public AlibabaCloudSearchEmbeddingsRequest(
         AlibabaCloudSearchAccount account,
@@ -63,6 +66,7 @@ public class AlibabaCloudSearchEmbeddingsRequest extends AlibabaCloudSearchReque
             : "https";
         uri = buildUri(null, AlibabaCloudSearchUtils.SERVICE_NAME, this::buildDefaultUri);
         inferenceEntityId = embeddingsModel.getInferenceEntityId();
+        taskType = embeddingsModel.getTaskType();
     }
 
     @Override
@@ -98,6 +102,11 @@ public class AlibabaCloudSearchEmbeddingsRequest extends AlibabaCloudSearchReque
     @Override
     public boolean[] getTruncationInfo() {
         return null;
+    }
+
+    @Override
+    public TaskType getTaskType() {
+        return taskType;
     }
 
     URI buildDefaultUri() throws URISyntaxException {

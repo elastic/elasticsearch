@@ -149,6 +149,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
                     builderIndexOptions
                 ),
                 builderParams(this, context),
+                isExcludeSourceVectors,
                 isExcludeSourceVectorsFinal
             );
         }
@@ -320,17 +321,20 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    private final boolean isExcludeSourceVectors;
+    private final boolean excludeSourceVectorsSetting;
+    private final boolean excludeSourceVectors;
 
     private SparseVectorFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
         BuilderParams builderParams,
-        boolean isExcludeSourceVectors
+        boolean excludeSourceVectorsSetting,
+        boolean excludeSourceVectors
     ) {
         super(simpleName, mappedFieldType, builderParams);
-        assert isExcludeSourceVectors == false || fieldType().isStored();
-        this.isExcludeSourceVectors = isExcludeSourceVectors;
+        assert excludeSourceVectors == false || fieldType().isStored();
+        this.excludeSourceVectorsSetting = excludeSourceVectorsSetting;
+        this.excludeSourceVectors = excludeSourceVectors;
     }
 
     @Override
@@ -343,7 +347,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
     @Override
     public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader() {
-        if (isExcludeSourceVectors) {
+        if (excludeSourceVectors) {
             return new SyntheticVectorsPatchFieldLoader<>(
                 // Recreate the object for each leaf so that different segments can be searched concurrently.
                 () -> new SparseVectorSyntheticFieldLoader(fullPath(), leafName()),
@@ -360,7 +364,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), this.fieldType().indexVersionCreated, this.isExcludeSourceVectors).init(this);
+        return new Builder(leafName(), this.fieldType().indexVersionCreated, this.excludeSourceVectorsSetting).init(this);
     }
 
     @Override

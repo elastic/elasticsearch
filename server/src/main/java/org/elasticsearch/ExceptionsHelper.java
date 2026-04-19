@@ -60,6 +60,23 @@ public final class ExceptionsHelper {
         return new ElasticsearchException(e);
     }
 
+    /**
+     * Converts the given exception to an ElasticsearchException if it is not already an instance of ElasticsearchException.
+     * The given message and arguments are used to construct the new exception if conversion is necessary.
+     * The original exception is set as the cause of the new exception.
+     * @param e The exception to convert
+     * @param msg The message to use if conversion is necessary
+     * @param args The arguments to use if conversion is necessary
+     * @return An ElasticsearchException that is either the original exception (if it was already an instance of ElasticsearchException)
+     * or a new ElasticsearchException with the given message, arguments, and original exception as the cause.
+     */
+    public static ElasticsearchException convertToElastic(Exception e, String msg, Object... args) {
+        if (e instanceof ElasticsearchException) {
+            return (ElasticsearchException) e;
+        }
+        return new ElasticsearchException(msg, e, args);
+    }
+
     public static RestStatus status(Throwable t) {
         if (t != null) {
             if (t instanceof ElasticsearchException) {

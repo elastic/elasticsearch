@@ -41,6 +41,10 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
     protected FlattenedDocValues ignoredDocValues = NO_VALUES;
     protected List<Object> ignoredStoredValues = List.of();
 
+    private FlattenedFieldMapper.PreserveLeafArrays preserveLeafArrays;
+    private final String offsetsFieldName;
+    private FlattenedDocValues offsetsDocValues;
+
     /**
      * Build a loader for flattened fields from either binary or sorted set doc values.
      *
@@ -53,6 +57,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
      * @param mappedSubFieldLoaders                synthetic field loaders for mapped sub-fields; their values are
      *                                             written inside the flattened field's object alongside unmapped keys
      * @param storeIgnoredFieldsInBinaryDocValues  whether ignored values are stored in binary doc values instead of stored fields
+     * @param preserveLeafArrays                   whether leaf arrays preserve order, duplicates, and nulls
      */
     FlattenedDocValuesSyntheticFieldLoader(
         String fieldFullPath,
@@ -61,7 +66,8 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
         String leafName,
         boolean usesBinaryDocValues,
         List<SourceLoader.SyntheticFieldLoader> mappedSubFieldLoaders,
-        boolean storeIgnoredFieldsInBinaryDocValues
+        boolean storeIgnoredFieldsInBinaryDocValues,
+        FlattenedFieldMapper.PreserveLeafArrays preserveLeafArrays
     ) {
         assert storeIgnoredFieldsInBinaryDocValues == false || usesBinaryDocValues
             : "storeIgnoredFieldsInBinaryDocValues requires usesBinaryDocValues";
@@ -72,6 +78,8 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
         this.usesBinaryDocValues = usesBinaryDocValues;
         this.mappedSubFieldLoaders = mappedSubFieldLoaders;
         this.storeIgnoredFieldsInBinaryDocValues = storeIgnoredFieldsInBinaryDocValues;
+        this.preserveLeafArrays = preserveLeafArrays;
+        this.offsetsFieldName = FlattenedFieldArrayContext.getFlattenedOffsetsFieldName(fieldFullPath);
     }
 
     @Override
@@ -115,6 +123,17 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
                 allLoaders.add(docValues);
             } else {
                 docValues = NO_VALUES;
+            }
+        }
+
+        {
+            var binaryDv = reader.getBinaryDocValues(offsetsFieldName);
+            if (binaryDv != null) {
+                SortedBinaryDocValues dv = MultiValuedSortedBinaryDocValues.from(reader, offsetsFieldName, binaryDv);
+                offsetsDocValues = new MultiValuedBinaryFlattenedDocValues(dv);
+                allLoaders.add(offsetsDocValues);
+            } else {
+                offsetsDocValues = NO_VALUES;
             }
         }
 
@@ -164,7 +183,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
 
     protected boolean hasFlattenedValues() {
         boolean hasIgnoredValues = ignoredStoredValues.isEmpty() == false || ignoredDocValues.count() > 0;
-        return docValues.count() > 0 || hasIgnoredValues;
+        return docValues.count() > 0 || offsetsDocValues.count() > 0 || hasIgnoredValues;
     }
 
     private boolean hasPropertyValues() {
@@ -182,7 +201,13 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
         if (ignoredValuesSet != null) {
             sortedKeyedValues = new DocValuesWithIgnoredSortedKeyedValues(sortedKeyedValues, ignoredValuesSet);
         }
-        return new FlattenedFieldSyntheticWriterHelper(sortedKeyedValues);
+        final var offsetsValues = offsetsDocValues.getValues();
+        FlattenedFieldSyntheticWriterHelper.SortedOffsetValues keyedOffsetFieldSupplier = () -> {
+            var value = offsetsValues.next();
+            return value != null ? FlattenedFieldArrayContext.parseOffsetField(value) : null;
+        };
+
+        return new FlattenedFieldSyntheticWriterHelper(sortedKeyedValues, keyedOffsetFieldSupplier);
     }
 
     private TreeSet<BytesRef> collectIgnoredValues() throws IOException {

@@ -17,9 +17,14 @@ import com.networknt.schema.SchemaValidatorsConfig;
 import com.networknt.schema.SpecVersion;
 import com.networknt.schema.ValidationMessage;
 
+import org.elasticsearch.gradle.internal.conventions.problems.ElasticsearchBuildProblems;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.UncheckedIOException;
 import org.gradle.api.file.FileCollection;
+import org.gradle.api.problems.ProblemId;
+import org.gradle.api.problems.ProblemReporter;
+import org.gradle.api.problems.Problems;
+import org.gradle.api.problems.Severity;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
@@ -45,6 +50,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.StreamSupport;
 
+import javax.inject.Inject;
+
 /**
  * Incremental task to validate a set of JSON files against a schema.
  */
@@ -53,6 +60,12 @@ public class ValidateJsonAgainstSchemaTask extends DefaultTask {
     private File jsonSchema;
     private File report;
     private FileCollection inputFiles;
+    private final ProblemReporter problemReporter;
+
+    @Inject
+    public ValidateJsonAgainstSchemaTask(Problems problems) {
+        this.problemReporter = problems.getReporter();
+    }
 
     @Incremental
     @InputFiles
@@ -153,6 +166,13 @@ public class ValidateJsonAgainstSchemaTask extends DefaultTask {
             getLogger().error("[validate {}][ERROR][{}][{}]", fileType, file.getName(), message.toString());
             errors.computeIfAbsent(file, k -> new LinkedHashSet<>())
                 .add(String.format("%s: %s", file.getAbsolutePath(), message.toString()));
+            problemReporter.report(
+                ProblemId.create("schema-violation", fileType + " schema violation", ElasticsearchBuildProblems.JSON_VALIDATION),
+                spec -> spec.contextualLabel(fileType + " validation error in " + file.getName() + ": " + message)
+                    .severity(Severity.ERROR)
+                    .fileLocation(file.getAbsolutePath())
+                    .solution("Fix the " + fileType + " file to conform to the schema at " + getJsonSchema().getAbsolutePath())
+            );
         }
     }
 }

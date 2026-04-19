@@ -28,6 +28,7 @@ import static java.lang.Math.min;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueNanos;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class BulkByScrollTaskTests extends ESTestCase {
 
@@ -37,15 +38,19 @@ public class BulkByScrollTaskTests extends ESTestCase {
      * {@link BulkByScrollTask#setWorker(float, Integer)} is called.
      */
     private static BulkByScrollTask createTask(boolean eligibleForRelocationOnShutdown) {
+        return createTask(eligibleForRelocationOnShutdown, randomBoolean());
+    }
+
+    private static BulkByScrollTask createTask(boolean eligibleForRelocationOnShutdown, boolean isRelocated) {
         TaskId taskId = randomTaskId();
         String type = randomAlphaOfLengthBetween(1, 10);
         String action = randomAlphaOfLengthBetween(1, 10);
         String description = randomAlphaOfLengthBetween(0, 20);
         TaskId parentTaskId = randomTaskId();
         Map<String, String> headers = randomBoolean() ? Collections.emptyMap() : Map.of("header", randomAlphaOfLength(5));
-        ResumeInfo.RelocationOrigin origin = randomBoolean()
-            ? null
-            : new ResumeInfo.RelocationOrigin(new TaskId(randomAlphaOfLength(5), randomNonNegativeLong()), randomNonNegativeLong());
+        ResumeInfo.RelocationOrigin origin = isRelocated
+            ? new ResumeInfo.RelocationOrigin(new TaskId(randomAlphaOfLength(5), randomNonNegativeLong()), randomNonNegativeLong())
+            : null;
         return new BulkByScrollTask(taskId, type, action, description, parentTaskId, headers, eligibleForRelocationOnShutdown, origin);
     }
 
@@ -474,6 +479,28 @@ public class BulkByScrollTaskTests extends ESTestCase {
             () -> task.taskInfoGivenSubtaskInfo(localNodeId, sliceInfoList)
         );
         assertThat(exception.getMessage(), containsString("not set to be a leader"));
+    }
+
+    public void testTaskIsRelocatedIfRelocationOriginIsSet() {
+        final boolean isRelocated = randomBoolean();
+        final BulkByScrollTask task = createTask(randomBoolean(), isRelocated);
+        assertThat(task.isRelocatedTask(), equalTo(isRelocated));
+    }
+
+    public void testTaskInfo_notRelocated() {
+        BulkByScrollTask task = createTask(randomBoolean(), false);
+        String localNodeId = randomAlphaOfLength(5);
+        TaskInfo info = task.taskInfo(localNodeId, true);
+        assertThat(info.originalTaskId(), equalTo(new TaskId(localNodeId, task.getId())));
+        assertThat(info.originalStartTimeMillis(), equalTo(task.getStartTime()));
+    }
+
+    public void testTaskInfo_relocated() {
+        BulkByScrollTask task = createTask(true, true);
+        String localNodeId = randomAlphaOfLength(5);
+        TaskInfo info = task.taskInfo(localNodeId, true);
+        assertThat(info.originalTaskId(), equalTo(task.relocationOrigin().originalTaskId()));
+        assertThat(info.originalStartTimeMillis(), equalTo(task.relocationOrigin().originalStartTimeMillis()));
     }
 
     private static float randomFloatBetween(float min, float max) {

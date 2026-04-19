@@ -9,14 +9,15 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Expression.TypeResolution;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -59,13 +60,19 @@ public abstract class MvSetOperationFunction extends BinaryScalarFunction implem
 
         if (left().dataType() != DataType.NULL && right().dataType() != DataType.NULL) {
             this.dataType = left().dataType().noText();
-            return isType(
+            TypeResolution leftResolution = isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram(
+                left(),
+                sourceText(),
+                FIRST
+            );
+            TypeResolution rightResolution = isType(
                 right(),
                 t -> t.noText() == left().dataType().noText(),
                 sourceText(),
                 SECOND,
                 left().dataType().noText().typeName()
             );
+            return leftResolution.unresolved() ? leftResolution : rightResolution;
         }
 
         Expression evaluatedField = left().dataType() == DataType.NULL ? right() : left();
@@ -112,6 +119,49 @@ public abstract class MvSetOperationFunction extends BinaryScalarFunction implem
         // Build result
         builder.beginPositionEntry();
         for (T value : firstSet) {
+            addValue.accept(value);
+        }
+        builder.endPositionEntry();
+    }
+
+    /**
+     * Shared collection operation processing logic.
+     */
+    protected static <T> void processListOperation(
+        Block.Builder builder,
+        int position,
+        Block field1,
+        Block field2,
+        BiFunction<Integer, Block, T> getValue,
+        Consumer<T> addValue,
+        BiConsumer<List<T>, List<T>> combineOp
+    ) {
+        int firstCount = field1.getValueCount(position);
+        int secondCount = field2.getValueCount(position);
+
+        // Extract values
+        ArrayList<T> firstList = new ArrayList<>(firstCount);
+        int firstIndex = field1.getFirstValueIndex(position);
+        for (int i = 0; i < firstCount; i++) {
+            firstList.add(getValue.apply(firstIndex + i, field1));
+        }
+
+        ArrayList<T> secondList = new ArrayList<>(secondCount);
+        int secondIndex = field2.getFirstValueIndex(position);
+        for (int i = 0; i < secondCount; i++) {
+            secondList.add(getValue.apply(secondIndex + i, field2));
+        }
+
+        combineOp.accept(firstList, secondList);
+
+        if (firstList.isEmpty()) {
+            builder.appendNull();
+            return;
+        }
+
+        // Build result
+        builder.beginPositionEntry();
+        for (T value : firstList) {
             addValue.accept(value);
         }
         builder.endPositionEntry();

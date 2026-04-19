@@ -29,7 +29,6 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsOptions;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
@@ -166,7 +165,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
             }
         ).enableUpdateModelTests(new UpdateModelConfiguration() {
             @Override
-            protected CustomModel createEmbeddingModel(SimilarityMeasure similarityMeasure) {
+            protected CustomModel createEmbeddingModel(SimilarityMeasure similarityMeasure, TaskType taskType) {
                 return createInternalEmbeddingModel(similarityMeasure);
             }
         }).build();
@@ -416,7 +415,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 false,
                 new HashMap<>(),
                 InputType.INTERNAL_SEARCH,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -474,7 +473,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 false,
                 new HashMap<>(),
                 InputType.INTERNAL_SEARCH,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -547,7 +546,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 false,
                 new HashMap<>(),
                 InputType.INTERNAL_SEARCH,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -619,7 +618,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 false,
                 new HashMap<>(),
                 InputType.INTERNAL_SEARCH,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -685,7 +684,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 false,
                 new HashMap<>(),
                 InputType.INTERNAL_SEARCH,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -835,7 +834,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb")),
                 new HashMap<>(),
                 InputType.INTERNAL_INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -910,7 +909,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 List.of(new ChunkInferenceInput("a")),
                 new HashMap<>(),
                 InputType.INTERNAL_INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -998,7 +997,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb")),
                 new HashMap<>(),
                 InputType.INTERNAL_INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1110,7 +1109,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb")),
                 new HashMap<>(),
                 InputType.INTERNAL_INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1171,15 +1170,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
         try (var service = createService(threadPool, clientManager)) {
 
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
-            service.chunkedInfer(
-                model,
-                null,
-                List.of(),
-                new HashMap<>(),
-                InputType.INTERNAL_INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.chunkedInfer(model, null, List.of(), new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
 
             var results = listener.actionGet(TIMEOUT);
             assertThat(results, empty());

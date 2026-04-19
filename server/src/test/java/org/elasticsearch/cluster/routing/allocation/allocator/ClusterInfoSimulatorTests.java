@@ -34,8 +34,8 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -51,7 +51,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -758,13 +757,10 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
 
         /** Set up the Simulator */
 
-        final var allocation = new RoutingAllocation(
-            new AllocationDeciders(List.of()),
-            harness.clusterState,
-            clusterInfo,
-            SnapshotShardSizeInfo.EMPTY,
-            System.nanoTime()
-        ).mutableCloneForSimulation();
+        final var allocation = TestRoutingAllocationFactory.forClusterState(harness.clusterState)
+            .clusterInfo(clusterInfo)
+            .build()
+            .mutableCloneForSimulation();
 
         final var simulator = new ClusterInfoSimulator(allocation);
 
@@ -990,19 +986,9 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         var harness = setupHeapUsageTestHarness();
         var shardRouting1 = harness.shardRouting1; // Need to update these reference, harness doesn't allow it (as a record type.
 
-        /** Set up ClusterInfo */
-
-        ClusterInfo clusterInfo = ClusterInfo.builder().build();
-
         /** Set up the Simulator */
 
-        final var allocation = new RoutingAllocation(
-            new AllocationDeciders(List.of()),
-            harness.clusterState,
-            clusterInfo,
-            SnapshotShardSizeInfo.EMPTY,
-            System.nanoTime()
-        ).mutableCloneForSimulation();
+        final var allocation = TestRoutingAllocationFactory.forClusterState(harness.clusterState).build().mutableCloneForSimulation();
 
         final var simulator = new ClusterInfoSimulator(allocation);
 
@@ -1076,13 +1062,10 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
 
         /** Set up the Simulator */
 
-        final var allocation = new RoutingAllocation(
-            new AllocationDeciders(List.of()),
-            harness.clusterState,
-            clusterInfo,
-            SnapshotShardSizeInfo.EMPTY,
-            System.nanoTime()
-        ).mutableCloneForSimulation();
+        final var allocation = TestRoutingAllocationFactory.forClusterState(harness.clusterState)
+            .clusterInfo(clusterInfo)
+            .build()
+            .mutableCloneForSimulation();
 
         final var simulator = new ClusterInfoSimulator(allocation);
 
@@ -1222,13 +1205,10 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                 .defaultShardHeapUsageForShardsWithoutMetrics(defaultShardAndIndexHeap)
                 .build();
 
-            final var allocationForRelocation = new RoutingAllocation(
-                new AllocationDeciders(List.of()),
-                stateForRelocation,
-                clusterInfoForRelocation,
-                SnapshotShardSizeInfo.EMPTY,
-                System.nanoTime()
-            ).mutableCloneForSimulation();
+            final var allocationForRelocation = TestRoutingAllocationFactory.forClusterState(stateForRelocation)
+                .clusterInfo(clusterInfoForRelocation)
+                .build()
+                .mutableCloneForSimulation();
             final var simulatorForRelocation = new ClusterInfoSimulator(allocationForRelocation);
 
             final var relocationShards = allocationForRelocation.routingNodes()
@@ -1299,14 +1279,11 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         SnapshotShardSizeInfo snapshotShardSizeInfo,
         AllocationDecider... deciders
     ) {
-        return new RoutingAllocation(
-            new AllocationDeciders(List.of(deciders)),
-            state.getRoutingNodes().mutableCopy(),
-            state,
-            clusterInfo,
-            snapshotShardSizeInfo,
-            0
-        );
+        return TestRoutingAllocationFactory.forClusterState(state)
+            .allocationDeciders(deciders)
+            .clusterInfo(clusterInfo)
+            .shardSizeInfo(snapshotShardSizeInfo)
+            .mutable();
     }
 
     private static class SnapshotShardSizeInfoTestBuilder {

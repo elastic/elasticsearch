@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.queries;
 
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
@@ -25,6 +26,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -176,12 +178,14 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
         ).boost(3.0f).queryName("bar").addFilterQuery(new TermsQueryBuilder(IndexFieldMapper.NAME, "test-index-*"));
 
         // Perform coordinator node rewrite
-        final QueryRewriteContext queryRewriteContext = createQueryRewriteContext(
+        QueryRewriteContext queryRewriteContext = createQueryRewriteContext(
             Map.of(testIndex1.name(), testIndex1.semanticTextFields(), testIndex2.name(), testIndex2.semanticTextFields()),
             Map.of(),
             TransportVersion.current(),
             null
         );
+        queryRewriteContext = instrumentQueryRewriteContext(queryRewriteContext, assertSingleUniqueAsyncAction(queryRewriteContext));
+
         QueryBuilder coordinatorRewritten = rewriteAndFetch(knnQuery, queryRewriteContext);
 
         // Use a serialization cycle to strip InterceptedQueryBuilderWrapper
@@ -211,6 +215,62 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
         QueryBuilder dataRewrittenTestIndex2 = rewriteAndFetch(coordinatorRewritten, indexMetadataContextTestIndex2);
         QueryBuilder expectedDataRewrittenTestIndex2 = buildExpectedKnnQuery(knnQuery, queryVector, indexMetadataContextTestIndex2);
         assertThat(dataRewrittenTestIndex2, equalTo(expectedDataRewrittenTestIndex2));
+    }
+
+    public void testRewriteSearchRequestOnNonInferenceField() throws Exception {
+        final String field = "test_field";
+        final TestIndex testIndex = new TestIndex(
+            "test-index",
+            Map.of(),
+            Map.of(
+                field,
+                Map.of(
+                    "type",
+                    "dense_vector",
+                    "element_type",
+                    DENSE_INFERENCE_ID_SETTINGS.elementType().toString(),
+                    "dims",
+                    DENSE_INFERENCE_ID_SETTINGS.dimensions()
+                )
+            )
+        );
+        final KnnVectorQueryBuilder knnQuery = new KnnVectorQueryBuilder(
+            field,
+            new TextEmbeddingQueryVectorBuilder(DENSE_INFERENCE_ID, "foo"),
+            50,
+            500,
+            50f,
+            null
+        );
+
+        // Search request rewriting has a small quirk: it internally calls Rewriteable.rewrite on the queries in the request
+        // (see SearchSourceBuilder#rewrite), which allows rewrite logic that doesn't depend on executing async actions to "run ahead" of
+        // logic that does. In the case of knn queries that only target local non-inference fields, this allows the logic that determines
+        // that the query doesn't need to be intercepted to outpace the query vector builder handling logic, which depends on async actions
+        // to complete. The end result is that we can determine that the query doesn't need to be intercepted before the query vector
+        // builder is converted to a query vector. This test verifies that this case does not result in an orphaned unique async action
+        // consumer.
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.source(new SearchSourceBuilder().query(knnQuery));
+
+        // Perform coordinator node rewrite
+        QueryRewriteContext queryRewriteContext = createQueryRewriteContext(
+            Map.of(testIndex.name(), testIndex.semanticTextFields()),
+            Map.of(),
+            TransportVersion.current(),
+            null
+        );
+        queryRewriteContext = instrumentQueryRewriteContext(queryRewriteContext, assertSingleUniqueAsyncAction(queryRewriteContext));
+
+        SearchRequest coordinatorRewritten = rewriteAndFetch(searchRequest, queryRewriteContext);
+        QueryBuilder coordinatorRewrittenQuery = coordinatorRewritten.source().query();
+
+        // Use a serialization cycle to strip InterceptedQueryBuilderWrapper
+        coordinatorRewrittenQuery = copyNamedWriteable(coordinatorRewrittenQuery, writableRegistry(), QueryBuilder.class);
+        assertThat(coordinatorRewrittenQuery, instanceOf(KnnVectorQueryBuilder.class));
+
+        KnnVectorQueryBuilder coordinatorRewrittenKnn = (KnnVectorQueryBuilder) coordinatorRewrittenQuery;
+        assertThat(coordinatorRewrittenKnn.queryVector(), notNullValue());
     }
 
     public void testCoordinatorNodeRewrite_GivenKnnQueryWithSemanticFilters_ShouldInterceptFilters() throws Exception {

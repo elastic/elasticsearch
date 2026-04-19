@@ -79,9 +79,6 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=termvectors/30_realtime/Realtime Term Vectors}
   issue: https://github.com/elastic/elasticsearch/issues/138370
-- class: org.elasticsearch.smoketest.MlWithSecurityIT
-  method: test {yaml=ml/sparse_vector_search/Test sparse_vector search with query vector and pruning config}
-  issue: https://github.com/elastic/elasticsearch/issues/139196
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old regression job}
   issue: https://github.com/elastic/elasticsearch/issues/139654

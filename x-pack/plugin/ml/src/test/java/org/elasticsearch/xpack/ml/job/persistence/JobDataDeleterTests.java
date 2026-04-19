@@ -182,6 +182,8 @@ public class JobDataDeleterTests extends ESTestCase {
         DeleteRequest deleteRequest = deleteCaptor.getValue();
         assertThat(deleteRequest.index(), is(AnomalyDetectorsIndex.jobResultsAliasedName(JOB_ID)));
         assertThat(deleteRequest.id(), is(DatafeedTimingStats.documentId(JOB_ID)));
+        assertThat(deleteRequest.getRefreshPolicy(), is(WriteRequest.RefreshPolicy.IMMEDIATE));
+
         verify(client, times(2)).threadPool();
     }
 

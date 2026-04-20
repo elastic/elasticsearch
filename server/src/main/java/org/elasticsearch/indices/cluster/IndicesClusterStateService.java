@@ -1182,7 +1182,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     private void sendFailShard(ShardRouting shardRouting, String message, @Nullable Exception failure, ClusterState state) {
         final ShardId shardId = shardRouting.shardId();
-        final String index = shardRouting.getIndexName();
         try {
             final Optional<IndexMetadata> indexMetadata = state.metadata().findIndex(shardRouting.index());
             if (indexMetadata.isEmpty()) {

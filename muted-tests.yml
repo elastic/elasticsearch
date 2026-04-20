@@ -388,9 +388,6 @@ tests:
 - class: org.elasticsearch.transport.ClusterConnectionManagerTests
   method: testConnectAfterClose
   issue: https://github.com/elastic/elasticsearch/issues/146743
-- class: org.elasticsearch.transport.ClusterConnectionManagerTests
-  method: testConnectFailsDuringValidation
-  issue: https://github.com/elastic/elasticsearch/issues/146743
 - class: org.elasticsearch.transport.TransportHandshakerTests
   method: testIncompatibleHandshakeRequest
   issue: https://github.com/elastic/elasticsearch/issues/146743

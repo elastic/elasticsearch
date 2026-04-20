@@ -1341,6 +1341,85 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
+    /**
+     * Exposes a dense singleton {@link NumericDocValues} as a {@link SortedNumericDocValues} that also
+     * implements {@link BlockLoader.OptionalColumnAtATimeReader} and {@link BlockLoader.OptionalBulkNumericFilter}.
+     * Bypasses {@link DocValues#singleton} so that {@link #nextValue()} resolves directly to
+     * {@link NumericDocValues#longValue()} with no extra virtual dispatch, and so that the block loader
+     * can call {@link BlockLoader.OptionalColumnAtATimeReader#tryRead} for bulk value loading.
+     */
+    private static final class BulkFilterableSingletonSortedNumericDocValues extends SortedNumericDocValues
+        implements
+            BlockLoader.OptionalColumnAtATimeReader,
+            BlockLoader.OptionalBulkNumericFilter {
+        private final NumericDocValues inner;
+
+        BulkFilterableSingletonSortedNumericDocValues(NumericDocValues inner) {
+            this.inner = inner;
+        }
+
+        @Override
+        public long nextValue() throws IOException {
+            return inner.longValue();
+        }
+
+        @Override
+        public int docValueCount() {
+            return 1;
+        }
+
+        @Override
+        public boolean advanceExact(int target) throws IOException {
+            return inner.advanceExact(target);
+        }
+
+        @Override
+        public int docID() {
+            return inner.docID();
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            return inner.nextDoc();
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            return inner.advance(target);
+        }
+
+        @Override
+        public long cost() {
+            return inner.cost();
+        }
+
+        @Override
+        public BlockLoader.Block tryRead(
+            BlockLoader.BlockFactory factory,
+            BlockLoader.Docs docs,
+            int offset,
+            boolean nullsFiltered,
+            BlockDocValuesReader.ToDouble toDouble,
+            boolean toInt,
+            boolean binaryMultiValuedFormat
+        ) throws IOException {
+            return ((BlockLoader.OptionalColumnAtATimeReader) inner).tryRead(
+                factory,
+                docs,
+                offset,
+                nullsFiltered,
+                toDouble,
+                toInt,
+                binaryMultiValuedFormat
+            );
+        }
+
+        @Override
+        public boolean tryBulkRangeFilter(BlockLoader.Docs docs, long lower, long upper, boolean[] mask) throws IOException {
+            return ((BlockLoader.OptionalBulkNumericFilter) inner).tryBulkRangeFilter(docs, lower, upper, mask);
+        }
+    }
+
     public abstract static class BaseDenseNumericValues extends NumericDocValues
         implements
             BlockLoader.OptionalColumnAtATimeReader,
@@ -2570,7 +2649,11 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
     private SortedNumericDocValues getSortedNumeric(SortedNumericEntry entry, long maxOrd) throws IOException {
         if (entry.numValues == entry.numDocsWithField) {
-            return DocValues.singleton(getNumeric(entry, maxOrd));
+            NumericDocValues numeric = getNumeric(entry, maxOrd);
+            if (numeric instanceof BlockLoader.OptionalBulkNumericFilter) {
+                return new BulkFilterableSingletonSortedNumericDocValues(numeric);
+            }
+            return DocValues.singleton(numeric);
         }
 
         final RandomAccessInput addressesInput = data.randomAccessSlice(entry.addressesOffset, entry.addressesLength);

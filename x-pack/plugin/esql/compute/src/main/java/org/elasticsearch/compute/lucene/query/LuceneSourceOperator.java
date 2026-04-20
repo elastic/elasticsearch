@@ -8,7 +8,7 @@
 package org.elasticsearch.compute.lucene.query;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
@@ -335,7 +335,7 @@ public class LuceneSourceOperator extends LuceneOperator {
         if (scorer.query() instanceof EsNumericRangeQuery rangeQuery) {
             bulkFilterLower = rangeQuery.lowerValue();
             bulkFilterUpper = rangeQuery.upperValue();
-            final NumericDocValues dv = leaf.reader().getNumericDocValues(rangeQuery.field());
+            final SortedNumericDocValues dv = leaf.reader().getSortedNumericDocValues(rangeQuery.field());
             currentBulkFilter = (dv instanceof BlockLoader.OptionalBulkNumericFilter f) ? f : null;
         }
     }

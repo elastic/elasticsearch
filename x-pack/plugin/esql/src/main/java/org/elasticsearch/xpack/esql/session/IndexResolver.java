@@ -20,6 +20,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.IndicesOptions.CrossProjectModeOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
@@ -61,7 +62,6 @@ import java.util.function.BinaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
@@ -188,8 +188,8 @@ public class IndexResolver {
      * but for flat world queries.
      */
     public void resolveMainFlatIndicesVersioned(
-        String requiredIndexPattern,
-        String optionalIndexPattern,
+        String indexPattern,
+        Set<String> viewNames,
         String projectRouting,
         Set<String> fieldNames,
         QueryBuilder requestFilter,
@@ -211,7 +211,6 @@ public class IndexResolver {
                 try {
                     var response = merge(responses);
                     var overallMinimumVersion = TransportVersion.min(minimumVersion, response.minTransportVersion());
-                    var indexPattern = String.join(",", requiredIndexPattern, optionalIndexPattern);
                     FieldsInfo info = new FieldsInfo(
                         response,
                         overallMinimumVersion,
@@ -246,38 +245,23 @@ public class IndexResolver {
                 listener.onFailure(infe != null ? new VerificationException("Unknown index [" + infe.getIndex().getName() + "]") : e);
             }
         });
-        if (requiredIndexPattern.isEmpty()) {
+        if (indexPattern.isEmpty()) {
             mergeResponseListener.onResponse(null);
         } else {
             client.execute(
                 EsqlResolveFieldsAction.TYPE,
-                createFieldCapsRequest(
-                    FLAT_OPTIONS,
-                    requiredIndexPattern,
-                    projectRouting,
-                    fieldNames,
-                    requestFilter,
-                    includeAllDimensions,
-                    true
-                ),
+                createFieldCapsRequest(FLAT_OPTIONS, indexPattern, projectRouting, fieldNames, requestFilter, includeAllDimensions, true),
                 mergeResponseListener
             );
         }
-        if (optionalIndexPattern.isEmpty()) {
+        if (viewNames.isEmpty()) {
             mergeResponseListener.onResponse(null);
         } else {
-            // retain main pattern exclusions
-            // it is required to avoid introducing excluded indices via optional pattern
-            var effectiveOptionalIndexPattern = Stream.concat(
-                Stream.of(optionalIndexPattern),
-                Stream.of(Strings.splitStringByCommaToArray(requiredIndexPattern))
-                    .filter(expression -> expression.startsWith("-") || expression.contains(":-"))
-            ).collect(joining(","));
             client.execute(
                 EsqlResolveFieldsAction.TYPE,
                 createFieldCapsRequest(
                     LENIENT_FLAT_OPTIONS,
-                    effectiveOptionalIndexPattern,
+                    createOptionalPattern(indexPattern, viewNames),
                     projectRouting,
                     fieldNames,
                     requestFilter,
@@ -287,6 +271,36 @@ public class IndexResolver {
                 mergeResponseListener
             );
         }
+    }
+
+    /**
+     * This creates a pattern for optional indices and views from linked CPS projects.
+     * It is constructed from views names previously resoled by view resolution while retaining positional exclusions.
+     */
+    private static String createOptionalPattern(String indexPattern, Set<String> viewNames) {
+        var remainingViews = new HashSet<>(viewNames);
+        var expressions = Strings.commaDelimitedListToStringArray(indexPattern);
+
+        var optionalIndexPatterns = new ArrayList<String>();
+        for (String expression : expressions) {
+            if (expression.startsWith("-") || expression.contains(":-")) {
+                // retain positional exclusion
+                optionalIndexPatterns.add(expression);
+            } else if (Regex.isSimpleMatchPattern(expression)) {
+                // carry over matching views
+                var remainingViewsIterator = remainingViews.iterator();
+                while (remainingViewsIterator.hasNext()) {
+                    var view = remainingViewsIterator.next();
+                    if (Regex.simpleMatch(expression, view)) {
+                        optionalIndexPatterns.add(view);
+                        remainingViewsIterator.remove();
+                    }
+                }
+            }
+        }
+        // carry over remaining views
+        optionalIndexPatterns.addAll(0, remainingViews);
+        return String.join(",", optionalIndexPatterns);
     }
 
     private static FieldCapabilitiesResponse merge(Collection<EsqlResolveFieldsResponse> responses) {

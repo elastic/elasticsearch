@@ -15,7 +15,6 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -1333,7 +1332,7 @@ public class EsqlSession {
                 result,
                 (e, r, l) -> preAnalyzeFlatMainIndices(
                     e.getKey(),
-                    Strings.collectionToCommaDelimitedString(result.viewResolution().keySet()),
+                    result.viewResolution().keySet(),
                     e.getValue(),
                     configuration.projectRouting(),
                     preAnalysis,
@@ -1409,7 +1408,7 @@ public class EsqlSession {
 
     private void preAnalyzeFlatMainIndices(
         IndexPattern indexPattern,
-        String optionalPattern,
+        Set<String> viewNames,
         IndexMode indexMode,
         String projectRouting,
         PreAnalyzer.PreAnalysis preAnalysis,
@@ -1422,7 +1421,7 @@ public class EsqlSession {
         executionInfo.queryProfile().incFieldCapsCalls();
         indexResolver.resolveMainFlatIndicesVersioned(
             indexPattern.indexPattern(),
-            optionalPattern,
+            viewNames,
             projectRouting,
             result.fieldNames,
             createQueryFilter(indexMode, requestFilter),
@@ -1443,7 +1442,7 @@ public class EsqlSession {
                     executionInfo.queryProfile().incFieldCapsCalls();
                     indexResolver.resolveMainFlatIndicesVersioned(
                         indexPattern.indexPattern(),
-                        optionalPattern,
+                        viewNames,
                         projectRouting,
                         result.fieldNames,
                         requestFilter,

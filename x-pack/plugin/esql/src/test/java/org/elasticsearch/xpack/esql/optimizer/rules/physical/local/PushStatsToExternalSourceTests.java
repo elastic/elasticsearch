@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -38,6 +40,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -52,6 +55,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.lessThanOrEqualOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class PushStatsToExternalSourceTests extends ESTestCase {
 
@@ -101,6 +105,21 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
         as(applyRule(agg), LocalSourceExec.class);
     }
 
+    /**
+     * ORC's IntegerColumnStatistics returns {@code long} for all integer stats, even for INT32 columns.
+     * The block type must match the ESQL column type (INTEGER -> IntBlock), not the Java stat type.
+     */
+    public void testMaxWithLongStatForIntegerColumnProducesIntBlock() {
+        Map<String, Object> metadata = statsMetadata(100L, "salary", 0L, null);
+        metadata.put("_stats.columns.salary.max", 150000L);
+        var agg = aggregateExec(externalSource(metadata), alias("m", new Max(Source.EMPTY, SALARY)));
+
+        LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
+        Block block = local.supplier().get().getBlock(0);
+        assertThat("Long stat for INTEGER column must produce IntBlock", block, instanceOf(IntBlock.class));
+        assertEquals(150000, ((IntBlock) block).getInt(0));
+    }
+
     public void testMultipleAggsPushedDown() {
         Map<String, Object> metadata = statsMetadata(500L, "score", 10L, null);
         metadata.put("_stats.columns.score.min", 1.0);
@@ -115,6 +134,45 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
 
         LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
         assertEquals(3, local.output().size());
+    }
+
+    // --- INITIAL mode: output schema must match AggregateExec.output() (regression for VerificationException) ---
+
+    public void testCountStarPushedInInitialMode() {
+        var agg = aggregateExec(AggregatorMode.INITIAL, externalSource(statsMetadata(1000L, null, null, null)), countStarAlias());
+        List<Attribute> expectedOutput = agg.output();
+
+        LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
+        assertEquals("output must match AggregateExec.output() for INITIAL mode", expectedOutput, local.output());
+        assertEquals("block count must match attribute count", local.output().size(), local.supplier().get().getBlockCount());
+        Page page = local.supplier().get();
+        assertEquals(1000L, as(page.getBlock(0), LongBlock.class).getLong(0));
+        assertTrue(as(page.getBlock(1), BooleanBlock.class).getBoolean(0));
+    }
+
+    public void testMultiAggPushedInInitialMode() {
+        Map<String, Object> metadata = statsMetadata(500L, "score", 10L, null);
+        metadata.put("_stats.columns.score.min", 1.0);
+        metadata.put("_stats.columns.score.max", 100.0);
+
+        var agg = aggregateExec(
+            AggregatorMode.INITIAL,
+            externalSource(metadata),
+            countStarAlias(),
+            alias("mn", new Min(Source.EMPTY, SCORE)),
+            alias("mx", new Max(Source.EMPTY, SCORE))
+        );
+        List<Attribute> expectedOutput = agg.output();
+
+        LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
+        assertEquals("output must match AggregateExec.output() for INITIAL mode", expectedOutput, local.output());
+        assertEquals("block count must match attribute count", local.output().size(), local.supplier().get().getBlockCount());
+    }
+
+    public void testNotPushedInFinalMode() {
+        var agg = aggregateExec(AggregatorMode.FINAL, externalSource(statsMetadata(500L, null, null, null)), countStarAlias());
+
+        as(applyRule(agg), AggregateExec.class);
     }
 
     public void testNotPushedWithGroupings() {
@@ -443,7 +501,12 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
     }
 
     private static AggregateExec aggregateExec(PhysicalPlan child, NamedExpression... aggregates) {
-        return new AggregateExec(Source.EMPTY, child, List.of(), List.of(aggregates), AggregatorMode.SINGLE, List.of(), null);
+        return aggregateExec(AggregatorMode.SINGLE, child, aggregates);
+    }
+
+    private static AggregateExec aggregateExec(AggregatorMode mode, PhysicalPlan child, NamedExpression... aggregates) {
+        List<Attribute> intermediateAttrs = AbstractPhysicalOperationProviders.intermediateAttributes(List.of(aggregates), List.of());
+        return new AggregateExec(Source.EMPTY, child, List.of(), List.of(aggregates), mode, intermediateAttrs, null);
     }
 
     private static EvalExec evalWithSimpleAlias(ExternalSourceExec child, String aliasName, String originalName) {

@@ -31,6 +31,8 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.reindex.resumeinfo.PitWorkerResumeInfoWireSerializingTests.randomPitWorkerResumeInfo;
+import static org.elasticsearch.index.reindex.resumeinfo.ScrollWorkerResumeInfoWireSerializingTests.randomScrollWorkerResumeInfo;
 import static org.elasticsearch.xcontent.json.JsonXContent.jsonXContent;
 
 /**
@@ -228,7 +230,8 @@ public final class BulkByScrollWireSerializingTestUtils {
     }
 
     /**
-     * Mutates {@code r} (a copy of {@code orig}) by changing exactly one serialized field of {@link AbstractBulkByScrollRequest}.
+     * Mutates {@code mutatedRequest} (a copy of {@code originalRequest}) by changing exactly one serialized field of
+     * {@link AbstractBulkByScrollRequest}.
      */
     public static void mutateAbstractBulkByScrollRequest(
         AbstractBulkByScrollRequest<?> originalRequest,
@@ -300,31 +303,24 @@ public final class BulkByScrollWireSerializingTestUtils {
         }
     }
 
+    /**
+     * Random {@link ResumeInfo}, either a single worker or multiple slices. All workers in the instance are either
+     * scroll-based or PIT-based, not a mix.
+     */
     public static ResumeInfo randomResumeInfo() {
         ResumeInfo.RelocationOrigin origin = new ResumeInfo.RelocationOrigin(
             new TaskId(ESTestCase.randomAlphaOfLength(8), ESTestCase.randomNonNegativeLong()),
             ESTestCase.randomNonNegativeLong()
         );
+        boolean pitWorkers = ESTestCase.randomBoolean();
         if (ESTestCase.randomBoolean()) {
-            BulkByScrollTask.Status scrollStatus = BulkByScrollTaskStatusTests.randomStatusWithoutException();
-            ResumeInfo.ScrollWorkerResumeInfo worker = new ResumeInfo.ScrollWorkerResumeInfo(
-                ESTestCase.randomAlphaOfLength(10),
-                ESTestCase.randomNonNegativeLong(),
-                scrollStatus,
-                null
-            );
+            ResumeInfo.WorkerResumeInfo worker = pitWorkers ? randomPitWorkerResumeInfo() : randomScrollWorkerResumeInfo();
             return new ResumeInfo(origin, worker, null);
         }
         int sliceCount = ESTestCase.randomIntBetween(2, 4);
         HashMap<Integer, ResumeInfo.SliceStatus> slices = new HashMap<>();
         for (int sliceIndex = 0; sliceIndex < sliceCount; sliceIndex++) {
-            BulkByScrollTask.Status scrollStatus = BulkByScrollTaskStatusTests.randomStatusWithoutException();
-            ResumeInfo.ScrollWorkerResumeInfo worker = new ResumeInfo.ScrollWorkerResumeInfo(
-                ESTestCase.randomAlphaOfLength(8),
-                ESTestCase.randomNonNegativeLong(),
-                scrollStatus,
-                null
-            );
+            ResumeInfo.WorkerResumeInfo worker = pitWorkers ? randomPitWorkerResumeInfo() : randomScrollWorkerResumeInfo();
             slices.put(sliceIndex, new ResumeInfo.SliceStatus(sliceIndex, worker, null));
         }
         return new ResumeInfo(origin, null, slices);

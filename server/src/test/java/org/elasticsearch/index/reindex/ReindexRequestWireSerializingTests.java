@@ -51,7 +51,7 @@ public class ReindexRequestWireSerializingTests extends AbstractWireSerializingT
     }
 
     /**
-     * Random {@link ReindexRequest} suitable for wire tests (also used as {@link ResumeBulkByScrollRequest} delegate).
+     * Random {@link ReindexRequest}.
      */
     public static ReindexRequest newRandomReindexWireInstance() {
         ReindexRequest reindexRequest = new ReindexRequest();

@@ -25,8 +25,6 @@ import java.util.Objects;
 
 public class RethrottleRequestWireSerializingTests extends AbstractWireSerializingTestCase<RethrottleRequestWireSerializingTests.Wrapper> {
 
-    private static final int MUTATION_BRANCHES = 7;
-
     @Override
     protected Writeable.Reader<Wrapper> instanceReader() {
         return Wrapper::new;
@@ -34,47 +32,47 @@ public class RethrottleRequestWireSerializingTests extends AbstractWireSerializi
 
     @Override
     protected Wrapper createTestInstance() {
-        RethrottleRequest r = new RethrottleRequest();
-        r.setRequestsPerSecond((float) randomDoubleBetween(0.001d, Float.POSITIVE_INFINITY, false));
+        RethrottleRequest request = new RethrottleRequest();
+        request.setRequestsPerSecond((float) randomDoubleBetween(0.001d, Float.POSITIVE_INFINITY, false));
         if (randomBoolean()) {
-            r.setParentTask(new TaskId(randomAlphaOfLength(6), randomNonNegativeLong()));
+            request.setParentTask(new TaskId(randomAlphaOfLength(6), randomNonNegativeLong()));
         }
         if (randomBoolean()) {
-            r.setTargetTaskId(new TaskId(randomAlphaOfLength(6), randomNonNegativeLong()));
+            request.setTargetTaskId(new TaskId(randomAlphaOfLength(6), randomNonNegativeLong()));
         }
         if (randomBoolean()) {
-            r.setTargetParentTaskId(new TaskId(randomAlphaOfLength(6), randomNonNegativeLong()));
+            request.setTargetParentTaskId(new TaskId(randomAlphaOfLength(6), randomNonNegativeLong()));
         }
         if (randomBoolean()) {
-            r.setNodes(randomAlphaOfLength(5));
+            request.setNodes(randomAlphaOfLength(5));
         }
         if (randomBoolean()) {
-            r.setActions(randomFrom(ReindexAction.NAME, UpdateByQueryAction.NAME, DeleteByQueryAction.NAME));
+            request.setActions(randomFrom(ReindexAction.NAME, UpdateByQueryAction.NAME, DeleteByQueryAction.NAME));
         }
         if (randomBoolean()) {
-            r.setTimeout(TimeValue.timeValueMillis(between(1, 600_000)));
+            request.setTimeout(TimeValue.timeValueMillis(between(1, 600_000)));
         }
-        return new Wrapper(r);
+        return new Wrapper(request);
     }
 
     @Override
     protected Wrapper mutateInstance(Wrapper instance) throws IOException {
         RethrottleRequest orig = instance.request;
-        RethrottleRequest r = copyInstance(instance).request;
-        switch (between(0, MUTATION_BRANCHES - 1)) {
-            case 0 -> r.setParentTask(
+        RethrottleRequest copy = copyInstance(instance).request;
+        switch (between(0, 6)) {
+            case 0 -> copy.setParentTask(
                 randomValueOtherThan(orig.getParentTask(), () -> new TaskId(randomAlphaOfLength(9), randomNonNegativeLong()))
             );
-            case 1 -> r.setTargetTaskId(
+            case 1 -> copy.setTargetTaskId(
                 randomValueOtherThan(orig.getTargetTaskId(), () -> new TaskId(randomAlphaOfLength(9), randomNonNegativeLong()))
             );
-            case 2 -> r.setTargetParentTaskId(
+            case 2 -> copy.setTargetParentTaskId(
                 randomValueOtherThan(orig.getTargetParentTaskId(), () -> new TaskId(randomAlphaOfLength(9), randomNonNegativeLong()))
             );
-            case 3 -> r.setNodes(
+            case 3 -> copy.setNodes(
                 randomArrayOtherThan(orig.getNodes(), () -> new String[] { randomAlphaOfLength(8), randomAlphaOfLength(8) })
             );
-            case 4 -> r.setActions(
+            case 4 -> copy.setActions(
                 randomArrayOtherThan(
                     orig.getActions(),
                     () -> randomFrom(
@@ -85,13 +83,13 @@ public class RethrottleRequestWireSerializingTests extends AbstractWireSerializi
                     )
                 )
             );
-            case 5 -> r.setTimeout(randomValueOtherThan(orig.getTimeout(), () -> TimeValue.timeValueMillis(between(1, 900_000))));
-            case 6 -> r.setRequestsPerSecond(
+            case 5 -> copy.setTimeout(randomValueOtherThan(orig.getTimeout(), () -> TimeValue.timeValueMillis(between(1, 900_000))));
+            case 6 -> copy.setRequestsPerSecond(
                 randomValueOtherThan(orig.getRequestsPerSecond(), () -> (float) randomDoubleBetween(0.001d, 1000d, false))
             );
             default -> throw new AssertionError();
         }
-        return new Wrapper(r);
+        return new Wrapper(copy);
     }
 
     static final class Wrapper implements Writeable {

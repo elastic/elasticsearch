@@ -29,8 +29,6 @@ import static org.elasticsearch.xcontent.json.JsonXContent.jsonXContent;
 
 public class RemoteInfoWireSerializingTests extends AbstractWireSerializingTestCase<RemoteInfo> {
 
-    private static final int MUTATION_BRANCHES = 10;
-
     /**
      * {@link RemoteInfo} mutations must not share a {@link SecureString} with the instance being mutated: {@link #dispose} closes the
      * mutation and would invalidate the original before wire equality checks run.
@@ -73,7 +71,7 @@ public class RemoteInfoWireSerializingTests extends AbstractWireSerializingTestC
 
     @Override
     protected RemoteInfo mutateInstance(RemoteInfo instance) throws IOException {
-        return switch (between(0, MUTATION_BRANCHES - 1)) {
+        return switch (between(0, 9)) {
             case 0 -> new RemoteInfo(
                 randomValueOtherThan(instance.getScheme(), () -> randomFrom("http", "https")),
                 instance.getHost(),

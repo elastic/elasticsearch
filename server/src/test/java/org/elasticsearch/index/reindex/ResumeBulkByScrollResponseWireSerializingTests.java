@@ -21,8 +21,6 @@ import java.util.Objects;
 public class ResumeBulkByScrollResponseWireSerializingTests extends AbstractWireSerializingTestCase<
     ResumeBulkByScrollResponseWireSerializingTests.Wrapper> {
 
-    private static final int MUTATION_BRANCHES = 1;
-
     @Override
     protected Writeable.Reader<Wrapper> instanceReader() {
         return Wrapper::new;
@@ -36,13 +34,8 @@ public class ResumeBulkByScrollResponseWireSerializingTests extends AbstractWire
     @Override
     protected Wrapper mutateInstance(Wrapper instance) throws IOException {
         TaskId origId = instance.response.getTaskId();
-        switch (between(0, MUTATION_BRANCHES - 1)) {
-            case 0 -> {
-                TaskId newId = randomValueOtherThan(origId, () -> new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()));
-                return new Wrapper(new ResumeBulkByScrollResponse(newId));
-            }
-            default -> throw new AssertionError();
-        }
+        TaskId newId = randomValueOtherThan(origId, () -> new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()));
+        return new Wrapper(new ResumeBulkByScrollResponse(newId));
     }
 
     static final class Wrapper implements Writeable {

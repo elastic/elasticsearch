@@ -46,6 +46,11 @@ public class MultiValuedBinaryDVLeafFieldData implements LeafFieldData {
         return 0; // not exposed by Lucene
     }
 
+    /**
+     * Returns the binary doc values associated with this field.
+     * <p>
+     * Switches formats between legacy and current version (as of April 2026) based on {@link IndexVersion}.
+     */
     @Override
     public SortedBinaryDocValues getBytesValues() {
         try {
@@ -54,7 +59,9 @@ public class MultiValuedBinaryDVLeafFieldData implements LeafFieldData {
             if (indexVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES)) {
                 return MultiValuedSortedBinaryDocValues.from(leafReader, fieldName);
             }
-            return MultiValuedSortedBinaryDocValues.fromLegacy(leafReader, fieldName);
+            // Pre-DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES indices may use the deprecated IntegratedCounts format, which
+            // fromMultiValued() handles as a fallback when the .counts field is absent.
+            return MultiValuedSortedBinaryDocValues.fromMultiValued(leafReader, fieldName);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

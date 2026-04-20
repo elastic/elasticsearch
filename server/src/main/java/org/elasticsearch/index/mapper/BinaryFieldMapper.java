@@ -262,7 +262,7 @@ public class BinaryFieldMapper extends FieldMapper {
         @Override
         public SortedBinaryDocValues getBytesValues() {
             try {
-                return MultiValuedSortedBinaryDocValues.fromLegacy(leafReader, fieldName);
+                return MultiValuedSortedBinaryDocValues.fromMultiValued(leafReader, fieldName);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

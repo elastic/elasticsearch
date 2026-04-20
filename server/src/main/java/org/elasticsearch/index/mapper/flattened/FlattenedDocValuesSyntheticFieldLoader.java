@@ -110,7 +110,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
         if (usesBinaryDocValues) {
             var binaryDv = reader.getBinaryDocValues(keyedFieldFullPath);
             if (binaryDv != null) {
-                SortedBinaryDocValues dv = MultiValuedSortedBinaryDocValues.fromLegacy(reader, keyedFieldFullPath, binaryDv);
+                SortedBinaryDocValues dv = MultiValuedSortedBinaryDocValues.fromMultiValued(reader, keyedFieldFullPath, binaryDv);
                 docValues = new MultiValuedBinaryFlattenedDocValues(dv);
                 allLoaders.add(docValues);
             } else {
@@ -148,7 +148,11 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
         if (storeIgnoredFieldsInBinaryDocValues && keyedIgnoredValuesFieldFullPath != null) {
             var binaryDv = reader.getBinaryDocValues(keyedIgnoredValuesFieldFullPath);
             if (binaryDv != null) {
-                SortedBinaryDocValues dv = MultiValuedSortedBinaryDocValues.fromLegacy(reader, keyedIgnoredValuesFieldFullPath, binaryDv);
+                SortedBinaryDocValues dv = MultiValuedSortedBinaryDocValues.fromMultiValued(
+                    reader,
+                    keyedIgnoredValuesFieldFullPath,
+                    binaryDv
+                );
                 ignoredDocValues = new MultiValuedBinaryFlattenedDocValues(dv);
                 allLoaders.add(ignoredDocValues);
             } else {

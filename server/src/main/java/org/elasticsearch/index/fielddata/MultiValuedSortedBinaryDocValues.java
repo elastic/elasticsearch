@@ -35,13 +35,13 @@ public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocVa
     }
 
     /**
-     * Reads binary doc values written in the current format ({@link SeparateCounts} or {@link PlainBinary}).
+     * Reads binary doc values written in the ({@link SeparateCounts} or {@link PlainBinary}) formats (as of April 2026).
      * <ul>
      *   <li>{@code .counts} present &rarr; {@link SeparateCounts} (multi-valued)</li>
      *   <li>{@code .counts} absent &rarr; {@link PlainBinary} (single-valued)</li>
      * </ul>
-     * For indices created before {@code DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES}, use {@link #fromLegacy(LeafReader, String)}
-     * instead.
+     * For indices created before {@code DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES}, use {@link #fromMultiValued(LeafReader, String)}
+     * instead, which also handles the deprecated {@link IntegratedCounts} format.
      */
     public static SortedBinaryDocValues from(LeafReader leafReader, String valuesFieldName) throws IOException {
         BinaryDocValues values = DocValues.getBinary(leafReader, valuesFieldName);
@@ -54,21 +54,23 @@ public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocVa
     }
 
     /**
-     * Legacy reader for callers that read inherently multi-valued internal fields (ex. {@code _ignored_source}) that may contain data in
-     * the deprecated {@link IntegratedCounts} format.
-     * <p>
-     * Falls back to {@link IntegratedCounts} when no {@code .counts} companion field is present. New callers should use
-     * {@link #from(LeafReader, String)}.
+     * Reader for callers that read inherently multi-valued fields (ex. {@code _ignored_source}). These fields always use either the
+     * {@link SeparateCounts} or {@link IntegratedCounts} format, so the single-valued fast path in {@link #from(LeafReader, String)} does
+     * not apply.
+     * <ul>
+     *   <li>{@code .counts} present &rarr; {@link SeparateCounts}</li>
+     *   <li>{@code .counts} absent &rarr; {@link IntegratedCounts}</li>
+     * </ul>
      */
-    public static MultiValuedSortedBinaryDocValues fromLegacy(LeafReader leafReader, String valuesFieldName) throws IOException {
+    public static MultiValuedSortedBinaryDocValues fromMultiValued(LeafReader leafReader, String valuesFieldName) throws IOException {
         BinaryDocValues values = DocValues.getBinary(leafReader, valuesFieldName);
-        return fromLegacy(leafReader, valuesFieldName, values);
+        return fromMultiValued(leafReader, valuesFieldName, values);
     }
 
     /**
-     * Legacy reader variant that accepts pre-loaded {@link BinaryDocValues}.
+     * Variant of {@link #fromMultiValued(LeafReader, String)} that accepts pre-loaded {@link BinaryDocValues}.
      */
-    public static MultiValuedSortedBinaryDocValues fromLegacy(LeafReader leafReader, String valuesFieldName, BinaryDocValues values)
+    public static MultiValuedSortedBinaryDocValues fromMultiValued(LeafReader leafReader, String valuesFieldName, BinaryDocValues values)
         throws IOException {
         String countsFieldName = valuesFieldName + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
         NumericDocValues counts = leafReader.getNumericDocValues(countsFieldName);

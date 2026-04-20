@@ -45,9 +45,11 @@ public class BinaryDocValuesSyntheticFieldLoaderLayer implements CompositeSynthe
             return null;
         }
 
+        // Pre-DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES indices may use the deprecated IntegratedCounts format, which
+        // fromMultiValued() handles as a fallback when the .counts field is absent.
         bytesValues = indexVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES)
             ? MultiValuedSortedBinaryDocValues.from(leafReader, name)
-            : MultiValuedSortedBinaryDocValues.fromLegacy(leafReader, name, docValues);
+            : MultiValuedSortedBinaryDocValues.fromMultiValued(leafReader, name, docValues);
 
         return docId -> {
             hasValue = bytesValues.advanceExact(docId);

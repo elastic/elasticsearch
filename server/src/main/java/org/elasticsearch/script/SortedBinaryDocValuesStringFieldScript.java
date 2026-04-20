@@ -33,9 +33,11 @@ public class SortedBinaryDocValuesStringFieldScript extends StringFieldScript {
     ) {
         super(fieldName, Map.of(), searchLookup, OnScriptError.FAIL, ctx);
         try {
+            // Pre-DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES indices may use the deprecated IntegratedCounts format, which
+            // fromMultiValued() handles as a fallback when the .counts field is absent.
             sortedBinaryDocValues = indexVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES)
                 ? MultiValuedSortedBinaryDocValues.from(ctx.reader(), fieldName)
-                : MultiValuedSortedBinaryDocValues.fromLegacy(ctx.reader(), fieldName);
+                : MultiValuedSortedBinaryDocValues.fromMultiValued(ctx.reader(), fieldName);
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values", e);
         }

@@ -600,11 +600,12 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         try {
             if (field.dataType() == DataType.DATETIME || field.dataType() == DataType.DATE_NANOS) {
                 Rounding rounding = getDateRounding(foldContext).getUnprepared();
-                return Map.of("bucket", rounding.getMetadata());
+                Rounding.Interval interval = rounding.getInterval();
+                return Map.of("bucket", Map.of("interval", interval.size(), "unit", interval.unit()));
             }
             if (field.dataType().isNumeric()) {
                 double roundTo = getNumberRoundTo(foldContext);
-                return Map.of("bucket", Map.of("numeric_range", roundTo));
+                return Map.of("bucket", Map.of("interval", roundTo));
             }
             return null;
         } catch (QlIllegalArgumentException e) {

@@ -31,6 +31,7 @@ import java.util.List;
 public record Result(
     @Nullable LogicalPlan plan,
     List<Attribute> schema,
+
     List<Page> pages,
     Configuration configuration,
     DriverCompletionInfo completionInfo,

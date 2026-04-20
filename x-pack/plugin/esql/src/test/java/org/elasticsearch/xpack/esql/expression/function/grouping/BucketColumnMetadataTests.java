@@ -32,16 +32,13 @@ public class BucketColumnMetadataTests extends ESTestCase {
     }
 
     public void testNumericWithoutRange() {
-        assertBucketColumnMetadata(
-            "FROM test | STATS count(*) BY BUCKET(salary, 1000.0)",
-            Map.of("bucket", Map.of("numeric_range", 1000.0))
-        );
+        assertBucketColumnMetadata("FROM test | STATS count(*) BY BUCKET(salary, 1000.0)", Map.of("bucket", Map.of("interval", 1000.0)));
     }
 
     public void testNumericWithRange() {
         assertBucketColumnMetadata(
             "FROM test | STATS count(*) BY BUCKET(salary, 10, 0, 10000)",
-            Map.of("bucket", Map.of("numeric_range", 1000.0))
+            Map.of("bucket", Map.of("interval", 1000.0))
         );
     }
 
@@ -49,7 +46,7 @@ public class BucketColumnMetadataTests extends ESTestCase {
         // 20 buckets over 1 year -> monthly (12 <= 20, weekly would be ~52)
         assertBucketColumnMetadata(
             "FROM test | STATS count(*) BY BUCKET(hire_date, 20, \"1985-01-01\", \"1986-01-01\")",
-            Map.of("bucket", Map.of("date_range", "1 month"))
+            Map.of("bucket", Map.of("interval", 1L, "unit", "month"))
         );
     }
 
@@ -57,7 +54,7 @@ public class BucketColumnMetadataTests extends ESTestCase {
         // 100 buckets over 1 year -> weekly (52 <= 100, monthly also fits but weekly is finer)
         assertBucketColumnMetadata(
             "FROM test | STATS count(*) BY BUCKET(hire_date, 100, \"1985-01-01\", \"1986-01-01\")",
-            Map.of("bucket", Map.of("date_range", "1 week", "date_range_ms", 7 * 24 * 60 * 60 * 1000L))
+            Map.of("bucket", Map.of("interval", 1L, "unit", "week"))
         );
     }
 
@@ -65,35 +62,35 @@ public class BucketColumnMetadataTests extends ESTestCase {
         // 5 buckets over 10 years -> yearly
         assertBucketColumnMetadata(
             "FROM test | STATS count(*) BY BUCKET(hire_date, 5, \"1980-01-01\", \"1990-01-01\")",
-            Map.of("bucket", Map.of("date_range", "1 year"))
+            Map.of("bucket", Map.of("interval", 1L, "unit", "year"))
         );
     }
 
     public void testDateExplicitPeriodYear() {
         assertBucketColumnMetadata(
             "FROM test | STATS count(*) BY BUCKET(hire_date, 1 year)",
-            Map.of("bucket", Map.of("date_range", "1 year"))
+            Map.of("bucket", Map.of("interval", 1L, "unit", "year"))
         );
     }
 
     public void testDateExplicitPeriodMonth() {
         assertBucketColumnMetadata(
             "FROM test | STATS count(*) BY BUCKET(hire_date, 1 month)",
-            Map.of("bucket", Map.of("date_range", "1 month"))
+            Map.of("bucket", Map.of("interval", 1L, "unit", "month"))
         );
     }
 
     public void testDateExplicitDurationHours() {
         assertBucketColumnMetadata(
             "FROM test | STATS count(*) BY BUCKET(hire_date, 1 hour)",
-            Map.of("bucket", Map.of("date_range", "1h", "date_range_ms", 60 * 60 * 1000L))
+            Map.of("bucket", Map.of("interval", 1L, "unit", "hour"))
         );
     }
 
     public void testDateExplicitDurationMinutes() {
         assertBucketColumnMetadata(
             "FROM test | STATS count(*) BY BUCKET(hire_date, 30 minutes)",
-            Map.of("bucket", Map.of("date_range", "30m", "date_range_ms", 30 * 60 * 1000L))
+            Map.of("bucket", Map.of("interval", 30L, "unit", "minute"))
         );
     }
 
@@ -101,15 +98,15 @@ public class BucketColumnMetadataTests extends ESTestCase {
         assertBucketColumnMetadata(
             "ROW date=TO_DATETIME(\"1985-07-09T00:00:00.000Z\") "
                 + "| STATS date=VALUES(date) BY bucket=BUCKET(date, 20, \"1985-01-01T00:00:00Z\", \"1986-01-01T00:00:00Z\")",
-            Map.of("bucket", Map.of("date_range", "1 month"))
+            Map.of("bucket", Map.of("interval", 1L, "unit", "month"))
         );
     }
 
     public void testMultipleBuckets() {
         assertBucketColumnMetadata(
             "FROM test | STATS count(*) BY BUCKET(hire_date, 1 year), BUCKET(salary, 5000.0)",
-            Map.of("bucket", Map.of("date_range", "1 year")),
-            Map.of("bucket", Map.of("numeric_range", 5000.0))
+            Map.of("bucket", Map.of("interval", 1L, "unit", "year")),
+            Map.of("bucket", Map.of("interval", 5000.0))
         );
     }
 

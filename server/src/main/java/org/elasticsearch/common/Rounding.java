@@ -38,7 +38,6 @@ import java.time.zone.ZoneRules;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
@@ -1564,18 +1563,18 @@ public abstract class Rounding implements Writeable {
         }
     }
 
-    public Map<String, Object> getMetadata() {
+    public Interval getInterval() {
         return switch (this) {
             case Rounding.TimeIntervalRounding interval -> {
-                var timeValue = TimeValue.timeValueMillis(interval.interval);
-                yield Map.of("date_range", timeValue.toString(), "date_range_ms", timeValue.getMillis());
+                var timeValue = TimeValue.parseTimeValue(TimeValue.timeValueMillis(interval.interval).toString(), "interval");
+                var unit = timeValue.timeUnit().name();
+                yield new Interval(timeValue.duration(), Strings.toLowercaseAscii(unit.substring(0, unit.length() - 1)));
             }
-            case Rounding.TimeUnitRounding unit -> unit.unit.isMillisBased
-                ? Map.of("date_range", "1 " + unit.unit.shortName, "date_range_ms", unit.unit.ratio)
-                // Some intervals (such as year or month) might have various length.
-                : Map.of("date_range", "1 " + unit.unit.shortName);
-            case Rounding.OffsetRounding offset -> offset.delegate.getMetadata();
+            case Rounding.TimeUnitRounding unit -> new Interval(1, unit.unit.shortName);
+            case Rounding.OffsetRounding offset -> offset.delegate.getInterval();
             default -> throw new RuntimeException("Unexpected Rounding implementation: " + getClass().getName());
         };
     }
+
+    public record Interval(long size, String unit) {}
 }

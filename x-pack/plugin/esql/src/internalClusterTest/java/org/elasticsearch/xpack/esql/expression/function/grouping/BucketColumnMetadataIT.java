@@ -30,7 +30,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             ROW date=TO_DATETIME("1985-07-09T00:00:00.000Z")
             | STATS date=VALUES(date) BY bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
             """))) {
-            assertThat(findColumn(response, "bucket").meta(), equalTo(Map.of("bucket", Map.of("date_range", "1 month"))));
+            assertThat(findColumn(response, "bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month"))));
         }
     }
 
@@ -39,7 +39,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             ROW date=TO_DATETIME("1985-07-09T00:00:00.000Z")
             | STATS date=VALUES(date) BY BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
             """))) {
-            assertThat(response.columns().get(1).meta(), equalTo(Map.of("bucket", Map.of("date_range", "1 month"))));
+            assertThat(response.columns().get(1).meta(), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month"))));
         }
     }
 
@@ -49,7 +49,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             | STATS date=VALUES(date) BY bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
             | KEEP date, bucket
             """))) {
-            assertThat(response.columns().get(1).meta(), equalTo(Map.of("bucket", Map.of("date_range", "1 month"))));
+            assertThat(response.columns().get(1).meta(), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month"))));
         }
     }
 
@@ -59,7 +59,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             | STATS date=VALUES(date) BY bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
             | EVAL bucket_renamed = bucket
             """))) {
-            assertThat(response.columns().get(1).meta(), equalTo(Map.of("bucket", Map.of("date_range", "1 month"))));
+            assertThat(response.columns().get(1).meta(), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month"))));
             assertThat(findColumn(response, "bucket_renamed").meta(), nullValue());
         }
     }
@@ -114,7 +114,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             FROM
                 (FROM dates | STATS date=VALUES(date) BY date_bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z"))
             """))) {
-            assertThat(findColumn(response, "date_bucket").meta(), equalTo(Map.of("bucket", Map.of("date_range", "1 month"))));
+            assertThat(findColumn(response, "date_bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month"))));
         }
     }
 
@@ -147,7 +147,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             assertThat(findColumn(response, "number_bucket").meta(), nullValue());
         }
         try (var response = run(syncEsqlQueryRequest("FROM date-stats"))) {
-            assertThat(findColumn(response, "date_bucket").meta(), equalTo(Map.of("bucket", Map.of("date_range", "1 month"))));
+            assertThat(findColumn(response, "date_bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month"))));
         }
 
         client().execute(
@@ -173,7 +173,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             | SORT number
             | STATS count() BY date_bucket
             """))) {
-            assertThat(findColumn(response, "date_bucket").meta(), equalTo(Map.of("bucket", Map.of("date_range", "1 month"))));
+            assertThat(findColumn(response, "date_bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month"))));
         }
         // introducing bucket in subsequent aggregation
         try (var response = run(syncEsqlQueryRequest("""
@@ -182,7 +182,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             | SORT number
             | STATS count() BY date_bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
             """))) {
-            assertThat(findColumn(response, "date_bucket").meta(), equalTo(Map.of("bucket", Map.of("date_range", "1 month"))));
+            assertThat(findColumn(response, "date_bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month"))));
         }
     }
 
@@ -193,8 +193,8 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
                 date_bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z"),
                 number_bucket=BUCKET(number, 10)
             """))) {
-            assertThat(findColumn(response, "date_bucket").meta(), equalTo(Map.of("bucket", Map.of("date_range", "1 month"))));
-            assertThat(findColumn(response, "number_bucket").meta(), equalTo(Map.of("bucket", Map.of("numeric_range", 10.0))));
+            assertThat(findColumn(response, "date_bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month"))));
+            assertThat(findColumn(response, "number_bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 10.0))));
         }
     }
 
@@ -205,8 +205,8 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
                 BY date_bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
              | STATS count() BY date_bucket, number_bucket=BUCKET(number, 10)
             """))) {
-            assertThat(findColumn(response, "date_bucket").meta(), equalTo(Map.of("bucket", Map.of("date_range", "1 month"))));
-            assertThat(findColumn(response, "number_bucket").meta(), equalTo(Map.of("bucket", Map.of("numeric_range", 10.0))));
+            assertThat(findColumn(response, "date_bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month"))));
+            assertThat(findColumn(response, "number_bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 10.0))));
         }
         try (var response = run(syncEsqlQueryRequest("""
             ROW number=1, date=TO_DATETIME("1985-07-09T00:00:00.000Z")

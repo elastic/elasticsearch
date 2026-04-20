@@ -269,6 +269,7 @@ public class SynonymsManagementAPIService {
                     Filters.Bucket ruleCountBucket = ruleCountFilters.getBucketByKey(RULE_COUNT_FILTER_KEY);
                     return new SynonymSetSummary(ruleCountBucket.getDocCount(), bucket.getKeyAsString());
                 }).toArray(SynonymSetSummary[]::new);
+
                 listener.onResponse(new PagedResult<>(buckets.size(), synonymSetSummaries));
             }, e -> {
                 final Throwable cause = ExceptionsHelper.unwrapCause(e);

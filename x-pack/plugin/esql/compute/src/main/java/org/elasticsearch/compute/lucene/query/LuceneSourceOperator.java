@@ -332,7 +332,12 @@ public class LuceneSourceOperator extends LuceneOperator {
         }
         lastBulkFilterLeaf = leaf;
         currentBulkFilter = null;
-        if (scorer.query() instanceof EsNumericRangeQuery rangeQuery) {
+        Query q = scorer.query();
+        // ESQL always wraps the query in ConstantScoreQuery (scoreMode never needs scores)
+        if (q instanceof ConstantScoreQuery csq) {
+            q = csq.getQuery();
+        }
+        if (q instanceof EsNumericRangeQuery rangeQuery) {
             bulkFilterLower = rangeQuery.lowerValue();
             bulkFilterUpper = rangeQuery.upperValue();
             final SortedNumericDocValues dv = leaf.reader().getSortedNumericDocValues(rangeQuery.field());

@@ -279,6 +279,28 @@ public interface BlockLoader {
         default boolean tryBulkRangeFilter(Docs docs, long lower, long upper, boolean[] mask) throws IOException {
             return false;
         }
+
+        /**
+         * Sequential variant of {@link #tryBulkRangeFilter(Docs, long, long, boolean[])} for use when
+         * doc IDs form a contiguous range {@code [startDoc, startDoc + mask.length)}.
+         * Implementations can avoid computing doc IDs from a {@link Docs} object and instead use
+         * {@code startDoc + i} directly. {@code startDoc} must be aligned to the codec block boundary.
+         * Returns {@code true} if the bulk path was taken, {@code false} if not supported.
+         */
+        default boolean tryBulkRangeFilter(int startDoc, long lower, long upper, boolean[] mask) throws IOException {
+            return false;
+        }
+
+        /**
+         * Collects into {@code out} the doc IDs from the block starting at {@code startDoc} whose
+         * values fall within {@code [lower, upper]}, and returns the count. {@code startDoc} must be
+         * aligned to the codec block boundary; {@code count} is the number of docs to evaluate (may
+         * be less than the block size for the last block). {@code out} must have length &gt;= {@code count}.
+         * Returns -1 if not supported.
+         */
+        default int tryCollectMatchingDocs(int startDoc, int count, long lower, long upper, int[] out) throws IOException {
+            return -1;
+        }
     }
 
     /**

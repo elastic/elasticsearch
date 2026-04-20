@@ -1418,6 +1418,16 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         public boolean tryBulkRangeFilter(BlockLoader.Docs docs, long lower, long upper, boolean[] mask) throws IOException {
             return ((BlockLoader.OptionalBulkNumericFilter) inner).tryBulkRangeFilter(docs, lower, upper, mask);
         }
+
+        @Override
+        public boolean tryBulkRangeFilter(int startDoc, long lower, long upper, boolean[] mask) throws IOException {
+            return ((BlockLoader.OptionalBulkNumericFilter) inner).tryBulkRangeFilter(startDoc, lower, upper, mask);
+        }
+
+        @Override
+        public int tryCollectMatchingDocs(int startDoc, int count, long lower, long upper, int[] out) throws IOException {
+            return ((BlockLoader.OptionalBulkNumericFilter) inner).tryCollectMatchingDocs(startDoc, count, lower, upper, out);
+        }
     }
 
     public abstract static class BaseDenseNumericValues extends NumericDocValues
@@ -2422,6 +2432,50 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                         }
                     }
                     return true;
+                }
+
+                @Override
+                public boolean tryBulkRangeFilter(int startDoc, long lower, long upper, boolean[] mask) throws IOException {
+                    final int blockIndex = startDoc >>> numericBlockShift;
+                    if (blockIndex != currentBlockIndex) {
+                        if (currentBlockIndex + 1 != blockIndex) {
+                            valuesData.seek(indexReader.get(blockIndex));
+                        }
+                        currentBlockIndex = blockIndex;
+                        if (bitsPerOrd == -1) {
+                            decoder.decodeBlock(valuesData, currentBlock, numericBlockSize);
+                        } else {
+                            decoder.decodeOrdinals(valuesData, currentBlock, bitsPerOrd);
+                        }
+                    }
+                    // startDoc is block-aligned so offset is always 0; loop is maximally SIMD-friendly
+                    for (int i = 0; i < mask.length; i++) {
+                        mask[i] = currentBlock[i] >= lower && currentBlock[i] <= upper;
+                    }
+                    return true;
+                }
+
+                @Override
+                public int tryCollectMatchingDocs(int startDoc, int count, long lower, long upper, int[] out) throws IOException {
+                    final int blockIndex = startDoc >>> numericBlockShift;
+                    if (blockIndex != currentBlockIndex) {
+                        if (currentBlockIndex + 1 != blockIndex) {
+                            valuesData.seek(indexReader.get(blockIndex));
+                        }
+                        currentBlockIndex = blockIndex;
+                        if (bitsPerOrd == -1) {
+                            decoder.decodeBlock(valuesData, currentBlock, numericBlockSize);
+                        } else {
+                            decoder.decodeOrdinals(valuesData, currentBlock, bitsPerOrd);
+                        }
+                    }
+                    int n = 0;
+                    for (int i = 0; i < count; i++) {
+                        if (currentBlock[i] >= lower && currentBlock[i] <= upper) {
+                            out[n++] = startDoc + i;
+                        }
+                    }
+                    return n;
                 }
 
                 @Override

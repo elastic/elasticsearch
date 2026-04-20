@@ -20,6 +20,7 @@ import java.util.Arrays;
 import java.util.Objects;
 
 import static org.elasticsearch.index.reindex.BulkByScrollWireSerializingTestUtils.reindexRequestsEqual;
+import static org.elasticsearch.index.reindex.BulkByScrollWireSerializingTestUtils.resumeInfoOptionalContentHashCode;
 import static org.elasticsearch.index.reindex.ReindexRequestWireSerializingTests.mutateReindexRequest;
 import static org.elasticsearch.index.reindex.ReindexRequestWireSerializingTests.newRandomReindexWireInstance;
 
@@ -91,7 +92,7 @@ public class ResumeBulkByScrollRequestWireSerializingTests extends AbstractWireS
                 reindexDelegate.getSlices(),
                 reindexDelegate.getShouldStoreResult(),
                 reindexDelegate.isEligibleForRelocationOnShutdown(),
-                reindexDelegate.getResumeInfo(),
+                resumeInfoOptionalContentHashCode(reindexDelegate.getResumeInfo()),
                 Arrays.hashCode(reindexDelegate.getSourceIndicesForDescription()),
                 reindexDelegate.getDestination().index(),
                 reindexDelegate.getDestination().version(),

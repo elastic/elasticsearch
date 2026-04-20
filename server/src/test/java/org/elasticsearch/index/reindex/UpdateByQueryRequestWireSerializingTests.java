@@ -25,6 +25,7 @@ import java.util.Objects;
 import static org.elasticsearch.index.reindex.BulkByScrollWireSerializingTestUtils.fillRandomBulkFields;
 import static org.elasticsearch.index.reindex.BulkByScrollWireSerializingTestUtils.mutateAbstractBulkByScrollRequest;
 import static org.elasticsearch.index.reindex.BulkByScrollWireSerializingTestUtils.randomResumeInfo;
+import static org.elasticsearch.index.reindex.BulkByScrollWireSerializingTestUtils.resumeInfoOptionalContentHashCode;
 import static org.elasticsearch.index.reindex.BulkByScrollWireSerializingTestUtils.updateByQueryRequestsEqual;
 
 public class UpdateByQueryRequestWireSerializingTests extends AbstractWireSerializingTestCase<
@@ -115,7 +116,7 @@ public class UpdateByQueryRequestWireSerializingTests extends AbstractWireSerial
                 request.getSlices(),
                 request.getShouldStoreResult(),
                 request.isEligibleForRelocationOnShutdown(),
-                request.getResumeInfo(),
+                resumeInfoOptionalContentHashCode(request.getResumeInfo()),
                 Arrays.hashCode(request.getSourceIndicesForDescription()),
                 request.getScript(),
                 request.getPipeline()

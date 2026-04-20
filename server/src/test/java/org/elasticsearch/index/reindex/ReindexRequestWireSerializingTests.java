@@ -32,6 +32,7 @@ import static org.elasticsearch.index.reindex.BulkByScrollWireSerializingTestUti
 import static org.elasticsearch.index.reindex.BulkByScrollWireSerializingTestUtils.randomRemoteInfo;
 import static org.elasticsearch.index.reindex.BulkByScrollWireSerializingTestUtils.randomResumeInfo;
 import static org.elasticsearch.index.reindex.BulkByScrollWireSerializingTestUtils.reindexRequestsEqual;
+import static org.elasticsearch.index.reindex.BulkByScrollWireSerializingTestUtils.resumeInfoOptionalContentHashCode;
 
 public class ReindexRequestWireSerializingTests extends AbstractWireSerializingTestCase<ReindexRequestWireSerializingTests.Wrapper> {
 
@@ -180,7 +181,7 @@ public class ReindexRequestWireSerializingTests extends AbstractWireSerializingT
                 request.getSlices(),
                 request.getShouldStoreResult(),
                 request.isEligibleForRelocationOnShutdown(),
-                request.getResumeInfo(),
+                resumeInfoOptionalContentHashCode(request.getResumeInfo()),
                 Arrays.hashCode(request.getSourceIndicesForDescription()),
                 request.getDestination().index(),
                 request.getDestination().version(),

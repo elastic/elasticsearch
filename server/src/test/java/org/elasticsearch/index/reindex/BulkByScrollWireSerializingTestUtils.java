@@ -29,8 +29,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.reindex.resumeinfo.PitWorkerResumeInfoWireSerializingTests.pitWorkerResumeInfoContentEquals;
+import static org.elasticsearch.index.reindex.resumeinfo.PitWorkerResumeInfoWireSerializingTests.pitWorkerResumeInfoContentHashCode;
 import static org.elasticsearch.index.reindex.resumeinfo.PitWorkerResumeInfoWireSerializingTests.randomPitWorkerResumeInfo;
 import static org.elasticsearch.index.reindex.resumeinfo.ScrollWorkerResumeInfoWireSerializingTests.randomScrollWorkerResumeInfo;
 import static org.elasticsearch.xcontent.json.JsonXContent.jsonXContent;
@@ -109,10 +112,120 @@ public final class BulkByScrollWireSerializingTestUtils {
         if (firstRequest.isEligibleForRelocationOnShutdown() != secondRequest.isEligibleForRelocationOnShutdown()) {
             return false;
         }
-        if (Objects.equals(firstRequest.getResumeInfo(), secondRequest.getResumeInfo()) == false) {
+        if (resumeInfosEqual(firstRequest.getResumeInfo(), secondRequest.getResumeInfo()) == false) {
             return false;
         }
         return arraysEqual(firstRequest.getSourceIndicesForDescription(), secondRequest.getSourceIndicesForDescription());
+    }
+
+    /**
+     * Equality for {@link AbstractBulkByScrollRequest#getResumeInfo()} suitable for wire tests: {@link ResumeInfo.PitWorkerResumeInfo}
+     * uses {@code searchAfterValues} that may change numeric types across {@link org.elasticsearch.common.io.stream.StreamOutput} /
+     * {@link org.elasticsearch.common.io.stream.StreamInput} round-trips.
+     */
+    public static boolean resumeInfosEqual(Optional<ResumeInfo> first, Optional<ResumeInfo> second) {
+        if (first.isPresent() != second.isPresent()) {
+            return false;
+        }
+        return first.isEmpty() || resumeInfoContentEquals(first.get(), second.get());
+    }
+
+    /**
+     * Hash code consistent with {@link #resumeInfosEqual(Optional, Optional)} for wire-test wrappers.
+     */
+    public static int resumeInfoOptionalContentHashCode(Optional<ResumeInfo> resumeInfo) {
+        return resumeInfo.isEmpty() ? 0 : resumeInfoContentHashCode(resumeInfo.get());
+    }
+
+    private static boolean resumeInfoContentEquals(ResumeInfo first, ResumeInfo second) {
+        if (Objects.equals(first.relocationOrigin(), second.relocationOrigin()) == false) {
+            return false;
+        }
+        if (Objects.equals(first.sourceTaskResult(), second.sourceTaskResult()) == false) {
+            return false;
+        }
+        if (first.worker() != null) {
+            return second.worker() != null
+                && first.slices() == null
+                && second.slices() == null
+                && workerResumeInfosEqual(first.worker(), second.worker());
+        }
+        if (first.slices() != null) {
+            return second.slices() != null && sliceMapsEqual(first.slices(), second.slices());
+        }
+        return second.worker() == null && second.slices() == null;
+    }
+
+    private static int resumeInfoContentHashCode(ResumeInfo resumeInfo) {
+        int result = Objects.hashCode(resumeInfo.relocationOrigin());
+        result = 31 * result + Objects.hashCode(resumeInfo.sourceTaskResult());
+        if (resumeInfo.worker() != null) {
+            result = 31 * result + workerResumeInfoContentHashCode(resumeInfo.worker());
+        } else if (resumeInfo.slices() != null) {
+            result = 31 * result + sliceMapContentHashCode(resumeInfo.slices());
+        }
+        return result;
+    }
+
+    private static boolean workerResumeInfosEqual(ResumeInfo.WorkerResumeInfo first, ResumeInfo.WorkerResumeInfo second) {
+        if (first.getClass() != second.getClass()) {
+            return false;
+        }
+        if (first instanceof ResumeInfo.PitWorkerResumeInfo firstPit && second instanceof ResumeInfo.PitWorkerResumeInfo secondPit) {
+            return pitWorkerResumeInfoContentEquals(firstPit, secondPit);
+        }
+        return first.equals(second);
+    }
+
+    private static int workerResumeInfoContentHashCode(ResumeInfo.WorkerResumeInfo workerResumeInfo) {
+        if (workerResumeInfo instanceof ResumeInfo.PitWorkerResumeInfo pitWorker) {
+            return pitWorkerResumeInfoContentHashCode(pitWorker);
+        }
+        return workerResumeInfo.hashCode();
+    }
+
+    private static boolean sliceMapsEqual(Map<Integer, ResumeInfo.SliceStatus> first, Map<Integer, ResumeInfo.SliceStatus> second) {
+        if (first.size() != second.size()) {
+            return false;
+        }
+        for (Map.Entry<Integer, ResumeInfo.SliceStatus> entry : first.entrySet()) {
+            ResumeInfo.SliceStatus otherSlice = second.get(entry.getKey());
+            if (otherSlice == null || sliceStatusesEqual(entry.getValue(), otherSlice) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static int sliceMapContentHashCode(Map<Integer, ResumeInfo.SliceStatus> slices) {
+        List<Integer> keys = new ArrayList<>(slices.keySet());
+        Collections.sort(keys);
+        int result = 1;
+        for (Integer key : keys) {
+            result = 31 * result + key;
+            result = 31 * result + sliceStatusContentHashCode(slices.get(key));
+        }
+        return result;
+    }
+
+    private static boolean sliceStatusesEqual(ResumeInfo.SliceStatus first, ResumeInfo.SliceStatus second) {
+        if (first.sliceId() != second.sliceId()) {
+            return false;
+        }
+        if (first.resumeInfo() != null) {
+            return second.resumeInfo() != null && workerResumeInfosEqual(first.resumeInfo(), second.resumeInfo());
+        }
+        return Objects.equals(first.result(), second.result());
+    }
+
+    private static int sliceStatusContentHashCode(ResumeInfo.SliceStatus sliceStatus) {
+        int result = Integer.hashCode(sliceStatus.sliceId());
+        if (sliceStatus.resumeInfo() != null) {
+            result = 31 * result + workerResumeInfoContentHashCode(sliceStatus.resumeInfo());
+        } else {
+            result = 31 * result + Objects.hashCode(sliceStatus.result());
+        }
+        return result;
     }
 
     private static boolean arraysEqual(String[] firstIndices, String[] secondIndices) {

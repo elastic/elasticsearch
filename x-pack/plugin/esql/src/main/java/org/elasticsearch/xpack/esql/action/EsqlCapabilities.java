@@ -2533,7 +2533,7 @@ public class EsqlCapabilities {
          * Stateful grouping functions (such as {@code CATEGORIZE}) remain restricted to {@code STATS}.
          */
         LIMIT_BY_ALLOW_EVALUATABLE_GROUPING_FUNCTIONS(ESQL_LIMIT_BY.isEnabled()),
-      
+
         /**
          * Fix for column pruning in FORK.
          */

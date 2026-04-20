@@ -104,96 +104,54 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:lookup-join.mvKeywordFieldJoinWarningsFromLeftSide}
   issue: https://github.com/elastic/elasticsearch/issues/145904
-- class: org.elasticsearch.xpack.transform.integration.TransformCrossProjectIT
-  method: testUpdateTransformWithProjectRouting
-  issue: https://github.com/elastic/elasticsearch/issues/147534
-- class: org.elasticsearch.xpack.ml.qa.MlYamlRestIT
-  method: test {p0=ml/delete_expired_data/Test delete expired data with body parameters}
-  issue: https://github.com/elastic/elasticsearch/issues/147656
-- class: org.elasticsearch.smoketest.SmokeTestWatcherTestSuiteIT
-  method: testMonitorClusterHealth
-  issue: https://github.com/elastic/elasticsearch/issues/148615
-- class: org.elasticsearch.xpack.sql.qa.mixed_node.SqlCompatIT
-  method: testCreateCursorWithFormatTxtOnNewNode
-  issue: https://github.com/elastic/elasticsearch/issues/149747
-- class: org.elasticsearch.xpack.sql.qa.mixed_node.SqlCompatIT
-  method: testNullsOrderWithMissingOrderSupportQueryingOldNode
-  issue: https://github.com/elastic/elasticsearch/issues/149748
-- class: org.elasticsearch.xpack.sql.qa.mixed_node.SqlCompatIT
-  method: testNullsOrderWithMissingOrderSupportQueryingNewNode
-  issue: https://github.com/elastic/elasticsearch/issues/149749
-- class: org.elasticsearch.xpack.sql.qa.mixed_node.SqlSearchIT
-  method: testAllTypesWithRequestToUpgradedNodes
-  issue: https://github.com/elastic/elasticsearch/issues/149750
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
-  method: "testEvaluateInManyThreads {TestCase=geo_shape with tolerance[double].}"
-  issue: https://github.com/elastic/elasticsearch/issues/150079
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
-  method: "testEvaluateInManyThreads {TestCase=geo_shape with tolerance[float]. null in 1}"
-  issue: https://github.com/elastic/elasticsearch/issues/150079
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
-  method: "testEvaluateInManyThreads {TestCase=geo_shape with tolerance[integer]. null in 1}"
-  issue: https://github.com/elastic/elasticsearch/issues/150079
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
-  method: "testEvaluateInManyThreads {TestCase=geo_shape with tolerance[double]. null in 1}"
-  issue: https://github.com/elastic/elasticsearch/issues/150079
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
-  method: "testEvaluateInManyThreads {TestCase=geo_shape with tolerance[long]. null in 1 #2}"
-  issue: https://github.com/elastic/elasticsearch/issues/150079
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
-  method: "testEvaluateInManyThreads {TestCase=<geo_shape>, <null>}"
-  issue: https://github.com/elastic/elasticsearch/issues/150079
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
-  method: "testEvaluateInManyThreads {TestCase=geo_shape with tolerance[integer]. #2}"
-  issue: https://github.com/elastic/elasticsearch/issues/150079
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
-  method: "testEvaluateInManyThreads {TestCase=geo_shape with tolerance[long]. null in 0}"
-  issue: https://github.com/elastic/elasticsearch/issues/150079
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
-  method: "testEvaluateInManyThreads {TestCase=geo_shape with tolerance[double]. null in 0 #2}"
-  issue: https://github.com/elastic/elasticsearch/issues/150079
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
-  method: "testEvaluateInManyThreads {TestCase=geo_shape with tolerance[float]. #2}"
-  issue: https://github.com/elastic/elasticsearch/issues/150079
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
-  method: "testEvaluateInManyThreads {TestCase=geo_shape with tolerance[float]. null in 0 #2}"
-  issue: https://github.com/elastic/elasticsearch/issues/150079
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
-  method: "testEvaluateInManyThreads {TestCase=geo_shape with tolerance[integer]. null in 0}"
-  issue: https://github.com/elastic/elasticsearch/issues/150079
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
-  method: "testEvaluateInManyThreads {TestCase=geo_shape with tolerance[long]. #2}"
-  issue: https://github.com/elastic/elasticsearch/issues/150079
-- class: org.elasticsearch.compute.operator.exchange.ExchangeServiceTests
-  method: testExchangeSourceContinueOnFailure
-  issue: https://github.com/elastic/elasticsearch/issues/150552
-- class: org.elasticsearch.xpack.inference.external.http.HttpClientTests
-  method: testStream_CancelAfterPauseReleasesConnection
-  issue: https://github.com/elastic/elasticsearch/issues/150709
-- class: org.elasticsearch.xpack.security.QueryApiKeyIT
-  method: testPagination
-  issue: https://github.com/elastic/elasticsearch/issues/150714
-- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityWithApmTracingRestIT
-  method: testTracingCrossCluster
-  issue: https://github.com/elastic/elasticsearch/issues/150750
-- class: org.elasticsearch.search.aggregations.metrics.TopHitsIT
-  method: testScriptCaching
-  issue: https://github.com/elastic/elasticsearch/issues/150752
-- class: org.elasticsearch.search.aggregations.metrics.TopHitsIT
-  method: testMixedSortFieldTypes
-  issue: https://github.com/elastic/elasticsearch/issues/150753
-- class: org.elasticsearch.reindex.management.ReindexGetRelocationIT
-  method: testGetReindexFollowsRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/150754
-- class: org.elasticsearch.reindex.management.ReindexGetRelocationIT
-  method: testGetWaitForCompletionDuringRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/150755
-- class: org.elasticsearch.search.basic.SearchWithRandomIOExceptionsIT
-  method: testRandomDirectoryIOExceptions
-  issue: https://github.com/elastic/elasticsearch/issues/150756
-- class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
-  method: testMultipleInferencesTriggeringDownloadAndDeploy
-  issue: https://github.com/elastic/elasticsearch/issues/150757
+- class: org.elasticsearch.xpack.security.failurestore.FailureStoreSecurityRestIT
+  method: testWatcher
+  issue: https://github.com/elastic/elasticsearch/issues/145928
+- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcWarningsIT
+  method: testSingleDeprecationWarning
+  issue: https://github.com/elastic/elasticsearch/issues/145933
+- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
+  method: testGettingValidNumbersWithCastingFromUnsignedLong
+  issue: https://github.com/elastic/elasticsearch/issues/145934
+- class: org.elasticsearch.xpack.ml.integration.DatafeedCcsIT
+  method: testDatafeedWithCcsRemoteUnavailable
+  issue: https://github.com/elastic/elasticsearch/issues/145948
+- class: org.elasticsearch.action.RejectionActionIT
+  method: testSimulatedSearchRejectionLoad
+  issue: https://github.com/elastic/elasticsearch/issues/146022
+- class: org.elasticsearch.cluster.remote.test.RemoteClustersIT
+  method: testHAProxyModeConnectionWithSNIToCluster1Works
+  issue: https://github.com/elastic/elasticsearch/issues/139170
+- class: org.elasticsearch.cluster.remote.test.RemoteClustersIT
+  method: testHAProxyModeConnectionWithSNIToCluster2Works
+  issue: https://github.com/elastic/elasticsearch/issues/139172
+- class: org.elasticsearch.cluster.remote.test.RemoteClustersIT
+  method: testHAProxyModeConnectionWorks
+  issue: https://github.com/elastic/elasticsearch/issues/139171
+- class: org.elasticsearch.search.fetch.FetchPhaseDocsIteratorTests
+  method: testIterateAsyncVisitsLeavesInDocIdOrder
+  issue: https://github.com/elastic/elasticsearch/issues/146078
+- class: org.elasticsearch.xpack.security.transport.filter.IpFilteringIntegrationTests
+  method: testThatIpFilteringIsIntegratedIntoNettyPipelineViaHttp
+  issue: https://github.com/elastic/elasticsearch/issues/146102
+- class: org.elasticsearch.xpack.entsearch.EnterpriseSearchRestIT
+  method: test {p0=entsearch/rules/40_rule_query_search/Perform a rule query with an organic query that must be rewritten to another query type}
+  issue: https://github.com/elastic/elasticsearch/issues/146106
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:embedding.embedding with multiple knn queries in fork}
+  issue: https://github.com/elastic/elasticsearch/issues/146130
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  method: test {csv-spec:embedding.embedding with multiple knn queries in fork}
+  issue: https://github.com/elastic/elasticsearch/issues/146130
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:embedding.embedding with multiple knn queries in fork}
+  issue: https://github.com/elastic/elasticsearch/issues/146137
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=tsdb/25_id_generation/*}
+  issue: https://github.com/elastic/elasticsearch/issues/146177
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=delete/70_tsdb/basic tsdb delete}
+  issue: https://github.com/elastic/elasticsearch/issues/146177
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeUnmappedLoadIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/148619

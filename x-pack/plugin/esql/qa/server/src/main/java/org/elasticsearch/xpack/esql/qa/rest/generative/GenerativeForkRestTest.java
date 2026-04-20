@@ -15,7 +15,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_V6;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_V7;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FORK_V9;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL;
@@ -93,7 +93,7 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
 
         assumeFalse(
             "Tests using query approximation are skipped since query approximation is not supported with FORK",
-            testCase.requiredCapabilities.contains(APPROXIMATION_V6.capabilityName())
+            testCase.requiredCapabilities.contains(APPROXIMATION_V7.capabilityName())
         );
 
         assumeFalse(

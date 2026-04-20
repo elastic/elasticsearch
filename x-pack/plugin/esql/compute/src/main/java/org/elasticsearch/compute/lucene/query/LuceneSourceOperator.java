@@ -306,21 +306,6 @@ public class LuceneSourceOperator extends LuceneOperator {
     }
 
     /**
-     * Represent a contiguous range of doc IDs as a {@link BlockLoader.Docs} for bulk filter evaluation.
-     */
-    private record SequentialDocs(int start, int count) implements BlockLoader.Docs {
-        @Override
-        public int get(int i) {
-            return start + i;
-        }
-
-        @Override
-        public boolean mayContainDuplicates() {
-            return false;
-        }
-    }
-
-    /**
      * Updates {@link #currentBulkFilter} when the active leaf changes.
      * Detects {@link EsNumericRangeQuery} on the scorer's query and routes
      * to the bulk path when the field's doc values support it.
@@ -355,7 +340,8 @@ public class LuceneSourceOperator extends LuceneOperator {
             return;
         }
         final int start = scorer.position();
-        currentBulkFilter.tryBulkRangeFilter(new SequentialDocs(start, chunkSize), bulkFilterLower, bulkFilterUpper, maskBuffer);
+        boolean filtered = currentBulkFilter.tryBulkRangeFilter(start, bulkFilterLower, bulkFilterUpper, maskBuffer);
+        assert filtered : "OptionalBulkNumericFilter returned false after being selected as the bulk path";
         final Bits liveDocs = scorer.leafReaderContext().reader().getLiveDocs();
         for (int i = 0; i < chunkSize; i++) {
             if (maskBuffer[i] && (liveDocs == null || liveDocs.get(start + i))) {

@@ -259,32 +259,16 @@ public interface BlockLoader {
      * An optional interface for numeric readers that can evaluate a range predicate over a batch of doc IDs
      * without materializing field values as ESQL blocks.
      * <p>
-     * Implementations return a {@code boolean[]} mask of length {@link Docs#count()} where {@code true} means
-     * the document's value falls within {@code [lower, upper]}. The mask is written into a pre-allocated
-     * buffer supplied by the caller to avoid per-block allocation. Returns {@code false} if not supported,
-     * in which case the caller falls back to the standard per-doc path.
+     * Implementations write results into a pre-allocated {@code boolean[]} mask to avoid per-block allocation.
+     * Returns {@code false} if not supported, in which case the caller falls back to the standard per-doc path.
      * <p>
      * Implementations should use any available skip index (e.g. {@code DocValuesSkipper}) internally to
      * avoid decoding blocks whose min/max values exclude the range.
      */
     interface OptionalBulkNumericFilter {
         /**
-         * Evaluates a range predicate over the documents in {@code docs}, writing results into {@code mask}.
-         * {@code mask} must have length &gt;= {@code docs.count()}.
-         * Returns {@code true} if the bulk path was taken, {@code false} if not supported.
-         * <p>
-         * The default implementation returns {@code false}. Implementations that support bulk evaluation
-         * should override this method.
-         */
-        default boolean tryBulkRangeFilter(Docs docs, long lower, long upper, boolean[] mask) throws IOException {
-            return false;
-        }
-
-        /**
-         * Sequential variant of {@link #tryBulkRangeFilter(Docs, long, long, boolean[])} for use when
-         * doc IDs form a contiguous range {@code [startDoc, startDoc + mask.length)}.
-         * Implementations can avoid computing doc IDs from a {@link Docs} object and instead use
-         * {@code startDoc + i} directly. {@code startDoc} must be aligned to the codec block boundary.
+         * Evaluates a range predicate over a contiguous block of doc IDs {@code [startDoc, startDoc + mask.length)},
+         * writing results into {@code mask}. {@code startDoc} must be aligned to the codec block boundary.
          * Returns {@code true} if the bulk path was taken, {@code false} if not supported.
          */
         default boolean tryBulkRangeFilter(int startDoc, long lower, long upper, boolean[] mask) throws IOException {

@@ -1343,14 +1343,13 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
     /**
      * Exposes a dense singleton {@link NumericDocValues} as a {@link SortedNumericDocValues} that also
-     * implements {@link BlockLoader.OptionalColumnAtATimeReader} and {@link BlockLoader.OptionalBulkNumericFilter}.
+     * implements {@link BlockLoader.OptionalBulkNumericFilter}.
      * Bypasses {@link DocValues#singleton} so that {@link #nextValue()} resolves directly to
-     * {@link NumericDocValues#longValue()} with no extra virtual dispatch, and so that the block loader
-     * can call {@link BlockLoader.OptionalColumnAtATimeReader#tryRead} for bulk value loading.
+     * {@link NumericDocValues#longValue()} with no extra virtual dispatch, and so that the bulk filter
+     * path can call {@link BlockLoader.OptionalBulkNumericFilter#tryBulkRangeFilter}.
      */
     private static final class BulkFilterableSingletonSortedNumericDocValues extends SortedNumericDocValues
         implements
-            BlockLoader.OptionalColumnAtATimeReader,
             BlockLoader.OptionalBulkNumericFilter {
         private final NumericDocValues inner;
 
@@ -1391,32 +1390,6 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         @Override
         public long cost() {
             return inner.cost();
-        }
-
-        @Override
-        public BlockLoader.Block tryRead(
-            BlockLoader.BlockFactory factory,
-            BlockLoader.Docs docs,
-            int offset,
-            boolean nullsFiltered,
-            BlockDocValuesReader.ToDouble toDouble,
-            boolean toInt,
-            boolean binaryMultiValuedFormat
-        ) throws IOException {
-            return ((BlockLoader.OptionalColumnAtATimeReader) inner).tryRead(
-                factory,
-                docs,
-                offset,
-                nullsFiltered,
-                toDouble,
-                toInt,
-                binaryMultiValuedFormat
-            );
-        }
-
-        @Override
-        public boolean tryBulkRangeFilter(BlockLoader.Docs docs, long lower, long upper, boolean[] mask) throws IOException {
-            return ((BlockLoader.OptionalBulkNumericFilter) inner).tryBulkRangeFilter(docs, lower, upper, mask);
         }
 
         @Override
@@ -2403,35 +2376,6 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                         i += length;
                     }
                     return builder.build();
-                }
-
-                @Override
-                public boolean tryBulkRangeFilter(BlockLoader.Docs docs, long lower, long upper, boolean[] mask) throws IOException {
-                    final int docsCount = docs.count();
-                    int i = 0;
-                    while (i < docsCount) {
-                        final int index = docs.get(i);
-                        final int blockIndex = index >>> numericBlockShift;
-                        if (blockIndex != currentBlockIndex) {
-                            if (currentBlockIndex + 1 != blockIndex) {
-                                valuesData.seek(indexReader.get(blockIndex));
-                            }
-                            currentBlockIndex = blockIndex;
-                            if (bitsPerOrd == -1) {
-                                decoder.decodeBlock(valuesData, currentBlock, numericBlockSize);
-                            } else {
-                                decoder.decodeOrdinals(valuesData, currentBlock, bitsPerOrd);
-                            }
-                        }
-                        // Evaluate all docs in this block in one tight loop for SIMD-friendly access
-                        final int blockEnd = (blockIndex + 1) << numericBlockShift;
-                        while (i < docsCount && docs.get(i) < blockEnd) {
-                            final long value = currentBlock[docs.get(i) & numericBlockMask];
-                            mask[i] = value >= lower && value <= upper;
-                            i++;
-                        }
-                    }
-                    return true;
                 }
 
                 @Override

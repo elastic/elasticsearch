@@ -196,11 +196,9 @@ public class LuceneSourceOperatorBulkFilterTests extends ComputeTestCase {
         }
 
         @Override
-        public boolean tryBulkRangeFilter(BlockLoader.Docs docs, long lower, long upper, boolean[] mask) {
-            final int count = docs.count();
-            for (int i = 0; i < count; i++) {
-                final long v = values[docs.get(i)];
-                mask[i] = v >= lower && v <= upper;
+        public boolean tryBulkRangeFilter(int startDoc, long lower, long upper, boolean[] mask) {
+            for (int i = 0; i < mask.length; i++) {
+                mask[i] = values[startDoc + i] >= lower && values[startDoc + i] <= upper;
             }
             return true;
         }

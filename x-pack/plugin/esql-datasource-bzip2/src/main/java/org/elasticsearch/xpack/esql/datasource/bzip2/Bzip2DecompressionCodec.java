@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.bzip2;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
@@ -15,7 +16,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
@@ -36,6 +36,10 @@ import static org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2BlockScanner.sc
  * position, decompresses one block at a time, and reports compressed byte positions
  * at block boundaries. A wrapper monitors these positions and signals EOF when the
  * decompressor passes the split boundary.
+ *
+ * <p>Parallel block-boundary scanning calls {@link StorageObject#newStream(long, long)} from
+ * multiple threads with disjoint byte ranges. Implementations used with this codec must
+ * support concurrent range opens (or callers must not trigger the parallel path).
  */
 public class Bzip2DecompressionCodec implements SplittableDecompressionCodec {
 
@@ -48,7 +52,8 @@ public class Bzip2DecompressionCodec implements SplittableDecompressionCodec {
      *                       parallel block-boundary scans; must not be {@code null}.
      */
     public Bzip2DecompressionCodec(Executor scanExecutor) {
-        this.scanExecutor = Objects.requireNonNull(scanExecutor, "scanExecutor");
+        Check.notNull(scanExecutor, "scanExecutor must not be null");
+        this.scanExecutor = scanExecutor;
     }
 
     /**
@@ -88,6 +93,14 @@ public class Bzip2DecompressionCodec implements SplittableDecompressionCodec {
         return new CBZip2InputStream(raw, CBZip2InputStream.ReadMode.CONTINUOUS);
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>When the compressed range is large enough, scans run in parallel on the injected executor.
+     * Each task opens its own stream via {@link StorageObject#newStream(long, long)} for a disjoint
+     * sub-range (plus small overlap between chunks); the {@code StorageObject} must permit that
+     * concurrently.
+     */
     @Override
     public long[] findBlockBoundaries(StorageObject object, long start, long end) throws IOException {
         if (start >= end) {
@@ -140,7 +153,8 @@ public class Bzip2DecompressionCodec implements SplittableDecompressionCodec {
         }
         long[][] parts = new long[numChunks][];
         for (int i = 0; i < numChunks; i++) {
-            parts[i] = futures[i].join();
+            // After allOf().join() every future is done successfully; getNow avoids redundant blocking joins.
+            parts[i] = futures[i].getNow(null);
         }
         return mergeSortedUnique(parts);
     }

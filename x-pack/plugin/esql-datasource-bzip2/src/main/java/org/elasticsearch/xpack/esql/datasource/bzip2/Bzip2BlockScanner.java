@@ -67,8 +67,9 @@ final class Bzip2BlockScanner {
             for (int i = 0; i < n; i++) {
                 int b = buf[i] & 0xFF;
                 long bytesRead = streamBytesSeen + i + 1;
-                bitsInWindow = appendByteBits(b, bytesRead, window, bitsInWindow, offsets);
-                window = rollingWindowAfterByte(b, window);
+                long packed = appendByteBits(b, bytesRead, window, bitsInWindow, offsets);
+                window = unpackWindowAfterByte(packed);
+                bitsInWindow = unpackBitsInWindowAfterByte(packed);
             }
             streamBytesSeen += n;
         }
@@ -80,10 +81,11 @@ final class Bzip2BlockScanner {
     }
 
     /**
-     * Micro-optimization: shift one byte (MSB-first, matching bzip2 bit order) into the
-     * 48-bit window and record block magic hits. Returns updated {@code bitsInWindow}.
+     * Shifts one byte (MSB-first, matching bzip2 bit order) into the 48-bit window, records block
+     * magic hits, and returns packed state for {@link #unpackWindowAfterByte} and
+     * {@link #unpackBitsInWindowAfterByte} so the hot path does not re-shift the same byte.
      */
-    private static int appendByteBits(long b, long bytesRead, long window, int bitsInWindow, List<Long> offsets) {
+    private static long appendByteBits(long b, long bytesRead, long window, int bitsInWindow, List<Long> offsets) {
         // Bit order matches the original per-bit loop: bit 7 down to 0.
         window = ((window << 1) | ((b >> 7) & 1)) & MAGIC_MASK;
         bitsInWindow = bitsInWindow < 48 ? bitsInWindow + 1 : 48;
@@ -125,20 +127,15 @@ final class Bzip2BlockScanner {
         if (bitsInWindow == 48) {
             maybeRecordMagic(window, bytesRead, 0, offsets);
         }
-        return bitsInWindow;
+        return ((window & MAGIC_MASK) << 8) | (bitsInWindow & 0xFFL);
     }
 
-    /** Returns the 48-bit window after consuming all 8 bits of {@code b} (must match {@link #appendByteBits} steps). */
-    private static long rollingWindowAfterByte(long b, long window) {
-        window = ((window << 1) | ((b >> 7) & 1)) & MAGIC_MASK;
-        window = ((window << 1) | ((b >> 6) & 1)) & MAGIC_MASK;
-        window = ((window << 1) | ((b >> 5) & 1)) & MAGIC_MASK;
-        window = ((window << 1) | ((b >> 4) & 1)) & MAGIC_MASK;
-        window = ((window << 1) | ((b >> 3) & 1)) & MAGIC_MASK;
-        window = ((window << 1) | ((b >> 2) & 1)) & MAGIC_MASK;
-        window = ((window << 1) | ((b >> 1) & 1)) & MAGIC_MASK;
-        window = ((window << 1) | (b & 1)) & MAGIC_MASK;
-        return window;
+    private static long unpackWindowAfterByte(long packed) {
+        return (packed >>> 8) & MAGIC_MASK;
+    }
+
+    private static int unpackBitsInWindowAfterByte(long packed) {
+        return (int) (packed & 0xFFL);
     }
 
     private static void maybeRecordMagic(long window, long bytesRead, int bitInByte, List<Long> offsets) {

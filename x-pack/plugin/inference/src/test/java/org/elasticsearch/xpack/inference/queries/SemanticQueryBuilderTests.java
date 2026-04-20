@@ -33,7 +33,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
@@ -51,6 +50,7 @@ import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.MinimalServiceSettings;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.WeightedToken;
@@ -65,8 +65,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
+import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
@@ -74,6 +75,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.inference.FakeMlPlugin;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
+import org.elasticsearch.xpack.inference.model.TestModel;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -311,35 +313,60 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     @Override
     protected boolean canSimulateMethod(Method method, Object[] args) throws NoSuchMethodException {
         return method.equals(Client.class.getMethod("execute", ActionType.class, ActionRequest.class, ActionListener.class))
-            && (args[0] instanceof InferenceActionProxy);
+            && (args[0] instanceof GetInferenceModelAction || args[0] instanceof EmbeddingAction || args[0] instanceof InferenceAction);
     }
 
     @Override
     protected Object simulateMethod(Method method, Object[] args) {
-        InferenceActionProxy.Request request = (InferenceActionProxy.Request) args[1];
-        assertThat(request.getTaskType(), equalTo(TaskType.ANY));
-        assertThat(request.getInferenceEntityId(), equalTo(useSearchInferenceId ? SEARCH_INFERENCE_ID : INFERENCE_ID));
+        if (args[0] instanceof GetInferenceModelAction) {
+            GetInferenceModelAction.Request request = (GetInferenceModelAction.Request) args[1];
+            assertThat(request.getInferenceEntityId(), equalTo(useSearchInferenceId ? SEARCH_INFERENCE_ID : INFERENCE_ID));
 
-        Map<String, Object> contentMap = XContentHelper.convertToMap(request.getContent(), false, request.getContentType()).v2();
-        @SuppressWarnings("unchecked")
-        List<String> input = (List<String>) contentMap.get("input");
-        assertThat(input.size(), equalTo(1));
-        assertThat(contentMap.get("input_type"), equalTo(InputType.INTERNAL_SEARCH.toString()));
-        String query = input.get(0);
+            TaskType taskType = switch (inferenceResultType) {
+                case NONE, SPARSE_EMBEDDING -> TaskType.SPARSE_EMBEDDING;
+                case TEXT_EMBEDDING -> TaskType.TEXT_EMBEDDING;
+                case EMBEDDING -> TaskType.EMBEDDING;
+            };
 
-        InferenceAction.Response response = switch (inferenceResultType) {
-            case NONE -> randomBoolean() ? generateSparseEmbeddingInferenceResponse(query) : generateTextEmbeddingInferenceResponse();
-            case SPARSE_EMBEDDING -> generateSparseEmbeddingInferenceResponse(query);
-            // For text embedding and embedding inference result types we return the same response since TaskType.ANY
-            // is used for the inference request
-            case TEXT_EMBEDDING, EMBEDDING -> generateTextEmbeddingInferenceResponse();
-        };
+            ModelConfigurations modelConfig = new ModelConfigurations(
+                request.getInferenceEntityId(),
+                taskType,
+                "mock-service",
+                new TestModel.TestServiceSettings("mock", null, null, null)
+            );
 
-        @SuppressWarnings("unchecked")  // We matched the method above.
-        ActionListener<InferenceAction.Response> listener = (ActionListener<InferenceAction.Response>) args[2];
-        listener.onResponse(response);
+            @SuppressWarnings("unchecked")
+            ActionListener<GetInferenceModelAction.Response> listener = (ActionListener<GetInferenceModelAction.Response>) args[2];
+            listener.onResponse(new GetInferenceModelAction.Response(List.of(modelConfig)));
+            return null;
+        } else if (args[0] instanceof EmbeddingAction) {
+            EmbeddingAction.Request request = (EmbeddingAction.Request) args[1];
+            assertThat(request.getInferenceEntityId(), equalTo(useSearchInferenceId ? SEARCH_INFERENCE_ID : INFERENCE_ID));
+            assertThat(request.getTaskType(), equalTo(TaskType.EMBEDDING));
+            assertThat(request.getEmbeddingRequest().inputType(), equalTo(InputType.INTERNAL_SEARCH));
 
-        return null;
+            @SuppressWarnings("unchecked")
+            ActionListener<InferenceAction.Response> listener = (ActionListener<InferenceAction.Response>) args[2];
+            listener.onResponse(generateTextEmbeddingInferenceResponse());
+            return null;
+        } else {
+            // InferenceAction
+            InferenceAction.Request request = (InferenceAction.Request) args[1];
+            assertThat(request.getInferenceEntityId(), equalTo(useSearchInferenceId ? SEARCH_INFERENCE_ID : INFERENCE_ID));
+            assertThat(request.getInputType(), equalTo(InputType.INTERNAL_SEARCH));
+
+            String query = request.getInput().get(0);
+            InferenceAction.Response response = switch (inferenceResultType) {
+                case NONE, SPARSE_EMBEDDING -> generateSparseEmbeddingInferenceResponse(query);
+                case TEXT_EMBEDDING -> generateTextEmbeddingInferenceResponse();
+                case EMBEDDING -> throw new AssertionError("EMBEDDING type should route to EmbeddingAction, not InferenceAction");
+            };
+
+            @SuppressWarnings("unchecked")
+            ActionListener<InferenceAction.Response> listener = (ActionListener<InferenceAction.Response>) args[2];
+            listener.onResponse(response);
+            return null;
+        }
     }
 
     private InferenceAction.Response generateSparseEmbeddingInferenceResponse(String query) {

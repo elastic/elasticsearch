@@ -12,22 +12,24 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.RemoteClusterClient;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.MinimalServiceSettings;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
+import org.elasticsearch.xpack.inference.model.TestModel;
 
 import java.util.HashMap;
 import java.util.List;
@@ -35,6 +37,7 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 
 public class MockInferenceClient extends NoOpClient {
+    private final Map<String, MinimalServiceSettings> inferenceEndpoints;
     private final MockInferenceGenerator inferenceGenerator;
     private final Map<String, MockInferenceRemoteClusterClient> remoteClusterClients;
 
@@ -48,6 +51,7 @@ public class MockInferenceClient extends NoOpClient {
         Map<String, MockInferenceRemoteClusterClient.RemoteClusterConfig> remoteClusterConfigs
     ) {
         super(threadPool);
+        this.inferenceEndpoints = inferenceEndpoints;
         this.inferenceGenerator = new MockInferenceGenerator(inferenceEndpoints);
         this.remoteClusterClients = generateRemoteClusterClients(remoteClusterConfigs);
     }
@@ -58,24 +62,27 @@ public class MockInferenceClient extends NoOpClient {
         Request request,
         ActionListener<Response> listener
     ) {
-        if (action instanceof InferenceActionProxy && request instanceof InferenceActionProxy.Request proxyRequest) {
+        if (action instanceof GetInferenceModelAction && request instanceof GetInferenceModelAction.Request getModelRequest) {
+            @SuppressWarnings("unchecked")
+            ActionListener<GetInferenceModelAction.Response> getModelListener = (ActionListener<GetInferenceModelAction.Response>) listener;
+            String inferenceId = getModelRequest.getInferenceEntityId();
+            MinimalServiceSettings settings = inferenceEndpoints.get(inferenceId);
+            if (settings == null) {
+                getModelListener.onFailure(new IllegalArgumentException("Inference endpoint [" + inferenceId + "] does not exist"));
+            } else {
+                ModelConfigurations modelConfig = new ModelConfigurations(
+                    inferenceId,
+                    settings.taskType(),
+                    "mock-service",
+                    new TestModel.TestServiceSettings("mock", settings.dimensions(), settings.similarity(), settings.elementType())
+                );
+                getModelListener.onResponse(new GetInferenceModelAction.Response(List.of(modelConfig)));
+            }
+        } else if (action instanceof EmbeddingAction && request instanceof EmbeddingAction.Request embeddingRequest) {
             @SuppressWarnings("unchecked")
             ActionListener<InferenceAction.Response> inferenceListener = (ActionListener<InferenceAction.Response>) listener;
-
-            try {
-                // Cannot use InferenceAction.Request.parseRequest() here: it calls InputType.fromRestString()
-                // which rejects INTERNAL_SEARCH / INTERNAL_INGEST — the types InferenceQueryUtils sends.
-                // Parse only the fields the mock needs: inferenceEntityId (from proxyRequest) and input.
-                @SuppressWarnings("unchecked")
-                List<String> inputs = (List<String>) XContentHelper.convertToMap(
-                    proxyRequest.getContent(),
-                    false,
-                    proxyRequest.getContentType()
-                ).v2().get("input");
-                executeInferenceAction(proxyRequest.getInferenceEntityId(), inputs.getFirst(), inferenceListener);
-            } catch (Exception e) {
-                inferenceListener.onFailure(e);
-            }
+            String input = embeddingRequest.getEmbeddingRequest().inputs().getFirst().textValue();
+            executeInferenceAction(embeddingRequest.getInferenceEntityId(), input, inferenceListener);
         } else if (action instanceof InferenceAction && request instanceof InferenceAction.Request inferenceRequest) {
             @SuppressWarnings("unchecked")
             ActionListener<InferenceAction.Response> inferenceListener = (ActionListener<InferenceAction.Response>) listener;

@@ -38,6 +38,8 @@ public class MockInferenceGenerator {
             inferenceResults = generateTextExpansionResults(input);
         } else if (inferenceEndpointSettings.taskType() == TaskType.TEXT_EMBEDDING) {
             inferenceResults = generateTextEmbeddingResults(inferenceEndpointSettings);
+        } else if (inferenceEndpointSettings.taskType() == TaskType.EMBEDDING) {
+            inferenceResults = generateTextEmbeddingResults(inferenceEndpointSettings);
         } else {
             throw new IllegalArgumentException(
                 "Invalid task type [" + inferenceEndpointSettings.taskType() + "] for inference endpoint [" + inferenceId + "]"

@@ -75,20 +75,6 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             return parseRequest(inferenceEntityId, taskType, context, parser, false);
         }
 
-        /**
-         * Parses a request that may contain internal input types (e.g. {@code INTERNAL_SEARCH}, {@code INTERNAL_INGEST}).
-         * Use this instead of {@link #parseRequest} when the content was produced internally and therefore
-         * may carry input types that {@link InputType#fromRestString} would otherwise reject.
-         */
-        public static Builder parseRequestInternal(
-            String inferenceEntityId,
-            TaskType taskType,
-            InferenceContext context,
-            XContentParser parser
-        ) {
-            return parseRequest(inferenceEntityId, taskType, context, parser, true);
-        }
-
         private static Builder parseRequest(
             String inferenceEntityId,
             TaskType taskType,

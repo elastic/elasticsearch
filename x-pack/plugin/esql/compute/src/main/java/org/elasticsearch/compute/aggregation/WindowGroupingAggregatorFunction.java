@@ -18,6 +18,7 @@ import org.elasticsearch.core.Releasables;
 import java.time.Duration;
 import java.util.List;
 import java.util.function.IntConsumer;
+import java.util.function.LongConsumer;
 import java.util.stream.IntStream;
 
 /**
@@ -127,17 +128,12 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
                     // expand the window to cover the new range
                     @Override
                     public long rangeStartInMillis(int groupId) {
-                        return ctx.rangeStartInMillis(groupId);
+                        return ctx.rangeEndInMillis(groupId) - window.toMillis();
                     }
 
                     @Override
                     public long rangeEndInMillis(int groupId) {
-                        return rangeStartInMillis(groupId) + window.toMillis();
-                    }
-
-                    @Override
-                    public void forEachGroupInWindow(int startingGroupId, Duration window, IntConsumer action) {
-                        throw new UnsupportedOperationException();
+                        return ctx.rangeEndInMillis(groupId);
                     }
 
                     @Override
@@ -151,8 +147,18 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
                     }
 
                     @Override
+                    public void forEachBucketInRange(long rangeStartMillis, long rangeEndMillis, LongConsumer action) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public void forEachGroupInRange(int startingGroupId, long rangeStartMillis, long rangeEndMillis, IntConsumer action) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
                     public void computeAdjacentGroupIds() {
-                        /* not used by {@link this#nextGroupId} and {@link this##previousGroupId} */
+                        // not used by previousGroupId and nextGroupId
                     }
                 }
             );
@@ -182,13 +188,17 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
         GroupingAggregatorFunction fn,
         TimeSeriesGroupingAggregatorEvaluationContext context
     ) {
+        int[] singlePosition = new int[1];
         try (var oneGroup = context.driverContext().blockFactory().newConstantIntVector(startingGroupId, 1)) {
-            context.forEachGroupInWindow(startingGroupId, window, groupId -> {
-                if (groupId == startingGroupId) {
-                    return;
+            long end = context.rangeEndInMillis(startingGroupId);
+            context.forEachGroupInRange(startingGroupId, end - window.toMillis(), end, g -> {
+                if (g != startingGroupId && g >= 0 && g < groupIdToPositions.length) {
+                    int position = groupIdToPositions[g];
+                    if (hasIntermediateState(page, position)) {
+                        singlePosition[0] = position;
+                        addIntermediateInputWithFilter(fn, page, singlePosition, oneGroup);
+                    }
                 }
-                int position = groupIdToPositions[groupId];
-                fn.addIntermediateInput(position, oneGroup, page);
             });
         }
     }

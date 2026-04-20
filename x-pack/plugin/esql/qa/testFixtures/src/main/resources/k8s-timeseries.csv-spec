@@ -1485,9 +1485,9 @@ TS k8s
 | SORT time_bucket DESC | LIMIT 3;
 
 sum_rate:double  | time_bucket:datetime
-11.979987        | 2024-05-10T00:20:00.000Z
-69.403259        | 2024-05-10T00:15:00.000Z
-79.551314        | 2024-05-10T00:10:00.000Z
+69.403259        | 2024-05-10T00:20:00.000Z
+79.551314        | 2024-05-10T00:15:00.000Z
+68.233922        | 2024-05-10T00:10:00.000Z
 ;
 
 tsLastOverTimeWithWindowAndTBucketTargetCount
@@ -1504,14 +1504,15 @@ max_cost:double | time_bucket:datetime     | cluster:keyword
 10.75           | 2024-05-10T00:20:00.000Z | prod
 10.875          | 2024-05-10T00:20:00.000Z | qa
 9.5             | 2024-05-10T00:20:00.000Z | staging
-10.75           | 2024-05-10T00:15:00.000Z | prod
-10.875          | 2024-05-10T00:15:00.000Z | qa
-9.5             | 2024-05-10T00:15:00.000Z | staging
+12.25           | 2024-05-10T00:15:00.000Z | prod
+6.75            | 2024-05-10T00:15:00.000Z | qa
+10.5            | 2024-05-10T00:15:00.000Z | staging
 ;
 
 windowSmallerThanBucket
 required_capability: ts_command_v0
 required_capability: time_series_window_smaller_than_bucket
+required_capability: fix_ime_series_window_backward
 TS k8s
 | STATS max = max(max_over_time(network.cost, 1m)), max2 = max(max_over_time(network.cost, 4m)) by cluster, pod, b = bucket(@timestamp,5minute)
 | SORT b, cluster, pod

@@ -1983,6 +1983,11 @@ public class EsqlCapabilities {
         TIME_SERIES_WINDOW_SMALLER_THAN_BUCKET,
 
         /**
+         * TS window functions use backward window semantics only.
+         */
+        FIX_IME_SERIES_WINDOW_BACKWARD,
+
+        /**
          * Support like/rlike parameters https://github.com/elastic/elasticsearch/issues/131356
          */
         LIKE_PARAMETER_SUPPORT,

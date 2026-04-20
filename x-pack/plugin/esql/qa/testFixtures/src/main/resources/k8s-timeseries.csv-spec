@@ -1508,6 +1508,7 @@ max_cost:double | time_bucket:datetime     | cluster:keyword
 windowSmallerThanBucket
 required_capability: ts_command_v0
 required_capability: time_series_window_smaller_than_bucket
+required_capability: fix_ts_using_backward_windows
 TS k8s
 | STATS max = max(max_over_time(network.cost, 1m)), max2 = max(max_over_time(network.cost, 4m)) by cluster, pod, b = bucket(@timestamp,5minute)
 | SORT b, cluster, pod

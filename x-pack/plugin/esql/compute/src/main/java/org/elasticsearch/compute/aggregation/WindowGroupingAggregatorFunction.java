@@ -17,6 +17,8 @@ import org.elasticsearch.core.Releasables;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.function.IntConsumer;
+import java.util.function.LongConsumer;
 import java.util.stream.IntStream;
 
 /**
@@ -123,17 +125,12 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
                     // expand the window to cover the new range
                     @Override
                     public long rangeStartInMillis(int groupId) {
-                        return ctx.rangeStartInMillis(groupId);
+                        return ctx.rangeEndInMillis(groupId) - window.toMillis();
                     }
 
                     @Override
                     public long rangeEndInMillis(int groupId) {
-                        return rangeStartInMillis(groupId) + window.toMillis();
-                    }
-
-                    @Override
-                    public List<Integer> groupIdsFromWindow(int startingGroupId, Duration window) {
-                        throw new UnsupportedOperationException();
+                        return ctx.rangeEndInMillis(groupId);
                     }
 
                     @Override
@@ -147,9 +144,17 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
                     }
 
                     @Override
-                    public void computeAdjacentGroupIds() {
-                        // not used by #nextGroupId and #previousGroupId
+                    public void forEachBucketInRange(long rangeStartMillis, long rangeEndMillis, LongConsumer action) {
+                        throw new UnsupportedOperationException();
                     }
+
+                    @Override
+                    public void forEachGroupInRange(int startingGroupId, long rangeStartMillis, long rangeEndMillis, IntConsumer action) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public void computeAdjacentGroupIds() {}
                 }
             );
             GroupingAggregator takeFinalAgg = finalAgg;
@@ -178,16 +183,14 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
         GroupingAggregatorFunction fn,
         TimeSeriesGroupingAggregatorEvaluationContext context
     ) {
-        var groupIds = context.groupIdsFromWindow(startingGroupId, window);
-        if (groupIds.size() > 1) {
-            try (IntVector oneGroup = context.driverContext().blockFactory().newConstantIntVector(startingGroupId, 1)) {
-                for (int g : groupIds) {
-                    if (g != startingGroupId) {
-                        int position = groupIdToPositions[g];
-                        fn.addIntermediateInput(position, oneGroup, page);
-                    }
+        try (var oneGroup = context.driverContext().blockFactory().newConstantIntVector(startingGroupId, 1)) {
+            long end = context.rangeEndInMillis(startingGroupId);
+            context.forEachGroupInRange(startingGroupId, end - window.toMillis(), end, g -> {
+                if (g != startingGroupId && g >= 0 && g < groupIdToPositions.length) {
+                    int position = groupIdToPositions[g];
+                    fn.addIntermediateInput(position, oneGroup, page);
                 }
-            }
+            });
         }
     }
 

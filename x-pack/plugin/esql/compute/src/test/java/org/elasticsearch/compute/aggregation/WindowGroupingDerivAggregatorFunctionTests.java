@@ -20,9 +20,8 @@ import java.time.Duration;
 import java.util.List;
 import java.util.TreeMap;
 
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class WindowGroupingDerivAggregatorFunctionTests extends WindowGroupingAggregatorFunctionTests {
@@ -51,14 +50,14 @@ public class WindowGroupingDerivAggregatorFunctionTests extends WindowGroupingAg
             }
         }
 
+        SimpleLinearRegressionWithTimeseries slr = new SimpleLinearRegressionWithTimeseries(false);
+        slr.add(BUCKET_0, 1.0d);
+        slr.add(BUCKET_2, 3.0d);
+
         assertThat(actual.size(), equalTo(3));
-        assertThat(actual.containsKey(BUCKET_0), equalTo(true));
-        assertThat(actual.containsKey(BUCKET_1), equalTo(true));
-        assertThat(actual.containsKey(BUCKET_2), equalTo(true));
-        assertThat(actual.get(BUCKET_0), notNullValue());
-        assertThat(actual.get(BUCKET_0), greaterThan(0.0));
+        assertThat(actual.get(BUCKET_0), nullValue());
         assertThat(actual.get(BUCKET_1), nullValue());
-        assertThat(actual.get(BUCKET_2), nullValue());
+        assertThat(actual.get(BUCKET_2), closeTo(slr.slope(), 1e-12));
     }
 
     @Override

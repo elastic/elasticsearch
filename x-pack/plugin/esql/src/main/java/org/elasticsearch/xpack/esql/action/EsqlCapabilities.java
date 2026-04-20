@@ -1954,6 +1954,11 @@ public class EsqlCapabilities {
         TIME_SERIES_WINDOW_SMALLER_THAN_BUCKET,
 
         /**
+         * Window functions in time-series use trailing (backward-looking) window semantics only.
+         */
+        FIX_TS_USING_BACKWARD_WINDOWS,
+
+        /**
          * Support like/rlike parameters https://github.com/elastic/elasticsearch/issues/131356
          */
         LIKE_PARAMETER_SUPPORT,

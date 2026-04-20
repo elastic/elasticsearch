@@ -56,93 +56,108 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
                 LeafReaderContext context = reader.leaves().get(0);
                 // A match:
                 {
-                    HitContext hit = new HitContext(SearchHit.unpooled(0), context, 0, Map.of(), Source.empty(null), null);
-                    PercolateQuery.QueryStore queryStore = ctx -> docId -> new TermQuery(new Term("field", "value"));
-                    MemoryIndex memoryIndex = new MemoryIndex();
-                    memoryIndex.addField("field", "value", new WhitespaceAnalyzer());
-                    memoryIndex.addField(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, 0), null);
-                    PercolateQuery percolateQuery = new PercolateQuery(
-                        "_name",
-                        queryStore,
-                        Collections.emptyList(),
-                        Queries.ALL_DOCS_INSTANCE,
-                        memoryIndex.createSearcher(),
-                        null,
-                        Queries.NO_DOCS_INSTANCE
-                    );
+                    SearchHit sh = new SearchHit(0);
+                    try {
+                        HitContext hit = new HitContext(sh, context, 0, Map.of(), Source.empty(null), null);
+                        PercolateQuery.QueryStore queryStore = ctx -> docId -> new TermQuery(new Term("field", "value"));
+                        MemoryIndex memoryIndex = new MemoryIndex();
+                        memoryIndex.addField("field", "value", new WhitespaceAnalyzer());
+                        memoryIndex.addField(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, 0), null);
+                        PercolateQuery percolateQuery = new PercolateQuery(
+                            "_name",
+                            queryStore,
+                            Collections.emptyList(),
+                            Queries.ALL_DOCS_INSTANCE,
+                            memoryIndex.createSearcher(),
+                            null,
+                            Queries.NO_DOCS_INSTANCE
+                        );
 
-                    FetchContext sc = mock(FetchContext.class);
-                    when(sc.query()).thenReturn(percolateQuery);
-                    SearchExecutionContext sec = mock(SearchExecutionContext.class);
-                    when(sc.getSearchExecutionContext()).thenReturn(sec);
-                    when(sec.indexVersionCreated()).thenReturn(IndexVersion.current());
+                        FetchContext sc = mock(FetchContext.class);
+                        when(sc.query()).thenReturn(percolateQuery);
+                        SearchExecutionContext sec = mock(SearchExecutionContext.class);
+                        when(sc.getSearchExecutionContext()).thenReturn(sec);
+                        when(sec.indexVersionCreated()).thenReturn(IndexVersion.current());
 
-                    FetchSubPhaseProcessor processor = phase.getProcessor(sc);
-                    assertNotNull(processor);
-                    processor.process(hit);
+                        FetchSubPhaseProcessor processor = phase.getProcessor(sc);
+                        assertNotNull(processor);
+                        processor.process(hit);
 
-                    assertNotNull(hit.hit().field(PercolatorMatchedSlotSubFetchPhase.FIELD_NAME_PREFIX));
-                    assertEquals(0, (int) hit.hit().field(PercolatorMatchedSlotSubFetchPhase.FIELD_NAME_PREFIX).getValue());
+                        assertNotNull(hit.hit().field(PercolatorMatchedSlotSubFetchPhase.FIELD_NAME_PREFIX));
+                        assertEquals(0, (int) hit.hit().field(PercolatorMatchedSlotSubFetchPhase.FIELD_NAME_PREFIX).getValue());
+                    } finally {
+                        sh.decRef();
+                    }
                 }
 
                 // No match:
                 {
-                    HitContext hit = new HitContext(SearchHit.unpooled(0), context, 0, Map.of(), Source.empty(null), null);
-                    PercolateQuery.QueryStore queryStore = ctx -> docId -> new TermQuery(new Term("field", "value"));
-                    MemoryIndex memoryIndex = new MemoryIndex();
-                    memoryIndex.addField("field", "value1", new WhitespaceAnalyzer());
-                    memoryIndex.addField(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, 0), null);
-                    PercolateQuery percolateQuery = new PercolateQuery(
-                        "_name",
-                        queryStore,
-                        Collections.emptyList(),
-                        Queries.ALL_DOCS_INSTANCE,
-                        memoryIndex.createSearcher(),
-                        null,
-                        Queries.NO_DOCS_INSTANCE
-                    );
+                    SearchHit sh = new SearchHit(0);
+                    try {
+                        HitContext hit = new HitContext(sh, context, 0, Map.of(), Source.empty(null), null);
+                        PercolateQuery.QueryStore queryStore = ctx -> docId -> new TermQuery(new Term("field", "value"));
+                        MemoryIndex memoryIndex = new MemoryIndex();
+                        memoryIndex.addField("field", "value1", new WhitespaceAnalyzer());
+                        memoryIndex.addField(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, 0), null);
+                        PercolateQuery percolateQuery = new PercolateQuery(
+                            "_name",
+                            queryStore,
+                            Collections.emptyList(),
+                            Queries.ALL_DOCS_INSTANCE,
+                            memoryIndex.createSearcher(),
+                            null,
+                            Queries.NO_DOCS_INSTANCE
+                        );
 
-                    FetchContext sc = mock(FetchContext.class);
-                    when(sc.query()).thenReturn(percolateQuery);
-                    SearchExecutionContext sec = mock(SearchExecutionContext.class);
-                    when(sc.getSearchExecutionContext()).thenReturn(sec);
-                    when(sec.indexVersionCreated()).thenReturn(IndexVersion.current());
+                        FetchContext sc = mock(FetchContext.class);
+                        when(sc.query()).thenReturn(percolateQuery);
+                        SearchExecutionContext sec = mock(SearchExecutionContext.class);
+                        when(sc.getSearchExecutionContext()).thenReturn(sec);
+                        when(sec.indexVersionCreated()).thenReturn(IndexVersion.current());
 
-                    FetchSubPhaseProcessor processor = phase.getProcessor(sc);
-                    assertNotNull(processor);
-                    processor.process(hit);
+                        FetchSubPhaseProcessor processor = phase.getProcessor(sc);
+                        assertNotNull(processor);
+                        processor.process(hit);
 
-                    assertNull(hit.hit().field(PercolatorMatchedSlotSubFetchPhase.FIELD_NAME_PREFIX));
+                        assertNull(hit.hit().field(PercolatorMatchedSlotSubFetchPhase.FIELD_NAME_PREFIX));
+                    } finally {
+                        sh.decRef();
+                    }
                 }
 
                 // No query:
                 {
-                    HitContext hit = new HitContext(SearchHit.unpooled(0), context, 0, Map.of(), Source.empty(null), null);
-                    PercolateQuery.QueryStore queryStore = ctx -> docId -> null;
-                    MemoryIndex memoryIndex = new MemoryIndex();
-                    memoryIndex.addField("field", "value", new WhitespaceAnalyzer());
-                    memoryIndex.addField(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, 0), null);
-                    PercolateQuery percolateQuery = new PercolateQuery(
-                        "_name",
-                        queryStore,
-                        Collections.emptyList(),
-                        Queries.ALL_DOCS_INSTANCE,
-                        memoryIndex.createSearcher(),
-                        null,
-                        Queries.NO_DOCS_INSTANCE
-                    );
+                    SearchHit sh = new SearchHit(0);
+                    try {
+                        HitContext hit = new HitContext(sh, context, 0, Map.of(), Source.empty(null), null);
+                        PercolateQuery.QueryStore queryStore = ctx -> docId -> null;
+                        MemoryIndex memoryIndex = new MemoryIndex();
+                        memoryIndex.addField("field", "value", new WhitespaceAnalyzer());
+                        memoryIndex.addField(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, 0), null);
+                        PercolateQuery percolateQuery = new PercolateQuery(
+                            "_name",
+                            queryStore,
+                            Collections.emptyList(),
+                            Queries.ALL_DOCS_INSTANCE,
+                            memoryIndex.createSearcher(),
+                            null,
+                            Queries.NO_DOCS_INSTANCE
+                        );
 
-                    FetchContext sc = mock(FetchContext.class);
-                    when(sc.query()).thenReturn(percolateQuery);
-                    SearchExecutionContext sec = mock(SearchExecutionContext.class);
-                    when(sc.getSearchExecutionContext()).thenReturn(sec);
-                    when(sec.indexVersionCreated()).thenReturn(IndexVersion.current());
+                        FetchContext sc = mock(FetchContext.class);
+                        when(sc.query()).thenReturn(percolateQuery);
+                        SearchExecutionContext sec = mock(SearchExecutionContext.class);
+                        when(sc.getSearchExecutionContext()).thenReturn(sec);
+                        when(sec.indexVersionCreated()).thenReturn(IndexVersion.current());
 
-                    FetchSubPhaseProcessor processor = phase.getProcessor(sc);
-                    assertNotNull(processor);
-                    processor.process(hit);
+                        FetchSubPhaseProcessor processor = phase.getProcessor(sc);
+                        assertNotNull(processor);
+                        processor.process(hit);
 
-                    assertNull(hit.hit().field(PercolatorMatchedSlotSubFetchPhase.FIELD_NAME_PREFIX));
+                        assertNull(hit.hit().field(PercolatorMatchedSlotSubFetchPhase.FIELD_NAME_PREFIX));
+                    } finally {
+                        sh.decRef();
+                    }
                 }
             }
         }

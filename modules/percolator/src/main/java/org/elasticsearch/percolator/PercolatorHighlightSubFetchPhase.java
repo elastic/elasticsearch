@@ -97,39 +97,44 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
                             int slot = (int) matchedSlot;
                             BytesReference document = percolateQuery.getDocuments().get(slot);
                             leafStoredFields.advanceTo(slot);
-                            HitContext subContext = new HitContext(
-                                SearchHit.unpooled(slot, "unknown"),
-                                percolatorLeafReaderContext,
-                                slot,
-                                leafStoredFields.storedFields(),
-                                Source.fromBytes(document),
-                                null
-                            );
-                            processor.process(subContext);
-                            for (Map.Entry<String, HighlightField> entry : subContext.hit().getHighlightFields().entrySet()) {
-                                if (percolateQuery.getDocuments().size() == 1) {
-                                    String hlFieldName;
-                                    if (singlePercolateQuery) {
-                                        hlFieldName = entry.getKey();
+                            SearchHit subHit = new SearchHit(slot, "unknown");
+                            try {
+                                HitContext subContext = new HitContext(
+                                    subHit,
+                                    percolatorLeafReaderContext,
+                                    slot,
+                                    leafStoredFields.storedFields(),
+                                    Source.fromBytes(document),
+                                    null
+                                );
+                                processor.process(subContext);
+                                for (Map.Entry<String, HighlightField> entry : subContext.hit().getHighlightFields().entrySet()) {
+                                    if (percolateQuery.getDocuments().size() == 1) {
+                                        String hlFieldName;
+                                        if (singlePercolateQuery) {
+                                            hlFieldName = entry.getKey();
+                                        } else {
+                                            hlFieldName = percolateQuery.getName() + "_" + entry.getKey();
+                                        }
+                                        hit.hit()
+                                            .getHighlightFields()
+                                            .put(hlFieldName, new HighlightField(hlFieldName, entry.getValue().fragments()));
                                     } else {
-                                        hlFieldName = percolateQuery.getName() + "_" + entry.getKey();
+                                        // In case multiple documents are being percolated we need to identify to which document
+                                        // a highlight belongs to.
+                                        String hlFieldName;
+                                        if (singlePercolateQuery) {
+                                            hlFieldName = slot + "_" + entry.getKey();
+                                        } else {
+                                            hlFieldName = percolateQuery.getName() + "_" + slot + "_" + entry.getKey();
+                                        }
+                                        hit.hit()
+                                            .getHighlightFields()
+                                            .put(hlFieldName, new HighlightField(hlFieldName, entry.getValue().fragments()));
                                     }
-                                    hit.hit()
-                                        .getHighlightFields()
-                                        .put(hlFieldName, new HighlightField(hlFieldName, entry.getValue().fragments()));
-                                } else {
-                                    // In case multiple documents are being percolated we need to identify to which document
-                                    // a highlight belongs to.
-                                    String hlFieldName;
-                                    if (singlePercolateQuery) {
-                                        hlFieldName = slot + "_" + entry.getKey();
-                                    } else {
-                                        hlFieldName = percolateQuery.getName() + "_" + slot + "_" + entry.getKey();
-                                    }
-                                    hit.hit()
-                                        .getHighlightFields()
-                                        .put(hlFieldName, new HighlightField(hlFieldName, entry.getValue().fragments()));
                                 }
+                            } finally {
+                                subHit.decRef();
                             }
                         }
                     }

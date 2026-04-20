@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.CheckedConsumer;
@@ -587,9 +588,9 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             public Map<String, BlobMetadata> onPrefixList(String prefix, Map<String, BlobMetadata> filteredListing) {
                 if (prefix.equals("test-blob-")) {
                     // Drop a blob from the common-prefix listing to simulate an incorrect prefix filter
-                    final HashMap<String, BlobMetadata> disrupted = new HashMap<>(filteredListing);
+                    Map<String, BlobMetadata> disrupted = filteredListing;
                     if (disrupted.isEmpty() == false) {
-                        disrupted.keySet().iterator().remove();
+                        disrupted = Maps.copyMapWithRemovedEntry(Map.copyOf(disrupted), randomFrom(disrupted.keySet()));
                     }
                     return disrupted;
                 }

@@ -104,14 +104,23 @@ public final class AsyncExternalSourceBuffer {
                 notifyNotFull();
             }
         }
-        if (page == null && noMoreInputs && queueSize.get() == 0) {
-            if (failure != null) {
-                completionFuture.onFailure(new Exception(failure));
-            } else {
-                completionFuture.onResponse(null);
-            }
-        }
+        signalCompletionIfDrained();
         return page;
+    }
+
+    /**
+     * Completes {@link #completionFuture} once the queue is drained and no more input is expected.
+     * Safe to call repeatedly; no-ops if completion was already signaled.
+     */
+    private void signalCompletionIfDrained() {
+        if (noMoreInputs == false || queueSize.get() != 0 || completionFuture.isDone()) {
+            return;
+        }
+        if (failure != null) {
+            completionFuture.onFailure(new Exception(failure));
+        } else {
+            completionFuture.onResponse(null);
+        }
     }
 
     private void notifyNotEmpty() {
@@ -217,21 +226,21 @@ public final class AsyncExternalSourceBuffer {
         }
         notifyNotEmpty();
         notifyNotFull(); // wake producers so they observe noMoreInputs and exit
-        if (drainingPages || queueSize.get() == 0) {
-            if (failure != null) {
-                completionFuture.onFailure(new Exception(failure));
-            } else {
-                completionFuture.onResponse(null);
-            }
-        }
+        signalCompletionIfDrained();
     }
 
     /**
      * Mark the buffer as failed. Called when the background reader encounters an error.
+     * <p>
+     * Queued pages are retained so the driver can drain them before {@link AsyncExternalSourceOperator}
+     * surfaces the failure via {@link org.elasticsearch.compute.operator.SourceOperator#getOutput()}.
      */
     public void onFailure(Throwable t) {
         this.failure = t;
-        finish(true);
+        noMoreInputs = true;
+        notifyNotEmpty();
+        notifyNotFull();
+        signalCompletionIfDrained();
     }
 
     public boolean isFinished() {

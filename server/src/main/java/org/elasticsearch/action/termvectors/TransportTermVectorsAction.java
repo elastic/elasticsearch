@@ -112,11 +112,19 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
         IndexShard indexShard = indexService.getShard(shardId.id());
         if (request.realtime()) { // it's a realtime request which is not subject to refresh cycles
             if (stateless) {
-                // Ensure that the document is searchable before we execute the term vectors request
+                // Ensure that the document is searchable before we execute the term vectors request.
+                //
+                // It is very important to pass the SplitShardCountSummary through here.
+                // This summary reflects the decision of the coordinator to route this request to the source shard.
+                // It is possible that the document now belongs to the target shard
+                // and if so we need to fix that routing decision on the coordinator.
+                // We are NOT interested in the state of the search shard node (where we currently are)
+                // and should not create a new summary here.
                 final var ensureDocsSearchableRequest = new EnsureDocsSearchableAction.EnsureDocsSearchableRequest(
                     request.index(),
                     shardId.id(),
-                    new String[] { request.id() }
+                    new String[] { request.id() },
+                    request.getSplitShardCountSummary()
                 );
                 ensureDocsSearchableRequest.setParentTask(clusterService.localNode().getId(), request.getParentTask().getId());
                 client.executeLocally(

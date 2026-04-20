@@ -23,6 +23,7 @@ import org.elasticsearch.lucene.util.automaton.CircuitBreakingOperations;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Helper functions for creating various forms of {@link AutomatonQuery}
@@ -209,9 +210,85 @@ public class AutomatonQueries {
         return a;
     }
 
+    /**
+     * Collapses consecutive repetition operators ({@code +}, {@code *}, {@code ?}) in a Lucene regex
+     * pattern down to a single, language-equivalent operator. Stacking quantifiers is always
+     * semantically redundant (e.g. {@code x+++} = {@code x+}, {@code x+?} = {@code x*}) and causes
+     * exponential NFA state growth in {@link org.apache.lucene.util.automaton.RegExp#toAutomaton()},
+     * leading to OOM.
+     * <p>
+     * The scan respects escape sequences ({@code \+}), character classes ({@code [+*?]}), and
+     * Lucene quoted strings ({@code "+++"}) where these characters are literals.
+     *
+     * @param pattern the raw regex pattern string
+     * @return the pattern with redundant consecutive quantifiers collapsed
+     * @throws NullPointerException if {@code pattern} is {@code null}
+     */
+    public static String collapseConsecutiveQuantifiers(String pattern) {
+        Objects.requireNonNull(pattern, "pattern must not be null");
+        final int length = pattern.length();
+        StringBuilder sb = new StringBuilder(length);
+        boolean inCharClass = false;
+        boolean inQuotedString = false;
+        boolean prevWasQuantifier = false;
+        for (int i = 0; i < length; i++) {
+            char c = pattern.charAt(i);
+            if (c == '\\' && i + 1 < length) {
+                sb.append(c);
+                sb.append(pattern.charAt(i + 1));
+                i++;
+                prevWasQuantifier = false;
+            } else if (inQuotedString) {
+                sb.append(c);
+                if (c == '"') {
+                    inQuotedString = false;
+                }
+                prevWasQuantifier = false;
+            } else if (inCharClass) {
+                sb.append(c);
+                if (c == ']') {
+                    inCharClass = false;
+                }
+                prevWasQuantifier = false;
+            } else if (c == '"') {
+                sb.append(c);
+                inQuotedString = true;
+                prevWasQuantifier = false;
+            } else if (c == '[') {
+                sb.append(c);
+                inCharClass = true;
+                prevWasQuantifier = false;
+            } else if (c == '+' || c == '*' || c == '?') {
+                if (prevWasQuantifier == false) {
+                    sb.append(c);
+                    prevWasQuantifier = true;
+                } else {
+                    int previousQuantifierIndex = sb.length() - 1;
+                    sb.setCharAt(previousQuantifierIndex, collapseConsecutiveQuantifierPair(sb.charAt(previousQuantifierIndex), c));
+                }
+            } else {
+                sb.append(c);
+                prevWasQuantifier = false;
+            }
+        }
+        return sb.toString();
+    }
+
+    private static char collapseConsecutiveQuantifierPair(char existing, char incoming) {
+        assert isRepetitionOperator(existing) && isRepetitionOperator(incoming)
+            : "expected repetition operators but got [" + existing + "] and [" + incoming + "]";
+        if (existing == incoming) {
+            return existing;
+        }
+        return '*';
+    }
+
+    private static boolean isRepetitionOperator(char c) {
+        return c == '+' || c == '*' || c == '?';
+    }
+
     public static Automaton toCaseInsensitiveChar(int codepoint) {
         Automaton case1 = Automata.makeChar(codepoint);
-        // For now we only work with ASCII characters
         if (codepoint > 128) {
             return case1;
         }
@@ -219,7 +296,6 @@ public class AutomatonQueries {
         Automaton result;
         if (altCase != codepoint) {
             result = Operations.union(case1, Automata.makeChar(altCase));
-            // this automaton should always be deterministic, no need to determinize
             assert result.isDeterministic();
         } else {
             result = case1;

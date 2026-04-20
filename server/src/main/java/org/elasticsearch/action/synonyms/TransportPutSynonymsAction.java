@@ -42,7 +42,7 @@ public class TransportPutSynonymsAction extends HandledTransportAction<PutSynony
             request.synonymsSetId(),
             request.synonymRules(),
             request.refresh(),
-            request.append(),
+            request.replaceAll() == false,
             listener.map(SynonymUpdateResponse::new)
         );
     }

@@ -35,11 +35,6 @@
         "type": "boolean",
         "default": true,
         "description": "Refresh search analyzers to update synonyms"
-      },
-      "append": {
-        "type": "boolean",
-        "default": false,
-        "description": "If true, adds the rules to the existing synonym set instead of replacing it. Rules with matching IDs are overwritten."
       }
     },
     "body": {

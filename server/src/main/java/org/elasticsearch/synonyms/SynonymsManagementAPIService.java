@@ -577,17 +577,7 @@ public class SynonymsManagementAPIService {
         UpdateSynonymsResultStatus status,
         ActionListener<SynonymsReloadResult> listener
     ) {
-        bulkUpdateSynonymsSet(synonymSetId, synonymsSet, listener.delegateFailure((l, bulkResponse) -> {
-            if (bulkResponse.hasFailures()) {
-                logUniqueFailureMessagesWithIndices(
-                    Arrays.stream(bulkResponse.getItems())
-                        .filter(BulkItemResponse::isFailed)
-                        .map(BulkItemResponse::getFailure)
-                        .collect(Collectors.toList())
-                );
-                l.onFailure(new ElasticsearchException("Error updating synonyms: " + bulkResponse.buildFailureMessage()));
-                return;
-            }
+        bulkUpdateSynonymsSet(synonymSetId, synonymsSet, listener.delegateFailure((l, ignored) -> {
             checkIndexSearchableAndReloadAnalyzers(synonymSetId, refresh, false, status, l);
         }));
     }

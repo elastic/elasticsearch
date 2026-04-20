@@ -34,14 +34,14 @@ public class PutSynonymsActionRequestSerializingTests extends AbstractWireSerial
         String synonymsSetId = instance.synonymsSetId();
         SynonymRule[] synonymRules = instance.synonymRules();
         boolean refresh = instance.refresh();
-        boolean append = instance.append();
+        boolean replaceAll = instance.replaceAll();
         switch (between(0, 3)) {
             case 0 -> synonymsSetId = randomValueOtherThan(synonymsSetId, () -> randomIdentifier());
             case 1 -> synonymRules = randomArrayOtherThan(synonymRules, () -> randomSynonymsSet());
             case 2 -> refresh = refresh == false;
-            case 3 -> append = append == false;
+            case 3 -> replaceAll = replaceAll == false;
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new PutSynonymsAction.Request(synonymsSetId, synonymRules, refresh, append);
+        return new PutSynonymsAction.Request(synonymsSetId, synonymRules, refresh, replaceAll);
     }
 }

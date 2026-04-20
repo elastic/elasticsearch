@@ -108,17 +108,17 @@ teardown:
       capabilities:
         - method: PUT
           path: /_synonyms/{id}
-          capabilities: [ synonyms_append_param ]
-      reason: "synonyms append param capability needed"
+          capabilities: [ synonyms_replace_all_param ]
+      reason: "synonyms replace_all body field support needed"
 
   - do:
       synonyms.put_synonym:
         id: test-append-synonyms
-        append: true
         body:
           synonyms_set:
             - synonyms: "hello, hi"
               id: "rule-1"
+          replace_all: false
 
   - match: { result: "created" }
 
@@ -136,8 +136,8 @@ teardown:
       capabilities:
         - method: PUT
           path: /_synonyms/{id}
-          capabilities: [ synonyms_append_param ]
-      reason: "synonyms append param capability needed"
+          capabilities: [ synonyms_replace_all_param ]
+      reason: "synonyms replace_all body field support needed"
 
   - do:
       synonyms.put_synonym:
@@ -154,11 +154,11 @@ teardown:
   - do:
       synonyms.put_synonym:
         id: test-append-synonyms
-        append: true
         body:
           synonyms_set:
             - synonyms: "good, great"
               id: "rule-3"
+          replace_all: false
 
   - match: { result: "updated" }
 
@@ -175,8 +175,8 @@ teardown:
       capabilities:
         - method: PUT
           path: /_synonyms/{id}
-          capabilities: [ synonyms_append_param ]
-      reason: "synonyms append param capability needed"
+          capabilities: [ synonyms_replace_all_param ]
+      reason: "synonyms replace_all body field support needed"
 
   - do:
       synonyms.put_synonym:
@@ -191,11 +191,11 @@ teardown:
   - do:
       synonyms.put_synonym:
         id: test-append-synonyms
-        append: true
         body:
           synonyms_set:
             - synonyms: "hello, hi, hey"
               id: "rule-1"
+          replace_all: false
 
   - match: { result: "updated" }
 
@@ -213,8 +213,8 @@ teardown:
       capabilities:
         - method: PUT
           path: /_synonyms/{id}
-          capabilities: [ synonyms_append_param ]
-      reason: "synonyms append param capability needed"
+          capabilities: [ synonyms_replace_all_param ]
+      reason: "synonyms replace_all body field support needed"
 
   - do:
       synonyms.put_synonym:

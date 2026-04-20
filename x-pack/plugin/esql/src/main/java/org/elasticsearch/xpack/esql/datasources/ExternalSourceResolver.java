@@ -636,6 +636,10 @@ public class ExternalSourceResolver {
 
         if (metadata instanceof ExternalSourceMetadata extMetadata) {
             if (extMetadata.config() != null && extMetadata.config().isEmpty() == false) {
+                // Stats are embedded into sourceMetadata() below for the general path; for
+                // ExternalSourceMetadata instances that already carry config (e.g. Iceberg),
+                // their factory is responsible for populating sourceMetadata() — statistics()
+                // is typically empty so there is nothing extra to embed.
                 return extMetadata;
             }
         }

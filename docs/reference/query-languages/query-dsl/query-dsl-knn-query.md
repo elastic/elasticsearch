@@ -571,7 +571,7 @@ POST my-index/_search
 ```
 
 1. The ID of the {{infer}} endpoint used to generate the embedding. This must reference an {{infer}} service configured with the `EMBEDDING` task type.
-2. The format of the input value. Defaults to base64 for image input.
+2. The format of the input value. Defaults to `base64` for image input.
 3. The value used to generate the embedding. For image, this must be a data URI for a base64-encoded image. The example above is a small sample base64 string. In real usage, this would be a much longer string generated from an actual image file.
 
 ##### Example: string input (shorthand) [embedding-example-string-input]

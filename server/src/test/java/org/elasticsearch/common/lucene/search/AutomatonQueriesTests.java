@@ -9,7 +9,6 @@
 
 package org.elasticsearch.common.lucene.search;
 
-import org.apache.lucene.tests.util.automaton.AutomatonTestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;

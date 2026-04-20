@@ -2406,6 +2406,14 @@ public class EsqlCapabilities {
         FIX_PASSTHROUGH_FIELD_CAPS_OBJECT_PARENT,
 
         /**
+         * List-valued expressions in the IN clause are expanded into individual scalar literals during parsing.
+         * This applies both to query parameters ({@code ?statuses = ["open", "pending"]} used as
+         * {@code WHERE status IN (?statuses)}) and to explicit array literals
+         * ({@code WHERE status IN (["open", "pending"])} is equivalent to {@code WHERE status IN ("open", "pending")}).
+         */
+        IN_LIST_QUERY_PARAMS,
+
+        /**
          * Enables the feature LIMIT n BY expr1, expr2 for retaining at most n docs per group.
          * The feature will not work if we had SORT | LIMIT n BY
          */

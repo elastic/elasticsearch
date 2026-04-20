@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.parser;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -21,8 +22,12 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLik
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLikeList;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLikeList;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
@@ -932,5 +937,132 @@ public class ParamsParserTests extends AbstractStatementParserTests {
                 "Unknown query parameter [p3], did you mean any of [p1, p2]?"
             );
         }
+    }
+
+    public void testInWithListParamStringValues() {
+        LogicalPlan plan = query(
+            "from test | where x IN (?vals)",
+            new QueryParams(List.of(paramAsConstant("vals", List.of("a", "b", "c"))))
+        );
+        Filter filter = as(plan, Filter.class);
+        In in = as(filter.condition(), In.class);
+        assertEquals(3, in.list().size());
+        assertEquals(new BytesRef("a"), as(in.list().get(0), Literal.class).value());
+        assertEquals(new BytesRef("b"), as(in.list().get(1), Literal.class).value());
+        assertEquals(new BytesRef("c"), as(in.list().get(2), Literal.class).value());
+        assertEquals(KEYWORD, in.list().get(0).dataType());
+    }
+
+    public void testInWithListParamIntegerValues() {
+        LogicalPlan plan = query("from test | where x IN (?vals)", new QueryParams(List.of(paramAsConstant("vals", List.of(1, 2, 3)))));
+        Filter filter = as(plan, Filter.class);
+        In in = as(filter.condition(), In.class);
+        assertEquals(3, in.list().size());
+        assertEquals(1, as(in.list().get(0), Literal.class).value());
+        assertEquals(2, as(in.list().get(1), Literal.class).value());
+        assertEquals(3, as(in.list().get(2), Literal.class).value());
+        assertEquals(INTEGER, in.list().get(0).dataType());
+    }
+
+    public void testInWithSingleElementListParam() {
+        LogicalPlan plan = query("from test | where x IN (?vals)", new QueryParams(List.of(paramAsConstant("vals", List.of("a")))));
+        Filter filter = as(plan, Filter.class);
+        Equals eq = as(filter.condition(), Equals.class);
+        assertEquals(new BytesRef("a"), as(eq.right(), Literal.class).value());
+    }
+
+    public void testInWithListParamAndScalar() {
+        LogicalPlan plan = query(
+            "from test | where x IN (?vals, \"extra\")",
+            new QueryParams(List.of(paramAsConstant("vals", List.of("a", "b"))))
+        );
+        Filter filter = as(plan, Filter.class);
+        In in = as(filter.condition(), In.class);
+        assertEquals(3, in.list().size());
+        assertEquals(new BytesRef("a"), as(in.list().get(0), Literal.class).value());
+        assertEquals(new BytesRef("b"), as(in.list().get(1), Literal.class).value());
+        assertEquals(new BytesRef("extra"), as(in.list().get(2), Literal.class).value());
+    }
+
+    public void testNotInWithListParam() {
+        LogicalPlan plan = query(
+            "from test | where x NOT IN (?vals)",
+            new QueryParams(List.of(paramAsConstant("vals", List.of("a", "b", "c"))))
+        );
+        Filter filter = as(plan, Filter.class);
+        Not not = as(filter.condition(), Not.class);
+        In in = as(not.field(), In.class);
+        assertEquals(3, in.list().size());
+    }
+
+    public void testInWithEmptyListParam() {
+        LogicalPlan plan = query("from test | where x IN (?vals)", new QueryParams(List.of(paramAsConstant("vals", List.of()))));
+        Filter filter = as(plan, Filter.class);
+        Literal lit = as(filter.condition(), Literal.class);
+        assertEquals(false, lit.value());
+    }
+
+    public void testNotInWithEmptyListParam() {
+        LogicalPlan plan = query("from test | where x NOT IN (?vals)", new QueryParams(List.of(paramAsConstant("vals", List.of()))));
+        Filter filter = as(plan, Filter.class);
+        Literal lit = as(filter.condition(), Literal.class);
+        assertEquals(true, lit.value());
+    }
+
+    public void testInWithListParamAsLhsThrows() {
+        expectError(
+            "from test | where ?vals IN (\"a\", \"b\")",
+            List.of(paramAsConstant("vals", List.of("x", "y"))),
+            "A list value cannot be used as the left side of IN"
+        );
+    }
+
+    public void testInWithNullItemInListParamThrows() {
+        List<Object> listWithNull = new java.util.ArrayList<>();
+        listWithNull.add("a");
+        listWithNull.add(null);
+        listWithNull.add("b");
+        expectError(
+            "from test | where x IN (?vals)",
+            List.of(paramAsConstant("vals", listWithNull)),
+            "List parameter for IN must not contain null values"
+        );
+    }
+
+    public void testIsNullOrInFallbackNullParam() {
+        // ?vals IS NULL OR x IN (?vals) with null param: IS NULL folds to true, IN gets null literal
+        LogicalPlan plan = query(
+            "from test | where ?vals IS NULL OR x IN (?vals)",
+            new QueryParams(List.of(paramAsConstant("vals", null)))
+        );
+        Filter filter = as(plan, Filter.class);
+        Or or = as(filter.condition(), Or.class);
+        as(or.left(), IsNull.class); // ?vals IS NULL → folds to true
+        // right side: single null literal → Equals(x, null), SQL null semantics, but OR short-circuits
+        Equals eq = as(or.right(), Equals.class);
+        assertNull(as(eq.right(), Literal.class).value());
+    }
+
+    public void testIsNullOrInFallbackNonEmptyList() {
+        // ?vals IS NULL OR x IN (?vals) with non-empty list: IS NULL is false, IN expands normally
+        LogicalPlan plan = query(
+            "from test | where ?vals IS NULL OR x IN (?vals)",
+            new QueryParams(List.of(paramAsConstant("vals", List.of("a", "b"))))
+        );
+        Filter filter = as(plan, Filter.class);
+        Or or = as(filter.condition(), Or.class);
+        as(or.left(), IsNull.class);
+        In in = as(or.right(), In.class);
+        assertEquals(2, in.list().size());
+    }
+
+    public void testInWithPositionalListParam() {
+        LogicalPlan plan = query("from test | where x IN (?)", new QueryParams(List.of(paramAsConstant(null, List.of("a", "b", "c")))));
+        Filter filter = as(plan, Filter.class);
+        In in = as(filter.condition(), In.class);
+        assertEquals(3, in.list().size());
+        assertEquals(new BytesRef("a"), as(in.list().get(0), Literal.class).value());
+        assertEquals(new BytesRef("b"), as(in.list().get(1), Literal.class).value());
+        assertEquals(new BytesRef("c"), as(in.list().get(2), Literal.class).value());
     }
 }

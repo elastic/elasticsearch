@@ -881,3 +881,164 @@ version is not allowed:
   - length: { columns: 1 }
   - length: { values: 1 }
   - match: {values.0.0: 2}
+
+---
+"Test IN with list-valued named parameter":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ capabilities ]
+          capabilities: [ in_list_query_params ]
+      reason: "list-valued parameters in IN clause"
+  - do:
+      esql.query:
+        body:
+          query: 'from test | where color IN (?colors) | stats c = count() by color | sort color | limit 1000'
+          params: [{"colors": ["green", "blue"]}]
+
+  - length: { columns: 2 }
+  - length: { values: 2 }
+  - match: { values.0: [10, "blue"] }
+  - match: { values.1: [10, "green"] }
+
+---
+"Test IN with single-element list parameter":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ capabilities ]
+          capabilities: [ in_list_query_params ]
+      reason: "list-valued parameters in IN clause"
+  - do:
+      esql.query:
+        body:
+          query: 'from test | where color IN (?colors) | stats c = count() | limit 1000'
+          params: [{"colors": ["blue"]}]
+
+  - length: { columns: 1 }
+  - length: { values: 1 }
+  - match: { values.0: [10] }
+
+---
+"Test NOT IN with list-valued named parameter":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ capabilities ]
+          capabilities: [ in_list_query_params ]
+      reason: "list-valued parameters in IN clause"
+  - do:
+      esql.query:
+        body:
+          query: 'from test | where color NOT IN (?colors) | stats c = count() | limit 1000'
+          params: [{"colors": ["green", "blue"]}]
+
+  - length: { columns: 1 }
+  - length: { values: 1 }
+  - match: { values.0: [20] }
+
+---
+"Test IN with empty list parameter returns no rows":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ capabilities ]
+          capabilities: [ in_list_query_params ]
+      reason: "list-valued parameters in IN clause"
+  - do:
+      esql.query:
+        body:
+          query: 'from test | where color IN (?colors) | stats c = count() | limit 1000'
+          params: [{"colors": []}]
+
+  - length: { columns: 1 }
+  - length: { values: 1 }
+  - match: { values.0: [0] }
+
+---
+"Test NOT IN with empty list parameter returns all rows":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ capabilities ]
+          capabilities: [ in_list_query_params ]
+      reason: "list-valued parameters in IN clause"
+  - do:
+      esql.query:
+        body:
+          query: 'from test | where color NOT IN (?colors) | stats c = count() | limit 1000'
+          params: [{"colors": []}]
+
+  - length: { columns: 1 }
+  - length: { values: 1 }
+  - match: { values.0: [40] }
+
+---
+"Test IS NULL OR IN fallback - null param returns all rows":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ capabilities ]
+          capabilities: [ in_list_query_params ]
+      reason: "list-valued parameters in IN clause"
+  - do:
+      esql.query:
+        body:
+          query: 'from test | where ?colors IS NULL OR color IN (?colors) | stats c = count() | limit 1000'
+          params: [{"colors": null}]
+
+  - length: { columns: 1 }
+  - length: { values: 1 }
+  - match: { values.0: [40] }
+
+---
+"Test IS NULL OR IN fallback - non-empty list filters rows":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ capabilities ]
+          capabilities: [ in_list_query_params ]
+      reason: "list-valued parameters in IN clause"
+  - do:
+      esql.query:
+        body:
+          query: 'from test | where ?colors IS NULL OR color IN (?colors) | stats c = count() | limit 1000'
+          params: [{"colors": ["blue"]}]
+
+  - length: { columns: 1 }
+  - length: { values: 1 }
+  - match: { values.0: [10] }
+
+---
+"Test IN with list-valued integer parameter":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ capabilities ]
+          capabilities: [ in_list_query_params ]
+      reason: "list-valued parameters in IN clause"
+  - do:
+      esql.query:
+        body:
+          query: 'from test | where data IN (?vals) | stats c = count() | limit 1000'
+          params: [{"vals": [1]}]
+
+  - length: { columns: 1 }
+  - length: { values: 1 }
+  - match: { values.0: [20] }

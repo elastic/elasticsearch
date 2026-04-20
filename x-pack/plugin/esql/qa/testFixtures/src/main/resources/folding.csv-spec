@@ -172,14 +172,14 @@ FROM employees
 ;
 
 mvDouble_IN_MultiValueConstant
-required_capability: fix_mv_constant_equals_field
+required_capability: in_list_query_params
 
 FROM employees
 | WHERE salary_change IN ([1,2,3])
 | KEEP salary_change
 ;
-warning:Line 2:9: evaluation of [salary_change IN ([1,2,3])] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:evaluation of \[salary_change IN .*\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
     salary_change:double
 ;

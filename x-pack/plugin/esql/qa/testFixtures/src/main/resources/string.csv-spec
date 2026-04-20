@@ -2866,27 +2866,35 @@ warning:Line 2:9: java.lang.IllegalArgumentException: single-value function enco
 ;
 
 mvString_IN_MultiValueConstant
-required_capability: fix_mv_constant_equals_field
+required_capability: in_list_query_params
 FROM mv_text
 | WHERE message IN (["Connected to 10.1.0.1", "Banana"])
 | KEEP @timestamp, message
+| SORT @timestamp
 ;
-warning:Line 2:9: evaluation of [message IN ([\"Connected to 10.1.0.1\", \"Banana\"])] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:evaluation of \[message IN .*\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
-    @timestamp:date     | message:text
+// ["Connected to 10.1.0.1", "Banana"] is expanded to individual scalars; multi-value rows are excluded with a warning
+    @timestamp:datetime         | message:text
+2023-10-23T13:55:01.544Z        | Connected to 10.1.0.1
 ;
 
 mvKeyword_IN_MultiValueConstant
-required_capability: fix_mv_constant_equals_field
+required_capability: in_list_query_params
 FROM employees
 | WHERE job_positions IN (["Tech Lead" , "Data Scientist", "Senior Team Lead"])
 | KEEP emp_no, job_positions
+| SORT emp_no
 ;
-warning:Line 2:9: evaluation of [job_positions IN ([\"Tech Lead\" , \"Data Scientist\", \"Senior Team Lead\"])] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:evaluation of \[job_positions IN .*\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
+// ["Tech Lead", "Data Scientist", "Senior Team Lead"] is expanded to individual scalars; multi-value rows are excluded with a warning
     emp_no:integer     | job_positions:keyword
+10002                  | Senior Team Lead
+10020                  | Tech Lead
+10056                  | Senior Team Lead
 ;
 
 mvKeywordEqualsMultiValueConstant

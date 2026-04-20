@@ -823,7 +823,25 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Expression visitLogicalIn(EsqlBaseParser.LogicalInContext ctx) {
-        List<Expression> expressions = ctx.valueExpression().stream().map(this::expression).toList();
+        List<Expression> expressions = new ArrayList<>();
+        for (var ve : ctx.valueExpression()) {
+            Expression expr = expression(ve);
+            if (expressions.isEmpty() && expr instanceof Literal lit && lit.value() instanceof List<?>) {
+                throw new ParsingException(lit.source(), "A list value cannot be used as the left side of IN");
+            } else if (expressions.isEmpty() == false && expr instanceof Literal lit && lit.value() instanceof List<?> list) {
+                if (list.isEmpty()) {
+                    return new Literal(source(ctx), ctx.NOT() != null, DataType.BOOLEAN);
+                }
+                for (Object item : list) {
+                    if (item == null) {
+                        throw new ParsingException(lit.source(), "List parameter for IN must not contain null values");
+                    }
+                    expressions.add(new Literal(lit.source(), item, lit.dataType()));
+                }
+            } else {
+                expressions.add(expr);
+            }
+        }
         Source source = source(ctx);
         Expression e = expressions.size() == 2
             ? new Equals(source, expressions.get(0), expressions.get(1))

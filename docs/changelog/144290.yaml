@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 144289
+pr: 144290
+summary: Expand list-valued query parameters in ES|QL IN clause
+type: enhancement

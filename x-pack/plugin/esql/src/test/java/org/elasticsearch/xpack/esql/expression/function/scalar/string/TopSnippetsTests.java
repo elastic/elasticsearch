@@ -105,7 +105,7 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
                     + query
                     + ", "
                     + "chunkingSettings={\"strategy\":\"sentence\",\"max_chunk_size\":300,\"sentence_overlap\":0}, "
-                    + "scorer=MemoryIndexChunkScorer, numSnippets=5, documentOrder=false]",
+                    + "scorer=MemoryIndexChunkScorer, numSnippets=5, noOrder=false]",
                 DataType.KEYWORD,
                 equalTo(expectedResult)
             );
@@ -155,7 +155,7 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
                         + query
                         + ", "
                         + "chunkingSettings={\"strategy\":\"sentence\",\"max_chunk_size\":25,\"sentence_overlap\":0}, "
-                        + "scorer=MemoryIndexChunkScorer, numSnippets=3, documentOrder=false]",
+                        + "scorer=MemoryIndexChunkScorer, numSnippets=3, noOrder=false]",
                     DataType.KEYWORD,
                     equalTo(expectedResult)
                 );
@@ -276,9 +276,9 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
         assertThat(byScore.get(1), equalTo(chunks.get(0)));
     }
 
-    public void testOrderByDocument() {
+    public void testOrderNone() {
         List<String> chunks = List.of("We use elasticsearch for search.", "Elasticsearch elasticsearch elasticsearch powers our stack.");
-        List<String> byDocument = processMultivalueChunks(chunks, "elasticsearch", 2, "document");
+        List<String> byDocument = processMultivalueChunks(chunks, "elasticsearch", 2, "none");
         assertThat(byDocument, hasSize(2));
         assertThat(byDocument.get(0), equalTo(chunks.get(0)));
         assertThat(byDocument.get(1), equalTo(chunks.get(1)));

@@ -107,7 +107,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
     private static final String ENCODER = "encoder";
     private static final String HTML_ENCODER = "html";
     private static final String ORDER = "order";
-    private static final String DOCUMENT_ORDER = "document";
+    private static final String NONE_ORDER = "none";
 
     static final String DEFAULT_PRE_TAG = "<em>";
     static final String DEFAULT_POST_TAG = "</em>";
@@ -216,8 +216,8 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
                     Only applies when highlight is true. Defaults to `default`.
                     """, valueHint = { "default" }, applies_to = "stack: preview 9.4.1"),
                 @MapParam.MapParamEntry(name = "order", type = "keyword", description = """
-                    Order of returned snippets: `score` (default, by relevance) or `document` (original text order).
-                    """, valueHint = { "score", "document" }, applies_to = "stack: preview 9.4.1") }
+                    Order of returned snippets: `score` (default, by relevance) or `none` (original text order).
+                    """, valueHint = { "score", "none" }, applies_to = "stack: preview 9.4.1") }
         ) Expression options
     ) {
         super(source, options == null ? List.of(field, query) : List.of(field, query, options));
@@ -301,8 +301,8 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
 
     private static void validateOrder(Map<String, Object> options) {
         Object value = options.get(ORDER);
-        if (value != null && "score".equals(value) == false && "document".equals(value) == false) {
-            throw new InvalidArgumentException("'{}' option must be 'score' or 'document', found [{}]", ORDER, value);
+        if (value != null && "score".equals(value) == false && "none".equals(value) == false) {
+            throw new InvalidArgumentException("'{}' option must be 'score' or 'none', found [{}]", ORDER, value);
         }
     }
 
@@ -396,7 +396,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
         @Fixed ChunkingSettings chunkingSettings,
         @Fixed MemoryIndexChunkScorer scorer,
         @Fixed int numSnippets,
-        @Fixed boolean documentOrder,
+        @Fixed boolean noOrder,
         @Fixed(includeInToString = false) PassageFormatter highlightFormatter
     ) {
         if (queryString == null) {
@@ -425,7 +425,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
 
         Query luceneQuery = scorer.buildQuery(queryString);
         List<ScoredChunk> topChunks = scorer.scoreChunks(allChunks, luceneQuery, numSnippets, false);
-        if (documentOrder) {
+        if (noOrder) {
             topChunks = topChunks.stream().sorted(Comparator.comparingInt(ScoredChunk::originalIndex)).toList();
         }
         if (topChunks.isEmpty()) {
@@ -501,14 +501,14 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         int numSnippets;
         int numWords;
-        boolean documentOrder;
+        boolean noOrder;
         PassageFormatter highlightFormatter = null;
         if (options != null) {
             Map<String, Object> opts = new HashMap<>();
             Options.populateMap((MapExpression) options, opts, source(), THIRD, ALLOWED_OPTIONS);
             numSnippets = numSnippets(opts);
             numWords = numWords(opts);
-            documentOrder = DOCUMENT_ORDER.equals(opts.get(ORDER));
+            noOrder = NONE_ORDER.equals(opts.get(ORDER));
             if (Boolean.TRUE.equals(opts.get(HIGHLIGHT))) {
                 String preTag = (String) opts.getOrDefault(PRE_TAG, DEFAULT_PRE_TAG);
                 String postTag = (String) opts.getOrDefault(POST_TAG, DEFAULT_POST_TAG);
@@ -519,7 +519,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
         } else {
             numSnippets = DEFAULT_NUM_SNIPPETS;
             numWords = DEFAULT_WORD_SIZE;
-            documentOrder = false;
+            noOrder = false;
         }
 
         ChunkingSettings chunkingSettings = numWords > 0 ? new SentenceBoundaryChunkingSettings(numWords, 0) : null;
@@ -537,7 +537,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
             chunkingSettings,
             scorer,
             numSnippets,
-            documentOrder,
+            noOrder,
             highlightFormatter
         );
     }

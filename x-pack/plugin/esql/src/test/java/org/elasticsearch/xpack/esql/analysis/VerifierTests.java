@@ -3818,7 +3818,7 @@ public class VerifierTests extends ESTestCase {
         );
         fullText().error(
             "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"order\": \"invalid\"})",
-            equalTo("1:29: 'order' option must be 'score' or 'document', found [invalid]")
+            equalTo("1:29: 'order' option must be 'score' or 'none', found [invalid]")
         );
     }
 

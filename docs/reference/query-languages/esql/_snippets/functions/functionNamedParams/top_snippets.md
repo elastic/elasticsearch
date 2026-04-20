@@ -33,7 +33,7 @@ Defaults to `</em>`.
 Only applies when highlight is true. Defaults to `default`.
 
 
-`order`
-:   (keyword) Order of returned snippets: `score` (default, by relevance) or `document` (original text order).
+`order` {applies_to}`stack: preview 9.4.1`
+:   (keyword) Order of returned snippets: `score` (default, by relevance) or `none` (original text order).
 
 

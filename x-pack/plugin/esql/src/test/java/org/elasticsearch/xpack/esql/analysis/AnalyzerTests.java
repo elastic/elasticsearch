@@ -4098,14 +4098,22 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testTextEmbeddingFunctionInvalidOptions() {
         books().error(
-            String.format(Locale.ROOT, """
-                FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe", "%s", {"invalid": "value"})""", TEXT_EMBEDDING_INFERENCE_ID),
+            String.format(
+                Locale.ROOT,
+                """
+                    FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe", "%s", {"invalid": "value"})""",
+                TEXT_EMBEDDING_INFERENCE_ID
+            ),
             containsString("Invalid option [invalid]")
         );
 
         books().error(
-            String.format(Locale.ROOT, """
-                FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe", "%s", {"timeout": "a long one"})""", TEXT_EMBEDDING_INFERENCE_ID),
+            String.format(
+                Locale.ROOT,
+                """
+                    FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe", "%s", {"timeout": "a long one"})""",
+                TEXT_EMBEDDING_INFERENCE_ID
+            ),
             containsString("failed to parse setting [timeout]")
         );
     }

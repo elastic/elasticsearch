@@ -684,6 +684,7 @@ public final class CsvTestUtils {
         SCALED_FLOAT(s -> s == null ? null : scaledFloat(s, "100"), Double.class),
         KEYWORD(Object::toString, BytesRef.class),
         TEXT(Object::toString, BytesRef.class),
+        FLATTENED(Object::toString, String.class),
         SEMANTIC_TEXT(Object::toString, BytesRef.class),
         IP(
             StringUtils::parseIP,
@@ -839,6 +840,7 @@ public final class CsvTestUtils {
                 case NULL -> NULL;
                 case GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE -> actualType;
                 case HISTOGRAM -> HISTOGRAM;
+                case FLATTENED -> FLATTENED;
                 default -> KEYWORD;
             };
         }

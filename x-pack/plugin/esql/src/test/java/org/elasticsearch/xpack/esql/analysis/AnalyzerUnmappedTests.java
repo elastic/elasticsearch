@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
-import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -1422,7 +1421,10 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     private static TestAnalyzer index1() {
-        Map<String, EsField> mapping = Map.of("field", new UnsupportedEsField("field", List.of("flattened")));
+        Map<String, EsField> mapping = Map.of(
+            "field",
+            new EsField("field", DataType.FLATTENED, emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
+        );
         return analyzer().addIndex(new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD), Map.of(), Map.of(), Map.of()));
     }
 

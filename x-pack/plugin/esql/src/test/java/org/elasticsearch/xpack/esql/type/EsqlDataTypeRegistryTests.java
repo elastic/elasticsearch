@@ -39,7 +39,16 @@ public class EsqlDataTypeRegistryTests extends ESTestCase {
         resolve("long", null, DataType.LONG);
     }
 
+    public void testFlattened() {
+        resolve("flattened", null, DataType.FLATTENED, true);
+        resolve("flattened", null, DataType.UNSUPPORTED, false);
+    }
+
     private void resolve(String esTypeName, TimeSeriesParams.MetricType metricType, DataType expected) {
+        resolve(esTypeName, metricType, expected, false);
+    }
+
+    private void resolve(String esTypeName, TimeSeriesParams.MetricType metricType, DataType expected, boolean currentBuildIsSnapshot) {
         String idx = "idx-" + randomAlphaOfLength(5);
         String field = "f" + randomAlphaOfLength(3);
         List<FieldCapabilitiesIndexResponse> idxResponses = List.of(
@@ -57,7 +66,7 @@ public class EsqlDataTypeRegistryTests extends ESTestCase {
         IndexResolution resolution = IndexResolver.mergedMappings(
             "idx-*",
             false,
-            new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, false),
+            new IndexResolver.FieldsInfo(caps, TransportVersion.current(), currentBuildIsSnapshot, false, false, false),
             false,
             IndexResolver.DO_NOT_GROUP
         );

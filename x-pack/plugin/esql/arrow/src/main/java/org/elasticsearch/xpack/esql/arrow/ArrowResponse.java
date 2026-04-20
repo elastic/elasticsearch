@@ -412,6 +412,9 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
         // version: convert to string
         buildEntry(new BlockConverter.TransformedBytesRef("version", MinorType.VARCHAR, ValueConversions::versionToString)),
 
+        // flattened: json
+        buildEntry(new BlockConverter.TransformedBytesRef("flattened", MinorType.VARCHAR, ValueConversions::sourceToJson)),
+
         // _source: json
         // TODO: support also CBOR and SMILE with an additional formatting parameter
         buildEntry(new BlockConverter.TransformedBytesRef("_source", MinorType.VARCHAR, ValueConversions::sourceToJson))

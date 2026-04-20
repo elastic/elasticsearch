@@ -266,7 +266,10 @@ public final class CsvAssert {
                     return new BigDecimal(s).round(new MathContext(7, RoundingMode.HALF_DOWN)).doubleValue();
                 }
             }
-            if (type == CsvTestUtils.Type.TEXT || type == CsvTestUtils.Type.KEYWORD || type == CsvTestUtils.Type.SEMANTIC_TEXT) {
+            if (type == CsvTestUtils.Type.TEXT
+                || type == CsvTestUtils.Type.KEYWORD
+                || type == CsvTestUtils.Type.FLATTENED
+                || type == CsvTestUtils.Type.SEMANTIC_TEXT) {
                 if (value instanceof String s) {
                     value = s.replaceAll("\\\\n", "\n").replaceAll("\\\\#", "#");
                 }
@@ -588,8 +591,8 @@ public final class CsvAssert {
                 LongRangeBlockBuilder.LongRange.class,
                 x -> EsqlDataTypeConverter.dateRangeToString((LongRangeBlockBuilder.LongRange) x)
             );
-            case INTEGER, LONG, DOUBLE, FLOAT, HALF_FLOAT, SCALED_FLOAT, KEYWORD, TEXT, SEMANTIC_TEXT, IP_RANGE, JSON, NULL, BOOLEAN,
-                DENSE_VECTOR, TDIGEST, UNSUPPORTED -> expectedValue;
+            case INTEGER, LONG, DOUBLE, FLOAT, HALF_FLOAT, SCALED_FLOAT, KEYWORD, TEXT, FLATTENED, SEMANTIC_TEXT, IP_RANGE, JSON, NULL,
+                BOOLEAN, DENSE_VECTOR, TDIGEST, UNSUPPORTED -> expectedValue;
         };
     }
 

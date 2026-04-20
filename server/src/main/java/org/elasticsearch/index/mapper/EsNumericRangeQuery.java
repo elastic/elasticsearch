@@ -49,6 +49,10 @@ public final class EsNumericRangeQuery extends Query {
         return upperValue;
     }
 
+    public Query getDelegate() {
+        return delegate;
+    }
+
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
         return new EsNumericRangeWeight(delegate.createWeight(searcher, scoreMode, boost));

@@ -156,6 +156,10 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         assertTrue(ft.termQuery(42.1, MOCK_CONTEXT) instanceof MatchNoDocsQuery);
     }
 
+    private static Query unwrapEsNumericRange(Query query) {
+        return query instanceof EsNumericRangeQuery q ? q.getDelegate() : query;
+    }
+
     private static MappedFieldType unsearchable() {
         return new NumberFieldType(
             "field",
@@ -219,13 +223,13 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
         for (TermQueryTestCase testCase : testCases) {
             MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", testCase.type());
-            assertEquals(testCase.expectedQueries[0], ft.termQuery("42", MOCK_CONTEXT));
+            assertEquals(testCase.expectedQueries[0], unwrapEsNumericRange(ft.termQuery("42", MOCK_CONTEXT)));
 
             ft = new NumberFieldMapper.NumberFieldType("field", testCase.type(), true, false);
             assertEquals(testCase.expectedQueries[1], ft.termQuery("42", MOCK_CONTEXT));
 
             ft = new NumberFieldMapper.NumberFieldType("field", testCase.type(), false, true);
-            assertEquals(testCase.expectedQueries[2], ft.termQuery("42", MOCK_CONTEXT));
+            assertEquals(testCase.expectedQueries[2], unwrapEsNumericRange(ft.termQuery("42", MOCK_CONTEXT)));
 
             MappedFieldType unsearchable = new NumberFieldMapper.NumberFieldType("field", testCase.type(), false, false);
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("42", MOCK_CONTEXT));
@@ -606,11 +610,11 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             LongPoint.newRangeQuery("field", 1, 3),
             SortedNumericDocValuesField.newSlowRangeQuery("field", 1, 3)
         );
-        assertEquals(expected, ft.rangeQuery("1", "3", true, true, null, null, null, MOCK_CONTEXT));
+        assertEquals(expected, unwrapEsNumericRange(ft.rangeQuery("1", "3", true, true, null, null, null, MOCK_CONTEXT)));
 
         ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG, false, true);
         expected = SortedNumericDocValuesField.newSlowRangeQuery("field", 1, 3);
-        assertEquals(expected, ft.rangeQuery("1", "3", true, true, null, null, null, MOCK_CONTEXT));
+        assertEquals(expected, unwrapEsNumericRange(ft.rangeQuery("1", "3", true, true, null, null, null, MOCK_CONTEXT)));
 
         MappedFieldType unsearchable = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG, false, false);
         IllegalArgumentException e = expectThrows(
@@ -829,8 +833,9 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 MOCK_CONTEXT,
                 true
             );
-            assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
-            IndexOrDocValuesQuery indexOrDvQuery = (IndexOrDocValuesQuery) query;
+            Query inner = unwrapEsNumericRange(query);
+            assertThat(inner, instanceOf(IndexOrDocValuesQuery.class));
+            IndexOrDocValuesQuery indexOrDvQuery = (IndexOrDocValuesQuery) inner;
             assertEquals(searcher.count(indexOrDvQuery.getIndexQuery()), searcher.count(indexOrDvQuery.getRandomAccessQuery()));
         }
         reader.close();
@@ -889,8 +894,9 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 context,
                 isIndexed
             );
-            assertThat(query, instanceOf(IndexSortSortedNumericDocValuesRangeQuery.class));
-            Query fallbackQuery = ((IndexSortSortedNumericDocValuesRangeQuery) query).getFallbackQuery();
+            Query inner = unwrapEsNumericRange(query);
+            assertThat(inner, instanceOf(IndexSortSortedNumericDocValuesRangeQuery.class));
+            Query fallbackQuery = ((IndexSortSortedNumericDocValuesRangeQuery) inner).getFallbackQuery();
 
             if (isIndexed) {
                 assertThat(fallbackQuery, instanceOf(IndexOrDocValuesQuery.class));

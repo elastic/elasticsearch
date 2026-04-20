@@ -1250,13 +1250,15 @@ public class NumberFieldMapper extends FieldMapper {
                     return Queries.newMatchNoDocsQuery("Value [" + value + "] is out of range");
                 }
                 int v = parse(value, true);
+                Query query;
                 if (indexType.hasPoints() && indexType.hasDocValues()) {
-                    return IntField.newExactQuery(field, v);
+                    query = IntField.newExactQuery(field, v);
                 } else if (indexType.hasPoints()) {
                     return IntPoint.newExactQuery(field, v);
                 } else {
-                    return SortedNumericDocValuesField.newSlowExactQuery(field, v);
+                    query = SortedNumericDocValuesField.newSlowExactQuery(field, v);
                 }
+                return new EsNumericRangeQuery(query, field, v, v);
             }
 
             @Override
@@ -1329,6 +1331,9 @@ public class NumberFieldMapper extends FieldMapper {
                 }
                 if (hasDocValues && context.indexSortedOnField(field)) {
                     query = new IndexSortSortedNumericDocValuesRangeQuery(field, l, u, query);
+                }
+                if (hasDocValues) {
+                    query = new EsNumericRangeQuery(query, field, l, u);
                 }
                 return query;
             }
@@ -1453,13 +1458,15 @@ public class NumberFieldMapper extends FieldMapper {
                 }
 
                 long v = parse(value, true);
+                Query query;
                 if (indexType.hasPoints() && indexType.hasDocValues()) {
-                    return LongField.newExactQuery(field, v);
+                    query = LongField.newExactQuery(field, v);
                 } else if (indexType.hasPoints()) {
                     return LongPoint.newExactQuery(field, v);
                 } else {
-                    return SortedNumericDocValuesField.newSlowExactQuery(field, v);
+                    query = SortedNumericDocValuesField.newSlowExactQuery(field, v);
                 }
+                return new EsNumericRangeQuery(query, field, v, v);
             }
 
             @Override

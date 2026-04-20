@@ -32,7 +32,7 @@ public class TStepErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     protected Expression build(Source source, List<Expression> args) {
         var configuration = randomConfigurationBuilder().query(source.text()).build();
         var anchor = configuration.now();
-        return new TStep(source, args.get(0), args.get(1), configuration).withBounds(
+        return new TStep(source, args.get(0), args.get(1), configuration).withTimestampBounds(
             Literal.dateTime(source, anchor),
             Literal.dateTime(source, anchor)
         );

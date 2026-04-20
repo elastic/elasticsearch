@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -21,7 +22,6 @@ import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.Example;
@@ -177,9 +177,16 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
             source(),
             timestamp.dataType() == DataType.DATE_NANOS ? Duration.ofNanos(1) : Duration.ofMillis(1)
         );
-        // `Bucket` is start-aligned and right-open. `TSTEP` wants end-aligned and right-closed.
-        // Subtracting one tick fixes exact-boundary timestamps, which would
-        // otherwise get pushed one bucket too far.
+
+        // Bucket uses truncation-style, left-labeled intervals on calendar-aligned grid:
+        // Bucket(t) = left, for t in [label:=left, right)
+        // e.g., step=1h: [12:00; 13:00) [13:00; 14:00)
+        //
+        // TStep uses right-labeled intervals on a start-aligned grid:
+        // TStep(t) = right, for t in (left, label:=right]
+        // e.g., step=1h, start=12:13: (12:13; 13:13] (13:13; 14:13]
+        //
+        // Therefore, TStep(t) := Bucket0(t - tick) + step, where Bucket0 is Bucket with offset = start mod step.
         return new Add(
             source(),
             new Bucket(
@@ -189,7 +196,7 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
                 null,
                 null,
                 configuration.withZoneId(ZoneOffset.UTC),
-                anchorOffset(FoldContext.small())
+                offset(FoldContext.small())
             ),
             step,
             configuration
@@ -268,23 +275,8 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
         return start;
     }
 
-    public TStep withBounds(Expression newStart, Expression newEnd) {
-        if (Objects.equals(start, newStart) && Objects.equals(end, newEnd)) {
-            return this;
-        }
-        return new TStep(source(), step, newStart, newEnd, timestamp, configuration);
-    }
-
     public Bucket timeBucketSpecRef() {
-        return new Bucket(
-            source(),
-            timestamp,
-            step,
-            null,
-            null,
-            configuration.withZoneId(ZoneOffset.UTC),
-            anchorOffset(FoldContext.small())
-        );
+        return new Bucket(source(), timestamp, step, null, null, configuration.withZoneId(ZoneOffset.UTC), offset(FoldContext.small()));
     }
 
     @Override
@@ -292,47 +284,28 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
         return timestamp;
     }
 
-    /**
-     * The last bucket end that does not exceed {@code end}. Returns {@code null} when either bound is missing.
-     */
-    public Literal lastCompleteBucketEndLiteral(FoldContext foldContext) {
-        if (start == null || end == null) {
-            return null;
-        }
-        long stepMillis = ((Duration) step.fold(foldContext)).toMillis();
-        if (stepMillis <= 0) {
-            return new Literal(source(), end.fold(foldContext), end.dataType());
-        }
-        long startMillis = toMillis(start, foldContext);
-        long endMillis = toMillis(end, foldContext);
-        long lastBucketEndMillis = startMillis + Math.floorDiv(endMillis - startMillis, stepMillis) * stepMillis;
-        long value = timestamp.dataType() == DataType.DATE_NANOS ? DateUtils.toNanoSeconds(lastBucketEndMillis) : lastBucketEndMillis;
-        return new Literal(source(), value, timestamp.dataType());
-    }
-
-    private long anchorOffset(FoldContext foldContext) {
-        assert start != null : "TSTEP requires request @timestamp bounds; postAnalysisVerification should have caught this";
-        long stepMillis = ((Duration) step.fold(foldContext)).toMillis();
-        if (stepMillis == 0) {
-            // sub-millisecond step: rounding infrastructure works in ms, so offset is 0
+    private long offset(FoldContext foldContext) {
+        long stepMs = ((Duration) step.fold(foldContext)).toMillis();
+        if (stepMs == 0) {
+            // {@link Bucket} doesn't support nanos precision
             return 0;
         }
-        long anchorMillis = toMillis(start, foldContext);
-        return DateUtils.floorRemainder(anchorMillis, stepMillis);
-    }
 
-    private long toMillis(Expression bound, FoldContext foldContext) {
-        Object folded = Foldables.valueOf(foldContext, bound);
-        long millis;
-        if (DataType.isString(bound.dataType())) {
-            millis = dateTimeToLong(((BytesRef) folded).utf8ToString());
+        if ((start != null && start.foldable()) == false) {
+            throw new EsqlIllegalArgumentException("TStep requires a start bound");
+        }
+
+        var folded = start.fold(foldContext);
+        long startMs;
+        if (DataType.isString(start.dataType())) {
+            startMs = dateTimeToLong(((BytesRef) folded).utf8ToString());
         } else {
-            millis = ((Number) folded).longValue();
-            if (bound.dataType() == DataType.DATE_NANOS) {
-                millis = DateUtils.toMilliSeconds(millis);
+            startMs = ((Number) folded).longValue();
+            if (start.dataType() == DataType.DATE_NANOS) {
+                startMs = DateUtils.toMilliSeconds(startMs);
             }
         }
-        return millis;
+        return DateUtils.floorRemainder(startMs, stepMs);
     }
 
     @Override

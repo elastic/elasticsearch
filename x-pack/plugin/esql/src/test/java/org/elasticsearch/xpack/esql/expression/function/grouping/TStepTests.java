@@ -152,7 +152,7 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
     @Override
     protected Expression buildWithConfiguration(Source source, List<Expression> args, Configuration configuration) {
         var anchor = configuration.now();
-        return new TStep(source, args.get(0), args.get(1), configuration).withBounds(
+        return new TStep(source, args.get(0), args.get(1), configuration).withTimestampBounds(
             Literal.dateTime(source, anchor),
             Literal.dateTime(source, anchor)
         );
@@ -270,6 +270,51 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
         );
     }
 
+    public void testRightClosedBoundary() {
+        // Grid anchored at 12:15 with 1h step: boundaries at 12:15, 13:15, 14:15, ...
+        // Intervals are (left, right]: t exactly on a boundary belongs to that bucket.
+        Duration step = Duration.ofHours(1);
+        Instant start = Instant.parse("2024-01-01T12:15:00Z");
+        Instant end = Instant.parse("2024-01-01T15:15:00Z");
+
+        // t = 13:15 exactly: right boundary of (12:15, 13:15] -> label 13:15
+        assertThat(
+            evaluateWithBounds(step, start, end, millis("2024-01-01T13:15:00Z"), DataType.DATETIME, ZoneOffset.UTC),
+            equalTo(millis("2024-01-01T13:15:00Z"))
+        );
+        // t = 14:15 exactly: right boundary of (13:15, 14:15] -> label 14:15
+        assertThat(
+            evaluateWithBounds(step, start, end, millis("2024-01-01T14:15:00Z"), DataType.DATETIME, ZoneOffset.UTC),
+            equalTo(millis("2024-01-01T14:15:00Z"))
+        );
+    }
+
+    public void testJustPastBoundaryGoesToNextBucket() {
+        // t one millisecond past a grid boundary falls into the next bucket.
+        Duration step = Duration.ofHours(1);
+        Instant start = Instant.parse("2024-01-01T12:15:00Z");
+        Instant end = Instant.parse("2024-01-01T15:15:00Z");
+
+        // t = 13:15:00.001: just past 13:15 boundary -> in (13:15, 14:15] -> label 14:15
+        assertThat(
+            evaluateWithBounds(step, start, end, millis("2024-01-01T13:15:00.001Z"), DataType.DATETIME, ZoneOffset.UTC),
+            equalTo(millis("2024-01-01T14:15:00Z"))
+        );
+    }
+
+    public void testMidBucketValue() {
+        // t in the middle of a bucket maps to the right boundary.
+        Duration step = Duration.ofHours(1);
+        Instant start = Instant.parse("2024-01-01T12:15:00Z");
+        Instant end = Instant.parse("2024-01-01T15:15:00Z");
+
+        // t = 14:00: in (13:15, 14:15] -> label 14:15
+        assertThat(
+            evaluateWithBounds(step, start, end, millis("2024-01-01T14:00:00Z"), DataType.DATETIME, ZoneOffset.UTC),
+            equalTo(millis("2024-01-01T14:15:00Z"))
+        );
+    }
+
     public void testOneMillisStep() {
         Duration step = Duration.ofMillis(1);
         Instant start = Instant.parse("2024-01-01T12:00:00Z");
@@ -277,23 +322,6 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
         long ts = millis("2024-01-01T12:34:56.789Z");
 
         assertThat(evaluateWithBounds(step, start, end, ts, DataType.DATETIME, ZoneOffset.UTC), equalTo(ts));
-    }
-
-    public void testLastCompleteBucketEnd() {
-        Duration step = Duration.ofHours(1);
-        Instant start = Instant.parse("2024-01-01T12:15:00Z");
-        Instant end = Instant.parse("2024-01-01T13:55:00Z");
-        Configuration configuration = randomConfigurationBuilder().query(TEST_SOURCE.text()).now(end).zoneId(ZoneOffset.UTC).build();
-        TStep tStep = new TStep(
-            Source.EMPTY,
-            Literal.timeDuration(Source.EMPTY, step),
-            Literal.dateTime(Source.EMPTY, start),
-            Literal.dateTime(Source.EMPTY, end),
-            Literal.dateTime(Source.EMPTY, start),
-            configuration
-        );
-        Literal lastBucketEnd = tStep.lastCompleteBucketEndLiteral(FoldContext.small());
-        assertThat(((Number) lastBucketEnd.fold(FoldContext.small())).longValue(), equalTo(millis("2024-01-01T13:15:00Z")));
     }
 
     private static long evaluateWithBounds(
@@ -306,10 +334,8 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
     ) {
         Configuration configuration = randomConfigurationBuilder().query(TEST_SOURCE.text()).now(end).zoneId(zoneId).build();
         Literal timestampLiteral = timestampLiteral(timestamp, timestampType);
-        TStep tStep = new TStep(Source.EMPTY, Literal.timeDuration(Source.EMPTY, step), timestampLiteral, configuration).withBounds(
-            timestampLiteral(start, timestampType),
-            timestampLiteral(end, timestampType)
-        );
+        TStep tStep = (TStep) new TStep(Source.EMPTY, Literal.timeDuration(Source.EMPTY, step), timestampLiteral, configuration)
+            .withTimestampBounds(timestampLiteral(start, timestampType), timestampLiteral(end, timestampType));
         return ((Number) tStep.surrogate().fold(FoldContext.small())).longValue();
     }
 

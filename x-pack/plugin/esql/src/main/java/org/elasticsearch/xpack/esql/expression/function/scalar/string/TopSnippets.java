@@ -139,7 +139,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
                 This examples demonstrates how to use `TOP_SNIPPETS` with `RERANK`. By returning a fixed number of snippets with a limited
                 size, we have more control over the number of tokens that are used for semantic reranking.
                 """),
-            @Example(file = "top-snippets", tag = "top-snippets-with-highlighting", applies_to = "stack: preview 9.4.1", explanation = """
+            @Example(file = "top-snippets", tag = "top-snippets-with-highlighting", applies_to = "stack: preview 9.5.0", explanation = """
                 Enable highlighting by setting `highlight` to `true` in the options. This wraps matched query terms in the
                 returned snippets with `<em>` tags by default. To use different tags, set the `pre_tag` and `post_tag` options
                 to the desired opening and closing tags respectively.
@@ -147,7 +147,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
             @Example(
                 file = "top-snippets",
                 tag = "top-snippets-num-words-zero-highlight",
-                applies_to = "stack: preview 9.4.1",
+                applies_to = "stack: preview 9.5.0",
                 explanation = """
                     Set `num_words` to 0 to disable chunking entirely. This keeps the input field values as-is,
                     which is useful when the text has already been chunked. Combine this with `highlight` set to
@@ -157,7 +157,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
             @Example(
                 file = "top-snippets",
                 tag = "top-snippets-num-words-zero-highlight-preceding-chunk",
-                applies_to = "stack: preview 9.4.1",
+                applies_to = "stack: preview 9.5.0",
                 explanation = """
                         This is another example of setting `num_words` to 0, this time applied to an input that has
                         already been chunked with the `CHUNK` command. The markdown text is chunked by sections first, and
@@ -202,22 +202,22 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
                 @MapParam.MapParamEntry(name = "highlight", type = "boolean", description = """
                     When true, wraps matched query terms in the returned snippets with markup tags.
                     Defaults to false.
-                    """, valueHint = { "true" }, applies_to = "stack: preview 9.4.1"),
+                    """, valueHint = { "true" }, applies_to = "stack: preview 9.5.0"),
                 @MapParam.MapParamEntry(name = "pre_tag", type = "keyword", description = """
                     Opening tag for highlighted terms. Only applies when highlight is true.
                     Defaults to `<em>`.
-                    """, valueHint = { "<em>" }, applies_to = "stack: preview 9.4.1"),
+                    """, valueHint = { "<em>" }, applies_to = "stack: preview 9.5.0"),
                 @MapParam.MapParamEntry(name = "post_tag", type = "keyword", description = """
                     Closing tag for highlighted terms. Only applies when highlight is true.
                     Defaults to `</em>`.
-                    """, valueHint = { "</em>" }, applies_to = "stack: preview 9.4.1"),
+                    """, valueHint = { "</em>" }, applies_to = "stack: preview 9.5.0"),
                 @MapParam.MapParamEntry(name = "encoder", type = "keyword", description = """
                     Controls HTML encoding of snippet text before tagging: `default` (no encoding) or `html`.
                     Only applies when highlight is true. Defaults to `default`.
-                    """, valueHint = { "default" }, applies_to = "stack: preview 9.4.1"),
+                    """, valueHint = { "default" }, applies_to = "stack: preview 9.5.0"),
                 @MapParam.MapParamEntry(name = "order", type = "keyword", description = """
                     Order of returned snippets: `score` (default, by relevance) or `none` (original text order).
-                    """, valueHint = { "score", "none" }, applies_to = "stack: preview 9.4.1") }
+                    """, valueHint = { "score", "none" }, applies_to = "stack: preview 9.5.0") }
         ) Expression options
     ) {
         super(source, options == null ? List.of(field, query) : List.of(field, query, options));

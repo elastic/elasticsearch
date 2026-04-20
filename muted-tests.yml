@@ -406,12 +406,6 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotReindexRelocationOnShutdownIT
   method: testReindexRelocatesWithSearchableSnapshotSource
   issue: https://github.com/elastic/elasticsearch/issues/146710
-- class: org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests
-  method: testSparseVectorMappingUpdate {p0=true p1=ENTERPRISE}
-  issue: https://github.com/elastic/elasticsearch/issues/146772
-- class: org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests
-  method: testSparseVectorMappingUpdate {p0=true p1=BASIC}
-  issue: https://github.com/elastic/elasticsearch/issues/146773
 - class: org.elasticsearch.xpack.inference.queries.SemanticQueryBuilderTests
   method: testToQuery {p0=false}
   issue: https://github.com/elastic/elasticsearch/issues/146777
@@ -456,6 +450,15 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/145901
+- class: org.elasticsearch.lucene.FullClusterRestartSystemIndexCompatibilityIT
+  method: testAsyncSearchIndexMigration {p0=9.5.0}
+  issue: https://github.com/elastic/elasticsearch/issues/146848
+- class: org.elasticsearch.lucene.FullClusterRestartSystemIndexCompatibilityIT
+  method: testAsyncSearchIndexMigration {p0=8.19.0}
+  issue: https://github.com/elastic/elasticsearch/issues/146849
+- class: org.elasticsearch.action.admin.cluster.tasks.ListTasksIT
+  method: testWaitForCompletion
+  issue: https://github.com/elastic/elasticsearch/issues/146859
 
 # Examples:
 #

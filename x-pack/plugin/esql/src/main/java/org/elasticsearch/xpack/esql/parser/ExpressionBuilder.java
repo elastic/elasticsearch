@@ -42,7 +42,6 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
@@ -715,7 +714,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 args = singletonList(Literal.keyword(source(ctx), "*"));
             }
         }
-        return new UnresolvedFunction(source(ctx), name, FunctionResolutionStrategy.DEFAULT, args);
+        return new UnresolvedFunction(source(ctx), name, args);
     }
 
     @Override

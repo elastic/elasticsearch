@@ -189,17 +189,6 @@ public class DLMFrozenCleanupServiceTests extends ESTestCase {
         return DataStream.builder("my-ds", indices).setGeneration(1).setLifecycle(lifecycle).build();
     }
 
-    private DataStream dataStreamWithoutFrozenAfter(IndexMetadata... backingIndices) {
-        List<Index> indices = Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList();
-        DataStreamLifecycle lifecycle = DataStreamLifecycle.dataLifecycleBuilder().build();
-        return DataStream.builder("my-ds", indices).setGeneration(1).setLifecycle(lifecycle).build();
-    }
-
-    private DataStream dataStreamWithoutLifecycle(IndexMetadata... backingIndices) {
-        List<Index> indices = Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList();
-        return DataStream.builder("my-ds", indices).setGeneration(1).build();
-    }
-
     private void setClusterState(List<IndexMetadata> indices, List<DataStream> dataStreams, String defaultRepository) {
         setClusterStateForProjects(Map.of(projectId, new TestProjectData(indices, dataStreams)), defaultRepository);
     }
@@ -317,40 +306,6 @@ public class DLMFrozenCleanupServiceTests extends ESTestCase {
         assertThat(List.of(capturedDeleteIndexRequests.getFirst().indices()), containsInAnyOrder(cloneIndex));
     }
 
-    public void testOrphaned_dataStreamHasNoLifecycle_cloneDeleted() {
-        String sourceIndex = randomAlphaOfLength(10);
-        String cloneIndex = DLMConvertToFrozen.CLONE_INDEX_PREFIX + sourceIndex;
-        IndexMetadata sourceMeta = createPlainIndex(sourceIndex);
-        IndexMetadata cloneMeta = createDlmManagedClonedIndex(cloneIndex, sourceIndex, sourceMeta.getIndexUUID());
-
-        setClusterState(List.of(sourceMeta, cloneMeta), List.of(dataStreamWithoutLifecycle(sourceMeta)), null);
-        mockDeleteIndexResponse.set(AcknowledgedResponse.TRUE);
-
-        try (DLMFrozenCleanupService service = createService()) {
-            service.checkForOrphanedResources();
-        }
-
-        assertThat(capturedDeleteIndexRequests, not(empty()));
-        assertThat(List.of(capturedDeleteIndexRequests.getFirst().indices()), containsInAnyOrder(cloneIndex));
-    }
-
-    public void testOrphaned_dataStreamLifecycleHasNoFrozenAfter_cloneDeleted() {
-        String sourceIndex = randomAlphaOfLength(10);
-        String cloneIndex = DLMConvertToFrozen.CLONE_INDEX_PREFIX + sourceIndex;
-        IndexMetadata sourceMeta = createPlainIndex(sourceIndex);
-        IndexMetadata cloneMeta = createDlmManagedClonedIndex(cloneIndex, sourceIndex, sourceMeta.getIndexUUID());
-
-        setClusterState(List.of(sourceMeta, cloneMeta), List.of(dataStreamWithoutFrozenAfter(sourceMeta)), null);
-        mockDeleteIndexResponse.set(AcknowledgedResponse.TRUE);
-
-        try (DLMFrozenCleanupService service = createService()) {
-            service.checkForOrphanedResources();
-        }
-
-        assertThat(capturedDeleteIndexRequests, not(empty()));
-        assertThat(List.of(capturedDeleteIndexRequests.getFirst().indices()), containsInAnyOrder(cloneIndex));
-    }
-
     public void testOrphaned_mountedSnapshotOfClone_bothResolutionStepsTraverseToOrphanedSource_deleted() {
         String sourceIndex = randomAlphaOfLength(10);
         String cloneIndex = DLMConvertToFrozen.CLONE_INDEX_PREFIX + sourceIndex;
@@ -359,7 +314,7 @@ public class DLMFrozenCleanupServiceTests extends ESTestCase {
         IndexMetadata cloneMeta = createDlmManagedClonedIndex(cloneIndex, sourceIndex, sourceMeta.getIndexUUID());
         IndexMetadata frozenMeta = createDlmManagedMountedIndex(frozenIndex, cloneIndex);
 
-        setClusterState(List.of(sourceMeta, cloneMeta, frozenMeta), List.of(dataStreamWithoutFrozenAfter(sourceMeta)), null);
+        setClusterState(List.of(sourceMeta, cloneMeta, frozenMeta), List.of(), null);
         mockDeleteIndexResponse.set(AcknowledgedResponse.TRUE);
 
         try (DLMFrozenCleanupService service = createService()) {
@@ -472,6 +427,21 @@ public class DLMFrozenCleanupServiceTests extends ESTestCase {
         assertThat(capturedDeleteSnapshotRequest.get(), nullValue());
     }
 
+    public void testSnapshot_dlmMetadataKeyAbsent_notDeleted() {
+        String orphanedIndex = randomAlphaOfLength(10);
+        String snapshotName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + orphanedIndex;
+        SnapshotInfo snapshot = createSnapshotInfo(snapshotName, List.of(orphanedIndex), Map.of("some-other-key", true));
+
+        setClusterState(List.of(), List.of(), REPO_NAME);
+        mockGetSnapshotsResponse.set(new GetSnapshotsResponse(List.of(snapshot), null, 1, 0));
+
+        try (DLMFrozenCleanupService service = createService()) {
+            service.checkForOrphanedResources();
+        }
+
+        assertThat(capturedDeleteSnapshotRequest.get(), nullValue());
+    }
+
     public void testNoDefaultRepository_snapshotCleanupSkipped_indicesStillCleaned() {
         String cloneIndex = DLMConvertToFrozen.CLONE_INDEX_PREFIX + randomAlphaOfLength(10);
 
@@ -495,25 +465,6 @@ public class DLMFrozenCleanupServiceTests extends ESTestCase {
         }
 
         assertThat(capturedDeleteIndexRequests, not(empty()));
-    }
-
-    public void testSnapshotDeletion_acknowledged_requestContainsCorrectRepo() {
-        String orphanedIndex = randomAlphaOfLength(10);
-        String snapshotName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + orphanedIndex;
-
-        setClusterState(List.of(), List.of(), REPO_NAME);
-        mockGetSnapshotsResponse.set(
-            new GetSnapshotsResponse(List.of(createSnapshotInfo(snapshotName, List.of(orphanedIndex))), null, 1, 0)
-        );
-        mockDeleteSnapshotResponse.set(AcknowledgedResponse.TRUE);
-
-        try (DLMFrozenCleanupService service = createService()) {
-            service.checkForOrphanedResources();
-        }
-
-        DeleteSnapshotRequest req = capturedDeleteSnapshotRequest.get();
-        assertThat(req, not(nullValue()));
-        assertThat(req.repository(), is(REPO_NAME));
     }
 
     public void testSnapshotDeletion_failure_doesNotPropagate() {

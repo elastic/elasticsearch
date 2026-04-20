@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -25,7 +24,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
-import org.junit.Before;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -39,11 +37,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
 public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTests {
-
-    @Before
-    public void assumePromqlYearCapability() {
-        assumeTrue("Requires PROMQL_YEAR capability", EsqlCapabilities.Cap.PROMQL_YEAR.isEnabled());
-    }
 
     public void testConstantResults() {
         assertConstantResult("ceil(vector(3.14159))", equalTo(4.0));

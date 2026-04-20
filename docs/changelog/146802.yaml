@@ -1,0 +1,6 @@
+area: Reindex
+issues:
+ - 146741
+pr: 146802
+summary: Test copy many with auto slicing test failure
+type: bug

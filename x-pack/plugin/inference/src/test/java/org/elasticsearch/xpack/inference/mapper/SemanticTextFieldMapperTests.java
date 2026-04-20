@@ -404,6 +404,16 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assertTrue(fieldType.isSearchable());
     }
 
+    @Override
+    protected String minimalIsInvalidRoutingPathErrorMessage(Mapper mapper) {
+        if (useLegacyFormat) {
+            // Legacy format stores inference results in nested objects, which are incompatible with
+            // the index sort required by time_series mode, so validation fails before the routing_path check.
+            return "cannot have nested fields when index sort is activated";
+        }
+        return super.minimalIsInvalidRoutingPathErrorMessage(mapper);
+    }
+
     /**
      * Randomized sweep over all combinations of endpoint availability and
      * index version to confirm correct default inference ID.

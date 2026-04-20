@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 146837
+summary: Fix resource leaks in `SynonymsManagementAPIService`
+type: bug

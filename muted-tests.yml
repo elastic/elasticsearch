@@ -361,9 +361,6 @@ tests:
 - class: org.elasticsearch.transport.TransportHandshakerTests
   method: testHandshakeRequestAndResponse
   issue: https://github.com/elastic/elasticsearch/issues/146743
-- class: org.elasticsearch.transport.RemoteClusterClientTests
-  method: testConnectAndExecuteRequest
-  issue: https://github.com/elastic/elasticsearch/issues/146743
 - class: org.elasticsearch.synonyms.SynonymsManagementAPIServiceTests
   method: testBulkUpdateEmptySet
   issue: https://github.com/elastic/elasticsearch/issues/146743

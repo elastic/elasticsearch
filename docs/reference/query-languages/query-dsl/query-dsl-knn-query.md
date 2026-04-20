@@ -509,7 +509,7 @@ POST my-index/_search
 stack: preview
 ```
 
-Use the embedding query vector builder to generate a query vector from multimodal input at search time.
+Use the `embedding` query vector builder to generate a query vector from multimodal input.
 
 This builder supports both text and base64-encoded image inputs. You can also combine multiple inputs into a single query, enabling multimodal search scenarios such as searching with both text and an image.
 

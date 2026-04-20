@@ -30,20 +30,26 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   compileOnly project(':server')
   compileOnly project(xpackModule('esql:compute'))
-  
+
   // Parquet format support - using parquet-hadoop-bundle to avoid jar hell from duplicate shaded classes
   implementation("org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}")
-  
-  // Hadoop API types — hadoop-client-api provides Configuration, Path, FileSystem,
-  // and CompressionCodec interfaces referenced by parquet-hadoop-bundle's public API.
-  // hadoop-client-runtime is NOT required: PlainParquetConfiguration replaces the
-  // HadoopParquetConfiguration that previously pulled in Configuration(true), and
-  // codec resolution works via hadoop-client-api classes alone.
-  implementation("org.apache.hadoop:hadoop-client-api:${versions.hadoop}")
+
+  // hadoop-client-api is needed at compile time because parquet-hadoop-bundle's public API
+  // (e.g. ParquetFileReader) references Hadoop types. At runtime these code paths are never
+  // reached: PlainParquetConfiguration replaces HadoopParquetConfiguration and
+  // PlainCompressionCodecFactory replaces the Hadoop-backed CodecFactory.
+  compileOnly("org.apache.hadoop:hadoop-client-api:${versions.hadoop}")
+
+  // Compression libraries — inherited at runtime via extendedPlugins from
+  // esql-datasource-compression-libs; declared compileOnly so PlainCompressionCodecFactory
+  // can reference their classes at compile time.
+  compileOnly "io.airlift:aircompressor:${versions.aircompressor}"
+  compileOnly "com.github.luben:zstd-jni:${versions.zstdJni}"
+  compileOnly "org.xerial.snappy:snappy-java:${versions.snappyJava}"
 
   // hadoop-client-runtime is needed at test time because ParquetWriter.Builder.build()
   // creates HadoopParquetConfiguration which requires shaded Woodstox classes.
-  // Not needed at runtime: the read path uses PlainParquetConfiguration.
+  testImplementation("org.apache.hadoop:hadoop-client-api:${versions.hadoop}")
   testImplementation("org.apache.hadoop:hadoop-client-runtime:${versions.hadoop}")
 
   testImplementation project(':test:framework')
@@ -53,21 +59,11 @@ dependencies {
 tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
   mapping from: /parquet-.*/, to: 'parquet'
-  mapping from: /hadoop-.*/, to: 'hadoop'
 }
 
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses()
   ignoreViolations(
-    // Hadoop internal uses sun.misc.Unsafe (from hadoop-client-api)
-    'org.apache.hadoop.hdfs.shortcircuit.ShortCircuitShm',
-    'org.apache.hadoop.hdfs.shortcircuit.ShortCircuitShm$Slot',
-    'org.apache.hadoop.io.FastByteComparisons$LexicographicalComparerHolder$UnsafeComparer',
-    'org.apache.hadoop.io.FastByteComparisons$LexicographicalComparerHolder$UnsafeComparer$1',
-    'org.apache.hadoop.io.nativeio.NativeIO',
-    'org.apache.hadoop.service.launcher.InterruptEscalator',
-    'org.apache.hadoop.service.launcher.IrqHandler',
-    'org.apache.hadoop.util.SignalLogger$Handler',
     // Parquet shaded hashing uses sun.misc.Unsafe
     'shaded.parquet.net.openhft.hashing.HotSpotPrior7u6StringHash',
     'shaded.parquet.net.openhft.hashing.LongHashFunction',

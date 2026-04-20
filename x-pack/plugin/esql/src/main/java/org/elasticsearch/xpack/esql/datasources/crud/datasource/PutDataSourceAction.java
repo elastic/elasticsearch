@@ -16,6 +16,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.esql.EsqlDataSourceActionNames;
 
 import java.io.IOException;
@@ -36,6 +39,28 @@ public class PutDataSourceAction extends ActionType<AcknowledgedResponse> {
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
+        private static final ParseField TYPE = new ParseField("type");
+        private static final ParseField DESCRIPTION = new ParseField("description");
+        private static final ParseField SETTINGS = new ParseField("settings");
+
+        @SuppressWarnings("unchecked")
+        private static ConstructingObjectParser<Request, Void> bodyParser(TimeValue masterNodeTimeout, TimeValue ackTimeout, String name) {
+            ConstructingObjectParser<Request, Void> parser = new ConstructingObjectParser<>(
+                "esql_put_data_source",
+                false,
+                args -> new Request(masterNodeTimeout, ackTimeout, name, (String) args[0], (String) args[1], (Map<String, Object>) args[2])
+            );
+            parser.declareString(ConstructingObjectParser.constructorArg(), TYPE);
+            parser.declareString(ConstructingObjectParser.optionalConstructorArg(), DESCRIPTION);
+            parser.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), SETTINGS);
+            return parser;
+        }
+
+        public static Request fromXContent(XContentParser parser, TimeValue masterNodeTimeout, TimeValue ackTimeout, String name)
+            throws IOException {
+            return bodyParser(masterNodeTimeout, ackTimeout, name).parse(parser, null);
+        }
+
         private final String name;
         private final String type;
         @Nullable

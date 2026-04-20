@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.core.esql.EsqlDataSourcesCapabilities;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -38,20 +37,11 @@ public class RestPutDataSourceAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String name = request.param("name");
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            final Map<String, Object> body = parser.map();
-            final Object typeValue = body.get("type");
-            final Object descriptionValue = body.get("description");
-            @SuppressWarnings("unchecked")
-            final Map<String, Object> rawSettings = (Map<String, Object>) body.get("settings");
-            final String type = typeValue == null ? null : typeValue.toString();
-            final String description = descriptionValue == null ? null : descriptionValue.toString();
-            final PutDataSourceAction.Request req = new PutDataSourceAction.Request(
+            PutDataSourceAction.Request req = PutDataSourceAction.Request.fromXContent(
+                parser,
                 RestUtils.getMasterNodeTimeout(request),
                 RestUtils.getAckTimeout(request),
-                name,
-                type,
-                description,
-                rawSettings
+                name
             );
             return channel -> client.execute(PutDataSourceAction.INSTANCE, req, new RestToXContentListener<>(channel));
         }

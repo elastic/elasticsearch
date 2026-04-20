@@ -18,6 +18,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.esql.EsqlDatasetActionNames;
 
 import java.io.IOException;
@@ -43,6 +46,38 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest {
+        private static final ParseField DATA_SOURCE = new ParseField("data_source");
+        private static final ParseField RESOURCE = new ParseField("resource");
+        private static final ParseField DESCRIPTION = new ParseField("description");
+        private static final ParseField SETTINGS = new ParseField("settings");
+
+        @SuppressWarnings("unchecked")
+        private static ConstructingObjectParser<Request, Void> bodyParser(TimeValue masterNodeTimeout, TimeValue ackTimeout, String name) {
+            ConstructingObjectParser<Request, Void> parser = new ConstructingObjectParser<>(
+                "esql_put_dataset",
+                false,
+                args -> new Request(
+                    masterNodeTimeout,
+                    ackTimeout,
+                    name,
+                    (String) args[0],
+                    (String) args[1],
+                    (String) args[2],
+                    (Map<String, Object>) args[3]
+                )
+            );
+            parser.declareString(ConstructingObjectParser.constructorArg(), DATA_SOURCE);
+            parser.declareString(ConstructingObjectParser.constructorArg(), RESOURCE);
+            parser.declareString(ConstructingObjectParser.optionalConstructorArg(), DESCRIPTION);
+            parser.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), SETTINGS);
+            return parser;
+        }
+
+        public static Request fromXContent(XContentParser parser, TimeValue masterNodeTimeout, TimeValue ackTimeout, String name)
+            throws IOException {
+            return bodyParser(masterNodeTimeout, ackTimeout, name).parse(parser, null);
+        }
+
         private final String name;
         private final String dataSource;
         private final String resource;

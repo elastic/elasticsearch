@@ -22,6 +22,7 @@ import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
+import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -378,7 +379,8 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader<IVFVectorsReader
         IndexInput indexInput,
         float[] target,
         Bits acceptDocs,
-        IndexInput centroidSlice
+        IndexInput centroidSlice,
+        ESAcceptDocs esAcceptDocs
     ) throws IOException {
         FieldEntry entry = fields.get(fieldInfo.number);
         // max postings list size, no longer utilized

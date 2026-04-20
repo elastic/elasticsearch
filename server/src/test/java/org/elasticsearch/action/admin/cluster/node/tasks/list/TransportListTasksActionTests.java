@@ -229,7 +229,7 @@ public class TransportListTasksActionTests extends ESTestCase {
         assertEquals(expectedResult, result);
     }
 
-    public void testDeduplicateTasksOnOriginalTaskIdIntraPrimaryCollision() {
+    public void testDeduplicateTasksOnOriginalTaskIdIntraSecondPassCollision() {
         TaskId originalId = randomTaskId();
         long high = randomLongBetween(1, Long.MAX_VALUE);
         long low = randomLongBetween(0, high - 1);
@@ -237,11 +237,11 @@ public class TransportListTasksActionTests extends ESTestCase {
         TaskInfo newer = randomTaskInfoWithTaskIdAndOriginalAndRunningTime(randomTaskId(), originalId, low);
 
         Map<TaskId, TaskInfo> result = TransportListTasksAction.deduplicateTasksOnOriginalTaskId(List.of(), List.of(older, newer));
-        assertEquals(1, result.size());
-        assertSame(newer, result.get(originalId));
+        Map<TaskId, TaskInfo> expectedResult = Map.of(originalId, newer);
+        assertEquals(expectedResult, result);
     }
 
-    public void testDeduplicateTasksOnOriginalTaskIdIntraSecondaryCollision() {
+    public void testDeduplicateTasksOnOriginalTaskIdIntraFirstPassCollision() {
         TaskId originalId = randomTaskId();
         long high = randomLongBetween(1, Long.MAX_VALUE);
         long low = randomLongBetween(0, high - 1);
@@ -265,20 +265,20 @@ public class TransportListTasksActionTests extends ESTestCase {
         assertEquals(expectedResult, result);
     }
 
-    public void testDeduplicateTasksOnOriginalTaskIdCrossListPrimaryWins() {
+    public void testDeduplicateTasksOnOriginalTaskIdCrossListSecondPassWins() {
         TaskId originalId = randomTaskId();
         long highRuntime = randomLongBetween(1, Long.MAX_VALUE);
         long lowRuntime = randomLongBetween(0, highRuntime - 1);
 
-        TaskInfo primaryTask = randomTaskInfoWithTaskIdAndOriginalAndRunningTime(randomTaskId(), originalId, highRuntime);
-        TaskInfo secondaryTask = randomTaskInfoWithTaskIdAndOriginalAndRunningTime(randomTaskId(), originalId, lowRuntime);
+        TaskInfo firstPassTask = randomTaskInfoWithTaskIdAndOriginalAndRunningTime(randomTaskId(), originalId, lowRuntime);
+        TaskInfo secondPassTask = randomTaskInfoWithTaskIdAndOriginalAndRunningTime(randomTaskId(), originalId, highRuntime);
 
         Map<TaskId, TaskInfo> result = TransportListTasksAction.deduplicateTasksOnOriginalTaskId(
-            List.of(secondaryTask),
-            List.of(primaryTask)
+            List.of(firstPassTask),
+            List.of(secondPassTask)
         );
-        assertEquals(1, result.size());
-        assertSame(primaryTask, result.get(originalId));
+        Map<TaskId, TaskInfo> expectedResult = Map.of(originalId, secondPassTask);
+        assertEquals(expectedResult, result);
     }
 
     public void testDeduplicateTasksOnOriginalTaskIdFourWay() {
@@ -288,17 +288,17 @@ public class TransportListTasksActionTests extends ESTestCase {
         long b1 = randomLongBetween(0, 50);
         long b2 = randomLongBetween(300, 400);
 
-        TaskInfo primaryNewest = randomTaskInfoWithTaskIdAndOriginalAndRunningTime(randomTaskId(), sharedParent, a1);
-        TaskInfo primaryOlder = randomTaskInfoWithTaskIdAndOriginalAndRunningTime(randomTaskId(), sharedParent, a2);
-        TaskInfo secondaryNewest = randomTaskInfoWithTaskIdAndOriginalAndRunningTime(randomTaskId(), sharedParent, b1);
-        TaskInfo secondaryOlder = randomTaskInfoWithTaskIdAndOriginalAndRunningTime(randomTaskId(), sharedParent, b2);
+        TaskInfo firstPassNewer = randomTaskInfoWithTaskIdAndOriginalAndRunningTime(randomTaskId(), sharedParent, b1);
+        TaskInfo firstPassOlder = randomTaskInfoWithTaskIdAndOriginalAndRunningTime(randomTaskId(), sharedParent, b2);
+        TaskInfo secondPassNewer = randomTaskInfoWithTaskIdAndOriginalAndRunningTime(randomTaskId(), sharedParent, a1);
+        TaskInfo secondPassOlder = randomTaskInfoWithTaskIdAndOriginalAndRunningTime(randomTaskId(), sharedParent, a2);
 
         Map<TaskId, TaskInfo> result = TransportListTasksAction.deduplicateTasksOnOriginalTaskId(
-            List.of(secondaryOlder, secondaryNewest),
-            List.of(primaryOlder, primaryNewest)
+            List.of(firstPassOlder, firstPassNewer),
+            List.of(secondPassOlder, secondPassNewer)
         );
-        assertEquals(1, result.size());
-        assertSame(primaryNewest, result.get(sharedParent));
+        Map<TaskId, TaskInfo> expectedResult = Map.of(sharedParent, secondPassNewer);
+        assertEquals(expectedResult, result);
     }
 
     public void testDeduplicateTasksOnOriginalTaskIdMixedUniqueAndDuplicated() {
@@ -399,16 +399,15 @@ public class TransportListTasksActionTests extends ESTestCase {
     public void testDeduplicateTaskFailuresBasicDedup() {
         String nodeId = randomAlphaOfLength(5);
         long taskNum = randomNonNegativeLong();
-        TaskOperationFailure primaryFailure = taskFailureWithNodeAndTaskId(nodeId, taskNum);
-        TaskOperationFailure secondaryFailure = taskFailureWithNodeAndTaskId(nodeId, taskNum);
+        TaskOperationFailure firstPassFailure = taskFailureWithNodeAndTaskId(nodeId, taskNum);
+        TaskOperationFailure secondPassFailure = taskFailureWithNodeAndTaskId(nodeId, taskNum);
 
         List<TaskOperationFailure> result = TransportListTasksAction.deduplicateTaskFailures(
             Map.of(),
-            List.of(secondaryFailure),
-            List.of(primaryFailure)
+            List.of(firstPassFailure),
+            List.of(secondPassFailure)
         );
-        assertEquals(1, result.size());
-        assertSame(primaryFailure, result.getFirst());
+        assertThat(result, containsInAnyOrder(secondPassFailure));
     }
 
     public void testDeduplicateTaskFailuresExclusion() {
@@ -424,8 +423,7 @@ public class TransportListTasksActionTests extends ESTestCase {
             List.of(),
             List.of(excluded, unrelated)
         );
-        assertEquals(1, result.size());
-        assertSame(unrelated, result.getFirst());
+        assertThat(result, containsInAnyOrder(unrelated));
     }
 
     public void testDeduplicateTaskFailuresGapCase() {
@@ -443,8 +441,7 @@ public class TransportListTasksActionTests extends ESTestCase {
             List.of(),
             List.of(failureForRelocated)
         );
-        assertEquals(1, result.size());
-        assertSame(failureForRelocated, result.getFirst());
+        assertThat(result, containsInAnyOrder(failureForRelocated));
     }
 
     public void testDeduplicateTaskFailuresEmptyTasksMap() {
@@ -452,9 +449,7 @@ public class TransportListTasksActionTests extends ESTestCase {
         TaskOperationFailure f2 = taskFailureWithNodeAndTaskId(randomAlphaOfLength(5), randomNonNegativeLong());
 
         List<TaskOperationFailure> result = TransportListTasksAction.deduplicateTaskFailures(Map.of(), List.of(f2), List.of(f1));
-        assertEquals(2, result.size());
-        assertSame(f1, result.get(0));
-        assertSame(f2, result.get(1));
+        assertThat(result, containsInAnyOrder(f1, f2));
     }
 
     public void testDeduplicateTaskFailuresDisjoint() {
@@ -462,31 +457,30 @@ public class TransportListTasksActionTests extends ESTestCase {
         TaskOperationFailure sf = taskFailureWithNodeAndTaskId(randomAlphaOfLength(5), randomNonNegativeLong());
 
         List<TaskOperationFailure> result = TransportListTasksAction.deduplicateTaskFailures(Map.of(), List.of(sf), List.of(pf));
-        assertEquals(2, result.size());
-        assertTrue(result.contains(pf));
-        assertTrue(result.contains(sf));
+        assertThat(result, containsInAnyOrder(pf, sf));
     }
 
     // -- deduplicateNodeFailures --
 
     public void testDeduplicateNodeFailuresByNodeId() {
         String nodeId = randomAlphaOfLength(5);
-        FailedNodeException primaryFne = nodeFailureWithNodeId(nodeId);
-        FailedNodeException secondaryFne = nodeFailureWithNodeId(nodeId);
+        FailedNodeException firstPassFailedNode = nodeFailureWithNodeId(nodeId);
+        FailedNodeException secondPassFailedNode = nodeFailureWithNodeId(nodeId);
 
-        List<ElasticsearchException> result = TransportListTasksAction.deduplicateNodeFailures(List.of(secondaryFne), List.of(primaryFne));
-        assertEquals(1, result.size());
-        assertSame(primaryFne, result.getFirst());
+        List<ElasticsearchException> result = TransportListTasksAction.deduplicateNodeFailures(
+            List.of(firstPassFailedNode),
+            List.of(secondPassFailedNode)
+        );
+        assertThat(result, containsInAnyOrder(secondPassFailedNode));
     }
 
     public void testDeduplicateNodeFailuresNonFNEByMessage() {
         String message = randomAlphaOfLength(10);
-        ElasticsearchException primaryEx = new ElasticsearchException(message);
-        ElasticsearchException secondaryEx = new ElasticsearchException(message);
+        ElasticsearchException firstPassException = new ElasticsearchException(message);
+        ElasticsearchException secondPassException = new ElasticsearchException(message);
 
-        List<ElasticsearchException> result = TransportListTasksAction.deduplicateNodeFailures(List.of(secondaryEx), List.of(primaryEx));
-        assertEquals(1, result.size());
-        assertSame(primaryEx, result.getFirst());
+        List<ElasticsearchException> result = TransportListTasksAction.deduplicateNodeFailures(List.of(firstPassException), List.of(secondPassException));
+        assertThat(result, containsInAnyOrder(secondPassException));
     }
 
     public void testDeduplicateNodeFailuresMixedTypes() {
@@ -495,9 +489,7 @@ public class TransportListTasksActionTests extends ESTestCase {
         ElasticsearchException ex = new ElasticsearchException(randomAlphaOfLength(10));
 
         List<ElasticsearchException> result = TransportListTasksAction.deduplicateNodeFailures(List.of(), List.of(fne, ex));
-        assertEquals(2, result.size());
-        assertSame(fne, result.get(0));
-        assertSame(ex, result.get(1));
+        assertThat(result, containsInAnyOrder(fne, ex));
     }
 
     public void testDeduplicateNodeFailuresDisjoint() {
@@ -681,10 +673,8 @@ public class TransportListTasksActionTests extends ESTestCase {
             List.of(parent, child1, child2, unrelatedTask),
             List.of(wfcUnrelated)
         );
-        assertEquals(List.of(parent), result.parents());
-        assertEquals(2, result.children().size());
-        assertTrue(result.children().contains(child1));
-        assertTrue(result.children().contains(child2));
+        assertThat(result.parents(), containsInAnyOrder(parent));
+        assertThat(result.children(), containsInAnyOrder(child1, child2));
     }
 
     public void testFindMissedRelocationsNonReindexIgnored() {
@@ -721,11 +711,7 @@ public class TransportListTasksActionTests extends ESTestCase {
             List.of(parent1, parent2, child1, child2),
             List.of()
         );
-        assertEquals(2, result.parents().size());
-        assertTrue(result.parents().contains(parent1));
-        assertTrue(result.parents().contains(parent2));
-        assertEquals(2, result.children().size());
-        assertTrue(result.children().contains(child1));
-        assertTrue(result.children().contains(child2));
+        assertThat(result.parents(), containsInAnyOrder(parent1, parent2));
+        assertThat(result.children(), containsInAnyOrder(child1, child2));
     }
 }

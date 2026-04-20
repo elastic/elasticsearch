@@ -54,7 +54,7 @@ class PromqlBuiltinFunctionDefinitions {
         "returns the day of the year for each of those timestamps (in UTC). Returned values are from 1 to 366."
     ).example("day_of_year()").name("day_of_year");
 
-    // PromQL day_of_week: 0=Sunday..6=Saturday; Java DAY_OF_WEEK: 1=Monday..7=Sunday. Conversion: java_dow % 7.
+    // DateExtract(DAY_OF_WEEK) returns 1=Mon..7=Sun; PromQL expects 0=Sun..6=Sat, so we apply % 7.
     static final PromqlFunctionDefinition DAY_OF_WEEK = PromqlFunctionDefinition.def()
         .dateTime(
             (source, date, configuration) -> new Mod(

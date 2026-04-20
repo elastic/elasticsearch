@@ -84,7 +84,6 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertThat(as(expression.fold(FoldContext.small()), Double.class), equalTo(2024.0));
     }
 
-    // 2024-05-10T14:30:00Z is a Friday: month=5, day_of_month=10, day_of_week=5(Fri), day_of_year=131, hour=14, minute=30
     public void testTimeExtractionFunctions() {
         var ctx = new PromqlFunctionRegistry.PromqlContext(
             Literal.NULL,
@@ -100,7 +99,6 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertTimeExtraction(ctx, "minute", 30.0);
     }
 
-    // Sunday: Java DAY_OF_WEEK=7, PromQL day_of_week=0
     public void testDayOfWeekSunday() {
         var ctx = new PromqlFunctionRegistry.PromqlContext(
             Literal.NULL,

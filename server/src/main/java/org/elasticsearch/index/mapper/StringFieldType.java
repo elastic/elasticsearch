@@ -230,6 +230,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
         }
         failIfNotIndexed();
 
+        value = AutomatonQueries.collapseConsecutiveQuantifiers(value);
         AutomatonQuery query;
         Term term = new Term(name(), indexedValueForSearch(value));
         CircuitBreaker circuitBreaker = context.getCircuitBreaker();

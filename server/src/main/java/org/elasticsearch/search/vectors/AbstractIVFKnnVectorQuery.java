@@ -55,7 +55,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     protected final int k;
     protected final int numCands;
     protected final Query filter;
-    protected final boolean isPostFilterDelegate;
+    protected final boolean shouldPostFilter;
     protected long vectorOpsCount;
     protected boolean doPrecondition;
 
@@ -68,7 +68,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         int numCands,
         Query filter,
         boolean doPrecondition,
-        boolean isPostFilterDelegate
+        boolean shouldPostFilter
     ) {
         if (k < 1) {
             throw new IllegalArgumentException("k must be at least 1, got: " + k);
@@ -85,7 +85,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         this.filter = filter;
         this.numCands = numCands;
         this.doPrecondition = doPrecondition;
-        this.isPostFilterDelegate = isPostFilterDelegate;
+        this.shouldPostFilter = shouldPostFilter;
     }
 
     @Override
@@ -101,7 +101,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         if (o == null || getClass() != o.getClass()) return false;
         AbstractIVFKnnVectorQuery that = (AbstractIVFKnnVectorQuery) o;
         return k == that.k
-            && isPostFilterDelegate == that.isPostFilterDelegate
+            && shouldPostFilter == that.shouldPostFilter
             && numCands == that.numCands
             && Objects.equals(field, that.field)
             && Objects.equals(filter, that.filter)
@@ -110,7 +110,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, k, numCands, filter, providedVisitRatio, isPostFilterDelegate);
+        return Objects.hash(field, k, numCands, filter, providedVisitRatio, shouldPostFilter);
     }
 
     @Override
@@ -129,11 +129,11 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         float visitRatio = providedVisitRatio;
 
         IVFCollectorManager collectorManager = getKnnCollectorManager(Math.round(2f * k), indexSearcher);
-        if (filterWeight != null && isPostFilterDelegate == false) {
+        if (filterWeight != null && shouldPostFilter == false) {
             int totalVectors = countTotalVectors(leaves);
             float selectivity = computeSelectivity(filterWeight, leaves, totalVectors);
             if (selectivity > POST_FILTERING_THRESHOLD) {
-                return postFilterRewrite(filterWeight, selectivity, visitRatio, reader);
+                return rewriteAsPostFilterQuery(filterWeight, selectivity, visitRatio, reader);
             }
         }
 
@@ -171,12 +171,10 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         return null;
     }
 
-    private Query postFilterRewrite(Weight filterWeight, float selectivity, float visitRatio, IndexReader reader) {
+    private Query rewriteAsPostFilterQuery(Weight filterWeight, float selectivity, float visitRatio, IndexReader reader) {
         int scaledK = (int) Math.ceil(k / selectivity);
         float visitOversampling = Math.max(1.1f, 1.2f / selectivity);
-        // When visitRatio is 0.0f (dynamic mode), preserve it — the codec computes per-segment
-        // via the Two-Signal model. Oversampling only applies to user-specified ratios.
-        float scaledVisitRatio = visitRatio == 0.0f ? 0.0f : Math.min(1.0f, visitRatio * visitOversampling);
+        float scaledVisitRatio = visitRatio > 0f ? Math.min(1.0f, visitRatio * visitOversampling) : 0f;
         PostFilterableKnnQuery delegate = createPostFilterDelegate(scaledK, Math.max(numCands, scaledK), scaledVisitRatio);
         return new PostFilterAwareKnnQuery(delegate, filterWeight, k, reader, ops -> this.vectorOpsCount = ops, getParentsFilter());
     }

@@ -32,7 +32,7 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
     private final int numCands;
     private long vectorOpsCount;
     private final BitSetProducer parentsFilter;
-    private final boolean isPostFilterDelegate;
+    private final boolean shouldPostFilter;
     private final FixedBitSet seenDocs;
     private final TopDocs seedResults;
 
@@ -58,7 +58,7 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
         int numCands,
         BitSetProducer parentsFilter,
         KnnSearchStrategy strategy,
-        boolean isPostFilterDelegate,
+        boolean shouldPostFilter,
         FixedBitSet seenDocs,
         TopDocs seedResults
     ) {
@@ -66,36 +66,40 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
         this.kParam = k;
         this.numCands = numCands;
         this.parentsFilter = parentsFilter;
-        this.isPostFilterDelegate = isPostFilterDelegate;
+        this.shouldPostFilter = shouldPostFilter;
         this.seenDocs = seenDocs;
         this.seedResults = seedResults;
     }
 
     @Override
     public Query rewrite(IndexSearcher indexSearcher) throws IOException {
-        Query postFiltered = PostFilterHelper.maybePostFilterRewrite(indexSearcher, filter, field, isPostFilterDelegate, ctx -> {
-            FloatVectorValues fvv = ctx.reader().getFloatVectorValues(field);
-            return fvv != null ? fvv.size() : 0;
-        },
-            (scaledNumCands, strategy, et) -> new ESDiversifyingChildrenFloatKnnVectorQuery(
-                field,
-                getTargetCopy(),
-                null,
-                scaledNumCands,
-                scaledNumCands,
-                parentsFilter,
-                strategy,
-                true,
-                null,
-                null
-            ),
-            kParam,
-            searchStrategy,
-            false,
-            ops -> this.vectorOpsCount = ops,
-            parentsFilter
-        );
-        return postFiltered != null ? postFiltered : super.rewrite(indexSearcher);
+        if (shouldPostFilter) {
+            Query postFiltered = PostFilterHelper.maybePostFilterRewrite(indexSearcher, filter, field, ctx -> {
+                FloatVectorValues fvv = ctx.reader().getFloatVectorValues(field);
+                return fvv != null ? fvv.size() : 0;
+            },
+                (scaledNumCands, strategy, et) -> new ESDiversifyingChildrenFloatKnnVectorQuery(
+                    field,
+                    getTargetCopy(),
+                    null,
+                    scaledNumCands,
+                    scaledNumCands,
+                    parentsFilter,
+                    strategy,
+                    true,
+                    null,
+                    null
+                ),
+                kParam,
+                searchStrategy,
+                false,
+                ops -> this.vectorOpsCount = ops,
+                parentsFilter
+            );
+            return postFiltered != null ? postFiltered : super.rewrite(indexSearcher);
+        } else {
+            return super.rewrite(indexSearcher);
+        }
     }
 
     @Override

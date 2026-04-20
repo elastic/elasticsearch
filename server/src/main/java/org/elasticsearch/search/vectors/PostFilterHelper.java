@@ -48,7 +48,6 @@ final class PostFilterHelper {
         IndexSearcher indexSearcher,
         Query filter,
         String field,
-        boolean isPostFilterDelegate,
         PostFilterableKnnQuery.VectorCountSupplier vectorCountSupplier,
         PostFilterableKnnQuery.PostFilterDelegateFactory delegateFactory,
         int kParam,
@@ -57,7 +56,7 @@ final class PostFilterHelper {
         LongConsumer vectorOpsCallback,
         BitSetProducer parentsFilter
     ) throws IOException {
-        if (isPostFilterDelegate || filter == null) {
+        if (filter == null) {
             return null;
         }
         BooleanQuery booleanQuery = new BooleanQuery.Builder().add(filter, BooleanClause.Occur.FILTER)
@@ -98,7 +97,7 @@ final class PostFilterHelper {
         long totalVectors = 0;
         long filterCost = 0;
         for (LeafReaderContext leafCtx : indexSearcher.getIndexReader().leaves()) {
-            totalVectors += vectorCountSupplier.countVectors(leafCtx);
+            totalVectors += vectorCountSupplier.totalVectors(leafCtx);
             ScorerSupplier ss = filterWeight.scorerSupplier(leafCtx);
             if (ss != null) {
                 filterCost += ss.cost();

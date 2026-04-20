@@ -43,10 +43,9 @@ public interface PostFilterableKnnQuery {
      */
     long vectorOpsCount();
 
-    /** Counts vectors in a leaf — implemented differently for float vs byte. */
     @FunctionalInterface
     interface VectorCountSupplier {
-        long countVectors(LeafReaderContext ctx) throws IOException;
+        long totalVectors(LeafReaderContext ctx) throws IOException;
     }
 
     /** Creates a filter-less delegate for post-filtering — type-specific. */

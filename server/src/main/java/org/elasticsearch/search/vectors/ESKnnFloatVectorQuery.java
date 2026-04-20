@@ -26,7 +26,7 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
     private final int kParam;
     private long vectorOpsCount;
     private final boolean earlyTermination;
-    private final boolean isPostFilterDelegate;
+    private final boolean shouldPostFilter;
     private final FixedBitSet seenDocs;
     private final TopDocs seedResults;
 
@@ -70,42 +70,46 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
         Query filter,
         KnnSearchStrategy strategy,
         boolean earlyTermination,
-        boolean isPostFilterDelegate,
+        boolean shouldPostFilter,
         FixedBitSet seenDocs,
         TopDocs seedResults
     ) {
         super(field, target, numCands, filter, strategy);
         this.kParam = k;
         this.earlyTermination = earlyTermination;
-        this.isPostFilterDelegate = isPostFilterDelegate;
+        this.shouldPostFilter = shouldPostFilter;
         this.seenDocs = seenDocs;
         this.seedResults = seedResults;
     }
 
     @Override
     public Query rewrite(IndexSearcher indexSearcher) throws IOException {
-        Query postFiltered = PostFilterHelper.maybePostFilterRewrite(indexSearcher, filter, field, isPostFilterDelegate, ctx -> {
-            FloatVectorValues fvv = ctx.reader().getFloatVectorValues(field);
-            return fvv != null ? fvv.size() : 0;
-        },
-            (scaledNumCands, strategy, et) -> new ESKnnFloatVectorQuery(
-                field,
-                getTargetCopy(),
-                scaledNumCands,
-                scaledNumCands,
-                null,
-                strategy,
-                et,
-                true,
+        if (shouldPostFilter) {
+            Query postFiltered = PostFilterHelper.maybePostFilterRewrite(indexSearcher, filter, field, ctx -> {
+                FloatVectorValues fvv = ctx.reader().getFloatVectorValues(field);
+                return fvv != null ? fvv.size() : 0;
+            },
+                (scaledNumCands, strategy, et) -> new ESKnnFloatVectorQuery(
+                    field,
+                    getTargetCopy(),
+                    scaledNumCands,
+                    scaledNumCands,
+                    null,
+                    strategy,
+                    et,
+                    true,
+                    null
+                ),
+                kParam,
+                searchStrategy,
+                earlyTermination,
+                ops -> this.vectorOpsCount = ops,
                 null
-            ),
-            kParam,
-            searchStrategy,
-            earlyTermination,
-            ops -> this.vectorOpsCount = ops,
-            null
-        );
-        return postFiltered != null ? postFiltered : super.rewrite(indexSearcher);
+            );
+            return postFiltered != null ? postFiltered : super.rewrite(indexSearcher);
+        } else {
+            return super.rewrite(indexSearcher);
+        }
     }
 
     @Override

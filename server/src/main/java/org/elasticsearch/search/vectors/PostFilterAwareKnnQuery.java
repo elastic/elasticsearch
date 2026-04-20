@@ -92,14 +92,14 @@ public class PostFilterAwareKnnQuery extends Query implements QueryProfilerProvi
             // We need the raw unfiltered TopDocs (via capturedResults()), not the rewritten query.
             delegateQuery.rewrite(searcher);
 
-            TopDocs raw = current.capturedResults();
+            TopDocs topDocs = current.capturedResults();
             vectorOps += current.vectorOpsCount();
 
-            if (raw == null || raw.scoreDocs.length == 0) {
+            if (topDocs == null || topDocs.scoreDocs.length == 0) {
                 break;
             }
 
-            ScoreDoc[] filtered = applyFilter(raw.scoreDocs, filterWeight, searcher);
+            ScoreDoc[] filtered = applyFilter(topDocs.scoreDocs, filterWeight, searcher);
             accumulated = mergeResults(accumulated, filtered);
 
             if (parentsFilter != null) {

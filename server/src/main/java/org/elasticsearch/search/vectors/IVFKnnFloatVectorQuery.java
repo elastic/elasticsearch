@@ -69,10 +69,10 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery implements
         Query filter,
         float visitRatio,
         boolean doPrecondition,
-        boolean isPostFilterDelegate,
+        boolean shouldPostFilter,
         Map<Integer, FixedBitSet> skipCentroidsPerLeaf
     ) {
-        super(field, visitRatio, k, numCands, filter, doPrecondition, isPostFilterDelegate);
+        super(field, visitRatio, k, numCands, filter, doPrecondition, shouldPostFilter);
         this.query = query;
         this.originalQuery = query.clone();
         this.skipCentroidsPerLeaf = skipCentroidsPerLeaf;
@@ -204,7 +204,6 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery implements
         strategy.setCollector(knnCollector);
         reader.searchNearestVectors(field, query, knnCollector, acceptDocs);
 
-        // Capture visited centroids for retry
         storeVisitedCentroids(context.ord, strategy.visitedCentroids());
 
         TopDocs results = knnCollector.topDocs();
@@ -251,8 +250,6 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery implements
             null
         );
     }
-
-    // --- PostFilterableKnnQuery implementation ---
 
     @Override
     public TopDocs capturedResults() {

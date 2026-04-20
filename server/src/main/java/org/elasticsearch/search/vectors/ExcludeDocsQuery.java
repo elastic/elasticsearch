@@ -28,18 +28,16 @@ import java.util.Objects;
  * A query that excludes specific global doc IDs. Used by HNSW retry to prevent
  * re-visiting documents seen in previous rounds.
  * <p>
- * Pre-computes an accept bitset at construction (all docs minus excluded),
- * then per-leaf extracts the local slice as a BitSetIterator.
+ * Stores the sparse excluded-docs bitset directly (typically 50-500 docs across retries).
+ * Per-leaf, creates a dense accept bitset by filling all bits then clearing only the
+ * excluded ones — O(leafMaxDoc/64 + numExcludedInLeaf) instead of iterating all accepted docs.
  */
 class ExcludeDocsQuery extends Query {
-    private final FixedBitSet acceptDocs;
+    private final FixedBitSet excludedDocs;
     private final Object readerContextId;
 
     ExcludeDocsQuery(FixedBitSet excludedDocs, IndexReader reader) {
-        int maxDoc = reader.maxDoc();
-        this.acceptDocs = new FixedBitSet(maxDoc);
-        acceptDocs.set(0, maxDoc);
-        acceptDocs.andNot(excludedDocs);
+        this.excludedDocs = excludedDocs;
         this.readerContextId = reader.getContext().id();
     }
 
@@ -48,22 +46,23 @@ class ExcludeDocsQuery extends Query {
         return new Weight(this) {
             @Override
             public Explanation explain(LeafReaderContext context, int doc) {
-                return Explanation.noMatch("exclude docs filter");
+                return Explanation.match(0f, "exclude docs filter");
             }
 
             @Override
             public ScorerSupplier scorerSupplier(LeafReaderContext context) {
-                int maxDoc = context.reader().maxDoc();
+                int leafMaxDoc = context.reader().maxDoc();
                 int docBase = context.docBase;
-                FixedBitSet leafBits = new FixedBitSet(maxDoc);
-                int end = docBase + maxDoc;
-                for (int globalDoc = acceptDocs.nextSetBit(docBase); globalDoc != -1 && globalDoc < end;) {
-                    leafBits.set(globalDoc - docBase);
-                    int next = globalDoc + 1;
-                    if (next >= acceptDocs.length()) {
+                FixedBitSet leafBits = new FixedBitSet(leafMaxDoc);
+                leafBits.set(0, leafMaxDoc);
+                int end = docBase + leafMaxDoc;
+                for (int excDoc = excludedDocs.nextSetBit(docBase); excDoc != -1 && excDoc < end;) {
+                    leafBits.clear(excDoc - docBase);
+                    int next = excDoc + 1;
+                    if (next >= excludedDocs.length()) {
                         break;
                     }
-                    globalDoc = acceptDocs.nextSetBit(next);
+                    excDoc = excludedDocs.nextSetBit(next);
                 }
                 int cardinality = leafBits.cardinality();
                 if (cardinality == 0) {
@@ -83,7 +82,7 @@ class ExcludeDocsQuery extends Query {
 
     @Override
     public String toString(String field) {
-        return "ExcludeDocsQuery[accepted=" + acceptDocs.cardinality() + "]";
+        return "ExcludeDocsQuery[excluded=" + excludedDocs.cardinality() + "]";
     }
 
     @Override
@@ -96,11 +95,11 @@ class ExcludeDocsQuery extends Query {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ExcludeDocsQuery that = (ExcludeDocsQuery) o;
-        return acceptDocs.equals(that.acceptDocs) && readerContextId == that.readerContextId;
+        return excludedDocs.equals(that.excludedDocs) && readerContextId == that.readerContextId;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), acceptDocs, readerContextId);
+        return Objects.hash(classHash(), excludedDocs, readerContextId);
     }
 }

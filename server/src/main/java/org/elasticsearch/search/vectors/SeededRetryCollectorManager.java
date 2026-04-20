@@ -100,9 +100,16 @@ class SeededRetryCollectorManager implements KnnCollectorManager {
         }
         int[] ordinals = new int[count];
         int ordCount = 0;
+        int iterDoc = -1;
         for (int i = 0; i < count; i++) {
             int docId = localDocIds[i];
-            if (docIndexIter.advance(docId) == docId) {
+            if (docId <= iterDoc) {
+                // Iterator already advanced past this doc; calling advance() would violate
+                // the DocIdSetIterator contract (target must be > current).
+                continue;
+            }
+            iterDoc = docIndexIter.advance(docId);
+            if (iterDoc == docId) {
                 ordinals[ordCount++] = docIndexIter.index();
             }
         }

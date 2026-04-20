@@ -67,9 +67,6 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=termvectors/30_realtime/Realtime Term Vectors}
   issue: https://github.com/elastic/elasticsearch/issues/138370
-- class: org.elasticsearch.smoketest.MlWithSecurityIT
-  method: test {yaml=ml/sparse_vector_search/Test sparse_vector search with query vector and pruning config}
-  issue: https://github.com/elastic/elasticsearch/issues/139196
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:spatial.convertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/139213
@@ -166,9 +163,6 @@ tests:
 - class: org.elasticsearch.action.admin.indices.diskusage.IndexDiskUsageAnalyzerTests
   method: testKnnVectors
   issue: https://github.com/elastic/elasticsearch/issues/145377
-- class: org.elasticsearch.xpack.ml.integration.DatafeedJobsIT
-  method: testDatafeedTimingStats_DatafeedRecreated
-  issue: https://github.com/elastic/elasticsearch/issues/138348
 - class: org.elasticsearch.compute.aggregation.SumLongGroupingAggregatorFunctionTests
   method: testOverflowInGroupingProducesNullAndWarning
   issue: https://github.com/elastic/elasticsearch/issues/145438
@@ -355,6 +349,93 @@ tests:
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testReindexFailsWhenPitRelocationFails
   issue: https://github.com/elastic/elasticsearch/issues/146650
+- class: org.elasticsearch.transport.ClusterConnectionManagerTests
+  method: testConcurrentConnectsAndDisconnects
+  issue: https://github.com/elastic/elasticsearch/issues/146743
+- class: org.elasticsearch.transport.RemoteClusterClientTests
+  method: testQuicklySkipUnavailableClusters
+  issue: https://github.com/elastic/elasticsearch/issues/146743
+- class: org.elasticsearch.transport.TransportHandshakerTests
+  method: testHandshakeRequestFutureVersionsCompatibility
+  issue: https://github.com/elastic/elasticsearch/issues/146743
+- class: org.elasticsearch.simdvec.ESVectorUtilTests
+  method: testPow2DiffAndScale
+  issue: https://github.com/elastic/elasticsearch/issues/146690
+- class: org.elasticsearch.transport.TransportHandshakerTests
+  method: testHandshakeRequestAndResponse
+  issue: https://github.com/elastic/elasticsearch/issues/146743
+- class: org.elasticsearch.transport.RemoteClusterClientTests
+  method: testConnectAndExecuteRequest
+  issue: https://github.com/elastic/elasticsearch/issues/146743
+- class: org.elasticsearch.synonyms.SynonymsManagementAPIServiceTests
+  method: testBulkUpdateEmptySet
+  issue: https://github.com/elastic/elasticsearch/issues/146743
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/146553
+- class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
+  method: testReindexTaskRelocatesOnNodeShutdown
+  issue: https://github.com/elastic/elasticsearch/issues/146696
+- class: org.elasticsearch.transport.TransportHandshakerTests
+  method: testHandshakeError
+  issue: https://github.com/elastic/elasticsearch/issues/146743
+- class: org.elasticsearch.transport.ClusterConnectionManagerTests
+  method: testDisconnectLogging
+  issue: https://github.com/elastic/elasticsearch/issues/146743
+- class: org.elasticsearch.transport.RemoteClusterClientTests
+  method: testEnsureWeReconnect
+  issue: https://github.com/elastic/elasticsearch/issues/146743
+- class: org.elasticsearch.simdvec.ESVectorUtilTests
+  method: testLogSumExpDiff
+  issue: https://github.com/elastic/elasticsearch/issues/146700
+- class: org.elasticsearch.transport.TransportHandshakerTests
+  method: testHandshakeResponseFromOlderNodeWithPatchedProtocol
+  issue: https://github.com/elastic/elasticsearch/issues/146743
+- class: org.elasticsearch.transport.TransportHandshakerTests
+  method: testHandshakeResponseFromOlderNode
+  issue: https://github.com/elastic/elasticsearch/issues/146743
+- class: org.elasticsearch.transport.ClusterConnectionManagerTests
+  method: testConnectAfterClose
+  issue: https://github.com/elastic/elasticsearch/issues/146743
+- class: org.elasticsearch.transport.ClusterConnectionManagerTests
+  method: testConnectFailsDuringValidation
+  issue: https://github.com/elastic/elasticsearch/issues/146743
+- class: org.elasticsearch.transport.TransportHandshakerTests
+  method: testIncompatibleHandshakeRequest
+  issue: https://github.com/elastic/elasticsearch/issues/146743
+- class: org.elasticsearch.transport.TransportHandshakerTests
+  method: testReadV8HandshakeRequest
+  issue: https://github.com/elastic/elasticsearch/issues/146743
+- class: org.elasticsearch.transport.RemoteClusterClientTests
+  method: testRemoteClusterServiceNotEnabled
+  issue: https://github.com/elastic/elasticsearch/issues/146743
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
+  method: test {csv-spec:stats_sparkline.sparklineComplexWithGrouping}
+  issue: https://github.com/elastic/elasticsearch/issues/146729
+- class: org.elasticsearch.synonyms.SynonymsManagementAPIServiceTests
+  method: testTransportVersionGateRejectsLargeSetsOnOldCluster
+  issue: https://github.com/elastic/elasticsearch/issues/146743
+- class: org.elasticsearch.transport.ClusterConnectionManagerTests
+  method: testConcurrentConnectsDuringClose
+  issue: https://github.com/elastic/elasticsearch/issues/146743
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:inlinestats.pushDown_OneGroupingFilter_PastInlineJoinWithInnerFilterAndOuterFilter}
+  issue: https://github.com/elastic/elasticsearch/issues/146737
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:floats.signumWithEvalWhereAndStats}
+  issue: https://github.com/elastic/elasticsearch/issues/146738
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:match-operator.testFTFWithLookupJoin}
+  issue: https://github.com/elastic/elasticsearch/issues/146739
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:inlinestats.multiIndexIpInlinestats_NonPushableCountWithFilter}
+  issue: https://github.com/elastic/elasticsearch/issues/146740
+- class: org.elasticsearch.reindex.ReindexBasicTests
+  method: testCopyManyWithAutoSlicing
+  issue: https://github.com/elastic/elasticsearch/issues/146741
+- class: org.elasticsearch.synonyms.SynonymsManagementAPIServiceTests
+  method: testPutSynonymRuleUpgradeGuardRejectsOnOldCluster
+  issue: https://github.com/elastic/elasticsearch/issues/146743
 
 # Examples:
 #

@@ -266,9 +266,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                     projectVisited.set(true);
                     // filter projections based on fork output attributes
                     var prunedAttrs = p.projections().stream().filter(x -> forkOutputNames.contains(x.name())).toList();
-                    p = new Project(p.source(), p.child(), prunedAttrs);
-                    // add all output attributes to used set
-                    return p;
+                    return new Project(p.source(), p.child(), prunedAttrs);
                 });
                 newSubPlan = pruneColumns(newSubPlan, usedAttrs, false);
             }

@@ -52,14 +52,11 @@ public class PutSynonymsAction extends ActionType<SynonymUpdateResponse> {
 
         private record ParsedBody(List<SynonymRule> rules, Boolean replaceAll) {}
 
-        private static final ConstructingObjectParser<ParsedBody, Void> PARSER = new ConstructingObjectParser<>(
-            "synonyms_set",
-            args -> {
-                @SuppressWarnings("unchecked")
-                List<SynonymRule> rules = (List<SynonymRule>) args[0];
-                return new ParsedBody(rules, (Boolean) args[1]);
-            }
-        );
+        private static final ConstructingObjectParser<ParsedBody, Void> PARSER = new ConstructingObjectParser<>("synonyms_set", args -> {
+            @SuppressWarnings("unchecked")
+            List<SynonymRule> rules = (List<SynonymRule>) args[0];
+            return new ParsedBody(rules, (Boolean) args[1]);
+        });
 
         static {
             PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> SynonymRule.fromXContent(p), SYNONYMS_SET_FIELD);

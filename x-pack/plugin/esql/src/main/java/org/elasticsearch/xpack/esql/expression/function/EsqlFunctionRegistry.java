@@ -611,7 +611,6 @@ public class EsqlFunctionRegistry {
                 Delay.DEFINITION,
                 // dense vector functions
                 Magnitude.DEFINITION,
-                Sparkline.DEFINITION,
                 // date_range functions
                 RangeMax.DEFINITION,
                 RangeMin.DEFINITION,

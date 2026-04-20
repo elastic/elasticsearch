@@ -20,6 +20,7 @@ import org.elasticsearch.action.RetryableSplitAwareRequest;
 import org.elasticsearch.action.SplitAwareRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.ReshardingActionHelper;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.replication.StaleRequestException;
@@ -37,7 +38,6 @@ import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -63,14 +63,6 @@ import static org.elasticsearch.core.Strings.format;
  */
 public abstract class TransportSingleShardAction<Request extends SingleShardRequest<Request>, Response extends ActionResponse> extends
     TransportAction<Request, Response> {
-
-    // How long to wait to see a shard routing update after receiving a stale request failure
-    // Deliberately is not registered in ClusterSettings.BUILT_IN_CLUSTER_SETTINGS because it is only for tests
-    public static final Setting<TimeValue> ROUTE_REFRESH_TIMEOUT = Setting.timeSetting(
-        "single_shard_action.route_refresh_timeout",
-        TimeValue.timeValueSeconds(30),
-        Setting.Property.NodeScope
-    );
 
     protected final ThreadPool threadPool;
     protected final ClusterService clusterService;
@@ -319,7 +311,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                         internalRequest.concreteIndex()
                     );
                     return retryableSplitAwareRequest.getSplitShardCountSummary().equals(staleSummary) == false;
-                }, ROUTE_REFRESH_TIMEOUT.get(clusterService.getSettings()), logger);
+                }, ReshardingActionHelper.ROUTE_REFRESH_TIMEOUT.get(clusterService.getSettings()), logger);
             } else {
                 // SplitAwareRequest marks requests that intentionally opted out of retries.
                 // So we bubble the stale request exception up to be retried on a higher level.

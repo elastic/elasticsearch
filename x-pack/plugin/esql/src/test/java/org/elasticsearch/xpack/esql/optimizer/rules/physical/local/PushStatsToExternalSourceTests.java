@@ -243,10 +243,10 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
         assertEquals("value", enriched.get("existing_key"));
         assertEquals(42L, enriched.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
         assertEquals(1024L, enriched.get(SourceStatisticsSerializer.STATS_SIZE_BYTES));
-        assertEquals(OptionalLong.of(42), SourceStatisticsSerializer.extractRowCount(enriched));
-        assertEquals(OptionalLong.of(5), SourceStatisticsSerializer.extractColumnNullCount(enriched, "col1"));
-        assertEquals(Optional.of(10), SourceStatisticsSerializer.extractColumnMin(enriched, "col1"));
-        assertEquals(Optional.of(100), SourceStatisticsSerializer.extractColumnMax(enriched, "col1"));
+        assertEquals(Long.valueOf(42L), SourceStatisticsSerializer.extractRowCount(enriched));
+        assertEquals(Long.valueOf(5L), SourceStatisticsSerializer.extractColumnNullCount(enriched, "col1"));
+        assertEquals(10, SourceStatisticsSerializer.extractColumnMin(enriched, "col1"));
+        assertEquals(100, SourceStatisticsSerializer.extractColumnMax(enriched, "col1"));
     }
 
     // --- EvalExec intermediate node tests ---

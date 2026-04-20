@@ -35,6 +35,7 @@ import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.shrink.TransportResizeAction;
+import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -47,6 +48,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamAction;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -136,6 +140,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             maybeForceMergeIndex(forceMergeIndex);
             maybeTakeSnapshot(forceMergeIndex);
             maybeMountSearchableSnapshot(forceMergeIndex);
+            maybeCleanup(forceMergeIndex);
         } catch (IndexNotFoundException e) {
             if (e.getIndex().getName().equals(indexName)) {
                 // if the original index was not found, then we can assume
@@ -284,9 +289,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         try {
             CreateIndexResponse resp = client.projectClient(projectId).execute(TransportResizeAction.TYPE, resizeReq).get();
             if (resp.isAcknowledged() == false) {
-                throw new ElasticsearchException(
-                    Strings.format("DLM failed to acknowledge clone of index [%s] to index [%s]", indexName, cloneIndexName)
-                );
+                throw new ElasticsearchException("DLM failed to acknowledge clone of index [{}] to index [{}]", indexName, cloneIndexName);
             }
             logger.info("DLM successfully cloned index [{}] to index [{}]", indexName, cloneIndexName);
             return cloneIndexName;
@@ -457,6 +460,28 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
 
     }
 
+    void maybeCleanup(String forceMergeIndex) throws InterruptedException {
+        if (isCleanUpComplete(forceMergeIndex)) {
+            logger.debug("DLM cleanup is already complete for index [{}], skipping cleanup step.", indexName);
+            return;
+        }
+
+        checkIfThreadInterrupted();
+        checkIfEligibleForConvertToFrozen();
+
+        ProjectMetadata projectMetadata = getProjectState().metadata();
+        // Check if the old index is still part of a datastream, swap if so
+        String dataStreamName = resolveDataStreamName(indexName, projectMetadata);
+        if (dataStreamName != null) {
+            swapIndicesInDataStream(dataStreamName);
+        }
+        // Delete the force merge index if it is different from the original.
+        if (indexName.equals(forceMergeIndex) == false) {
+            deleteIndex(forceMergeIndex);
+        }
+        deleteIndex(indexName);
+    }
+
     private boolean isIndexReadOnly() {
         return getProjectState().blocks().hasIndexBlock(projectId, indexName, WRITE.getBlock());
     }
@@ -498,6 +523,22 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             }
             throw new ElasticsearchException("DLM unable to check segment count for index [{}]", e, indexName);
         }
+    }
+
+    /**
+     * The cleanup is complete when neither the old index nor its clone exist and the frozen index is part of a data stream.
+     */
+    private boolean isCleanUpComplete(String forceMergeIndex) {
+        // return false if original or clone indices still exist
+        ProjectMetadata projectMetadata = getProjectState().metadata();
+        if (projectMetadata.indices().containsKey(indexName)) {
+            return false;
+        }
+        if (projectMetadata.indices().containsKey(forceMergeIndex)) {
+            return false;
+        }
+        // return false if frozen index is not in a datastream (swap hasn't occurred yet)
+        return resolveDataStreamName(snapshotName(indexName), projectMetadata) != null;
     }
 
     /**
@@ -634,7 +675,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
                 logger.debug("DLM successfully deleted index [{}]", indexToDelete);
             } else {
                 logger.warn("DLM failed to acknowledge deletion of index [{}]", indexToDelete);
-                throw new ElasticsearchException(Strings.format("Failed to acknowledge delete of index [%s]", indexToDelete));
+                throw new ElasticsearchException("Failed to acknowledge delete of index [{}]", indexToDelete);
             }
         } catch (IndexNotFoundException e) {
             logger.debug("Index [{}] was not found during DLM delete attempt, it may have already been deleted", indexToDelete);
@@ -1004,4 +1045,62 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         return projectMetadata.indices().containsKey(snapshotName(indexName));
     }
 
+    /**
+     * Resolves the parent data stream name for the given index.
+     *
+     * @param indexName       the index name to look up
+     * @param projectMetadata the project metadata containing the indices lookup
+     * @return the data stream name, or {@code null} if the index is not part of a data stream
+     */
+    static String resolveDataStreamName(String indexName, ProjectMetadata projectMetadata) {
+        IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(indexName);
+        if (indexAbstraction == null) {
+            return null;
+        }
+        DataStream parentDataStream = indexAbstraction.getParentDataStream();
+        return parentDataStream != null ? parentDataStream.getName() : null;
+    }
+
+    /**
+     * Swaps a backing index in a data stream by issuing a {@link ModifyDataStreamsAction} request
+     * with a remove action for the old index and an add action for the new frozen index.
+     * @param dataStreamName the name of the data stream
+     */
+    void swapIndicesInDataStream(String dataStreamName) {
+        ProjectState projectState = getProjectState();
+
+        ModifyDataStreamsAction.Request request = new ModifyDataStreamsAction.Request(
+            TimeValue.MAX_VALUE,
+            TimeValue.MAX_VALUE,
+            List.of(
+                DataStreamAction.removeBackingIndex(dataStreamName, indexName),
+                DataStreamAction.addBackingIndex(dataStreamName, snapshotName(indexName))
+            )
+        );
+
+        AcknowledgedResponse resp;
+        try {
+            resp = client.projectClient(projectState.projectId()).execute(ModifyDataStreamsAction.INSTANCE, request).get();
+        } catch (Exception e) {
+            if (e instanceof InterruptedException || ExceptionsHelper.unwrapCause(e) instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw ExceptionsHelper.convertToElastic(e);
+        }
+        if (resp.isAcknowledged()) {
+            logger.info(
+                "DLM successfully swapped backing index [{}] with [{}] in data stream [{}]",
+                indexName,
+                snapshotName(indexName),
+                dataStreamName
+            );
+        } else {
+            throw new ElasticsearchException(
+                "DLM failed to acknowledge swap of backing index [{}] with [{}] in data stream [{}]",
+                indexName,
+                snapshotName(indexName),
+                dataStreamName
+            );
+        }
+    }
 }

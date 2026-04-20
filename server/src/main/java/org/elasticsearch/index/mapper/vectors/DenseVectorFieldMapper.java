@@ -2601,7 +2601,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         final boolean doPrecondition;
         final boolean experimentalFeaturesEnabled;
 
-        BBQIVFIndexOptions(
+        public BBQIVFIndexOptions(
             int clusterSize,
             int flatIndexThreshold,
             double defaultVisitPercentage,
@@ -2645,7 +2645,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     numMergeWorkers,
                     doPrecondition,
                     ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
-                    flatIndexThreshold
+                    flatIndexThreshold,
+                    null
                 );
             } else {
                 return new ES940DiskBBQVectorsFormat(

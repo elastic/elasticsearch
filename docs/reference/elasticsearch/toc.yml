@@ -29,6 +29,13 @@ toc:
       - file: configuration-reference/security-settings.md
       - file: configuration-reference/shard-request-cache-settings.md
       - file: configuration-reference/snapshot-restore-settings.md
+        children:
+          - file: configuration-reference/s3-repository-settings.md
+          - file: configuration-reference/azure-repository-settings.md
+          - file: configuration-reference/gcs-repository-settings.md
+          - file: configuration-reference/fs-repository-settings.md
+          - file: configuration-reference/url-repository-settings.md
+          - file: configuration-reference/source-repository-settings.md
       - file: configuration-reference/transforms-settings.md
       - file: configuration-reference/thread-pool-settings.md
       - file: configuration-reference/watcher-settings.md

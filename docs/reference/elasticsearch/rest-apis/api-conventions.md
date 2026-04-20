@@ -29,9 +29,9 @@ You can pass an `X-Opaque-Id` HTTP header to track the origin of a request in {{
 * Response of any request that includes the header
 * [Task management API](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-tasks) response
 * [Slow logs](/reference/elasticsearch/index-settings/slow-log.md)
-* [Deprecation logs](docs-content://deploy-manage/monitor/logging-configuration/update-elasticsearch-logging-levels.md#deprecation-logging)
+* [Deprecation logs](docs-content://deploy-manage/monitor/logging-configuration/elasticsearch-deprecation-logs.md)
 
-For the deprecation logs, {{es}} also uses the `X-Opaque-Id` value to throttle and deduplicate deprecation warnings. See [Deprecation logs throttling](docs-content://deploy-manage/monitor/logging-configuration/update-elasticsearch-logging-levels.md#_deprecation_logs_throttling).
+For the deprecation logs, {{es}} also uses the `X-Opaque-Id` value to throttle and deduplicate deprecation warnings. See [Deprecation logs throttling](docs-content://deploy-manage/monitor/logging-configuration/elasticsearch-deprecation-logs.md).
 
 The `X-Opaque-Id` header accepts any arbitrary value. However, we recommend you limit these values to a finite set, such as an ID per client. Don’t generate a unique `X-Opaque-Id` header for every request. Too many unique `X-Opaque-Id` values can prevent {{es}} from deduplicating warnings in the deprecation logs.
 

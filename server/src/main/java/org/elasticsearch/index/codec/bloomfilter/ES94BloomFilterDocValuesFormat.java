@@ -889,9 +889,6 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
             return null;
         }
 
-        @Override
-        public void close() throws IOException {}
-
         void checkIntegrity() throws IOException {
             checkIntegrityFn.run();
         }

@@ -840,7 +840,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
         // Run localPlan() to expand FragmentExec(ExternalRelation) -> ExternalSourceExec
         // This runs LocalLogicalPlanOptimizer, LocalMapper, and LocalPhysicalPlanOptimizer
-        // (including filter pushdown via FilterPushdownRegistry)
+        // (including filter pushdown via FormatReader.filterPushdownSupport())
         PhysicalPlan expandedPlan = PlannerUtils.localPlan(
             plannerSettings,
             flags,
@@ -848,7 +848,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             configuration.newFoldContext(),
             sinkExec,
             SearchStats.EMPTY,
-            computeService.filterPushdownRegistry(),
             computeService.formatReaderRegistry(),
             planTimeProfile
         );

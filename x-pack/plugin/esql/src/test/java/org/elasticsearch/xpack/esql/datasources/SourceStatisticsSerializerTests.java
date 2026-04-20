@@ -84,4 +84,34 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
 
         assertNull(SourceStatisticsSerializer.mergeStatistics(list));
     }
+
+    public void testColumnSizeBytesRoundTrip() {
+        Map<String, Object> meta = new HashMap<>();
+        meta.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 1000L);
+        meta.put(SourceStatisticsSerializer.columnSizeBytesKey("age"), 50000L);
+        meta.put(SourceStatisticsSerializer.columnSizeBytesKey("name"), 120000L);
+
+        assertEquals(Long.valueOf(50000L), SourceStatisticsSerializer.extractColumnSizeBytes(meta, "age"));
+        assertEquals(Long.valueOf(120000L), SourceStatisticsSerializer.extractColumnSizeBytes(meta, "name"));
+        assertNull(SourceStatisticsSerializer.extractColumnSizeBytes(meta, "missing"));
+        assertNull(SourceStatisticsSerializer.extractColumnSizeBytes(null, "age"));
+    }
+
+    public void testMergeStatistics_sumsSizeBytes() {
+        Map<String, Object> s1 = new HashMap<>();
+        s1.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
+        s1.put(SourceStatisticsSerializer.columnSizeBytesKey("age"), 5000L);
+        s1.put(SourceStatisticsSerializer.columnSizeBytesKey("name"), 10000L);
+
+        Map<String, Object> s2 = new HashMap<>();
+        s2.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 200L);
+        s2.put(SourceStatisticsSerializer.columnSizeBytesKey("age"), 8000L);
+        s2.put(SourceStatisticsSerializer.columnSizeBytesKey("name"), 15000L);
+
+        Map<String, Object> result = SourceStatisticsSerializer.mergeStatistics(List.of(s1, s2));
+        assertNotNull(result);
+        assertEquals(300L, result.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        assertEquals(13000L, result.get(SourceStatisticsSerializer.columnSizeBytesKey("age")));
+        assertEquals(25000L, result.get(SourceStatisticsSerializer.columnSizeBytesKey("name")));
+    }
 }

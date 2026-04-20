@@ -1,3 +1,3 @@
 ExchangeSinkExec[[$$l$sum{r}#0, $$l$seen{r}#1],false]
-\_AggregateExec[[],[SUM($$LENGTH(last_nam>$SUM$0{r$}#2,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS l#3],INTERMEDIATE,[$$l$sum{r}#4, $$l$seen{r}#5],8]
+\_AggregateExec[[],[SUM($$LENGTH(last_nam>$SUM$0{r$}#2,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_warn[KEYWORD]) AS l#3],INTERMEDIATE,[$$l$sum{r}#4, $$l$seen{r}#5],8]
   \_ExchangeSourceExec[[$$l$sum{r}#0, $$l$seen{r}#1],false]

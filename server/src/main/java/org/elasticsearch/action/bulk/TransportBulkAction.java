@@ -48,7 +48,6 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.indices.SystemIndices;
@@ -554,7 +553,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
 
         // When sequence numbers are disabled, OCC (if_seq_no/if_primary_term) cannot be used,
         // so we allow writes with an explicit document ID directly to backing indices.
-        if (writeRequest.id() != null && IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG) {
+        if (writeRequest.id() != null) {
             IndexMetadata targetMetadata = indexMetadataProvider.apply(indexAbstraction.getWriteIndex());
             if (targetMetadata != null && targetMetadata.sequenceNumbersDisabled()) {
                 return;

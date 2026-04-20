@@ -35,7 +35,7 @@ public class PushDownAndCombineLimitByGoldenTests extends GoldenTestCase {
     public void testLimitByNotPushedPastEval() {
         runGoldenTest(
             """
-                FROM *
+                FROM airport_city_boundaries, addresses, all_types, books
                 | ENRICH languages on street
                 | KEEP abbrev, integer, year
                 | LIMIT 1 BY abbrev

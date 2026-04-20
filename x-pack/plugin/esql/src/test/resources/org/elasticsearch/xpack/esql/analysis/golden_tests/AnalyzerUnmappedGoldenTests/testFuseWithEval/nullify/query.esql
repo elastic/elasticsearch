@@ -1,4 +1,5 @@
 SET unmapped_fields="nullify"; FROM employees METADATA _score, _index, _id
 | FORK (EVAL x = does_not_exist::DOUBLE + 1)
        (EVAL y = emp_no + 1)
+| LIMIT 100
 | FUSE RRF

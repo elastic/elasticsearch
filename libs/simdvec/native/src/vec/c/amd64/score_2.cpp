@@ -116,13 +116,13 @@ EXPORT f32_t diskbbq_apply_corrections_maximum_inner_product_bulk_2(
             queryBitScale,
             indexBitScale,
             centroidDp,
-            *(c.lowerIntervals + i),
-            *(c.upperIntervals + i),
-            *(c.targetComponentSums + i),
-            *(c.additionalCorrections + i),
-            *(scores + i)
+            c.lowerIntervals[i],
+            c.upperIntervals[i],
+            c.targetComponentSums[i],
+            c.additionalCorrections[i],
+            scores[i]
         );
-        *(scores + i) = score;
+        scores[i] = score;
         maxScore = __builtin_fmaxf(maxScore, score);
     }
 

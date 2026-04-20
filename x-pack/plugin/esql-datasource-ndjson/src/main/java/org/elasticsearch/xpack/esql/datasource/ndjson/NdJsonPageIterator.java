@@ -12,6 +12,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.ByteArrayInputStream;
@@ -34,6 +36,8 @@ import java.util.NoSuchElementException;
 final class NdJsonPageIterator implements CloseableIterator<Page> {
 
     private final NdJsonPageDecoder pageDecoder;
+    private final int rowLimit;
+    private long rowsEmitted;
     private boolean endOfFile = false;
     private Page nextPage;
 
@@ -41,10 +45,12 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
         StorageObject object,
         List<String> projectedColumns,
         int batchSize,
+        int rowLimit,
         BlockFactory blockFactory,
         boolean skipFirstLine,
         boolean trimLastPartialLine,
-        List<Attribute> resolvedAttributes
+        List<Attribute> resolvedAttributes,
+        ErrorPolicy errorPolicy
     ) throws IOException {
         InputStream inputStream = object.newStream();
         if (skipFirstLine) {
@@ -53,7 +59,8 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
         if (trimLastPartialLine) {
             inputStream = trimLastPartialLine(inputStream);
         }
-        this.pageDecoder = new NdJsonPageDecoder(inputStream, resolvedAttributes, projectedColumns, batchSize, blockFactory);
+        this.rowLimit = rowLimit;
+        this.pageDecoder = new NdJsonPageDecoder(inputStream, resolvedAttributes, projectedColumns, batchSize, blockFactory, errorPolicy);
     }
 
     @Override
@@ -64,10 +71,36 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
         if (endOfFile) {
             return false;
         }
+        if (rowLimit != FormatReader.NO_LIMIT && rowsEmitted >= rowLimit) {
+            endOfFile = true;
+            return false;
+        }
         try {
             nextPage = pageDecoder.decodePage();
-            endOfFile = nextPage == null;
-            return nextPage != null;
+            if (nextPage == null) {
+                endOfFile = true;
+                return false;
+            }
+            if (rowLimit != FormatReader.NO_LIMIT) {
+                long allowed = (long) rowLimit - rowsEmitted;
+                if (allowed <= 0) {
+                    nextPage.releaseBlocks();
+                    nextPage = null;
+                    endOfFile = true;
+                    return false;
+                }
+                int positionCount = nextPage.getPositionCount();
+                if (positionCount > allowed) {
+                    Page sliced = nextPage.slice(0, (int) allowed);
+                    nextPage.releaseBlocks();
+                    nextPage = sliced;
+                    endOfFile = true;
+                }
+                rowsEmitted += nextPage.getPositionCount();
+            } else {
+                rowsEmitted += nextPage.getPositionCount();
+            }
+            return true;
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

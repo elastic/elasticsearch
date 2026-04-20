@@ -15,7 +15,9 @@ import org.apache.parquet.column.ColumnReader;
 import org.apache.parquet.column.impl.ColumnReadStoreImpl;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.column.statistics.Statistics;
+import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.filter2.compat.FilterCompat;
+import org.apache.parquet.filter2.predicate.FilterPredicate;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
@@ -39,6 +41,7 @@ import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -92,22 +95,27 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
 
     private final BlockFactory blockFactory;
     private final FilterCompat.Filter pushedFilter;
+    private final ParquetPushedExpressions pushedExpressions;
 
     static final long DEFAULT_ROW_GROUP_MACRO_SPLIT_TARGET_BYTES = 32L * 1024 * 1024;
 
     public ParquetFormatReader(BlockFactory blockFactory) {
-        this(blockFactory, FilterCompat.NOOP);
+        this(blockFactory, FilterCompat.NOOP, null);
     }
 
-    private ParquetFormatReader(BlockFactory blockFactory, FilterCompat.Filter pushedFilter) {
+    private ParquetFormatReader(BlockFactory blockFactory, FilterCompat.Filter pushedFilter, ParquetPushedExpressions pushedExpressions) {
         this.blockFactory = blockFactory;
         this.pushedFilter = pushedFilter;
+        this.pushedExpressions = pushedExpressions;
     }
 
     @Override
     public ParquetFormatReader withPushedFilter(Object pushedFilter) {
         if (pushedFilter instanceof FilterCompat.Filter filter) {
-            return new ParquetFormatReader(blockFactory, filter);
+            return new ParquetFormatReader(blockFactory, filter, null);
+        }
+        if (pushedFilter instanceof ParquetPushedExpressions exprs) {
+            return new ParquetFormatReader(blockFactory, FilterCompat.NOOP, exprs);
         }
         return this;
     }
@@ -128,7 +136,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         // change to be async, we'll have to unwrap the breaker if it's a LocalBreaker.
         var breaker = blockFactory.breaker();
         var allocator = new CircuitBreakerByteBufferAllocator(new HeapByteBufferAllocator(), breaker);
-        return ParquetReadOptions.builder().withAllocator(allocator);
+        return ParquetReadOptions.builder(new PlainParquetConfiguration()).withAllocator(allocator);
     }
 
     /**
@@ -187,12 +195,17 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         Map<String, long[]> nullCounts = new HashMap<>();
         Map<String, Comparable[]> mins = new HashMap<>();
         Map<String, Comparable[]> maxs = new HashMap<>();
+        Map<String, long[]> colSizes = new HashMap<>();
 
         for (BlockMetaData rowGroup : rowGroups) {
             totalRows += rowGroup.getRowCount();
             totalSize += rowGroup.getTotalByteSize();
             for (ColumnChunkMetaData col : rowGroup.getColumns()) {
                 String colName = col.getPath().toDotString();
+                colSizes.merge(colName, new long[] { col.getTotalUncompressedSize() }, (a, b) -> {
+                    a[0] += b[0];
+                    return a;
+                });
                 Statistics stats = col.getStatistics();
                 if (stats == null || stats.isEmpty()) {
                     continue;
@@ -226,10 +239,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             long[] nc = nullCounts.get(name);
             Comparable[] mn = mins.get(name);
             Comparable[] mx = maxs.get(name);
-            if (nc != null || mn != null || mx != null) {
+            long[] cs = colSizes.get(name);
+            if (nc != null || mn != null || mx != null || cs != null) {
                 final long nullCount = nc != null ? nc[0] : 0;
                 final Object minVal = mn != null ? mn[0] : null;
                 final Object maxVal = mx != null ? mx[0] : null;
+                final long colSize = cs != null ? cs[0] : -1;
                 columnStats.put(name, new SourceStatistics.ColumnStatistics() {
                     @Override
                     public OptionalLong nullCount() {
@@ -249,6 +264,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
                     @Override
                     public Optional<Object> maxValue() {
                         return Optional.ofNullable(maxVal);
+                    }
+
+                    @Override
+                    public OptionalLong sizeInBytes() {
+                        return colSize >= 0 ? OptionalLong.of(colSize) : OptionalLong.empty();
                     }
                 });
             }
@@ -272,6 +292,30 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         };
     }
 
+    /**
+     * Resolves the record filter for a given Parquet file. When deferred expressions are present,
+     * reads the file footer to obtain the physical schema and builds a schema-aware FilterPredicate.
+     * The footer is read twice when deferred expressions are present (once here for the schema,
+     * once by the main reader) — this overhead is acceptable because Parquet footers are typically
+     * small (KB) and the I/O saving from skipping row groups far outweighs the footer cost.
+     */
+    private FilterCompat.Filter resolveRecordFilter(StorageObject object, InputFile inputFile) {
+        if (FilterCompat.isFilteringRequired(pushedFilter)) {
+            return pushedFilter;
+        }
+        if (pushedExpressions == null) {
+            return FilterCompat.NOOP;
+        }
+        try (ParquetFileReader metadataReader = openParquetFile(object, inputFile, readOptionsBuilder().build())) {
+            MessageType schema = metadataReader.getFileMetaData().getSchema();
+            FilterPredicate predicate = pushedExpressions.toFilterPredicate(schema);
+            return predicate != null ? FilterCompat.get(predicate) : FilterCompat.NOOP;
+        } catch (Exception e) {
+            logger.warn("Failed to resolve Parquet filter predicate for [{}], proceeding without pushdown: {}", object.path(), e);
+            return FilterCompat.NOOP;
+        }
+    }
+
     @Override
     public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
         List<String> projectedColumns = context.projectedColumns();
@@ -279,9 +323,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         int rowLimit = context.rowLimit();
 
         InputFile parquetInputFile = new ParquetStorageObjectAdapter(object);
+        FilterCompat.Filter recordFilter = resolveRecordFilter(object, parquetInputFile);
         ParquetReadOptions.Builder optionsBuilder = readOptionsBuilder();
-        if (FilterCompat.isFilteringRequired(pushedFilter)) {
-            optionsBuilder.withRecordFilter(pushedFilter);
+        if (FilterCompat.isFilteringRequired(recordFilter)) {
+            optionsBuilder.withRecordFilter(recordFilter);
         }
         ParquetReadOptions options = optionsBuilder.build();
         ParquetFileReader reader = openParquetFile(object, parquetInputFile, options);
@@ -366,6 +411,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         stats.put(SourceStatisticsSerializer.STATS_SIZE_BYTES, rowGroup.getTotalByteSize());
         for (ColumnChunkMetaData col : rowGroup.getColumns()) {
             String colName = col.getPath().toDotString();
+            stats.put(SourceStatisticsSerializer.columnSizeBytesKey(colName), col.getTotalUncompressedSize());
             Statistics colStats = col.getStatistics();
             if (colStats == null || colStats.isEmpty()) {
                 continue;
@@ -439,9 +485,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         ErrorPolicy errorPolicy
     ) throws IOException {
         InputFile parquetInputFile = ParquetStorageObjectAdapter.forRange(object, rangeEnd - rangeStart);
+        FilterCompat.Filter recordFilter = resolveRecordFilter(object, parquetInputFile);
         ParquetReadOptions.Builder optionsBuilder = readOptionsBuilder().withRange(rangeStart, rangeEnd);
-        if (FilterCompat.isFilteringRequired(pushedFilter)) {
-            optionsBuilder.withRecordFilter(pushedFilter);
+        if (FilterCompat.isFilteringRequired(recordFilter)) {
+            optionsBuilder.withRecordFilter(recordFilter);
         }
         ParquetReadOptions options = optionsBuilder.build();
         ParquetFileReader reader = openParquetFile(object, parquetInputFile, options);
@@ -577,7 +624,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
      */
     static String formatUuid(byte[] bytes) {
         if (bytes == null || bytes.length < 16) {
-            throw new IllegalArgumentException("UUID requires 16 bytes, got " + (bytes == null ? "null" : bytes.length));
+            throw new QlIllegalArgumentException("UUID requires 16 bytes, got " + (bytes == null ? "null" : bytes.length));
         }
         StringBuilder sb = new StringBuilder(36);
         for (int i = 0; i < 16; i++) {
@@ -962,7 +1009,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
                         case INT32 -> BigInteger.valueOf(cr.getInteger());
                         case INT64 -> BigInteger.valueOf(cr.getLong());
                         case BINARY, FIXED_LEN_BYTE_ARRAY -> new BigInteger(cr.getBinary().getBytes());
-                        default -> throw new IllegalStateException("Unexpected DECIMAL backing type: " + info.parquetType);
+                        default -> throw new QlIllegalArgumentException("Unexpected DECIMAL backing type: " + info.parquetType);
                     };
                     values[i] = new java.math.BigDecimal(unscaled, scale).doubleValue();
                 }

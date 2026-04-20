@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -91,7 +92,7 @@ public class RequestTaskTests extends ESTestCase {
         assertThat(thrownException.getMessage(), is(format("Request timed out after [%s]", TimeValue.timeValueMillis(1))));
         assertTrue(requestTask.hasCompleted());
         assertTrue(requestTask.getRequestCompletedFunction().get());
-        assertThat(thrownException.status().getStatus(), is(408));
+        assertThat(thrownException.status(), is(RestStatus.GATEWAY_TIMEOUT));
     }
 
     public void testRequest_DoesNotCallOnFailureTwiceWhenTimingOut() throws Exception {

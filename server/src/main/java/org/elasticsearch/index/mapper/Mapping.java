@@ -20,8 +20,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -57,6 +57,12 @@ public final class Mapping implements ToXContentFragment {
     private final Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappersMap;
     private final Map<String, MetadataFieldMapper> metadataMappersByName;
 
+    private final FieldNamesFieldMapper fieldNamesFieldMapper; // cached from metadataMappersByClass
+
+    // this allows the document parser (for example) to find the leaf mapper for a field with a single map lookup,
+    // rather than checking two maps (with the first check usually being a miss)
+    private final Map<String, Mapper> mergedRootAndMetadataMappers;
+
     // IntelliJ doesn't think that we need a rawtypes suppression here, but gradle fails to compile this file without it
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public Mapping(RootObjectMapper rootObjectMapper, MetadataFieldMapper[] metadataMappers, Map<String, Object> meta) {
@@ -74,6 +80,15 @@ public final class Mapping implements ToXContentFragment {
         this.metadataMappersMap = Map.ofEntries(metadataMappersMap);
         this.metadataMappersByName = Map.ofEntries(metadataMappersByName);
         this.meta = meta;
+
+        // cache the field names field mapper
+        this.fieldNamesFieldMapper = (FieldNamesFieldMapper) this.metadataMappersByName.get(FieldNamesFieldMapper.NAME);
+
+        // squash together the root object mappers, overriding them with the metadataMappers
+        var mappers = new HashMap<String, Mapper>();
+        mappers.putAll(rootObjectMapper.getMappers());
+        mappers.putAll(this.metadataMappersByName);
+        this.mergedRootAndMetadataMappers = Map.copyOf(mappers);
     }
 
     /**
@@ -120,6 +135,10 @@ public final class Mapping implements ToXContentFragment {
         return metadataMappersByName.get(mapperName);
     }
 
+    public Mapper findMetadataOrRootMapper(String mapperName) {
+        return mergedRootAndMetadataMappers.get(mapperName);
+    }
+
     void validate(MappingLookup mappers) {
         for (MetadataFieldMapper metadataFieldMapper : metadataMappers) {
             metadataFieldMapper.validate(mappers);
@@ -146,7 +165,7 @@ public final class Mapping implements ToXContentFragment {
     }
 
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(@Nullable SourceFilter filter) {
-        var mappers = Stream.concat(Stream.of(metadataMappers), root.mappers.values().stream()).collect(Collectors.toList());
+        var mappers = Stream.concat(Stream.of(metadataMappers), root.mappers.values().stream()).toList();
         return root.syntheticFieldLoader(filter, mappers, false);
     }
 
@@ -156,6 +175,10 @@ public final class Mapping implements ToXContentFragment {
             return IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE;
         }
         return isfm.ignoredSourceFormat();
+    }
+
+    public FieldNamesFieldMapper fieldNamesFieldMapper() {
+        return fieldNamesFieldMapper;
     }
 
     @Override

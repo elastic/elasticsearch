@@ -8,12 +8,13 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.cluster.metadata.DataSourceMetadata;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
-import org.elasticsearch.xpack.core.esql.EsqlFeatureFlags;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
@@ -254,6 +255,12 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_FIX_UNMAPPED_LOAD_MULTI_INDEX_PATTERN,
 
         /**
+         * Fix for flattened subfields not being nullified when {@code unmapped_fields="nullify"} is set.
+         * See https://github.com/elastic/elasticsearch/issues/142616
+         */
+        OPTIONAL_FIELDS_FIX_NULLIFY_FLATTENED_SUBFIELD,
+
+        /**
          * Support for optional fields (might or might not be present in the mappings) using DEFAULT/NULLIFY/LOAD.
          * V2: Prevent pushing down filters and sorts to Lucene of potentially unmapped fields.
          * V3: Fix synthetic _source numeric load bug (#143916)
@@ -262,6 +269,16 @@ public class EsqlCapabilities {
          *     Support for rejecting loading subfields of flattened fields
          */
         OPTIONAL_FIELDS_V5,
+
+        /**
+         * Unconditionally load partially mapped keyword fields, whether they are mentioned in expressions or not.
+         * <p>
+         * Also, always load values of partially mapped fields from the indices where they are mapped.
+         * <p>
+         * Fixes https://github.com/elastic/elasticsearch/issues/141994
+         * and https://github.com/elastic/elasticsearch/issues/145206
+         */
+        OPTIONAL_FIELDS_FIX_LOAD_PARTIALLY_MAPPED,
 
         /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
@@ -1045,6 +1062,16 @@ public class EsqlCapabilities {
         AGGREGATE_METRIC_DOUBLE_AVG_AS_DEFAULT_METRIC,
 
         /**
+         * Return 0 (instead of null) for count on AMD when there are no rows
+         */
+        AGGREGATE_METRIC_DOUBLE_NO_ROWS_COUNT_0,
+
+        /**
+         * Support binary operators for aggregate_metric_double
+         */
+        AGGREGATE_METRIC_DOUBLE_BINARY_OPERATORS,
+
+        /**
          * Support change point detection "CHANGE_POINT".
          */
         CHANGE_POINT,
@@ -1206,6 +1233,12 @@ public class EsqlCapabilities {
          * Prune no-fields in subquery project.
          */
         SUBQUERY_IN_FROM_COMMAND_PRUNE_NO_FIELDS,
+
+        /**
+         * Fix for union types when fields have conflicting types between subqueries.
+         * https://github.com/elastic/elasticsearch/issues/142499
+         */
+        SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_CONFLICT_RESOLUTION,
 
         /**
          * Support for views in cluster state (and REST API).
@@ -1676,6 +1709,10 @@ public class EsqlCapabilities {
          */
         RATE_WITH_INTERPOLATION,
         RATE_WITH_INTERPOLATION_V2,
+        /**
+         * V3 fixes a bug on how we handle single-value time buckets for INCREASE with the sole value falling onto the bucket boundary.
+         */
+        RATE_WITH_INTERPOLATION_V3,
 
         /**
          * INLINE STATS fix incorrect prunning of null filtering
@@ -1996,6 +2033,12 @@ public class EsqlCapabilities {
         PROMQL_WITHOUT_GROUPING,
 
         /**
+         * PromQL label matchers that accept the empty string (e.g. {@code {label=""}} or {@code {label!="foo"}})
+         * also match time series where the label is absent ({@code NULL}), per PromQL spec.
+         */
+        PROMQL_ABSENT_LABEL_MATCHING,
+
+        /**
          * Support for`WITHOUT` grouping function
          * that excludes specific dimensions from time-series grouping.
          */
@@ -2153,7 +2196,7 @@ public class EsqlCapabilities {
         /**
          * Support query approximation.
          */
-        APPROXIMATION_V6,
+        APPROXIMATION_V7,
 
         /**
          * Create a ScoreOperator only when shard contexts are available
@@ -2256,12 +2299,12 @@ public class EsqlCapabilities {
         /**
          * Support for the EXTERNAL command (datasource access).
          */
-        EXTERNAL_COMMAND(EsqlFeatureFlags.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+        EXTERNAL_COMMAND(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
          * Support for the EXTERNAL command (datasource access).
          */
-        EXTERNAL_CSV_IP_SUPPORT(EsqlFeatureFlags.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+        EXTERNAL_CSV_IP_SUPPORT(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
          * https://github.com/elastic/elasticsearch/issues/142219
@@ -2278,11 +2321,6 @@ public class EsqlCapabilities {
          * Support for the TS_INFO command — per-time-series granularity variant of METRICS_INFO.
          */
         TS_INFO_COMMAND,
-
-        /**
-         * FORK with no implicit LIMIT
-         */
-        FORK_NO_IMPLICIT_LIMIT(Build.current().isSnapshot()),
 
         /**
          * Dense_vector SUM aggregation function
@@ -2350,6 +2388,11 @@ public class EsqlCapabilities {
         FIX_FORK_UNMAPPED_NULLIFY,
 
         /**
+         * Support for pushing the ROUND_TO function into field loading via {@code BlockLoaderExpression}.
+         */
+        ROUND_TO_BLOCK_LOADER(Build.current().isSnapshot()),
+
+        /**
          * Fix for the STATS BY ALL with LIMIT 0.
          * https://github.com/elastic/elasticsearch/issues/144024
          */
@@ -2384,6 +2427,11 @@ public class EsqlCapabilities {
         FIX_TBUCKET_TARGET_COUNT_WINDOW_VALIDATION,
 
         /**
+         * TSDB Temporality support which is guarded by a feature flag.
+         */
+        TSDB_TEMPORALITY_SUPPORT_V1(IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG),
+
+        /**
          * Support the null column type for the CHANGE_POINT command
          * <a href="https://github.com/elastic/elasticsearch/pull/144388"></a>
          */
@@ -2393,11 +2441,6 @@ public class EsqlCapabilities {
          * MMR fixes for constant folding
          */
         MMR_FOLDABLE_QUERY_VECTOR_FIX,
-
-        /**
-         * Support CHANGE_POINT arguments in any order
-         */
-        CHANGE_POINT_ARGS_ANY_ORDER,
 
         FIX_DIV_ERROR_MESSAGE,
 
@@ -2441,6 +2484,59 @@ public class EsqlCapabilities {
          * Parquet and ORC filter pushdown for StartsWith (prefix range predicates).
          */
         PARQUET_ORC_STARTS_WITH_PUSHDOWN,
+
+        /**
+         * Alias for calling FIRST (or LAST) and only passing the search field. The sort field is implicitly set to @timestamp.
+         * These are not time series agg functions.
+         */
+        EARLIEST_LATEST_AGGS,
+
+        /**
+         * Fix for full-text functions (MATCH, MATCH_PHRASE, :) on constant_keyword fields.
+         * The optimizer no longer replaces their field arguments with literal constants.
+         * See https://github.com/elastic/elasticsearch/issues/145570
+         */
+        FIX_FULL_TEXT_FUNCTIONS_ON_CONSTANT_KEYWORD,
+
+        /**
+         * Fix for {@code PropagateNullable} incorrectly discarding surviving OR branches when
+         * a field is constrained by {@code IS NULL} or {@code IS NOT NULL} in the same AND conjunction.
+         * Previously {@code (a IS NOT NULL OR p) AND a IS NULL} was optimized to {@code null AND a IS NULL}
+         * (dropping {@code p}); now it correctly becomes {@code p AND a IS NULL}.
+         * Symmetric fix: {@code (a IS NULL OR p) AND a IS NOT NULL} now correctly becomes
+         * {@code p AND a IS NOT NULL} instead of remaining unoptimized.
+         * See https://github.com/elastic/elasticsearch/issues/141579
+         */
+        FIX_PROPAGATE_NULLABLE_OR_DISJUNCTION,
+
+        /**
+         * Fix TBUCKET with a numeric bucket count returning a verification exception instead of empty results
+         * when the top-level request filter covers a time range with no matching indices.
+         * See https://github.com/elastic/elasticsearch/issues/146354
+         */
+        FIX_TBUCKET_NUMERIC_ON_EMPTY_RANGE,
+
+        /**
+         * Support for the {@code EMBEDDING} function for generating dense vector embeddings using the {@code embedding} task type.
+         */
+        EMBEDDING_FUNCTION(Build.current().isSnapshot()),
+
+        /**
+         * Fix for {@code STARTS_WITH} and {@code ENDS_WITH} Lucene pushdown on {@code _index}: use wildcard escaping instead of
+         * query-parser escaping, and honour the {@code stringLikeOnIndex} flag so the wildcard query forces string matching on metadata
+         * fields.
+         */
+        FIX_STARTS_WITH_ENDS_WITH_PUSHDOWN_ON_INDEX,
+
+        /**
+         * Support query approximation with LOOKUP JOIN
+         */
+        APPROXIMATION_LOOKUP_JOIN(Build.current().isSnapshot()),
+
+        /**
+         * Support query approximation with INLINE STATS
+         */
+        APPROXIMATION_INLINE_STATS(Build.current().isSnapshot()),
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

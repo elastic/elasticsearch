@@ -98,6 +98,7 @@ public class ThrottledIterator<T> implements Releasable {
     private void onItemRelease() {
         try {
             if (permits.getAndIncrement() == 0) {
+                // implies we are not already within an invocation of run(), so there's no risk of a stack overflow
                 run();
             }
         } finally {

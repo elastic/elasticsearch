@@ -16,7 +16,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ES93BinaryQuantizedVectorScorer;
-import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
+import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -42,26 +42,26 @@ public abstract class ESVectorizationProvider {
     public abstract ES91OSQVectorsScorer newES91OSQVectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException;
 
     /**
-     * Create a new {@link ESNextOSQVectorsScorer} for the given {@link IndexInput} and explicit int4 disk format.
+     * Create a new {@link ES940OSQVectorsScorer} for the given {@link IndexInput} and explicit int4 disk format.
      * The input should be unwrapped before calling this method. If the input is
      * still a {@code FilterIndexInput} that does not implement
      * {@code MemorySegmentAccessInput} or {@code DirectAccessInput}, an
      * {@link IllegalArgumentException} is thrown. Non-wrapper inputs (e.g.
      * {@code ByteBuffersIndexInput}) are accepted and use a heap-copy fallback.
      */
-    public abstract ESNextOSQVectorsScorer newESNextOSQVectorsScorer(
+    public abstract ES940OSQVectorsScorer newES940OSQVectorsScorer(
         IndexInput input,
         byte queryBits,
         byte indexBits,
         int dimension,
         int dataLength,
         int bulkSize,
-        ESNextOSQVectorsScorer.SymmetricInt4Encoding int4Encoding
+        ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding
     ) throws IOException;
 
     /**
      * Create a new {@link ES92Int7VectorsScorer} for the given {@link IndexInput}.
-     * See {@link #newESNextOSQVectorsScorer} for input type requirements.
+     * See {@link #newES940OSQVectorsScorer} for input type requirements.
      */
     public abstract ES92Int7VectorsScorer newES92Int7VectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException;
 

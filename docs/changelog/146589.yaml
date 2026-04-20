@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 146589
+summary: "Remove `FilterPushdownRegistry,` use `FormatReader`"
+type: enhancement

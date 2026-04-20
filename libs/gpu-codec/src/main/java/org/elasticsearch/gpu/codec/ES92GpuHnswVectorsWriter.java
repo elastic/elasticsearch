@@ -368,6 +368,18 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
     }
 
     private CagraIndexParams createCagraIndexParams(VectorSimilarityFunction similarityFunction, int numVectors, int dims) {
+        return createCagraIndexParams(similarityFunction, numVectors, dims, M, beamWidth, dataType, totalDeviceMemory);
+    }
+
+    static CagraIndexParams createCagraIndexParams(
+        VectorSimilarityFunction similarityFunction,
+        int numVectors,
+        int dims,
+        int graphDegree,
+        int intermediateGraphDegree,
+        CuVSMatrix.DataType dataType,
+        long totalDeviceMemory
+    ) {
         CagraIndexParams.CuvsDistanceType distanceType = switch (similarityFunction) {
             case COSINE -> CagraIndexParams.CuvsDistanceType.CosineExpanded;
             case EUCLIDEAN -> CagraIndexParams.CuvsDistanceType.L2Expanded;
@@ -405,7 +417,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         }
 
         if (useIvfPQ) {
-            var ivfPqParams = CuVSIvfPqParamsFactory.create(numVectors, dims, distanceType, beamWidth);
+            var ivfPqParams = CuVSIvfPqParamsFactory.create(numVectors, dims, distanceType, intermediateGraphDegree);
             params = new CagraIndexParams.Builder().withNumWriterThreads(numCPUThreads)
                 .withCagraGraphBuildAlgo(CagraIndexParams.CagraGraphBuildAlgo.IVF_PQ)
                 .withCuVSIvfPqParams(ivfPqParams)
@@ -414,8 +426,8 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         } else {
             params = new CagraIndexParams.Builder().withNumWriterThreads(numCPUThreads)
                 .withCagraGraphBuildAlgo(CagraIndexParams.CagraGraphBuildAlgo.NN_DESCENT)
-                .withGraphDegree(M)
-                .withIntermediateGraphDegree(beamWidth)
+                .withGraphDegree(graphDegree)
+                .withIntermediateGraphDegree(intermediateGraphDegree)
                 .withNNDescentNumIterations(5)
                 .withMetric(distanceType)
                 .build();

@@ -142,12 +142,23 @@ public class BundleChangelogsTask extends DefaultTask {
             }
 
             didCheckoutChangelogs = true;
+            // When using a BC ref, read version.properties from the BC commit so that the bundle is created for the
+            // correct version. Reading from the branch HEAD would pick up any subsequent version bump (e.g. the branch
+            // is already at 9.3.3 when finalizing the 9.3.2 release), causing the bundle to be written under the wrong
+            // version file name.
+            String versionRef;
+            if (usingBcRef) {
+                versionRef = upstreamRemote + "/" + bcRef;
+                if (bcRef.contains("upstream/")) {
+                    versionRef = bcRef.replace("upstream/", upstreamRemote + "/");
+                } else if (bcRef.matches("^[0-9a-f]+$")) {
+                    versionRef = bcRef;
+                }
+            } else {
+                versionRef = upstreamRemote + "/" + branch;
+            }
             Properties props = new Properties();
-            props.load(
-                new StringReader(
-                    gitWrapper.runCommand("git", "show", upstreamRemote + "/" + branch + ":build-tools-internal/version.properties")
-                )
-            );
+            props.load(new StringReader(gitWrapper.runCommand("git", "show", versionRef + ":build-tools-internal/version.properties")));
             String version = props.getProperty("elasticsearch");
 
             LOGGER.info("Finding changelog files for " + version + "...");

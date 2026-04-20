@@ -28,13 +28,11 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class TransportListTasksActionTests extends ESTestCase {
 
@@ -65,19 +63,40 @@ public class TransportListTasksActionTests extends ESTestCase {
         final TaskId originalTaskId,
         final long runningTimeNanos
     ) {
+        TaskId parentTaskId = randomBoolean() ? TaskId.EMPTY_TASK_ID : randomTaskId();
+        return randomTaskInfoWithTaskIdOriginalRunningTimeAndParent(taskId, originalTaskId, runningTimeNanos, parentTaskId);
+    }
+
+    private static TaskInfo randomTaskInfoWithTaskIdOriginalRunningTimeAndParent(
+        TaskId taskId,
+        TaskId originalTaskId,
+        long runningTimeNanos,
+        TaskId parentTaskId
+    ) {
+        String action = randomAlphaOfLength(10);
+        return randomTaskInfoWithTaskIdOriginalRunningTimeParentAndAction(taskId, originalTaskId, runningTimeNanos, parentTaskId, action);
+    }
+
+    private static TaskInfo randomTaskInfoWithTaskIdOriginalRunningTimeParentAndAction(
+        TaskId taskId,
+        TaskId originalTaskId,
+        long runningTimeNanos,
+        TaskId parentTaskId,
+        String action
+    ) {
         final boolean cancellable = randomBoolean();
         return new TaskInfo(
             taskId,
             randomAlphaOfLength(10),
             taskId.getNodeId(),
-            randomAlphaOfLength(10),
+            action,
             randomAlphaOfLength(10),
             null,
             randomNonNegativeLong(),
             runningTimeNanos,
             cancellable,
             cancellable && randomBoolean(),
-            randomBoolean() ? TaskId.EMPTY_TASK_ID : randomTaskId(),
+            parentTaskId,
             Map.of(),
             originalTaskId,
             randomNonNegativeLong()
@@ -89,23 +108,7 @@ public class TransportListTasksActionTests extends ESTestCase {
     }
 
     private static TaskInfo randomTaskInfoWithTaskIdActionAndParent(final TaskId taskId, final String action, final TaskId parentTaskId) {
-        final boolean cancellable = randomBoolean();
-        return new TaskInfo(
-            taskId,
-            randomAlphaOfLength(10),
-            taskId.getNodeId(),
-            action,
-            randomAlphaOfLength(10),
-            null,
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            cancellable,
-            cancellable && randomBoolean(),
-            parentTaskId,
-            Map.of(),
-            taskId,
-            randomNonNegativeLong()
-        );
+        return randomTaskInfoWithTaskIdOriginalRunningTimeParentAndAction(taskId, taskId, randomNonNegativeLong(), parentTaskId, action);
     }
 
     private static GetResponse buildTasksIndexResponse(String docId, TaskResult taskResult) {
@@ -175,27 +178,55 @@ public class TransportListTasksActionTests extends ESTestCase {
     // -- deduplicateTasks --
 
     public void testDeduplicateTasksOnOriginalTaskIdNoDuplicates() {
-        final List<TaskId> uniqueParentTaskIds = randomValueOtherThanMany(
+        final List<TaskId> uniqueOriginIds = randomValueOtherThanMany(
             t -> t.size() != 4,
             () -> randomSet(4, 4, TransportListTasksActionTests::randomTaskId)
         ).stream().toList();
-        assertThat(uniqueParentTaskIds, hasSize(4));
-        assertThat(
-            "has no duplicates",
-            uniqueParentTaskIds.stream().allMatch(t -> Collections.frequency(uniqueParentTaskIds, t) == 1),
-            equalTo(true)
+        // First pass has two non-child reindex tasks with unique origins. Both should both be included.
+        final TaskInfo firstPass1 = randomTaskInfoWithTaskIdOriginalRunningTimeParentAndAction(
+            randomTaskId(),
+            uniqueOriginIds.get(0),
+            randomNonNegativeLong(),
+            TaskId.EMPTY_TASK_ID,
+            ReindexAction.NAME
         );
-        final TaskInfo a1 = randomTaskInfoWithParentId(uniqueParentTaskIds.get(0));
-        final TaskInfo a2 = randomTaskInfoWithParentId(uniqueParentTaskIds.get(1));
-        final TaskInfo b1 = randomTaskInfoWithParentId(uniqueParentTaskIds.get(2));
-        final TaskInfo b2 = randomTaskInfoWithParentId(uniqueParentTaskIds.get(3));
-
-        final Map<TaskId, TaskInfo> result = TransportListTasksAction.deduplicateTasksOnOriginalTaskId(List.of(b1, b2), List.of(a1, a2));
-        assertEquals(4, result.size());
-        assertSame(a1, result.get(a1.originalTaskId()));
-        assertSame(a2, result.get(a2.originalTaskId()));
-        assertSame(b1, result.get(b1.originalTaskId()));
-        assertSame(b2, result.get(b2.originalTaskId()));
+        final TaskInfo firstPass2 = randomTaskInfoWithTaskIdOriginalRunningTimeParentAndAction(
+            randomTaskId(),
+            uniqueOriginIds.get(1),
+            randomNonNegativeLong(),
+            TaskId.EMPTY_TASK_ID,
+            ReindexAction.NAME
+        );
+        // Second pass has two random tasks with unique origins. Both should be included.
+        final TaskInfo secondPass1 = randomTaskInfoWithTaskIdOriginalRunningTimeParentAndAction(
+            randomTaskId(),
+            uniqueOriginIds.get(2),
+            randomNonNegativeLong(),
+            randomBoolean() ? randomTaskId() : TaskId.EMPTY_TASK_ID,
+            randomAlphaOfLength(10)
+        );
+        final TaskInfo secondPass2 = randomTaskInfoWithTaskIdOriginalRunningTimeParentAndAction(
+            randomTaskId(),
+            uniqueOriginIds.get(3),
+            randomNonNegativeLong(),
+            randomBoolean() ? randomTaskId() : TaskId.EMPTY_TASK_ID,
+            randomAlphaOfLength(10)
+        );
+        final Map<TaskId, TaskInfo> result = TransportListTasksAction.deduplicateTasksOnOriginalTaskId(
+            List.of(firstPass1, firstPass2),
+            List.of(secondPass1, secondPass2)
+        );
+        Map<TaskId, TaskInfo> expectedResult = Map.of(
+            secondPass1.originalTaskId(),
+            secondPass1,
+            secondPass2.originalTaskId(),
+            secondPass2,
+            firstPass1.originalTaskId(),
+            firstPass1,
+            firstPass2.originalTaskId(),
+            firstPass2
+        );
+        assertEquals(expectedResult, result);
     }
 
     public void testDeduplicateTasksOnOriginalTaskIdIntraPrimaryCollision() {
@@ -214,12 +245,24 @@ public class TransportListTasksActionTests extends ESTestCase {
         TaskId originalId = randomTaskId();
         long high = randomLongBetween(1, Long.MAX_VALUE);
         long low = randomLongBetween(0, high - 1);
-        TaskInfo older = randomTaskInfoWithTaskIdAndOriginalAndRunningTime(randomTaskId(), originalId, high);
-        TaskInfo newer = randomTaskInfoWithTaskIdAndOriginalAndRunningTime(randomTaskId(), originalId, low);
+        TaskInfo older = randomTaskInfoWithTaskIdOriginalRunningTimeParentAndAction(
+            randomTaskId(),
+            originalId,
+            high,
+            TaskId.EMPTY_TASK_ID,
+            ReindexAction.NAME
+        );
+        TaskInfo newer = randomTaskInfoWithTaskIdOriginalRunningTimeParentAndAction(
+            randomTaskId(),
+            originalId,
+            low,
+            TaskId.EMPTY_TASK_ID,
+            ReindexAction.NAME
+        );
 
         Map<TaskId, TaskInfo> result = TransportListTasksAction.deduplicateTasksOnOriginalTaskId(List.of(older, newer), List.of());
-        assertEquals(1, result.size());
-        assertSame(newer, result.get(originalId));
+        Map<TaskId, TaskInfo> expectedResult = Map.of(originalId, newer);
+        assertEquals(expectedResult, result);
     }
 
     public void testDeduplicateTasksOnOriginalTaskIdCrossListPrimaryWins() {
@@ -259,21 +302,91 @@ public class TransportListTasksActionTests extends ESTestCase {
     }
 
     public void testDeduplicateTasksOnOriginalTaskIdMixedUniqueAndDuplicated() {
-        TaskId sharedParent = randomTaskId();
-        TaskInfo primaryShared = randomTaskInfoWithTaskIdAndOriginalAndRunningTime(randomTaskId(), sharedParent, randomNonNegativeLong());
-        TaskInfo secondaryShared = randomTaskInfoWithTaskIdAndOriginalAndRunningTime(randomTaskId(), sharedParent, randomNonNegativeLong());
+        TaskId sharedOriginId = randomTaskId();
+        TaskId firstPassParentSharedOriginId = randomTaskId();
+        TaskInfo firstPassParentSharedOrigin = randomTaskInfoWithTaskIdOriginalRunningTimeParentAndAction(
+            firstPassParentSharedOriginId,
+            sharedOriginId,
+            randomNonNegativeLong(),
+            TaskId.EMPTY_TASK_ID,
+            ReindexAction.NAME
+        );
+        TaskId firstPassChildSharedOriginId = randomTaskId();
+        TaskInfo firstPassChildSharedOrigin = randomTaskInfoWithTaskIdOriginalRunningTimeParentAndAction(
+            firstPassChildSharedOriginId,
+            firstPassChildSharedOriginId,
+            randomNonNegativeLong(),
+            firstPassParentSharedOriginId,
+            ReindexAction.NAME
+        );
+        TaskId secondPassParentSharedOriginId = randomTaskId();
+        TaskInfo secondPassParentSharedOrigin = randomTaskInfoWithTaskIdOriginalRunningTimeParentAndAction(
+            secondPassParentSharedOriginId,
+            sharedOriginId,
+            randomNonNegativeLong(),
+            TaskId.EMPTY_TASK_ID,
+            ReindexAction.NAME
+        );
+        TaskId secondPassChildSharedOriginId = randomTaskId();
+        TaskInfo secondPassChildSharedOrigin = randomTaskInfoWithTaskIdOriginalRunningTimeParentAndAction(
+            secondPassChildSharedOriginId,
+            secondPassChildSharedOriginId,
+            randomNonNegativeLong(),
+            secondPassParentSharedOriginId,
+            ReindexAction.NAME
+        );
 
-        TaskInfo primaryUnique = randomTaskInfoWithTaskId(randomTaskId());
-        TaskInfo secondaryUnique = randomTaskInfoWithTaskId(randomTaskId());
+        TaskId firstPassParentUniqueOriginId = randomTaskId();
+        TaskInfo firstPassParentUniqueOrigin = randomTaskInfoWithTaskIdOriginalRunningTimeParentAndAction(
+            firstPassParentUniqueOriginId,
+            randomTaskId(),
+            randomNonNegativeLong(),
+            TaskId.EMPTY_TASK_ID,
+            ReindexAction.NAME
+        );
+        TaskInfo firstPassChildUniqueOrigin = randomTaskInfoWithTaskIdOriginalRunningTimeParentAndAction(
+            randomTaskId(),
+            randomTaskId(),
+            randomNonNegativeLong(),
+            firstPassParentUniqueOriginId,
+            ReindexAction.NAME
+        );
+        TaskId secondPassParentUniqueOriginId = randomTaskId();
+        TaskInfo secondPassParentUniqueOrigin = randomTaskInfoWithTaskIdOriginalRunningTimeParentAndAction(
+            secondPassParentUniqueOriginId,
+            randomTaskId(),
+            randomNonNegativeLong(),
+            TaskId.EMPTY_TASK_ID,
+            ReindexAction.NAME
+        );
+        TaskInfo secondPassChildUniqueOrigin = randomTaskInfoWithTaskIdOriginalRunningTimeParentAndAction(
+            randomTaskId(),
+            randomTaskId(),
+            randomNonNegativeLong(),
+            secondPassParentUniqueOriginId,
+            ReindexAction.NAME
+        );
 
         Map<TaskId, TaskInfo> result = TransportListTasksAction.deduplicateTasksOnOriginalTaskId(
-            List.of(secondaryShared, secondaryUnique),
-            List.of(primaryShared, primaryUnique)
+            List.of(firstPassParentSharedOrigin, firstPassChildSharedOrigin, firstPassParentUniqueOrigin, firstPassChildUniqueOrigin),
+            List.of(secondPassParentSharedOrigin, secondPassChildSharedOrigin, secondPassParentUniqueOrigin, secondPassChildUniqueOrigin)
         );
-        assertEquals(3, result.size());
-        assertSame(primaryShared, result.get(sharedParent));
-        assertSame(primaryUnique, result.get(primaryUnique.originalTaskId()));
-        assertSame(secondaryUnique, result.get(secondaryUnique.originalTaskId()));
+
+        Map<TaskId, TaskInfo> expectedResult = Map.of(
+            sharedOriginId,
+            secondPassParentSharedOrigin,
+            secondPassChildSharedOriginId,
+            secondPassChildSharedOrigin,
+            firstPassParentUniqueOrigin.originalTaskId(),
+            firstPassParentUniqueOrigin,
+            firstPassChildUniqueOrigin.originalTaskId(),
+            firstPassChildUniqueOrigin,
+            secondPassParentUniqueOrigin.originalTaskId(),
+            secondPassParentUniqueOrigin,
+            secondPassChildUniqueOrigin.originalTaskId(),
+            secondPassChildUniqueOrigin
+        );
+        assertEquals(expectedResult, result);
     }
 
     public void testDeduplicateTasksOnOriginalTaskIdEmptyLists() {
@@ -400,52 +513,68 @@ public class TransportListTasksActionTests extends ESTestCase {
     // -- deduplicateAndMerge --
 
     public void testDeduplicateAndMerge() {
-        TaskId sharedOriginal = randomTaskId();
-        TaskInfo primaryTask = randomTaskInfoWithTaskIdAndOriginalAndRunningTime(randomTaskId(), sharedOriginal, randomNonNegativeLong());
-        TaskInfo secondaryTask = randomTaskInfoWithTaskIdAndOriginalAndRunningTime(randomTaskId(), sharedOriginal, randomNonNegativeLong());
-        TaskInfo primaryOnly = randomTaskInfoWithTaskId(randomTaskId());
-        TaskInfo secondaryOnly = randomTaskInfoWithTaskId(randomTaskId());
+        TaskId sharedOriginId = randomTaskId();
+        TaskInfo firstPassSharedOriginTask = randomTaskInfoWithTaskIdOriginalRunningTimeParentAndAction(
+            randomTaskId(),
+            sharedOriginId,
+            randomNonNegativeLong(),
+            TaskId.EMPTY_TASK_ID,
+            ReindexAction.NAME
+        );
+        TaskInfo secondPassSharedOriginTask = randomTaskInfoWithTaskIdOriginalRunningTimeParentAndAction(
+            randomTaskId(),
+            sharedOriginId,
+            randomNonNegativeLong(),
+            TaskId.EMPTY_TASK_ID,
+            ReindexAction.NAME
+        );
+        TaskInfo firstPassUniqueOriginTask = randomTaskInfoWithTaskIdOriginalRunningTimeParentAndAction(
+            randomTaskId(),
+            randomTaskId(),
+            randomNonNegativeLong(),
+            TaskId.EMPTY_TASK_ID,
+            ReindexAction.NAME
+        );
+        ;
+        TaskInfo secondPassUniqueOriginTask = randomTaskInfoWithTaskIdOriginalRunningTimeParentAndAction(
+            randomTaskId(),
+            randomTaskId(),
+            randomNonNegativeLong(),
+            TaskId.EMPTY_TASK_ID,
+            ReindexAction.NAME
+        );
+        ;
 
         String sharedFailNodeId = randomAlphaOfLength(5);
         long sharedFailTaskNum = randomNonNegativeLong();
-        TaskOperationFailure pTaskFailure = taskFailureWithNodeAndTaskId(sharedFailNodeId, sharedFailTaskNum);
-        TaskOperationFailure sTaskFailure = taskFailureWithNodeAndTaskId(sharedFailNodeId, sharedFailTaskNum);
-        TaskOperationFailure pUniqueTaskFailure = taskFailureWithNodeAndTaskId(randomAlphaOfLength(5), randomNonNegativeLong());
+        TaskOperationFailure firstPassTaskFailure = taskFailureWithNodeAndTaskId(sharedFailNodeId, sharedFailTaskNum);
+        TaskOperationFailure secondPassSharedTaskFailure = taskFailureWithNodeAndTaskId(sharedFailNodeId, sharedFailTaskNum);
+        TaskOperationFailure secondPassUniqueTaskFailure = taskFailureWithNodeAndTaskId(randomAlphaOfLength(5), randomNonNegativeLong());
 
         String sharedNodeFailId = randomAlphaOfLength(5);
-        FailedNodeException pNodeFailure = nodeFailureWithNodeId(sharedNodeFailId);
-        FailedNodeException sNodeFailure = nodeFailureWithNodeId(sharedNodeFailId);
-        FailedNodeException sUniqueNodeFailure = nodeFailureWithNodeId(randomAlphaOfLength(5));
+        FailedNodeException firstPassSharedNodeFailure = nodeFailureWithNodeId(sharedNodeFailId);
+        FailedNodeException secondPassNodeFailure = nodeFailureWithNodeId(sharedNodeFailId);
+        FailedNodeException firstPassUniqueNodeFailure = nodeFailureWithNodeId(randomAlphaOfLength(5));
 
-        ListTasksResponse primary = new ListTasksResponse(
-            List.of(primaryTask, primaryOnly),
-            List.of(pTaskFailure, pUniqueTaskFailure),
-            List.of(pNodeFailure)
+        ListTasksResponse firstPass = new ListTasksResponse(
+            List.of(firstPassSharedOriginTask, firstPassUniqueOriginTask),
+            List.of(firstPassTaskFailure),
+            List.of(firstPassSharedNodeFailure, firstPassUniqueNodeFailure)
         );
-        ListTasksResponse secondary = new ListTasksResponse(
-            List.of(secondaryTask, secondaryOnly),
-            List.of(sTaskFailure),
-            List.of(sNodeFailure, sUniqueNodeFailure)
+        ListTasksResponse secondPass = new ListTasksResponse(
+            List.of(secondPassSharedOriginTask, secondPassUniqueOriginTask),
+            List.of(secondPassSharedTaskFailure, secondPassUniqueTaskFailure),
+            List.of(secondPassNodeFailure)
         );
 
-        ListTasksResponse merged = TransportListTasksAction.deduplicateAndMerge(secondary, primary);
+        ListTasksResponse merged = TransportListTasksAction.deduplicateAndMerge(firstPass, secondPass);
 
-        assertEquals(3, merged.getTasks().size());
-        Map<TaskId, TaskInfo> mergedTasks = TransportListTasksAction.deduplicateTasksOnOriginalTaskId(
-            secondary.getTasks(),
-            primary.getTasks()
+        assertThat(
+            merged.getTasks(),
+            containsInAnyOrder(firstPassUniqueOriginTask, secondPassUniqueOriginTask, secondPassSharedOriginTask)
         );
-        for (TaskInfo t : merged.getTasks()) {
-            assertSame(mergedTasks.get(t.originalTaskId()), t);
-        }
-
-        assertEquals(2, merged.getTaskFailures().size());
-        assertSame(pTaskFailure, merged.getTaskFailures().get(0));
-        assertSame(pUniqueTaskFailure, merged.getTaskFailures().get(1));
-
-        assertEquals(2, merged.getNodeFailures().size());
-        assertSame(pNodeFailure, merged.getNodeFailures().get(0));
-        assertSame(sUniqueNodeFailure, merged.getNodeFailures().get(1));
+        assertThat(merged.getTaskFailures(), containsInAnyOrder(secondPassSharedTaskFailure, secondPassUniqueTaskFailure));
+        assertThat(merged.getNodeFailures(), containsInAnyOrder(secondPassNodeFailure, firstPassUniqueNodeFailure));
     }
 
     // -- copyWithoutWaitForCompletion --

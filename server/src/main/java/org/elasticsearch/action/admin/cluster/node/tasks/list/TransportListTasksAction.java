@@ -226,7 +226,7 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
         // collect missing children, who we'll just have to include with stale information since children aren't persisted in `.tasks`,
         // so we can't look up the latest values.
         Set<TaskId> missingParentTaskIds = missingParentsByOriginalId.values().stream().map(TaskInfo::taskId).collect(toSet());
-        List<TaskInfo> missingChildren = firstPass.stream().filter(t -> missingParentTaskIds.contains(t.taskId())).toList();
+        List<TaskInfo> missingChildren = firstPass.stream().filter(t -> missingParentTaskIds.contains(t.parentTaskId())).toList();
 
         return new MissedRelocations(List.copyOf(missingParentsByOriginalId.values()), missingChildren);
     }
@@ -296,9 +296,11 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
         );
     }
 
-    /// Deduplicates tasks from two lists by originalTaskId. Second pass wins across lists, newer wins within each list
-    /// (lower `runningTimeNanos` = more recently started physical task).
+    /// Finds reindex tasks that appeared in the first pass but are missing from the second pass, perhaps because the operation relocated
+    /// between the two passes, and merges the results together.
     static Map<TaskId, TaskInfo> deduplicateTasksOnOriginalTaskId(final List<TaskInfo> firstPass, final List<TaskInfo> secondPass) {
+        MissedRelocations missedRelocations = findMissedRelocations(firstPass, secondPass);
+
         // firstly, collect secondPass tasks, and de-dupe based on newest task,
         // since we could get a collision if list lists non-relocated and relocated.
         // n.b. that children have themselves as originalTaskId.
@@ -306,17 +308,10 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
         for (final TaskInfo t : secondPass) {
             dedupedTasksByOriginalTaskId.merge(t.originalTaskId(), t, TransportListTasksAction::preferNewer);
         }
-        // secondly, collect firstPass tasks only if they do not exist in secondPass, de-dupe on newest task within first listing,
-        // since we could get a collision if list lists non-relocated and relocated
-        final Map<TaskId, TaskInfo> missingFromSecondPassByOriginalId = new LinkedHashMap<>();
-        for (final TaskInfo t : firstPass) {
-            final TaskId originalTaskId = t.originalTaskId();
-            if (dedupedTasksByOriginalTaskId.containsKey(originalTaskId) == false) {
-                missingFromSecondPassByOriginalId.merge(originalTaskId, t, TransportListTasksAction::preferNewer);
-            }
-        }
-        // thirdly merge
-        dedupedTasksByOriginalTaskId.putAll(missingFromSecondPassByOriginalId);
+
+        // Add in firstPass tasks that were missing, both parents and children:
+        missedRelocations.parents().forEach(t -> dedupedTasksByOriginalTaskId.put(t.originalTaskId(), t));
+        missedRelocations.children().forEach(t -> dedupedTasksByOriginalTaskId.put(t.originalTaskId(), t));
         return Collections.unmodifiableMap(dedupedTasksByOriginalTaskId);
     }
 

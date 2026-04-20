@@ -377,8 +377,24 @@ public abstract class LuceneOperator extends SourceOperator {
             return weight;
         }
 
+        Query query() {
+            return weight.getQuery();
+        }
+
         int position() {
             return position;
+        }
+
+        int maxPosition() {
+            return maxPosition;
+        }
+
+        void advanceTo(int newPosition) {
+            assert newPosition >= position && newPosition <= maxPosition;
+            position = newPosition;
+            if (position >= maxPosition) {
+                bulkScorer = null;
+            }
         }
 
         /**

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.lucene.query;
 
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
@@ -21,6 +23,7 @@ import org.apache.lucene.search.PointInSetQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
+import org.apache.lucene.util.Bits;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -34,8 +37,11 @@ import org.elasticsearch.compute.lucene.query.LuceneSliceQueue.PartitioningStrat
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Limiter;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.EsNumericRangeQuery;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -63,6 +69,15 @@ public class LuceneSourceOperator extends LuceneOperator {
     private DoubleVector.Builder scoreBuilder;
     private final LeafCollector leafCollector;
     private final int minPageSize;
+
+    /** Pre-allocated mask buffer, sized to {@code maxPageSize}. Reused across calls. */
+    private final boolean[] maskBuffer;
+    private long bulkFilterLower;
+    private long bulkFilterUpper;
+    /** Bulk filter for the current leaf; refreshed when the leaf changes. */
+    @Nullable
+    private BlockLoader.OptionalBulkNumericFilter currentBulkFilter;
+    private LeafReaderContext lastBulkFilterLeaf;
 
     public static class Factory extends LuceneOperator.Factory {
         protected final IndexedByShardId<? extends RefCounted> refCounteds;
@@ -229,6 +244,7 @@ public class LuceneSourceOperator extends LuceneOperator {
         this.minPageSize = Math.max(1, maxPageSize / 2);
         this.remainingDocs = limit;
         this.limiter = limiter;
+        this.maskBuffer = new boolean[maxPageSize];
         int estimatedSize = Math.min(limit, maxPageSize);
         boolean success = false;
         try {
@@ -289,6 +305,70 @@ public class LuceneSourceOperator extends LuceneOperator {
         doneCollecting = true;
     }
 
+    /**
+     * Represent a contiguous range of doc IDs as a {@link BlockLoader.Docs} for bulk filter evaluation.
+     */
+    private record SequentialDocs(int start, int count) implements BlockLoader.Docs {
+        @Override
+        public int get(int i) {
+            return start + i;
+        }
+
+        @Override
+        public boolean mayContainDuplicates() {
+            return false;
+        }
+    }
+
+    /**
+     * Updates {@link #currentBulkFilter} when the active leaf changes.
+     * Detects {@link EsNumericRangeQuery} on the scorer's query and routes
+     * to the bulk path when the field's doc values support it.
+     */
+    private void maybeUpdateBulkFilter(LuceneScorer scorer) throws IOException {
+        final LeafReaderContext leaf = scorer.leafReaderContext();
+        if (leaf == lastBulkFilterLeaf) {
+            return;
+        }
+        lastBulkFilterLeaf = leaf;
+        currentBulkFilter = null;
+        if (scorer.query() instanceof EsNumericRangeQuery rangeQuery) {
+            bulkFilterLower = rangeQuery.lowerValue();
+            bulkFilterUpper = rangeQuery.upperValue();
+            final NumericDocValues dv = leaf.reader().getNumericDocValues(rangeQuery.field());
+            currentBulkFilter = (dv instanceof BlockLoader.OptionalBulkNumericFilter f) ? f : null;
+        }
+    }
+
+    /**
+     * Collects matching doc IDs into {@link #docsBuilder} using the bulk numeric filter,
+     * bypassing Lucene's per-doc {@link org.apache.lucene.search.BulkScorer} machinery entirely.
+     */
+    private void collectBulkFiltered(LuceneScorer scorer) throws IOException {
+        final int chunkSize = Math.min(scorer.maxPosition() - scorer.position(), maxPageSize - currentPagePos);
+        if (chunkSize <= 0) {
+            return;
+        }
+        final int start = scorer.position();
+        currentBulkFilter.tryBulkRangeFilter(new SequentialDocs(start, chunkSize), bulkFilterLower, bulkFilterUpper, maskBuffer);
+        final Bits liveDocs = scorer.leafReaderContext().reader().getLiveDocs();
+        for (int i = 0; i < chunkSize; i++) {
+            if (maskBuffer[i] && (liveDocs == null || liveDocs.get(start + i))) {
+                if (remainingDocs > 0) {
+                    --remainingDocs;
+                    docsBuilder.appendInt(start + i);
+                    currentPagePos++;
+                } else {
+                    doneCollecting = true;
+                    scorer.markAsDone();
+                    // scorer.position is now NO_MORE_DOCS; skip advanceTo
+                    return;
+                }
+            }
+        }
+        scorer.advanceTo(start + chunkSize);
+    }
+
     @Override
     public Page getCheckedOutput() throws IOException {
         if (isFinished()) {
@@ -300,20 +380,27 @@ public class LuceneSourceOperator extends LuceneOperator {
             if (scorer == null) {
                 return null;
             }
+            maybeUpdateBulkFilter(scorer);
             final int remainingDocsStart = remainingDocs = limiter.remaining();
-            try {
-                scorer.scoreNextRange(
-                    leafCollector,
-                    scorer.leafReaderContext().reader().getLiveDocs(),
-                    // Note: if (maxPageSize - currentPagePos) is a small "remaining" interval, this could lead to slow collection with a
-                    // highly selective filter. Having a large "enough" difference between max- and minPageSize (and thus currentPagePos)
-                    // alleviates this issue.
-                    maxPageSize - currentPagePos
-                );
-            } catch (CollectionTerminatedException ex) {
-                // The leaf collector terminated the execution
-                doneCollecting = true;
-                scorer.markAsDone();
+            if (currentBulkFilter != null) {
+                collectBulkFiltered(scorer);
+            } else {
+                try {
+                    scorer.scoreNextRange(
+                        leafCollector,
+                        scorer.leafReaderContext().reader().getLiveDocs(),
+                        // Note: if (maxPageSize - currentPagePos) is a small "remaining" interval, this could lead to slow collection with
+                        // a
+                        // highly selective filter. Having a large "enough" difference between max- and minPageSize (and thus
+                        // currentPagePos)
+                        // alleviates this issue.
+                        maxPageSize - currentPagePos
+                    );
+                } catch (CollectionTerminatedException ex) {
+                    // The leaf collector terminated the execution
+                    doneCollecting = true;
+                    scorer.markAsDone();
+                }
             }
             final int collectedDocs = remainingDocsStart - remainingDocs;
             final int discardedDocs = collectedDocs - limiter.tryAccumulateHits(collectedDocs);

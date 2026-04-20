@@ -1507,6 +1507,9 @@ public class NumberFieldMapper extends FieldMapper {
                     if (hasDocValues && context.indexSortedOnField(field)) {
                         query = new IndexSortSortedNumericDocValuesRangeQuery(field, l, u, query);
                     }
+                    if (hasDocValues) {
+                        query = new EsNumericRangeQuery(query, field, l, u);
+                    }
                     return query;
                 });
             }

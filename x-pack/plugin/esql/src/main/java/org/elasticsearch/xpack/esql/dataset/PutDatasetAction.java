@@ -27,11 +27,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-/**
- * Create or replace an ES|QL dataset. The {@code dataSource} field names the parent data source
- * (resolved inside {@code DatasetService} — the service verifies the parent exists and uses its
- * type to select the right {@code DataSourceValidator} for the dataset settings).
- */
+/** Create or replace an ES|QL dataset. */
 public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
 
     public static final PutDatasetAction INSTANCE = new PutDatasetAction();

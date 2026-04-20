@@ -37,15 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * In-memory {@link DataSourceService} stand-in for unit tests. Bypasses the {@code MasterServiceTaskQueue}
- * by overriding {@code putDataSource} / {@code deleteDataSource} to inline the task's {@code execute()}
- * body synchronously, and maintains its own {@link DataSourceMetadata} snapshot that stays in sync with
- * the {@link ClusterService}'s cluster state (so a companion {@code InMemoryDatasetService} operating on
- * the same {@code ClusterService} observes the latest data sources, and vice versa).
- *
- * <p>Pattern mirrors {@code x-pack/plugin/esql/src/test/java/org/elasticsearch/xpack/esql/view/InMemoryViewService.java}.
- */
+/** In-memory {@link DataSourceService} stand-in for unit tests — inlines the CAS task body synchronously. */
 public class InMemoryDataSourceService extends DataSourceService implements Closeable {
 
     private static final Set<Setting<?>> ALL_SETTINGS;

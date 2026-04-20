@@ -26,14 +26,7 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 
-/**
- * Get one or more data sources by name. Response XContent routes through
- * {@link DataSource#toPresentationMap()} so secret setting values surface as a masked sentinel
- * rather than the in-memory plaintext — REST-safe by construction. Data sources are not
- * {@link org.elasticsearch.cluster.metadata.IndexAbstraction index abstractions}, so the
- * request does not implement {@code IndicesRequest.Replaceable} and is not resolved by
- * {@code IndexNameExpressionResolver}.
- */
+/** Get one or more data sources by name. */
 public class GetDataSourceAction extends ActionType<GetDataSourceAction.Response> {
 
     public static final GetDataSourceAction INSTANCE = new GetDataSourceAction();

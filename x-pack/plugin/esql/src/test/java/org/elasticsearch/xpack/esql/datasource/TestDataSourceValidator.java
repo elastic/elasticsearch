@@ -14,13 +14,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * Test-only {@link DataSourceValidator} used by {@code InMemoryDataSourceService} /
- * {@code InMemoryDatasetService} unit tests. The validation itself is trivial — settings
- * are passed through with keys beginning {@code secret_} wrapped as secrets. If constructed
- * with {@code throwOnValidate=true}, both {@code validateDatasource} and {@code validateDataset}
- * throw a {@link ValidationException} so tests can exercise the error path.
- */
+/** Test-only {@link DataSourceValidator}: passes settings through with {@code secret_}-prefixed keys marked secret;
+ *  throws {@link ValidationException} when constructed with {@code throwOnValidate=true}. */
 public class TestDataSourceValidator implements DataSourceValidator {
 
     private final String type;

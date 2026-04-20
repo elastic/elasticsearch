@@ -13,45 +13,17 @@ import org.elasticsearch.common.ValidationException;
 import java.util.Map;
 
 /**
- * Validates and normalizes data source and dataset settings at CRUD time.
+ * Validates and normalizes data source and dataset settings at CRUD time. Each storage plugin
+ * provides a stateless singleton implementation.
  *
- * <p>Each storage plugin provides a stateless singleton implementation. Despite the name,
- * implementations do more than just validate: they parse the raw REST input, reject unknown
- * fields, and wrap the result in the canonical cluster-state shape. Data source fields marked
- * {@link DataSourceConfigDefinition#caseInsensitive() caseInsensitive} are also lowercased
- * on input. Dataset enum fields are validated against their parser (typically case-insensitive)
- * but the original input case is preserved in the stored value.
- *
- * <p>Two methods, two scopes:
- * <ul>
- *   <li>{@link #validateDatasource} validates and parses the data source definition itself —
- *       the credentials and connection settings that identify how to reach the external
- *       data provider. Returns {@link DataSourceSetting} entries that may carry
- *       secrets.</li>
- *   <li>{@link #validateDataset} validates the dataset-level settings (partition detection,
- *       error mode, schema sample size, etc.) for a specific resource against its parent
- *       data source. Returns plain values — datasets structurally cannot hold secrets,
- *       since credentials are inherited from the parent data source at query time.</li>
- * </ul>
- *
- * <p><b>Threading contract.</b> Implementations are called synchronously from the transport
- * thread that delivered the REST request, via {@code DataSourceService} / {@code DatasetService}.
- * Implementations MUST NOT perform blocking I/O (network round-trips, disk reads, waits on
- * external services) on the calling thread. Syntactic validation — reject unknown fields, parse
- * formats, check enum membership, verify string shapes — is what this path is for. Remote
- * liveness or authority checks (e.g. contacting S3 to verify that a bucket exists) belong in the
- * existing test-connection / warmup paths, not here.
+ * <p><b>Threading contract.</b> Called synchronously from the transport thread that delivered
+ * the REST request. Implementations MUST NOT perform blocking I/O — this path is for syntactic
+ * validation only. Remote liveness checks belong in test-connection / warmup paths, not here.
  *
  * <p><b>Secret access.</b> {@link #validateDataset} receives the parent data source's full
- * settings map ({@code Map<String, DataSourceSetting>}), including secret-classified entries
- * that carry plaintext values in memory. This is necessary so implementations can cross-check
- * a dataset against the parent data source's constraints, but it creates a trust boundary:
- * every plugin implementing this interface sees cluster secrets at runtime. Implementations
+ * settings map including secret-classified entries with plaintext values. Implementations
  * MUST NOT log secret values, persist them outside cluster state, or include them in exception
  * messages.
- *
- * <p>Validation helpers (reject unknown fields, validate enums and integers) live in
- * {@link DataSourceValidationUtils}.
  */
 public interface DataSourceValidator {
 

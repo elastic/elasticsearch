@@ -35,15 +35,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * In-memory {@link DatasetService} stand-in for unit tests. Inlines the task's {@code execute()}
- * body synchronously, preserves companion customs (e.g. {@link DataSourceMetadata}) in cluster
- * state, and surfaces name-collision {@code IllegalStateException} thrown by
- * {@code ProjectMetadata.Builder.build()} via {@code ensureNoNameCollisions}.
- *
- * <p>Pattern mirrors {@link org.elasticsearch.xpack.esql.datasource.InMemoryDataSourceService} on
- * the dataset side.
- */
+/** In-memory {@link DatasetService} stand-in for unit tests — inlines the CAS task body synchronously. */
 public class InMemoryDatasetService extends DatasetService implements Closeable {
 
     private static final Set<Setting<?>> ALL_SETTINGS;

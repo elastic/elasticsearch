@@ -26,12 +26,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Runs on the node receiving the REST request (local cluster state), reads
- * {@link DataSourceMetadata} from the project metadata, filters by requested names (exact or
- * wildcard), and wraps the hits in a {@link GetDataSourceAction.Response}. No transport fanout —
- * the response never crosses node boundaries.
- */
+/** Local transport handler for {@link GetDataSourceAction}. */
 public class TransportGetDataSourceAction extends TransportLocalProjectMetadataAction<
     GetDataSourceAction.Request,
     GetDataSourceAction.Response> {

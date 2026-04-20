@@ -23,10 +23,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-/**
- * Delete a single dataset by name. No referential dependents — nothing references datasets in
- * this PR (future EXTERNAL / FROM integration reads the name at query time without a reverse index).
- */
+/** Delete a single dataset by name. */
 public class DeleteDatasetAction extends ActionType<AcknowledgedResponse> {
 
     public static final DeleteDatasetAction INSTANCE = new DeleteDatasetAction();

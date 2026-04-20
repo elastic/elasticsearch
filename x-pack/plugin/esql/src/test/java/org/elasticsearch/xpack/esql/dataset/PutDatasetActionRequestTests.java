@@ -20,10 +20,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- * Round-trip wire test for {@link Request} ({@code AcknowledgedRequest} subclass, transported
- * to the master).
- */
+/** Wire round-trip + validate() tests for {@link Request}. */
 public class PutDatasetActionRequestTests extends AbstractWireSerializingTestCase<Request> {
 
     @Override
@@ -136,9 +133,7 @@ public class PutDatasetActionRequestTests extends AbstractWireSerializingTestCas
     }
 
     public void testValidateAcceptsAbsentSettingsAsEmpty() {
-        // Absent optional container ≡ empty. Datasets commonly inherit settings from the parent
-        // data source, so a client sending just {name, data_source, resource} with no settings is
-        // a normal shape.
+        // Absent optional container ≡ empty — a normal client shape for datasets inheriting from the parent.
         Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "my_ds", "parent", "s3://bucket", null, null);
         assertThat(r.validate(), nullValue());
         assertThat(r.rawSettings(), notNullValue());

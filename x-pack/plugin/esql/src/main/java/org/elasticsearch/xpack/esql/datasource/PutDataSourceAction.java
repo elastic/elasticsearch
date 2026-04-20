@@ -25,11 +25,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-/**
- * Create or replace an ES|QL data source. The request body carries raw (pre-validated) settings
- * as a {@code Map<String, Object>}; per-type validation runs in {@code DataSourceService} via the
- * {@code DataSourceValidator} SPI before the cluster-state task is submitted.
- */
+/** Create or replace an ES|QL data source. */
 public class PutDataSourceAction extends ActionType<AcknowledgedResponse> {
 
     public static final PutDataSourceAction INSTANCE = new PutDataSourceAction();
@@ -84,10 +80,8 @@ public class PutDataSourceAction extends ActionType<AcknowledgedResponse> {
             if (Strings.hasText(name) == false) {
                 return addValidationError("data source name is missing", null);
             }
-            // Data source names use the same restrictions as index/alias names so they can safely coexist with
-            // any other resource that might later surface in a shared namespace (conservative choice — today they
-            // live in their own ProjectCustom and don't collide with indices, but keeping the name rules aligned
-            // avoids surprises if a future change brings them into the index namespace).
+            // Reuse index/alias name rules so data source names stay safe for any namespace they might
+            // later share with indices — conservative even though they live in their own ProjectCustom today.
             try {
                 MetadataCreateIndexService.validateIndexOrAliasName(
                     name,

@@ -7,12 +7,7 @@
 
 package org.elasticsearch.xpack.core.esql;
 
-/**
- * Exposes ES|QL data source action names for RBACEngine. The {@code cluster:admin/*} namespace
- * places these actions under the cluster {@code manage} privilege via {@code ALL_CLUSTER_PATTERN}.
- * Data sources are cluster-scoped configuration objects (not index abstractions), so they live in the
- * cluster admin namespace — distinct from datasets, which live under {@code indices:admin/*}.
- */
+/** Action name constants for the ES|QL data source CRUD API. */
 public class EsqlDataSourceActionNames {
     public static final String ESQL_PUT_DATA_SOURCE_ACTION_NAME = "cluster:admin/esql/data_source/put";
     public static final String ESQL_GET_DATA_SOURCE_ACTION_NAME = "cluster:admin/esql/data_source/get";

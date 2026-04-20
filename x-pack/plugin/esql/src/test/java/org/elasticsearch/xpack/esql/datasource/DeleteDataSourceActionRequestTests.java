@@ -18,10 +18,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- * Round-trip wire test for {@link Request} ({@code AcknowledgedRequest} subclass, transported
- * to the master).
- */
+/** Wire round-trip + validate() tests for {@link Request}. */
 public class DeleteDataSourceActionRequestTests extends AbstractWireSerializingTestCase<Request> {
 
     @Override

@@ -20,12 +20,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- * Round-trip {@link Request} through {@code StreamInput}/{@code StreamOutput} via
- * {@link AbstractWireSerializingTestCase}'s framework tests (serialize/deserialize/equals).
- * {@code Request extends AcknowledgedRequest} so it is transported over the wire to the
- * master node; a wire-format regression here would break cross-version clusters silently.
- */
+/** Wire round-trip + validate() tests for {@link Request}. */
 public class PutDataSourceActionRequestTests extends AbstractWireSerializingTestCase<Request> {
 
     @Override

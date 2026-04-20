@@ -21,11 +21,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-/**
- * Delete a single data source by name. Referential integrity (rejecting the delete if any dataset
- * references the data source) is enforced inside {@code DataSourceService}'s cluster-state task,
- * not at request validation time.
- */
+/** Delete a single data source by name. */
 public class DeleteDataSourceAction extends ActionType<AcknowledgedResponse> {
 
     public static final DeleteDataSourceAction INSTANCE = new DeleteDataSourceAction();

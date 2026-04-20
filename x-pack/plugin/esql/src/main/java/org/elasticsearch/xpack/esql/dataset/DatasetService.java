@@ -35,21 +35,12 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * Orchestrates create / replace / delete of datasets in cluster state. Dataset creation looks up
- * the parent {@link DataSource} in the same project to select the correct
- * {@link DataSourceValidator} for settings validation. Name collisions with indices, aliases,
- * data streams, and views are caught by {@code ProjectMetadata.Builder.build()} via
- * {@code ensureNoNameCollisions}, so no collision check lives here.
- */
+/** Orchestrates create / replace / delete of datasets in cluster state. */
 public class DatasetService {
 
     private static final Logger logger = LogManager.getLogger(DatasetService.class);
 
-    // Operator-only: not exposed to end users. Change to Dynamic (+ ServerlessPublic) later to open.
-    // Datasets are logical table surfaces over a data source — each data source commonly backs many
-    // datasets, so the default and ceiling are 10x the data-source limits. The 10,000 ceiling is
-    // bounded by cluster-state cost (~1KB per dataset → ~10MB at max). Revisited in esql-planning#502.
+    // Operator-only. Validation of the chosen defaults + ceiling is tracked at esql-planning#502.
     public static final Setting<Integer> MAX_DATASETS_COUNT_SETTING = Setting.intSetting(
         "esql.datasets.max_count",
         1_000,
@@ -86,7 +77,6 @@ public class DatasetService {
      * data-source deletion racing a dataset PUT fails cleanly.
      */
     public void putDataset(ProjectId projectId, PutDatasetAction.Request request, ActionListener<AcknowledgedResponse> listener) {
-        // 1. Look up parent data source directly from cluster state (best-effort — the task re-reads and re-validates).
         final ProjectMetadata projectMetadata = clusterService.state().metadata().getProject(projectId);
         final DataSource parent = DataSourceMetadata.get(projectMetadata).get(request.dataSource());
         if (parent == null) {
@@ -95,19 +85,14 @@ public class DatasetService {
             return;
         }
 
-        // 2. Validator dispatch via the parent type's validator — catch broadly; a validator that leaks a
-        // non-ValidationException should still surface as a 4xx-ish failure on the listener, not 500.
         final DataSourceValidator validator = validatorsByType.get(parent.type());
         if (validator == null) {
-            // This would indicate a cluster state with a data source whose type has no registered plugin — defensive.
             logger.warn("rejected put for dataset [{}]: no validator for parent type [{}]", request.name(), parent.type());
             listener.onFailure(new IllegalStateException("no validator registered for data source type [" + parent.type() + "]"));
             return;
         }
         final Map<String, Object> validatedSettings;
         try {
-            // Validate once up front to surface errors cleanly. Re-validated under CAS inside the task body below
-            // in case the parent data source is mutated between dispatch and task execution.
             validatedSettings = validator.validateDataset(parent.settings(), request.resource(), request.rawSettings());
         } catch (Exception e) {
             logger.warn(() -> "validator for type [" + parent.type() + "] rejected put for dataset [" + request.name() + "]", e);
@@ -115,7 +100,6 @@ public class DatasetService {
             return;
         }
 
-        // 3. No-op fast path — best-effort, reads local node state (may lag master).
         final Dataset probeDataset = new Dataset(
             request.name(),
             new DataSourceReference(request.dataSource()),
@@ -129,10 +113,6 @@ public class DatasetService {
             return;
         }
 
-        // 4. Cluster-state update — re-resolve the parent, re-run the validator, and re-check count limit under CAS.
-        // Name collisions with other abstractions are enforced by ProjectMetadata.Builder.build() via
-        // ensureNoNameCollisions. Re-validating inside the task guards against the parent being deleted
-        // and re-created with different settings between dispatch and task execution.
         logger.debug("submitting put dataset [{}] with parent [{}]", request.name(), request.dataSource());
         final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(request, listener) {
             @Override
@@ -143,15 +123,14 @@ public class DatasetService {
         taskQueue.submitTask("update-esql-dataset-metadata-[" + request.name() + "]", task, task.timeout());
     }
 
-    // Extracted so unit tests can drive the task body directly against a fabricated cluster state,
-    // pinning the dispatch-vs-task-execute race semantics without spinning up a real master service.
+    // Extracted so unit tests can drive the task body directly against fabricated cluster-state snapshots.
     ClusterState executePutDatasetTaskBody(ClusterState currentState, ProjectId projectId, PutDatasetAction.Request request) {
         final ProjectMetadata project = currentState.metadata().getProject(projectId);
         final DataSource currentParent = DataSourceMetadata.get(project).get(request.dataSource());
         if (currentParent == null) {
             throw new ResourceNotFoundException("data source [{}] not found", request.dataSource());
         }
-        // Re-dispatch the validator — parent's type may have changed (delete+recreate) since pre-task.
+        // Re-dispatch: parent's type may have changed (delete+recreate) since pre-task validation.
         final DataSourceValidator currentValidator = validatorsByType.get(currentParent.type());
         if (currentValidator == null) {
             throw new IllegalStateException("no validator registered for data source type [" + currentParent.type() + "]");

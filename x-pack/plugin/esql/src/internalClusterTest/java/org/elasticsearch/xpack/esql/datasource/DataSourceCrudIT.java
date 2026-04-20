@@ -57,52 +57,10 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- * Integration coverage for the ES|QL data-source + dataset CRUD API shipped by
- * {@code DataSourceService} / {@code DatasetService} (PR #146600 / esql-planning#453).
- *
- * <p>Covers scenarios that the unit-test harness ({@code InMemoryDataSourceService} /
- * {@code InMemoryDatasetService}, which inline task {@code execute()} synchronously) and the
- * YAML REST tests (single-node, no loaded storage-plugin validators) cannot reach:
- *
- * <ol>
- *   <li><b>Full lifecycle</b> — PUT data source → PUT dataset → GET → DELETE dataset → DELETE data source.</li>
- *   <li><b>Secret classification round-trip</b> — secret-flagged settings survive the transport wire,
- *       cluster-state persistence, and GET path. Verifies {@code DataSourceSetting.secret()} + {@code secretValue()}.</li>
- *   <li><b>Gateway persistence</b> — PUT data source, {@code internalCluster().fullRestart()}, data source survives.
- *       Covers {@code org.elasticsearch.cluster.metadata.DataSourceMetadata.context() = EnumSet.of(GATEWAY)}.</li>
- *   <li><b>Concurrent PUT same data source</b> — two clients via {@code CountDownLatch}, last-write-wins semantics,
- *       cluster-state consistency held by {@code MasterService}'s single-threaded task queue.</li>
- *   <li><b>DELETE data source racing dataset PUT</b> — exactly one of two valid outcomes:
- *       (a) DELETE wins → dataset PUT re-check throws {@code ResourceNotFoundException};
- *       (b) PUT wins → DELETE sees dependent dataset, throws {@code ElasticsearchStatusException(CONFLICT)}.</li>
- *   <li><b>Dispatch-vs-task-execute window for dataset PUT vs parent DELETE</b> — uses the {@code CyclicBarrier(2)}
- *       + blocking-master-task pattern from {@code MetadataCreateIndexServiceIT.java:124-138} to force the race:
- *       dataset PUT captures parent at dispatch time, parent gets deleted before the CAS task fires, task-level
- *       re-check throws {@code ResourceNotFoundException}. The one scenario that definitively justifies this IT
- *       over the in-memory unit-test harness.</li>
- *   <li><b>Index creation collides with existing dataset</b> — {@code MetadataCreateIndexService.validateIndexName}
- *       pre-task check calls {@code ProjectMetadata.hasDataset()}; rejects with
- *       {@code InvalidIndexNameException("... already exists as an ESQL dataset")}.</li>
- * </ol>
- *
- * <p><b>Cluster scope</b>: single-node (SUITE). Multi-node cluster-state propagation is a generic ES
- * mechanism tested at the framework level (cluster-state publication) — our metadata customs use the
- * standard {@code AckedClusterStateUpdateTask} pattern and inherit that coverage. A dedicated multi-node
- * IT can be added later if specific propagation concerns arise for the metadata customs.
- *
- * <p><b>Feature flag</b>: enabled at JVM startup via the {@code es.esql_external_datasources_feature_flag_enabled=true}
- * system property set on the {@code internalClusterTest} task in {@code x-pack/plugin/esql/build.gradle}. Must
- * be set at JVM startup rather than in {@code @BeforeClass}: {@code FeatureFlag} reads the system property once
- * at {@code DataSourceMetadata} class load, which happens before any {@code @BeforeClass} runs. Gradle's
- * {@code systemProperty} hook is also the ES-wide pattern for feature-flagged integration tests
- * (e.g. {@code x-pack/plugin/security/build.gradle} sets {@code es.dlm_feature_flag_enabled=true}).
- *
- * <p><b>Test-plugin</b>: {@link LocalStateDataSource} composes {@link EsqlPlugin} (with SPI discovery
- * suppressed via no-op {@code loadExtensions}) and {@link TestDataSourcePlugin} (which registers a single
- * {@link TestValidator} for {@code type="test"}). Closed-world — exactly one validator in the map so
- * behaviour is deterministic and independent of which real storage plugins happen to be on the classpath.
- */
+/** Integration coverage for the ES|QL data-source + dataset CRUD API: full lifecycle, secret round-trip,
+ *  gateway persistence, concurrent-writer races, dispatch-vs-task-execute windows, index/dataset name
+ *  collision, and validator rejection. Single-node; the feature flag is enabled via a
+ *  {@code systemProperty} on the {@code internalClusterTest} Gradle task. */
 @ESIntegTestCase.ClusterScope(scope = SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false, minNumDataNodes = 1)
 public class DataSourceCrudIT extends ESIntegTestCase {
 
@@ -113,9 +71,7 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         return List.of(LocalStateDataSource.class);
     }
 
-    // ---------------------------------------------------------------------------------------------
     // Scenario 1 — full lifecycle
-    // ---------------------------------------------------------------------------------------------
 
     public void testFullLifecycle() throws Exception {
         final String dsName = "prod_test";
@@ -155,17 +111,8 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         expectDatasetMissing(datasetName);
     }
 
-    // ---------------------------------------------------------------------------------------------
     // Scenario 1b — secret classification round-trips through the wire + cluster state
-    // ---------------------------------------------------------------------------------------------
 
-    /**
-     * PUT a data source whose settings include a secret-prefixed key, read it back, assert
-     * the {@code DataSourceSetting} arriving in cluster state has {@code secret()=true} and the
-     * secret value is accessible via {@code secretValue()}. Proves that secret classification
-     * set by the validator travels across the transport wire, into cluster state, and back out
-     * on GET without being stripped or downgraded.
-     */
     public void testSecretClassificationRoundTrip() throws Exception {
         final String dsName = "secret_rt";
         assertAcked(
@@ -191,9 +138,7 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
     }
 
-    // ---------------------------------------------------------------------------------------------
     // Scenario 2 — gateway persistence across full restart
-    // ---------------------------------------------------------------------------------------------
 
     public void testGatewayPersistence() throws Exception {
         final String dsName = "persists_across_restart";
@@ -213,9 +158,7 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
     }
 
-    // ---------------------------------------------------------------------------------------------
     // Scenario 4 — concurrent PUT same data source, two clients
-    // ---------------------------------------------------------------------------------------------
 
     public void testConcurrentPutSameDataSource() throws Exception {
         final String dsName = "concurrent_same";
@@ -264,9 +207,7 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
     }
 
-    // ---------------------------------------------------------------------------------------------
     // Scenario 5 — DELETE data source racing dataset PUT
-    // ---------------------------------------------------------------------------------------------
 
     public void testDeleteDataSourceRacingDatasetPut() throws Exception {
         final String dsName = "racing_parent";
@@ -343,9 +284,7 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         }
     }
 
-    // ---------------------------------------------------------------------------------------------
     // Scenario 6 — dispatch-vs-task-execute race for dataset PUT vs parent data source DELETE
-    // ---------------------------------------------------------------------------------------------
 
     public void testDispatchVsTaskExecuteRace() throws Exception {
         final String dsName = "dispatch_race_parent";
@@ -410,9 +349,7 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         assertThat(putErr, notNullValue());
     }
 
-    // ---------------------------------------------------------------------------------------------
     // Scenario 7 — index creation collides with existing dataset
-    // ---------------------------------------------------------------------------------------------
 
     public void testIndexCreationCollidesWithDataset() throws Exception {
         final String dsName = "collision_parent";
@@ -434,9 +371,7 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
     }
 
-    // ---------------------------------------------------------------------------------------------
     // Scenario 8 — validator-level rejection surfaces cleanly through REST + transport + service
-    // ---------------------------------------------------------------------------------------------
 
     public void testValidatorRejectionSurfacesCleanly() throws Exception {
         final String dsName = "rejected_ds";
@@ -470,9 +405,7 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(parentDsName)));
     }
 
-    // ---------------------------------------------------------------------------------------------
     // Request builders + assertions
-    // ---------------------------------------------------------------------------------------------
 
     private static PutDataSourceAction.Request putDataSourceRequest(String name, Map<String, Object> settings) {
         return new PutDataSourceAction.Request(TEST_TIMEOUT, TEST_TIMEOUT, name, "test", null, new HashMap<>(settings));
@@ -505,21 +438,11 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         return new DeleteDatasetAction.Request(TEST_TIMEOUT, TEST_TIMEOUT, name);
     }
 
-    /**
-     * GET data source with a non-existent name returns an empty collection — matches
-     * {@code TransportGetDataSourceAction}, which filters by {@code Regex.simpleMatch} and returns
-     * whatever hits exist, not a 404. Literal name with no matches is just zero hits.
-     */
     private void expectDataSourceMissing(String name) throws ExecutionException, InterruptedException {
         GetDataSourceAction.Response resp = client().execute(GetDataSourceAction.INSTANCE, getDataSourceRequest(name)).get();
         assertThat("expected no data source named [" + name + "]", resp.getDataSources(), hasSize(0));
     }
 
-    /**
-     * GET dataset with a non-existent name throws {@code IndexNotFoundException} —
-     * {@code DATASET_INDICES_OPTIONS} uses {@code ERROR_WHEN_UNAVAILABLE_TARGETS} via the
-     * {@code IndexNameExpressionResolver}, so unresolved dataset names fail loudly.
-     */
     private void expectDatasetMissing(String name) {
         ExecutionException err = expectThrows(
             ExecutionException.class,
@@ -549,18 +472,8 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         }
     }
 
-    // ---------------------------------------------------------------------------------------------
     // Test infrastructure — inner classes.
-    // ---------------------------------------------------------------------------------------------
 
-    /**
-     * Test-only composite plugin. Subclasses {@link LocalStateCompositeXPackPlugin} to bring xpack
-     * wiring into a multi-node {@link ESIntegTestCase}. Adds {@link EsqlPlugin} with
-     * {@code loadExtensions} no-op'd (suppresses production SPI data-source discovery) and adds
-     * {@link TestDataSourcePlugin} so exactly one validator ({@code type="test"}) is registered —
-     * deterministic, closed-world. Matches the pattern in {@code LocalStateView} at
-     * {@code x-pack/plugin/esql/src/test/.../view/}.
-     */
     public static class LocalStateDataSource extends LocalStateCompositeXPackPlugin {
 
         public LocalStateDataSource(final Settings settings, final Path configPath) throws Exception {
@@ -574,20 +487,12 @@ public class DataSourceCrudIT extends ESIntegTestCase {
 
                 @Override
                 public void loadExtensions(ExtensionLoader loader) {
-                    // No-op — keep the test closed-world. SPI discovery via SPIClassIterator in
-                    // EsqlPlugin.createComponents() still runs and finds TestDataSourcePlugin via
-                    // the META-INF/services file under src/internalClusterTest/resources/.
+                    // No-op: keeps the test closed-world; SPI still picks up TestDataSourcePlugin via META-INF/services.
                 }
             });
         }
     }
 
-    /**
-     * Test-only plugin exporting a single {@link TestValidator} for {@code type="test"}. Must extend
-     * {@link Plugin} (to go into {@code LocalStateCompositeXPackPlugin.plugins}) and implement
-     * {@link DataSourcePlugin} (to register a validator with {@link EsqlPlugin}) — exactly the same
-     * pair every real storage plugin declares (see {@code S3DataSourcePlugin}).
-     */
     public static class TestDataSourcePlugin extends Plugin implements DataSourcePlugin {
         @Override
         public Map<String, DataSourceValidator> datasourceValidators(Settings settings) {
@@ -595,12 +500,7 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         }
     }
 
-    /**
-     * Minimal validator for IT scenarios. Accepts any map, marks keys starting with {@code secret_}
-     * as secrets. Recognises a single sentinel key {@code "reject_me"} that, when present, causes
-     * the validator to throw — used by {@link #testValidatorRejectionSurfacesCleanly()} to exercise
-     * the end-to-end unhappy path through REST + transport + service + validator.
-     */
+    /** Minimal validator: passes settings through, marks {@code secret_*} keys as secret, throws on sentinel key {@code "reject_me"}. */
     static class TestValidator implements DataSourceValidator {
         static final String REJECT_SENTINEL = "reject_me";
 

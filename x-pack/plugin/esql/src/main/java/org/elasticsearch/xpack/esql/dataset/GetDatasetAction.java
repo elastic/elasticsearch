@@ -31,13 +31,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.support.IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS;
 
-/**
- * Get one or more datasets by name. Datasets are index abstractions ({@code Type.DATASET}), so the
- * request implements {@link IndicesRequest.Replaceable} and resolves through
- * {@code IndexNameExpressionResolver} with {@code resolveDatasets=true} — wildcard patterns like
- * {@code logs-*} work for dataset names the same way they work for views. Response XContent emits
- * each dataset directly since datasets carry no secrets (credentials live on the parent data source).
- */
+/** Get one or more datasets by name (supports wildcards via {@code IndexNameExpressionResolver}). */
 public class GetDatasetAction extends ActionType<GetDatasetAction.Response> {
 
     public static final GetDatasetAction INSTANCE = new GetDatasetAction();

@@ -25,11 +25,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Runs on the node receiving the REST request. Resolves dataset names (including wildcard patterns)
- * through {@link IndexNameExpressionResolver} with {@code resolveDatasets=true}, then pulls the
- * matching {@link Dataset} entries out of {@link DatasetMetadata}.
- */
+/** Local transport handler for {@link GetDatasetAction}. */
 public class TransportGetDatasetAction extends TransportLocalProjectMetadataAction<GetDatasetAction.Request, GetDatasetAction.Response> {
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;

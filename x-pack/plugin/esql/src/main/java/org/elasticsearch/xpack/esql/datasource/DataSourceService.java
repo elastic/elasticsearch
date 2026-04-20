@@ -37,24 +37,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * Orchestrates create / replace / delete of data sources in cluster state. Validator dispatch
- * runs before the cluster-state task so validation errors surface cleanly; the task re-validates
- * count limits under CAS to protect against concurrent writers.
- *
- * <p>Dataset referential integrity on delete ("refuse to delete a data source that has datasets
- * pointing at it") is enforced inside the delete task — same CAS window covers concurrent
- * dataset creation racing a data source deletion.
- */
+/** Orchestrates create / replace / delete of data sources in cluster state. */
 public class DataSourceService {
 
     private static final Logger logger = LogManager.getLogger(DataSourceService.class);
 
-    // Operator-only: not exposed to end users. Change to Dynamic (+ ServerlessPublic) later to open.
-    // Data sources are admin-heavy config objects (one per external system, each carrying credentials
-    // and operational responsibility). Intentionally tighter than the dataset cap: operators should
-    // feel pressure to consolidate rather than proliferate. Revisited in esql-planning#502 against
-    // cluster-state cost.
+    // Operator-only. Intentionally tighter than the dataset cap; revisited in esql-planning#502.
     public static final Setting<Integer> MAX_DATA_SOURCES_COUNT_SETTING = Setting.intSetting(
         "esql.data_sources.max_count",
         100,

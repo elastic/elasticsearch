@@ -392,8 +392,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     // Index was deleted, or the master already processed the failure and bumped the primary term.
                     // Either way, the cache entry is stale and can be discarded.
                     iterator.remove();
-                } else if (masterNode != null) { // TODO: can we remove this? Is resending shard failures the responsibility of
-                                                 // shardStateAction?
+                } else if (masterNode != null) { // TODO: remove this? Is resending shard failures the responsibility of shardStateAction?
                     String message = "master " + masterNode + " has not removed previously failed shard. resending shard failure";
                     logger.trace("[{}] re-sending failed shard [{}], reason [{}]", matchedRouting.shardId(), matchedRouting, message);
                     shardStateAction.localShardFailed(matchedRouting, message, null, ActionListener.noop(), state);

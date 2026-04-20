@@ -97,6 +97,122 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
         }
     }
 
+    public void testRerouteIsNotCalledWhenHighWatermarkDisabled() {
+        final int highWatermarkPercentage = between(2, 97);
+        final int lowWatermarkPercentage = between(1, highWatermarkPercentage - 1);
+        final EstimatedHeapUsageMonitor monitor = createMonitor(
+            true,
+            lowWatermarkPercentage,
+            false,
+            highWatermarkPercentage,
+            () -> ClusterState.EMPTY_STATE
+        );
+
+        // All nodes are above the high watermark, but the feature is disabled — no reroute should be triggered.
+        final Map<String, EstimatedHeapUsage> estimatedHeapUsages = new HashMap<>();
+        randNodeIds(between(1, 3)).forEach(
+            nodeId -> estimatedHeapUsages.put(
+                nodeId,
+                new EstimatedHeapUsage(nodeId, totalBytesPerNode, totalBytesPerNode * between(highWatermarkPercentage + 1, 100) / 100)
+            )
+        );
+        monitor.onNewInfo(ClusterInfo.builder().estimatedHeapUsages(estimatedHeapUsages).build());
+
+        verifyNoInteractions(rerouteService);
+    }
+
+    public void testRerouteCalledWhenNodeExceedsHighWatermark() {
+        final int highWatermarkPercentage = between(2, 97);
+        final int lowWatermarkPercentage = between(1, highWatermarkPercentage - 1);
+        final EstimatedHeapUsageMonitor monitor = createMonitor(
+            true,
+            lowWatermarkPercentage,
+            true,
+            highWatermarkPercentage,
+            () -> ClusterState.EMPTY_STATE
+        );
+
+        try (MockLog mockLog = MockLog.capture(EstimatedHeapUsageMonitor.class)) {
+            final var expectation = new MockLog.EventuallySeenEventExpectation(
+                "reroute due to heap usages exceeded high watermark",
+                EstimatedHeapUsageMonitor.class.getCanonicalName(),
+                Level.DEBUG,
+                Strings.format(
+                    "estimated heap usages exceeded the high watermark [%.2f] for nodes * triggering reroute",
+                    (highWatermarkPercentage * 100 / 100.0)
+                )
+            );
+            mockLog.addExpectation(expectation);
+
+            // Initially all nodes are below the high watermark — no reroute.
+            final Map<String, EstimatedHeapUsage> initialUsages = new HashMap<>();
+            final var nodeIds = randNodeIds(between(2, 3));
+            nodeIds.forEach(
+                nodeId -> initialUsages.put(
+                    nodeId,
+                    new EstimatedHeapUsage(nodeId, totalBytesPerNode, totalBytesPerNode * between(0, highWatermarkPercentage) / 100)
+                )
+            );
+            monitor.onNewInfo(ClusterInfo.builder().estimatedHeapUsages(initialUsages).build());
+            mockLog.assertAllExpectationsMatched();
+
+            // One node exceeds the high watermark — reroute should fire.
+            final Map<String, EstimatedHeapUsage> updatedUsages = new HashMap<>(initialUsages);
+            updatedUsages.put(
+                nodeIds.get(0),
+                new EstimatedHeapUsage(
+                    nodeIds.get(0),
+                    totalBytesPerNode,
+                    totalBytesPerNode * between(highWatermarkPercentage + 1, 100) / 100
+                )
+            );
+            expectation.setExpectSeen();
+            monitor.onNewInfo(ClusterInfo.builder().estimatedHeapUsages(updatedUsages).build());
+            mockLog.assertAllExpectationsMatched();
+
+            // An additional node exceeds the high watermark — reroute should fire again.
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "reroute due to additional node exceeding high watermark",
+                    EstimatedHeapUsageMonitor.class.getCanonicalName(),
+                    Level.DEBUG,
+                    Strings.format(
+                        "estimated heap usages exceeded the high watermark [%.2f] for nodes * triggering reroute",
+                        (highWatermarkPercentage * 100 / 100.0)
+                    )
+                )
+            );
+            final Map<String, EstimatedHeapUsage> moreUsages = new HashMap<>(updatedUsages);
+            moreUsages.put(
+                nodeIds.get(1),
+                new EstimatedHeapUsage(
+                    nodeIds.get(1),
+                    totalBytesPerNode,
+                    totalBytesPerNode * between(highWatermarkPercentage + 1, 100) / 100
+                )
+            );
+            monitor.onNewInfo(ClusterInfo.builder().estimatedHeapUsages(moreUsages).build());
+            mockLog.assertAllExpectationsMatched();
+
+            // One node drops below the high watermark — no reroute (set shrank, not grew).
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no reroute when a node drops below the high watermark",
+                    EstimatedHeapUsageMonitor.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "estimated heap usages exceeded the high watermark * triggering reroute"
+                )
+            );
+            final Map<String, EstimatedHeapUsage> reducedUsages = new HashMap<>(moreUsages);
+            reducedUsages.put(
+                nodeIds.get(0),
+                new EstimatedHeapUsage(nodeIds.get(0), totalBytesPerNode, totalBytesPerNode * between(0, highWatermarkPercentage) / 100)
+            );
+            monitor.onNewInfo(ClusterInfo.builder().estimatedHeapUsages(reducedUsages).build());
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
     public void testRerouteBasedOnEstimatedHeapUsage() {
         final int lowWatermarkPercentage = between(1, 99);
         final EstimatedHeapUsageMonitor monitor = createMonitor(true, lowWatermarkPercentage, () -> ClusterState.EMPTY_STATE);
@@ -146,15 +262,39 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
         }
     }
 
-    private EstimatedHeapUsageMonitor createMonitor(boolean enabled, int percent, Supplier<ClusterState> clusterStateSupplier) {
+    private EstimatedHeapUsageMonitor createMonitor(boolean enabled, int lowWatermarkPercent, Supplier<ClusterState> clusterStateSupplier) {
+        // High watermark defaults to 100% (unreachable) so it never fires unless explicitly configured.
+        return createMonitor(enabled, lowWatermarkPercent, true, 100, clusterStateSupplier);
+    }
+
+    private EstimatedHeapUsageMonitor createMonitor(
+        boolean enabled,
+        int lowWatermarkPercent,
+        boolean highWatermarkEnabled,
+        int highWatermarkPercent,
+        Supplier<ClusterState> clusterStateSupplier
+    ) {
         final var clusterSettings = new ClusterSettings(
             Settings.builder()
                 .put(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED.getKey(), enabled)
-                .put(EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_LOW_WATERMARK.getKey(), percent + "%")
+                .put(
+                    EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_LOW_WATERMARK.getKey(),
+                    lowWatermarkPercent + "%"
+                )
+                .put(
+                    EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_HIGH_WATERMARK_ENABLED.getKey(),
+                    highWatermarkEnabled
+                )
+                .put(
+                    EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_HIGH_WATERMARK.getKey(),
+                    highWatermarkPercent + "%"
+                )
                 .build(),
             Set.of(
                 InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED,
-                EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_LOW_WATERMARK
+                EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_LOW_WATERMARK,
+                EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_HIGH_WATERMARK_ENABLED,
+                EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_HIGH_WATERMARK
             )
         );
         return new EstimatedHeapUsageMonitor(clusterSettings, clusterStateSupplier, rerouteService);

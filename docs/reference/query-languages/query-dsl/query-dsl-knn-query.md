@@ -116,7 +116,7 @@ $$$knn-query-query-vector$$$ `query_vector`
 
 
 $$$knn-query-query-vector-builder$$$ `query_vector_builder`
-:   (Optional, object) Query vector builder. A configuration object indicating how to build a query_vector before executing the request. You must provide either a `query_vector_builder` or `query_vector`, but not both.  Refer to [Parameters for query vector builders](#query-vector-builders-parameters) for parameter details and [Examples for query vector builders](#query-vector-builders-overview) for usage examples.
+:   (Optional, object) Query vector builder. A configuration object indicating how to build a query vector before executing the request. You must provide either a `query_vector_builder` or `query_vector`, but not both.  Refer to [Parameters for query vector builders](#query-vector-builders-parameters) for parameter details and [Examples for query vector builders](#query-vector-builders-overview) for usage examples.
 
 
 `timeout`

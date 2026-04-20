@@ -192,8 +192,6 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             ScoreDoc existing = dedupByDoc.get(globalDoc);
             if (existing == null) {
                 dedupByDoc.put(globalDoc, new ScoreDoc(globalDoc, scoreDoc.score));
-            } else if (scoreDoc.score > existing.score) {
-                existing.score = scoreDoc.score;
             }
         }
         ScoreDoc[] deduplicatedScoreDocs = new ScoreDoc[dedupByDoc.size()];

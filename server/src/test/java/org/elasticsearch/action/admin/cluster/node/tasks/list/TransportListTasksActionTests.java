@@ -479,7 +479,10 @@ public class TransportListTasksActionTests extends ESTestCase {
         ElasticsearchException firstPassException = new ElasticsearchException(message);
         ElasticsearchException secondPassException = new ElasticsearchException(message);
 
-        List<ElasticsearchException> result = TransportListTasksAction.deduplicateNodeFailures(List.of(firstPassException), List.of(secondPassException));
+        List<ElasticsearchException> result = TransportListTasksAction.deduplicateNodeFailures(
+            List.of(firstPassException),
+            List.of(secondPassException)
+        );
         assertThat(result, containsInAnyOrder(secondPassException));
     }
 

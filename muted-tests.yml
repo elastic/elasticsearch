@@ -316,9 +316,6 @@ tests:
 - class: org.elasticsearch.reindex.ReindexBasicTests
   method: testReindexFailsWhenSourceIndexIsClosed
   issue: https://github.com/elastic/elasticsearch/issues/146466
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/145901
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
   method: test {csv-spec:inlinestats.filterSometimesMatches}
   issue: https://github.com/elastic/elasticsearch/issues/146545

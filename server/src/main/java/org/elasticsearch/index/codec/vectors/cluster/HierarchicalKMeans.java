@@ -228,8 +228,8 @@ public class HierarchicalKMeans {
         int numWorkers = Math.min(this.numWorkers, numVectors / MIN_VECTORS_PRE_THREAD);
         // if there is no executor or there is no enough vectors for more than one thread, use the serial version
         return executor == null || numWorkers <= 1
-            ? new KMeansLocalSerial(localSampleSize, maxIterations)
-            : new KMeansLocalConcurrent(executor, numWorkers, localSampleSize, maxIterations);
+            ? new LloydKMeansLocalSerial(localSampleSize, maxIterations)
+            : new LloydKMeansLocalConcurrent(executor, numWorkers, localSampleSize, maxIterations);
     }
 
     static ClusteringFloatVectorValues createClusterSlice(
@@ -249,7 +249,7 @@ public class HierarchicalKMeans {
         }
         assert idx == clusterSize;
 
-        return new ClusteringFloatVectorValuesSlice(vectors, slice);
+        return new ClusteringFloatVectorValuesSlice(vectors, i -> slice[i], slice.length);
     }
 
     /**

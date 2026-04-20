@@ -15,6 +15,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.TopNProvider;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
+import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
@@ -145,7 +146,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
             docFeatures,
             Map.of(),
             InputType.INTERNAL_SEARCH,
-            InferenceAction.Request.DEFAULT_TIMEOUT,
+            BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.RERANK),
             false
         );
     }

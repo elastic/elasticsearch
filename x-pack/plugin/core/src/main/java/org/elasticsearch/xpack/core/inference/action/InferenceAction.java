@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
@@ -46,7 +47,6 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
     public static class Request extends BaseInferenceActionRequest {
 
-        public static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(30);
         public static final ParseField INPUT = new ParseField("input");
         public static final ParseField INPUT_TYPE = new ParseField("input_type");
         public static final ParseField TASK_SETTINGS = new ParseField("task_settings");
@@ -92,16 +92,31 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         private final TimeValue inferenceTimeout;
         private final boolean stream;
 
+        /**
+         * Constructor that uses an empty {@link InferenceContext}
+         *
+         * @param taskType the {@link TaskType} of the inference request. May be {@link TaskType#ANY}, which will result in the task type
+         *                 being determined after parsing the stored model
+         * @param inferenceEntityId the endpoint ID
+         * @param query for {@link TaskType#RERANK}, the query to use
+         * @param returnDocuments for {@link TaskType#RERANK}, whether the request should return the input values as part of the results
+         * @param topN for {@link TaskType#RERANK}, the number of results to return
+         * @param input the inputs to use for the inference request
+         * @param taskSettings the task settings to use for the inference request
+         * @param inputType the {@link InputType} of the request
+         * @param inferenceTimeout the timeout to use. If null, the default timeout for the task type will be used
+         * @param stream whether the request should use streaming
+         */
         public Request(
             TaskType taskType,
             String inferenceEntityId,
-            String query,
-            Boolean returnDocuments,
-            Integer topN,
+            @Nullable String query,
+            @Nullable Boolean returnDocuments,
+            @Nullable Integer topN,
             List<String> input,
             Map<String, Object> taskSettings,
             InputType inputType,
-            TimeValue inferenceTimeout,
+            @Nullable TimeValue inferenceTimeout,
             boolean stream
         ) {
             this(
@@ -119,16 +134,32 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             );
         }
 
+        /**
+         * Constructor that allows an {@link InferenceContext} to be specified
+         *
+         * @param taskType the {@link TaskType} of the inference request. May be {@link TaskType#ANY}, which will result in the task type
+         *                 being determined after parsing the stored model
+         * @param inferenceEntityId the endpoint ID
+         * @param query for {@link TaskType#RERANK}, the query to use
+         * @param returnDocuments for {@link TaskType#RERANK}, whether the request should return the input values as part of the results
+         * @param topN for {@link TaskType#RERANK}, the number of results to return
+         * @param input the inputs to use for the inference request
+         * @param taskSettings the task settings to use for the inference request
+         * @param inputType the {@link InputType} of the request
+         * @param inferenceTimeout the timeout to use. If null, the default timeout for the task type will be used
+         * @param stream whether the request should use streaming
+         * @param context the {@link InferenceContext} to use
+         */
         public Request(
             TaskType taskType,
             String inferenceEntityId,
-            String query,
-            Boolean returnDocuments,
-            Integer topN,
+            @Nullable String query,
+            @Nullable Boolean returnDocuments,
+            @Nullable Integer topN,
             List<String> input,
             Map<String, Object> taskSettings,
             InputType inputType,
-            TimeValue inferenceTimeout,
+            @Nullable TimeValue inferenceTimeout,
             boolean stream,
             InferenceContext context
         ) {
@@ -141,7 +172,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             this.input = input;
             this.taskSettings = taskSettings;
             this.inputType = inputType;
-            this.inferenceTimeout = inferenceTimeout;
+            this.inferenceTimeout = Objects.requireNonNullElse(inferenceTimeout, TIMEOUT_NOT_DETERMINED);
             this.stream = stream;
         }
 
@@ -273,7 +304,12 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             out.writeGenericMap(taskSettings);
             out.writeEnum(inputType);
             out.writeOptionalString(query);
-            out.writeTimeValue(inferenceTimeout);
+            if (inferenceTimeout.equals(TIMEOUT_NOT_DETERMINED)
+                && out.getTransportVersion().supports(INFERENCE_REQUEST_PER_TASK_TIMEOUT_ADDED) == false) {
+                out.writeTimeValue(OLD_DEFAULT_TIMEOUT);
+            } else {
+                out.writeTimeValue(inferenceTimeout);
+            }
 
             if (out.getTransportVersion().supports(RERANK_COMMON_OPTIONS_ADDED)) {
                 out.writeOptionalBoolean(returnDocuments);
@@ -326,7 +362,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             private String query;
             private Boolean returnDocuments;
             private Integer topN;
-            private TimeValue timeout = DEFAULT_TIMEOUT;
+            private TimeValue timeout = TIMEOUT_NOT_DETERMINED;
             private boolean stream = false;
             private InferenceContext context;
 

@@ -572,6 +572,14 @@ public class BigArrays {
         return this.circuitBreakingInstance.breakerService;
     }
 
+    /**
+     * Returns the {@link CircuitBreaker} associated with this instance (`null` if circuit breaking is not configured).
+     */
+    @Nullable
+    public CircuitBreaker circuitBreaker() {
+        return this.breaker;
+    }
+
     private <T extends AbstractBigArray> T resizeInPlace(T array, long newSize) {
         final long oldMemSize = array.ramBytesUsed();
         final long oldSize = array.size();

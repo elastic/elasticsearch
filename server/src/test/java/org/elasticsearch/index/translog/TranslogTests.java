@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.DiskIoBufferPool;
@@ -41,6 +42,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -4123,5 +4126,37 @@ public class TranslogTests extends ESTestCase {
             var location = translog.add(indexOp(randomUUID(), 1, primaryTerm.get(), "source"));
             assertTrue("sync needs to happen", translog.ensureSynced(location, SequenceNumbers.UNASSIGNED_SEQ_NO));
         }
+    }
+
+    public void testTranslogWriterBufferCircuitBreaker() throws IOException {
+        final var bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), ByteSizeValue.ofGb(1));
+        final CircuitBreaker circuitBreaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        assertNotNull("MockBigArrays must have a circuit breaker", circuitBreaker);
+        assertThat(circuitBreaker.getUsed(), equalTo(0L));
+
+        final var tempDir = createTempDir();
+        final var indexSettings = IndexSettingsModule.newIndexSettings(
+            shardId.getIndex(),
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
+        );
+        final var config = new TranslogConfig(
+            shardId,
+            tempDir,
+            indexSettings,
+            bigArrays,
+            TranslogConfig.DEFAULT_BUFFER_SIZE,
+            DiskIoBufferPool.INSTANCE,
+            TranslogConfig.NOOP_OPERATION_LISTENER,
+            true
+        );
+
+        try (var tl = createTranslog(config)) {
+            for (int i = 0; i < randomIntBetween(1, 10); i++) {
+                tl.add(indexOp(Integer.toString(i), i, primaryTerm.get()));
+            }
+            assertThat(circuitBreaker.getUsed(), greaterThan(0L));
+        }
+        // Translog.close() syncs before closing
+        assertThat(circuitBreaker.getUsed(), equalTo(0L));
     }
 }

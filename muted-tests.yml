@@ -334,18 +334,12 @@ tests:
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testReindexFailsWhenPitRelocationFails
   issue: https://github.com/elastic/elasticsearch/issues/146650
-- class: org.elasticsearch.simdvec.ESVectorUtilTests
-  method: testPow2DiffAndScale
-  issue: https://github.com/elastic/elasticsearch/issues/146690
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/146553
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testReindexTaskRelocatesOnNodeShutdown
   issue: https://github.com/elastic/elasticsearch/issues/146696
-- class: org.elasticsearch.simdvec.ESVectorUtilTests
-  method: testLogSumExpDiff
-  issue: https://github.com/elastic/elasticsearch/issues/146700
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {csv-spec:stats_sparkline.sparklineComplexWithGrouping}
   issue: https://github.com/elastic/elasticsearch/issues/146729

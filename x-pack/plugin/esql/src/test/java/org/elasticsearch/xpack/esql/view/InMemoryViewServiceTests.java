@@ -757,6 +757,36 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(e.getMessage(), containsString("circular view reference 'view_a'"));
     }
 
+    /**
+     * Reproduces https://github.com/elastic/elasticsearch/issues/146665
+     * FORK queries that reference no views should succeed even when circular views exist on the cluster.
+     */
+    public void testForkWithCircularViewsOnClusterButNotReferenced() {
+        assumeTrue("Requires FORK support", EsqlCapabilities.Cap.FORK_V9.isEnabled());
+        addView("view_x", "FROM view_y");
+        addView("view_y", "FROM view_x");
+        addIndex("logs-001");
+        // FORK query with wildcard that matches only the index, not the circular views
+        LogicalPlan plan = query("FROM logs-* | FORK (STATS c = COUNT(*)) (LIMIT 5)");
+        LogicalPlan result = replaceViews(plan);
+        assertNotNull("FORK query should resolve without circular view errors", result);
+    }
+
+    /**
+     * Reproduces https://github.com/elastic/elasticsearch/issues/146665
+     * FORK query with FROM * but excluding the circular views should succeed.
+     */
+    public void testForkWithStarWildcardExcludingCircularViews() {
+        assumeTrue("Requires FORK support", EsqlCapabilities.Cap.FORK_V9.isEnabled());
+        addView("view_x", "FROM view_y");
+        addView("view_y", "FROM view_x");
+        addIndex("logs");
+        // FROM *,-view_* excludes the circular views — should succeed
+        LogicalPlan plan = query("FROM *,-view_* | FORK (STATS c = COUNT(*)) (LIMIT 5)");
+        LogicalPlan result = replaceViews(plan);
+        assertNotNull("FORK query excluding circular views should resolve without errors", result);
+    }
+
     public void testCircularViewExcludedByWildcard() {
         addView("v_1", "FROM v_*");
         LogicalPlan plan = query("FROM v_*,-v_1");

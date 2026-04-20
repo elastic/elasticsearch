@@ -398,7 +398,7 @@ Refer to [Parameters for query vector builders](#query-vector-builders-parameter
 ### Parameters for query vector builders [query-vector-builders-parameters]
 
 $$$knn-query-builder-lookup$$$ `lookup` {applies_to}`stack: ga 9.4`
-:   (Optional, object) Build the query vector by looking up an existing document's vector. For an example, refer to [`lookup`](#lookup-builder).
+:   Build the query vector by looking up an existing document's vector. For an example, refer to [`lookup`](#lookup-builder).
 
         **Parameters for `lookup`**:
 

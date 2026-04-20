@@ -807,7 +807,7 @@ public class IpFieldMapper extends FieldMapper {
                             new BinaryWithOffsetsDocValuesSyntheticFieldLoaderLayer(fullPath(), offsetsFieldName, IpFieldMapper::convert)
                         );
                     } else {
-                        layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fullPath()) {
+                        layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fullPath(), indexSettings.getIndexVersionCreated()) {
                             @Override
                             protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
                                 BytesRef converted = IpFieldMapper.convert(value);

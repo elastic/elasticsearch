@@ -7,14 +7,18 @@
 
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -22,6 +26,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 
 import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -46,6 +52,36 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertConstantResult("round(vector(pi()), 0.001)", equalTo(3.142)); // round up 3 decimal places
         assertConstantResult("round(vector(pi()), 0.15)", equalTo(3.15)); // rounds up to nearest
         assertConstantResult("round(vector(pi()), 0.5)", equalTo(3.0)); // rounds down to nearest
+    }
+
+    public void testYearUsesStepTimestampWhenNoArgument() {
+        var ctx = new PromqlFunctionRegistry.PromqlContext(
+            Literal.NULL,
+            Literal.NULL,
+            Literal.dateTime(Source.EMPTY, Instant.parse("2023-12-31T23:30:00Z")),
+            EsqlTestUtils.TEST_CFG.withZoneId(ZoneId.of("Europe/Paris"))
+        );
+
+        var expression = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction("year", Source.EMPTY, null, ctx, List.of());
+        assertThat(as(expression.fold(FoldContext.small()), Double.class), equalTo(2023.0));
+    }
+
+    public void testYearWithArgumentUsesSuppliedTimestampSeconds() {
+        var ctx = new PromqlFunctionRegistry.PromqlContext(
+            Literal.NULL,
+            Literal.NULL,
+            Literal.dateTime(Source.EMPTY, Instant.parse("2025-05-10T00:00:00Z")),
+            EsqlTestUtils.TEST_CFG
+        );
+
+        var expression = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(
+            "year",
+            Source.EMPTY,
+            Literal.fromDouble(Source.EMPTY, 1712574000.0),
+            ctx,
+            List.of()
+        );
+        assertThat(as(expression.fold(FoldContext.small()), Double.class), equalTo(2024.0));
     }
 
     public void testClamp() {

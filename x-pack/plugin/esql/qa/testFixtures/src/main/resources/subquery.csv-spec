@@ -199,7 +199,9 @@ subqueryMetadataIndex
 required_capability: subquery_in_from_command
 
 // tag::subquery_with_metadata[]
-FROM employees, (FROM sample_data METADATA _index, _index_mode) METADATA _index, _index_mode
+FROM employees,
+     (FROM sample_data METADATA _index, _index_mode)
+         METADATA _index, _index_mode
 | WHERE emp_no == 10091 OR emp_no IS NULL
 | STATS count=COUNT(*) BY emp_no, _index, _index_mode
 // end::subquery_with_metadata[]
@@ -217,7 +219,8 @@ subqueryMetadataIndexInner
 required_capability: subquery_in_from_command
 
 // tag::subquery_with_metadata_inner[]
-FROM employees, (FROM sample_data METADATA _index, _index_mode)
+FROM employees,
+     (FROM sample_data METADATA _index, _index_mode)
 | WHERE emp_no == 10091 OR emp_no IS NULL
 | STATS count=COUNT(*) BY emp_no, _index, _index_mode
 // end::subquery_with_metadata_inner[]
@@ -235,7 +238,9 @@ subqueryMetadataIndexOuter
 required_capability: subquery_in_from_command
 
 // tag::subquery_with_metadata_outer[]
-FROM employees, (FROM sample_data) METADATA _index, _index_mode
+FROM employees,
+     (FROM sample_data)
+         METADATA _index, _index_mode
 | WHERE emp_no == 10091 OR emp_no IS NULL
 | STATS count=COUNT(*) BY emp_no, _index, _index_mode
 // end::subquery_with_metadata_outer[]

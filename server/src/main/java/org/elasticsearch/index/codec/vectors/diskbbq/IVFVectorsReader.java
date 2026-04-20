@@ -139,6 +139,13 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         float visitRatio
     ) throws IOException;
 
+    /** Get the number of vectors to search, which is typically the total number of vectors in the segment or the
+     *  number of vectors in a slice if the segment is sliced.*/
+    protected int getNumberOfVectors(E entry, FloatVectorValues values, IndexInput centroidSlice, ESAcceptDocs esAcceptDocs)
+        throws IOException {
+        return values.size();
+    }
+
     protected static IndexInput openDataInput(
         SegmentReadState state,
         int versionMeta,
@@ -302,7 +309,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             getReaderForField(field).search(field, target, knnCollector, acceptDocs);
             return;
         }
-        FieldEntry entry = fields.get(fieldInfo.number);
+        final E entry = fields.get(fieldInfo.number);
         if (hasNoVectors(fieldInfo, entry)) {
             return;
         }
@@ -320,9 +327,13 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         }
 
         final FloatVectorValues values = getFloatVectorValues(field);
-        final int numVectors = values.size();
+        final IndexInput centroids = entry.centroidSlice(ivfCentroids);
+        final int numVectors = getNumberOfVectors(entry, values, centroids, esAcceptDocs);
+        if (numVectors == 0) {
+            return; // nothing more to do if there are no vectors in this segment / slice
+        }
         final float approximateCost;
-        if (esAcceptDocs == ESAcceptDocs.ESAcceptDocsAll.INSTANCE) {
+        if (esAcceptDocs instanceof ESAcceptDocs.ESAcceptDocsAll) {
             approximateCost = numVectors;
         } else {
             approximateCost = esAcceptDocs == null ? acceptDocs.cost() : esAcceptDocs.approximateCost();
@@ -347,7 +358,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         CentroidIterator centroidPrefetchingIterator = getCentroidIterator(
             fieldInfo,
             entry.numCentroids,
-            entry.centroidSlice(ivfCentroids),
+            centroids,
             target,
             postListSlice,
             acceptDocs,
@@ -362,7 +373,8 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             postListSlice,
             target,
             acceptDocsBits,
-            entry.centroidSlice(ivfCentroids)
+            entry.centroidSlice(ivfCentroids),
+            esAcceptDocs
         );
         long expectedDocs = 0;
         long actualDocs = 0;
@@ -555,7 +567,8 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         IndexInput postingsLists,
         float[] target,
         Bits needsScoring,
-        IndexInput centroidSlice
+        IndexInput centroidSlice,
+        ESAcceptDocs acceptDocs
     ) throws IOException;
 
     public interface PostingVisitor {

@@ -136,7 +136,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         // change to be async, we'll have to unwrap the breaker if it's a LocalBreaker.
         var breaker = blockFactory.breaker();
         var allocator = new CircuitBreakerByteBufferAllocator(new HeapByteBufferAllocator(), breaker);
-        return ParquetReadOptions.builder(new PlainParquetConfiguration()).withAllocator(allocator);
+        return ParquetReadOptions.builder(new PlainParquetConfiguration())
+            .withAllocator(allocator)
+            .withCodecFactory(new PlainCompressionCodecFactory());
     }
 
     /**

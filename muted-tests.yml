@@ -334,60 +334,21 @@ tests:
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testReindexFailsWhenPitRelocationFails
   issue: https://github.com/elastic/elasticsearch/issues/146650
-- class: org.elasticsearch.transport.ClusterConnectionManagerTests
-  method: testConcurrentConnectsAndDisconnects
-  issue: https://github.com/elastic/elasticsearch/issues/146743
-- class: org.elasticsearch.transport.RemoteClusterClientTests
-  method: testQuicklySkipUnavailableClusters
-  issue: https://github.com/elastic/elasticsearch/issues/146743
-- class: org.elasticsearch.transport.TransportHandshakerTests
-  method: testHandshakeRequestFutureVersionsCompatibility
-  issue: https://github.com/elastic/elasticsearch/issues/146743
 - class: org.elasticsearch.simdvec.ESVectorUtilTests
   method: testPow2DiffAndScale
   issue: https://github.com/elastic/elasticsearch/issues/146690
-- class: org.elasticsearch.transport.TransportHandshakerTests
-  method: testHandshakeRequestAndResponse
-  issue: https://github.com/elastic/elasticsearch/issues/146743
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/146553
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testReindexTaskRelocatesOnNodeShutdown
   issue: https://github.com/elastic/elasticsearch/issues/146696
-- class: org.elasticsearch.transport.TransportHandshakerTests
-  method: testHandshakeError
-  issue: https://github.com/elastic/elasticsearch/issues/146743
-- class: org.elasticsearch.transport.RemoteClusterClientTests
-  method: testEnsureWeReconnect
-  issue: https://github.com/elastic/elasticsearch/issues/146743
 - class: org.elasticsearch.simdvec.ESVectorUtilTests
   method: testLogSumExpDiff
   issue: https://github.com/elastic/elasticsearch/issues/146700
-- class: org.elasticsearch.transport.TransportHandshakerTests
-  method: testHandshakeResponseFromOlderNodeWithPatchedProtocol
-  issue: https://github.com/elastic/elasticsearch/issues/146743
-- class: org.elasticsearch.transport.TransportHandshakerTests
-  method: testHandshakeResponseFromOlderNode
-  issue: https://github.com/elastic/elasticsearch/issues/146743
-- class: org.elasticsearch.transport.ClusterConnectionManagerTests
-  method: testConnectAfterClose
-  issue: https://github.com/elastic/elasticsearch/issues/146743
-- class: org.elasticsearch.transport.ClusterConnectionManagerTests
-  method: testConnectFailsDuringValidation
-  issue: https://github.com/elastic/elasticsearch/issues/146743
-- class: org.elasticsearch.transport.TransportHandshakerTests
-  method: testIncompatibleHandshakeRequest
-  issue: https://github.com/elastic/elasticsearch/issues/146743
-- class: org.elasticsearch.transport.TransportHandshakerTests
-  method: testReadV8HandshakeRequest
-  issue: https://github.com/elastic/elasticsearch/issues/146743
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {csv-spec:stats_sparkline.sparklineComplexWithGrouping}
   issue: https://github.com/elastic/elasticsearch/issues/146729
-- class: org.elasticsearch.transport.ClusterConnectionManagerTests
-  method: testConcurrentConnectsDuringClose
-  issue: https://github.com/elastic/elasticsearch/issues/146743
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
   method: test {csv-spec:inlinestats.pushDown_OneGroupingFilter_PastInlineJoinWithInnerFilterAndOuterFilter}
   issue: https://github.com/elastic/elasticsearch/issues/146737

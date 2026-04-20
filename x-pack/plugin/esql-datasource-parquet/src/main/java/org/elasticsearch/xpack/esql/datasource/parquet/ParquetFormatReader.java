@@ -183,18 +183,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         }
     }
 
-    /**
-     * Converts Parquet-specific stat values to JDK types safe for {@code writeGenericValue} serialization.
-     * Parquet's {@code Statistics.genericGetMin/Max()} returns {@link Binary} for BYTE_ARRAY columns;
-     * these must be converted to {@code String} before entering the metadata map.
-     */
-    private static Object normalizeStatValue(Object value) {
-        if (value instanceof Binary binary) {
-            return binary.toStringUsingUTF8();
-        }
-        return value;
-    }
-
     @SuppressWarnings("rawtypes")
     private SourceStatistics extractStatistics(ParquetFileReader reader, MessageType schema) {
         List<BlockMetaData> rowGroups = reader.getRowGroups();
@@ -435,6 +423,18 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             }
         }
         return Map.copyOf(stats);
+    }
+
+    /**
+     * Normalizes Parquet-specific stat values to types that Elasticsearch can serialize.
+     * Parquet {@link Binary} (used for BYTE_ARRAY / string columns) is converted to String;
+     * these must be converted to {@code String} before entering the metadata map.
+     */
+    private static Object normalizeStatValue(Object value) {
+        if (value instanceof Binary binary) {
+            return binary.toStringUsingUTF8();
+        }
+        return value;
     }
 
     static List<SplitRange> coalesceRowGroupRanges(List<SplitRange> rowGroupRanges, long targetBytes) {

@@ -325,8 +325,7 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
     }
 
     public void testCircuitBreakerTripsOnLargeFetch() throws Exception {
-        // Use a very small circuit breaker limit to trigger trip
-        String dataNode = startDataNode("50kb");
+        String dataNode = startDataNode("500mb");
         String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
         assertThat(internalCluster().size(), equalTo(2));
 
@@ -335,7 +334,10 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
             Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
         );
         populateIndex(INDEX, 50, 10_000);
+        flush(INDEX);
         ensureSearchable(INDEX);
+
+        updateClusterSettings(Settings.builder().put("indices.breaker.request.limit", "50kb"));
 
         long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
 
@@ -367,7 +369,7 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
     }
 
     public void testCircuitBreakerTripsOnScrollFetch() throws Exception {
-        String dataNode = startDataNode("50kb");
+        String dataNode = startDataNode("500mb");
         String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
         assertThat(internalCluster().size(), equalTo(2));
 
@@ -376,7 +378,10 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
             Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
         );
         populateIndex(INDEX, 50, 10_000);
+        flush(INDEX);
         ensureSearchable(INDEX);
+
+        updateClusterSettings(Settings.builder().put("indices.breaker.request.limit", "50kb"));
 
         long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
 

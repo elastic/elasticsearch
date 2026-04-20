@@ -225,9 +225,6 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         assertAcked(prepareCreate("cb-test", 1, Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))));
         Client client = client();
 
-        // Make request breaker limited to a small amount
-        updateClusterSettings(Settings.builder().put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "10b"));
-
         // index some different terms so we have some field data for loading
         int docCount = scaledRandomIntBetween(300, 1000);
         List<IndexRequestBuilder> reqs = new ArrayList<>();
@@ -235,6 +232,10 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
             reqs.add(client.prepareIndex("cb-test").setId(Long.toString(id)).setSource("test", id));
         }
         indexRandom(true, reqs);
+        flush("cb-test");
+
+        // Make request breaker limited to a small amount
+        updateClusterSettings(Settings.builder().put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "10b"));
 
         // A cardinality aggregation uses BigArrays and thus the REQUEST breaker
         try {
@@ -253,11 +254,6 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         assertAcked(prepareCreate("cb-test", 1, Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))));
         Client client = client();
 
-        // Make request breaker limited to a small amount
-        updateClusterSettings(
-            Settings.builder().put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "100b")
-        );
-
         // index some different terms so we have some field data for loading
         int docCount = scaledRandomIntBetween(100, 1000);
         List<IndexRequestBuilder> reqs = new ArrayList<>();
@@ -265,6 +261,12 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
             reqs.add(client.prepareIndex("cb-test").setId(Long.toString(id)).setSource("test", id));
         }
         indexRandom(true, reqs);
+        flush("cb-test");
+
+        // Make request breaker limited to a small amount
+        updateClusterSettings(
+                Settings.builder().put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "100b")
+        );
 
         // A terms aggregation on the "test" field should trip the bucket circuit breaker
         try {

@@ -4130,8 +4130,8 @@ public class TranslogTests extends ESTestCase {
 
     public void testTranslogWriterBufferCircuitBreaker() throws IOException {
         final var bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), ByteSizeValue.ofGb(1));
-        final CircuitBreaker circuitBreaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        assertNotNull("MockBigArrays must have a circuit breaker", circuitBreaker);
+        final CircuitBreaker circuitBreaker = bigArrays.circuitBreaker();
+        assertNotNull("circuit breaker must be non null", circuitBreaker);
         assertThat(circuitBreaker.getUsed(), equalTo(0L));
 
         final var tempDir = createTempDir();

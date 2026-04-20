@@ -98,6 +98,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         this(recycler, null);
     }
 
+    // TODO (in this PR): BigArrays and BytesRefRecycler should not be coupled. Break dependency.
     public RecyclerBytesStreamOutput(BigArrays bigArrays) {
         this(bigArrays.bytesRefRecycler(), bigArrays.circuitBreaker());
     }

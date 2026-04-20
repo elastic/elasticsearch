@@ -237,6 +237,9 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
             .get();
         populateLargeDocuments(INDEX_NAME, 10, 1_000);
         refresh(INDEX_NAME);
+        flush(INDEX_NAME);
+
+        updateClusterSettings(Settings.builder().put("indices.breaker.request.limit", "5mb"));
 
         long breakerBefore = getRequestBreakerUsed(coordinatorNode);
         ElasticsearchException exception = null;

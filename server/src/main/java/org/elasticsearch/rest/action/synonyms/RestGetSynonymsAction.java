@@ -19,6 +19,7 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -40,11 +41,23 @@ public class RestGetSynonymsAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        GetSynonymsAction.Request request = new GetSynonymsAction.Request(
-            restRequest.param("synonymsSet"),
-            restRequest.paramAsInt("from", DEFAULT_FROM_PARAM),
-            restRequest.paramAsInt("size", DEFAULT_SIZE_PARAM)
-        );
+        String synonymsSet = restRequest.param("synonymsSet");
+        int size = restRequest.paramAsInt("size", DEFAULT_SIZE_PARAM);
+        int from = restRequest.paramAsInt("from", DEFAULT_FROM_PARAM);
+        String searchAfter = restRequest.param("search_after");
+        GetSynonymsAction.Request request;
+        if (from != 0) {
+            // Legacy offset-based pagination (also catches negative from, which validation will reject)
+            request = new GetSynonymsAction.Request(synonymsSet, from, size);
+        } else {
+            // Cursor-based pagination: searchAfter is null on the first page
+            request = new GetSynonymsAction.Request(synonymsSet, size, searchAfter);
+        }
         return channel -> client.execute(GetSynonymsAction.INSTANCE, request, new RestToXContentListener<>(channel));
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return SynonymCapabilities.GET_SYNONYM_CAPABILITIES;
     }
 }

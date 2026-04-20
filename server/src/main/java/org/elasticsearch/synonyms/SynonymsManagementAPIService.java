@@ -94,7 +94,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 public class SynonymsManagementAPIService {
 
     private static final String SYNONYMS_INDEX_NAME_PATTERN = ".synonyms-*";
-    private static final int SYNONYMS_INDEX_FORMAT = 2;
+    private static final int SYNONYMS_INDEX_FORMAT = 3;
     static final String SYNONYMS_INDEX_CONCRETE_NAME = ".synonyms-" + SYNONYMS_INDEX_FORMAT;
     private static final String SYNONYMS_ALIAS_NAME = ".synonyms";
     public static final String SYNONYMS_FEATURE_NAME = "synonyms";
@@ -417,6 +417,74 @@ public class SynonymsManagementAPIService {
                     .toArray(SynonymRule[]::new);
                 searchListener.onResponse(new PagedResult<>(totalSynonymRules, synonymRules));
             }));
+    }
+
+    /**
+     * A single page of synonym rules together with the cursor value needed to fetch the next page.
+     * {@code nextSearchAfter} is {@code null} when this is the last page.
+     */
+    public record SynonymRulesPage(PagedResult<SynonymRule> result, String nextSearchAfter) {}
+
+    /**
+     * Retrieves a single page of synonym rules using search_after for stable cursor-based pagination
+     * that is not limited by {@code max_result_window}. On the first call pass {@code null} for
+     * {@code searchAfter} to start from the beginning. Pass the {@code next_search_after} value from
+     * the previous response to fetch subsequent pages. Returns {@code null} for {@code nextSearchAfter}
+     * when the last page has been reached.
+     *
+     * @param synonymSetId the synonym set to paginate
+     * @param size         number of rules per page
+     * @param searchAfter  last rule ID from a previous response, or {@code null} for the first page
+     * @param listener     receives the page result with the cursor for the next page
+     */
+    public void getSynonymSetRulesPage(
+        String synonymSetId,
+        int size,
+        String searchAfter,
+        ActionListener<SynonymRulesPage> listener
+    ) {
+        SearchSourceBuilder source = new SearchSourceBuilder().query(
+            QueryBuilders.boolQuery()
+                .must(QueryBuilders.termQuery(SYNONYMS_SET_FIELD, synonymSetId))
+                .filter(QueryBuilders.termQuery(OBJECT_TYPE_FIELD, SYNONYM_RULE_OBJECT_TYPE))
+        )
+            .size(size)
+            .sort(SortBuilders.fieldSort(SYNONYM_RULE_ID_FIELD).order(SortOrder.ASC))
+            .trackTotalHits(true)
+            .fetchSource(false)
+            .fetchField(SYNONYM_RULE_ID_FIELD)
+            .fetchField(SYNONYMS_FIELD);
+
+        if (searchAfter != null) {
+            source.searchAfter(new Object[] { searchAfter });
+        }
+
+        client.execute(
+            TransportSearchAction.TYPE,
+            new SearchRequest(SYNONYMS_ALIAS_NAME).source(source).preference(Preference.LOCAL.type()),
+            new DelegatingIndexNotFoundActionListener<>(synonymSetId, listener, (l, searchResponse) -> {
+                SearchHit[] hits = searchResponse.getHits().getHits();
+                long totalHits = searchResponse.getHits().getTotalHits().value();
+
+                if (hits.length == 0) {
+                    if (totalHits == 0) {
+                        checkSynonymSetExists(synonymSetId, l.delegateFailure((existsListener, ignored) -> {
+                            existsListener.onResponse(new SynonymRulesPage(new PagedResult<>(0, new SynonymRule[0]), null));
+                        }));
+                    } else {
+                        l.onResponse(new SynonymRulesPage(new PagedResult<>(totalHits, new SynonymRule[0]), null));
+                    }
+                    return;
+                }
+
+                SynonymRule[] rules = Arrays.stream(hits)
+                    .map(SynonymsManagementAPIService::hitToSynonymRule)
+                    .toArray(SynonymRule[]::new);
+                // If we got fewer results than requested, this is the last page.
+                String nextSearchAfter = hits.length == size ? rules[rules.length - 1].id() : null;
+                l.onResponse(new SynonymRulesPage(new PagedResult<>(totalHits, rules), nextSearchAfter));
+            })
+        );
     }
 
     private static SynonymRule hitToSynonymRule(SearchHit hit) {
@@ -817,6 +885,8 @@ public class SynonymsManagementAPIService {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
             .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), SYNONYMS_INDEX_FORMAT)
+            .putList("index.sort.field", SYNONYMS_SET_FIELD, SYNONYM_RULE_ID_FIELD)
+            .putList("index.sort.order", "asc", "asc")
             .build();
     }
 

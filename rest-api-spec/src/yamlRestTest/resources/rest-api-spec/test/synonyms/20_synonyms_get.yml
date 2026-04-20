@@ -144,3 +144,70 @@ setup:
           id: "test-id-2"
         - synonyms: "work, hard"
           id: "test-id-3"
+
+---
+"Cursor-based pagination with search_after":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_synonyms/{synonymsSet}
+          capabilities: [ synonyms_get_search_after ]
+      reason: "synonyms_get_search_after capability needed"
+
+  # First page: size=2, no search_after
+  - do:
+      synonyms.get_synonym:
+        id: test-get-synonyms
+        size: 2
+
+  - match: { count: 3 }
+  - length: { synonyms_set: 2 }
+  - match: { synonyms_set.0.id: "test-id-1" }
+  - match: { synonyms_set.1.id: "test-id-2" }
+  - is_true: next_search_after
+  - set: { next_search_after: cursor }
+
+  # Second page: resume with search_after — returns last rule, no further cursor
+  - do:
+      synonyms.get_synonym:
+        id: test-get-synonyms
+        size: 2
+        search_after: $cursor
+
+  - match: { count: 3 }
+  - length: { synonyms_set: 1 }
+  - match: { synonyms_set.0.id: "test-id-3" }
+  - not_exists: next_search_after
+
+---
+"search_after on first page with exact page size returns cursor":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_synonyms/{synonymsSet}
+          capabilities: [ synonyms_get_search_after ]
+      reason: "synonyms_get_search_after capability needed"
+
+  # Request exactly all 3 rules in one page — cursor is returned because hits == size
+  - do:
+      synonyms.get_synonym:
+        id: test-get-synonyms
+        size: 3
+
+  - match: { count: 3 }
+  - length: { synonyms_set: 3 }
+  - is_true: next_search_after
+  - set: { next_search_after: cursor }
+
+  # Following the cursor returns an empty page with no further cursor
+  - do:
+      synonyms.get_synonym:
+        id: test-get-synonyms
+        size: 3
+        search_after: $cursor
+
+  - match: { count: 3 }
+  - length: { synonyms_set: 0 }
+  - not_exists: next_search_after

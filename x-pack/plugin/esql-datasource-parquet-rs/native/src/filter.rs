@@ -95,12 +95,24 @@ unsafe fn unbox_expr(handle: jlong) -> Box<FilterExpr> {
 // ---------------------------------------------------------------------------
 
 #[derive(Clone, Debug, PartialOrd, PartialEq)]
-enum StatValue {
+pub enum StatValue {
     Int(i32),
     Long(i64),
     Double(f64),
     Bool(bool),
     Str(String),
+}
+
+impl std::fmt::Display for StatValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            StatValue::Int(v) => write!(f, "{v}"),
+            StatValue::Long(v) => write!(f, "{v}"),
+            StatValue::Double(v) => write!(f, "{v}"),
+            StatValue::Bool(v) => write!(f, "{v}"),
+            StatValue::Str(v) => write!(f, "{v}"),
+        }
+    }
 }
 
 struct ColMinMax {
@@ -241,6 +253,37 @@ pub fn row_group_matches(
             if let FilterExpr::Column(col) = inner.as_ref() {
                 if let Some(cs) = get_col_stats(rg, col, schema) {
                     return cs.null_count < cs.num_rows;
+                }
+            }
+            true
+        }
+        FilterExpr::NotEq(left, right) => {
+            if let FilterExpr::Column(col) = left.as_ref() {
+                if let Some(lit) = literal_to_stat(right) {
+                    if let Some(cs) = get_col_stats(rg, col, schema) {
+                        if let (Some(min), Some(max)) = (&cs.min, &cs.max) {
+                            if *min == *max && *min == lit {
+                                return false;
+                            }
+                        }
+                    }
+                }
+            }
+            true
+        }
+        FilterExpr::InList(col_expr, items) => {
+            if let FilterExpr::Column(col) = col_expr.as_ref() {
+                if let Some(cs) = get_col_stats(rg, col, schema) {
+                    if let (Some(min), Some(max)) = (&cs.min, &cs.max) {
+                        let any_in_range = items.iter().any(|item| {
+                            if let Some(lit) = literal_to_stat(item) {
+                                lit >= *min && lit <= *max
+                            } else {
+                                true
+                            }
+                        });
+                        return any_in_range;
+                    }
                 }
             }
             true
@@ -485,7 +528,8 @@ fn eval_like(
 ) -> arrow::error::Result<BooleanArray> {
     if let FilterExpr::Column(name) = col_expr {
         if let Some(col) = find_column(batch, name) {
-            if let Some(str_arr) = col.as_any().downcast_ref::<StringArray>() {
+            let str_col = as_string_array(&col);
+            if let Some(str_arr) = str_col.as_ref().or_else(|| col.as_any().downcast_ref::<StringArray>()) {
                 let pattern_scalar = StringArray::new_scalar(pattern);
                 let result = if negate {
                     arrow::compute::kernels::comparison::nlike(str_arr, &pattern_scalar)?
@@ -497,6 +541,26 @@ fn eval_like(
         }
     }
     Ok(BooleanArray::from(vec![true; num_rows]))
+}
+
+/// Try to interpret a column as a StringArray, converting from BinaryArray if needed.
+fn as_string_array(col: &Arc<dyn Array>) -> Option<StringArray> {
+    if col.as_any().downcast_ref::<StringArray>().is_some() {
+        return None;
+    }
+    if let Some(bin_arr) = col.as_any().downcast_ref::<BinaryArray>() {
+        let strs: Vec<Option<&str>> = (0..bin_arr.len())
+            .map(|i| {
+                if bin_arr.is_null(i) {
+                    None
+                } else {
+                    std::str::from_utf8(bin_arr.value(i)).ok()
+                }
+            })
+            .collect();
+        return Some(StringArray::from(strs));
+    }
+    None
 }
 
 fn eval_starts_with(

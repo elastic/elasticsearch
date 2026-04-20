@@ -1,3 +1,4 @@
+use super::filter::StatValue;
 use super::jni_utils::*;
 use arrow::datatypes::{DataType as ArrowDataType, TimeUnit};
 use jni::{EnvUnowned, jni_str};
@@ -111,8 +112,8 @@ fn read_statistics_from_metadata(
 struct ColumnStats {
     name: String,
     null_count: i64,
-    min_value: Option<String>,
-    max_value: Option<String>,
+    min_value: Option<StatValue>,
+    max_value: Option<StatValue>,
 }
 
 fn read_column_statistics_from_metadata(
@@ -128,8 +129,8 @@ fn read_column_statistics_from_metadata(
         let col_desc = schema.column(col_idx);
         let col_name = col_desc.name().to_string();
         let mut null_count: i64 = 0;
-        let mut global_min: Option<String> = None;
-        let mut global_max: Option<String> = None;
+        let mut global_min: Option<StatValue> = None;
+        let mut global_max: Option<StatValue> = None;
 
         for rg_idx in 0..num_row_groups {
             let rg = metadata.row_group(rg_idx);
@@ -139,18 +140,18 @@ fn read_column_statistics_from_metadata(
                 if let Some(nc) = stats.null_count_opt() {
                     null_count += nc as i64;
                 }
-                let (min_str, max_str) = format_stats(stats);
-                if let Some(min_s) = min_str {
-                    global_min = match global_min {
-                        None => Some(min_s),
-                        Some(existing) => Some(pick_min(&existing, &min_s)),
-                    };
+                let (min_val, max_val) = extract_stats(stats);
+                if let Some(v) = min_val {
+                    global_min = Some(match global_min {
+                        None => v,
+                        Some(existing) => if v < existing { v } else { existing },
+                    });
                 }
-                if let Some(max_s) = max_str {
-                    global_max = match global_max {
-                        None => Some(max_s),
-                        Some(existing) => Some(pick_max(&existing, &max_s)),
-                    };
+                if let Some(v) = max_val {
+                    global_max = Some(match global_max {
+                        None => v,
+                        Some(existing) => if v > existing { v } else { existing },
+                    });
                 }
             }
         }
@@ -161,32 +162,39 @@ fn read_column_statistics_from_metadata(
     Ok(columns)
 }
 
-fn format_stats(stats: &parquet::file::statistics::Statistics) -> (Option<String>, Option<String>) {
+fn extract_stats(stats: &parquet::file::statistics::Statistics) -> (Option<StatValue>, Option<StatValue>) {
     use parquet::file::statistics::Statistics::*;
     match stats {
-        Int32(s) => (s.min_opt().map(|v| v.to_string()), s.max_opt().map(|v| v.to_string())),
-        Int64(s) => (s.min_opt().map(|v| v.to_string()), s.max_opt().map(|v| v.to_string())),
-        Float(s) => (s.min_opt().map(|v| v.to_string()), s.max_opt().map(|v| v.to_string())),
-        Double(s) => (s.min_opt().map(|v| v.to_string()), s.max_opt().map(|v| v.to_string())),
-        Boolean(s) => (s.min_opt().map(|v| v.to_string()), s.max_opt().map(|v| v.to_string())),
+        Int32(s) => (
+            s.min_opt().map(|v| StatValue::Int(*v)),
+            s.max_opt().map(|v| StatValue::Int(*v)),
+        ),
+        Int64(s) => (
+            s.min_opt().map(|v| StatValue::Long(*v)),
+            s.max_opt().map(|v| StatValue::Long(*v)),
+        ),
+        Float(s) => (
+            s.min_opt().map(|v| StatValue::Double(*v as f64)),
+            s.max_opt().map(|v| StatValue::Double(*v as f64)),
+        ),
+        Double(s) => (
+            s.min_opt().map(|v| StatValue::Double(*v)),
+            s.max_opt().map(|v| StatValue::Double(*v)),
+        ),
+        Boolean(s) => (
+            s.min_opt().map(|v| StatValue::Bool(*v)),
+            s.max_opt().map(|v| StatValue::Bool(*v)),
+        ),
         ByteArray(s) => (
-            s.min_opt().map(|v| String::from_utf8_lossy(v.data()).to_string()),
-            s.max_opt().map(|v| String::from_utf8_lossy(v.data()).to_string()),
+            s.min_opt().map(|v| StatValue::Str(String::from_utf8_lossy(v.data()).into())),
+            s.max_opt().map(|v| StatValue::Str(String::from_utf8_lossy(v.data()).into())),
         ),
         FixedLenByteArray(s) => (
-            s.min_opt().map(|v| String::from_utf8_lossy(v.data()).to_string()),
-            s.max_opt().map(|v| String::from_utf8_lossy(v.data()).to_string()),
+            s.min_opt().map(|v| StatValue::Str(String::from_utf8_lossy(v.data()).into())),
+            s.max_opt().map(|v| StatValue::Str(String::from_utf8_lossy(v.data()).into())),
         ),
         Int96(_) => (None, None),
     }
-}
-
-fn pick_min(a: &str, b: &str) -> String {
-    if a <= b { a.to_string() } else { b.to_string() }
-}
-
-fn pick_max(a: &str, b: &str) -> String {
-    if a >= b { a.to_string() } else { b.to_string() }
 }
 
 // ---------------------------------------------------------------------------
@@ -242,8 +250,10 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parq
             let base = i * 4;
             let name = env.new_string(&col.name)?;
             let null_count = env.new_string(col.null_count.to_string())?;
-            let min = env.new_string(col.min_value.as_deref().unwrap_or(""))?;
-            let max = env.new_string(col.max_value.as_deref().unwrap_or(""))?;
+            let min_str = col.min_value.as_ref().map(|v| v.to_string()).unwrap_or_default();
+            let max_str = col.max_value.as_ref().map(|v| v.to_string()).unwrap_or_default();
+            let min = env.new_string(&min_str)?;
+            let max = env.new_string(&max_str)?;
             arr.set_element(env, base, &name)?;
             arr.set_element(env, base + 1, &null_count)?;
             arr.set_element(env, base + 2, &min)?;

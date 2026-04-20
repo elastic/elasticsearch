@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet.parquetrs;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -15,6 +16,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.Locale;
 
 /**
  * Loads the native parquet-rs shared library from the classpath.
@@ -31,8 +33,8 @@ final class NativeLibLoader {
         if (loaded) {
             return;
         }
-        String os = System.getProperty("os.name", "").toLowerCase();
-        String arch = System.getProperty("os.arch", "").toLowerCase();
+        String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+        String arch = System.getProperty("os.arch", "").toLowerCase(Locale.ROOT);
 
         String libName;
         if (os.contains("mac") || os.contains("darwin")) {
@@ -57,11 +59,10 @@ final class NativeLibLoader {
             if (is == null) {
                 throw new UnsatisfiedLinkError("Native library not found on classpath: " + resourcePath);
             }
-            Path tmpDir = Files.createTempDirectory("esql-native-");
+            Path tmpDir = createTempDirectory();
             Path tmpLib = tmpDir.resolve(libName);
             Files.copy(is, tmpLib, StandardCopyOption.REPLACE_EXISTING);
-            tmpLib.toFile().deleteOnExit();
-            tmpDir.toFile().deleteOnExit();
+            registerDeleteOnExit(tmpLib, tmpDir);
 
             System.load(tmpLib.toAbsolutePath().toString());
             loaded = true;
@@ -69,5 +70,16 @@ final class NativeLibLoader {
         } catch (IOException e) {
             throw new UnsatisfiedLinkError("Failed to extract native library: " + e.getMessage());
         }
+    }
+
+    @SuppressForbidden(reason = "Native library extraction requires a temp directory")
+    private static Path createTempDirectory() throws IOException {
+        return Files.createTempDirectory("esql-native-");
+    }
+
+    @SuppressForbidden(reason = "Cleanup of extracted native library on JVM shutdown")
+    private static void registerDeleteOnExit(Path tmpLib, Path tmpDir) {
+        tmpLib.toFile().deleteOnExit();
+        tmpDir.toFile().deleteOnExit();
     }
 }

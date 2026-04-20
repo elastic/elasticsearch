@@ -93,14 +93,19 @@ tasks.register("copyNativeLib", Copy) {
   dependsOn "cargoBuild"
   from "${cargoOutputDir}/${libFileName}"
   into resourceTarget
+  filePermissions {
+    unix("rw-r--r--")
+  }
   onlyIf { new File("${cargoOutputDir}/${libFileName}").exists() }
 }
 
-tasks.named("processResources").configure {
-  dependsOn "copyNativeLib"
+tasks.configureEach { task ->
+  if (task.name != "copyNativeLib" && task.name != "cargoBuild") {
+    task.mustRunAfter("copyNativeLib")
+  }
 }
 
-tasks.matching { it.name == "sourcesJar" }.configureEach {
+tasks.named("processResources").configure {
   dependsOn "copyNativeLib"
 }
 
@@ -120,4 +125,9 @@ tasks.named("dependencyLicenses").configure {
 
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses()
+}
+
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.dylib'
+  exclude '**/*.so'
 }

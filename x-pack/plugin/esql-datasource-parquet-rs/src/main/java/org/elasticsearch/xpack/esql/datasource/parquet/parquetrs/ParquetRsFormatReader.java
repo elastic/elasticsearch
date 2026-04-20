@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -36,10 +37,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -47,7 +44,6 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.OptionalLong;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * FormatReader backed by a Rust parquet-rs native library via JNI.
@@ -61,7 +57,6 @@ public class ParquetRsFormatReader implements FormatReader {
 
     private final BlockFactory blockFactory;
     private final long filterHandle;
-    private final ConcurrentHashMap<String, String> tempFileCache = new ConcurrentHashMap<>();
 
     public ParquetRsFormatReader(BlockFactory blockFactory) {
         this(blockFactory, 0);
@@ -185,7 +180,7 @@ public class ParquetRsFormatReader implements FormatReader {
                 case INTEGER -> Integer.parseInt(str);
                 case LONG, DATETIME -> Long.parseLong(str);
                 case DOUBLE -> Double.parseDouble(str);
-                case BOOLEAN -> Boolean.parseBoolean(str);
+                case BOOLEAN -> Booleans.parseBoolean(str);
                 case KEYWORD -> str;
                 default -> null;
             };
@@ -223,33 +218,14 @@ public class ParquetRsFormatReader implements FormatReader {
         if (filterHandle != 0) {
             ParquetRsBridge.freeExpr(filterHandle);
         }
-        for (String tempPath : tempFileCache.values()) {
-            try {
-                Files.deleteIfExists(Path.of(tempPath));
-            } catch (IOException e) {
-                logger.warn("Failed to delete temp file [{}]", tempPath);
-            }
-        }
-        tempFileCache.clear();
     }
 
-    private String resolveNativePath(StorageObject object) throws IOException {
+    private static String resolveNativePath(StorageObject object) {
         String uri = object.path().toString();
         if (uri.startsWith("file://")) {
             return uri.substring(7);
         }
-        return tempFileCache.computeIfAbsent(uri, k -> {
-            try {
-                Path tempFile = Files.createTempFile("esql-parquet-", ".parquet");
-                try (InputStream in = object.newStream(); OutputStream out = Files.newOutputStream(tempFile)) {
-                    in.transferTo(out);
-                }
-                logger.debug("Downloaded remote parquet file [{}] to temp [{}]", uri, tempFile);
-                return tempFile.toAbsolutePath().toString();
-            } catch (IOException e) {
-                throw new RuntimeException("Failed to download remote parquet file: " + uri, e);
-            }
-        });
+        return uri;
     }
 
     private static final int TYPE_LIST = 13;

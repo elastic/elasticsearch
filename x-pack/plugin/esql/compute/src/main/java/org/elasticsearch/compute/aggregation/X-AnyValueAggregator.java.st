@@ -192,6 +192,8 @@ public class Any$v_Type$Aggregator {
 
         /**
          * The group-indexed values
+         * TODO: apply the firstValue/tailValues optimization from X-AllValueByTimestampAggregator.java.st
+         * to inline single-element groups and avoid the ~64 byte ObjectArray wrapper overhead.
          */
         private ObjectArray<$if(v_BytesRef)$BytesRefArray$elseif(v_boolean)$ByteArray$else$$v_Type$Array$endif$> values;
 

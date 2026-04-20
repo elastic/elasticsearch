@@ -358,3 +358,73 @@ setup:
       catch: forbidden
       tasks.get:
         task_id: $task
+
+---
+"Reindex wait_for_completion=false as minimal with reindex get API":
+  - requires:
+      test_runner_features: [capabilities]
+      reason: Dedicated reindex GET requires reindex management API
+      capabilities:
+        - method: GET
+          path: /_reindex/{task_id}
+          capabilities: [reindex_management_api]
+
+  - do:
+      index:
+        index:   source
+        id:      "1"
+        body:    { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      headers: {es-security-runas-user: minimal_with_reindex_get_user}
+      reindex:
+        refresh: true
+        wait_for_completion: false
+        body:
+          source:
+            index: source
+          dest:
+            index: dest
+  - set: {task: task}
+
+  - do:
+      headers: {es-security-runas-user: minimal_with_reindex_get_user}
+      reindex_get:
+        task_id: $task
+        wait_for_completion: true
+        human: true
+  # Assert the dedicated GET /_reindex/{task_id} (human) response matches a finished reindex
+  - is_true: completed
+  - match: { id: $task }
+  - match: { description: "reindex from [source] to [dest]" }
+  - match: { cancelled: false }
+  - exists: start_time
+  - exists: start_time_in_millis
+  - exists: running_time
+  - exists: running_time_in_nanos
+  - exists: status
+  - is_false: error
+  - match: { response.total: 1 }
+  - gt: { response.took: 0 }
+  - match: { response.batches: 1 }
+  - match: { response.failures: [ ] }
+  - match: { response.timed_out: false }
+
+  - do:
+      search:
+        index: dest
+        rest_total_hits_as_int: true
+        body:
+          query:
+            match:
+              text: test
+  - match: { hits.total: 1 }
+
+  # the minimal user doesn't have permission to call the dedicated reindex GET API
+  - do:
+      headers: {es-security-runas-user: minimal_user}
+      catch: forbidden
+      reindex_get:
+        task_id: $task

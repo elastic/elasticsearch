@@ -1,0 +1,5 @@
+area: "ES|QL"
+issues: []
+pr: 146503
+summary: Heap attack tests and fixes for SPARKLINE
+type: bug

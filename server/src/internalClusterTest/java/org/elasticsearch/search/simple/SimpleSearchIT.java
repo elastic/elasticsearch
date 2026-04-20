@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.SearchOperationListener;
@@ -29,6 +30,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -121,7 +123,8 @@ public class SimpleSearchIT extends ESIntegTestCase {
         );
     }
 
-    public void testIpCidr() throws Exception {
+    public void testHighCardinalityIp() throws Exception {
+        assumeTrue("cardinality option is available", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         createIndex("test");
 
         indicesAdmin().preparePutMapping("test")
@@ -130,14 +133,36 @@ public class SimpleSearchIT extends ESIntegTestCase {
                     .startObject()
                     .startObject("_doc")
                     .startObject("properties")
-                    .startObject("ip")
+                    .startObject("from")
                     .field("type", "ip")
+                    .field("index", false)
+                    .startObject("doc_values")
+                    .field("cardinality", "high")
+                    .endObject()
+                    .endObject()
+                    .startObject("to")
+                    .field("type", "ip")
+                    .startObject("doc_values")
+                    .field("cardinality", "high")
+                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
             )
             .get();
+
+        prepareIndex("test").setId("1").setSource("from", "192.168.0.5", "to", "192.168.0.10").setRefreshPolicy(IMMEDIATE).get();
+        assertHitCount(
+            prepareSearch().setQuery(boolQuery().must(rangeQuery("from").lte("192.168.0.7")).must(rangeQuery("to").gte("192.168.0.7"))),
+            1L
+        );
+    }
+
+    private void testIpCidr(XContentBuilder mapping) throws Exception {
+        createIndex("test");
+
+        indicesAdmin().preparePutMapping("test").setSource(mapping).get();
         ensureGreen();
 
         prepareIndex("test").setId("1").setSource("ip", "192.168.0.1").get();
@@ -168,6 +193,40 @@ public class SimpleSearchIT extends ESIntegTestCase {
             prepareSearch().setQuery(boolQuery().must(QueryBuilders.termQuery("ip", "0/0/0/0/0"))),
             RestStatus.BAD_REQUEST,
             containsString("Expected [ip/prefix] but was [0/0/0/0/0]")
+        );
+    }
+
+    public void testIpCidr() throws Exception {
+        testIpCidr(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject("ip")
+                .field("type", "ip")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
+    }
+
+    public void testIpCidrHighCardinality() throws Exception {
+        assumeTrue("cardinality option is available", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        testIpCidr(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject("ip")
+                .field("type", "ip")
+                .startObject("doc_values")
+                .field("cardinality", "high")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
         );
     }
 

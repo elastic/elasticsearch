@@ -115,6 +115,9 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
     public static final NodeFeature SEMANTIC_TEXT_ELEMENT_TYPE_IN_INDEX_OPTIONS = new NodeFeature(
         "semantic_text.element_type_in_index_options"
     );
+    public static final NodeFeature SEMANTIC_TEXT_PREVENT_LEGACY_FORMAT_NEW_INDICES = new NodeFeature(
+        "semantic_text.prevent_legacy_format_new_indices"
+    );
 
     public static final String CONTENT_TYPE = "semantic_text";
     public static final String DEFAULT_FALLBACK_ELSER_INFERENCE_ID = DEFAULT_ELSER_ID;

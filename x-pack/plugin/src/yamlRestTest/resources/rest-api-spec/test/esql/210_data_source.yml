@@ -73,6 +73,21 @@ setup:
         name: ghost
 
 ---
+"get-missing":
+  # Concrete-name miss -> 404. Wildcard miss -> 200 [] (list-all + wildcard semantics).
+  - do:
+      catch: missing
+      esql.get_data_source:
+        name: ghost
+
+  - do:
+      esql.get_data_source:
+        name: "no_match_*"
+
+  - match: { data_sources: [] }
+  - length: { data_sources: 0 }
+
+---
 "cluster-state-visibility":
   # DataSourceMetadata.context() excludes the API XContent context, so even if a data source existed
   # (can't create one here without a loaded validator plugin), the custom should never surface via

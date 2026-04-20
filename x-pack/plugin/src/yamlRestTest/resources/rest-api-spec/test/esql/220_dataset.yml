@@ -87,6 +87,21 @@ setup:
         name: ghost
 
 ---
+"get-missing":
+  # Concrete-name miss -> 404. Wildcard miss -> 200 [].
+  - do:
+      catch: missing
+      esql.get_dataset:
+        name: ghost
+
+  - do:
+      esql.get_dataset:
+        name: "no_match_*"
+
+  - match: { datasets: [] }
+  - length: { datasets: 0 }
+
+---
 "cluster-state-visibility":
   # DatasetMetadata.context() includes API, so if a dataset existed it would appear under
   # metadata.esql_dataset. With no datasets present, the custom is absent.

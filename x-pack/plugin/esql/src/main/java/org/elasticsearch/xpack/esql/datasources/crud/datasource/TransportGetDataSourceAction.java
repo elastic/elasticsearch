@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.datasources.crud.datasource;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.local.TransportLocalProjectMetadataAction;
@@ -61,12 +62,20 @@ public class TransportGetDataSourceAction extends TransportLocalProjectMetadataA
         if (requested == null || requested.length == 0 || matchesAll(requested)) {
             hits.addAll(metadata.dataSources().values());
         } else {
-            for (Map.Entry<String, DataSource> entry : metadata.dataSources().entrySet()) {
-                for (String pattern : requested) {
-                    if (Regex.simpleMatch(pattern, entry.getKey())) {
-                        hits.add(entry.getValue());
-                        break;
+            for (String pattern : requested) {
+                if (Regex.isSimpleMatchPattern(pattern)) {
+                    for (Map.Entry<String, DataSource> entry : metadata.dataSources().entrySet()) {
+                        if (Regex.simpleMatch(pattern, entry.getKey())) {
+                            hits.add(entry.getValue());
+                        }
                     }
+                } else {
+                    DataSource ds = metadata.dataSources().get(pattern);
+                    if (ds == null) {
+                        listener.onFailure(new ResourceNotFoundException("data source [" + pattern + "] not found"));
+                        return;
+                    }
+                    hits.add(ds);
                 }
             }
         }

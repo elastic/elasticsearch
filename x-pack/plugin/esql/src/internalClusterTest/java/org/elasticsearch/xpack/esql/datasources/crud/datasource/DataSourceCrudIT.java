@@ -434,9 +434,12 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         return new DeleteDatasetAction.Request(TEST_TIMEOUT, TEST_TIMEOUT, name);
     }
 
-    private void expectDataSourceMissing(String name) throws ExecutionException, InterruptedException {
-        GetDataSourceAction.Response resp = client().execute(GetDataSourceAction.INSTANCE, getDataSourceRequest(name)).get();
-        assertThat("expected no data source named [" + name + "]", resp.getDataSources(), hasSize(0));
+    private void expectDataSourceMissing(String name) {
+        ExecutionException err = expectThrows(
+            ExecutionException.class,
+            () -> client().execute(GetDataSourceAction.INSTANCE, getDataSourceRequest(name)).get()
+        );
+        assertThat(err.getCause(), instanceOf(ResourceNotFoundException.class));
     }
 
     private void expectDatasetMissing(String name) {

@@ -49,7 +49,16 @@ public abstract class GenerativeUnmappedLoadRestTest extends GenerativeRestTest 
         "does not support full-text search function",
         "type \\[null\\] .* not supported",
         // https://github.com/elastic/elasticsearch/issues/145555
-        "Multiple index patterns should be disabled with unmapped fields"
+        "Multiple index patterns should be disabled with unmapped fields",
+        // https://github.com/elastic/elasticsearch/issues/145998
+        "illegal data type \\[keyword\\]",
+        // https://github.com/elastic/elasticsearch/issues/146036
+        "argument of \\[.*\\] must be \\[unsupported\\], found value",
+        "LOOKUP JOIN is not supported with unmapped_fields=\\\"load\\\"",
+        // https://github.com/elastic/elasticsearch/issues/146074
+        "Input for REGISTERED_DOMAIN must be of type \\[string\\] but is \\[unsupported]\\",
+        "argument of \\[.*\\] is [keyword] so .* argument must also be [keyword] but was \\[.*\\]",
+        "FORK is not supported with unmapped_fields=\\\"load\\\""
     );
 
     protected static final Set<Pattern> LOAD_ALLOWED_ERROR_PATTERNS = LOAD_ALLOWED_ERRORS.stream()

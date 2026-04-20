@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleModelGard
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.ThinkingConfig;
-import org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiRequest;
+import org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiRequestUtils;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
@@ -123,7 +123,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestTests extends ESTestCase 
     }
 
     /**
-     * We use this class to fake the auth implementation to avoid static mocking of {@link GoogleVertexAiRequest}
+     * We use this class to fake the auth implementation to avoid static mocking of {@link GoogleVertexAiRequestUtils}
      */
     private static class GoogleVertexAiUnifiedChatCompletionWithoutAuthRequest extends GoogleVertexAiUnifiedChatCompletionRequest {
         GoogleVertexAiUnifiedChatCompletionWithoutAuthRequest(UnifiedChatInput unifiedChatInput, GoogleVertexAiChatCompletionModel model) {

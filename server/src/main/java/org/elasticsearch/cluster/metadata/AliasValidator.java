@@ -88,7 +88,14 @@ public class AliasValidator {
 
         String sameNameAsAlias = lookup.apply(alias);
         if (sameNameAsAlias != null) {
-            throw new InvalidAliasNameException(alias, "an index, data stream, or ESQL view exists with the same name as the alias");
+            // The enumeration in this error message is gated by the ES|QL external data sources feature flag. When the
+            // flag is off, datasets are not user-visible (no CRUD API) and must not appear in messages users hit during
+            // ordinary index/alias/data-stream/view operations. Collision detection runs unconditionally because it
+            // depends on cluster-state contents, not on the flag; only the description string switches.
+            String message = DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
+                ? "an index, data stream, ESQL view, or ESQL dataset exists with the same name as the alias"
+                : "an index, data stream, or ESQL view exists with the same name as the alias";
+            throw new InvalidAliasNameException(alias, message);
         }
     }
 

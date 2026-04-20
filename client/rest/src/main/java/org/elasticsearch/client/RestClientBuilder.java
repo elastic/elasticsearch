@@ -30,9 +30,7 @@ import org.apache.http.util.VersionInfo;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.security.AccessController;
 import java.security.NoSuchAlgorithmException;
-import java.security.PrivilegedAction;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -104,12 +102,7 @@ public final class RestClientBuilder {
 
         VersionInfo httpClientVersion = null;
         try {
-            httpClientVersion = AccessController.doPrivileged(
-                (PrivilegedAction<VersionInfo>) () -> VersionInfo.loadVersionInfo(
-                    "org.apache.http.nio.client",
-                    HttpAsyncClientBuilder.class.getClassLoader()
-                )
-            );
+            httpClientVersion = VersionInfo.loadVersionInfo("org.apache.http.nio.client", HttpAsyncClientBuilder.class.getClassLoader());
         } catch (Exception e) {
             // Keep unknown
         }
@@ -285,9 +278,7 @@ public final class RestClientBuilder {
         if (failureListener == null) {
             failureListener = new RestClient.FailureListener();
         }
-        CloseableHttpAsyncClient httpClient = AccessController.doPrivileged(
-            (PrivilegedAction<CloseableHttpAsyncClient>) this::createHttpClient
-        );
+        CloseableHttpAsyncClient httpClient = createHttpClient();
         RestClient restClient = new RestClient(
             httpClient,
             defaultHeaders,
@@ -344,8 +335,7 @@ public final class RestClientBuilder {
                 httpClientBuilder = httpClientConfigCallback.customizeHttpClient(httpClientBuilder);
             }
 
-            final HttpAsyncClientBuilder finalBuilder = httpClientBuilder;
-            return AccessController.doPrivileged((PrivilegedAction<CloseableHttpAsyncClient>) finalBuilder::build);
+            return httpClientBuilder.build();
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("could not create the default ssl context", e);
         }

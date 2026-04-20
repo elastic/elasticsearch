@@ -262,16 +262,8 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     .add(DataType.INT7U, List.of(Function.DOT_PRODUCT, Function.SQUARE_DISTANCE), NativeFunctions.allOperations())
                     // Only byte vectors have cosine as other types are normalized to unit length to use dot_product instead
                     .add(DataType.INT8, NativeFunctions.allFunctions(), NativeFunctions.allOperations())
-                    // No native BULK_SPARSE functions exist for Float32 or BFloat16
-                    .add(
-                        DataType.FLOAT32,
-                        List.of(Function.DOT_PRODUCT, Function.SQUARE_DISTANCE),
-                        List.of(Operation.SINGLE, Operation.BULK, Operation.BULK_OFFSETS)
-                    )
-                    .addBFloat16(
-                        List.of(Function.DOT_PRODUCT, Function.SQUARE_DISTANCE),
-                        List.of(Operation.SINGLE, Operation.BULK, Operation.BULK_OFFSETS)
-                    )
+                    .add(DataType.FLOAT32, List.of(Function.DOT_PRODUCT, Function.SQUARE_DISTANCE), NativeFunctions.allOperations())
+                    .addBFloat16(List.of(Function.DOT_PRODUCT, Function.SQUARE_DISTANCE), NativeFunctions.allOperations())
                     .addBBQ(NativeFunctions.allBBQTypes(), NativeFunctions.allOperations())
                     .build((functionName, functionDescriptor) -> bindFunction(functionName, finalVecCaps, functionDescriptor));
 
@@ -492,6 +484,21 @@ public final class JdkVectorLibrary implements VectorLibrary {
             Objects.checkFromIndexSize(0L, (long) count * Integer.BYTES, offsets.byteSize());
             Objects.checkFromIndexSize(0L, (long) count * Float.BYTES, result.byteSize());
             assert validateBulkOffsets(a, offsets, count, length, pitch, result, (long) length * Short.BYTES);
+            return true;
+        }
+
+        static boolean checkBFloat16BulkSparse(
+            int queryElementSize,
+            MemorySegment addresses,
+            MemorySegment b,
+            int length,
+            int count,
+            MemorySegment result
+        ) {
+            Objects.checkFromIndexSize(0L, (long) count * Long.BYTES, addresses.byteSize());
+            Objects.checkFromIndexSize(0L, (long) length * queryElementSize, b.byteSize());
+            Objects.checkFromIndexSize(0L, (long) count * Float.BYTES, result.byteSize());
+            assert validateBulkSparse(addresses, count, length, 16, result);
             return true;
         }
 
@@ -1155,6 +1162,26 @@ public final class JdkVectorLibrary implements VectorLibrary {
                                     );
                                     yield MethodHandles.guardWithTest(
                                         MethodHandles.insertArguments(checkMethod, 0, bbq.dataBits()),
+                                        op.getValue(),
+                                        MethodHandles.empty(op.getValue().type())
+                                    );
+                                }
+                                case BFloat16QueryType bfq -> {
+                                    MethodHandle checkMethod = lookup.findStatic(
+                                        JdkVectorSimilarityFunctions.class,
+                                        "checkBFloat16BulkSparse",
+                                        MethodType.methodType(
+                                            boolean.class,
+                                            int.class,
+                                            MemorySegment.class,
+                                            MemorySegment.class,
+                                            int.class,
+                                            int.class,
+                                            MemorySegment.class
+                                        )
+                                    );
+                                    yield MethodHandles.guardWithTest(
+                                        MethodHandles.insertArguments(checkMethod, 0, bfq.bytes()),
                                         op.getValue(),
                                         MethodHandles.empty(op.getValue().type())
                                     );

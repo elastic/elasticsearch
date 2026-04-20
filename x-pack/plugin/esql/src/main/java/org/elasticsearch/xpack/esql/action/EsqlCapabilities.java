@@ -8,12 +8,13 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.cluster.metadata.DataSourceMetadata;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
-import org.elasticsearch.xpack.core.esql.EsqlFeatureFlags;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
@@ -2032,6 +2033,12 @@ public class EsqlCapabilities {
         PROMQL_WITHOUT_GROUPING,
 
         /**
+         * PromQL label matchers that accept the empty string (e.g. {@code {label=""}} or {@code {label!="foo"}})
+         * also match time series where the label is absent ({@code NULL}), per PromQL spec.
+         */
+        PROMQL_ABSENT_LABEL_MATCHING,
+
+        /**
          * Support for`WITHOUT` grouping function
          * that excludes specific dimensions from time-series grouping.
          */
@@ -2189,7 +2196,7 @@ public class EsqlCapabilities {
         /**
          * Support query approximation.
          */
-        APPROXIMATION_V6,
+        APPROXIMATION_V7,
 
         /**
          * Create a ScoreOperator only when shard contexts are available
@@ -2292,12 +2299,12 @@ public class EsqlCapabilities {
         /**
          * Support for the EXTERNAL command (datasource access).
          */
-        EXTERNAL_COMMAND(EsqlFeatureFlags.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+        EXTERNAL_COMMAND(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
          * Support for the EXTERNAL command (datasource access).
          */
-        EXTERNAL_CSV_IP_SUPPORT(EsqlFeatureFlags.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+        EXTERNAL_CSV_IP_SUPPORT(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
          * https://github.com/elastic/elasticsearch/issues/142219
@@ -2420,6 +2427,11 @@ public class EsqlCapabilities {
         FIX_TBUCKET_TARGET_COUNT_WINDOW_VALIDATION,
 
         /**
+         * TSDB Temporality support which is guarded by a feature flag.
+         */
+        TSDB_TEMPORALITY_SUPPORT_V1(IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG),
+
+        /**
          * Support the null column type for the CHANGE_POINT command
          * <a href="https://github.com/elastic/elasticsearch/pull/144388"></a>
          */
@@ -2515,6 +2527,32 @@ public class EsqlCapabilities {
          * fields.
          */
         FIX_STARTS_WITH_ENDS_WITH_PUSHDOWN_ON_INDEX,
+
+        /**
+         * Fix for {@link org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushCountQueryAndTagsToSource} incorrectly
+         * replacing an {@code AggregateExec} that has multiple aggregate functions (e.g. COUNT + MAX) with an
+         * {@code EsStatsQueryExec} that only handles COUNT, when {@code CombineProjections} had removed the grouping key
+         * from the aggregates list.
+         * <p>
+         *     See <a href="https://github.com/elastic/elasticsearch/issues/146479">#146479</a>
+         * </p>
+         */
+        FIX_PUSH_COUNT_QUERY_AND_TAGS_WITH_MULTIPLE_AGGS,
+
+        /**
+         * Fix for column pruning in FORK.
+         */
+        FORK_PRUNE_ALL_COLUMNS_FIX,
+
+        /**
+         * Support query approximation with LOOKUP JOIN
+         */
+        APPROXIMATION_LOOKUP_JOIN(Build.current().isSnapshot()),
+
+        /**
+         * Support query approximation with INLINE STATS
+         */
+        APPROXIMATION_INLINE_STATS(Build.current().isSnapshot()),
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

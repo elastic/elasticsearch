@@ -19,9 +19,9 @@ The final output combines all these results into a single list, including any du
 ## Defining views
 
 Define a view using the REST API:
-* [Create or update an ES|QL View](/api/doc/elasticsearch/operation/operation-esql-put-view)
-* [Delete an ES|QL View](/api/doc/elasticsearch/operation/operation-esql-delete-view)
-* [Get or list ES|QL Views](/api/doc/elasticsearch/operation/operation-esql-get-view)
+* [Create or update an ES|QL View](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-put-view)
+* [Delete an ES|QL View](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-delete-view)
+* [Get or list ES|QL Views](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-get-view)
 
 For example, consider the following ES|QL query:
 

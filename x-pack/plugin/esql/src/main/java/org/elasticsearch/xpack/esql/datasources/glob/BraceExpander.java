@@ -76,7 +76,7 @@ final class BraceExpander {
         String braceContent = glob.substring(braceStart + 1, braceEnd);
         String suffix = glob.substring(braceEnd + 1);
 
-        String[] alternatives = expandBraceContent(braceContent);
+        String[] alternatives = expandBraceContent(braceContent, maxExpansion);
         if (alternatives == null || alternatives.length > maxExpansion) {
             return null;
         }
@@ -103,15 +103,15 @@ final class BraceExpander {
      * comma-separated alternatives. For ranges, both ascending and descending
      * sequences are supported, and leading zeros are preserved when either operand
      * has a leading zero (matching bash semantics: {@code {01..03}} pads, {@code {1..3}} does not).
-     * Returns {@code null} if the range exceeds the internal safety cap (100,000 elements).
+     * Returns {@code null} if the range exceeds {@code maxExpansion}.
      */
-    private static String[] expandBraceContent(String content) {
+    private static String[] expandBraceContent(String content, int maxExpansion) {
         int dotDot = content.indexOf("..");
         if (dotDot > 0 && dotDot < content.length() - 2 && content.indexOf(',') < 0) {
             String startStr = content.substring(0, dotDot);
             String endStr = content.substring(dotDot + 2);
             if (isNumeric(startStr) && isNumeric(endStr)) {
-                String[] rangeResult = expandNumericRange(startStr, endStr);
+                String[] rangeResult = expandNumericRange(startStr, endStr, maxExpansion);
                 if (rangeResult != null) {
                     return rangeResult;
                 }
@@ -134,7 +134,7 @@ final class BraceExpander {
     }
 
     @Nullable
-    private static String[] expandNumericRange(String startStr, String endStr) {
+    private static String[] expandNumericRange(String startStr, String endStr, int maxExpansion) {
         long start;
         long end;
         try {
@@ -147,8 +147,13 @@ final class BraceExpander {
         int width = Math.max(startStr.length(), endStr.length());
         boolean zeroPad = (startStr.length() > 1 && startStr.charAt(0) == '0') || (endStr.length() > 1 && endStr.charAt(0) == '0');
 
-        long count = (start <= end ? end - start : start - end) + 1;
-        if (count > 100_000) {
+        long count;
+        if (start <= end) {
+            count = end - start + 1;
+        } else {
+            count = start - end + 1;
+        }
+        if (count < 0 || count > maxExpansion) {
             return null;
         }
 

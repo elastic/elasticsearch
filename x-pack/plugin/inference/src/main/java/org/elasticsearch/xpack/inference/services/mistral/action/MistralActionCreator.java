@@ -29,11 +29,10 @@ import org.elasticsearch.xpack.inference.services.mistral.response.MistralEmbedd
 import org.elasticsearch.xpack.inference.services.openai.OpenAiChatCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
 
-import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
-
 import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
 
 /**
  * MistralActionCreator is responsible for creating executable actions for Mistral models.
@@ -44,16 +43,16 @@ public class MistralActionCreator implements MistralActionVisitor {
 
     public static final String COMPLETION_ERROR_PREFIX = "Mistral completions";
     public static final String USER_ROLE = "user";
-    public static final ResponseHandler EMBEDDINGS_HANDLER = new AzureMistralOpenAiExternalResponseHandler(
-        "mistral text embedding",
-        new MistralEmbeddingsResponseEntity(),
-        ErrorMessageResponseEntity::fromResponse,
-        false
-    );
     public static final ResponseHandler COMPLETION_HANDLER = new OpenAiChatCompletionResponseHandler(
         "mistral completions",
         OpenAiChatCompletionResponseEntity::fromResponse,
         ErrorResponse::fromResponse
+    );
+    private static final ResponseHandler EMBEDDINGS_HANDLER = new AzureMistralOpenAiExternalResponseHandler(
+        "mistral text embedding",
+        new MistralEmbeddingsResponseEntity(),
+        ErrorMessageResponseEntity::fromResponse,
+        false
     );
     private final Sender sender;
     private final ServiceComponents serviceComponents;

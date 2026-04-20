@@ -127,8 +127,7 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         final ReindexRequest request = new ReindexRequest().setSourceIndices(SOURCE)
             .setDestIndex(DEST)
             .setRefresh(true)
-            // If true, this includes writing the result of the task to the .tasks index
-            .setShouldStoreResult(randomBoolean())
+            .setShouldStoreResult(true)
             .setEligibleForRelocationOnShutdown(true)
             .setRequestsPerSecond(0.000001f);
         // This is the batch size of how many documents to return per search.

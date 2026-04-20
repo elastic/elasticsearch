@@ -64,7 +64,7 @@ final class SplitFilterClassifier {
      * Supports AND, OR, NOT, and leaf comparisons (field op literal).
      */
     public static SplitMatch classifyExpression(Expression filter, SplitStats splitStats) {
-        if (filter == null || splitStats == null || splitStats.columnCount() == 0 && splitStats.rowCount() == 0) {
+        if (filter == null || splitStats == null || splitStats.columnCount() == 0) {
             return SplitMatch.AMBIGUOUS;
         }
         return classifyRecursive(filter, splitStats);

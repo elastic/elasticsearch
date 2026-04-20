@@ -33,8 +33,7 @@ import java.util.Objects;
  * {@code _stats.*} key convention from {@link SourceStatisticsSerializer}.
  * <p>
  * Instances are effectively immutable after construction and safe for use within a single
- * request processing thread. The lazy {@link #columnName(int)} cache is not synchronized;
- * do not share instances across threads without safe publication.
+ * request processing thread.
  */
 public final class SplitStats implements Writeable {
 
@@ -58,8 +57,6 @@ public final class SplitStats implements Writeable {
     private final Object[] mins;
     private final Object[] maxs;
     private final long[] sizesBytes;
-
-    private transient String[] resolvedColumnNames;
 
     SplitStats(
         long rowCount,
@@ -159,27 +156,37 @@ public final class SplitStats implements Writeable {
 
     /**
      * Resolves the full dotted column name for the given ordinal by joining
-     * the path segments from the dictionary. Results are cached lazily.
+     * the path segments from the dictionary. Each call allocates a new String;
+     * callers that iterate over columns should prefer {@link #resolveColumnName(int, StringBuilder)}
+     * to reuse a buffer.
      */
     public String columnName(int ordinal) {
         Objects.checkIndex(ordinal, columnCount());
-        if (resolvedColumnNames == null) {
-            resolvedColumnNames = new String[columnCount()];
+        int[] segs = columnSegmentOrdinals[ordinal];
+        if (segs.length == 1) {
+            return segments[segs[0]];
         }
-        if (resolvedColumnNames[ordinal] == null) {
-            int[] segs = columnSegmentOrdinals[ordinal];
-            if (segs.length == 1) {
-                resolvedColumnNames[ordinal] = segments[segs[0]];
-            } else {
-                StringBuilder sb = new StringBuilder();
-                for (int j = 0; j < segs.length; j++) {
-                    if (j > 0) sb.append('.');
-                    sb.append(segments[segs[j]]);
-                }
-                resolvedColumnNames[ordinal] = sb.toString();
-            }
+        StringBuilder sb = new StringBuilder();
+        for (int j = 0; j < segs.length; j++) {
+            if (j > 0) sb.append('.');
+            sb.append(segments[segs[j]]);
         }
-        return resolvedColumnNames[ordinal];
+        return sb.toString();
+    }
+
+    /**
+     * Resolves the full dotted column name into the given {@link StringBuilder}, which is
+     * cleared before use. Avoids per-call String allocation when iterating over columns.
+     */
+    String resolveColumnName(int ordinal, StringBuilder sb) {
+        Objects.checkIndex(ordinal, columnCount());
+        sb.setLength(0);
+        int[] segs = columnSegmentOrdinals[ordinal];
+        for (int j = 0; j < segs.length; j++) {
+            if (j > 0) sb.append('.');
+            sb.append(segments[segs[j]]);
+        }
+        return sb.toString();
     }
 
     /** Returns null count for the column, or {@code -1} if unknown. */
@@ -206,10 +213,32 @@ public final class SplitStats implements Writeable {
 
     /**
      * Finds a column ordinal by its full dotted name. Returns {@code -1} if not found.
+     * Matches directly against the segment dictionary without materializing column name
+     * strings, keeping the compact representation intact.
      */
     public int findColumn(String name) {
+        int nameLen = name.length();
         for (int i = 0; i < columnCount(); i++) {
-            if (columnName(i).equals(name)) {
+            int[] segs = columnSegmentOrdinals[i];
+            int pos = 0;
+            boolean match = true;
+            for (int j = 0; j < segs.length; j++) {
+                if (j > 0) {
+                    if (pos >= nameLen || name.charAt(pos) != '.') {
+                        match = false;
+                        break;
+                    }
+                    pos++;
+                }
+                String seg = segments[segs[j]];
+                int segLen = seg.length();
+                if (pos + segLen > nameLen || name.regionMatches(pos, seg, 0, segLen) == false) {
+                    match = false;
+                    break;
+                }
+                pos += segLen;
+            }
+            if (match && pos == nameLen) {
                 return i;
             }
         }
@@ -267,6 +296,7 @@ public final class SplitStats implements Writeable {
         long totalSize = 0;
         boolean hasSize = false;
         Map<String, Integer> columnOrdinals = new LinkedHashMap<>();
+        StringBuilder nameBuf = new StringBuilder();
 
         for (SplitStats stats : statsList) {
             totalRows += stats.rowCount;
@@ -275,7 +305,7 @@ public final class SplitStats implements Writeable {
                 hasSize = true;
             }
             for (int i = 0; i < stats.columnCount(); i++) {
-                String colName = stats.columnName(i);
+                String colName = stats.resolveColumnName(i, nameBuf);
                 Integer existingOrd = columnOrdinals.get(colName);
                 if (existingOrd == null) {
                     int ord = builder.addColumn(colName);
@@ -292,21 +322,25 @@ public final class SplitStats implements Writeable {
                     if (existingNc >= 0 && newNc >= 0) {
                         builder.nullCount(ord, existingNc + newNc);
                     }
-                    // Min of mins
+                    // Min of mins (only compare values of the same type)
                     Object existingMin = builder.minsList.get(ord);
                     Object newMin = stats.mins[i];
                     if (existingMin != null && newMin != null) {
-                        if (existingMin instanceof Comparable eMin && newMin instanceof Comparable nMin) {
+                        if (existingMin instanceof Comparable eMin
+                            && newMin instanceof Comparable nMin
+                            && existingMin.getClass() == newMin.getClass()) {
                             builder.min(ord, eMin.compareTo(nMin) <= 0 ? existingMin : newMin);
                         }
                     } else if (newMin != null) {
                         builder.min(ord, newMin);
                     }
-                    // Max of maxes
+                    // Max of maxes (only compare values of the same type)
                     Object existingMax = builder.maxsList.get(ord);
                     Object newMax = stats.maxs[i];
                     if (existingMax != null && newMax != null) {
-                        if (existingMax instanceof Comparable eMax && newMax instanceof Comparable nMax) {
+                        if (existingMax instanceof Comparable eMax
+                            && newMax instanceof Comparable nMax
+                            && existingMax.getClass() == newMax.getClass()) {
                             builder.max(ord, eMax.compareTo(nMax) >= 0 ? existingMax : newMax);
                         }
                     } else if (newMax != null) {
@@ -340,8 +374,9 @@ public final class SplitStats implements Writeable {
         if (sizeInBytes >= 0) {
             map.put(SourceStatisticsSerializer.STATS_SIZE_BYTES, sizeInBytes);
         }
+        StringBuilder nameBuf = new StringBuilder();
         for (int i = 0; i < columnCount(); i++) {
-            String name = columnName(i);
+            String name = resolveColumnName(i, nameBuf);
             if (nullCounts[i] >= 0) {
                 map.put(SourceStatisticsSerializer.columnNullCountKey(name), nullCounts[i]);
             }

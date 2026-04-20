@@ -183,7 +183,8 @@ class DLMFrozenCleanupService extends AbstractDLMPeriodicMasterOnlyService {
         // Possibly resolve mounted snapshot to source index
         indexToCheck = Optional.ofNullable(indexName)
             .map(projectMetadata::index)
-            .map(im -> SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING.get(im.getSettings())
+            .map(IndexMetadata::getSettings)
+            .map(s -> s.get(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_INDEX_NAME_SETTING_KEY))
             .orElse(indexToCheck);
 
         // possibly resolve force merged index to source index

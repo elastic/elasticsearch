@@ -2533,6 +2533,17 @@ public class EsqlCapabilities {
          * Stateful grouping functions (such as {@code CATEGORIZE}) remain restricted to {@code STATS}.
          */
         LIMIT_BY_ALLOW_EVALUATABLE_GROUPING_FUNCTIONS(ESQL_LIMIT_BY.isEnabled()),
+      
+        /**
+         * Fix for {@link org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushCountQueryAndTagsToSource} incorrectly
+         * replacing an {@code AggregateExec} that has multiple aggregate functions (e.g. COUNT + MAX) with an
+         * {@code EsStatsQueryExec} that only handles COUNT, when {@code CombineProjections} had removed the grouping key
+         * from the aggregates list.
+         * <p>
+         *     See <a href="https://github.com/elastic/elasticsearch/issues/146479">#146479</a>
+         * </p>
+         */
+        FIX_PUSH_COUNT_QUERY_AND_TAGS_WITH_MULTIPLE_AGGS,
 
         /**
          * Fix for column pruning in FORK.

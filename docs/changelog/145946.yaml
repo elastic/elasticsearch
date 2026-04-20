@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 145946
-summary: "Feat(ES|QL): add order to TOP_SNIPPETS"
+summary: "Add order option to TOP_SNIPPETS"
 type: enhancement

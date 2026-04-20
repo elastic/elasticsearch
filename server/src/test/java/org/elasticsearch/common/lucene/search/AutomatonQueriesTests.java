@@ -19,6 +19,8 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Locale;
 
+import static org.apache.lucene.util.automaton.Operations.subsetOf;
+
 public class AutomatonQueriesTests extends ESTestCase {
 
     public void testToCaseInsensitiveChar() {
@@ -162,8 +164,15 @@ public class AutomatonQueriesTests extends ESTestCase {
         Automaton collapsedAutomaton = Operations.determinize(new RegExp(collapsed).toAutomaton(), 10_000);
         assertTrue(
             "collapsed regex must accept the same language, pattern=[" + pattern + "], collapsed=[" + collapsed + "]",
-            AutomatonTestUtil.sameLanguage(originalAutomaton, collapsedAutomaton)
+            sameLanguage(originalAutomaton, collapsedAutomaton)
         );
+    }
+
+    private static boolean sameLanguage(Automaton a1, Automaton a2) {
+        if (a1 == a2) {
+            return true;
+        }
+        return subsetOf(a2, a1) && subsetOf(a1, a2);
     }
 
     private void assertCollapsedAndInvalidRegexHandled(String pattern, String expectedCollapsed) {

@@ -28,6 +28,7 @@ public class ParquetRsPlugin extends Plugin implements DataSourcePlugin {
 
     @Override
     public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
-        return Map.of("parquet", (s, blockFactory) -> new ParquetRsFormatReader(blockFactory));
+        FormatReaderFactory factory = (s, blockFactory) -> new ParquetRsFormatReader(blockFactory);
+        return Map.of("parquet", factory);
     }
 }

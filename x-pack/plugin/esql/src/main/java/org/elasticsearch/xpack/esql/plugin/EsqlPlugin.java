@@ -120,7 +120,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -209,17 +208,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         Setting.Property.Dynamic
     );
 
-    /**
-     * When true, the native parquet-rs reader is used for .parquet files instead of the Java-based parquet-mr reader.
-     * Both readers are registered at startup; this setting controls which one the .parquet extension resolves to.
-     * Can be changed at runtime via cluster settings.
-     */
-    public static final Setting<Boolean> PARQUET_USE_NATIVE_READER = Setting.boolSetting(
-        "esql.parquet.use_native_reader",
-        true,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
+    public static final String READER_PARQUET_RS = "parquet-rs";
+    public static final String READER_JAVA = "java";
+    public static final String FORMAT_PARQUET = "parquet";
+    public static final String FORMAT_PARQUET_JAVA = "parquet-java";
+    static final String DEFAULT_PARQUET_READER = READER_PARQUET_RS;
 
     private final List<PlanCheckerProvider> extraCheckerProviders = new ArrayList<>();
     private final List<DataSourcePlugin> dataSourcePlugins = new ArrayList<>();
@@ -271,14 +264,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             services.threadPool().executor(ThreadPool.Names.GENERIC)
         );
 
-        // Register dynamic alias so the setting controls which parquet reader is used at runtime.
-        // Both "parquet" (native) and "parquet-java" format readers are registered; the alias
-        // makes .parquet extension and "parquet" name lookups resolve to the active one.
-        AtomicBoolean useNativeParquet = new AtomicBoolean(PARQUET_USE_NATIVE_READER.get(settings));
-        if (dataSourceModule.formatReaderRegistry().hasFormat("parquet")
-            && dataSourceModule.formatReaderRegistry().hasFormat("parquet-java")) {
+        if (dataSourceModule.formatReaderRegistry().hasFormat(FORMAT_PARQUET)
+            && dataSourceModule.formatReaderRegistry().hasFormat(FORMAT_PARQUET_JAVA)) {
+            boolean useParquetRs = READER_PARQUET_RS.equals(DEFAULT_PARQUET_READER);
             dataSourceModule.formatReaderRegistry()
-                .registerDynamicAlias(".parquet", "parquet", "parquet", "parquet-java", useNativeParquet::get);
+                .registerDynamicAlias(".parquet", FORMAT_PARQUET, FORMAT_PARQUET, FORMAT_PARQUET_JAVA, () -> useParquetRs);
         }
 
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
@@ -289,8 +279,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         services.clusterService()
             .getClusterSettings()
             .addSettingsUpdateConsumer(ExternalSourceCacheSettings.CACHE_ENABLED, cacheService::setEnabled);
-        services.clusterService().getClusterSettings().addSettingsUpdateConsumer(PARQUET_USE_NATIVE_READER, useNativeParquet::set);
-
         return List.of(
             new PlanExecutor(
                 new IndexResolver(services.client()),
@@ -351,8 +339,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD,
                 ViewService.MAX_VIEWS_COUNT_SETTING,
                 ViewService.MAX_VIEW_LENGTH_SETTING,
-                ViewResolver.MAX_VIEW_DEPTH_SETTING,
-                PARQUET_USE_NATIVE_READER
+                ViewResolver.MAX_VIEW_DEPTH_SETTING
             )
         );
         settings.addAll(PlannerSettings.settings());

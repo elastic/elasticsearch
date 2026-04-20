@@ -9,6 +9,7 @@
 package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.index.DocValuesSkipper;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -26,8 +27,10 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IOSupplier;
+import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -131,6 +134,31 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
             acceptDocs = new ESAcceptDocs.ScorerSupplierAcceptDocs(supplier, liveDocs, maxDoc, sliceOrd, sliceAcceptDocsSupplier);
         }
         return approximateSearch(ctx, acceptDocs, Integer.MAX_VALUE, knnCollectorManager, visitRatio);
+    }
+
+    @Override
+    protected int countTotalVectors(List<LeafReaderContext> leaves) throws IOException {
+        int totalVectors = 0;
+        for (LeafReaderContext leaf : leaves) {
+            SortedDocValues sdv = leaf.reader().getSortedDocValues(sliceField);
+            if (sdv == null) {
+                continue;
+            }
+            int sliceOrd = sdv.lookupTerm(sliceId);
+            if (sliceOrd < 0) {
+                continue;
+            }
+            IVFVectorsReader<?> ivfReader = IVFVectorsReader.getIVFReader(leaf.reader(), field);
+            if (ivfReader != null) {
+                totalVectors += ivfReader.getVectorCount(field, sliceOrd);
+            } else {
+                FloatVectorValues fvv = leaf.reader().getFloatVectorValues(field);
+                if (fvv != null) {
+                    totalVectors += fvv.size();
+                }
+            }
+        }
+        return totalVectors;
     }
 
     @Override

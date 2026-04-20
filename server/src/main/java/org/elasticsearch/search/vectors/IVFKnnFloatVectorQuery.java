@@ -83,20 +83,12 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery implements
         return query;
     }
 
-    /**
-     * Returns the skip centroids for the given leaf ordinal, or null if none.
-     */
     FixedBitSet getSkipCentroids(int leafOrd) {
         return skipCentroidsPerLeaf != null ? skipCentroidsPerLeaf.get(leafOrd) : null;
     }
 
-    /**
-     * Stores the visited centroids for the given leaf ordinal after a search completes.
-     */
     void storeVisitedCentroids(int leafOrd, FixedBitSet visited) {
-        if (visited != null) {
-            visitedCentroidsPerLeaf.put(leafOrd, visited);
-        }
+        visitedCentroidsPerLeaf.put(leafOrd, visited);
     }
 
     @Override
@@ -113,6 +105,9 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery implements
             .append("]");
         if (this.filter != null) {
             buffer.append("[").append(this.filter).append("]");
+        }
+        if (this.shouldPostFilter) {
+            buffer.append("[true]");
         }
         return buffer.toString();
     }

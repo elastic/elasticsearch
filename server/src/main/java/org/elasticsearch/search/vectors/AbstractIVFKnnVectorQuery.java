@@ -129,7 +129,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         float visitRatio = providedVisitRatio;
 
         IVFCollectorManager collectorManager = getKnnCollectorManager(Math.round(2f * k), indexSearcher);
-        if (filterWeight != null && shouldPostFilter == false) {
+        if (filterWeight != null && shouldPostFilter) {
             int totalVectors = countTotalVectors(leaves);
             float selectivity = computeSelectivity(filterWeight, leaves, totalVectors);
             if (selectivity > POST_FILTERING_THRESHOLD) {

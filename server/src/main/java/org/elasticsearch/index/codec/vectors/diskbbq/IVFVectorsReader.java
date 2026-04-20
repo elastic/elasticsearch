@@ -12,13 +12,16 @@ package org.elasticsearch.index.codec.vectors.diskbbq;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
+import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SegmentReadState;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.internal.hppc.IntObjectHashMap;
@@ -29,6 +32,7 @@ import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
@@ -144,6 +148,45 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
     protected int getNumberOfVectors(E entry, FloatVectorValues values, IndexInput centroidSlice, ESAcceptDocs esAcceptDocs)
         throws IOException {
         return values.size();
+    }
+
+    /**
+     * Returns the number of vectors for the given field and slice ordinal.
+     * When sliceOrd is -1 (non-sliced), returns the total vector count.
+     * When sliceOrd >= 0, returns the vector count for that specific slice.
+     */
+    public int getVectorCount(String field, int sliceOrd) throws IOException {
+        final FieldInfo fi = fieldInfos.fieldInfo(field);
+        if (fi == null) {
+            return 0;
+        }
+        final E entry = fields.get(fi.number);
+        if (entry == null) {
+            return 0;
+        }
+        final FloatVectorValues values = getFloatVectorValues(field);
+        if (values == null) {
+            return 0;
+        }
+        ESAcceptDocs esAcceptDocs = sliceOrd >= 0 ? new ESAcceptDocs.ESAcceptDocsAll(sliceOrd, null) : null;
+        return getNumberOfVectors(entry, values, entry.centroidSlice(ivfCentroids), esAcceptDocs);
+    }
+
+    /**
+     * Unwraps the {@link IVFVectorsReader} for the given field from a leaf reader, or returns null
+     * if the reader is not an IVF reader.
+     */
+    public static IVFVectorsReader<?> getIVFReader(LeafReader reader, String field) {
+        SegmentReader sr = Lucene.tryUnwrapSegmentReader(reader);
+        if (sr == null) {
+            return null;
+        }
+        KnnVectorsReader vr = sr.getVectorReader();
+        if (vr instanceof PerFieldKnnVectorsFormat.FieldsReader pfr) {
+            KnnVectorsReader fieldReader = pfr.getFieldReader(field);
+            return fieldReader instanceof IVFVectorsReader<?> ivf ? ivf : null;
+        }
+        return null;
     }
 
     protected static IndexInput openDataInput(

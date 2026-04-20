@@ -2538,7 +2538,7 @@ public class EsqlCapabilities {
          * </p>
          */
         FIX_PUSH_COUNT_QUERY_AND_TAGS_WITH_MULTIPLE_AGGS,
-  
+
         /**
          * Fix for column pruning in FORK.
          */

@@ -205,6 +205,7 @@ FROM employees,
 | WHERE emp_no == 10091 OR emp_no IS NULL
 | STATS count=COUNT(*) BY emp_no, _index, _index_mode
 // end::subquery_with_metadata[]
+| EVAL _index = MV_LAST(SPLIT(_index, ":"))
 | SORT count ASC
 ;
 
@@ -224,6 +225,7 @@ FROM employees,
 | WHERE emp_no == 10091 OR emp_no IS NULL
 | STATS count=COUNT(*) BY emp_no, _index, _index_mode
 // end::subquery_with_metadata_inner[]
+| EVAL _index = MV_LAST(SPLIT(_index, ":"))
 | SORT count ASC
 ;
 
@@ -244,6 +246,7 @@ FROM employees,
 | WHERE emp_no == 10091 OR emp_no IS NULL
 | STATS count=COUNT(*) BY emp_no, _index, _index_mode
 // end::subquery_with_metadata_outer[]
+| EVAL _index = MV_LAST(SPLIT(_index, ":"))
 | SORT count ASC
 ;
 

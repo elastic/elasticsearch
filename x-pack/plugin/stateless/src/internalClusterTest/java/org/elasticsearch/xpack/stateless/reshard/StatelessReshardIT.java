@@ -4460,10 +4460,19 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             readBlocked.countDown();
 
             var response = readFuture.get();
-            // Right now we get an exception, eventually it will be retried.
-            for (var r : response.getResponses()) {
-                assertTrue(r.getFailure().getCause() instanceof StaleRequestException);
-            }
+            // We retry the operation because it is stale and get a legit response.
+            var document1Response = response.getResponses()[0].getResponse();
+            assertTrue(document1Response.isExists());
+            assertEquals(1, document1Response.getFields().size());
+            assertEquals("field", document1Response.getFields().iterator().next());
+            var document2Response = response.getResponses()[1].getResponse();
+            assertTrue(document2Response.isExists());
+            assertEquals(1, document2Response.getFields().size());
+            assertEquals("field", document2Response.getFields().iterator().next());
+            var document3Response = response.getResponses()[2].getResponse();
+            assertTrue(document3Response.isExists());
+            assertEquals(1, document3Response.getFields().size());
+            assertEquals("field", document3Response.getFields().iterator().next());
 
             waitForReshardCompletion(indexName);
         }

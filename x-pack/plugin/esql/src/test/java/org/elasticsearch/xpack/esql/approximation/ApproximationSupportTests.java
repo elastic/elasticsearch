@@ -85,10 +85,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
-import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
-import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
-import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
@@ -146,14 +143,7 @@ public class ApproximationSupportTests extends ESTestCase {
         Fork.class,
         UnionAll.class,
         ViewUnionAll.class,
-        Join.class,
-        InlineJoin.class,
-        LookupJoin.class,
         ParameterizedQuery.class,
-
-        // InlineStats is not supported yet.
-        // Only a single Stats command is supported.
-        InlineStats.class,
 
         // Timeseries indices are not supported yet.
         // They require chained Stats commands.
@@ -177,9 +167,10 @@ public class ApproximationSupportTests extends ESTestCase {
         // These plans don't occur in a correct analyzed query.
         UnresolvedRelation.class,
         UnresolvedExternalRelation.class,
-        StubRelation.class,
         Drop.class,
         Keep.class,
+        InlineStats.class,
+        LookupJoin.class,
         Rename.class,
         ResolvingProject.class,
         SparklineGenerateEmptyBuckets.class,

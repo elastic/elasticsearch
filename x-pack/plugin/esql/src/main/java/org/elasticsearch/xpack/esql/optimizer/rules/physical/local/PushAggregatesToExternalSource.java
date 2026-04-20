@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -219,10 +221,10 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
             case LONG, COUNTER_LONG, DATETIME -> blockFactory.newConstantLongBlockWith(((Number) value).longValue(), 1);
             case DOUBLE, COUNTER_DOUBLE -> blockFactory.newConstantDoubleBlockWith(((Number) value).doubleValue(), 1);
             case BOOLEAN -> blockFactory.newConstantBooleanBlockWith(
-                value instanceof Boolean b ? b : Boolean.parseBoolean(value.toString()),
+                value instanceof Boolean b ? b : Booleans.parseBoolean(value.toString()),
                 1
             );
-            case KEYWORD, TEXT -> blockFactory.newConstantBytesRefBlockWith(new org.apache.lucene.util.BytesRef(value.toString()), 1);
+            case KEYWORD, TEXT -> blockFactory.newConstantBytesRefBlockWith(new BytesRef(value.toString()), 1);
             default -> {
                 if (value instanceof Number n) {
                     yield blockFactory.newConstantLongBlockWith(n.longValue(), 1);

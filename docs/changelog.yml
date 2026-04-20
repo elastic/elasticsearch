@@ -178,8 +178,6 @@ pivot:
   # products:
   #   'elasticsearch':
   #     - ":stack/elasticsearch"
-  #   'kibana':
-  #     - ":stack/kibana"
   #   'cloud-serverless':
   #     - ":cloud/serverless"
   #   # Specify a target version if known:
@@ -312,6 +310,8 @@ bundle:
     - elastic/fleet-server
     - elastic/kibana
     - elastic/roadmap
+  # Optional: control auto-population of release-date for all profiles by default.
+  release_dates: false
   # Optional: default description text for bundles. Supports {version}, {lifecycle}, {owner}, and {repo} placeholders.
   # Use YAML literal block scalar (|) for multiline descriptions. See docs/contribute/changelog.md for examples.
   # description: |

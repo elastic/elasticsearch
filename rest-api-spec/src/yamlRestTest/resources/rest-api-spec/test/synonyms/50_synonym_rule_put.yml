@@ -15,6 +15,17 @@ setup:
               id: "test-id-3"
 
 ---
+teardown:
+  - requires:
+      cluster_features: ["synonyms.max_synonym_rules"]
+      reason: "synonyms.max_synonym_rules setting added"
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            synonyms.max_synonym_rules: null
+
+---
 "Update a synonyms rule":
   - do:
       synonyms.put_synonym_rule:
@@ -102,6 +113,37 @@ setup:
   - match: { result: "updated" }
   # Reload analyzers info is not included
   - not_exists: reload_analyzers_details
+
+---
+"Max synonym rules limit is enforced for single rule put":
+  - requires:
+      cluster_features: ["synonyms.max_synonym_rules"]
+      reason: "synonyms.max_synonym_rules setting added"
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            synonyms.max_synonym_rules: 3
+
+  # setup already created 3 rules; adding a 4th should fail
+  - do:
+      catch: /cannot exceed 3/
+      synonyms.put_synonym_rule:
+        set_id: "test-synonyms"
+        rule_id: "test-id-new"
+        body:
+          synonyms: "new, rule"
+
+  # updating an existing rule at the limit should succeed
+  - do:
+      synonyms.put_synonym_rule:
+        set_id: "test-synonyms"
+        rule_id: "test-id-1"
+        body:
+          synonyms: "hello, hi, hey"
+
+  - match: { result: "updated" }
 
 ---
 "Validation failure tests":

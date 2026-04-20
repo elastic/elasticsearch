@@ -94,7 +94,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 public class SynonymsManagementAPIService {
 
     private static final String SYNONYMS_INDEX_NAME_PATTERN = ".synonyms-*";
-    private static final int SYNONYMS_INDEX_FORMAT = 3;
+    private static final int SYNONYMS_INDEX_FORMAT = 2;
     static final String SYNONYMS_INDEX_CONCRETE_NAME = ".synonyms-" + SYNONYMS_INDEX_FORMAT;
     private static final String SYNONYMS_ALIAS_NAME = ".synonyms";
     public static final String SYNONYMS_FEATURE_NAME = "synonyms";
@@ -449,7 +449,6 @@ public class SynonymsManagementAPIService {
                 .filter(QueryBuilders.termQuery(OBJECT_TYPE_FIELD, SYNONYM_RULE_OBJECT_TYPE))
         )
             .size(size)
-            .sort(SortBuilders.fieldSort(SYNONYMS_SET_FIELD).order(SortOrder.ASC))
             .sort(SortBuilders.fieldSort(SYNONYM_RULE_ID_FIELD).order(SortOrder.ASC))
             .trackTotalHits(true)
             .fetchSource(false)
@@ -457,7 +456,7 @@ public class SynonymsManagementAPIService {
             .fetchField(SYNONYMS_FIELD);
 
         if (searchAfter != null) {
-            source.searchAfter(new Object[] { synonymSetId, searchAfter });
+            source.searchAfter(new Object[] { searchAfter });
         }
 
         client.execute(
@@ -886,8 +885,6 @@ public class SynonymsManagementAPIService {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
             .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), SYNONYMS_INDEX_FORMAT)
-            .putList("index.sort.field", SYNONYMS_SET_FIELD, SYNONYM_RULE_ID_FIELD)
-            .putList("index.sort.order", "asc", "asc")
             .build();
     }
 

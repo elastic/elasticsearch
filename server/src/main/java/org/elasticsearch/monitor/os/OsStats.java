@@ -505,12 +505,18 @@ public class OsStats implements Writeable, ToXContentFragment {
             cpuAcctControlGroup = in.readString();
             cpuAcctUsageNanos = in.readBigInteger();
             cpuControlGroup = in.readString();
-            cpuCfsPeriodMicros = in.readOptionalLong();
-            cpuCfsQuotaMicros = in.readOptionalLong();
+            cpuCfsPeriodMicros = readPositiveLong(in);
+            cpuCfsQuotaMicros = readPositiveLong(in);
             cpuStat = new CpuStat(in);
             memoryControlGroup = in.readOptionalString();
             memoryLimitInBytes = in.readOptionalString();
             memoryUsageInBytes = in.readOptionalString();
+        }
+
+        @Nullable
+        private static Long readPositiveLong(StreamInput in) throws IOException {
+            final var value = in.readLong();
+            return value < 0 ? null : value;
         }
 
         @Override
@@ -518,8 +524,8 @@ public class OsStats implements Writeable, ToXContentFragment {
             out.writeString(cpuAcctControlGroup);
             out.writeBigInteger(cpuAcctUsageNanos);
             out.writeString(cpuControlGroup);
-            out.writeOptionalLong(cpuCfsPeriodMicros);
-            out.writeOptionalLong(cpuCfsQuotaMicros);
+            out.writeLong(cpuCfsPeriodMicros == null ? -1 : cpuCfsPeriodMicros);
+            out.writeLong(cpuCfsQuotaMicros == null ? -1 : cpuCfsQuotaMicros);
             cpuStat.writeTo(out);
             out.writeOptionalString(memoryControlGroup);
             out.writeOptionalString(memoryLimitInBytes);

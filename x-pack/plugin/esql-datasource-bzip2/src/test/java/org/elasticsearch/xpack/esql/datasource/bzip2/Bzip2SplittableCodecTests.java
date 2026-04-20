@@ -77,9 +77,10 @@ public class Bzip2SplittableCodecTests extends ESTestCase {
      * uses overlapped parallel scans; results must match a single full-stream scan.
      */
     public void testParallelFindBlockBoundariesMatchesFullScan() throws IOException {
-        // Incompressible-ish payload so the .bz2 stays large enough to use the parallel scanner
-        // without an expensive loop of re-compressing growing strings.
-        byte[] uncompressed = randomByteArrayOfLength(2 * 1024 * 1024);
+        // Incompressible-ish payload; compressed size must exceed {@link Bzip2DecompressionCodec#MIN_PARALLEL_SCAN_BYTES}
+        // (currently multi-megabyte), so raw length is sized with margin above that threshold.
+        int rawLen = (int) Math.min(Integer.MAX_VALUE - 8, Bzip2DecompressionCodec.MIN_PARALLEL_SCAN_BYTES + 2 * 1024 * 1024);
+        byte[] uncompressed = randomByteArrayOfLength(rawLen);
         byte[] compressed = bzip2(uncompressed, BZip2CompressorOutputStream.MIN_BLOCKSIZE);
         assertTrue(
             "Compressed fixture must exceed parallel threshold: " + compressed.length,

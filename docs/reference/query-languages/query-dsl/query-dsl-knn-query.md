@@ -445,7 +445,7 @@ $$$knn-query-builder-embedding$$$ `embedding` {applies_to}`stack: preview` {appl
 :   (Optional, string) The format of the input value. If omitted, the default for the `type` is used. For text input, specify `text` or omit (defaults to `text`). For image input, specify `base64` or omit (defaults to `base64`).
 
 `value`
-:   (Required, string) The value to generate the embedding from. For text input, a text string. For image input, must be a base64-encoded image.
+:   (Required, string) The value to generate the embedding from. For text input, a text string. For image input, must be a data URI for a base64-encoded image.
 
 ::::
 

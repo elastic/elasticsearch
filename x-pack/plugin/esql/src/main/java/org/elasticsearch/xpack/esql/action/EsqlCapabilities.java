@@ -2529,6 +2529,11 @@ public class EsqlCapabilities {
         FIX_STARTS_WITH_ENDS_WITH_PUSHDOWN_ON_INDEX,
 
         /**
+         * Fix for column pruning in FORK.
+         */
+        FORK_PRUNE_ALL_COLUMNS_FIX,
+
+        /**
          * Support query approximation with LOOKUP JOIN
          */
         APPROXIMATION_LOOKUP_JOIN(Build.current().isSnapshot()),

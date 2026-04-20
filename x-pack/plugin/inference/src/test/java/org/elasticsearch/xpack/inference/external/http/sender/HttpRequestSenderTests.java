@@ -353,38 +353,6 @@ public class HttpRequestSenderTests extends ESTestCase {
     }
 
     public void testHttpRequestSender_Throws_WhenATimeoutOccurs() throws Exception {
-        var mockManager = mock(HttpClientManager.class);
-        when(mockManager.getHttpClient()).thenReturn(mock(HttpClient.class));
-
-        var senderFactory = new HttpRequestSender.Factory(
-            ServiceComponentsTests.createWithEmptySettings(threadPool),
-            mockManager,
-            mockClusterServiceEmpty()
-        );
-
-        try (var sender = senderFactory.createSender()) {
-            assertThat(sender, instanceOf(HttpRequestSender.class));
-            sender.startSynchronously();
-
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            sender.send(
-                RequestManagerTests.createMockWithRateLimitingEnabled(INFERENCE_ID),
-                new EmbeddingsInput(List.of(), null),
-                TimeValue.timeValueNanos(1),
-                listener
-            );
-
-            var thrownException = expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(TIMEOUT));
-
-            assertThat(
-                thrownException.getMessage(),
-                is(format("Request timed out after [%s] for inference id [%s]", ONE_NANOSECOND, INFERENCE_ID))
-            );
-            assertThat(thrownException.status(), is(RestStatus.TOO_MANY_REQUESTS));
-        }
-    }
-
-    public void testHttpRequestSenderWithTimeout_Throws_WhenATimeoutOccurs() throws Exception {
         var mockManager = createMockHttpClientManager();
 
         var senderFactory = new HttpRequestSender.Factory(
@@ -394,6 +362,7 @@ public class HttpRequestSenderTests extends ESTestCase {
         );
 
         try (var sender = senderFactory.createSender()) {
+            assertThat(sender, instanceOf(HttpRequestSender.class));
             sender.startSynchronously();
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();

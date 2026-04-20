@@ -29,6 +29,9 @@ import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerInferenceRequest;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerStoredServiceSchema;
@@ -37,6 +40,7 @@ import java.io.IOException;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -62,6 +66,9 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
     private static final ParseField EMBEDDING = new ParseField(EmbeddingResults.EMBEDDING);
 
     private static final TransportVersion ML_INFERENCE_SAGEMAKER_ELASTIC = TransportVersion.fromName("ml_inference_sagemaker_elastic");
+    private static final TransportVersion INFERENCE_SAGEMAKER_SIMILARITY_REQUIRED = TransportVersion.fromName(
+        "inference_sagemaker_similarity_required"
+    );
 
     @Override
     public EnumSet<TaskType> supportedTasks() {
@@ -69,8 +76,12 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
     }
 
     @Override
-    public SageMakerStoredServiceSchema apiServiceSettings(Map<String, Object> serviceSettings, ValidationException validationException) {
-        return ApiServiceSettings.fromMap(serviceSettings, validationException);
+    public SageMakerStoredServiceSchema apiServiceSettings(
+        Map<String, Object> serviceSettings,
+        ValidationException validationException,
+        ConfigurationParseContext parseContext
+    ) {
+        return ApiServiceSettings.fromMap(serviceSettings, validationException, parseContext);
     }
 
     @Override
@@ -227,7 +238,7 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
     record ApiServiceSettings(
         @Nullable Integer dimensions,
         Boolean dimensionsSetByUser,
-        @Nullable SimilarityMeasure similarity,
+        SimilarityMeasure similarity,
         DenseVectorFieldMapper.ElementType elementType
     ) implements SageMakerStoredServiceSchema {
 
@@ -235,13 +246,15 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
         private static final String DIMENSIONS_FIELD = "dimensions";
         private static final String DIMENSIONS_SET_BY_USER_FIELD = "dimensions_set_by_user";
         private static final String SIMILARITY_FIELD = "similarity";
-        private static final String ELEMENT_TYPE_FIELD = "element_type";
+        static final String ELEMENT_TYPE_FIELD = "element_type";
 
         ApiServiceSettings(StreamInput in) throws IOException {
             this(
                 in.readOptionalVInt(),
                 in.readBoolean(),
-                in.readOptionalEnum(SimilarityMeasure.class),
+                in.getTransportVersion().supports(INFERENCE_SAGEMAKER_SIMILARITY_REQUIRED)
+                    ? in.readEnum(SimilarityMeasure.class)
+                    : in.readOptionalEnum(SimilarityMeasure.class),
                 in.readEnum(DenseVectorFieldMapper.ElementType.class)
             );
         }
@@ -266,7 +279,11 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalVInt(dimensions);
             out.writeBoolean(dimensionsSetByUser);
-            out.writeOptionalEnum(similarity);
+            if (out.getTransportVersion().supports(INFERENCE_SAGEMAKER_SIMILARITY_REQUIRED)) {
+                out.writeEnum(similarity);
+            } else {
+                out.writeOptionalEnum(similarity);
+            }
             out.writeEnum(elementType);
         }
 
@@ -276,9 +293,7 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
                 builder.field(DIMENSIONS_FIELD, dimensions);
             }
             builder.field(DIMENSIONS_SET_BY_USER_FIELD, dimensionsSetByUser);
-            if (similarity != null) {
-                builder.field(SIMILARITY_FIELD, similarity);
-            }
+            builder.field(SIMILARITY_FIELD, similarity);
             builder.field(ELEMENT_TYPE_FIELD, elementType);
             return builder;
         }
@@ -288,7 +303,11 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
             return new ApiServiceSettings(dimensions, false, similarity, elementType);
         }
 
-        static ApiServiceSettings fromMap(Map<String, Object> serviceSettings, ValidationException validationException) {
+        static ApiServiceSettings fromMap(
+            Map<String, Object> serviceSettings,
+            ValidationException validationException,
+            ConfigurationParseContext parseContext
+        ) {
             var dimensions = extractOptionalPositiveInteger(
                 serviceSettings,
                 DIMENSIONS_FIELD,
@@ -296,7 +315,24 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
                 validationException
             );
             var dimensionsSetByUser = extractOptionalBoolean(serviceSettings, DIMENSIONS_SET_BY_USER_FIELD, validationException);
-            var similarity = extractSimilarity(serviceSettings, ModelConfigurations.SERVICE_SETTINGS, validationException);
+
+            SimilarityMeasure similarity;
+            if (parseContext == ConfigurationParseContext.PERSISTENT) {
+                similarity = Objects.requireNonNullElse(
+                    extractSimilarity(serviceSettings, ModelConfigurations.SERVICE_SETTINGS, validationException),
+                    SimilarityMeasure.DOT_PRODUCT
+                );
+            } else {
+                similarity = ServiceUtils.extractRequiredEnum(
+                    serviceSettings,
+                    ServiceFields.SIMILARITY,
+                    ModelConfigurations.SERVICE_SETTINGS,
+                    SimilarityMeasure::fromString,
+                    EnumSet.allOf(SimilarityMeasure.class),
+                    validationException
+                );
+            }
+
             var elementType = extractRequiredEnum(
                 serviceSettings,
                 ELEMENT_TYPE_FIELD,

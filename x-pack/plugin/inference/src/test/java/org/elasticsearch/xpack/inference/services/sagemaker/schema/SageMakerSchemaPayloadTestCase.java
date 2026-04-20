@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerInferenceRequest;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
 import org.junit.Before;
@@ -59,10 +60,26 @@ public abstract class SageMakerSchemaPayloadTestCase<T extends SageMakerSchemaPa
         assertThat(payload.supportedTasks(), containsInAnyOrder(expectedSupportedTaskTypes().toArray()));
     }
 
-    public final void testApiServiceSettings() throws IOException {
+    public final void testApiServiceSettings_request() throws IOException {
         var validationException = new ValidationException();
         var expectedApiServiceSettings = randomApiServiceSettings();
-        var actualApiServiceSettings = payload.apiServiceSettings(toMap(expectedApiServiceSettings), validationException);
+        var actualApiServiceSettings = payload.apiServiceSettings(
+            toMap(expectedApiServiceSettings),
+            validationException,
+            ConfigurationParseContext.REQUEST
+        );
+        assertThat(actualApiServiceSettings, equalTo(expectedApiServiceSettings));
+        validationException.throwIfValidationErrorsExist();
+    }
+
+    public final void testApiServiceSettings_persistent() throws IOException {
+        var validationException = new ValidationException();
+        var expectedApiServiceSettings = randomApiServiceSettings();
+        var actualApiServiceSettings = payload.apiServiceSettings(
+            toMap(expectedApiServiceSettings),
+            validationException,
+            ConfigurationParseContext.PERSISTENT
+        );
         assertThat(actualApiServiceSettings, equalTo(expectedApiServiceSettings));
         validationException.throwIfValidationErrorsExist();
     }

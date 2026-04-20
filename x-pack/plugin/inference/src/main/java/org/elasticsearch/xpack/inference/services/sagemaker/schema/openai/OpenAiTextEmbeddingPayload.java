@@ -26,6 +26,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerInferenceRequest;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
@@ -56,7 +57,11 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
     }
 
     @Override
-    public SageMakerStoredServiceSchema apiServiceSettings(Map<String, Object> serviceSettings, ValidationException validationException) {
+    public SageMakerStoredServiceSchema apiServiceSettings(
+        Map<String, Object> serviceSettings,
+        ValidationException validationException,
+        ConfigurationParseContext parseContext
+    ) {
         return ApiServiceSettings.fromMap(serviceSettings, validationException);
     }
 

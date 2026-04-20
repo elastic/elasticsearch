@@ -286,9 +286,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=mget/60_realtime_refresh/Realtime Refresh}
   issue: https://github.com/elastic/elasticsearch/issues/146410
-- class: org.elasticsearch.xpack.diskbbq.DiskBbqTrialLicenseIT
-  method: testDefaultIndexOptionsForDenseVector
-  issue: https://github.com/elastic/elasticsearch/issues/146415
 - class: org.elasticsearch.index.reindex.ReindexClientYamlTestSuiteIT
   method: test {yaml=reindex/10_basic/Response format for version conflict with conflicts=proceed}
   issue: https://github.com/elastic/elasticsearch/issues/146419
@@ -310,15 +307,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SubstituteRoundToTests
   method: testDateTruncNotTransformToQueryAndTags {default}
   issue: https://github.com/elastic/elasticsearch/issues/146462
-- class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
-  method: test {yaml=rrf/310_rrf_retriever_simplified/Expansion to equivalent custom sub-retrievers returns the same results}
-  issue: https://github.com/elastic/elasticsearch/issues/146464
 - class: org.elasticsearch.reindex.ReindexBasicTests
   method: testReindexFailsWhenSourceIndexIsClosed
   issue: https://github.com/elastic/elasticsearch/issues/146466
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/145901
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
   method: test {csv-spec:inlinestats.filterSometimesMatches}
   issue: https://github.com/elastic/elasticsearch/issues/146545
@@ -397,9 +388,6 @@ tests:
 - class: org.elasticsearch.transport.TransportHandshakerTests
   method: testReadV8HandshakeRequest
   issue: https://github.com/elastic/elasticsearch/issues/146743
-- class: org.elasticsearch.transport.RemoteClusterClientTests
-  method: testRemoteClusterServiceNotEnabled
-  issue: https://github.com/elastic/elasticsearch/issues/146743
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {csv-spec:stats_sparkline.sparklineComplexWithGrouping}
   issue: https://github.com/elastic/elasticsearch/issues/146729
@@ -442,6 +430,41 @@ tests:
 - class: org.elasticsearch.xpack.inference.queries.SemanticQueryBuilderTests
   method: testToQuery {p0=true}
   issue: https://github.com/elastic/elasticsearch/issues/146778
+- class: org.elasticsearch.reindex.ReindexerTests
+  issue: https://github.com/elastic/elasticsearch/issues/146047
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:inlinestats.inlinestatsWithUnionTypesAs_InlinestatsCondition}
+  issue: https://github.com/elastic/elasticsearch/issues/146793
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:vector-l2-norm.similarityWithNull}
+  issue: https://github.com/elastic/elasticsearch/issues/146794
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:inlinestats.inlineStatsAfterSortDropped}
+  issue: https://github.com/elastic/elasticsearch/issues/146795
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:external-basic.bucketByHireDate}
+  issue: https://github.com/elastic/elasticsearch/issues/146796
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:spatial.centroidFromAirportsFilteredAndSorted}
+  issue: https://github.com/elastic/elasticsearch/issues/146797
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:inlinestats.commonFilterExtractionWithAliasAndOriginalNeedingNormalization}
+  issue: https://github.com/elastic/elasticsearch/issues/146798
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:k8s-timeseries-present-over-time.present_over_time_older_than_10d}
+  issue: https://github.com/elastic/elasticsearch/issues/146799
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:tdigest.Count of tdigest with no matching rows (time series mode)}
+  issue: https://github.com/elastic/elasticsearch/issues/146800
+- class: org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests
+  method: testMinimalIsInvalidInRoutingPath {p0=true p1=BASIC}
+  issue: https://github.com/elastic/elasticsearch/issues/146824
+- class: org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests
+  method: testMinimalIsInvalidInRoutingPath {p0=true p1=ENTERPRISE}
+  issue: https://github.com/elastic/elasticsearch/issues/146825
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:stats.filterSometimesMatches}
+  issue: https://github.com/elastic/elasticsearch/issues/146834
 
 # Examples:
 #

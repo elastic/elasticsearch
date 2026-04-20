@@ -2412,6 +2412,11 @@ public class EsqlCapabilities {
         FIX_PASSTHROUGH_FIELD_CAPS_OBJECT_PARENT,
 
         /**
+         * Support for highlight markup in {@code TOP_SNIPPETS} via the {@code highlight} option.
+         */
+        TOP_SNIPPETS_HIGHLIGHT,
+
+        /**
          * Enables the feature LIMIT n BY expr1, expr2 for retaining at most n docs per group.
          * The feature will not work if we had SORT | LIMIT n BY
          */
@@ -2559,6 +2564,11 @@ public class EsqlCapabilities {
          * Support query approximation with INLINE STATS
          */
         APPROXIMATION_INLINE_STATS(Build.current().isSnapshot()),
+
+        /**
+         * Support for PromQL year() function.
+         */
+        PROMQL_YEAR,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

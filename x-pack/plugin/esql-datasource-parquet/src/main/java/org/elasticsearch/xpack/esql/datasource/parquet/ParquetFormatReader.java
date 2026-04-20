@@ -183,6 +183,18 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         }
     }
 
+    /**
+     * Converts Parquet-specific stat values to JDK types safe for {@code writeGenericValue} serialization.
+     * Parquet's {@code Statistics.genericGetMin/Max()} returns {@link Binary} for BYTE_ARRAY columns;
+     * these must be converted to {@code String} before entering the metadata map.
+     */
+    private static Object normalizeStatValue(Object value) {
+        if (value instanceof Binary binary) {
+            return binary.toStringUsingUTF8();
+        }
+        return value;
+    }
+
     @SuppressWarnings("rawtypes")
     private SourceStatistics extractStatistics(ParquetFileReader reader, MessageType schema) {
         List<BlockMetaData> rowGroups = reader.getRowGroups();
@@ -215,13 +227,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
                     return a;
                 });
                 if (stats.hasNonNullValue()) {
-                    mins.merge(colName, new Comparable[] { stats.genericGetMin() }, (a, b) -> {
+                    mins.merge(colName, new Comparable[] { (Comparable) normalizeStatValue(stats.genericGetMin()) }, (a, b) -> {
                         @SuppressWarnings("unchecked")
                         int cmp = a[0].compareTo(b[0]);
                         if (cmp > 0) a[0] = b[0];
                         return a;
                     });
-                    maxs.merge(colName, new Comparable[] { stats.genericGetMax() }, (a, b) -> {
+                    maxs.merge(colName, new Comparable[] { (Comparable) normalizeStatValue(stats.genericGetMax()) }, (a, b) -> {
                         @SuppressWarnings("unchecked")
                         int cmp = a[0].compareTo(b[0]);
                         if (cmp < 0) a[0] = b[0];
@@ -418,8 +430,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             }
             stats.put(SourceStatisticsSerializer.columnNullCountKey(colName), colStats.getNumNulls());
             if (colStats.hasNonNullValue()) {
-                stats.put(SourceStatisticsSerializer.columnMinKey(colName), colStats.genericGetMin());
-                stats.put(SourceStatisticsSerializer.columnMaxKey(colName), colStats.genericGetMax());
+                stats.put(SourceStatisticsSerializer.columnMinKey(colName), normalizeStatValue(colStats.genericGetMin()));
+                stats.put(SourceStatisticsSerializer.columnMaxKey(colName), normalizeStatValue(colStats.genericGetMax()));
             }
         }
         return Map.copyOf(stats);

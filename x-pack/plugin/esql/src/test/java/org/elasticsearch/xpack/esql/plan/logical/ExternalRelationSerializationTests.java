@@ -33,10 +33,14 @@ public class ExternalRelationSerializationTests extends AbstractLogicalPlanSeria
         if (randomBoolean()) {
             map.put("_stats.row_count", randomLongBetween(0, 100_000));
             map.put("_stats.size_bytes", randomLongBetween(1000, 10_000_000));
-            String colName = randomAlphaOfLength(5);
-            map.put("_stats.columns." + colName + ".null_count", randomLongBetween(0, 1000));
-            map.put("_stats.columns." + colName + ".min", randomIntBetween(0, 100));
-            map.put("_stats.columns." + colName + ".max", randomIntBetween(100, 1000));
+            String intCol = randomAlphaOfLength(5);
+            map.put("_stats.columns." + intCol + ".null_count", randomLongBetween(0, 1000));
+            map.put("_stats.columns." + intCol + ".min", randomIntBetween(0, 100));
+            map.put("_stats.columns." + intCol + ".max", randomIntBetween(100, 1000));
+            String strCol = randomAlphaOfLength(5);
+            map.put("_stats.columns." + strCol + ".null_count", randomLongBetween(0, 100));
+            map.put("_stats.columns." + strCol + ".min", randomAlphaOfLength(5));
+            map.put("_stats.columns." + strCol + ".max", randomAlphaOfLength(5));
         }
         return map;
     }

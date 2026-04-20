@@ -144,11 +144,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
             if (ExceptionsHelper.unwrap(e, ConnectTransportException.class) != null) {
                 // The node is still in the cluster state but disconnected (e.g. shutting down during relocation).
                 // Fall back to the .tasks index where the completed task result should be stored.
-                logger.debug(
-                    "failed to contact node [{}] for task [{}], falling back to .tasks index",
-                    node.getId(),
-                    request.getTaskId()
-                );
+                logger.debug("failed to contact node [{}] for task [{}], falling back to .tasks index", node.getId(), request.getTaskId());
                 getFinishedTaskFromIndex(thisTask, request, finishedTaskListener);
             } else {
                 listener.onFailure(e);

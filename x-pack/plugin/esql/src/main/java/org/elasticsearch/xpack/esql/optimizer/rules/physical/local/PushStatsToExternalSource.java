@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -16,8 +16,10 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
@@ -32,13 +34,16 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.OptionalLong;
 
 /**
  * Pushes ungrouped aggregate functions (COUNT, MIN, MAX) to external sources when the
  * required statistics are available in the file metadata. Replaces the AggregateExec +
  * ExternalSourceExec subtree with a LocalSourceExec containing pre-computed results.
+ * <p>
+ * Supports both SINGLE and INITIAL modes. In SINGLE mode the replacement produces final-value
+ * blocks (one block per aggregate). In INITIAL mode the replacement produces intermediate-format
+ * blocks matching {@link AggregateExec#intermediateAttributes()}: for each aggregate, a typed
+ * value block followed by a {@code seen} boolean block.
  * <p>
  * Handles intermediate EvalExec (from EVAL), ProjectExec (from RENAME), and FilterExec
  * nodes between the aggregate and external source by resolving aliased attribute names
@@ -67,6 +72,11 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
         AttributeMap<Attribute> aliasReplacedBy = info.aliasReplacedBy();
         Expression filterCondition = info.filterCondition();
 
+        AggregatorMode mode = aggregateExec.getMode();
+        if (mode != AggregatorMode.SINGLE && mode != AggregatorMode.INITIAL) {
+            return aggregateExec;
+        }
+
         if (aggregateExec.groupings().isEmpty() == false) {
             return aggregateExec;
         }
@@ -88,7 +98,7 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
         List<? extends NamedExpression> aggregates = aggregateExec.aggregates();
 
         List<Object> values = new ArrayList<>(aggregates.size());
-        List<Attribute> outputAttrs = new ArrayList<>(aggregates.size());
+        List<DataType> dataTypes = new ArrayList<>(aggregates.size());
 
         for (NamedExpression agg : aggregates) {
             if (agg instanceof Alias == false) {
@@ -104,10 +114,22 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
                 return aggregateExec;
             }
             values.add(value);
-            outputAttrs.add(agg.toAttribute());
+            dataTypes.add(aggExpr instanceof AggregateFunction af ? af.dataType() : DataType.LONG);
         }
 
-        Block[] blocks = buildBlocks(values);
+        List<Attribute> outputAttrs;
+        Block[] blocks;
+        if (mode == AggregatorMode.SINGLE) {
+            outputAttrs = new ArrayList<>(aggregates.size());
+            for (NamedExpression agg : aggregates) {
+                outputAttrs.add(agg.toAttribute());
+            }
+            blocks = buildBlocks(values, dataTypes);
+        } else {
+            outputAttrs = aggregateExec.intermediateAttributes();
+            blocks = buildIntermediateBlocks(values, dataTypes);
+        }
+
         return new LocalSourceExec(aggregateExec.source(), outputAttrs, LocalSupplier.of(new Page(blocks)));
     }
 
@@ -128,14 +150,13 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
         }
         Expression target = count.field();
         if (target.foldable()) {
-            OptionalLong rc = SourceStatisticsSerializer.extractRowCount(sourceMetadata);
-            return rc.isPresent() ? rc.getAsLong() : null;
+            return SourceStatisticsSerializer.extractRowCount(sourceMetadata);
         }
         if (target instanceof ReferenceAttribute ref) {
-            OptionalLong rc = SourceStatisticsSerializer.extractRowCount(sourceMetadata);
-            OptionalLong nc = SourceStatisticsSerializer.extractColumnNullCount(sourceMetadata, ref.name());
-            if (rc.isPresent() && nc.isPresent()) {
-                return rc.getAsLong() - nc.getAsLong();
+            Long rc = SourceStatisticsSerializer.extractRowCount(sourceMetadata);
+            Long nc = SourceStatisticsSerializer.extractColumnNullCount(sourceMetadata, ref.name());
+            if (rc != null && nc != null) {
+                return rc - nc;
             }
         }
         return null;
@@ -147,8 +168,7 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
         }
         Expression target = min.field();
         if (target instanceof ReferenceAttribute ref) {
-            Optional<Object> minVal = SourceStatisticsSerializer.extractColumnMin(sourceMetadata, ref.name());
-            return minVal.orElse(null);
+            return SourceStatisticsSerializer.extractColumnMin(sourceMetadata, ref.name());
         }
         return null;
     }
@@ -159,32 +179,26 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
         }
         Expression target = max.field();
         if (target instanceof ReferenceAttribute ref) {
-            Optional<Object> maxVal = SourceStatisticsSerializer.extractColumnMax(sourceMetadata, ref.name());
-            return maxVal.orElse(null);
+            return SourceStatisticsSerializer.extractColumnMax(sourceMetadata, ref.name());
         }
         return null;
     }
 
-    private static Block[] buildBlocks(List<Object> values) {
-        BlockFactory blockFactory = PlannerUtils.NON_BREAKING_BLOCK_FACTORY;
+    private static Block[] buildIntermediateBlocks(List<Object> values, List<DataType> dataTypes) {
+        var blockFactory = PlannerUtils.NON_BREAKING_BLOCK_FACTORY;
+        Block[] blocks = new Block[values.size() * 2];
+        for (int i = 0; i < values.size(); i++) {
+            blocks[i * 2] = PushAggregatesToExternalSource.buildBlock(blockFactory, values.get(i), dataTypes.get(i));
+            blocks[i * 2 + 1] = blockFactory.newConstantBooleanBlockWith(true, 1);
+        }
+        return blocks;
+    }
+
+    private static Block[] buildBlocks(List<Object> values, List<DataType> dataTypes) {
+        var blockFactory = PlannerUtils.NON_BREAKING_BLOCK_FACTORY;
         Block[] blocks = new Block[values.size()];
         for (int i = 0; i < values.size(); i++) {
-            Object value = values.get(i);
-            if (value instanceof Long l) {
-                blocks[i] = blockFactory.newConstantLongBlockWith(l, 1);
-            } else if (value instanceof Integer n) {
-                blocks[i] = blockFactory.newConstantIntBlockWith(n, 1);
-            } else if (value instanceof Double d) {
-                blocks[i] = blockFactory.newConstantDoubleBlockWith(d, 1);
-            } else if (value instanceof Boolean b) {
-                blocks[i] = blockFactory.newConstantBooleanBlockWith(b, 1);
-            } else if (value instanceof String s) {
-                blocks[i] = blockFactory.newConstantBytesRefBlockWith(new org.apache.lucene.util.BytesRef(s), 1);
-            } else if (value instanceof Number n) {
-                blocks[i] = blockFactory.newConstantLongBlockWith(n.longValue(), 1);
-            } else {
-                blocks[i] = blockFactory.newConstantNullBlock(1);
-            }
+            blocks[i] = PushAggregatesToExternalSource.buildBlock(blockFactory, values.get(i), dataTypes.get(i));
         }
         return blocks;
     }

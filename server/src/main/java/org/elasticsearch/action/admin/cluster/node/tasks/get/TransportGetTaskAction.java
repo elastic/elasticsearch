@@ -140,25 +140,36 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
             return;
         }
         GetTaskRequest nodeRequest = request.nodeRequest(clusterService.localNode().getId(), thisTask.getId());
+        ActionListener<GetTaskResponse> getTaskListener = ActionListener.wrap(listener::onResponse, e -> {
+            if (ExceptionsHelper.unwrap(e, ConnectTransportException.class) != null) {
+                // The node is still in the cluster state but disconnected (e.g. shutting down during relocation).
+                // Fall back to the .tasks index where the completed task result should be stored.
+                logger.debug(
+                    "failed to contact node [{}] for task [{}], falling back to .tasks index",
+                    node.getId(),
+                    request.getTaskId()
+                );
+                getFinishedTaskFromIndex(thisTask, request, finishedTaskListener);
+            } else {
+                listener.onFailure(e);
+            }
+        });
         transportService.sendRequest(
             node,
             TYPE.name(),
             nodeRequest,
-            TransportRequestOptions.timeout(request.getTimeout()),
-            new ActionListenerResponseHandler<>(ActionListener.wrap(listener::onResponse, e -> {
-                if (ExceptionsHelper.unwrap(e, ConnectTransportException.class) != null) {
-                    // The node is still in the cluster state but disconnected (e.g. shutting down during relocation).
-                    // Fall back to the .tasks index where the completed task result should be stored.
-                    logger.debug(
-                        "failed to contact node [{}] for task [{}], falling back to .tasks index",
-                        node.getId(),
-                        request.getTaskId()
-                    );
-                    getFinishedTaskFromIndex(thisTask, request, finishedTaskListener);
-                } else {
-                    listener.onFailure(e);
-                }
-            }), GetTaskResponse::new, EsExecutors.DIRECT_EXECUTOR_SERVICE)
+            TransportRequestOptions.EMPTY,
+            new ActionListenerResponseHandler<>(
+                ActionListener.addTimeout(
+                    request.getTimeout(),
+                    threadPool,
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    getTaskListener,
+                    () -> { /* TODO cancel the remote tasks? */}
+                ),
+                GetTaskResponse::new,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
+            )
         );
     }
 

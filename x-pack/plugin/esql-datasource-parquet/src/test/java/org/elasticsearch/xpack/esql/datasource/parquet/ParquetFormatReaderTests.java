@@ -57,12 +57,14 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class ParquetFormatReaderTests extends ESTestCase {
 
@@ -1219,6 +1221,97 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
         SourceMetadata metadata = reader.metadata(storageObject);
         assertEquals("parquet", metadata.sourceType());
+    }
+
+    public void testStatisticsSurviveEmbedding() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .named("age")
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("score")
+            .named("stats_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < 100; i++) {
+                Group g = factory.newGroup();
+                g.add("age", 20 + (i % 60));
+                g.add("score", (long) (i * 10));
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertTrue("statistics() should be present", metadata.statistics().isPresent());
+
+        var stats = metadata.statistics().get();
+        assertTrue("Row count should be present", stats.rowCount().isPresent());
+        assertEquals(100L, stats.rowCount().getAsLong());
+
+        var enriched = org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer.embedStatistics(
+            metadata.sourceMetadata(),
+            stats
+        );
+
+        assertEquals(100L, enriched.get("_stats.row_count"));
+        assertEquals(0L, enriched.get("_stats.columns.age.null_count"));
+        assertEquals(20, enriched.get("_stats.columns.age.min"));
+        assertEquals(79, enriched.get("_stats.columns.age.max"));
+        assertEquals(0L, enriched.get("_stats.columns.score.null_count"));
+        assertNotNull("Score min should be present", enriched.get("_stats.columns.score.min"));
+        assertNotNull("Score max should be present", enriched.get("_stats.columns.score.max"));
+    }
+
+    public void testStatisticsForStringColumnsAreJdkTypes() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("city")
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .named("pop")
+            .named("string_stats_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (String name : List.of("alpha", "bravo", "charlie", "delta")) {
+                Group g = factory.newGroup();
+                g.add("city", name);
+                g.add("pop", 1000);
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        SourceMetadata metadata = reader.metadata(storageObject);
+
+        var stats = metadata.statistics().orElseThrow();
+        var enriched = org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer.embedStatistics(
+            metadata.sourceMetadata(),
+            stats
+        );
+
+        Object minCity = enriched.get("_stats.columns.city.min");
+        Object maxCity = enriched.get("_stats.columns.city.max");
+        assertNotNull("city min should be present", minCity);
+        assertNotNull("city max should be present", maxCity);
+        assertThat("min must be a JDK String, not Parquet Binary", minCity, instanceOf(String.class));
+        assertThat("max must be a JDK String, not Parquet Binary", maxCity, instanceOf(String.class));
+        assertEquals("alpha", minCity);
+        assertEquals("delta", maxCity);
+
+        // Also verify per-split stats if we can force multi-row-group
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
+        for (RangeAwareFormatReader.SplitRange range : ranges) {
+            for (Map.Entry<String, Object> entry : range.statistics().entrySet()) {
+                assertFalse("Split stat value must not be a Parquet Binary: " + entry.getKey(), entry.getValue() instanceof Binary);
+            }
+        }
     }
 
     public void testDiscoverSplitRangesMultipleRowGroups() throws Exception {

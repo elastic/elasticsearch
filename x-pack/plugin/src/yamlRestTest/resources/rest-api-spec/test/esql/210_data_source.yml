@@ -57,8 +57,9 @@ setup:
 
 ---
 "missing-type":
+  # ConstructingObjectParser rejects missing required fields with "Required [type]" at parse time.
   - do:
-      catch: /type is missing or empty/
+      catch: /Required \[type\]/
       esql.put_data_source:
         name: my_ds
         body:

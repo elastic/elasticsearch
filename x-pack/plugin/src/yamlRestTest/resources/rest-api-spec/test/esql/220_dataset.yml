@@ -58,7 +58,7 @@ setup:
 ---
 "missing-data-source":
   - do:
-      catch: /data_source is missing or empty/
+      catch: /Required \[data_source\]/
       esql.put_dataset:
         name: ds
         body:
@@ -68,7 +68,7 @@ setup:
 ---
 "missing-resource":
   - do:
-      catch: /resource is missing or empty/
+      catch: /Required \[resource\]/
       esql.put_dataset:
         name: ds
         body:

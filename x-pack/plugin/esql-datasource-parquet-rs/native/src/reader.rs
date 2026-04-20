@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use super::ASYNC_RUNTIME;
 use super::filter::{self, FilterExpr};
+use super::jni_utils::extract_storage_config;
 use arrow::array::{Array, StructArray};
 use arrow::ffi;
 use arrow::record_batch::RecordBatch;
@@ -11,15 +12,13 @@ use jni::EnvUnowned;
 use jni::errors::{Error as JniError, Result as JniResult, ThrowRuntimeExAndDefault};
 use jni::objects::{JClass, JObjectArray, JString};
 use jni::sys::{JNI_FALSE, JNI_TRUE, jboolean, jint, jlong};
-use object_store::ObjectStore;
-use object_store::aws::AmazonS3Builder;
-use object_store::local::LocalFileSystem;
+use super::store::{StorageConfig, resolve_store, needs_file_size_hint};
+use object_store::{ObjectStore, ObjectStoreExt};
 use parquet::arrow::ProjectionMask;
 use parquet::arrow::arrow_reader::{ArrowReaderMetadata, ArrowReaderOptions};
 use parquet::file::metadata::PageIndexPolicy;
 use parquet::arrow::async_reader::ParquetObjectReader;
 use parquet::errors::ParquetError;
-use url::Url;
 
 // ===== Parquet direct reader (no DataFusion) =====
 
@@ -56,7 +55,7 @@ fn err(e: impl std::fmt::Display) -> JniError {
 // ---------------------------------------------------------------------------
 
 /// Open a Parquet file using the parquet crate directly.
-/// Local files use synchronous I/O; S3 URLs use async I/O via object_store.
+/// Local files use synchronous I/O; remote URLs use async I/O via object_store.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parquetrs_ParquetRsBridge_openReader(
     mut env: EnvUnowned,
@@ -66,9 +65,11 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parq
     batch_size: jint,
     limit: jlong,
     filter_handle: jlong,
+    config_json: JString,
 ) -> jlong {
     env.with_env(|env| -> JniResult<jlong> {
         let file_path_str = file_path.try_to_string(env)?;
+        let storage_config = extract_storage_config(env, &config_json)?;
 
         let projected_cols: Option<Vec<String>> = if projected_columns.is_null() {
             None
@@ -91,11 +92,10 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parq
 
         let plan = build_plan_string(&file_path_str, &projected_cols, batch_size, limit, &filter);
 
-        let kind = if file_path_str.starts_with("s3://") {
-            open_s3(&file_path_str, projected_cols, batch_size, limit, filter, s3_concurrency())?
-        } else {
-            open_local_async(&file_path_str, projected_cols, batch_size, limit, filter, local_concurrency())?
-        };
+        let (store, object_path) = resolve_store(&file_path_str, &storage_config).map_err(err)?;
+        let concurrency = if file_path_str.starts_with("s3://") { s3_concurrency() } else { local_concurrency() };
+        let needs_head = needs_file_size_hint(&file_path_str);
+        let kind = open_async(store, object_path, projected_cols, batch_size, limit, filter, concurrency, needs_head)?;
 
         let remaining = if limit > 0 { Some(limit as usize) } else { None };
         let state = Box::new(ParquetReaderState { kind, remaining, plan });
@@ -104,7 +104,7 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parq
     .resolve::<ThrowRuntimeExAndDefault>()
 }
 
-/// Open multiple S3 Parquet files, fetching metadata for all files in parallel.
+/// Open multiple Parquet files, fetching metadata for all files in parallel.
 /// All files are read through a single mpsc channel.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parquetrs_ParquetRsBridge_openReaderMulti(
@@ -115,6 +115,7 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parq
     batch_size: jint,
     limit: jlong,
     filter_handle: jlong,
+    config_json: JString,
 ) -> jlong {
     env.with_env(|env| -> JniResult<jlong> {
         let num_files = file_paths.len(env)?;
@@ -124,6 +125,7 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parq
             let jstr: JString = JString::cast_local(env, obj)?;
             paths.push(jstr.try_to_string(env)?);
         }
+        let storage_config = extract_storage_config(env, &config_json)?;
 
         let projected_cols: Option<Vec<String>> = if projected_columns.is_null() {
             None
@@ -146,7 +148,7 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parq
 
         let plan = build_plan_string(&paths.join(", "), &projected_cols, batch_size, limit, &filter);
 
-        let kind = open_s3_multi(&paths, projected_cols, batch_size, limit, filter, s3_concurrency())?;
+        let kind = open_multi(&paths, &storage_config, projected_cols, batch_size, limit, filter, s3_concurrency())?;
 
         let remaining = if limit > 0 { Some(limit as usize) } else { None };
         let state = Box::new(ParquetReaderState { kind, remaining, plan });
@@ -160,24 +162,6 @@ fn local_concurrency() -> usize {
         .map(|n| n.get())
         .unwrap_or(4)
         .min(8)
-}
-
-/// Open a local Parquet file via the async path with multi-worker row group parallelism.
-/// Uses `object_store::local::LocalFileSystem` which dispatches I/O to blocking threads
-/// via `spawn_blocking` when called from a tokio context.
-fn open_local_async(
-    file_path: &str,
-    projected_cols: Option<Vec<String>>,
-    batch_size: jint,
-    limit: jlong,
-    filter: Option<Arc<FilterExpr>>,
-    max_concurrency: usize,
-) -> JniResult<ReaderKind> {
-    let local_fs = LocalFileSystem::new_with_prefix("/").map_err(err)?;
-    let store: Arc<dyn ObjectStore> = Arc::new(local_fs);
-    let normalized = file_path.strip_prefix('/').unwrap_or(file_path);
-    let object_path = object_store::path::Path::from(normalized);
-    open_async(store, object_path, projected_cols, batch_size, limit, filter, max_concurrency)
 }
 
 /// Spawn worker tasks for a single file, sending decoded batches into `tx`.
@@ -276,7 +260,7 @@ async fn spawn_file_workers(
     Ok(surviving.len())
 }
 
-/// Async reader shared by both local and S3 paths.
+/// Async reader shared by both local and remote paths.
 ///
 /// Reads file metadata once, prunes row groups with the predicate's column
 /// statistics, then splits surviving row groups into N chunks
@@ -291,10 +275,15 @@ fn open_async(
     limit: jlong,
     filter: Option<Arc<FilterExpr>>,
     max_concurrency: usize,
+    needs_head: bool,
 ) -> JniResult<ReaderKind> {
     let rx = ASYNC_RUNTIME.block_on(async move {
         let inner = async {
-            let mut obj_reader = ParquetObjectReader::new(store, object_path);
+            let mut obj_reader = ParquetObjectReader::new(store.clone(), object_path.clone());
+            if needs_head {
+                let meta = store.head(&object_path).await.map_err(err)?;
+                obj_reader = obj_reader.with_file_size(meta.size as u64);
+            }
 
             let arrow_meta = ArrowReaderMetadata::load_async(
                 &mut obj_reader, ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Required),
@@ -320,40 +309,12 @@ fn open_async(
     Ok(ReaderKind::Async(rx))
 }
 
-/// Open a Parquet file on S3 (async via object_store).
-///
-/// Uses the default AWS credential chain: env vars (AWS_ACCESS_KEY_ID, etc.)
-/// → ~/.aws/credentials → IMDS (EC2 instance profile).
-/// Region: reads AWS_REGION / AWS_DEFAULT_REGION env vars.
-fn open_s3(
-    file_path: &str,
-    projected_cols: Option<Vec<String>>,
-    batch_size: jint,
-    limit: jlong,
-    filter: Option<Arc<FilterExpr>>,
-    max_concurrency: usize,
-) -> JniResult<ReaderKind> {
-    let url = Url::parse(file_path).map_err(err)?;
-    let bucket = url
-        .host_str()
-        .ok_or_else(|| err("missing bucket in S3 URL"))?;
-    let key = url.path().trim_start_matches('/');
-
-    let s3 = AmazonS3Builder::from_env()
-        .with_bucket_name(bucket)
-        .build()
-        .map_err(err)?;
-    let store: Arc<dyn ObjectStore> = Arc::new(s3);
-    let object_path = object_store::path::Path::from(key);
-
-    open_async(store, object_path, projected_cols, batch_size, limit, filter, max_concurrency)
-}
-
-/// Open multiple S3 Parquet files with parallel metadata fetching.
+/// Open multiple Parquet files with parallel metadata fetching.
 /// All metadata is fetched concurrently, then workers are spawned across all files,
 /// feeding a single mpsc channel.
-fn open_s3_multi(
+fn open_multi(
     file_paths: &[String],
+    config: &StorageConfig,
     projected_cols: Option<Vec<String>>,
     batch_size: jint,
     limit: jlong,
@@ -361,33 +322,24 @@ fn open_s3_multi(
     max_concurrency: usize,
 ) -> JniResult<ReaderKind> {
     let rx = ASYNC_RUNTIME.block_on(async {
-        let mut stores: std::collections::HashMap<String, Arc<dyn ObjectStore>> = std::collections::HashMap::new();
         let mut file_infos = Vec::with_capacity(file_paths.len());
         for path in file_paths {
-            let url = Url::parse(path).map_err(err)?;
-            let bucket = url.host_str().ok_or_else(|| err("missing bucket"))?.to_string();
-            let key = url.path().trim_start_matches('/');
-            let store = match stores.get(&bucket) {
-                Some(s) => Arc::clone(s),
-                None => {
-                    let s3 = AmazonS3Builder::from_env()
-                        .with_bucket_name(&bucket)
-                        .build()
-                        .map_err(err)?;
-                    let s: Arc<dyn ObjectStore> = Arc::new(s3);
-                    stores.insert(bucket, Arc::clone(&s));
-                    s
-                }
-            };
-            let object_path = object_store::path::Path::from(key);
+            let (store, object_path) = resolve_store(path, config).map_err(err)?;
             file_infos.push((store, object_path));
         }
 
+        let needs_head = file_paths.first().map_or(false, |p| needs_file_size_hint(p));
         let meta_options = ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Required);
         let meta_futs: Vec<_> = file_infos.iter().map(|(store, path)| {
-            let mut reader = ParquetObjectReader::new(Arc::clone(store), path.clone());
+            let store = Arc::clone(store);
+            let path = path.clone();
             let opts = meta_options.clone();
             async move {
+                let mut reader = ParquetObjectReader::new(store.clone(), path.clone());
+                if needs_head {
+                    let head = store.head(&path).await.map_err(err)?;
+                    reader = reader.with_file_size(head.size as u64);
+                }
                 let meta = ArrowReaderMetadata::load_async(&mut reader, opts).await.map_err(err)?;
                 Ok::<_, JniError>((reader, meta))
             }

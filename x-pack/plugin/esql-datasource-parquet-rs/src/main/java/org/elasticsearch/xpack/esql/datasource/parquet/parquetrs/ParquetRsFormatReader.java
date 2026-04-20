@@ -57,14 +57,16 @@ public class ParquetRsFormatReader implements FormatReader {
 
     private final BlockFactory blockFactory;
     private final long filterHandle;
+    private final String configJson;
 
     public ParquetRsFormatReader(BlockFactory blockFactory) {
-        this(blockFactory, 0);
+        this(blockFactory, 0, null);
     }
 
-    private ParquetRsFormatReader(BlockFactory blockFactory, long filterHandle) {
+    private ParquetRsFormatReader(BlockFactory blockFactory, long filterHandle, String configJson) {
         this.blockFactory = blockFactory;
         this.filterHandle = filterHandle;
+        this.configJson = configJson;
     }
 
     @Override
@@ -80,23 +82,51 @@ public class ParquetRsFormatReader implements FormatReader {
     @Override
     public FormatReader withPushedFilter(Object pushedFilter) {
         if (pushedFilter instanceof ParquetRsPushedFilter pf) {
-            return new ParquetRsFormatReader(blockFactory, pf.exprHandle());
+            return new ParquetRsFormatReader(blockFactory, pf.exprHandle(), configJson);
         }
         return this;
     }
 
     @Override
     public FormatReader withConfig(Map<String, Object> config) {
-        return this;
+        if (config == null || config.isEmpty()) {
+            return this;
+        }
+        return new ParquetRsFormatReader(blockFactory, filterHandle, serializeConfig(config));
+    }
+
+    private static String serializeConfig(Map<String, Object> config) {
+        StringBuilder sb = new StringBuilder("{");
+        boolean first = true;
+        for (Map.Entry<String, Object> entry : config.entrySet()) {
+            if (entry.getValue() == null) {
+                continue;
+            }
+            if (first == false) {
+                sb.append(',');
+            }
+            sb.append('"')
+                .append(escapeJson(entry.getKey()))
+                .append("\":\"")
+                .append(escapeJson(String.valueOf(entry.getValue())))
+                .append('"');
+            first = false;
+        }
+        sb.append('}');
+        return sb.toString();
+    }
+
+    private static String escapeJson(String s) {
+        return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t");
     }
 
     @Override
     public SourceMetadata metadata(StorageObject object) throws IOException {
-        String path = resolveNativePath(object);
-        String[] rawSchema = ParquetRsBridge.getSchema(path);
+        String path = resolveReadPath(object);
+        String[] rawSchema = ParquetRsBridge.getSchema(path, configJson);
         List<Attribute> attributes = parseSchema(rawSchema);
 
-        long[] stats = ParquetRsBridge.getStatistics(path);
+        long[] stats = ParquetRsBridge.getStatistics(path, configJson);
         SourceStatistics statistics = null;
         if (stats != null && stats.length >= 2) {
             long totalRows = stats[0];
@@ -125,7 +155,7 @@ public class ParquetRsFormatReader implements FormatReader {
     }
 
     private Map<String, SourceStatistics.ColumnStatistics> parseColumnStatistics(String path, List<Attribute> attributes) {
-        String[] raw = ParquetRsBridge.getColumnStatistics(path);
+        String[] raw = ParquetRsBridge.getColumnStatistics(path, configJson);
         if (raw == null || raw.length == 0) {
             return Map.of();
         }
@@ -191,7 +221,7 @@ public class ParquetRsFormatReader implements FormatReader {
 
     @Override
     public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
-        String path = resolveNativePath(object);
+        String path = resolveReadPath(object);
         List<String> projectedColumns = context.projectedColumns();
         int batchSize = context.batchSize();
         int rowLimit = context.rowLimit();
@@ -199,7 +229,7 @@ public class ParquetRsFormatReader implements FormatReader {
         String[] columns = projectedColumns != null && projectedColumns.isEmpty() == false ? projectedColumns.toArray(new String[0]) : null;
         long limit = rowLimit == FormatReader.NO_LIMIT ? -1 : rowLimit;
 
-        long handle = ParquetRsBridge.openReader(path, columns, batchSize, limit, filterHandle);
+        long handle = ParquetRsBridge.openReader(path, columns, batchSize, limit, filterHandle, configJson);
         return new ParquetRsBatchIterator(handle, blockFactory);
     }
 
@@ -220,7 +250,7 @@ public class ParquetRsFormatReader implements FormatReader {
         }
     }
 
-    private static String resolveNativePath(StorageObject object) {
+    private static String resolveReadPath(StorageObject object) {
         String uri = object.path().toString();
         if (uri.startsWith("file://")) {
             return uri.substring(7);

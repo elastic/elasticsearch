@@ -237,6 +237,8 @@ public class AzureHttpHandler implements HttpHandler {
                 responseHeaders.add(X_MS_BLOB_CONTENT_LENGTH, String.valueOf(blobContents.length()));
                 responseHeaders.add("Content-Length", String.valueOf(blobContents.length()));
                 responseHeaders.add(X_MS_BLOB_TYPE, blob.type());
+                responseHeaders.add("ETag", "\"blockblob\"");
+                responseHeaders.add("Last-Modified", DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now(ZoneId.of("UTC"))));
 
                 final MockAzureBlobStore.CopyInfo copyInfo = blob.copyInfo();
                 if (copyInfo != null) {
@@ -255,8 +257,11 @@ public class AzureHttpHandler implements HttpHandler {
 
                 final BytesReference responseContent;
                 final RestStatus successStatus;
-                // see Constants.HeaderConstants.STORAGE_RANGE_HEADER
-                final String rangeHeader = exchange.getRequestHeaders().getFirst("x-ms-range");
+                // Azure SDK uses x-ms-range; object_store crate uses the standard Range header
+                String rangeHeader = exchange.getRequestHeaders().getFirst("x-ms-range");
+                if (rangeHeader == null) {
+                    rangeHeader = exchange.getRequestHeaders().getFirst("Range");
+                }
                 if (rangeHeader != null) {
                     final HttpHeaderParser.Range range = HttpHeaderParser.parseRangeHeader(rangeHeader);
                     if (range == null) {
@@ -289,6 +294,8 @@ public class AzureHttpHandler implements HttpHandler {
                 exchange.getResponseHeaders().add(X_MS_BLOB_CONTENT_LENGTH, String.valueOf(responseContent.length()));
                 exchange.getResponseHeaders().add(X_MS_BLOB_TYPE, blob.type());
                 exchange.getResponseHeaders().add("ETag", "\"blockblob\"");
+                exchange.getResponseHeaders()
+                    .add("Last-Modified", DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now(ZoneId.of("UTC"))));
                 exchange.sendResponseHeaders(successStatus.getStatus(), responseContent.length() == 0 ? -1 : responseContent.length());
                 responseContent.writeTo(exchange.getResponseBody());
 

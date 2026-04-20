@@ -1,12 +1,18 @@
+use super::ASYNC_RUNTIME;
 use super::filter::StatValue;
-use super::jni_utils::*;
+use super::jni_utils::{jni_err, extract_storage_config};
+use super::store::{resolve_store, needs_file_size_hint};
+use object_store::ObjectStoreExt;
 use arrow::datatypes::{DataType as ArrowDataType, TimeUnit};
 use jni::{EnvUnowned, jni_str};
 use jni::errors::{Result as JniResult, ThrowRuntimeExAndDefault};
 use jni::objects::{JClass, JObject, JString};
 use jni::sys::jint;
 use parquet::arrow::parquet_to_arrow_schema;
-use parquet::file::reader::{FileReader, SerializedFileReader};
+use parquet::arrow::arrow_reader::{ArrowReaderMetadata, ArrowReaderOptions};
+use parquet::arrow::async_reader::ParquetObjectReader;
+
+use super::store::StorageConfig;
 
 type MetadataError = Box<dyn std::error::Error + Send + Sync>;
 
@@ -64,12 +70,24 @@ struct SchemaEntry {
     element_type_id: jint,
 }
 
-fn read_parquet_metadata(
+fn load_metadata(
     file_path: &str,
-) -> Result<parquet::file::metadata::ParquetMetaData, MetadataError> {
-    let file = std::fs::File::open(file_path)?;
-    let reader = SerializedFileReader::new(file)?;
-    Ok(reader.metadata().clone())
+    config: &StorageConfig,
+) -> Result<std::sync::Arc<parquet::file::metadata::ParquetMetaData>, MetadataError> {
+    let (store, object_path) = resolve_store(file_path, config)?;
+    ASYNC_RUNTIME.block_on(async {
+        let mut reader = ParquetObjectReader::new(store.clone(), object_path.clone());
+        if needs_file_size_hint(file_path) {
+            let meta = store.head(&object_path).await?;
+            reader = reader.with_file_size(meta.size as u64);
+        }
+        let arrow_meta = ArrowReaderMetadata::load_async(
+            &mut reader,
+            ArrowReaderOptions::new(),
+        )
+        .await?;
+        Ok(arrow_meta.metadata().clone())
+    })
 }
 
 fn read_schema_from_metadata(
@@ -206,10 +224,12 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parq
     mut env: EnvUnowned<'local>,
     _class: JClass<'local>,
     file_path: JString<'local>,
+    config_json: JString<'local>,
 ) -> jni::objects::JObjectArray<'local> {
     env.with_env(|env| -> JniResult<jni::objects::JObjectArray<'local>> {
         let path = file_path.try_to_string(env)?;
-        let metadata = read_parquet_metadata(&path).map_err(jni_err)?;
+        let config = extract_storage_config(env, &config_json)?;
+        let metadata = load_metadata(&path, &config).map_err(jni_err)?;
         let entries = read_schema_from_metadata(&metadata).map_err(jni_err)?;
 
         let string_class = env.find_class(jni_str!("java/lang/String"))?;
@@ -236,10 +256,12 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parq
     mut env: EnvUnowned<'local>,
     _class: JClass<'local>,
     file_path: JString<'local>,
+    config_json: JString<'local>,
 ) -> jni::objects::JObjectArray<'local> {
     env.with_env(|env| -> JniResult<jni::objects::JObjectArray<'local>> {
         let path = file_path.try_to_string(env)?;
-        let metadata = read_parquet_metadata(&path).map_err(jni_err)?;
+        let config = extract_storage_config(env, &config_json)?;
+        let metadata = load_metadata(&path, &config).map_err(jni_err)?;
         let columns = read_column_statistics_from_metadata(&metadata).map_err(jni_err)?;
 
         let string_class = env.find_class(jni_str!("java/lang/String"))?;
@@ -270,10 +292,12 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parq
     mut env: EnvUnowned<'local>,
     _class: JClass<'local>,
     file_path: JString<'local>,
+    config_json: JString<'local>,
 ) -> jni::sys::jlongArray {
     env.with_env(|env| -> JniResult<jni::sys::jlongArray> {
         let path = file_path.try_to_string(env)?;
-        let metadata = read_parquet_metadata(&path).map_err(jni_err)?;
+        let config = extract_storage_config(env, &config_json)?;
+        let metadata = load_metadata(&path, &config).map_err(jni_err)?;
         let stats = read_statistics_from_metadata(&metadata);
 
         let arr = env.new_long_array(2)?;

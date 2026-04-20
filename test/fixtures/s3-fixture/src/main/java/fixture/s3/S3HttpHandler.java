@@ -393,14 +393,21 @@ public class S3HttpHandler implements HttpHandler {
                 }
 
                 // S3 supports https://www.rfc-editor.org/rfc/rfc9110.html#name-range
-                // This handler supports both bounded ranges (bytes=0-100) and open-ended ranges (bytes=100-)
+                // Supports bounded (bytes=0-100), open-ended (bytes=100-), and suffix (bytes=-N) ranges
                 final HttpHeaderParser.Range range = parseRangeHeader(rangeHeader);
                 if (range == null) {
                     throw new AssertionError("Bytes range does not match expected pattern: " + rangeHeader);
                 }
-                long start = range.start();
-                // For open-ended ranges (bytes=N-), end is null, meaning "to end of file"
-                long end = range.end() != null ? range.end() : blob.length() - 1;
+                long start;
+                long end;
+                if (range.isSuffixRange()) {
+                    long suffixLength = -range.start();
+                    start = Math.max(0, blob.length() - suffixLength);
+                    end = blob.length() - 1;
+                } else {
+                    start = range.start();
+                    end = range.end() != null ? range.end() : blob.length() - 1;
+                }
                 if (end < start) {
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), blob.length());

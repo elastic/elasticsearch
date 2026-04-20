@@ -48,14 +48,25 @@ public class HttpHeaderParserTests extends ESTestCase {
         assertEquals(new HttpHeaderParser.Range(bytes, null), HttpHeaderParser.parseRangeHeader(Strings.format("bytes=%d-", bytes)));
     }
 
-    public void testParseRangeHeaderSuffixLengthNotMatched() {
-        assertNull(HttpHeaderParser.parseRangeHeader(Strings.format("bytes=-%d", randomLongBetween(0, Long.MAX_VALUE))));
+    public void testParseRangeHeaderSuffixLength() {
+        var bytes = randomLongBetween(0, Long.MAX_VALUE);
+        assertEquals(new HttpHeaderParser.Range(-bytes, null), HttpHeaderParser.parseRangeHeader(Strings.format("bytes=-%d", bytes)));
+    }
+
+    public void testParseRangeHeaderSuffixLengthInvalidLong() {
+        final BigInteger longOverflow = BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE).add(randomBigInteger());
+        assertNull(HttpHeaderParser.parseRangeHeader("bytes=-" + longOverflow));
     }
 
     public void testRangeHeaderString() {
         final long start = randomLongBetween(0, 10_000);
         final long end = randomLongBetween(start, start + 10_000);
         assertEquals("bytes=" + start + "-" + end, new HttpHeaderParser.Range(start, end).headerString());
+    }
+
+    public void testSuffixRangeHeaderString() {
+        var bytes = randomLongBetween(1, Long.MAX_VALUE);
+        assertEquals("bytes=-" + bytes, new HttpHeaderParser.Range(-bytes, null).headerString());
     }
 
     public void testParseContentRangeHeaderFull() {

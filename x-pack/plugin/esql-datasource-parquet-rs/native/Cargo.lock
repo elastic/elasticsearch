@@ -552,6 +552,7 @@ dependencies = [
  "jni",
  "object_store",
  "parquet",
+ "serde_json",
  "tokio",
  "url",
 ]
@@ -1360,6 +1361,7 @@ dependencies = [
  "futures-util",
  "http",
  "http-body-util",
+ "httparse",
  "humantime",
  "hyper",
  "itertools",
@@ -1370,6 +1372,7 @@ dependencies = [
  "rand 0.10.1",
  "reqwest",
  "ring",
+ "rustls-pki-types",
  "serde",
  "serde_json",
  "serde_urlencoded",

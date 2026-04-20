@@ -31,6 +31,9 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URLDecoder;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -152,14 +155,25 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                             throw new AssertionError("Range bytes header does not match expected format: " + rangeHeader);
                         }
 
-                        if (range.start() >= blob.contents().length()) {
+                        long start;
+                        long end;
+                        if (range.isSuffixRange()) {
+                            long suffixLength = -range.start();
+                            start = Math.max(0, blob.contents().length() - suffixLength);
+                            end = blob.contents().length() - 1;
+                        } else {
+                            start = range.start();
+                            end = range.end() != null ? range.end() : blob.contents().length() - 1;
+                        }
+
+                        if (start >= blob.contents().length()) {
                             exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                             exchange.sendResponseHeaders(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus(), -1);
                             return;
                         }
 
-                        final long lastIndex = Math.min(range.end(), blob.contents().length() - 1);
-                        response = blob.contents().slice(Math.toIntExact(range.start()), Math.toIntExact(lastIndex - range.start() + 1));
+                        final long lastIndex = Math.min(end, blob.contents().length() - 1);
+                        response = blob.contents().slice(Math.toIntExact(start), Math.toIntExact(lastIndex - start + 1));
                         statusCode = RestStatus.PARTIAL_CONTENT.getStatus();
                     }
                     // I think it's enough to use the generation here, at least until
@@ -314,7 +328,79 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                     responseBytes.writeTo(exchange.getResponseBody());
                 }
             } else {
-                exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
+                // XML API routes — the object_store crate percent-encodes everything, so
+                // match against the decoded path to handle e.g. test%2Dgcs%2Dbucket → test-gcs-bucket
+                final String decodedRequest = exchange.getRequestMethod()
+                    + " "
+                    + URLDecoder.decode(exchange.getRequestURI().toString(), UTF_8);
+                final String decodedPath = URLDecoder.decode(exchange.getRequestURI().getPath(), UTF_8);
+                if (Regex.simpleMatch("HEAD /" + bucket + "/*", decodedRequest)) {
+                    // XML API: Head Object
+                    final String key = decodedPath.substring(("/" + bucket + "/").length());
+                    final MockGcsBlobStore.BlobVersion blob = mockGcsBlobStore.getBlob(key, null, null);
+                    if (blob != null) {
+                        final String lastModified = DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now(ZoneId.of("UTC")));
+                        exchange.getResponseHeaders().add("Content-Length", String.valueOf(blob.contents().length()));
+                        exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                        exchange.getResponseHeaders().add("ETag", "\"" + blob.generation() + "\"");
+                        exchange.getResponseHeaders().add("Last-Modified", lastModified);
+                        exchange.getResponseHeaders().add("x-goog-generation", String.valueOf(blob.generation()));
+                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
+                    } else {
+                        exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
+                    }
+
+                } else if (Regex.simpleMatch("GET /" + bucket + "/*", decodedRequest)) {
+                    // XML API: Get Object
+                    final String key = decodedPath.substring(("/" + bucket + "/").length());
+                    final MockGcsBlobStore.BlobVersion blob = mockGcsBlobStore.getBlob(key, null, null);
+                    if (blob != null) {
+                        final String rangeHeader = exchange.getRequestHeaders().getFirst("Range");
+                        final BytesReference response;
+                        final int statusCode;
+                        if (rangeHeader == null) {
+                            response = blob.contents();
+                            statusCode = RestStatus.OK.getStatus();
+                        } else {
+                            final HttpHeaderParser.Range range = HttpHeaderParser.parseRangeHeader(rangeHeader);
+                            if (range == null) {
+                                throw new AssertionError("Range header does not match expected format: " + rangeHeader);
+                            }
+                            long start;
+                            long end;
+                            if (range.isSuffixRange()) {
+                                long suffixLength = -range.start();
+                                start = Math.max(0, blob.contents().length() - suffixLength);
+                                end = blob.contents().length() - 1;
+                            } else {
+                                start = range.start();
+                                end = range.end() != null ? range.end() : blob.contents().length() - 1;
+                            }
+                            if (start >= blob.contents().length()) {
+                                exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                                exchange.sendResponseHeaders(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus(), -1);
+                                return;
+                            }
+                            final long lastIndex = Math.min(end, blob.contents().length() - 1);
+                            response = blob.contents().slice(Math.toIntExact(start), Math.toIntExact(lastIndex - start + 1));
+                            exchange.getResponseHeaders()
+                                .add("Content-Range", "bytes " + start + "-" + lastIndex + "/" + blob.contents().length());
+                            statusCode = RestStatus.PARTIAL_CONTENT.getStatus();
+                        }
+                        final String lastModified = DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now(ZoneId.of("UTC")));
+                        exchange.getResponseHeaders().add("ETag", "\"" + blob.generation() + "\"");
+                        exchange.getResponseHeaders().add("Last-Modified", lastModified);
+                        exchange.getResponseHeaders().add("x-goog-generation", String.valueOf(blob.generation()));
+                        exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                        exchange.sendResponseHeaders(statusCode, response.length());
+                        response.writeTo(exchange.getResponseBody());
+                    } else {
+                        exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
+                    }
+
+                } else {
+                    exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
+                }
             }
         } catch (MockGcsBlobStore.GcsRestException e) {
             sendError(exchange, e);

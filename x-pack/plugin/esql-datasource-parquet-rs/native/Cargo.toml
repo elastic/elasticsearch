@@ -11,9 +11,10 @@ arrow = { version = "58", features = ["ffi"] }
 parquet = { version = "58", features = ["arrow", "async", "object_store"] }
 jni = "0.22"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
-object_store = { version = "0.13", features = ["aws"] }
+object_store = { version = "0.13", features = ["aws", "azure", "gcp", "http"] }
 futures = "0.3"
 url = "2"
+serde_json = "1"
 
 [profile.release]
 opt-level = 3

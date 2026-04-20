@@ -2,6 +2,7 @@ mod filter;
 mod jni_utils;
 mod metadata;
 mod reader;
+mod store;
 
 use std::sync::LazyLock;
 use tokio::runtime::Runtime;

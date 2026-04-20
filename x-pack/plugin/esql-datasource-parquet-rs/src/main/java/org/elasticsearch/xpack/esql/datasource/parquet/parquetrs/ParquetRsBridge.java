@@ -29,8 +29,25 @@ final class ParquetRsBridge {
      *
      * @param filterHandle opaque handle to a FilterExpr built via create* methods, or 0 for no filter.
      *                     The native side clones the expr; the handle remains valid for reuse across files.
+     * @param configJson JSON-serialized storage configuration from the ESQL WITH clause, or null.
      */
-    static native long openReader(String filePath, String[] projectedColumns, int batchSize, long limit, long filterHandle);
+    static native long openReader(
+        String filePath,
+        String[] projectedColumns,
+        int batchSize,
+        long limit,
+        long filterHandle,
+        String configJson
+    );
+
+    static native long openReaderMulti(
+        String[] filePaths,
+        String[] projectedColumns,
+        int batchSize,
+        long limit,
+        long filterHandle,
+        String configJson
+    );
 
     static native boolean nextBatch(long handle, long schemaAddr, long arrayAddr);
 
@@ -41,12 +58,12 @@ final class ParquetRsBridge {
 
     // ---- Metadata ----
 
-    static native String[] getSchema(String filePath);
+    static native String[] getSchema(String filePath, String configJson);
 
-    static native long[] getStatistics(String filePath);
+    static native long[] getStatistics(String filePath, String configJson);
 
     /** Returns column statistics as [name0, nullCount0, min0, max0, name1, ...]. Empty string = absent. */
-    static native String[] getColumnStatistics(String filePath);
+    static native String[] getColumnStatistics(String filePath, String configJson);
 
     // ---- Filter expression building ----
 

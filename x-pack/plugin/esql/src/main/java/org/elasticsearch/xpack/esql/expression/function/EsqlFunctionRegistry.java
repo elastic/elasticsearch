@@ -427,6 +427,7 @@ public class EsqlFunctionRegistry {
                 Signum.DEFINITION,
                 Sin.DEFINITION,
                 Sinh.DEFINITION,
+                Sparkline.DEFINITION,
                 Sqrt.DEFINITION,
                 Tan.DEFINITION,
                 Tanh.DEFINITION,
@@ -609,8 +610,7 @@ public class EsqlFunctionRegistry {
                 Delay.DEFINITION,
                 // dense vector functions
                 Magnitude.DEFINITION,
-                ToDateRange.DEFINITION,
-                Sparkline.DEFINITION } };
+                ToDateRange.DEFINITION, } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

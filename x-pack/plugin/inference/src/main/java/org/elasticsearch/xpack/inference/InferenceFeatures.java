@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xpack.core.inference.usage.ModelStats;
+import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.queries.InterceptedInferenceQueryBuilder;
@@ -149,6 +150,9 @@ public class InferenceFeatures implements FeatureSpecification {
                 SEMANTIC_TEXT_PREVENT_LEGACY_FORMAT_NEW_INDICES
             )
         );
+        if (SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled()) {
+            testFeatures.add(SemanticFieldMapper.SEMANTIC_FIELD_MAPPER);
+        }
         testFeatures.addAll(getFeatures());
         return testFeatures;
     }

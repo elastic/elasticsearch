@@ -50,7 +50,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -60,6 +59,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Objects.requireNonNullElse;
+import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction.TASKS_ORIGIN;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 
@@ -206,10 +206,7 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
     /// together with their child tasks from the first pass.
     static MissedRelocations findMissedRelocations(final List<TaskInfo> firstPass, final List<TaskInfo> secondPass) {
         // collect all the original taskIDs that are present in second listing since those weren't missed and we can ignore those
-        final Set<TaskId> secondPassOriginalTaskIds = new HashSet<>();
-        for (final TaskInfo t : secondPass) {
-            secondPassOriginalTaskIds.add(t.originalTaskId());
-        }
+        Set<TaskId> secondPassOriginalTaskIds = secondPass.stream().map(TaskInfo::originalTaskId).collect(toSet());
 
         // collect relocatable parents from the first listing that aren't in the second listing which we'll need to find.
         // de-dupe by originalTaskId since we can get two instances in the first list and none in the second list, so prefer the newest.
@@ -228,16 +225,8 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
 
         // collect missing children, who we'll just have to include with stale information since children aren't persisted in `.tasks`,
         // so we can't look up the latest values.
-        final Set<TaskId> missingParentTaskIds = new HashSet<>();
-        for (final TaskInfo t : missingParentsByOriginalId.values()) {
-            missingParentTaskIds.add(t.taskId());
-        }
-        final List<TaskInfo> missingChildren = new ArrayList<>();
-        for (final TaskInfo t : firstPass) {
-            if (missingParentTaskIds.contains(t.parentTaskId())) {
-                missingChildren.add(t);
-            }
-        }
+        Set<TaskId> missingParentTaskIds = missingParentsByOriginalId.values().stream().map(TaskInfo::taskId).collect(toSet());
+        List<TaskInfo> missingChildren = firstPass.stream().filter(t -> missingParentTaskIds.contains(t.taskId())).toList();
 
         return new MissedRelocations(List.copyOf(missingParentsByOriginalId.values()), missingChildren);
     }

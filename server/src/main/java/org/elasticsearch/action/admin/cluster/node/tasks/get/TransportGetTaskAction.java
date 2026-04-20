@@ -103,9 +103,9 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
 
     @Override
     protected void doExecute(Task thisTask, GetTaskRequest request, ActionListener<GetTaskResponse> listener) {
-        ActionListener<GetTaskResponse> relocationAwareListener = listener.delegateFailureAndWrap(
-            (l, response) -> followReindexRelocationIfNeeded(request, response, l)
-        );
+        ActionListener<GetTaskResponse> relocationAwareListener = request.getFollowRelocations()
+            ? listener.delegateFailureAndWrap((l, response) -> followReindexRelocationIfNeeded(request, response, l))
+            : listener;
         if (clusterService.localNode().getId().equals(request.getTaskId().getNodeId())) {
             getRunningTaskFromNode(thisTask, request, relocationAwareListener);
         } else {
@@ -142,8 +142,18 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
             node,
             TYPE.name(),
             nodeRequest,
-            TransportRequestOptions.timeout(request.getTimeout()),
-            new ActionListenerResponseHandler<>(listener, GetTaskResponse::new, EsExecutors.DIRECT_EXECUTOR_SERVICE)
+            TransportRequestOptions.EMPTY,
+            new ActionListenerResponseHandler<>(
+                ActionListener.addTimeout(
+                    request.getTimeout(),
+                    threadPool,
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    listener,
+                    () -> { /* TODO cancel the remote tasks? */}
+                ),
+                GetTaskResponse::new,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
+            )
         );
     }
 
@@ -335,7 +345,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
     }
 
     /**
-     * Merges the original (pre-relocation) task's identity and timing with the relocated task's current state.
+     * Merges the original (pre-relocation) task's timing with the relocated task's current state.
      */
     static GetTaskResponse mergeRelocatedTask(TaskResult original, GetTaskResponse relocatedResponse) {
         TaskResult relocated = relocatedResponse.getTask();
@@ -347,18 +357,22 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
         );
 
         TaskInfo mergedInfo = new TaskInfo(
-            originalInfo.taskId(),
+            relocatedInfo.taskId(),
             relocatedInfo.type(),
             relocatedInfo.node(),
             relocatedInfo.action(),
-            originalInfo.description(),
+            relocatedInfo.description(),
             relocatedInfo.status(),
+            // startTime and runningTime reflect the full duration of the original task, so that the task appears to have been running
+            // continuously since it was originally started
             originalInfo.startTime(),
             adjustedRunningTimeNanos,
             relocatedInfo.cancellable(),
             relocatedInfo.cancelled(),
             relocatedInfo.parentTaskId(),
-            relocatedInfo.headers()
+            relocatedInfo.headers(),
+            relocatedInfo.originalTaskId(),
+            relocatedInfo.originalStartTimeMillis()
         );
 
         return new GetTaskResponse(new TaskResult(relocated.isCompleted(), mergedInfo, relocated.getError(), relocated.getResponse()));

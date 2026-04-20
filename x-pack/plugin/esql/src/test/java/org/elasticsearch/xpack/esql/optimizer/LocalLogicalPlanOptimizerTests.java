@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.TemporalityAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -37,8 +38,11 @@ import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Increase;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.SingleFieldFullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateMetricDouble;
@@ -69,6 +73,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
@@ -119,6 +124,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
@@ -1851,5 +1857,56 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var optimizedAttr = as(alias.child(), TimeSeriesMetadataAttribute.class);
         assertThat(MetadataAttribute.isTimeSeriesAttribute(optimizedAttr), is(true));
         assertThat(optimizedAttr.withoutFields(), equalTo(Set.of()));
+    }
+
+    public void testTemporalityInjection() {
+        var fieldAttr = getFieldAttribute("counter", DataType.COUNTER_LONG);
+        var timestampAttr = getFieldAttribute("@timestamp", DataType.DATETIME);
+        var relation = new EsRelation(
+            EMPTY,
+            "test",
+            IndexMode.TIME_SERIES,
+            Map.of(),
+            Map.of(),
+            Map.of("test", IndexMode.TIME_SERIES),
+            List.of(fieldAttr, timestampAttr)
+        );
+        var tsAggregate = new TimeSeriesAggregate(
+            EMPTY,
+            relation,
+            List.of(),
+            List.of(
+                new Alias(EMPTY, "r", new Rate(EMPTY, fieldAttr, Literal.TRUE, AggregateFunction.NO_WINDOW, timestampAttr, null)),
+                new Alias(EMPTY, "i", new Increase(EMPTY, fieldAttr, Literal.TRUE, AggregateFunction.NO_WINDOW, timestampAttr, null))
+            ),
+            null,
+            timestampAttr
+        );
+
+        var searchStats = new EsqlTestUtils.TestSearchStats() {
+            @Override
+            public boolean exists(FieldAttribute.FieldName field) {
+                return field.string().equals(fieldAttr.name()) || field.string().equals(timestampAttr.name());
+            }
+        };
+        var localContext = new LocalLogicalOptimizerContext(TEST_CFG, FoldContext.small(), searchStats);
+        var optimizedPlan = new LocalLogicalPlanOptimizer(localContext).localOptimize(tsAggregate);
+
+        var optimizedTsAgg = as(optimizedPlan, TimeSeriesAggregate.class);
+        var optimizedRate = as(Alias.unwrap(optimizedTsAgg.aggregates().getFirst()), Rate.class);
+        var optimizedIncrease = as(Alias.unwrap(optimizedTsAgg.aggregates().get(1)), Increase.class);
+
+        var optimizedRelation = as(optimizedTsAgg.child(), EsRelation.class);
+        var relationTemporalities = optimizedRelation.output().stream().filter(TemporalityAttribute.class::isInstance).toList();
+
+        assertThat(optimizedRate.temporality(), notNullValue());
+        assertThat(optimizedIncrease.temporality(), notNullValue());
+
+        var rateTemporality = as(optimizedRate.temporality(), TemporalityAttribute.class);
+        var increaseTemporality = as(optimizedIncrease.temporality(), TemporalityAttribute.class);
+        assertThat(increaseTemporality.id(), equalTo(rateTemporality.id()));
+
+        assertThat(relationTemporalities, hasSize(1));
+        assertThat((relationTemporalities.getFirst()).id(), equalTo(rateTemporality.id()));
     }
 }

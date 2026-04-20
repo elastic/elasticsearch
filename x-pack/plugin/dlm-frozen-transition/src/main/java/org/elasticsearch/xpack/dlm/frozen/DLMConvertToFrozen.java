@@ -19,6 +19,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.delete.TransportDeleteSn
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.TransportGetSnapshotsAction;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -34,6 +35,7 @@ import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.shrink.TransportResizeAction;
+import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -42,12 +44,19 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamAction;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
+import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -58,9 +67,13 @@ import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
+import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
+import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 
 import java.time.Clock;
 import java.util.ArrayList;
@@ -68,9 +81,12 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.support.master.MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT;
@@ -82,12 +98,12 @@ import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapsho
  */
 public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
 
-    private static final Logger logger = LogManager.getLogger(DLMConvertToFrozen.class);
     public static final String CLONE_INDEX_PREFIX = "dlm-clone-";
-    private static final IndicesOptions IGNORE_MISSING_OPTIONS = IndicesOptions.fromOptions(true, true, false, false);
+    static final String SNAPSHOT_NAME_PREFIX = "dlm-frozen-";
+    static final IndicesOptions IGNORE_MISSING_OPTIONS = IndicesOptions.fromOptions(true, true, false, false);
+    static final String DLM_MANAGED_METADATA_KEY = "dlm-managed";
+    private static final Logger logger = LogManager.getLogger(DLMConvertToFrozen.class);
     private static final TimeValue SNAPSHOT_TIMEOUT = TimeValue.timeValueHours(12);
-    private static final TimeValue SNAPSHOT_POLL_INTERVAL = TimeValue.timeValueSeconds(30);
-    private static final String SNAPSHOT_NAME_PREFIX = "dlm-frozen-";
 
     private final String indexName;
     private final ProjectId projectId;
@@ -123,7 +139,8 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             String forceMergeIndex = maybeCloneIndex();
             maybeForceMergeIndex(forceMergeIndex);
             maybeTakeSnapshot(forceMergeIndex);
-            maybeMountSearchableSnapshot();
+            maybeMountSearchableSnapshot(forceMergeIndex);
+            maybeCleanup(forceMergeIndex);
         } catch (IndexNotFoundException e) {
             if (e.getIndex().getName().equals(indexName)) {
                 // if the original index was not found, then we can assume
@@ -203,6 +220,20 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
     }
 
     /**
+     * Checks whether the index exists in the project metadata. Throws IndexNotFoundException if not, or
+     * ElasticsearchException if the project state or metadata cannot be retrieved for some reason.
+     */
+    private void checkIndexExists(String index) {
+        ProjectState projectState = getProjectState();
+        if (projectState == null || projectState.metadata() == null) {
+            throw new ElasticsearchException("Project state not found for project [{}] during DLM run", projectId);
+        }
+        if (projectState.metadata().index(index) == null) {
+            throw new IndexNotFoundException(index);
+        }
+    }
+
+    /**
      * Marks the index as read-only by adding a WRITE block, if the block is not already present.
      * This ensures all in-flight writes are completed and flushed to segments before proceeding
      * with the subsequent convert-to-frozen steps. In the case that the index is already marked as
@@ -258,9 +289,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         try {
             CreateIndexResponse resp = client.projectClient(projectId).execute(TransportResizeAction.TYPE, resizeReq).get();
             if (resp.isAcknowledged() == false) {
-                throw new ElasticsearchException(
-                    Strings.format("DLM failed to acknowledge clone of index [%s] to index [%s]", indexName, cloneIndexName)
-                );
+                throw new ElasticsearchException("DLM failed to acknowledge clone of index [{}] to index [{}]", indexName, cloneIndexName);
             }
             logger.info("DLM successfully cloned index [{}] to index [{}]", indexName, cloneIndexName);
             return cloneIndexName;
@@ -288,15 +317,8 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
     public void maybeForceMergeIndex(String forceMergeIndex) throws InterruptedException {
         checkIfThreadInterrupted();
         checkIfEligibleForConvertToFrozen();
+        checkIndexExists(forceMergeIndex);
 
-        boolean indexMissing = Optional.ofNullable(getProjectState())
-            .map(ProjectState::metadata)
-            .map(metadata -> metadata.index(forceMergeIndex))
-            .isEmpty();
-        if (indexMissing) {
-            logger.warn("Index [{}] not found in project metadata, skipping force merge step", forceMergeIndex);
-            return;
-        }
         if (isForceMergeComplete()) {
             logger.debug("Index [{}] has already been force merged by DLM, skipping force merge step", forceMergeIndex);
             return;
@@ -348,16 +370,116 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
      * the repository. If a valid completed snapshot exists, skips re-taking the snapshot. If an invalid completed snapshot
      * exists (e.g. failed or partial), deletes it and starts a new one. If no completed snapshot exists, starts a new one.
      */
-    void maybeTakeSnapshot(String indexName) throws InterruptedException {
+    void maybeTakeSnapshot(String forceMergeIndex) throws InterruptedException {
         checkIfThreadInterrupted();
         checkIfEligibleForConvertToFrozen();
+        checkIndexExists(forceMergeIndex);
 
-        // todo
+        ProjectState projectState = getProjectState();
+        ProjectMetadata projectMetadata = projectState.metadata();
+        // Use the original index name for repository lookup since that's where the repository is configured,
+        // even if we are force merging a clone index.
+        final String repositoryName = getRepositoryForFrozen(projectMetadata, indexName);
+        String snapshotName = snapshotName(forceMergeIndex);
+
+        SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(projectState.cluster());
+        OptionalLong snapshotStartTime = findSnapshotStartTime(snapshotsInProgress, projectId, repositoryName, snapshotName);
+
+        if (snapshotStartTime.isPresent()) {
+            handleInProgressSnapshot(forceMergeIndex, repositoryName, snapshotName, snapshotStartTime.getAsLong());
+        } else {
+            checkForOrphanedSnapshotAndStart(forceMergeIndex, repositoryName, snapshotName);
+        }
     }
 
-    public void maybeMountSearchableSnapshot() throws InterruptedException {
+    public void maybeMountSearchableSnapshot(String forceMergeIndex) throws InterruptedException {
         checkIfThreadInterrupted();
         checkIfEligibleForConvertToFrozen();
+
+        if (isSnapshotMounted()) {
+            logger.debug("Snapshot [{}] is already mounted, skipping DLM mount searchable snapshot step", snapshotName(forceMergeIndex));
+            return;
+        }
+
+        ProjectState projectState = getProjectState();
+        ProjectMetadata projectMetadata = projectState.metadata();
+        String snapshotName = snapshotName(forceMergeIndex);
+        String mountedIndexName = snapshotName(indexName);
+
+        // We ignore these settings when mounting the snapshot to frozen:
+        // - ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING:
+        // It is likely that frozen tier has fewer nodes than the hot tier. If this setting
+        // is not specifically set in the frozen tier, keeping this setting runs the risk that we will not have enough nodes to
+        // allocate all the shards in the frozen tier and the user does not have any way of
+        // fixing this. For this reason, we ignore this setting when moving to frozen.
+        // - LifecycleSettings.LIFECYCLE_NAME:
+        // Avoids potential conflicts with ILM.
+        // - DataTier.TIER_PREFERENCE:
+        // Since we are moving to frozen, we want to ensure that any existing tier preferences
+        // do not interfere with the allocation of the mounted index to the frozen tier.
+        String[] ignoredIndexSettings = new String[] {
+            ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(),
+            LifecycleSettings.LIFECYCLE_NAME,
+            DataTier.TIER_PREFERENCE };
+
+        MountSearchableSnapshotRequest mountRequest = new MountSearchableSnapshotRequest(
+            TimeValue.MAX_VALUE,
+            mountedIndexName,
+            getRepositoryForFrozen(projectMetadata, indexName),
+            snapshotName,
+            forceMergeIndex,
+            Settings.EMPTY,
+            ignoredIndexSettings,
+            true,
+            MountSearchableSnapshotRequest.Storage.SHARED_CACHE
+        );
+
+        logger.debug("DLM attempting to mount frozen index [{}]", snapshotName);
+        try {
+            RestoreSnapshotResponse resp = client.projectClient(projectId)
+                .execute(MountSearchableSnapshotAction.INSTANCE, mountRequest)
+                .get();
+            RestoreInfo restoreInfo = resp.getRestoreInfo();
+            if (restoreInfo == null) {
+                throw new ElasticsearchException("DLM failed to mount snapshot [{}] because the restore info was missing", snapshotName);
+            }
+            if (restoreInfo.failedShards() > 0 || restoreInfo.successfulShards() == 0) {
+                throw new ElasticsearchException(
+                    "DLM failed to mount snapshot [{}] because there were failed shards or no successful shards. Restore info: [{}]",
+                    snapshotName,
+                    restoreInfo
+                );
+            }
+            logger.info("DLM successfully mounted snapshot [{}]", snapshotName);
+        } catch (Exception e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw ExceptionsHelper.convertToElastic(e, "DLM failed while mounting snapshot [{}]", snapshotName);
+        }
+
+    }
+
+    void maybeCleanup(String forceMergeIndex) throws InterruptedException {
+        if (isCleanUpComplete(forceMergeIndex)) {
+            logger.debug("DLM cleanup is already complete for index [{}], skipping cleanup step.", indexName);
+            return;
+        }
+
+        checkIfThreadInterrupted();
+        checkIfEligibleForConvertToFrozen();
+
+        ProjectMetadata projectMetadata = getProjectState().metadata();
+        // Check if the old index is still part of a datastream, swap if so
+        String dataStreamName = resolveDataStreamName(indexName, projectMetadata);
+        if (dataStreamName != null) {
+            swapIndicesInDataStream(dataStreamName);
+        }
+        // Delete the force merge index if it is different from the original.
+        if (indexName.equals(forceMergeIndex) == false) {
+            deleteIndex(forceMergeIndex);
+        }
+        deleteIndex(indexName);
     }
 
     private boolean isIndexReadOnly() {
@@ -401,6 +523,22 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             }
             throw new ElasticsearchException("DLM unable to check segment count for index [{}]", e, indexName);
         }
+    }
+
+    /**
+     * The cleanup is complete when neither the old index nor its clone exist and the frozen index is part of a data stream.
+     */
+    private boolean isCleanUpComplete(String forceMergeIndex) {
+        // return false if original or clone indices still exist
+        ProjectMetadata projectMetadata = getProjectState().metadata();
+        if (projectMetadata.indices().containsKey(indexName)) {
+            return false;
+        }
+        if (projectMetadata.indices().containsKey(forceMergeIndex)) {
+            return false;
+        }
+        // return false if frozen index is not in a datastream (swap hasn't occurred yet)
+        return resolveDataStreamName(snapshotName(indexName), projectMetadata) != null;
     }
 
     /**
@@ -537,7 +675,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
                 logger.debug("DLM successfully deleted index [{}]", indexToDelete);
             } else {
                 logger.warn("DLM failed to acknowledge deletion of index [{}]", indexToDelete);
-                throw new ElasticsearchException(Strings.format("Failed to acknowledge delete of index [%s]", indexToDelete));
+                throw new ElasticsearchException("Failed to acknowledge delete of index [{}]", indexToDelete);
             }
         } catch (IndexNotFoundException e) {
             logger.debug("Index [{}] was not found during DLM delete attempt, it may have already been deleted", indexToDelete);
@@ -595,6 +733,148 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             } else {
                 throw new ElasticsearchException("DLM's request to mark index [" + targetIndex + "] as read-only was not acknowledged");
             }
+        }
+    }
+
+    /**
+     * A snapshot for this index is currently running in the cluster. If it has been running longer
+     * than {@link #SNAPSHOT_TIMEOUT}, delete it and start again; otherwise wait for it to complete.
+     */
+    void handleInProgressSnapshot(String indexName, String repositoryName, String snapshotName, long snapshotStartTime) {
+        if ((clock.millis() - snapshotStartTime) > SNAPSHOT_TIMEOUT.millis()) {
+            logger.warn(
+                "DLM snapshot [{}] for index [{}] has been running for over [{}], cancelling and restarting",
+                snapshotName,
+                indexName,
+                SNAPSHOT_TIMEOUT
+            );
+            deleteSnapshotIfExists(repositoryName, snapshotName, indexName);
+            createSnapshot(indexName, repositoryName, snapshotName);
+        } else {
+            logger.info(
+                "DLM snapshot [{}] for index [{}] is currently in progress and has been running for [{}], waiting for completion",
+                snapshotName,
+                indexName,
+                TimeValue.timeValueMillis(clock.millis() - snapshotStartTime)
+            );
+            waitForSnapshotCompletion(indexName, repositoryName, snapshotName, snapshotStartTime);
+        }
+    }
+
+    /**
+     * Waits for the snapshot to complete by observing cluster state changes via {@link ClusterStateObserver}.
+     * The observer watches for the snapshot to be removed from {@link SnapshotsInProgress}, which indicates
+     * that it has completed (successfully or otherwise). If the observer times out (i.e. the remaining time until {@link #SNAPSHOT_TIMEOUT}
+     * elapses) or the cluster service closes, an exception is thrown.
+     */
+    void waitForSnapshotCompletion(String indexName, String repositoryName, String snapshotName, long snapshotStartTime) {
+        TimeValue timeout = TimeValue.timeValueMillis(SNAPSHOT_TIMEOUT.millis() - (clock.millis() - snapshotStartTime));
+
+        // Use a latch so that the observer listener (invoked on the ClusterApplierService thread)
+        // does no heavy/blocking work
+        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<Exception> observerError = new AtomicReference<>();
+
+        ClusterStateObserver.waitForState(
+            clusterService,
+            clusterService.threadPool().getThreadContext(),
+            new ClusterStateObserver.Listener() {
+                @Override
+                public void onNewClusterState(ClusterState state) {
+                    // Snapshot is no longer in progress – signal the waiting thread.
+                    latch.countDown();
+                }
+
+                @Override
+                public void onClusterServiceClose() {
+                    observerError.set(
+                        new ElasticsearchException(
+                            "Cluster service closed while waiting for DLM snapshot [{}] for index [{}]",
+                            snapshotName,
+                            indexName
+                        )
+                    );
+                    latch.countDown();
+                }
+
+                @Override
+                public void onTimeout(TimeValue timeout) {
+                    observerError.set(
+                        new ElasticsearchException(
+                            "DLM snapshot [{}] for index [{}] has exceeded timeout of [{}]",
+                            snapshotName,
+                            indexName,
+                            SNAPSHOT_TIMEOUT
+                        )
+                    );
+                    latch.countDown();
+                }
+            },
+            state -> isSnapshotNoLongerInProgress(state, repositoryName, snapshotName),
+            timeout,
+            logger
+        );
+
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ElasticsearchException("Interrupted while waiting for DLM snapshot [{}] for index [{}]", e, snapshotName, indexName);
+        }
+
+        Exception error = observerError.get();
+        if (error != null) {
+            throw ExceptionsHelper.convertToElastic(error);
+        }
+
+        SnapshotInfo snapshot = getSnapshot(repositoryName, snapshotName, indexName);
+        if (snapshot == null) {
+            throw new ElasticsearchException(
+                "DLM snapshot [{}] for index [{}] disappeared while waiting for completion",
+                snapshotName,
+                indexName
+            );
+        }
+        checkSnapshotInfoSuccess(indexName, snapshotName, snapshot);
+    }
+
+    /**
+     * Returns {@code true} if the snapshot with the given name is either no longer listed in
+     * {@link SnapshotsInProgress} for the specified repository, or is still listed but has
+     * reached a completed (non-running) state such as {@code SUCCESS} or {@code FAILED}.
+     */
+    private boolean isSnapshotNoLongerInProgress(ClusterState state, String repositoryName, String snapshotName) {
+        SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(state);
+        return snapshotsInProgress.forRepo(projectId, repositoryName)
+            .stream()
+            .noneMatch(entry -> entry.snapshot().getSnapshotId().getName().equals(snapshotName) && entry.state().completed() == false);
+    }
+
+    /**
+     * No snapshot is currently running for this index. Check whether a completed snapshot already
+     * exists in the repository. If a valid successful snapshot exists, returns.
+     * If the snapshot exists but is invalid (e.g. partial or failed), delete and recreate it.
+     * Otherwise, start a fresh snapshot.
+     */
+    void checkForOrphanedSnapshotAndStart(String indexName, String repositoryName, String snapshotName) {
+        SnapshotInfo existingSnapshot = getSnapshot(repositoryName, snapshotName, indexName);
+        if (existingSnapshot == null) {
+            createSnapshot(indexName, repositoryName, snapshotName);
+            return;
+        }
+
+        if (existingSnapshot.state() == SnapshotState.SUCCESS && existingSnapshot.failedShards() == 0) {
+            logger.info("DLM found valid snapshot [{}] for index [{}]", snapshotName, indexName);
+        } else {
+            logger.info(
+                "DLM found invalid orphaned snapshot [{}] for index [{}] (state [{}], failed shards [{}]), deleting and recreating",
+                snapshotName,
+                indexName,
+                existingSnapshot.state(),
+                existingSnapshot.failedShards()
+            );
+            deleteSnapshotIfExists(repositoryName, snapshotName, indexName);
+            createSnapshot(indexName, repositoryName, snapshotName);
         }
     }
 
@@ -728,9 +1008,9 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
     }
 
     /**
-     * Finds the start time of a running snapshot with the given name. Returns {@code -1} if not found.
+     * Finds the start time of a running snapshot with the given name. Returns empty if not found.
      */
-    private static long findSnapshotStartTime(
+    private static OptionalLong findSnapshotStartTime(
         SnapshotsInProgress snapshotsInProgress,
         ProjectId projectId,
         String repositoryName,
@@ -739,9 +1019,8 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         return snapshotsInProgress.forRepo(projectId, repositoryName)
             .stream()
             .filter(entry -> entry.snapshot().getSnapshotId().getName().equals(snapshotName))
-            .map(SnapshotsInProgress.Entry::startTime)
-            .findFirst()
-            .orElse(-1L);
+            .mapToLong(SnapshotsInProgress.Entry::startTime)
+            .findFirst();
     }
 
     private static CreateSnapshotRequest buildCreateSnapshotRequest(String repositoryName, String indexName, String snapshotName) {
@@ -749,7 +1028,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         request.indices(indexName);
         request.waitForCompletion(true);
         request.includeGlobalState(false);
-        request.userMetadata(Map.of("dlm-managed", true));
+        request.userMetadata(Map.of(DLM_MANAGED_METADATA_KEY, true));
         return request;
     }
 
@@ -757,4 +1036,71 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         return SNAPSHOT_NAME_PREFIX + indexName;
     }
 
+    /**
+     * Checks whether the snapshot for the index is already mounted by
+     * looking for an index with the expected mounted name in the project metadata.
+     */
+    boolean isSnapshotMounted() {
+        ProjectMetadata projectMetadata = getProjectState().metadata();
+        return projectMetadata.indices().containsKey(snapshotName(indexName));
+    }
+
+    /**
+     * Resolves the parent data stream name for the given index.
+     *
+     * @param indexName       the index name to look up
+     * @param projectMetadata the project metadata containing the indices lookup
+     * @return the data stream name, or {@code null} if the index is not part of a data stream
+     */
+    static String resolveDataStreamName(String indexName, ProjectMetadata projectMetadata) {
+        IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(indexName);
+        if (indexAbstraction == null) {
+            return null;
+        }
+        DataStream parentDataStream = indexAbstraction.getParentDataStream();
+        return parentDataStream != null ? parentDataStream.getName() : null;
+    }
+
+    /**
+     * Swaps a backing index in a data stream by issuing a {@link ModifyDataStreamsAction} request
+     * with a remove action for the old index and an add action for the new frozen index.
+     * @param dataStreamName the name of the data stream
+     */
+    void swapIndicesInDataStream(String dataStreamName) {
+        ProjectState projectState = getProjectState();
+
+        ModifyDataStreamsAction.Request request = new ModifyDataStreamsAction.Request(
+            TimeValue.MAX_VALUE,
+            TimeValue.MAX_VALUE,
+            List.of(
+                DataStreamAction.removeBackingIndex(dataStreamName, indexName),
+                DataStreamAction.addBackingIndex(dataStreamName, snapshotName(indexName))
+            )
+        );
+
+        AcknowledgedResponse resp;
+        try {
+            resp = client.projectClient(projectState.projectId()).execute(ModifyDataStreamsAction.INSTANCE, request).get();
+        } catch (Exception e) {
+            if (e instanceof InterruptedException || ExceptionsHelper.unwrapCause(e) instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw ExceptionsHelper.convertToElastic(e);
+        }
+        if (resp.isAcknowledged()) {
+            logger.info(
+                "DLM successfully swapped backing index [{}] with [{}] in data stream [{}]",
+                indexName,
+                snapshotName(indexName),
+                dataStreamName
+            );
+        } else {
+            throw new ElasticsearchException(
+                "DLM failed to acknowledge swap of backing index [{}] with [{}] in data stream [{}]",
+                indexName,
+                snapshotName(indexName),
+                dataStreamName
+            );
+        }
+    }
 }

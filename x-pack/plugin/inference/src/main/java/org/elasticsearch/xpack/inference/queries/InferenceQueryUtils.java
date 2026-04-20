@@ -607,9 +607,7 @@ public final class InferenceQueryUtils {
                     responseListener
                 );
                 default -> gal.onFailure(
-                    new IllegalArgumentException(
-                        "The [" + taskType + "] task type is not supported for semantic text search"
-                    )
+                    new IllegalArgumentException("The [" + taskType + "] task type is not supported for semantic text search")
                 );
             }
         }

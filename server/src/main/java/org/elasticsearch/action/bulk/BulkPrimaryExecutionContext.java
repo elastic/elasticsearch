@@ -366,7 +366,8 @@ class BulkPrimaryExecutionContext {
                 assert executionResult != null;
                 break;
             case COMPLETED:
-                assert requestToExecute != null;
+                // requestToExecute can be null if there are no replicas
+                assert executionResult != null;
                 assert getCurrentItem().getPrimaryResponse() != null;
                 break;
         }

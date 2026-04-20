@@ -18,6 +18,7 @@ import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.inference.AbstractEmbeddingRequestIterator;
@@ -62,7 +63,7 @@ class EmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
                 inferenceId,
                 taskType,
                 embeddingRequest,
-                Objects.requireNonNullElse(timeout, InferenceAction.Request.DEFAULT_TIMEOUT)
+                Objects.requireNonNullElse(timeout, BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.TEXT_EMBEDDING))
             ),
             pvcs
         );

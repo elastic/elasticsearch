@@ -13,6 +13,7 @@ import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.simdvec.MathUtils;
 
 final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
 
@@ -516,5 +517,62 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     @Override
     public boolean contains(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength) {
         return ByteArrayUtils.contains(value, valueOffset, valueLength, term, termOffset, termLength);
+    }
+
+    @Override
+    public void linearCombination(float scaleOther, float[] other, float scaleDest, float[] dest) {
+        if (other.length != dest.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + other.length + "!=" + dest.length);
+        }
+        for (int d = 0; d < dest.length; d++) {
+            dest[d] = scaleOther * other[d] + scaleDest * dest[d];
+        }
+    }
+
+    @Override
+    public float logSumExpNQT(float[] vector) {
+        assert vector.length > 0;
+
+        // Uses a <a href="https://www.nowozin.net/sebastian/blog/streaming-log-sum-exp-computation.html">streaming algorithm</a>.
+        float maxVal = Float.NEGATIVE_INFINITY;
+        float sum = 0.0f;
+        for (float v : vector) {
+            float newMaxVal = Math.max(maxVal, v);
+            sum *= MathUtils.pow2NQT(maxVal - newMaxVal);
+            sum += MathUtils.pow2NQT(v - newMaxVal);
+            maxVal = newMaxVal;
+        }
+
+        return maxVal + MathUtils.log2NQT(sum);
+    }
+
+    @Override
+    public float logSumExpNQTDiff(float[] v1, float[] v2, float eps) {
+        assert v1.length > 0;
+        assert v1.length == v2.length;
+
+        // Uses a <a href="https://www.nowozin.net/sebastian/blog/streaming-log-sum-exp-computation.html">streaming algorithm</a>.
+        float maxVal = Float.NEGATIVE_INFINITY;
+        float sum = 0.0f;
+        for (int i = 0; i < v1.length; i++) {
+            float v = (v1[i] - v2[i]) / eps;
+            float newMaxVal = Math.max(maxVal, v);
+            sum *= MathUtils.pow2NQT(maxVal - newMaxVal);
+            sum += MathUtils.pow2NQT(v - newMaxVal);
+            maxVal = newMaxVal;
+        }
+
+        return maxVal + MathUtils.log2NQT(sum);
+    }
+
+    @Override
+    public void pow2DiffAndScaleNQT(float[] v1, float[] v2, float a, float eps, float[] result) {
+        assert v1.length > 0;
+        assert v1.length == v2.length;
+        assert v1.length == result.length;
+
+        for (int j = 0; j < v1.length; j++) {
+            result[j] = MathUtils.pow2NQT((a + v1[j] - v2[j]) / eps);
+        }
     }
 }

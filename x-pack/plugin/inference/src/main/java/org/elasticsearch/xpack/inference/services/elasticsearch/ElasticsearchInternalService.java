@@ -607,7 +607,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        timeout = ServiceUtils.resolveInferenceTimeout(timeout, inputType, getClusterService());
+        timeout = ServiceUtils.resolveInferenceTimeout(timeout, inputType, getClusterService(), model.getTaskType());
         if (model instanceof ElasticsearchInternalModel esModel) {
             var taskType = model.getConfigurations().getTaskType();
             if (TaskType.TEXT_EMBEDDING.equals(taskType)) {

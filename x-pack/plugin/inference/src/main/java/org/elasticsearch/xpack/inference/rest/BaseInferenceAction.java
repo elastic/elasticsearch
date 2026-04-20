@@ -15,6 +15,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xpack.core.inference.InferenceContext;
+import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
 import org.elasticsearch.xpack.inference.InferencePlugin;
@@ -38,15 +39,18 @@ abstract class BaseInferenceAction extends BaseRestHandler {
 
     record Params(String inferenceEntityId, TaskType taskType) {}
 
-    static TimeValue parseTimeout(RestRequest restRequest) {
-        return restRequest.paramAsTime(InferenceAction.Request.TIMEOUT.getPreferredName(), InferenceAction.Request.DEFAULT_TIMEOUT);
+    static TimeValue parseTimeout(RestRequest restRequest, TaskType taskType) {
+        return restRequest.paramAsTime(
+            InferenceAction.Request.TIMEOUT.getPreferredName(),
+            BaseInferenceActionRequest.getDefaultTimeoutForTaskType(taskType)
+        );
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         var params = parseParams(restRequest);
         var content = restRequest.requiredContent();
-        var inferTimeout = parseTimeout(restRequest);
+        var inferTimeout = parseTimeout(restRequest, params.taskType());
         var productUseCase = extractProductUseCase(restRequest);
         var context = new InferenceContext(productUseCase);
 

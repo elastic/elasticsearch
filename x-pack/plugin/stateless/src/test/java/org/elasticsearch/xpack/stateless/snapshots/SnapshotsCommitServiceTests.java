@@ -369,6 +369,8 @@ public class SnapshotsCommitServiceTests extends ESTestCase {
             waitUntilBCCIsUploaded(commitService, shardId, commit.getGeneration());
 
             final var snapshot = randomSnapshot();
+            final var stateWithSnapshot = createClusterStateWithSnapshotsInProgress(testHarness, snapshot);
+            ClusterServiceUtils.setState(testHarness.clusterService, stateWithSnapshot);
             final var commitRefReleased = new AtomicBoolean(false);
             final var snapshotIndexCommit = new SnapshotIndexCommit(new Engine.IndexCommitRef(commit, () -> commitRefReleased.set(true)));
 
@@ -376,12 +378,7 @@ public class SnapshotsCommitServiceTests extends ESTestCase {
             final var barrier = new CyclicBarrier(2);
             final var registerThread = new Thread(() -> {
                 safeAwait(barrier);
-                try {
-                    testHarness.snapshotsCommitService.registerReleaseForSnapshot(shardId, snapshot, snapshotIndexCommit);
-                } catch (IndexShardSnapshotFailedException e) {
-                    // registerReleaseForSnapshot may throw IndexShardSnapshotFailedException if the snapshot
-                    // completes before or during registration — this is expected in the race.
-                }
+                testHarness.snapshotsCommitService.registerReleaseForSnapshot(shardId, snapshot, snapshotIndexCommit);
             });
             final var releaseThread = new Thread(() -> {
                 safeAwait(barrier);

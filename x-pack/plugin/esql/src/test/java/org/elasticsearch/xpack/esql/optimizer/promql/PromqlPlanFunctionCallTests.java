@@ -84,6 +84,38 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertThat(as(expression.fold(FoldContext.small()), Double.class), equalTo(2024.0));
     }
 
+    // 2024-05-10T14:30:00Z is a Friday: month=5, day_of_month=10, day_of_week=5(Fri), day_of_year=131, hour=14, minute=30
+    public void testTimeExtractionFunctions() {
+        var ctx = new PromqlFunctionRegistry.PromqlContext(
+            Literal.NULL,
+            Literal.NULL,
+            Literal.dateTime(Source.EMPTY, Instant.parse("2024-05-10T14:30:00Z")),
+            EsqlTestUtils.TEST_CFG
+        );
+        assertTimeExtraction(ctx, "month", 5.0);
+        assertTimeExtraction(ctx, "day_of_month", 10.0);
+        assertTimeExtraction(ctx, "day_of_week", 5.0);
+        assertTimeExtraction(ctx, "day_of_year", 131.0);
+        assertTimeExtraction(ctx, "hour", 14.0);
+        assertTimeExtraction(ctx, "minute", 30.0);
+    }
+
+    // Sunday: Java DAY_OF_WEEK=7, PromQL day_of_week=0
+    public void testDayOfWeekSunday() {
+        var ctx = new PromqlFunctionRegistry.PromqlContext(
+            Literal.NULL,
+            Literal.NULL,
+            Literal.dateTime(Source.EMPTY, Instant.parse("2024-05-12T00:00:00Z")),
+            EsqlTestUtils.TEST_CFG
+        );
+        assertTimeExtraction(ctx, "day_of_week", 0.0);
+    }
+
+    private void assertTimeExtraction(PromqlFunctionRegistry.PromqlContext ctx, String function, double expected) {
+        var expression = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(function, Source.EMPTY, null, ctx, List.of());
+        assertThat(function, as(expression.fold(FoldContext.small()), Double.class), equalTo(expected));
+    }
+
     public void testClamp() {
         assertConstantResult("clamp(vector(5), 0, 10)", equalTo(5.0));
         assertConstantResult("clamp(vector(-5), 0, 10)", equalTo(0.0));

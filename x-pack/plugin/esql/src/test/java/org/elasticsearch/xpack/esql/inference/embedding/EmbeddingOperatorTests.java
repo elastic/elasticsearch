@@ -24,13 +24,7 @@ public class EmbeddingOperatorTests extends AbstractDenseEmbeddingOperatorTestCa
 
     @Override
     protected Operator.OperatorFactory createOperatorFactory(InferenceService inferenceService) {
-        return new EmbeddingOperator.Factory(
-            inferenceService,
-            SIMPLE_INFERENCE_ID,
-            evaluatorFactory(inputChannel),
-            DataType.TEXT,
-            null
-        );
+        return new EmbeddingOperator.Factory(inferenceService, SIMPLE_INFERENCE_ID, evaluatorFactory(inputChannel), DataType.TEXT, null);
     }
 
     @Override

@@ -58,7 +58,12 @@ class EmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
             Map.of()
         );
         return new BulkInferenceRequestItem(
-            new EmbeddingAction.Request(inferenceId, taskType, embeddingRequest, Objects.requireNonNullElse(timeout, InferenceAction.Request.DEFAULT_TIMEOUT)),
+            new EmbeddingAction.Request(
+                inferenceId,
+                taskType,
+                embeddingRequest,
+                Objects.requireNonNullElse(timeout, InferenceAction.Request.DEFAULT_TIMEOUT)
+            ),
             pvcs
         );
     }

@@ -256,17 +256,7 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(
-            this,
-            Completion::new,
-            child(),
-            inferenceId(),
-            rowLimit(),
-            prompt,
-            targetField,
-            taskSettings,
-            timeout
-        );
+        return NodeInfo.create(this, Completion::new, child(), inferenceId(), rowLimit(), prompt, targetField, taskSettings, timeout);
     }
 
     @Override

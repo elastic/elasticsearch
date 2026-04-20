@@ -121,7 +121,12 @@ public class InferenceFunctionEvaluatorTests extends ComputeTestCase {
 
     public void testFoldTextEmbeddingFunctionWithNullInput() throws Exception {
         // Create a mock TextEmbedding function
-        TextEmbedding textEmbeddingFunction = new TextEmbedding(Source.EMPTY, Literal.NULL, Literal.keyword(Source.EMPTY, "test-model"), null);
+        TextEmbedding textEmbeddingFunction = new TextEmbedding(
+            Source.EMPTY,
+            Literal.NULL,
+            Literal.keyword(Source.EMPTY, "test-model"),
+            null
+        );
 
         // Create a mock operator that returns a result
         Operator operator = mock(Operator.class);

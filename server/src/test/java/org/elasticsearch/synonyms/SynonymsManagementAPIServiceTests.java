@@ -22,31 +22,19 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.ClosePointInTimeRequest;
-import org.elasticsearch.action.search.ClosePointInTimeResponse;
-import org.elasticsearch.action.search.OpenPointInTimeRequest;
-import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.SystemIndices;
-import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
-import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -55,8 +43,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.Collections;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.action.synonyms.SynonymsTestUtils.randomSynonymsSet;
@@ -218,103 +204,6 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
     }
 
     /**
-     * Verifies getSynonymSetRules calls decRef() on the SearchResponse.
-     */
-    public void testGetSynonymSetRulesReleasesSearchResponse() throws Exception {
-        SearchResponse response = SearchResponseUtils.successfulResponse(
-            SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN)
-        );
-        var client = new SynonymsMockClient(threadPool, response);
-        var service = buildService(
-            client,
-            clusterService,
-            SynonymsManagementAPIService.PRE_LARGE_SETS_LIMIT,
-            SynonymsManagementAPIService.BULK_CHUNK_SIZE
-        );
-        var future = new PlainActionFuture<PagedResult<SynonymRule>>();
-        service.getSynonymSetRules("my-set", 0, 10, future);
-        safeGet(future);
-        assertFalse(response.hasReferences());
-    }
-
-    /**
-     * Verifies putSynonymRule calls decRef() on the SearchResponse even when indexing proceeds.
-     */
-    public void testPutSynonymRuleReleasesSearchResponse() throws Exception {
-        SearchResponse response = SearchResponseUtils.successfulResponse(
-            SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN)
-        );
-        var client = new SynonymsMockClient(threadPool, response);
-        var service = buildService(
-            client,
-            clusterService,
-            SynonymsManagementAPIService.PRE_LARGE_SETS_LIMIT,
-            SynonymsManagementAPIService.BULK_CHUNK_SIZE
-        );
-        var future = new PlainActionFuture<SynonymsManagementAPIService.SynonymsReloadResult>();
-        service.putSynonymRule("my-set", new SynonymRule("rule-1", "foo => bar"), false, future);
-        safeGet(future);
-        assertFalse(response.hasReferences());
-    }
-
-    /**
-     * Verifies fetchPageWithPit calls decRef() on the SearchResponse.
-     */
-    public void testFetchPageWithPitReleasesSearchResponse() throws Exception {
-        SearchResponse response = SearchResponseUtils.response(SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN))
-            .pointInTimeId(new BytesArray("pit"))
-            .build();
-        var client = new SynonymsMockClient(threadPool, response);
-        var service = buildService(
-            client,
-            clusterService,
-            SynonymsManagementAPIService.PRE_LARGE_SETS_LIMIT,
-            SynonymsManagementAPIService.BULK_CHUNK_SIZE
-        );
-        var future = new PlainActionFuture<PagedResult<SynonymRule>>();
-        service.getSynonymSetRules("my-set", future);
-        safeGet(future);
-        assertFalse(response.hasReferences());
-    }
-
-    /**
-     * Verifies getSynonymsSets calls decRef() on the SearchResponse.
-     */
-    public void testGetSynonymSetsReleasesSearchResponse() throws Exception {
-        StringTerms terms = new StringTerms(
-            "synonym_sets_aggr",
-            BucketOrder.key(true),
-            BucketOrder.key(true),
-            10_000,
-            1,
-            Collections.emptyMap(),
-            DocValueFormat.RAW,
-            10_000,
-            false,
-            0,
-            Collections.emptyList(),
-            0L
-        );
-        SearchResponse response = SearchResponseUtils.response()
-            .aggregations(InternalAggregations.from(List.of(terms)))
-            .numReducePhases(1)
-            .shards(1, 1, 0)
-            .tookInMillis(1)
-            .build();
-        var client = new SynonymsMockClient(threadPool, response);
-        var service = buildService(
-            client,
-            clusterService,
-            SynonymsManagementAPIService.PRE_LARGE_SETS_LIMIT,
-            SynonymsManagementAPIService.BULK_CHUNK_SIZE
-        );
-        var future = new PlainActionFuture<PagedResult<SynonymSetSummary>>();
-        service.getSynonymsSets(0, 10, future);
-        safeGet(future);
-        assertFalse(response.hasReferences());
-    }
-
-    /**
      * Fakes an existing synonym set of a known size: GET returns found, SEARCH returns {@code ruleCount} total hits,
      * and INDEX requests are counted so tests can assert none were issued.
      */
@@ -351,7 +240,7 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
             }
             if (request instanceof SearchRequest) {
                 SearchHits hits = SearchHits.empty(new TotalHits(ruleCount, TotalHits.Relation.EQUAL_TO), Float.NaN);
-                ((ActionListener<SearchResponse>) listener).onResponse(SearchResponseUtils.successfulResponse(hits));
+                ActionListener.respondAndRelease((ActionListener<SearchResponse>) listener, SearchResponseUtils.successfulResponse(hits));
                 return;
             }
             if (request instanceof IndexRequest) {
@@ -396,62 +285,6 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
                 return;
             }
             super.doExecute(action, request, listener);
-        }
-    }
-
-    /**
-     * Handles all request types used by SynonymsManagementAPIService; returns the injected
-     * SearchResponse for any SearchRequest and minimal success responses for everything else.
-     */
-    private static class SynonymsMockClient extends NoOpClient {
-        private static final BytesArray PIT_ID = new BytesArray("pit");
-        private final SearchResponse searchResponse;
-
-        SynonymsMockClient(ThreadPool threadPool, SearchResponse searchResponse) {
-            super(threadPool);
-            this.searchResponse = searchResponse;
-        }
-
-        @Override
-        @SuppressWarnings("unchecked")
-        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
-            ActionType<Response> action,
-            Request request,
-            ActionListener<Response> listener
-        ) {
-            if (request instanceof GetRequest getReq) {
-                var result = new GetResult(
-                    getReq.index(),
-                    getReq.id(),
-                    SequenceNumbers.UNASSIGNED_SEQ_NO,
-                    SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
-                    1,
-                    true,
-                    null,
-                    null,
-                    null
-                );
-                ((ActionListener<GetResponse>) listener).onResponse(new GetResponse(result));
-            } else if (request instanceof SearchRequest) {
-                ((ActionListener<SearchResponse>) listener).onResponse(searchResponse);
-            } else if (request instanceof IndexRequest indexReq) {
-                ((ActionListener<IndexResponse>) listener).onResponse(
-                    new IndexResponse(
-                        new ShardId(new Index(SynonymsManagementAPIService.SYNONYMS_INDEX_CONCRETE_NAME, "_na_"), 0),
-                        indexReq.id(),
-                        SequenceNumbers.UNASSIGNED_SEQ_NO,
-                        SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
-                        1L,
-                        true
-                    )
-                );
-            } else if (request instanceof OpenPointInTimeRequest) {
-                ((ActionListener<OpenPointInTimeResponse>) listener).onResponse(new OpenPointInTimeResponse(PIT_ID, 1, 1, 0, 0));
-            } else if (request instanceof ClosePointInTimeRequest) {
-                ((ActionListener<ClosePointInTimeResponse>) listener).onResponse(new ClosePointInTimeResponse(true, 1));
-            } else {
-                super.doExecute(action, request, listener);
-            }
         }
     }
 

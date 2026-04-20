@@ -262,18 +262,14 @@ public class SynonymsManagementAPIService {
             )
             .setPreference(Preference.LOCAL.type())
             .execute(ActionListener.wrap(searchResponse -> {
-                try {
-                    Terms termsAggregation = searchResponse.getAggregations().get(SYNONYM_SETS_AGG_NAME);
-                    List<? extends Terms.Bucket> buckets = termsAggregation.getBuckets();
-                    SynonymSetSummary[] synonymSetSummaries = buckets.stream().skip(from).limit(size).map(bucket -> {
-                        Filters ruleCountFilters = bucket.getAggregations().get(RULE_COUNT_AGG_NAME);
-                        Filters.Bucket ruleCountBucket = ruleCountFilters.getBucketByKey(RULE_COUNT_FILTER_KEY);
-                        return new SynonymSetSummary(ruleCountBucket.getDocCount(), bucket.getKeyAsString());
-                    }).toArray(SynonymSetSummary[]::new);
-                    listener.onResponse(new PagedResult<>(buckets.size(), synonymSetSummaries));
-                } finally {
-                    searchResponse.decRef();
-                }
+                Terms termsAggregation = searchResponse.getAggregations().get(SYNONYM_SETS_AGG_NAME);
+                List<? extends Terms.Bucket> buckets = termsAggregation.getBuckets();
+                SynonymSetSummary[] synonymSetSummaries = buckets.stream().skip(from).limit(size).map(bucket -> {
+                    Filters ruleCountFilters = bucket.getAggregations().get(RULE_COUNT_AGG_NAME);
+                    Filters.Bucket ruleCountBucket = ruleCountFilters.getBucketByKey(RULE_COUNT_FILTER_KEY);
+                    return new SynonymSetSummary(ruleCountBucket.getDocCount(), bucket.getKeyAsString());
+                }).toArray(SynonymSetSummary[]::new);
+                listener.onResponse(new PagedResult<>(buckets.size(), synonymSetSummaries));
             }, e -> {
                 final Throwable cause = ExceptionsHelper.unwrapCause(e);
                 if (cause instanceof IndexNotFoundException) {
@@ -331,49 +327,42 @@ public class SynonymsManagementAPIService {
 
         AtomicReference<BytesReference> currentPitId = new AtomicReference<>(pitId);
         client.execute(TransportSearchAction.TYPE, new SearchRequest().source(source), ActionListener.wrap(response -> {
-            try {
-                SearchHit[] hits = response.getHits().getHits();
-                long totalHits = response.getHits().getTotalHits().value();
-                assert response.pointInTimeId() != null;
-                currentPitId.set(response.pointInTimeId());
+            SearchHit[] hits = response.getHits().getHits();
+            long totalHits = response.getHits().getTotalHits().value();
+            assert response.pointInTimeId() != null;
+            currentPitId.set(response.pointInTimeId());
 
-                if (hits.length == 0) {
-                    if (accumulated.isEmpty()) {
-                        closePitAndThen(
-                            currentPitId.get(),
-                            () -> checkSynonymSetExists(synonymSetId, listener.delegateFailure((l, ignored) -> {
-                                l.onResponse(new PagedResult<>(0, new SynonymRule[0]));
-                            }))
-                        );
-                    } else {
-                        PagedResult<SynonymRule> result = new PagedResult<>(totalHits, accumulated.toArray(new SynonymRule[0]));
-                        closePitAndThen(currentPitId.get(), () -> listener.onResponse(result));
-                    }
+            if (hits.length == 0) {
+                if (accumulated.isEmpty()) {
+                    closePitAndThen(currentPitId.get(), () -> checkSynonymSetExists(synonymSetId, listener.delegateFailure((l, ignored) -> {
+                        l.onResponse(new PagedResult<>(0, new SynonymRule[0]));
+                    })));
+                } else {
+                    PagedResult<SynonymRule> result = new PagedResult<>(totalHits, accumulated.toArray(new SynonymRule[0]));
+                    closePitAndThen(currentPitId.get(), () -> listener.onResponse(result));
+                }
+                return;
+            }
+
+            if (searchAfter == null && totalHits > maxSynonymRules) {
+                logger.warn(
+                    "The number of synonym rules in the synonym set [{}] exceeds the maximum allowed."
+                        + " Inconsistent synonyms results may occur",
+                    synonymSetId
+                );
+            }
+
+            for (SearchHit hit : hits) {
+                accumulated.add(hitToSynonymRule(hit));
+                if (accumulated.size() >= maxSynonymRules) {
+                    PagedResult<SynonymRule> result = new PagedResult<>(totalHits, accumulated.toArray(new SynonymRule[0]));
+                    closePitAndThen(currentPitId.get(), () -> listener.onResponse(result));
                     return;
                 }
-
-                if (searchAfter == null && totalHits > maxSynonymRules) {
-                    logger.warn(
-                        "The number of synonym rules in the synonym set [{}] exceeds the maximum allowed."
-                            + " Inconsistent synonyms results may occur",
-                        synonymSetId
-                    );
-                }
-
-                for (SearchHit hit : hits) {
-                    accumulated.add(hitToSynonymRule(hit));
-                    if (accumulated.size() >= maxSynonymRules) {
-                        PagedResult<SynonymRule> result = new PagedResult<>(totalHits, accumulated.toArray(new SynonymRule[0]));
-                        closePitAndThen(currentPitId.get(), () -> listener.onResponse(result));
-                        return;
-                    }
-                }
-
-                Object[] lastSortValues = hits[hits.length - 1].getSortValues();
-                fetchPageWithPit(synonymSetId, currentPitId.get(), lastSortValues, accumulated, listener);
-            } finally {
-                response.decRef();
             }
+
+            Object[] lastSortValues = hits[hits.length - 1].getSortValues();
+            fetchPageWithPit(synonymSetId, currentPitId.get(), lastSortValues, accumulated, listener);
         }, e -> { closePitAndThen(currentPitId.get(), () -> listener.onFailure(e)); }));
     }
 
@@ -414,22 +403,18 @@ public class SynonymsManagementAPIService {
             .addFetchField(SYNONYM_RULE_ID_FIELD)
             .addFetchField(SYNONYMS_FIELD)
             .execute(new DelegatingIndexNotFoundActionListener<>(synonymSetId, listener, (searchListener, searchResponse) -> {
-                try {
-                    final long totalSynonymRules = searchResponse.getHits().getTotalHits().value();
-                    // If there are no rules, check that the synonym set actually exists to return the proper error
-                    if (totalSynonymRules == 0) {
-                        checkSynonymSetExists(synonymSetId, searchListener.delegateFailure((existsListener, response) -> {
-                            searchListener.onResponse(new PagedResult<>(0, new SynonymRule[0]));
-                        }));
-                        return;
-                    }
-                    final SynonymRule[] synonymRules = Arrays.stream(searchResponse.getHits().getHits())
-                        .map(SynonymsManagementAPIService::hitToSynonymRule)
-                        .toArray(SynonymRule[]::new);
-                    searchListener.onResponse(new PagedResult<>(totalSynonymRules, synonymRules));
-                } finally {
-                    searchResponse.decRef();
+                final long totalSynonymRules = searchResponse.getHits().getTotalHits().value();
+                // If there are no rules, check that the synonym set actually exists to return the proper error
+                if (totalSynonymRules == 0) {
+                    checkSynonymSetExists(synonymSetId, searchListener.delegateFailure((existsListener, response) -> {
+                        searchListener.onResponse(new PagedResult<>(0, new SynonymRule[0]));
+                    }));
+                    return;
                 }
+                final SynonymRule[] synonymRules = Arrays.stream(searchResponse.getHits().getHits())
+                    .map(SynonymsManagementAPIService::hitToSynonymRule)
+                    .toArray(SynonymRule[]::new);
+                searchListener.onResponse(new PagedResult<>(totalSynonymRules, synonymRules));
             }));
     }
 
@@ -565,13 +550,9 @@ public class SynonymsManagementAPIService {
                 .setPreference(Preference.LOCAL.type())
                 .setTrackTotalHits(true)
                 .execute(l1.delegateFailureAndWrap((searchListener, searchResponse) -> {
-                    try {
-                        long synonymsSetSize = searchResponse.getHits().getTotalHits().value();
-                        if (checkSynonymRuleCount(synonymsSetSize + 1, listener)) {
-                            indexSynonymRule(synonymsSetId, synonymRule, refresh, searchListener);
-                        }
-                    } finally {
-                        searchResponse.decRef();
+                    long synonymsSetSize = searchResponse.getHits().getTotalHits().value();
+                    if (checkSynonymRuleCount(synonymsSetSize + 1, listener)) {
+                        indexSynonymRule(synonymsSetId, synonymRule, refresh, searchListener);
                     }
                 }));
         }));

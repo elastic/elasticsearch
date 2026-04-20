@@ -1108,6 +1108,16 @@ public class SearchEngine extends Engine {
             segmentGenerationListeners.computeIfAbsent(minPrimaryTermGeneration, ignored -> new SubscribableListener<>())
                 .addListener(listener);
 
+            // If the engine closed while we were registering, failSegmentGenerationListeners() may have
+            // already drained the map before our computeIfAbsent added this entry. We must re-check and clean up ourselves.
+            if (isClosed.get()) {
+                var strandedListeners = segmentGenerationListeners.remove(minPrimaryTermGeneration);
+                if (strandedListeners != null) {
+                    strandedListeners.onFailure(new AlreadyClosedException(shardId + " engine is closed", failedEngine.get()));
+                }
+                return false;
+            }
+
             // current state may have moved forwards in the meantime, in which case we must undo what we just did
             final PrimaryTermAndGeneration currentTermGeneration = getCurrentPrimaryTermAndGeneration();
             if (currentTermGeneration.compareTo(minPrimaryTermGeneration) >= 0) {
@@ -1167,7 +1177,6 @@ public class SearchEngine extends Engine {
                 assert false : e2;
             }
         }
-        assert segmentGenerationListeners.isEmpty();
     }
 
     private boolean assertCurrentPrimaryTermGeneration(

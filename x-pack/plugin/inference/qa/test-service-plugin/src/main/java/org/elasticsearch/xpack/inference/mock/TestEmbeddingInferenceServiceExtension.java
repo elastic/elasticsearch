@@ -26,7 +26,6 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -47,7 +46,6 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * A test inference service extension that supports the {@link TaskType#EMBEDDING} task type.
@@ -161,9 +159,7 @@ public class TestEmbeddingInferenceServiceExtension implements InferenceServiceE
         ) {
             List<GenericDenseEmbeddingFloatResults.Embedding> embeddings = new ArrayList<>();
             for (var inputContent : input) {
-                String inputValue = inputContent.inferenceStrings().isEmpty()
-                    ? ""
-                    : inputContent.inferenceStrings().get(0).value();
+                String inputValue = inputContent.inferenceStrings().isEmpty() ? "" : inputContent.inferenceStrings().get(0).value();
                 List<Float> floatEmbeddings = generateEmbedding(inputValue, serviceSettings.dimensions(), serviceSettings.similarity());
                 embeddings.add(GenericDenseEmbeddingFloatResults.Embedding.of(floatEmbeddings));
             }
@@ -252,8 +248,8 @@ public class TestEmbeddingInferenceServiceExtension implements InferenceServiceE
                 return configuration.getOrCompute();
             }
 
-            private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration =
-                new LazyInitializable<>(() -> {
+            private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration = new LazyInitializable<>(
+                () -> {
                     var configurationMap = new HashMap<String, SettingsConfiguration>();
 
                     configurationMap.put(
@@ -271,7 +267,8 @@ public class TestEmbeddingInferenceServiceExtension implements InferenceServiceE
                         .setTaskTypes(supportedTaskTypes)
                         .setConfigurations(configurationMap)
                         .build();
-                });
+                }
+            );
         }
     }
 

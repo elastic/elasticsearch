@@ -73,6 +73,47 @@ public class SubstituteRoundToGoldenTests extends GoldenTestCase {
         }
     }
 
+    // https://github.com/elastic/elasticsearch/issues/146479
+    // When the grouping key is dropped and COUNT(*) is the only agg, CombineProjections removes
+    // the grouping key from aggregates leaving [COUNT] (size 1). But it should still be pushed down.
+    public void testDateTruncCountOnlyPushedWhenGroupingKeyDropped() {
+        for (var queryAndName : dateHistograms) {
+            String query = LoggerMessageFormat.format(null, """
+                from all_types
+                | stats count(*) by x = {}
+                | drop x
+                """, queryAndName.query());
+            runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION), STATS, queryAndName.name());
+        }
+    }
+
+    // https://github.com/elastic/elasticsearch/issues/146479
+    // When the grouping key is dropped (e.g. via DROP/KEEP), CombineProjections removes it from
+    // aggregates, leaving [COUNT, MAX] (size 2). PushCountQueryAndTagsToSource must not mistake
+    // this for [COUNT, grouping_key] and must not push down.
+    public void testDateTruncBucketNotPushedWhenGroupingKeyDropped() {
+        for (var queryAndName : dateHistograms) {
+            String query = LoggerMessageFormat.format(null, """
+                from all_types
+                | stats count(*), max(long) by x = {}
+                | drop x
+                """, queryAndName.query());
+            runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION), STATS, queryAndName.name());
+        }
+    }
+
+    // With multiple groupings the optimization does not apply: [COUNT, grouping_1, grouping_2] has
+    // size 3, so the rule's guard (aggregates().size() == 2) keeps it from firing.
+    public void testDateTruncBucketNotPushedWithMultipleGroupings() {
+        for (var queryAndName : dateHistograms) {
+            String query = LoggerMessageFormat.format(null, """
+                from all_types
+                | stats count(*) by x = {}, long
+                """, queryAndName.query());
+            runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION), STATS, queryAndName.name());
+        }
+    }
+
     // DateTrunc is transformed to RoundTo first but cannot be transformed to QueryAndTags, when the TopN is pushed down to EsQueryExec
     public void testDateTruncNotTransformToQueryAndTags() {
         for (var queryAndName : dateHistograms) {

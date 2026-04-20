@@ -44,8 +44,11 @@ public class EstimatedHeapUsageMonitor {
     private final Supplier<ClusterState> clusterStateSupplier;
     private final RerouteService rerouteService;
     private volatile boolean thresholdEnabled;
+    private volatile boolean highWatermarkEnabled;
     private volatile RatioValue estimatedHeapLowWatermark;
+    private volatile RatioValue estimatedHeapHighWatermark;
     private final AtomicReference<Set<String>> lastKnownNodeIdsExceedingLowWatermark = new AtomicReference<>(Set.of());
+    private final AtomicReference<Set<String>> lastKnownNodeIdsExceedingHighWatermark = new AtomicReference<>(Set.of());
 
     public EstimatedHeapUsageMonitor(
         ClusterSettings clusterSettings,
@@ -61,6 +64,14 @@ public class EstimatedHeapUsageMonitor {
         clusterSettings.initializeAndWatch(
             EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_LOW_WATERMARK,
             newValue -> this.estimatedHeapLowWatermark = newValue
+        );
+        clusterSettings.initializeAndWatch(
+            EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_HIGH_WATERMARK_ENABLED,
+            newValue -> this.highWatermarkEnabled = newValue
+        );
+        clusterSettings.initializeAndWatch(
+            EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_HIGH_WATERMARK,
+            newValue -> this.estimatedHeapHighWatermark = newValue
         );
     }
 
@@ -102,6 +113,39 @@ public class EstimatedHeapUsageMonitor {
                     e -> logger.debug(() -> Strings.format("reroute failed, reason: %s", reason), e)
                 )
             );
+        }
+
+        if (highWatermarkEnabled) {
+            final var nodeIdsExceedingHighWatermark = clusterInfo.getEstimatedHeapUsages()
+                .entrySet()
+                .stream()
+                .filter(entry -> entry.getValue().estimatedUsageAsPercentage() > estimatedHeapHighWatermark.getAsPercent())
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toUnmodifiableSet());
+
+            final var previousHighWatermarkNodeIds = lastKnownNodeIdsExceedingHighWatermark.getAndSet(nodeIdsExceedingHighWatermark);
+            if (previousHighWatermarkNodeIds.containsAll(nodeIdsExceedingHighWatermark) == false) {
+                if (logger.isDebugEnabled()) {
+                    logger.debug(
+                        Strings.format(
+                            "estimated heap usages exceeded the high watermark [%.2f] for nodes %s, triggering reroute",
+                            estimatedHeapHighWatermark.getAsPercent(),
+                            Sets.difference(nodeIdsExceedingHighWatermark, previousHighWatermarkNodeIds)
+                        )
+                    );
+                }
+                final String reason = "estimated heap usages exceeded high watermark";
+                rerouteService.reroute(
+                    reason,
+                    Priority.NORMAL,
+                    ActionListener.wrap(
+                        ignored -> logger.trace("{} reroute successful", reason),
+                        e -> logger.debug(() -> Strings.format("reroute failed, reason: %s", reason), e)
+                    )
+                );
+            }
+        } else {
+            lastKnownNodeIdsExceedingHighWatermark.set(Set.of());
         }
     }
 }

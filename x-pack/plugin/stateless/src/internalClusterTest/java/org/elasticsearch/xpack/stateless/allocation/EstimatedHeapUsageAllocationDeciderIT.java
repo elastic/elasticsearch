@@ -34,10 +34,14 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.memory.HeapMemoryUsage;
 import org.elasticsearch.xpack.stateless.memory.PublishHeapMemoryMetricsRequest;
@@ -46,6 +50,7 @@ import org.elasticsearch.xpack.stateless.memory.ShardsMappingSizeCollector;
 import org.elasticsearch.xpack.stateless.memory.StatelessMemoryMetricsService;
 import org.elasticsearch.xpack.stateless.memory.TransportPublishHeapMemoryMetrics;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -101,79 +106,15 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessPlug
         final var indexNameB = randomIdentifier();
         createIndex(indexNameB, indexSettings(1, 0).put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX + "._name", nodeNameB).build());
 
-        final var nodesStatsResponse = safeGet(
-            client().admin().cluster().prepareNodesStats(getNodeId(nodeNameA), getNodeId(nodeNameB)).setJvm(true).execute()
-        );
-        final Map<String, Long> nodeHeapMaxLookupById = nodesStatsResponse.getNodes()
-            .stream()
-            .collect(
-                Collectors.toUnmodifiableMap(
-                    nodeStats -> nodeStats.getNode().getId(),
-                    nodeStats -> nodeStats.getJvm().getMem().getHeapMax().getBytes()
-                )
-            );
+        final Map<String, Long> nodeHeapMaxLookupById = getNodeMaxHeapSizes(nodeNameA, nodeNameB);
 
         // Fake large heap memory usages to block allocation
-        final var nodesToInjectEstimatedHeapUsage = ConcurrentCollections.newConcurrentSet();
-        nodesToInjectEstimatedHeapUsage.addAll(nodeHeapMaxLookupById.keySet());
-        final var nodeIdToPublicationLatch = new ConcurrentHashMap<>(
-            Maps.transformValues(nodeHeapMaxLookupById, v -> new CountDownLatch(1))
+        final var interceptor = new HeapUsagePublicationInterceptor(
+            MockTransportService.getInstance(masterNodeName),
+            nodeHeapMaxLookupById
         );
-
-        final var masterMockTransportService = MockTransportService.getInstance(masterNodeName);
-        masterMockTransportService.addRequestHandlingBehavior(TransportPublishHeapMemoryMetrics.NAME, (handler, request, channel, task) -> {
-            final var publishHeapMemoryMetricsRequest = asInstanceOf(PublishHeapMemoryMetricsRequest.class, request);
-            final var heapMemoryUsage = publishHeapMemoryMetricsRequest.getHeapMemoryUsage();
-            final var shardMappingSizes = heapMemoryUsage.shardMappingSizes();
-            if (shardMappingSizes.isEmpty()) {
-                handler.messageReceived(request, channel, task);
-                return;
-            }
-
-            final String nodeId = nodeIdFromHeapMemoryUsage(heapMemoryUsage);
-            // We use a latch for each node to wait for new publication. It is important that this publication gets a reference to the latch
-            // only after the latch is set in waitForRefreshedHeapMemoryUsagePublication. Otherwise, the publication
-            // may be stale, i.e. it starts before the latch is set, and the test can fail. Therefore, we take the latch
-            // before handling the publication. If a new latch is set halfway through the publication handling, it will not
-            // be pulled by the existing publication, but the next one which is the expected behavior.
-            final CountDownLatch latch = nodeIdToPublicationLatch.get(nodeId);
-            if (nodesToInjectEstimatedHeapUsage.contains(nodeId)) {
-                assertThat(nodeHeapMaxLookupById, hasKey(nodeId));
-                final long nodeHeapMax = nodeHeapMaxLookupById.get(nodeId);
-                final var updatedShardMappingSizes = shardMappingSizes.entrySet()
-                    .stream()
-                    .collect(
-                        Collectors.toUnmodifiableMap(
-                            Map.Entry::getKey,
-                            entry -> new ShardMappingSize(
-                                nodeHeapMax,
-                                entry.getValue().numSegments(),
-                                entry.getValue().totalFields(),
-                                entry.getValue().postingsInMemoryBytes(),
-                                entry.getValue().liveDocsBytes(),
-                                UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES,
-                                nodeId
-                            )
-                        )
-                    );
-                handler.messageReceived(
-                    new PublishHeapMemoryMetricsRequest(
-                        new HeapMemoryUsage(
-                            heapMemoryUsage.publicationSeqNo(),
-                            updatedShardMappingSizes,
-                            heapMemoryUsage.clusterStateVersion()
-                        )
-                    ),
-                    channel,
-                    task
-                );
-            } else {
-                handler.messageReceived(request, channel, task);
-            }
-            latch.countDown();
-        });
-
-        waitForRefreshedHeapMemoryUsagePublication(nodeIdToPublicationLatch);
+        interceptor.injectAll(nodeHeapMaxLookupById.keySet());
+        interceptor.waitForNextPublication();
 
         final ClusterInfo clusterInfo = refreshClusterInfo();
         assertTrue(
@@ -246,10 +187,10 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessPlug
                 )
             );
 
-            // Remove the node from the injection set before wait for new publication. This is important to ensure the order of
+            // Remove the node from the injection set before waiting for a new publication. This is important to ensure the order of
             // node-removed-from-injection -> set-new-publication-latch -> handle-new-publication.
-            nodesToInjectEstimatedHeapUsage.remove(nodeIdToUnblock);
-            waitForRefreshedHeapMemoryUsagePublication(nodeIdToPublicationLatch);
+            interceptor.stopInjecting(nodeIdToUnblock);
+            interceptor.waitForNextPublication();
 
             final ClusterInfo clusterInfo2 = refreshClusterInfo();
             assertTrue(
@@ -271,25 +212,215 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessPlug
         assertThat(indexShard.routingEntry().currentNodeId(), equalTo(nodeIdToUnblock));
     }
 
-    /**
-     * Instantiates fresh 1 count {@link CountDownLatch}s for each node ID, and then waits for them to be picked up and triggered by a new
-     * memory metrics publication event (transport action {@link TransportPublishHeapMemoryMetrics#NAME}).
-     */
-    private void waitForRefreshedHeapMemoryUsagePublication(Map<String, CountDownLatch> nodeIdToPublicationLatch) {
-        nodeIdToPublicationLatch.keySet().forEach(nodeId -> nodeIdToPublicationLatch.put(nodeId, new CountDownLatch(1)));
-        nodeIdToPublicationLatch.forEach((nodeId, latch) -> {
-            logger.info("--> waiting for publication from node [{}]", nodeId);
-            safeAwait(latch);
-        });
+    @TestLogging(value = "org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageMonitor:DEBUG", reason = "debug log for test")
+    public void testEstimatedHeapHighWatermarkMonitorTriggersReroute() {
+        final var masterNodeName = startMasterOnlyNode();
+        final var nodeNameA = startIndexNode();
+        final var nodeNameB = startIndexNode();
+        ensureStableCluster(3);
+
+        // Override the WORKLOAD_MEMORY_OVERHEAD of 500MB because testing often runs 512MB nodes.
+        internalCluster().getInstance(StatelessMemoryMetricsService.class, internalCluster().getMasterName())
+            .setWorkloadMemoryOverheadOverrideForTesting(100);
+
+        // Place index shards on both index nodes so that both publish memory metrics.
+        final var indexNameA = randomIdentifier();
+        createIndex(indexNameA, indexSettings(1, 0).put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX + "._name", nodeNameA).build());
+        final var indexNameB = randomIdentifier();
+        createIndex(indexNameB, indexSettings(1, 0).put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX + "._name", nodeNameB).build());
+
+        final Map<String, Long> nodeHeapMaxLookupById = getNodeMaxHeapSizes(nodeNameA, nodeNameB);
+
+        // Use a conventional watermark configuration: low (allocation blocked) at 70%, high (shards moved) at 80%.
+        updateClusterSettings(
+            Settings.builder()
+                .put(EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_LOW_WATERMARK.getKey(), "70%")
+                .put(EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_HIGH_WATERMARK.getKey(), "80%")
+        );
+
+        // No injection yet — nodes start well below the 80% high watermark.
+        final var interceptor = new HeapUsagePublicationInterceptor(
+            MockTransportService.getInstance(masterNodeName),
+            nodeHeapMaxLookupById
+        );
+        interceptor.waitForNextPublication();
+        final ClusterInfo initialClusterInfo = refreshClusterInfo();
+        assertTrue(
+            "expected all estimated heap usages to be below the 80% high watermark initially, but got "
+                + initialClusterInfo.getEstimatedHeapUsages(),
+            initialClusterInfo.getEstimatedHeapUsages()
+                .values()
+                .stream()
+                .allMatch(estimatedHeapUsage -> estimatedHeapUsage.estimatedUsageAsPercentage() < 80.0)
+        );
+
+        // Inject large heap memory usages to push all nodes above the 80% high watermark.
+        // The monitor should detect the new nodes exceeding the high watermark and trigger a reroute.
+        try (MockLog mockLog = MockLog.capture(EstimatedHeapUsageMonitor.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "reroute due to heap usages exceeded high watermark",
+                    EstimatedHeapUsageMonitor.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "estimated heap usages exceeded the high watermark * triggering reroute"
+                )
+            );
+
+            interceptor.injectAll(nodeHeapMaxLookupById.keySet());
+            interceptor.waitForNextPublication();
+            refreshClusterInfo();
+
+            mockLog.assertAllExpectationsMatched();
+
+            // Stop injecting for one node so it drops below the high watermark.
+            // The set of nodes exceeding the high watermark has changed, but it has not grown, so no reroute should be triggered.
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no reroute when a node drops below the high watermark",
+                    EstimatedHeapUsageMonitor.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "estimated heap usages exceeded the high watermark * triggering reroute"
+                )
+            );
+
+            interceptor.stopInjecting(nodeHeapMaxLookupById.keySet().iterator().next());
+            interceptor.waitForNextPublication();
+            refreshClusterInfo();
+
+            mockLog.assertAllExpectationsMatched();
+        }
     }
 
-    private String nodeIdFromHeapMemoryUsage(HeapMemoryUsage heapMemoryUsage) {
-        final Set<String> nodeIds = heapMemoryUsage.shardMappingSizes()
-            .values()
+    /**
+     * Get the max heap size for the specified nodes
+     *
+     * @param nodeNames The names of the nodes to get the max heap size for
+     * @return A map of the node IDs to their max heap sizes
+     */
+    private static Map<String, Long> getNodeMaxHeapSizes(String... nodeNames) {
+        final var nodesStatsResponse = safeGet(
+            client().admin()
+                .cluster()
+                .prepareNodesStats(Arrays.stream(nodeNames).map(ESIntegTestCase::getNodeId).toArray(String[]::new))
+                .setJvm(true)
+                .execute()
+        );
+        return nodesStatsResponse.getNodes()
             .stream()
-            .map(ShardMappingSize::nodeId)
-            .collect(Collectors.toUnmodifiableSet());
-        assertThat(nodeIds, hasSize(1));
-        return nodeIds.iterator().next();
+            .collect(
+                Collectors.toUnmodifiableMap(
+                    nodeStats -> nodeStats.getNode().getId(),
+                    nodeStats -> nodeStats.getJvm().getMem().getHeapMax().getBytes()
+                )
+            );
+    }
+
+    /**
+     * Intercepts {@link TransportPublishHeapMemoryMetrics} requests on the master and optionally replaces the reported mapping sizes with
+     * the node's full heap max, simulating a node that is fully saturated. Nodes are added to and removed from injection via
+     * {@link #injectAll(Collection)} and {@link #stopInjecting(String)}. Use {@link #waitForNextPublication()} to synchronize
+     * with the next publication cycle from every tracked node.
+     */
+    private class HeapUsagePublicationInterceptor {
+
+        private final Map<String, Long> nodeHeapMaxLookupById;
+        private final Set<String> nodesToInject = ConcurrentCollections.newConcurrentSet();
+        private final ConcurrentHashMap<String, CountDownLatch> nodeIdToPublicationLatch;
+
+        HeapUsagePublicationInterceptor(MockTransportService masterMockTransportService, Map<String, Long> nodeHeapMaxLookupById) {
+            this.nodeHeapMaxLookupById = nodeHeapMaxLookupById;
+            this.nodeIdToPublicationLatch = new ConcurrentHashMap<>(
+                Maps.transformValues(nodeHeapMaxLookupById, v -> new CountDownLatch(1))
+            );
+            masterMockTransportService.addRequestHandlingBehavior(TransportPublishHeapMemoryMetrics.NAME, this::handlePublication);
+        }
+
+        /** Start injecting saturated heap usage for the specified nodes. */
+        void injectAll(Collection<String> nodeIds) {
+            nodesToInject.addAll(nodeIds);
+        }
+
+        /** Stop injecting saturated heap usage for the given node, letting it report real usage again. */
+        void stopInjecting(String nodeId) {
+            nodesToInject.remove(nodeId);
+        }
+
+        /**
+         * Resets the per-node latches and blocks until each tracked node has completed one publication cycle. This ensures callers
+         * observe a publication that started after any injection-set changes were made.
+         */
+        void waitForNextPublication() {
+            nodeIdToPublicationLatch.keySet().forEach(nodeId -> nodeIdToPublicationLatch.put(nodeId, new CountDownLatch(1)));
+            nodeIdToPublicationLatch.forEach((nodeId, latch) -> {
+                logger.info("--> waiting for publication from node [{}]", nodeId);
+                safeAwait(latch);
+            });
+        }
+
+        private void handlePublication(
+            TransportRequestHandler<TransportRequest> handler,
+            TransportRequest request,
+            TransportChannel channel,
+            Task task
+        ) throws Exception {
+            final var publishHeapMemoryMetricsRequest = asInstanceOf(PublishHeapMemoryMetricsRequest.class, request);
+            final var heapMemoryUsage = publishHeapMemoryMetricsRequest.getHeapMemoryUsage();
+            final var shardMappingSizes = heapMemoryUsage.shardMappingSizes();
+            if (shardMappingSizes.isEmpty()) {
+                handler.messageReceived(request, channel, task);
+                return;
+            }
+
+            final String nodeId = nodeIdFromShardMappingSizes(heapMemoryUsage);
+            // We use a latch for each node to wait for new publication. It is important that this publication gets a reference to the latch
+            // only after the latch is set in waitForPublication. Otherwise, the publication may be stale, i.e. it starts before the latch
+            // is set, and the test can fail. Therefore, we take the latch before handling the publication. If a new latch is set halfway
+            // through the publication handling, it will not be pulled by the existing publication, but the next one, which is expected.
+            final CountDownLatch latch = nodeIdToPublicationLatch.get(nodeId);
+            if (nodesToInject.contains(nodeId)) {
+                assertThat(nodeHeapMaxLookupById, hasKey(nodeId));
+                final long nodeHeapMax = nodeHeapMaxLookupById.get(nodeId);
+                final var updatedShardMappingSizes = shardMappingSizes.entrySet()
+                    .stream()
+                    .collect(
+                        Collectors.toUnmodifiableMap(
+                            Map.Entry::getKey,
+                            entry -> new ShardMappingSize(
+                                nodeHeapMax,
+                                entry.getValue().numSegments(),
+                                entry.getValue().totalFields(),
+                                entry.getValue().postingsInMemoryBytes(),
+                                entry.getValue().liveDocsBytes(),
+                                UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES,
+                                nodeId
+                            )
+                        )
+                    );
+                handler.messageReceived(
+                    new PublishHeapMemoryMetricsRequest(
+                        new HeapMemoryUsage(
+                            heapMemoryUsage.publicationSeqNo(),
+                            updatedShardMappingSizes,
+                            heapMemoryUsage.clusterStateVersion()
+                        )
+                    ),
+                    channel,
+                    task
+                );
+            } else {
+                handler.messageReceived(request, channel, task);
+            }
+            latch.countDown();
+        }
+
+        private static String nodeIdFromShardMappingSizes(HeapMemoryUsage heapMemoryUsage) {
+            final Set<String> nodeIds = heapMemoryUsage.shardMappingSizes()
+                .values()
+                .stream()
+                .map(ShardMappingSize::nodeId)
+                .collect(Collectors.toUnmodifiableSet());
+            assertThat(nodeIds, hasSize(1));
+            return nodeIds.iterator().next();
+        }
     }
 }

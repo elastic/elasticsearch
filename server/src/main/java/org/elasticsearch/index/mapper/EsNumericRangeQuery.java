@@ -130,6 +130,9 @@ public final class EsNumericRangeQuery extends Query {
             private int pendingIdx = 0;
             private int pendingCount = 0;
             private final int[] pending = new int[BULK_FILTER_BATCH_SIZE];
+            // Exclusive end of the current skipper block; skipper.advance() must not be called
+            // again until target reaches this value (TSDB skipper requires target > maxDocID[0]).
+            private int skipperBlockEnd = 0;
 
             @Override
             public int docID() {
@@ -143,12 +146,17 @@ public final class EsNumericRangeQuery extends Query {
              */
             private int skipToCandidate(int target) throws IOException {
                 while (target < maxDoc) {
+                    if (target < skipperBlockEnd) {
+                        // Still inside the current candidate skipper block; no need to re-query.
+                        return (target / BULK_FILTER_BATCH_SIZE) * BULK_FILTER_BATCH_SIZE;
+                    }
                     skipper.advance(target);
                     int minDoc = skipper.minDocID(0);
                     if (minDoc == NO_MORE_DOCS) {
                         return maxDoc;
                     }
                     target = Math.max(target, minDoc);
+                    skipperBlockEnd = skipper.maxDocID(0) + 1;
 
                     // Check from the coarsest level down; the first level that excludes the range
                     // tells us how far we can skip in one jump.
@@ -156,6 +164,7 @@ public final class EsNumericRangeQuery extends Query {
                     for (int level = skipper.numLevels() - 1; level >= 0; level--) {
                         if (skipper.minValue(level) > upper || skipper.maxValue(level) < lower) {
                             target = skipper.maxDocID(level) + 1;
+                            skipperBlockEnd = target;
                             skipped = true;
                             break;
                         }

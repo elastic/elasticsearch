@@ -507,7 +507,9 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
                 case VALUE_TRANSFORMATION -> new ValueTransformationFunction(source, child, name, extraParams);
                 case VECTOR_CONVERSION -> new VectorConversionFunction(source, child, name, extraParams);
                 case SCALAR_CONVERSION -> new ScalarConversionFunction(source, child, name, extraParams);
-                case SCALAR -> new ScalarFunction(source, name);
+                case SCALAR, TIME_EXTRACTION -> child == null
+                    ? new ScalarFunction(source, name)
+                    : new ValueTransformationFunction(source, child, name, extraParams);
                 default -> throw new ParsingException(
                     source,
                     "Unsupported function type [{}] for function [{}]",

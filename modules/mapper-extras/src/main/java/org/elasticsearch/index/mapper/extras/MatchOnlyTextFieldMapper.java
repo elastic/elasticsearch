@@ -464,9 +464,16 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         }
 
         private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> binaryDocValuesFieldFetcher(String fieldName) {
-            return context -> {
-                SortedBinaryDocValues binaryDocValues = MultiValuedSortedBinaryDocValues.from(context.reader(), fieldName);
-                return docId -> getValuesFromDocValues(binaryDocValues, docId);
+            return context -> new CheckedIntFunction<>() {
+                SortedBinaryDocValues binaryDocValues;
+
+                @Override
+                public List<Object> apply(int docId) throws IOException {
+                    if (binaryDocValues == null) {
+                        binaryDocValues = MultiValuedSortedBinaryDocValues.from(context.reader(), fieldName);
+                    }
+                    return getValuesFromDocValues(binaryDocValues, docId);
+                }
             };
         }
 

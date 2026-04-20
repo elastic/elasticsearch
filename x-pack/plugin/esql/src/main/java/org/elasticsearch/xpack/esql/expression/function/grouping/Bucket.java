@@ -18,7 +18,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
-import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -597,7 +596,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     }
 
     protected Map<String, Object> getIntervalMetadata(FoldContext foldContext) {
-        try {
+        if (buckets.foldable() && (from == null || from.foldable()) && (to == null || to.foldable())) {
             if (field.dataType() == DataType.DATETIME || field.dataType() == DataType.DATE_NANOS) {
                 Rounding rounding = getDateRounding(foldContext).getUnprepared();
                 Rounding.Interval interval = rounding.getInterval();
@@ -607,9 +606,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
                 double roundTo = getNumberRoundTo(foldContext);
                 return Map.of("bucket", Map.of("interval", roundTo));
             }
-            return null;
-        } catch (QlIllegalArgumentException e) {
-            return null;
         }
+        return null;
     }
 }

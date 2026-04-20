@@ -4548,7 +4548,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         @Override
         public void afterRefresh(boolean didRefresh) {
-            if (enableFieldHasValue && (didRefresh || fieldInfos == null)) {
+            if (enableFieldHasValue && didRefresh) {
                 FIELD_INFOS.setRelease(IndexShard.this, loadFieldInfos());
             }
         }

@@ -85,8 +85,6 @@ book_no:keyword | title:text                                                    
 ;
 
 topSnippetsOrderNoneVsScore
-required_capability: top_snippets_function
-required_capability: top_snippets_mv
 required_capability: top_snippets_order
 
 ROW chunks = ["We use elasticsearch for search.", "Elasticsearch elasticsearch elasticsearch powers our stack."]

@@ -52,8 +52,9 @@ public class PlainCompressionCodecFactoryTests extends ESTestCase {
         assertRoundTrip(CompressionCodecName.LZ4_RAW);
     }
 
-    public void testLz4RoundTrip() throws IOException {
-        assertRoundTrip(CompressionCodecName.LZ4);
+    public void testLz4HadoopFramedUnsupported() {
+        expectThrows(UnsupportedOperationException.class, () -> factory.getDecompressor(CompressionCodecName.LZ4));
+        expectThrows(UnsupportedOperationException.class, () -> factory.getCompressor(CompressionCodecName.LZ4));
     }
 
     public void testDirectByteBufferDecompressionSnappy() throws IOException {

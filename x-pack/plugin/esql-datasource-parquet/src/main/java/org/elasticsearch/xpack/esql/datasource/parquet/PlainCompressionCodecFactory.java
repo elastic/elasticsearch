@@ -71,7 +71,7 @@ final class PlainCompressionCodecFactory implements CompressionCodecFactory {
             case SNAPPY -> new SnappyBytesDecompressor();
             case GZIP -> new GzipBytesDecompressor();
             case ZSTD -> new ZstdBytesDecompressor();
-            case LZ4, LZ4_RAW -> new Lz4RawBytesDecompressor();
+            case LZ4_RAW -> new Lz4RawBytesDecompressor();
             default -> throw new UnsupportedOperationException("Unsupported Parquet decompression codec: " + codec);
         };
     }
@@ -82,7 +82,7 @@ final class PlainCompressionCodecFactory implements CompressionCodecFactory {
             case SNAPPY -> new SnappyBytesCompressor();
             case GZIP -> new GzipBytesCompressor();
             case ZSTD -> new ZstdBytesCompressor();
-            case LZ4, LZ4_RAW -> new Lz4RawBytesCompressor();
+            case LZ4_RAW -> new Lz4RawBytesCompressor();
             default -> throw new UnsupportedOperationException("Unsupported Parquet compression codec: " + codec);
         };
     }
@@ -195,7 +195,11 @@ final class PlainCompressionCodecFactory implements CompressionCodecFactory {
         @Override
         public BytesInput decompress(BytesInput bytes, int decompressedSize) throws IOException {
             byte[] out = new byte[decompressedSize];
-            Zstd.decompress(out, bytes.toByteArray());
+            try {
+                Zstd.decompress(out, bytes.toByteArray());
+            } catch (RuntimeException e) {
+                throw new IOException("Zstd decompression failed", e);
+            }
             return BytesInput.from(out);
         }
 

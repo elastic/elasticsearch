@@ -298,7 +298,6 @@ public class DataSourceModuleTests extends ESTestCase {
         assertNotNull(module.storageProviderRegistry());
         assertNotNull(module.formatReaderRegistry());
         assertNotNull(module.sourceFactories());
-        assertNotNull(module.filterPushdownRegistry());
 
         // No providers should be registered
         assertFalse("No file provider should be registered", module.storageProviderRegistry().hasProvider("file"));

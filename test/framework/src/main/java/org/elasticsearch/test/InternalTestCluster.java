@@ -108,6 +108,9 @@ import org.elasticsearch.transport.TransportSettings;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadInfo;
+import java.lang.management.ThreadMXBean;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -205,6 +208,39 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private static final Logger logger = LogManager.getLogger(InternalTestCluster.class);
+
+    /**
+     * Dumps all live JVM threads (same information as {@code jstack}) to the class logger and to {@link System#err}
+     * for tests that only surface console output.
+     */
+    private static void logThreadDumpForStuckNode(String reason) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Thread dump (").append(reason).append("):\n");
+        ThreadMXBean threadBean = ManagementFactory.getThreadMXBean();
+        long[] threadIds = threadBean.getAllThreadIds();
+        ThreadInfo[] threadInfos = threadBean.getThreadInfo(threadIds, Integer.MAX_VALUE);
+        for (int i = 0; i < threadInfos.length; i++) {
+            ThreadInfo info = threadInfos[i];
+            if (info == null) {
+                sb.append("  (thread id ").append(threadIds[i]).append(" had no ThreadInfo, possibly terminated)\n");
+                continue;
+            }
+            sb.append('"').append(info.getThreadName()).append('"');
+            sb.append(" #").append(info.getThreadId());
+            sb.append(" state=").append(info.getThreadState());
+            if (info.getLockName() != null) {
+                sb.append(" on lock=").append(info.getLockName());
+            }
+            sb.append('\n');
+            for (StackTraceElement ste : info.getStackTrace()) {
+                sb.append("  at ").append(ste).append('\n');
+            }
+            sb.append('\n');
+        }
+        String dump = sb.toString();
+        logger.error("{}", dump);
+        System.err.print(dump);
+    }
 
     private static final Predicate<NodeAndClient> DATA_NODE_PREDICATE = new Predicate<>() {
         @Override
@@ -1144,6 +1180,7 @@ public final class InternalTestCluster extends TestCluster {
                 node.close();
                 try {
                     if (node.awaitClose(10, TimeUnit.SECONDS) == false) {
+                        logThreadDumpForStuckNode("Node.awaitClose(10, SECONDS) returned false; thread pool not terminated in time; node " + name);
                         throw new AssertionError("Node didn't close within 10 seconds.");
                     }
                 } catch (InterruptedException e) {

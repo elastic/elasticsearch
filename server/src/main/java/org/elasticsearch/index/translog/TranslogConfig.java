@@ -56,11 +56,11 @@ public final class TranslogConfig {
             translogPath,
             indexSettings,
             bigArrays,
+            null,
             DEFAULT_BUFFER_SIZE,
             DiskIoBufferPool.INSTANCE,
             NOOP_OPERATION_LISTENER,
-            true,
-            null
+            true
         );
     }
 
@@ -76,11 +76,11 @@ public final class TranslogConfig {
             translogPath,
             indexSettings,
             bigArrays,
+            circuitBreaker,
             DEFAULT_BUFFER_SIZE,
             DiskIoBufferPool.INSTANCE,
             NOOP_OPERATION_LISTENER,
-            true,
-            circuitBreaker
+            true
         );
     }
 
@@ -93,7 +93,7 @@ public final class TranslogConfig {
         DiskIoBufferPool diskIoBufferPool,
         OperationListener operationListener
     ) {
-        this(shardId, translogPath, indexSettings, bigArrays, bufferSize, diskIoBufferPool, operationListener, true, null);
+        this(shardId, translogPath, indexSettings, bigArrays, null, bufferSize, diskIoBufferPool, operationListener, true);
     }
 
     public TranslogConfig(
@@ -101,11 +101,11 @@ public final class TranslogConfig {
         Path translogPath,
         IndexSettings indexSettings,
         BigArrays bigArrays,
+        @Nullable CircuitBreaker circuitBreaker,
         ByteSizeValue bufferSize,
         DiskIoBufferPool diskIoBufferPool,
         OperationListener operationListener,
-        boolean fsync,
-        @Nullable CircuitBreaker circuitBreaker
+        boolean fsync
     ) {
         this.bufferSize = bufferSize;
         this.indexSettings = indexSettings;

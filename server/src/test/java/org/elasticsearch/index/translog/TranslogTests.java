@@ -307,11 +307,11 @@ public class TranslogTests extends ESTestCase {
             path,
             indexSettings,
             NON_RECYCLING_INSTANCE,
+            null,
             bufferSize,
             randomBoolean() ? DiskIoBufferPool.INSTANCE : RANDOMIZING_IO_BUFFERS,
             Objects.requireNonNullElse(listener, (d, s, l) -> {}),
-            true,
-            null
+            true
         );
     }
 
@@ -1405,11 +1405,11 @@ public class TranslogTests extends ESTestCase {
             temp.getTranslogPath(),
             temp.getIndexSettings(),
             temp.getBigArrays(),
+            null,
             ByteSizeValue.of(1, ByteSizeUnit.KB),
             randomBoolean() ? DiskIoBufferPool.INSTANCE : RANDOMIZING_IO_BUFFERS,
             TranslogConfig.NOOP_OPERATION_LISTENER,
-            true,
-            null
+            true
         );
 
         final Set<Long> persistedSeqNos = new HashSet<>();
@@ -4090,11 +4090,11 @@ public class TranslogTests extends ESTestCase {
             translogDir,
             IndexSettingsModule.newIndexSettings(shardId.getIndex(), Settings.EMPTY),
             NON_RECYCLING_INSTANCE,
+            null,
             ByteSizeValue.of(1, ByteSizeUnit.KB),
             randomBoolean() ? DiskIoBufferPool.INSTANCE : RANDOMIZING_IO_BUFFERS,
             TranslogConfig.NOOP_OPERATION_LISTENER,
-            false,
-            null
+            false
         );
         var translogUUID = Translog.createEmptyTranslog(
             config.getTranslogPath(),
@@ -4149,11 +4149,11 @@ public class TranslogTests extends ESTestCase {
             tempDir,
             indexSettings,
             bigArrays,
+            circuitBreaker,
             TranslogConfig.DEFAULT_BUFFER_SIZE,
             DiskIoBufferPool.INSTANCE,
             TranslogConfig.NOOP_OPERATION_LISTENER,
-            true,
-            circuitBreaker
+            true
         );
 
         try (var tl = createTranslog(config)) {

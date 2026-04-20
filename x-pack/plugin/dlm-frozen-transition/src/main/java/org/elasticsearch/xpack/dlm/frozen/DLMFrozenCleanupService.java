@@ -15,7 +15,6 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -177,7 +176,7 @@ class DLMFrozenCleanupService extends AbstractDLMPeriodicMasterOnlyService {
         String indexToCheck = indexName;
 
         // If the index itself is part of the datastream, then it's not orphaned
-        if (isInFrozenEnabledDataStream(indexToCheck, projectMetadata)) {
+        if (isInADataStream(indexToCheck, projectMetadata)) {
             return false;
         }
 
@@ -199,26 +198,18 @@ class DLMFrozenCleanupService extends AbstractDLMPeriodicMasterOnlyService {
         }
 
         // Is source index still in a valid datastream
-        return isInFrozenEnabledDataStream(indexToCheck, projectMetadata) == false;
+        return isInADataStream(indexToCheck, projectMetadata) == false;
     }
 
     /**
-     * Returns true if {@code indexName} resolves to an index abstraction whose parent data stream
-     * has a {@link org.elasticsearch.cluster.metadata.DataStreamLifecycle} with a non-null
-     * {@code frozenAfter}. Used both to short-circuit orphan detection for live frozen backing
-     * indices and to decide whether a resolved source index still belongs to a frozen-enabled
-     * data stream.
+     * Returns true if {@code indexName} resolves to an index that is part of a datastream
      */
-    private static boolean isInFrozenEnabledDataStream(String indexName, ProjectMetadata projectMetadata) {
+    private static boolean isInADataStream(String indexName, ProjectMetadata projectMetadata) {
         IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(indexName);
         if (indexAbstraction == null) {
             return false;
         }
-        DataStream parentDataStream = indexAbstraction.getParentDataStream();
-        if (parentDataStream == null) {
-            return false;
-        }
-        return parentDataStream.getDataLifecycle() != null && parentDataStream.getDataLifecycle().frozenAfter() != null;
+        return indexAbstraction.getParentDataStream() != null;
     }
 
     private void deleteIndices(Collection<String> indicesToDelete, ProjectId projectId) {

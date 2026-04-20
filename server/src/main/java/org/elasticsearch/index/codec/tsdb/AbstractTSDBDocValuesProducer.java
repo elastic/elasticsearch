@@ -2413,6 +2413,10 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                             decoder.decodeOrdinals(valuesData, currentBlock, bitsPerOrd);
                         }
                     }
+                    return doFilter(count, lower, upper, out, startDoc);
+                }
+
+                private int doFilter(int count, long lower, long upper, int[] out, int startDoc) throws IOException {
                     int n = 0;
                     for (int i = 0; i < count; i++) {
                         if (currentBlock[i] >= lower && currentBlock[i] <= upper) {

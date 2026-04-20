@@ -238,8 +238,9 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             "Dense vector equality is not supported in CCS unless all nodes support it",
             testCase.requiredCapabilities.contains(DENSE_VECTOR_EQUALITY.capabilityName())
         );
+
         assumeFalse(
-            "convertToRemoteIndices needs to be improved to support IN subquery",
+            "skip CCS for IN subqueries until convertToRemoteIndices supports IN subquery",
             testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY.capabilityName())
         );
     }
@@ -377,6 +378,12 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     static CsvSpecReader.CsvTestCase convertToRemoteIndices(CsvSpecReader.CsvTestCase testCase) {
         if (dataLocation == null) {
             dataLocation = randomFrom(DataLocation.values());
+        }
+        // WHERE IN subqueries nest full queries with '|' inside FROM/WHERE; addRemoteIndices splits on '|'
+        // naively and cannot rewrite CCS index patterns yet. These cases are skipped in shouldSkipTest;
+        // avoid rewriting here so the parameterized constructor does not fail before assumptions run.
+        if (testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY.capabilityName())) {
+            return testCase;
         }
         if (testCase.requiredCapabilities.contains(SUBQUERY_IN_FROM_COMMAND.capabilityName())) {
             return convertSubqueryToRemoteIndices(testCase);

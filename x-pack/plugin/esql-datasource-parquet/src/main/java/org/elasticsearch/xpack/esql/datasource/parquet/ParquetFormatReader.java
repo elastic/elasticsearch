@@ -136,7 +136,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         // change to be async, we'll have to unwrap the breaker if it's a LocalBreaker.
         var breaker = blockFactory.breaker();
         var allocator = new CircuitBreakerByteBufferAllocator(new HeapByteBufferAllocator(), breaker);
-        return ParquetReadOptions.builder(new PlainParquetConfiguration()).withAllocator(allocator);
+        return ParquetReadOptions.builder(new PlainParquetConfiguration())
+            .withAllocator(allocator)
+            .withCodecFactory(new PlainCompressionCodecFactory());
     }
 
     /**
@@ -181,18 +183,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             SourceStatistics statistics = extractStatistics(reader, parquetSchema);
             return new SimpleSourceMetadata(schema, formatName(), object.path().toString(), statistics, null);
         }
-    }
-
-    /**
-     * Converts Parquet-specific stat values to JDK types safe for {@code writeGenericValue} serialization.
-     * Parquet's {@code Statistics.genericGetMin/Max()} returns {@link Binary} for BYTE_ARRAY columns;
-     * these must be converted to {@code String} before entering the metadata map.
-     */
-    private static Object normalizeStatValue(Object value) {
-        if (value instanceof Binary binary) {
-            return binary.toStringUsingUTF8();
-        }
-        return value;
     }
 
     @SuppressWarnings("rawtypes")
@@ -435,6 +425,18 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             }
         }
         return Map.copyOf(stats);
+    }
+
+    /**
+     * Normalizes Parquet-specific stat values to types that Elasticsearch can serialize.
+     * Parquet {@link Binary} (used for BYTE_ARRAY / string columns) is converted to String;
+     * these must be converted to {@code String} before entering the metadata map.
+     */
+    private static Object normalizeStatValue(Object value) {
+        if (value instanceof Binary binary) {
+            return binary.toStringUsingUTF8();
+        }
+        return value;
     }
 
     static List<SplitRange> coalesceRowGroupRanges(List<SplitRange> rowGroupRanges, long targetBytes) {

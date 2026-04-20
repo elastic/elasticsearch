@@ -418,12 +418,6 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotReindexRelocationOnShutdownIT
   method: testReindexRelocatesWithSearchableSnapshotSource
   issue: https://github.com/elastic/elasticsearch/issues/146710
-- class: org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests
-  method: testSparseVectorMappingUpdate {p0=true p1=ENTERPRISE}
-  issue: https://github.com/elastic/elasticsearch/issues/146772
-- class: org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests
-  method: testSparseVectorMappingUpdate {p0=true p1=BASIC}
-  issue: https://github.com/elastic/elasticsearch/issues/146773
 - class: org.elasticsearch.xpack.inference.queries.SemanticQueryBuilderTests
   method: testToQuery {p0=false}
   issue: https://github.com/elastic/elasticsearch/issues/146777

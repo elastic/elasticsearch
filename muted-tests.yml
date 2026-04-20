@@ -385,9 +385,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {csv-spec:stats_sparkline.sparklineComplexWithGrouping}
   issue: https://github.com/elastic/elasticsearch/issues/146729
-- class: org.elasticsearch.transport.ClusterConnectionManagerTests
-  method: testConcurrentConnectsDuringClose
-  issue: https://github.com/elastic/elasticsearch/issues/146743
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
   method: test {csv-spec:inlinestats.pushDown_OneGroupingFilter_PastInlineJoinWithInnerFilterAndOuterFilter}
   issue: https://github.com/elastic/elasticsearch/issues/146737

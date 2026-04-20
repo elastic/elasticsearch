@@ -35,14 +35,18 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.getArchive;
+import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.uid;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class StatelessRealTimeTermVectorsIT extends AbstractStatelessPluginIntegTestCase {
@@ -237,6 +241,20 @@ public class StatelessRealTimeTermVectorsIT extends AbstractStatelessPluginInteg
                 assertThat(fields.size(), equalTo(1));
                 Terms terms = fields.terms("field");
                 assertThat(terms.size(), greaterThan(0L));
+                if ((testDocsType == TestDocsType.DOCS_EXIST_IN_LIVE_VERSION_MAP_ARCHIVE_ONLY && i == 0)
+                    || (testDocsType == TestDocsType.DOCS_EXIST_IN_LIVE_VERSION_MAP_ONLY && i == 1)) {
+                    // After the expected number of refreshes from the first docs, wait to ensure that the async
+                    // IndexEngine.commitSuccess() has been called to move out the docs from the live version map archive.
+                    // That way, the next term request should not do any other refreshes.
+                    assertBusy(() -> assertTrue(findIndexShard(INDEX_NAME).withEngine(e -> {
+                        assertThat(e, instanceOf(IndexEngine.class));
+                        final var indexEngine = (IndexEngine) e;
+                        final var archive = getArchive(indexEngine.getLiveVersionMap());
+                        assertNotNull(archive);
+                        assertNull(archive.get(uid(termVectorsResponse.getId())));
+                        return true;
+                    })));
+                }
             }
         }
 

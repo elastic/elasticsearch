@@ -73,6 +73,47 @@ public class SubstituteRoundToGoldenTests extends GoldenTestCase {
         }
     }
 
+    // https://github.com/elastic/elasticsearch/issues/146479
+    // When the grouping key is dropped and COUNT(*) is the only agg, CombineProjections removes
+    // the grouping key from aggregates leaving [COUNT] (size 1). But it should still be pushed down.
+    public void testDateTruncCountOnlyPushedWhenGroupingKeyDropped() {
+        for (var queryAndName : dateHistograms) {
+            String query = LoggerMessageFormat.format(null, """
+                from all_types
+                | stats count(*) by x = {}
+                | drop x
+                """, queryAndName.query());
+            runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION), STATS, queryAndName.name());
+        }
+    }
+
+    // https://github.com/elastic/elasticsearch/issues/146479
+    // When the grouping key is dropped (e.g. via DROP/KEEP), CombineProjections removes it from
+    // aggregates, leaving [COUNT, MAX] (size 2). PushCountQueryAndTagsToSource must not mistake
+    // this for [COUNT, grouping_key] and must not push down.
+    public void testDateTruncBucketNotPushedWhenGroupingKeyDropped() {
+        for (var queryAndName : dateHistograms) {
+            String query = LoggerMessageFormat.format(null, """
+                from all_types
+                | stats count(*), max(long) by x = {}
+                | drop x
+                """, queryAndName.query());
+            runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION), STATS, queryAndName.name());
+        }
+    }
+
+    // With multiple groupings the optimization does not apply: [COUNT, grouping_1, grouping_2] has
+    // size 3, so the rule's guard (aggregates().size() == 2) keeps it from firing.
+    public void testDateTruncBucketNotPushedWithMultipleGroupings() {
+        for (var queryAndName : dateHistograms) {
+            String query = LoggerMessageFormat.format(null, """
+                from all_types
+                | stats count(*) by x = {}, long
+                """, queryAndName.query());
+            runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION), STATS, queryAndName.name());
+        }
+    }
+
     // DateTrunc is transformed to RoundTo first but cannot be transformed to QueryAndTags, when the TopN is pushed down to EsQueryExec
     public void testDateTruncNotTransformToQueryAndTags() {
         for (var queryAndName : dateHistograms) {
@@ -202,8 +243,53 @@ public class SubstituteRoundToGoldenTests extends GoldenTestCase {
         runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION), STATS);
     }
 
+    /**
+     * When query-and-tags can't apply (TopN pushed down) and block loader is unsupported,
+     * RoundTo stays as-is in the EvalExec.
+     */
+    public void testDateTruncNotTransformToQueryAndTagsNoBlockLoader() {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
+        for (var queryAndName : dateHistograms) {
+            var dateHistogram = queryAndName.query();
+            if (dateHistogram.contains("bucket")) {
+                continue;
+            }
+            String query = LoggerMessageFormat.format(null, """
+                from all_types
+                | sort date
+                | eval x = {}
+                | keep alias_integer, date, x
+                | limit 5
+                """, dateHistogram);
+            runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION), STATS_NO_BLOCK_LOADER, queryAndName.name);
+        }
+    }
+
+    /**
+     * When query-and-tags can't apply (lookup join) and block loader is unsupported,
+     * RoundTo stays as-is in the EvalExec.
+     */
+    public void testDateTruncBucketNotTransformToQueryAndTagsWithLookupJoinNoBlockLoader() {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
+        for (var queryAndName : dateHistograms) {
+            String query = LoggerMessageFormat.format(null, """
+                from all_types
+                | rename integer as language_code
+                | lookup join languages_lookup on language_code
+                | stats count(*) by x = {}
+                """, queryAndName.query());
+            runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION), STATS_NO_BLOCK_LOADER, queryAndName.name());
+        }
+    }
+
     private static final EsqlTestUtils.TestSearchStatsWithMinMax STATS = new EsqlTestUtils.TestSearchStatsWithMinMax(
         Map.of("date", dateTimeToLong("2023-10-20T12:15:03.360Z")),
         Map.of("date", dateTimeToLong("2023-10-23T13:55:01.543Z"))
+    );
+
+    private static final EsqlTestUtils.TestSearchStatsWithMinMax STATS_NO_BLOCK_LOADER = new EsqlTestUtils.TestSearchStatsWithMinMax(
+        Map.of("date", dateTimeToLong("2023-10-20T12:15:03.360Z")),
+        Map.of("date", dateTimeToLong("2023-10-23T13:55:01.543Z")),
+        false
     );
 }

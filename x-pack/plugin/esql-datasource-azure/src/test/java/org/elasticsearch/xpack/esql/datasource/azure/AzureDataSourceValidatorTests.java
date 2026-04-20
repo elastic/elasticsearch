@@ -17,13 +17,13 @@ import java.util.Set;
 public class AzureDataSourceValidatorTests extends ESTestCase {
 
     private final DataSourceValidator validator = new FileDataSourceValidator(
-        "azure_blob",
+        "azure",
         AzureConfiguration::fromMap,
-        Set.of("wasbs://", "wasb://")
+        Set.of("wasbs", "wasb")
     );
 
     public void testType() {
-        assertEquals("azure_blob", validator.type());
+        assertEquals("azure", validator.type());
     }
 
     public void testValidateDatasourceWithSharedKey() {
@@ -123,7 +123,7 @@ public class AzureDataSourceValidatorTests extends ESTestCase {
         settings.put("account", "myaccount");
         settings.put("endpoint", null);
         var result = validator.validateDatasource(settings);
-        assertEquals("myaccount", result.get("account").value());
+        assertEquals("myaccount", result.get("account").nonSecretValue());
         assertNull(result.get("endpoint"));
     }
 
@@ -153,6 +153,6 @@ public class AzureDataSourceValidatorTests extends ESTestCase {
         assertFalse(result.get("account").secret());
         assertTrue(result.get("key").secret());
         assertTrue(result.get("sas_token").secret());
-        assertEquals("myaccount", result.get("account").value());
+        assertEquals("myaccount", result.get("account").nonSecretValue());
     }
 }

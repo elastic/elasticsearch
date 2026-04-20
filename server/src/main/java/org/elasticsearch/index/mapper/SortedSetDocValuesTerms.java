@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiTerms;
@@ -37,8 +38,8 @@ class SortedSetDocValuesTerms extends Terms {
     public static Terms getTerms(IndexReader r, String field) throws IOException {
         final List<LeafReaderContext> leaves = r.leaves();
         if (leaves.size() == 1) {
-            SortedSetDocValues sortedSetDocValues = leaves.get(0).reader().getSortedSetDocValues(field);
-            if (sortedSetDocValues == null) {
+            SortedSetDocValues sortedSetDocValues = DocValues.getSortedSet(leaves.get(0).reader(), field);
+            if (sortedSetDocValues.getValueCount() == 0) {
                 return null;
             } else {
                 return new org.elasticsearch.index.mapper.SortedSetDocValuesTerms(sortedSetDocValues);
@@ -50,8 +51,8 @@ class SortedSetDocValuesTerms extends Terms {
 
         for (int leafIdx = 0; leafIdx < leaves.size(); leafIdx++) {
             LeafReaderContext ctx = leaves.get(leafIdx);
-            SortedSetDocValues sortedSetDocValues = ctx.reader().getSortedSetDocValues(field);
-            if (sortedSetDocValues != null) {
+            SortedSetDocValues sortedSetDocValues = DocValues.getSortedSet(ctx.reader(), field);
+            if (sortedSetDocValues.getValueCount() > 0) {
                 termsPerLeaf.add(new org.elasticsearch.index.mapper.SortedSetDocValuesTerms(sortedSetDocValues));
                 slicePerLeaf.add(new ReaderSlice(ctx.docBase, r.maxDoc(), leafIdx));
             }

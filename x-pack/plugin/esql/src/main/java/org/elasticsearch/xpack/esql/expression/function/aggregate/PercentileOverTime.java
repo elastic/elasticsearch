@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.util.List;
@@ -32,6 +33,11 @@ public class PercentileOverTime extends TimeSeriesAggregateFunction implements O
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(PercentileOverTime.class)
         .binary(PercentileOverTime::new)
         .name("percentile_over_time");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .withinSeriesOverTimeBinary(PromqlFunctionDefinition.QUANTILE, PercentileOverTime::new)
+        .description("Returns the φ-quantile (0 ≤ φ ≤ 1) of the values in the specified time range.")
+        .example("quantile_over_time(0.5, http_requests_total[1h])")
+        .name("quantile_over_time");
 
     @FunctionInfo(
         returnType = "double",

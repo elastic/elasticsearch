@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
@@ -36,6 +37,11 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOG
 public class Avg extends AggregateFunction implements SurrogateExpression, AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Avg", Avg::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Avg.class).unary(Avg::new).name("avg");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .acrossSeries(Avg::new)
+        .description("Calculates the average of the values across the input vector.")
+        .example("avg(http_requests_total)")
+        .name("avg");
     private final Expression summationMode;
 
     @FunctionInfo(
@@ -56,6 +62,12 @@ public class Avg extends AggregateFunction implements SurrogateExpression, Aggre
                     + "computing the average of the values which were used to construct the histograms.",
                 file = "exponential_histogram",
                 tag = "avgExpHistoForDocs"
+            ),
+            @Example(
+                description = "`AVG` can also operate on `tdigest` and casted `histogram` fields, "
+                    + "computing the average of the values which were used to construct the digests.",
+                file = "tdigest",
+                tag = "avgTDigestForDocs"
             ) }
     )
     public Avg(

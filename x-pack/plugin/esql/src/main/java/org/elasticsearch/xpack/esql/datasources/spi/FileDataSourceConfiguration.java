@@ -22,7 +22,7 @@ import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefin
  */
 public abstract class FileDataSourceConfiguration extends DataSourceConfiguration {
 
-    protected static final DataSourceConfigDefinition AUTH = plaintext("auth").withCaseInsensitive();
+    protected static final DataSourceConfigDefinition AUTH = plaintext("auth").asCaseInsensitive();
     private static final String AUTH_NONE = "none";
 
     protected FileDataSourceConfiguration(Map<String, Object> raw, Map<String, DataSourceConfigDefinition> fieldDefs) {

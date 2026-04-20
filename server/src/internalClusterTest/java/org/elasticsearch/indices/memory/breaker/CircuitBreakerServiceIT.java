@@ -265,7 +265,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
 
         // Make request breaker limited to a small amount
         updateClusterSettings(
-                Settings.builder().put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "100b")
+            Settings.builder().put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "100b")
         );
 
         // A terms aggregation on the "test" field should trip the bucket circuit breaker

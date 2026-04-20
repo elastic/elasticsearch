@@ -385,7 +385,7 @@ with no change to the API.
 
 ## Build query vectors for knn search
 
-Query vector builders let you generate vectors directly from inputs such as text or base64-encoded images at search time. This enables multimodal search, where different types of input can be used to retrieve similar documents without generating embeddings in advance.
+Query vector builders let you generate vectors directly from inputs such as text or base64-encoded images at search time.
 
 {{es}} provides three query vector builders. Each builder generates a query vector from a different type of input or source.
 

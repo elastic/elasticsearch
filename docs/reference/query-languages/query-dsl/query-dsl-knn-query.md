@@ -419,7 +419,7 @@ $$$knn-query-builder-text-embedding$$$ `text_embedding`
 If all queried fields are of type [semantic_text](/reference/elasticsearch/mapping-reference/semantic-text.md), the inference ID associated with the `semantic_text` field may be inferred. For an example, refer to [`text_embedding`](#text-embedding-builder).
 
 $$$knn-query-builder-embedding$$$ `embedding` {applies_to}`stack: preview` {applies_to}`serverless: preview`
-:   (Optional, object) Build the query vector by generating an embedding from text or base64-encoded image input at query time. This enables multimodal search, where different types of input can be used to generate a vector and retrieve similar documents. For an examples, refer to [`embedding`](#embedding-builder).
+:   Build the query vector by generating an embedding from text or a base64-encoded image. This enables multimodal search, where different types of input can be used to generate a vector and retrieve similar documents. For an examples, refer to [`embedding`](#embedding-builder).
 
       **Parameters for `embedding`**:
 

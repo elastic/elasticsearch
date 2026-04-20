@@ -9,11 +9,13 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
@@ -99,9 +101,10 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
         if (sourceMetadata == null) {
             return aggregateExec;
         }
-        List<Object> values = resolveAggregateValues(aggregateExec.aggregates(), sourceMetadata);
-        if (values == null) {
-            return aggregateExec; // Some aggregate couldn't be resolved from metadata
+        List<Object> values = new ArrayList<>(aggregateExec.aggregates().size());
+        List<DataType> dataTypes = new ArrayList<>(aggregateExec.aggregates().size());
+        if (resolveAggregateValues(aggregateExec.aggregates(), sourceMetadata, values, dataTypes) == false) {
+            return aggregateExec;
         }
 
         List<Attribute> outputAttrs;
@@ -111,33 +114,39 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
             for (NamedExpression agg : aggregateExec.aggregates()) {
                 outputAttrs.add(agg.toAttribute());
             }
-            blocks = buildFinalBlocks(values);
+            blocks = buildFinalBlocks(values, dataTypes);
         } else {
             outputAttrs = aggregateExec.intermediateAttributes();
-            blocks = buildIntermediateBlocks(values);
+            blocks = buildIntermediateBlocks(values, dataTypes);
         }
 
         return new LocalSourceExec(aggregateExec.source(), outputAttrs, LocalSupplier.of(new Page(blocks)));
     }
 
     /**
-     * Resolve aggregate values from sourceMetadata. Returns null if any value can't be resolved.
+     * Resolve aggregate values and their expected data types from sourceMetadata.
+     * Returns false if any value can't be resolved.
      */
-    private List<Object> resolveAggregateValues(List<? extends NamedExpression> aggregates, Map<String, Object> sourceMetadata) {
-        List<Object> values = new ArrayList<>(aggregates.size());
+    private boolean resolveAggregateValues(
+        List<? extends NamedExpression> aggregates,
+        Map<String, Object> sourceMetadata,
+        List<Object> values,
+        List<DataType> dataTypes
+    ) {
         for (int i = 0; i < aggregates.size(); i++) {
             NamedExpression agg = aggregates.get(i);
             if (agg instanceof Alias == false) {
-                return null;
+                return false;
             }
             Expression child = ((Alias) agg).child();
             Object value = resolveFromMetadata(child, sourceMetadata);
             if (value == null) {
-                return null;
+                return false;
             }
             values.add(value);
+            dataTypes.add(child instanceof AggregateFunction af ? af.dataType() : DataType.LONG);
         }
-        return values;
+        return true;
     }
 
     private Object resolveFromMetadata(Expression aggFunction, Map<String, Object> sourceMetadata) {
@@ -177,46 +186,50 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
         return null;
     }
 
-    /**
-     * Build intermediate-format blocks: for each aggregate value, a typed value block
-     * followed by a {@code seen=true} boolean block. All supported aggregates (Count,
-     * Min, Max) use this two-channel intermediate layout.
-     */
-    private static Block[] buildIntermediateBlocks(List<Object> values) {
+    private static Block[] buildFinalBlocks(List<Object> values, List<DataType> dataTypes) {
+        var blockFactory = PlannerUtils.NON_BREAKING_BLOCK_FACTORY;
+        Block[] blocks = new Block[values.size()];
+        for (int i = 0; i < values.size(); i++) {
+            blocks[i] = buildBlock(blockFactory, values.get(i), dataTypes.get(i));
+        }
+        return blocks;
+    }
+
+    private static Block[] buildIntermediateBlocks(List<Object> values, List<DataType> dataTypes) {
         var blockFactory = PlannerUtils.NON_BREAKING_BLOCK_FACTORY;
         Block[] blocks = new Block[values.size() * 2];
         for (int i = 0; i < values.size(); i++) {
-            blocks[i * 2] = buildBlock(blockFactory, values.get(i));
+            blocks[i * 2] = buildBlock(blockFactory, values.get(i), dataTypes.get(i));
             blocks[i * 2 + 1] = blockFactory.newConstantBooleanBlockWith(true, 1);
         }
         return blocks;
     }
 
-    private static Block[] buildFinalBlocks(List<Object> values) {
-        var blockFactory = PlannerUtils.NON_BREAKING_BLOCK_FACTORY;
-        Block[] blocks = new Block[values.size()];
-        for (int i = 0; i < values.size(); i++) {
-            blocks[i] = buildBlock(blockFactory, values.get(i));
-        }
-        return blocks;
-    }
-
-    private static Block buildBlock(org.elasticsearch.compute.data.BlockFactory blockFactory, Object value) {
-        if (value instanceof Long l) {
-            return blockFactory.newConstantLongBlockWith(l, 1);
-        } else if (value instanceof Integer n) {
-            return blockFactory.newConstantIntBlockWith(n, 1);
-        } else if (value instanceof Double d) {
-            return blockFactory.newConstantDoubleBlockWith(d, 1);
-        } else if (value instanceof Boolean b) {
-            return blockFactory.newConstantBooleanBlockWith(b, 1);
-        } else if (value instanceof String s) {
-            return blockFactory.newConstantBytesRefBlockWith(new org.apache.lucene.util.BytesRef(s), 1);
-        } else if (value instanceof Number n) {
-            return blockFactory.newConstantLongBlockWith(n.longValue(), 1);
-        } else {
+    /**
+     * Builds a single-value constant block, coercing the stat value to match the expected ESQL
+     * data type. Format readers may return stats in wider Java types than the column's ESQL type
+     * (e.g. ORC returns {@code long} for all integer stats including INT32 columns).
+     */
+    static Block buildBlock(BlockFactory blockFactory, Object value, DataType dataType) {
+        if (value == null) {
             return blockFactory.newConstantNullBlock(1);
         }
+        return switch (dataType) {
+            case INTEGER -> blockFactory.newConstantIntBlockWith(((Number) value).intValue(), 1);
+            case LONG, COUNTER_LONG, DATETIME -> blockFactory.newConstantLongBlockWith(((Number) value).longValue(), 1);
+            case DOUBLE, COUNTER_DOUBLE -> blockFactory.newConstantDoubleBlockWith(((Number) value).doubleValue(), 1);
+            case BOOLEAN -> blockFactory.newConstantBooleanBlockWith(
+                value instanceof Boolean b ? b : Boolean.parseBoolean(value.toString()),
+                1
+            );
+            case KEYWORD, TEXT -> blockFactory.newConstantBytesRefBlockWith(new org.apache.lucene.util.BytesRef(value.toString()), 1);
+            default -> {
+                if (value instanceof Number n) {
+                    yield blockFactory.newConstantLongBlockWith(n.longValue(), 1);
+                }
+                yield blockFactory.newConstantNullBlock(1);
+            }
+        };
     }
 
     private List<Expression> extractAggregateFunctions(List<? extends NamedExpression> aggregates) {

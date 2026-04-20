@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -54,6 +55,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.lessThanOrEqualOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class PushStatsToExternalSourceTests extends ESTestCase {
 
@@ -101,6 +103,21 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
         var agg = aggregateExec(externalSource(metadata), alias("m", new Max(Source.EMPTY, AGE)));
 
         as(applyRule(agg), LocalSourceExec.class);
+    }
+
+    /**
+     * ORC's IntegerColumnStatistics returns {@code long} for all integer stats, even for INT32 columns.
+     * The block type must match the ESQL column type (INTEGER -> IntBlock), not the Java stat type.
+     */
+    public void testMaxWithLongStatForIntegerColumnProducesIntBlock() {
+        Map<String, Object> metadata = statsMetadata(100L, "salary", 0L, null);
+        metadata.put("_stats.columns.salary.max", 150000L);
+        var agg = aggregateExec(externalSource(metadata), alias("m", new Max(Source.EMPTY, SALARY)));
+
+        LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
+        Block block = local.supplier().get().getBlock(0);
+        assertThat("Long stat for INTEGER column must produce IntBlock", block, instanceOf(IntBlock.class));
+        assertEquals(150000, ((IntBlock) block).getInt(0));
     }
 
     public void testMultipleAggsPushedDown() {

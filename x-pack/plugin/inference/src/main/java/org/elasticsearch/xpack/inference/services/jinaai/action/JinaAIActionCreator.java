@@ -17,9 +17,9 @@ import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIResponseHandler;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.jinaai.rerank.JinaAIRerankModel;
 import org.elasticsearch.xpack.inference.services.jinaai.request.JinaAIEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.services.jinaai.request.JinaAIRerankRequest;
+import org.elasticsearch.xpack.inference.services.jinaai.rerank.JinaAIRerankModel;
 import org.elasticsearch.xpack.inference.services.jinaai.response.JinaAIEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.jinaai.response.JinaAIRerankResponseEntity;
 

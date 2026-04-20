@@ -179,7 +179,8 @@ record ModelStrategyFactory(ServiceComponents serviceComponents) {
 
     private static final ResponseHandler CHAT_COMPLETIONS_HANDLER = new ElasticInferenceServiceUnifiedChatCompletionResponseHandler(
         "elastic inference service completion",
-        // We use OpenAiChatCompletionResponseEntity here as the ElasticInferenceServiceResponseEntity fields are a subset of the OpenAI one.
+        // We use OpenAiChatCompletionResponseEntity here as the ElasticInferenceServiceResponseEntity fields are a subset of the OpenAI
+        // one.
         OpenAiChatCompletionResponseEntity::fromResponse
     );
 

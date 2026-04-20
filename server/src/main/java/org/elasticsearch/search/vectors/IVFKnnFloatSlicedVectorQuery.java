@@ -9,6 +9,7 @@
 package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.index.DocValuesSkipper;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
@@ -23,9 +24,11 @@ import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IOSupplier;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 /** A {@link IVFKnnFloatSlicedVectorQuery} that uses the IVF search strategy with an sliced index. */
@@ -57,6 +60,23 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
         BytesRef sliceId
     ) {
         super(field, query, k, numCands, filter, visitRatio, doPrecondition);
+        this.sliceField = Objects.requireNonNull(sliceField);
+        this.sliceId = Objects.requireNonNull(sliceId);
+    }
+
+    public IVFKnnFloatSlicedVectorQuery(
+        String field,
+        float[] query,
+        int k,
+        int numCands,
+        Query filter,
+        float visitRatio,
+        boolean doPrecondition,
+        String sliceField,
+        BytesRef sliceId,
+        Map<Integer, FixedBitSet> mergedSkip
+    ) {
+        super(field, query, k, numCands, filter, visitRatio, doPrecondition, true, mergedSkip);
         this.sliceField = Objects.requireNonNull(sliceField);
         this.sliceId = Objects.requireNonNull(sliceId);
     }
@@ -111,6 +131,40 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
             acceptDocs = new ESAcceptDocs.ScorerSupplierAcceptDocs(supplier, liveDocs, maxDoc, sliceOrd, sliceAcceptDocsSupplier);
         }
         return approximateSearch(ctx, acceptDocs, Integer.MAX_VALUE, knnCollectorManager, visitRatio);
+    }
+
+    @Override
+    PostFilterableKnnQuery createPostFilterDelegate(int scaledK, int scaledNumCands, float scaledVisitRatio) {
+        return new IVFKnnFloatSlicedVectorQuery(
+            field,
+            originalQuery.clone(),
+            scaledK,
+            scaledNumCands,
+            null,
+            scaledVisitRatio,
+            doPrecondition,
+            sliceField,
+            sliceId
+        );
+    }
+
+    @Override
+    public PostFilterableKnnQuery createRetryQuery(IndexReader reader) {
+        Map<Integer, FixedBitSet> mergedSkip = mergeSkipCentroids();
+        var retryQuery = new IVFKnnFloatSlicedVectorQuery(
+            field,
+            originalQuery.clone(),
+            k,
+            numCands,
+            null,
+            providedVisitRatio,
+            doPrecondition,
+            sliceField,
+            sliceId,
+            mergedSkip
+        );
+        retryQuery.skipCentroids(mergedSkip);
+        return retryQuery;
     }
 
     private static ESAcceptDocs.SliceAcceptDocs getSliceAcceptDocsSupplier(

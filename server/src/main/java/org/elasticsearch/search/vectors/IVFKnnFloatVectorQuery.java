@@ -36,17 +36,18 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery implements
 
     private boolean isQueryPreconditioned = false;
     private float[] query;
-    private final float[] originalQuery;
+    protected final float[] originalQuery;
     private final Map<Integer, FixedBitSet> skipCentroidsPerLeaf;
     private final ConcurrentHashMap<Integer, FixedBitSet> visitedCentroidsPerLeaf = new ConcurrentHashMap<>();
 
     /**
      * Creates a new {@link IVFKnnFloatVectorQuery} with the given parameters.
-     * @param field the field to search
-     * @param query the query vector
-     * @param k the number of nearest neighbors to return
-     * @param numCands the number of nearest neighbors to gather per shard
-     * @param filter the filter to apply to the results
+     *
+     * @param field      the field to search
+     * @param query      the query vector
+     * @param k          the number of nearest neighbors to return
+     * @param numCands   the number of nearest neighbors to gather per shard
+     * @param filter     the filter to apply to the results
      * @param visitRatio the ratio of vectors to score for the IVF search strategy
      */
     public IVFKnnFloatVectorQuery(
@@ -275,5 +276,10 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery implements
     @Override
     public long vectorOpsCount() {
         return vectorOpsCount;
+    }
+
+    protected void skipCentroids(Map<Integer, FixedBitSet> mergedSkip) {
+        this.skipCentroidsPerLeaf.clear();
+        this.skipCentroidsPerLeaf.putAll(mergedSkip);
     }
 }

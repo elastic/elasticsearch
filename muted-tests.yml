@@ -439,6 +439,8 @@ tests:
 - class: org.elasticsearch.xpack.inference.queries.SemanticQueryBuilderTests
   method: testToQuery {p0=true}
   issue: https://github.com/elastic/elasticsearch/issues/146778
+- class: org.elasticsearch.reindex.ReindexerTests
+  issue: https://github.com/elastic/elasticsearch/issues/146047
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
   method: test {csv-spec:inlinestats.inlinestatsWithUnionTypesAs_InlinestatsCondition}
   issue: https://github.com/elastic/elasticsearch/issues/146793

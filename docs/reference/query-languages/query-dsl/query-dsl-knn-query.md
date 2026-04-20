@@ -104,7 +104,7 @@ PUT my-image-index
 ## Top-level parameters for `knn` [knn-query-top-level-parameters]
 
 `field`
-:   (Required, string) The name of the vector field to search against. Must be a [`dense_vector` field with indexing enabled](/reference/elasticsearch/mapping-reference/dense-vector.md#index-vectors-knn-search), or a [`semantic_text` field](/reference/elasticsearch/mapping-reference/semantic-text.md) with a compatible dense vector inference model.
+:   (Required, string) The name of the vector field to search against. Must be a [`dense_vector` field with indexing enabled](/reference/elasticsearch/mapping-reference/dense-vector.md#index-vectors-knn-search), or a [`semantic_text` field](/reference/elasticsearch/mapping-reference/semantic-text.md) with a compatible dense vector {{infer}} model.
 
 $$$knn-query-query-vector$$$ `query_vector`
 :   (Optional, array of floats or string) Query vector. Must have the same number of dimensions as the vector field you are searching against.
@@ -116,11 +116,7 @@ $$$knn-query-query-vector$$$ `query_vector`
 
 
 $$$knn-query-query-vector-builder$$$ `query_vector_builder`
-:   (Optional, object) Query vector builder. A configuration object indicating how to build a query vector before executing the request. You must provide either a `query_vector_builder` or `query_vector`, but not both.  Refer to [Parameters for query vector builders](#query-vector-builders-parameters) for parameter details and [Examples for query vector builders](#query-vector-builders-overview) for usage examples.
-
-
-`timeout`
-:   (Optional, time value) The maximum time to wait for the embedding to be generated. Defaults to 30s.
+:   (Optional, object) Query vector builder. A configuration object indicating how to build a query vector before executing the request. You must provide either a `query_vector_builder` or `query_vector`, but not both.  Refer to [Query vector builder types](#query-vector-builders-parameters) for parameter details and [Query vector builder examples](#query-vector-builders-overview) for usage examples.
 
 
 `k`
@@ -393,9 +389,9 @@ Query vector builders let you generate vectors directly from inputs such as text
 - [`embedding`](#knn-query-builder-embedding): {applies_to}`stack: preview` Generates a query vector from multimodal input, such as text or base64-encoded images. Use this when you want to generate embeddings dynamically from different types of input without creating them in advance.
 - [`lookup`](#knn-query-builder-lookup): {applies_to}`stack: ga 9.4` Retrieves an existing vector from a stored document to use as the query vector. This is useful when you want to find documents similar to an existing document, without generating a new embedding at search time.
 
-Refer to [Parameters for query vector builders](#query-vector-builders-parameters) for parameter details and [Examples for query vector builders](#query-vector-builders-overview) for usage examples.
+Refer to [Query vector builder types](#query-vector-builders-parameters) for parameter details and [Query vector builder examples](#query-vector-builders-overview) for usage examples.
 
-### Parameters for query vector builders [query-vector-builders-parameters]
+### Query vector builder types [query-vector-builders-parameters]
 
 $$$knn-query-builder-lookup$$$ `lookup` {applies_to}`stack: ga 9.4`
 :   Build the query vector by looking up an existing document's vector. For an example, refer to [`lookup`](#lookup-builder).
@@ -415,11 +411,26 @@ $$$knn-query-builder-lookup$$$ `lookup` {applies_to}`stack: ga 9.4`
         :   (Optional, string) The routing value to use when looking up the document.
 
 $$$knn-query-builder-text-embedding$$$ `text_embedding`
-:   (Optional, object) Build the query vector by generating an embedding from input text. For more information, refer to [Perform semantic search](docs-content://solutions/search/vector/knn.md#knn-semantic-search).
-If all queried fields are of type [semantic_text](/reference/elasticsearch/mapping-reference/semantic-text.md), the inference ID associated with the `semantic_text` field may be inferred. For an example, refer to [`text_embedding`](#text-embedding-builder).
+:   Build the query vector by generating an embedding from input text. For an example, refer to [`text_embedding`](#text-embedding-builder).
+
+      **Parameters for `text_embedding`**:
+
+        `model_id`
+        :   (Optional, string) Identifier of the text embedding model that generates the query vector. Use the same model that produced vectors in your index.
+
+::::{note}
+When you query only [semantic_text](/reference/elasticsearch/mapping-reference/semantic-text.md) fields, you can omit `model_id` because {{es}} uses the `inference_id` from the `semantic_text` field mapping (for example the search-time {{infer}} endpoint configured on the field).
+
+For [`dense_vector`](/reference/elasticsearch/mapping-reference/dense-vector.md) fields or when you need a different model than the one mapped on `semantic_text`, set `model_id` explicitly.
+::::
+
+        `model_text`
+        :   (Required, string) The query text passed to the model to produce the embedding.
+
+      For an example request, refer to [`text_embedding`](#text-embedding-builder). For a broader overview of semantic kNN search, refer to [Perform semantic search](docs-content://solutions/search/vector/knn.md#knn-semantic-search).
 
 $$$knn-query-builder-embedding$$$ `embedding` {applies_to}`stack: preview` {applies_to}`serverless: preview`
-:   Build the query vector by generating an embedding from text or a base64-encoded image. This enables multimodal search, where different types of input can be used to generate a vector and retrieve similar documents. For an examples, refer to [`embedding`](#embedding-builder).
+:   Build the query vector by generating an embedding from text or a base64-encoded image. This enables multimodal search, where different types of input can be used to generate a vector and retrieve similar documents. For an example, refer to [`embedding`](#embedding-builder).
 
       **Parameters for `embedding`**:
 
@@ -449,7 +460,10 @@ $$$knn-query-builder-embedding$$$ `embedding` {applies_to}`stack: preview` {appl
 
 ::::
 
-### Examples for query vector builders [query-vector-builders-overview]
+        `timeout`
+        :   (Optional, time value) Maximum time to wait for the embedding {{infer}} request to complete. Defaults to `30s` when omitted.
+
+### Query vector builder examples [query-vector-builders-overview]
 
 #### `lookup` [lookup-builder]
 ```{applies_to}
@@ -500,8 +514,8 @@ POST my-index/_search
 }
 ```
 
-1. ID of the text embedding model or deployment in {{es}} that generates the query vector. Use the same model that produced vectors in your index.
-2. The query string passed to the model to produce the embedding.
+1. The ID of the text embedding model or deployment in {{es}} that generates the query vector. Use the same model that produced vectors in your index. When you query only [`semantic_text`](/reference/elasticsearch/mapping-reference/semantic-text.md) fields, you can omit `model_id` because {{es}} uses the `inference_id` from the [`semantic_text`](/reference/elasticsearch/mapping-reference/semantic-text.md) field mapping (for example the search-time {{infer}} endpoint configured on the field).
+2. The query text passed to the model to produce the embedding.
 
 #### `embedding` [embedding-builder]
 

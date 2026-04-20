@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.unit.Processors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.monitor.Probes;
@@ -421,10 +422,13 @@ public class OsProbe {
         return readSingleLine(PathUtils.get("/sys/fs/cgroup/cpuacct", controlGroup, "cpuacct.usage"));
     }
 
+    @Nullable
     private long[] getCgroupV2CpuLimit(String controlGroup) throws IOException {
         String entry = readCgroupV2CpuLimit(controlGroup);
         String[] parts = entry.split("\\s+");
-        assert parts.length == 2 : "Expected 2 fields in [cpu.max]";
+        if (parts.length != 2) {
+            return null;
+        }
 
         long[] values = new long[2];
 
@@ -749,8 +753,8 @@ public class OsProbe {
 
             final String cpuAcctControlGroup;
             final BigInteger cgroupCpuAcctUsageNanos;
-            final long cgroupCpuAcctCpuCfsPeriodMicros;
-            final long cgroupCpuAcctCpuCfsQuotaMicros;
+            final Long cgroupCpuAcctCpuCfsPeriodMicros;
+            final Long cgroupCpuAcctCpuCfsQuotaMicros;
             final String cpuControlGroup;
             final OsStats.Cgroup.CpuStat cpuStat;
             final String memoryControlGroup;
@@ -769,8 +773,13 @@ public class OsProbe {
                 cgroupCpuAcctUsageNanos = cpuStatsMap.get("usage_usec").multiply(THOUSAND); // convert from micros to nanos
 
                 long[] cpuLimits = getCgroupV2CpuLimit(cpuControlGroup);
-                cgroupCpuAcctCpuCfsQuotaMicros = cpuLimits[0];
-                cgroupCpuAcctCpuCfsPeriodMicros = cpuLimits[1];
+                if (cpuLimits != null) {
+                    cgroupCpuAcctCpuCfsQuotaMicros = cpuLimits[0];
+                    cgroupCpuAcctCpuCfsPeriodMicros = cpuLimits[1];
+                } else {
+                    cgroupCpuAcctCpuCfsQuotaMicros = null;
+                    cgroupCpuAcctCpuCfsPeriodMicros = null;
+                }
 
                 cpuStat = new OsStats.Cgroup.CpuStat(
                     cpuStatsMap.get("nr_periods"),

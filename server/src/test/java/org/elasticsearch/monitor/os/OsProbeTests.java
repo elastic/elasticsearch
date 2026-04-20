@@ -183,7 +183,8 @@ public class OsProbeTests extends ESTestCase {
         final int availableCgroupsVersion = randomFrom(0, 1, 2);
         final String hierarchy = randomAlphaOfLength(16);
 
-        final OsProbe probe = buildStubOsProbe(availableCgroupsVersion, hierarchy);
+        final OsProbe probe = new OsProbeMock(hierarchy).setAvailableCgroupsVersion(availableCgroupsVersion)
+            .setProcSelfCgroupLines(getProcSelfGroupLines(availableCgroupsVersion, hierarchy));
 
         final OsStats.Cgroup cgroup = probe.osStats().getCgroup();
 
@@ -218,6 +219,21 @@ public class OsProbeTests extends ESTestCase {
         }
     }
 
+    public void testCgroupProbeWithMissingCpuMax() {
+        final int cgroupsVersion = 2;
+        final var hierarchy = randomAlphaOfLength(16);
+
+        final var probe = new OsProbeMock(hierarchy).setAvailableCgroupsVersion(cgroupsVersion)
+            .setProcSelfCgroupLines(getProcSelfGroupLines(cgroupsVersion, hierarchy))
+            .setCgroupCpuMax("");
+
+        final var cgroup = probe.osStats().getCgroup();
+
+        assertNotNull(cgroup);
+        assertNull(cgroup.getCpuCfsPeriodMicros());
+        assertNull(cgroup.getCpuCfsQuotaMicros());
+    }
+
     public void testCgroupProbeWithMissingCpuAcct() {
         final String hierarchy = randomAlphaOfLength(16);
 
@@ -226,7 +242,7 @@ public class OsProbeTests extends ESTestCase {
             .map(line -> line.replaceFirst(",cpuacct", ""))
             .toList();
 
-        final OsProbe probe = buildStubOsProbe(1, hierarchy, procSelfCgroupLines);
+        final OsProbe probe = new OsProbeMock(hierarchy).setAvailableCgroupsVersion(1).setProcSelfCgroupLines(procSelfCgroupLines);
 
         final OsStats.Cgroup cgroup = probe.osStats().getCgroup();
 
@@ -241,7 +257,7 @@ public class OsProbeTests extends ESTestCase {
             .map(line -> line.replaceFirst(":cpu,", ":"))
             .toList();
 
-        final OsProbe probe = buildStubOsProbe(1, hierarchy, procSelfCgroupLines);
+        final OsProbe probe = new OsProbeMock(hierarchy).setAvailableCgroupsVersion(1).setProcSelfCgroupLines(procSelfCgroupLines);
 
         final OsStats.Cgroup cgroup = probe.osStats().getCgroup();
 
@@ -256,7 +272,7 @@ public class OsProbeTests extends ESTestCase {
             .filter(line -> line.contains(":memory:") == false)
             .toList();
 
-        final OsProbe probe = buildStubOsProbe(1, hierarchy, procSelfCgroupLines);
+        final OsProbe probe = new OsProbeMock(hierarchy).setAvailableCgroupsVersion(1).setProcSelfCgroupLines(procSelfCgroupLines);
 
         final OsStats.Cgroup cgroup = probe.osStats().getCgroup();
 
@@ -382,123 +398,14 @@ public class OsProbeTests extends ESTestCase {
         );
     }
 
-    private static OsProbe buildStubOsProbe(final int availableCgroupsVersion, final String hierarchy) {
-        List<String> procSelfCgroupLines = getProcSelfGroupLines(availableCgroupsVersion, hierarchy);
-
-        return buildStubOsProbe(availableCgroupsVersion, hierarchy, procSelfCgroupLines);
-    }
-
-    /**
-     * Builds a test instance of OsProbe. Methods that ordinarily read from the filesystem are overridden to return values based upon
-     * the arguments to this method.
-     *
-     * @param availableCgroupsVersion what version of cgroups are available, 1 or 2, or 0 for no cgroups. Normally OsProbe establishes this
-     *                                for itself.
-     * @param hierarchy a mock value used to generate a cgroup hierarchy.
-     * @param procSelfCgroupLines the lines that will be used as the content of <code>/proc/self/cgroup</code>
-     * @param procMeminfoLines lines that will be used as the content of <code>/proc/meminfo</code>
-     * @return a test instance
-     */
     private static OsProbe buildStubOsProbe(
         final int availableCgroupsVersion,
         final String hierarchy,
         List<String> procSelfCgroupLines,
         List<String> procMeminfoLines
     ) {
-        return new OsProbe() {
-            @Override
-            OsStats.Cgroup getCgroup(boolean isLinux) {
-                // Pretend we're always on Linux so that we can run the cgroup tests
-                return super.getCgroup(true);
-            }
-
-            @Override
-            List<String> readProcSelfCgroup() {
-                return procSelfCgroupLines;
-            }
-
-            @Override
-            String readSysFsCgroupCpuAcctCpuAcctUsage(String controlGroup) {
-                assertThat(controlGroup, equalTo("/" + hierarchy));
-                return "364869866063112";
-            }
-
-            @Override
-            String readSysFsCgroupCpuAcctCpuCfsPeriod(String controlGroup) {
-                assertThat(controlGroup, equalTo("/" + hierarchy));
-                return "100000";
-            }
-
-            @Override
-            String readSysFsCgroupCpuAcctCpuAcctCfsQuota(String controlGroup) {
-                assertThat(controlGroup, equalTo("/" + hierarchy));
-                return "50000";
-            }
-
-            @Override
-            List<String> readSysFsCgroupCpuAcctCpuStat(String controlGroup) {
-                return Arrays.asList("nr_periods 17992", "nr_throttled 1311", "throttled_time 139298645489");
-            }
-
-            @Override
-            String readSysFsCgroupMemoryLimitInBytes(String controlGroup) {
-                assertThat(controlGroup, equalTo("/" + hierarchy));
-                // This is the highest value that can be stored in an unsigned 64 bit number, hence too big for long
-                return "18446744073709551615";
-            }
-
-            @Override
-            String readSysFsCgroupMemoryUsageInBytes(String controlGroup) {
-                assertThat(controlGroup, equalTo("/" + hierarchy));
-                return "4796416";
-            }
-
-            @Override
-            boolean areCgroupStatsAvailable() {
-                return availableCgroupsVersion > 0;
-            }
-
-            @Override
-            List<String> readProcMeminfo() {
-                return procMeminfoLines;
-            }
-
-            @Override
-            String readSysFsCgroupV2MemoryLimitInBytes(String controlGroup) {
-                assertThat(controlGroup, equalTo("/" + hierarchy));
-                // This is the highest value that can be stored in an unsigned 64 bit number, hence too big for long
-                return "18446744073709551615";
-            }
-
-            @Override
-            String readSysFsCgroupV2MemoryUsageInBytes(String controlGroup) {
-                assertThat(controlGroup, equalTo("/" + hierarchy));
-                return "4796416";
-            }
-
-            @Override
-            List<String> readCgroupV2CpuStats(String controlGroup) {
-                assertThat(controlGroup, equalTo("/" + hierarchy));
-                return List.of(
-                    "usage_usec 364869866063",
-                    "user_usec 34636",
-                    "system_usec 9896",
-                    "nr_periods 17992",
-                    "nr_throttled 1311",
-                    "throttled_usec 139298645"
-                );
-            }
-
-            @Override
-            String readCgroupV2CpuLimit(String controlGroup) {
-                assertThat(controlGroup, equalTo("/" + hierarchy));
-                return "50000 100000";
-            }
-        };
+        return new OsProbeMock(hierarchy).setAvailableCgroupsVersion(availableCgroupsVersion)
+            .setProcSelfCgroupLines(procSelfCgroupLines)
+            .setProcMeminfoLines(procMeminfoLines);
     }
-
-    private static OsProbe buildStubOsProbe(final int availableCgroupsVersion, final String hierarchy, List<String> procSelfCgroupLines) {
-        return buildStubOsProbe(availableCgroupsVersion, hierarchy, procSelfCgroupLines, List.of());
-    }
-
 }

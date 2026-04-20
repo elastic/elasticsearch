@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -375,8 +376,10 @@ public class OsStats implements Writeable, ToXContentFragment {
         private final String cpuAcctControlGroup;
         private final BigInteger cpuAcctUsageNanos;
         private final String cpuControlGroup;
-        private final long cpuCfsPeriodMicros;
-        private final long cpuCfsQuotaMicros;
+        @Nullable
+        private final Long cpuCfsPeriodMicros;
+        @Nullable
+        private final Long cpuCfsQuotaMicros;
         private final CpuStat cpuStat;
         private final String memoryControlGroup;
         private final String memoryLimitInBytes;
@@ -418,7 +421,8 @@ public class OsStats implements Writeable, ToXContentFragment {
          *
          * @return the period of time in microseconds
          */
-        public long getCpuCfsPeriodMicros() {
+        @Nullable
+        public Long getCpuCfsPeriodMicros() {
             return cpuCfsPeriodMicros;
         }
 
@@ -429,7 +433,8 @@ public class OsStats implements Writeable, ToXContentFragment {
          *
          * @return the total amount of time in microseconds
          */
-        public long getCpuCfsQuotaMicros() {
+        @Nullable
+        public Long getCpuCfsQuotaMicros() {
             return cpuCfsQuotaMicros;
         }
 
@@ -478,8 +483,8 @@ public class OsStats implements Writeable, ToXContentFragment {
             final String cpuAcctControlGroup,
             final BigInteger cpuAcctUsageNanos,
             final String cpuControlGroup,
-            final long cpuCfsPeriodMicros,
-            final long cpuCfsQuotaMicros,
+            @Nullable final Long cpuCfsPeriodMicros,
+            @Nullable final Long cpuCfsQuotaMicros,
             final CpuStat cpuStat,
             final String memoryControlGroup,
             final String memoryLimitInBytes,
@@ -500,8 +505,8 @@ public class OsStats implements Writeable, ToXContentFragment {
             cpuAcctControlGroup = in.readString();
             cpuAcctUsageNanos = in.readBigInteger();
             cpuControlGroup = in.readString();
-            cpuCfsPeriodMicros = in.readLong();
-            cpuCfsQuotaMicros = in.readLong();
+            cpuCfsPeriodMicros = in.readOptionalLong();
+            cpuCfsQuotaMicros = in.readOptionalLong();
             cpuStat = new CpuStat(in);
             memoryControlGroup = in.readOptionalString();
             memoryLimitInBytes = in.readOptionalString();
@@ -513,8 +518,8 @@ public class OsStats implements Writeable, ToXContentFragment {
             out.writeString(cpuAcctControlGroup);
             out.writeBigInteger(cpuAcctUsageNanos);
             out.writeString(cpuControlGroup);
-            out.writeLong(cpuCfsPeriodMicros);
-            out.writeLong(cpuCfsQuotaMicros);
+            out.writeOptionalLong(cpuCfsPeriodMicros);
+            out.writeOptionalLong(cpuCfsQuotaMicros);
             cpuStat.writeTo(out);
             out.writeOptionalString(memoryControlGroup);
             out.writeOptionalString(memoryLimitInBytes);

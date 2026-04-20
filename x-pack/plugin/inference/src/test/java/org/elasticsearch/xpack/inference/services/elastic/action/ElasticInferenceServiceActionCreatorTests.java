@@ -21,7 +21,6 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResultsTests;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests;
@@ -109,11 +108,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             var action = createAction(sender, model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(
-                new EmbeddingsInput(List.of("hello world"), InputType.UNSPECIFIED),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            action.execute(new EmbeddingsInput(List.of("hello world"), InputType.UNSPECIFIED), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -176,11 +171,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             var action = createAction(sender, model, createApplierFactory(secret));
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(
-                new EmbeddingsInput(List.of("hello world"), InputType.UNSPECIFIED),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            action.execute(new EmbeddingsInput(List.of("hello world"), InputType.UNSPECIFIED), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -253,11 +244,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             var action = createAction(sender, model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(
-                new EmbeddingsInput(List.of("hello world"), InputType.UNSPECIFIED),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            action.execute(new EmbeddingsInput(List.of("hello world"), InputType.UNSPECIFIED), null, listener);
 
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(
@@ -311,7 +298,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             var action = createAction(sender, model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new QueryAndDocsInputs(query, documents, null, topN, false), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new QueryAndDocsInputs(query, documents, null, topN, false), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -381,7 +368,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             var action = createAction(sender, model, createApplierFactory(secret));
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new QueryAndDocsInputs(query, documents, null, topN, false), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new QueryAndDocsInputs(query, documents, null, topN, false), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -445,11 +432,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             var action = createAction(sender, model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(
-                new EmbeddingsInput(List.of("hello world", "second text"), InputType.UNSPECIFIED),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            action.execute(new EmbeddingsInput(List.of("hello world", "second text"), InputType.UNSPECIFIED), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -505,11 +488,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             var action = createAction(sender, model, createApplierFactory(secret));
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(
-                new EmbeddingsInput(List.of("hello world", "second text"), InputType.UNSPECIFIED),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            action.execute(new EmbeddingsInput(List.of("hello world", "second text"), InputType.UNSPECIFIED), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -558,11 +537,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             var action = createAction(sender, model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(
-                new EmbeddingsInput(List.of("search query"), InputType.SEARCH),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            action.execute(new EmbeddingsInput(List.of("search query"), InputType.SEARCH), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -612,11 +587,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             var action = createAction(sender, model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(
-                new EmbeddingsInput(List.of("hello world"), InputType.UNSPECIFIED),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            action.execute(new EmbeddingsInput(List.of("hello world"), InputType.UNSPECIFIED), null, listener);
 
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(thrownException.getMessage(), containsString("[EmbeddingFloatResult] failed to parse field [data]"));
@@ -653,7 +624,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             var action = createAction(sender, model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of(), InputType.UNSPECIFIED), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new EmbeddingsInput(List.of(), InputType.UNSPECIFIED), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -700,11 +671,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             var action = createAction(sender, model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(
-                new EmbeddingsInput(List.of("hello world"), InputType.UNSPECIFIED),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            action.execute(new EmbeddingsInput(List.of("hello world"), InputType.UNSPECIFIED), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -763,11 +730,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             var action = createAction(sender, model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(
-                new EmbeddingsInput(List.of("hello world"), InputType.UNSPECIFIED),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            action.execute(new EmbeddingsInput(List.of("hello world"), InputType.UNSPECIFIED), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 

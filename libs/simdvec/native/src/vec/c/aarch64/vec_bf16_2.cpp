@@ -14,11 +14,25 @@
 #include "vec.h"
 #include "vec_common.h"
 #include "aarch64/aarch64_vec_common.h"
-/*
-static inline float32x4_t bf16_to_f32(uint16x4_t bf16) {
-    return vreinterpretq_f32_u32(vshll_n_u16(bf16, 16));
+
+static inline svfloat32x2_t bf16_to_f32(svbfloat16_t bf16) {
+    const svuint16_t u16 = svreinterpret_u16_bf16(bf16);
+
+    svuint32_t low = svlsl_n_u32_x(svptrue_b32(), svunpklo_u32(u16), 16);
+    svuint32_t high = svlsl_n_u32_x(svptrue_b32(), svunpkhi_u32(u16), 16);
+
+    return svcreate2(svreinterpret_f32_u32(low), svreinterpret_f32_u32(high));
 }
 
+static inline svfloat32_t low_bf16_to_f32(svbfloat16_t bf16) {
+    const svuint16_t u16 = svreinterpret_u16_bf16(bf16);
+
+    svuint32_t low = svlsl_n_u32_x(svptrue_b32(), svunpklo_u32(u16), 16);
+
+    return svreinterpret_f32_u32(low);
+}
+
+/*
 static inline float32x4_t load_bf16(const bf16_t* ptr, int elements) {
     return bf16_to_f32(vld1_u16((const uint16_t*)(ptr + elements)));
 }
@@ -79,10 +93,7 @@ static inline f32_t bf16_inner(const bf16_t* d, const TQuery* q, const int32_t e
     return svaddv_f32(all, sum);
 }
 
-template<
-    svfloat32_t(*vector_op)(svfloat32_t, svbfloat16_t, svbfloat16_t)
->
-static inline f32_t Dbf16Qbf16_inner(const bfloat16_t* d, const bfloat16_t* q, const int32_t elementCount) {
+static inline f32_t dotDbf16Qbf16_inner_sve(const bfloat16_t* d, const bfloat16_t* q, const int32_t elementCount) {
     constexpr int batches = 8;
     int i = 0;
 
@@ -98,18 +109,18 @@ static inline f32_t Dbf16Qbf16_inner(const bfloat16_t* d, const bfloat16_t* q, c
     const int elements = svcnth();
     const int stride = elements * batches;
     const svbool_t all16 = svptrue_b16();
-    const svbool_t all32 = svptrue_b32();
     for (; i + stride <= elementCount; i += stride) {
-        sum0 = vector_op(sum0, svld1_vnum(all16, d + i, 0), svld1_vnum(all16, q + i, 0));
-        sum1 = vector_op(sum1, svld1_vnum(all16, d + i, 1), svld1_vnum(all16, q + i, 1));
-        sum2 = vector_op(sum2, svld1_vnum(all16, d + i, 2), svld1_vnum(all16, q + i, 2));
-        sum3 = vector_op(sum3, svld1_vnum(all16, d + i, 3), svld1_vnum(all16, q + i, 3));
-        sum4 = vector_op(sum4, svld1_vnum(all16, d + i, 4), svld1_vnum(all16, q + i, 4));
-        sum5 = vector_op(sum5, svld1_vnum(all16, d + i, 5), svld1_vnum(all16, q + i, 5));
-        sum6 = vector_op(sum6, svld1_vnum(all16, d + i, 6), svld1_vnum(all16, q + i, 6));
-        sum7 = vector_op(sum7, svld1_vnum(all16, d + i, 7), svld1_vnum(all16, q + i, 7));
+        sum0 = svbfdot_f32(sum0, svld1_vnum(all16, d + i, 0), svld1_vnum(all16, q + i, 0));
+        sum1 = svbfdot_f32(sum1, svld1_vnum(all16, d + i, 1), svld1_vnum(all16, q + i, 1));
+        sum2 = svbfdot_f32(sum2, svld1_vnum(all16, d + i, 2), svld1_vnum(all16, q + i, 2));
+        sum3 = svbfdot_f32(sum3, svld1_vnum(all16, d + i, 3), svld1_vnum(all16, q + i, 3));
+        sum4 = svbfdot_f32(sum4, svld1_vnum(all16, d + i, 4), svld1_vnum(all16, q + i, 4));
+        sum5 = svbfdot_f32(sum5, svld1_vnum(all16, d + i, 5), svld1_vnum(all16, q + i, 5));
+        sum6 = svbfdot_f32(sum6, svld1_vnum(all16, d + i, 6), svld1_vnum(all16, q + i, 6));
+        sum7 = svbfdot_f32(sum7, svld1_vnum(all16, d + i, 7), svld1_vnum(all16, q + i, 7));
     }
 
+    const svbool_t all32 = svptrue_b32();
     svfloat32_t sum = svadd_f32_x(all32,
         svadd_f32_x(all32,
             svadd_f32_x(all32, sum0, sum1),
@@ -128,12 +139,69 @@ static inline f32_t Dbf16Qbf16_inner(const bfloat16_t* d, const bfloat16_t* q, c
     return svaddv_f32(all32, sum);
 }
 
-static inline svfloat32_t dotbf16_vector(const svfloat32_t sum, const svbfloat16_t a, const svbfloat16_t b) {
-    return svbfdot_f32(sum, a, b);
+EXPORT f32_t vec_dotDbf16Qbf16_2(const bf16_t* a, const bf16_t* b, const int32_t elementCount) {
+    return dotDbf16Qbf16_inner_sve((const bfloat16_t*)a, (const bfloat16_t*)b, elementCount);
 }
 
-EXPORT f32_t vec_dotDbf16Qbf16_2(const bf16_t* a, const bf16_t* b, const int32_t elementCount) {
-    return Dbf16Qbf16_inner<dotbf16_vector>((const bfloat16_t*)a, (const bfloat16_t*)b, elementCount);
+static inline f32_t dotDbf16Qf32_inner_sve(const bfloat16_t* d, const f32_t* q, const int32_t elementCount) {
+    constexpr int batches = 8;
+    int i = 0;
+
+    svfloat32_t sum0 = svdup_f32(0.0f);
+    svfloat32_t sum1 = svdup_f32(0.0f);
+    svfloat32_t sum2 = svdup_f32(0.0f);
+    svfloat32_t sum3 = svdup_f32(0.0f);
+    svfloat32_t sum4 = svdup_f32(0.0f);
+    svfloat32_t sum5 = svdup_f32(0.0f);
+    svfloat32_t sum6 = svdup_f32(0.0f);
+    svfloat32_t sum7 = svdup_f32(0.0f);
+
+    const int elements = svcntw();
+    const int stride = elements * batches;
+    const svbool_t all16 = svptrue_b16();
+    const svbool_t all32 = svptrue_b32();
+    for (; i + stride <= elementCount; i += stride) {
+        // load 2 sets of bf16 vectors & extend
+        svfloat32x2_t bf0 = bf16_to_f32(svld1_vnum_bf16(all16, d + i, 0));
+        sum0 = svmla_f32_m(all32, sum0, svget2(bf0, 0), svld1_vnum(all32, q + i, 0));
+        sum1 = svmla_f32_m(all32, sum1, svget2(bf0, 1), svld1_vnum(all32, q + i, 1));
+
+        svfloat32x2_t bf1 = bf16_to_f32(svld1_vnum_bf16(all16, d + i, 1));
+        sum2 = svmla_f32_m(all32, sum2, svget2(bf1, 0), svld1_vnum(all32, q + i, 2));
+        sum3 = svmla_f32_m(all32, sum3, svget2(bf1, 1), svld1_vnum(all32, q + i, 3));
+
+        svfloat32x2_t bf2 = bf16_to_f32(svld1_vnum_bf16(all16, d + i, 2));
+        sum4 = svmla_f32_m(all32, sum4, svget2(bf2, 0), svld1_vnum(all32, q + i, 4));
+        sum5 = svmla_f32_m(all32, sum5, svget2(bf2, 1), svld1_vnum(all32, q + i, 5));
+
+        svfloat32x2_t bf3 = bf16_to_f32(svld1_vnum_bf16(all16, d + i, 3));
+        sum6 = svmla_f32_m(all32, sum6, svget2(bf3, 0), svld1_vnum(all32, q + i, 6));
+        sum7 = svmla_f32_m(all32, sum7, svget2(bf3, 1), svld1_vnum(all32, q + i, 7));
+    }
+
+    svfloat32_t sum = svadd_f32_x(all32,
+        svadd_f32_x(all32,
+            svadd_f32_x(all32, sum0, sum1),
+            svadd_f32_x(all32, sum2, sum3)),
+        svadd_f32_x(all32,
+             svadd_f32_x(all32, sum4, sum5),
+             svadd_f32_x(all32, sum6, sum7)));
+
+    // unstrided tail
+    for (; i < elementCount; i += elements) {
+        // this might end up loading more than we need
+        // TODO: is there a way to limit the load to the f32 count?
+        svfloat32_t bf = low_bf16_to_f32(svld1(svwhilelt_b16(i, elementCount), d + i));
+
+        svbool_t pg_f32 = svwhilelt_b32(i, elementCount);
+        sum = svmla_f32_m(pg_f32, sum, bf, svld1(pg_f32, q + i));
+    }
+
+    return svaddv_f32(all32, sum);
+}
+
+EXPORT f32_t vec_dotDbf16Qf32_2(const bf16_t* a, const f32_t* b, const int32_t elementCount) {
+    return dotDbf16Qf32_inner_sve((const bfloat16_t*)a, b, elementCount);
 }
 
 /*

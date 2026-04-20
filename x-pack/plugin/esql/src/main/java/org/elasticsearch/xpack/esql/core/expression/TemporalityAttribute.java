@@ -13,12 +13,10 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  * Attribute for referencing the TSDB metric temporality.
@@ -26,7 +24,9 @@ import java.util.Map;
  * {@link org.elasticsearch.index.IndexSettings#TIME_SERIES_TEMPORALITY_FIELD} index setting.
  * If an index does not have this setting, the temporality will always be null.
  */
-public final class TemporalityAttribute extends FieldAttribute {
+public final class TemporalityAttribute extends TypedAttribute {
+
+    public static final String NAME = "<temporality>";
 
     static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Attribute.class,
@@ -34,27 +34,12 @@ public final class TemporalityAttribute extends FieldAttribute {
         TemporalityAttribute::readFrom
     );
 
-    /**
-     * At the time the attribute is created, we don't know the field name yet.
-     * Therefore, we use this name as a placeholder, which we'll resolve to the actual field block loader
-     * (or a constant-null loader if no temporality field exists) during physical planning.
-     */
-    private static final String DUMMY_FIELD_NAME = "_temporality_placeholder";
-
-    private static final EsField ES_FIELD = new EsField(
-        DUMMY_FIELD_NAME,
-        DataType.KEYWORD,
-        Map.of(),
-        false,
-        EsField.TimeSeriesFieldType.DIMENSION
-    );
-
     public TemporalityAttribute(Source source) {
         this(source, null);
     }
 
     private TemporalityAttribute(Source source, @Nullable NameId id) {
-        super(source, null, null, DUMMY_FIELD_NAME, ES_FIELD, Nullability.TRUE, id, false);
+        super(source, NAME, DataType.KEYWORD, Nullability.TRUE, id, false);
     }
 
     @Override
@@ -97,5 +82,21 @@ public final class TemporalityAttribute extends FieldAttribute {
     ) {
         // Ignore everything except for the source and id
         return new TemporalityAttribute(source, id);
+    }
+
+    @Override
+    protected String label() {
+        return "t";
+    }
+
+    @Override
+    public boolean isDimension() {
+        // temporality must be a dimension by definiton
+        return true;
+    }
+
+    @Override
+    public boolean isMetric() {
+        return false;
     }
 }

@@ -55,6 +55,12 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
             // for non-unary execution plans, we apply the rule for each child
             if (currentPlanNode instanceof MergeExec mergeExec) {
                 keepTraversing.set(FALSE);
+
+                if (mergeExec.output().isEmpty()) {
+                    // we have already pruned all columns, no need to apply the rule further down
+                    return mergeExec;
+                }
+
                 List<PhysicalPlan> newChildren = new ArrayList<>();
                 boolean changed = false;
 
@@ -67,7 +73,14 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
 
                     newChildren.add(newChild);
                 }
-                return changed ? new MergeExec(mergeExec.source(), newChildren, mergeExec.output()) : mergeExec;
+                if (changed) {
+                    // Preserve the original MergeExec output (which uses the fork's NameIds) unless it is
+                    // empty — that happens when all branches had only the <no-fields> marker, which was
+                    // stripped by PruneColumns. In that case adopt the children's output (ALL_FIELDS_PROJECTED).
+                    var newOutput = mergeExec.output().isEmpty() ? newChildren.getFirst().output() : mergeExec.output();
+                    return new MergeExec(mergeExec.source(), newChildren, newOutput);
+                }
+                return mergeExec;
             }
 
             if (currentPlanNode instanceof ExchangeExec exec) {

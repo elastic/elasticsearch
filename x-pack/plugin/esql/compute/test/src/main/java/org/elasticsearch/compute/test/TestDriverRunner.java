@@ -73,20 +73,20 @@ public class TestDriverRunner {
      * <p>
      *     Generally you can use it like:
      * </p>
-     * <pre>{@code
+     * {@snippet lang="java" :
      *   var runner = new TestDriverRunner().builder(driverContext());
      *   runner.input(buildInput(runner.blockFactory()));
      *   List<Page> results = runner.run(operatorFactory);
-     * }</pre>
+     * }
      * <p>
      *     If you need the inputs to assert the contents of the outputs
      *     then use {@link DriverBuilder#collectDeepCopy()}:
      * </p>
-     * <pre>{@code
+     * {@snippet lang="java" :
      *   var runner = new TestDriverRunner().builder(driverContext()).collectDeepCopy();
      *   runner.input(buildInput(runner.blockFactory()));
      *   assertResults(runner.deepCopy(), runner.run(operatorFactory));
-     * }</pre>
+     * }
      */
     public DriverBuilder builder(DriverContext context) {
         return new DriverBuilder(context);

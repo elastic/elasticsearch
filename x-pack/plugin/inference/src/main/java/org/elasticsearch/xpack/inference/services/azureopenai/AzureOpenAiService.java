@@ -185,7 +185,7 @@ public class AzureOpenAiService extends SenderService<AzureOpenAiModel> {
             config.getInferenceEntityId(),
             config.getTaskType(),
             config.getService(),
-            ConfigurationParseContext.PERSISTENT
+            ConfigurationParseContext.REQUEST
         ).createFromModelConfigurationsAndSecrets(config, secrets);
     }
 

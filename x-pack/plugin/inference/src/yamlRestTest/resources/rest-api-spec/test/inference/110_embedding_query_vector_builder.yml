@@ -154,7 +154,7 @@ setup:
                   inference_id: embedding-inference-id
                   input:
                     type: image
-                    value: "abcdef1234567890"
+                    value: "data:image/jpeg;base64,abcdef1234567890"
 
   - match: { hits.total.value: 2 }
 
@@ -172,7 +172,7 @@ setup:
                   inference_id: embedding-inference-id
                   input:
                     type: image
-                    value: "abcdef1234567890"
+                    value: "data:image/jpeg;base64,abcdef1234567890"
 
   - match: { hits.total.value: 2 }
 
@@ -230,7 +230,7 @@ setup:
                     - type: text
                       value: "test query"
                     - type: image
-                      value: "abcdef1234567890"
+                      value: "data:image/jpeg;base64,abcdef1234567890"
 
   - match: { hits.total.value: 2 }
 
@@ -250,7 +250,7 @@ setup:
                     - type: text
                       value: "test query"
                     - type: image
-                      value: "abcdef1234567890"
+                      value: "data:image/jpeg;base64,abcdef1234567890"
 
   - match: { hits.total.value: 2 }
 

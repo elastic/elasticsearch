@@ -43,7 +43,7 @@
       "allow_no_indices": {
         "type": "boolean",
         "default": true,
-        "description": "Ignore if the source indices expressions resolves to no concrete indices (default: true)"
+        "description": "Whether to allow (1) wildcard index expressions that match no indices and (2) requests where the final resolved set is empty."
       },
       "ignore_throttled": {
         "deprecated": {

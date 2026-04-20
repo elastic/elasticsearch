@@ -9,7 +9,11 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
@@ -427,7 +431,33 @@ public class FieldTypeLookupTests extends ESTestCase {
     }
 
     private static FlattenedFieldMapper createFlattenedMapper(String fieldName) {
-        return new FlattenedFieldMapper.Builder(fieldName).build(MapperBuilderContext.root(false, false));
+        IndexSettings indexSettings = new IndexSettings(
+            IndexMetadata.builder("index")
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .creationDate(System.currentTimeMillis())
+                .build(),
+            Settings.EMPTY
+        );
+        return new FlattenedFieldMapper.Builder(fieldName, indexSettings).build(MapperBuilderContext.root(false, false));
+    }
+
+    private static FlattenedFieldMapper createFlattenedMapper(String fieldName, int priority, String... subFieldNames) {
+        IndexSettings indexSettings = new IndexSettings(
+            IndexMetadata.builder("index")
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .creationDate(System.currentTimeMillis())
+                .build(),
+            Settings.EMPTY
+        );
+        var builder = new FlattenedFieldMapper.Builder(fieldName, indexSettings).passthrough(priority);
+        for (String name : subFieldNames) {
+            builder.property(name, new MockFieldMapper.Builder(name));
+        }
+        return builder.build(MapperBuilderContext.root(false, false));
     }
 
     private PassThroughObjectMapper createPassThroughMapper(String name, Map<String, Mapper> mappers, int priority) {
@@ -546,6 +576,49 @@ public class FieldTypeLookupTests extends ESTestCase {
             int expected = s.chars().map(c -> c == '.' ? 1 : 0).sum();
             assertEquals(expected, FieldTypeLookup.dotCount(s));
         }
+    }
+
+    public void testFlattenedPassthroughSubFieldResolvedAtRoot() {
+        FlattenedFieldMapper labels = createFlattenedMapper("labels", 10, "status", "count");
+        Map<String, MappedFieldType> subFieldTypes = labels.passThroughSubFields()
+            .stream()
+            .collect(java.util.stream.Collectors.toMap(FieldMapper::leafName, FieldMapper::fieldType));
+
+        FieldTypeLookup lookup = new FieldTypeLookup(List.of(labels), List.of(), List.of(labels), List.of());
+        assertSame(subFieldTypes.get("status"), lookup.get("status"));
+        assertSame(subFieldTypes.get("count"), lookup.get("count"));
+    }
+
+    public void testFlattenedPassthroughVsObjectPassthroughHigherPriorityWins() {
+        FlattenedFieldMapper labels = createFlattenedMapper("labels", 5, "foo");
+
+        MockFieldMapper objectFoo = new MockFieldMapper("attributes.foo");
+        PassThroughObjectMapper objectSource = createPassThroughMapper("attributes", Map.of("foo", objectFoo), 10);
+
+        FieldTypeLookup lookup = new FieldTypeLookup(
+            randomizedList(labels, objectFoo),
+            List.of(),
+            randomizedList(labels, objectSource),
+            List.of()
+        );
+        // objectSource has priority 10 > 5, so objectFoo's type wins
+        assertSame(objectFoo.fieldType(), lookup.get("foo"));
+    }
+
+    public void testFlattenedPassthroughRootConcreteFieldWins() {
+        FlattenedFieldMapper labels = createFlattenedMapper("labels", 10, "status");
+        MockFieldMapper rootStatus = new MockFieldMapper("status");
+
+        FieldTypeLookup lookup = new FieldTypeLookup(randomizedList(labels, rootStatus), List.of(), List.of(labels), List.of());
+        assertSame(rootStatus.fieldType(), lookup.get("status"));
+    }
+
+    public void testNonPassthroughFlattenedRegistersNoRootAliases() {
+        FlattenedFieldMapper labels = createFlattenedMapper("labels");
+        MockFieldMapper statusField = new MockFieldMapper("labels.status");
+
+        FieldTypeLookup lookup = new FieldTypeLookup(List.of(labels, statusField), List.of(), List.of(), List.of());
+        assertNull(lookup.get("status"));
     }
 
     @SafeVarargs

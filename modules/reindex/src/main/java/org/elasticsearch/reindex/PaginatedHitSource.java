@@ -12,8 +12,8 @@ package org.elasticsearch.reindex;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.BackoffPolicy;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
@@ -27,8 +27,8 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * A source of paginated search results. Pumps data out into the passed onResponse consumer. If a scrollable search is used, then the
@@ -39,7 +39,6 @@ import java.util.function.Consumer;
  * <a href="https://www.elastic.co/docs/reference/elasticsearch/rest-apis/paginate-search-results"> ES Search documentation</a>
  */
 public abstract class PaginatedHitSource {
-    private final AtomicReference<String> scrollId = new AtomicReference<>();
 
     protected final Logger logger;
     protected final BackoffPolicy backoffPolicy;
@@ -47,6 +46,10 @@ public abstract class PaginatedHitSource {
     protected final Runnable countSearchRetry;
     private final Consumer<AsyncResponse> onResponse;
     protected final Consumer<Exception> fail;
+
+    /// Each cycle must be executed in the root thread context and not in a descendant context of the previous task, so that the tracing
+    /// subsystem does not form a deeply-nested linked list of spans.
+    private final Supplier<ThreadContext.StoredContext> rootStoredContextSupplier;
 
     public PaginatedHitSource(
         Logger logger,
@@ -62,19 +65,20 @@ public abstract class PaginatedHitSource {
         this.countSearchRetry = countSearchRetry;
         this.onResponse = onResponse;
         this.fail = fail;
+        this.rootStoredContextSupplier = threadPool.getThreadContext().newRestorableContext(true);
     }
 
     public final void start() {
-        doStart(createRetryListener(this::doStart));
+        doFirstSearchInRootContext(createRetryListener(this::doFirstSearchInRootContext));
     }
 
     /**
-     * Resumes the scrollable hit source from previously saved state.
+     * Resumes the hit source from previously saved state.
      * @param resumeInfo resume information
      */
     public void resume(WorkerResumeInfo resumeInfo) {
         restoreState(resumeInfo);
-        startNextScroll(TimeValue.ZERO);
+        requestNextBatch(TimeValue.ZERO);
     }
 
     protected abstract void restoreState(WorkerResumeInfo resumeInfo);
@@ -88,17 +92,24 @@ public abstract class PaginatedHitSource {
     }
 
     // package private for tests.
-    public final void startNextScroll(TimeValue extraKeepAlive) {
-        startNextScroll(extraKeepAlive, createRetryListener(listener -> startNextScroll(extraKeepAlive, listener)));
+    public final void requestNextBatch(TimeValue extraKeepAlive) {
+        requestNextBatch(extraKeepAlive, createRetryListener(listener -> requestNextBatch(extraKeepAlive, listener)));
     }
 
-    private void startNextScroll(TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
-        doStartNextScroll(scrollId.get(), extraKeepAlive, searchListener);
+    private void requestNextBatch(TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
+        PaginationCursor cursor = getCursorForNextBatch();
+        if (cursor == null) {
+            fail.accept(new IllegalStateException("No pagination cursor available for next batch"));
+            return;
+        }
+        try (var ignored = rootStoredContextSupplier.get()) {
+            doNextSearch(cursor, extraKeepAlive, searchListener);
+        }
     }
 
     private void onResponse(Response response) {
-        logger.trace("scroll returned [{}] documents with a scroll id of [{}]", response.getHits().size(), response.getScrollId());
-        setScroll(response.getScrollId());
+        logger.trace("search returned [{}] documents", response.getHits().size());
+        onBatchResponse(response);
         onResponse.accept(new AsyncResponse() {
             private AtomicBoolean alreadyDone = new AtomicBoolean();
 
@@ -110,42 +121,59 @@ public abstract class PaginatedHitSource {
             @Override
             public void done(TimeValue extraKeepAlive) {
                 assert alreadyDone.compareAndSet(false, true);
-                startNextScroll(extraKeepAlive);
+                requestNextBatch(extraKeepAlive);
             }
         });
     }
 
     /** Clean up all resources. */
     public final void close(Runnable onCompletion) {
-        String scrollId = this.scrollId.get();
-        if (Strings.hasLength(scrollId)) {
-            clearScroll(scrollId, () -> cleanup(onCompletion));
-        } else {
-            cleanup(onCompletion);
-        }
+        releaseSearchContext(() -> cleanup(onCompletion));
     }
 
     public final void cleanupWithoutClosingPagination(final Runnable onCompletion) {
         cleanup(onCompletion);
     }
 
-    // following is the SPI to be implemented.
-    protected abstract void doStart(RejectAwareActionListener<Response> searchListener);
+    /**
+     * Called after each batch response so the subclass can store the cursor for the next batch.
+     */
+    protected abstract void onBatchResponse(Response response);
 
-    protected abstract void doStartNextScroll(
-        String scrollId,
+    /**
+     * Returns the cursor for the next batch, or null if no more batches.
+     */
+    @Nullable
+    protected abstract PaginationCursor getCursorForNextBatch();
+
+    /**
+     * Whether there are more batches to fetch.
+     */
+    public abstract boolean hasMoreBatches();
+
+    private void doFirstSearchInRootContext(RejectAwareActionListener<Response> searchListener) {
+        try (var ignored = rootStoredContextSupplier.get()) {
+            doFirstSearch(searchListener);
+        }
+    }
+
+    // following is the SPI to be implemented.
+    protected abstract void doFirstSearch(RejectAwareActionListener<Response> searchListener);
+
+    protected abstract void doNextSearch(
+        PaginationCursor cursor,
         TimeValue extraKeepAlive,
         RejectAwareActionListener<Response> searchListener
     );
 
     /**
-     * Called to clear a scroll id.
+     * Called to release pagination resources (e.g. clear scroll context).
+     * For PIT-based pagination this is a no-op as the PIT is closed elsewhere.
      *
-     * @param scrollId the id to clear
-     * @param onCompletion implementers must call this after completing the clear whether they are
+     * @param onCompletion implementers must call this after completing the release whether they are
      *        successful or not
      */
-    protected abstract void clearScroll(String scrollId, Runnable onCompletion);
+    protected abstract void releaseSearchContext(Runnable onCompletion);
 
     /**
      * Called after the process has been totally finished to clean up any resources the process
@@ -155,17 +183,6 @@ public abstract class PaginatedHitSource {
      *        successful or not
      */
     protected abstract void cleanup(Runnable onCompletion);
-
-    /**
-     * Set the id of the last scroll. Used for debugging.
-     */
-    public final void setScroll(String scrollId) {
-        this.scrollId.set(scrollId);
-    }
-
-    public final boolean hasScroll() {
-        return scrollId.get() != null;
-    }
 
     public interface AsyncResponse {
         /**
@@ -181,7 +198,7 @@ public abstract class PaginatedHitSource {
     }
 
     /**
-     * Response from each scroll batch.
+     * Response from each search batch.
      */
     public static class Response {
         private final boolean timedOut;
@@ -189,6 +206,8 @@ public abstract class PaginatedHitSource {
         private final long totalHits;
         private final List<? extends Hit> hits;
         private final String scrollId;
+        private final Object[] searchAfterValues;
+        private final BytesReference pitId;
 
         public Response(
             boolean timedOut,
@@ -197,11 +216,36 @@ public abstract class PaginatedHitSource {
             List<? extends Hit> hits,
             String scrollId
         ) {
+            this(timedOut, failures, totalHits, hits, scrollId, null, null);
+        }
+
+        public Response(
+            boolean timedOut,
+            List<PaginatedSearchFailure> failures,
+            long totalHits,
+            List<? extends Hit> hits,
+            String scrollId,
+            Object[] searchAfterValues
+        ) {
+            this(timedOut, failures, totalHits, hits, scrollId, searchAfterValues, null);
+        }
+
+        public Response(
+            boolean timedOut,
+            List<PaginatedSearchFailure> failures,
+            long totalHits,
+            List<? extends Hit> hits,
+            String scrollId,
+            Object[] searchAfterValues,
+            BytesReference pitId
+        ) {
             this.timedOut = timedOut;
             this.failures = failures;
             this.totalHits = totalHits;
             this.hits = hits;
             this.scrollId = scrollId;
+            this.searchAfterValues = searchAfterValues;
+            this.pitId = pitId;
         }
 
         /**
@@ -233,10 +277,34 @@ public abstract class PaginatedHitSource {
         }
 
         /**
-         * The scroll id used to fetch the next set of documents.
+         * The scroll id used to fetch the next set of documents. Null for PIT-based pagination.
          */
         public String getScrollId() {
             return scrollId;
+        }
+
+        /**
+         * Refreshed PIT id from the response, used for the next PIT search request. Null for scroll-based pagination.
+         */
+        @Nullable
+        public BytesReference getPitId() {
+            return pitId;
+        }
+
+        /**
+         * The search_after values from the last hit, used to fetch the next batch in PIT-based pagination.
+         * Null for scroll-based pagination.
+         */
+        @Nullable
+        public Object[] getSearchAfterValues() {
+            if (searchAfterValues != null) {
+                return searchAfterValues;
+            }
+            if (hits != null && hits.isEmpty() == false) {
+                Hit lastHit = hits.get(hits.size() - 1);
+                return lastHit.getSortValues();
+            }
+            return null;
         }
     }
 
@@ -289,6 +357,20 @@ public abstract class PaginatedHitSource {
          */
         @Nullable
         String getRouting();
+
+        /**
+         * Release any ref-counted resources held by this hit. Call when the hit is no longer needed.
+         * Default is no-op; implementations that wrap ref-counted resources (e.g. {@link SearchHit}) override to release.
+         */
+        default void release() {}
+
+        /**
+         * The sort values of the hit, used for search_after pagination. Null if not available.
+         */
+        @Nullable
+        default Object[] getSortValues() {
+            return null;
+        }
     }
 
     /**
@@ -304,6 +386,7 @@ public abstract class PaginatedHitSource {
         private String routing;
         private long seqNo;
         private long primaryTerm;
+        private Object[] sortValues;
 
         public BasicHit(String index, String id, long version) {
             this.index = index;
@@ -346,6 +429,12 @@ public abstract class PaginatedHitSource {
             return xContentType;
         }
 
+        @Override
+        @Nullable
+        public Object[] getSortValues() {
+            return sortValues;
+        }
+
         public BasicHit setSource(BytesReference source, XContentType xContentType) {
             this.source = source;
             this.xContentType = xContentType;
@@ -368,6 +457,11 @@ public abstract class PaginatedHitSource {
 
         public void setPrimaryTerm(long primaryTerm) {
             this.primaryTerm = primaryTerm;
+        }
+
+        public BasicHit setSortValues(Object[] sortValues) {
+            this.sortValues = sortValues;
+            return this;
         }
     }
 }

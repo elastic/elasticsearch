@@ -11,6 +11,7 @@ package org.elasticsearch.index.reindex;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.TimeValue;
 
@@ -22,6 +23,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import static java.util.Collections.unmodifiableList;
@@ -43,6 +45,10 @@ public class LeaderBulkByScrollTaskState {
      */
     private final AtomicInteger runningSubtasks;
     private final SetOnce<Supplier<Optional<String>>> nodeToRelocateToSupplier;
+    /**
+     * The latest PIT ID from slice responses. Updated on each completion so we close the most recent context.
+     */
+    private final AtomicReference<BytesReference> latestPitId = new AtomicReference<>();
 
     public LeaderBulkByScrollTaskState(BulkByScrollTask task, int slices) {
         this.task = task;
@@ -100,6 +106,9 @@ public class LeaderBulkByScrollTaskState {
      */
     public void onSliceResponse(ActionListener<BulkByScrollResponse> listener, int sliceId, BulkByScrollResponse response) {
         results.setOnce(sliceId, new Result(sliceId, response));
+        if (response != null && response.getPitId().isPresent()) {
+            latestPitId.set(response.getPitId().get());
+        }
         /* If the request isn't finished we could automatically rethrottle the sub-requests here but we would only want to do that if we
          * were fairly sure they had a while left to go. */
         recordSliceCompletionAndRespondIfAllDone(listener);
@@ -155,7 +164,7 @@ public class LeaderBulkByScrollTaskState {
             }
         }
         if (exception == null) {
-            listener.onResponse(new BulkByScrollResponse(responses, task.getReasonCancelled()));
+            listener.onResponse(new BulkByScrollResponse(responses, task.getReasonCancelled(), latestPitId.get()));
         } else {
             listener.onFailure(exception);
         }

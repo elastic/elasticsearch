@@ -21,7 +21,8 @@ import java.io.IOException;
  * This class is generated. Edit {@code X-Vector.java.st} instead.
  */
 public sealed interface LongVector extends Vector permits ConstantLongVector, LongArrayVector, LongBigArrayVector, ConstantNullVector,
-    org.elasticsearch.compute.data.arrow.LongArrowBufVector {
+    org.elasticsearch.compute.data.arrow.LongArrowBufVector, org.elasticsearch.compute.data.arrow.UInt32ArrowBufVector,
+    org.elasticsearch.compute.data.arrow.LongMul1kArrowBufVector {
 
     long getLong(int position);
 

@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -397,29 +398,22 @@ public class TestBlock implements BlockLoader.Block {
 
             @Override
             public BlockLoader.Block constantNulls(int count) {
-                BlockLoader.LongBuilder builder = longs(count);
-                for (int i = 0; i < count; i++) {
-                    builder.appendNull();
-                }
-                return builder.build();
+                return new TestBlock(Collections.nCopies(count, null), true);
             }
 
             @Override
             public BlockLoader.Block constantBytes(BytesRef value, int count) {
-                BlockLoader.BytesRefBuilder builder = bytesRefs(count);
-                for (int i = 0; i < count; i++) {
-                    builder.appendBytesRef(value);
-                }
-                return builder.build();
+                return new TestBlock(Collections.nCopies(count, BytesRef.deepCopyOf(value)), true);
             }
 
             @Override
             public BlockLoader.Block constantInt(int value, int count) {
-                BlockLoader.IntBuilder builder = ints(count);
-                for (int i = 0; i < count; i++) {
-                    builder.appendInt(value);
-                }
-                return builder.build();
+                return new TestBlock(Collections.nCopies(count, value), true);
+            }
+
+            @Override
+            public BlockLoader.Block constantLong(long value, int count) {
+                return new TestBlock(Collections.nCopies(count, value), true);
             }
 
             @Override
@@ -648,9 +642,19 @@ public class TestBlock implements BlockLoader.Block {
     }
 
     private final List<Object> values;
+    private final boolean constant;
 
     public TestBlock(List<Object> values) {
+        this(values, false);
+    }
+
+    public TestBlock(List<Object> values, boolean constant) {
         this.values = values;
+        this.constant = constant;
+    }
+
+    public boolean isConstant() {
+        return constant;
     }
 
     public Object get(int i) {

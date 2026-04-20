@@ -1,0 +1,2 @@
+SET unmapped_fields="nullify"; FROM employees, employees_no_names
+| DROP *date*, gender, height*, languages*, *_hired, *_seconds, *_positions, salary_change*

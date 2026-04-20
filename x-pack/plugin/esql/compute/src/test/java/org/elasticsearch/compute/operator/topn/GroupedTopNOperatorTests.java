@@ -198,13 +198,13 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
      * Tests that the SORTED input ordering optimization short-circuiting addInput() doesn't incorrectly skip rows
      * belonging to groups not yet populated when another group's row is rejected.
      *
-     * <pre>{@code
+     * {@snippet lang="text" :
      * Scenario (SORT ASC, LIMIT 1 BY group):
      * - Page 1: (group=0), (group=1) → both groups populated
      * - Page 2: (group=0), (group=2) → (group=0) rejected from full group 0 → break skips (group=2), which was empty
      * Expected groups: {0, 1, 2}
      * Bug result: {0, 1} (group 2 missing)
-     * }</pre>
+     * }
      */
     public void testSortedInputWithMultipleGroups() {
         List<ElementType> elementTypes = List.of(ElementType.INT, ElementType.INT);

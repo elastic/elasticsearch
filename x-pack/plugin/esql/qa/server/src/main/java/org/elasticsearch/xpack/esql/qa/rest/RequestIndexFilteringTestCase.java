@@ -233,6 +233,39 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
         }
     }
 
+    /**
+     * Verify that a numeric TBUCKET bucket count succeeds even when the top-level filter covers an empty time range.
+     * When field-caps returns no matching indices due to the filter, the analysis is retried without the filter.
+     * The original filter must be preserved for timestamp bounds extraction so that TBUCKET can still determine
+     * its bucketing interval from the filter range, rather than failing with a verification exception.
+     */
+    public void testTopLevelFilterAllowsNumericTBucketWithoutExplicitBounds() throws IOException {
+        assumeTrue(
+            "requires fix for TBUCKET numeric on empty range",
+            RestEsqlTestCase.hasCapabilities(
+                adminClient(),
+                List.of(EsqlCapabilities.Cap.FIX_TBUCKET_NUMERIC_ON_EMPTY_RANGE.capabilityName())
+            )
+        );
+        // index data at 2024-11-26; the filter will cover 2020-12-13 to 2020-12-14 where no data exists
+        indexTimestampData(3, "test1", "2024-11-26", "id1");
+
+        RestEsqlTestCase.RequestObjectBuilder builder = requestObjectBuilder().filter(b -> {
+            b.startObject("range");
+            {
+                b.startObject("@timestamp").field("gte", "2020-12-13").field("lt", "2020-12-14").endObject();
+            }
+            b.endObject();
+        }).query(from("test*") + " | STATS count = COUNT(*) BY bucket = TBUCKET(10) | SORT bucket");
+
+        assertQueryResult(
+            runEsql(builder),
+            matchesList().item(matchesMap().entry("name", "count").entry("type", "long"))
+                .item(matchesMap().entry("name", "bucket").entry("type", "date")),
+            allOf(instanceOf(List.class), hasSize(0))
+        );
+    }
+
     protected static RestEsqlTestCase.RequestObjectBuilder timestampFilter(String op, String date) throws IOException {
         return requestObjectBuilder().filter(b -> {
             b.startObject("range");

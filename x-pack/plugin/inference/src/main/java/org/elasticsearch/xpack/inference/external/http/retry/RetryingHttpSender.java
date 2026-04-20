@@ -133,7 +133,7 @@ public class RetryingHttpSender implements RequestSender {
             if (hasRequestCompletedFunction.get()) {
                 // TimedListener will drop this, just being safe to avoid a hanging listener
                 listener.onFailure(
-                    new ElasticsearchStatusException(timeoutString(request.getInferenceEntityId()), RestStatus.REQUEST_TIMEOUT)
+                    new ElasticsearchStatusException(timeoutString(request.getInferenceEntityId()), RestStatus.GATEWAY_TIMEOUT)
                 );
                 return;
             }
@@ -163,7 +163,7 @@ public class RetryingHttpSender implements RequestSender {
                     if (hasRequestCompletedFunction.get()) {
                         // TimedListener will drop this, just being safe to avoid a hanging listener
                         inferenceServiceResultsActionListener.onFailure(
-                            new ElasticsearchStatusException(timeoutString(request.getInferenceEntityId()), RestStatus.REQUEST_TIMEOUT)
+                            new ElasticsearchStatusException(timeoutString(request.getInferenceEntityId()), RestStatus.GATEWAY_TIMEOUT)
                         );
                         return;
                     }

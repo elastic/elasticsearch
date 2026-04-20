@@ -30,6 +30,8 @@ testClusters.configureEach {
   module ':modules:parent-join'
   module ':modules:lang-painless'
   module ':modules:rest-root'
+  // Registers reindex PIT cluster features (ReindexManagementFeatures) and management REST APIs
+  module ':modules:reindex-management'
   // Whitelist reindexing from the local node so we can test reindex-from-remote.
   setting 'reindex.remote.whitelist', '127.0.0.1:*,[::1]:*'
 }
@@ -42,10 +44,13 @@ dependencies {
   testImplementation project(':modules:rest-root')
   // for data stream integration tests
   internalClusterTestImplementation project(':modules:data-streams')
+  // registers reindex relocation and pit search node features
+  internalClusterTestImplementation project(':modules:reindex-management')
 
   clusterModules project(':modules:lang-painless')
   clusterModules project(':modules:parent-join')
   clusterModules project(":modules:rest-root")
+  clusterModules project(':modules:reindex-management')
 }
 
 restResources {

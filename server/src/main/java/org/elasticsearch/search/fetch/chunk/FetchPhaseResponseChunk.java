@@ -53,6 +53,7 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
 
     private BytesReference serializedHits;
     private SearchHit[] deserializedHits;
+    private int[] hitPositions;
     private NamedWriteableRegistry namedWriteableRegistry;
 
     /**
@@ -130,13 +131,19 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
     public SearchHit[] getHits() throws IOException {
         if (deserializedHits == null && serializedHits != null && hitCount > 0) {
             deserializedHits = new SearchHit[hitCount];
+            hitPositions = new int[hitCount];
             try (StreamInput in = createStreamInput()) {
                 for (int i = 0; i < hitCount; i++) {
+                    hitPositions[i] = in.readVInt();
                     deserializedHits[i] = SearchHit.readFrom(in, false);
                 }
             }
         }
         return deserializedHits != null ? deserializedHits : new SearchHit[0];
+    }
+
+    public int[] getHitPositions() {
+        return hitPositions;
     }
 
     private StreamInput createStreamInput() throws IOException {

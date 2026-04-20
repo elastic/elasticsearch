@@ -12,6 +12,8 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
+import java.util.EnumSet;
+
 public class TaskTypeTests extends ESTestCase {
 
     public void testFromStringOrStatusException() {
@@ -26,5 +28,9 @@ public class TaskTypeTests extends ESTestCase {
 
     public static TaskType randomEmbeddingTaskType() {
         return randomFrom(TaskType.TEXT_EMBEDDING, TaskType.EMBEDDING);
+    }
+
+    public static TaskType randomTaskTypeOtherThanAny() {
+        return randomFrom(EnumSet.complementOf(EnumSet.of(TaskType.ANY)));
     }
 }

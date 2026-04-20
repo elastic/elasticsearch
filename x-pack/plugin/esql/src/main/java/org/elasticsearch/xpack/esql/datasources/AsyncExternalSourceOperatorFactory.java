@@ -13,11 +13,15 @@ import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
@@ -27,9 +31,10 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.io.IOException;
-import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -77,6 +82,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final ErrorPolicy errorPolicy;
     private final int parsingParallelism;
     private final TimeValue drainTimeout;
+    private final List<Expression> pushedExpressions;
+    private final FilterPushdownSupport pushdownSupport;
 
     public AsyncExternalSourceOperatorFactory(
         StorageProvider storageProvider,
@@ -93,7 +100,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         ExternalSliceQueue sliceQueue,
         ErrorPolicy errorPolicy,
         int parsingParallelism,
-        TimeValue drainTimeout
+        TimeValue drainTimeout,
+        @Nullable List<Expression> pushedExpressions,
+        @Nullable FilterPushdownSupport pushdownSupport
     ) {
         if (storageProvider == null) {
             throw new IllegalArgumentException("storageProvider cannot be null");
@@ -132,6 +141,46 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.errorPolicy = errorPolicy != null ? errorPolicy : formatReader.defaultErrorPolicy();
         this.parsingParallelism = Math.max(1, parsingParallelism);
         this.drainTimeout = drainTimeout != null ? drainTimeout : ExternalSourceDrainUtils.DEFAULT_DRAIN_TIMEOUT;
+        this.pushedExpressions = pushedExpressions != null ? pushedExpressions : List.of();
+        this.pushdownSupport = pushdownSupport;
+    }
+
+    public AsyncExternalSourceOperatorFactory(
+        StorageProvider storageProvider,
+        FormatReader formatReader,
+        StoragePath path,
+        List<Attribute> attributes,
+        int batchSize,
+        int maxBufferSize,
+        int rowLimit,
+        Executor executor,
+        FileList fileList,
+        Set<String> partitionColumnNames,
+        Map<String, Object> partitionValues,
+        ExternalSliceQueue sliceQueue,
+        ErrorPolicy errorPolicy,
+        int parsingParallelism,
+        TimeValue drainTimeout
+    ) {
+        this(
+            storageProvider,
+            formatReader,
+            path,
+            attributes,
+            batchSize,
+            maxBufferSize,
+            rowLimit,
+            executor,
+            fileList,
+            partitionColumnNames,
+            partitionValues,
+            sliceQueue,
+            errorPolicy,
+            parsingParallelism,
+            drainTimeout,
+            null,
+            null
+        );
     }
 
     public AsyncExternalSourceOperatorFactory(
@@ -165,6 +214,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             sliceQueue,
             errorPolicy,
             parsingParallelism,
+            null,
+            null,
             null
         );
     }
@@ -199,6 +250,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             sliceQueue,
             errorPolicy,
             1,
+            null,
+            null,
             null
         );
     }
@@ -232,6 +285,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             sliceQueue,
             null,
             1,
+            null,
+            null,
             null
         );
     }
@@ -264,6 +319,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             sliceQueue,
             null,
             1,
+            null,
+            null,
             null
         );
     }
@@ -295,6 +352,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             null,
             null,
             1,
+            null,
+            null,
             null
         );
     }
@@ -324,6 +383,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             null,
             null,
             1,
+            null,
+            null,
             null
         );
     }
@@ -352,6 +413,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             null,
             null,
             1,
+            null,
+            null,
             null
         );
     }
@@ -412,6 +475,60 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         return new SchemaAdaptingIterator(pages, dataColumns, mapping, driverContext.blockFactory());
     }
 
+    /**
+     * Returns a format reader with an adapted pushed filter for this file, or the original reader
+     * if no adaptation is needed. Adaptation is needed when the file has missing columns and
+     * pushed expressions reference those columns.
+     */
+    private FormatReader readerForFile(FileSplit fileSplit) {
+        if (pushedExpressions.isEmpty() || pushdownSupport == null) {
+            return formatReader;
+        }
+        SchemaReconciliation.ColumnMapping mapping = fileSplit.columnMapping();
+        if (mapping == null || (mapping.hasMissingColumns() == false && mapping.hasCasts() == false)) {
+            return formatReader;
+        }
+        Set<String> fileColumnNames = new LinkedHashSet<>();
+        Map<String, DataType> fileColumnTypes = new HashMap<>();
+        assert mapping.columnCount() <= attributes.size()
+            : "column mapping count [" + mapping.columnCount() + "] exceeds attributes size [" + attributes.size() + "]";
+        for (int i = 0; i < mapping.columnCount(); i++) {
+            if (mapping.localIndex(i) != -1) {
+                String name = attributes.get(i).name();
+                fileColumnNames.add(name);
+                DataType castTarget = mapping.cast(i);
+                if (castTarget != null) {
+                    DataType fileType = inferFileType(castTarget);
+                    if (fileType != null) {
+                        fileColumnTypes.put(name, fileType);
+                    }
+                }
+            }
+        }
+        List<Expression> adapted = FilterAdaptation.adaptFilterForFile(pushedExpressions, fileColumnNames, fileColumnTypes);
+        if (adapted.isEmpty()) {
+            return formatReader.withPushedFilter(null);
+        }
+        FilterPushdownSupport.PushdownResult result = pushdownSupport.pushFilters(adapted);
+        if (result.hasPushedFilter()) {
+            return formatReader.withPushedFilter(result.pushedFilter());
+        }
+        return formatReader.withPushedFilter(null);
+    }
+
+    /**
+     * Infers the file's native type from the cast target. Only returns a narrower type when
+     * the adaptation is safe for integral comparisons (LONG→INTEGER).
+     * DOUBLE→INTEGER narrowing is not supported because {@code Number.longValue()} truncates
+     * fractional values, which changes comparison semantics (e.g., {@code col < 2.7} vs {@code col < 2}).
+     */
+    private static DataType inferFileType(DataType castTarget) {
+        if (castTarget == DataType.LONG) {
+            return DataType.INTEGER;
+        }
+        return null;
+    }
+
     private void startSliceQueueRead(AsyncExternalSourceBuffer buffer, DriverContext driverContext) {
         executor.execute(() -> {
             try {
@@ -437,9 +554,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                             }
                             List<String> cols = projectedColumns(injector);
 
+                            FormatReader fileReader = readerForFile(fileSplit);
                             boolean isRangeSplit = "true".equals(fileSplit.config().get(FileSplitProvider.RANGE_SPLIT_KEY));
                             CloseableIterator<Page> pages;
-                            if (isRangeSplit && formatReader instanceof RangeAwareFormatReader rangeReader) {
+                            if (isRangeSplit && fileReader instanceof RangeAwareFormatReader rangeReader) {
                                 String fileLengthStr = (String) fileSplit.config().get(FileSplitProvider.FILE_LENGTH_KEY);
                                 StorageObject fullObj = fileLengthStr != null
                                     ? storageProvider.newObject(fileSplit.path(), Long.parseLong(fileLengthStr))
@@ -455,13 +573,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                                     errorPolicy
                                 );
                             } else {
-                                StorageObject obj = storageProvider.newObject(fileSplit.path(), fileSplit.length());
-                                boolean firstSplit = true;
+                                StorageObject obj = FileSplitProvider.storageObjectForSplit(storageProvider, fileSplit);
+                                boolean firstSplit = fileSplit.offset() == 0
+                                    || "true".equals(fileSplit.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
                                 boolean lastSplit = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY));
-                                if (fileSplit.offset() > 0) {
-                                    obj = new RangeStorageObject(obj, fileSplit.offset(), fileSplit.length());
-                                    firstSplit = "true".equals(fileSplit.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
-                                }
                                 FormatReadContext ctx = FormatReadContext.builder()
                                     .projectedColumns(cols)
                                     .batchSize(batchSize)
@@ -470,7 +585,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                                     .firstSplit(firstSplit)
                                     .lastSplit(lastSplit)
                                     .build();
-                                pages = formatReader.read(obj, ctx);
+                                pages = fileReader.read(obj, ctx);
                             }
                             CloseableIterator<Page> adaptedPages = adaptSchema(pages, fileSplit.columnMapping(), driverContext);
                             try (adaptedPages) {
@@ -493,6 +608,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         });
     }
 
+    /**
+     * Multi-file read path (legacy, non-slice-queue). Per-file filter adaptation is not applied
+     * here because this path does not carry {@link FileSplit} with {@link SchemaReconciliation.ColumnMapping};
+     * UNION_BY_NAME queries use the slice-queue path ({@link #startSliceQueueRead}) instead.
+     */
     private void startMultiFileRead(
         List<String> projectedColumns,
         AsyncExternalSourceBuffer buffer,
@@ -509,11 +629,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     if (buffer.noMoreInputs() || (rowLimit != FormatReader.NO_LIMIT && rowsRemaining <= 0)) {
                         break;
                     }
-                    StorageObject obj = storageProvider.newObject(
-                        fileList.path(i),
-                        fileList.size(i),
-                        Instant.ofEpochMilli(fileList.lastModifiedMillis(i))
-                    );
+                    // Open by path only: {@link StorageProvider#newObject(StoragePath)} matches the resolver's
+                    // metadata probe and performs a normal full-object read. Passing cached length and mtime from
+                    // {@link FileList} into {@link StorageProvider#newObject(StoragePath, long, java.time.Instant)}
+                    // produced empty NDJSON/CSV reads over HTTP/S3/Azure in integration tests.
+                    StorageObject obj = storageProvider.newObject(fileList.path(i));
                     CloseableIterator<Page> pages;
                     if (useParallel) {
                         pages = ParallelParsingCoordinator.parallelRead(

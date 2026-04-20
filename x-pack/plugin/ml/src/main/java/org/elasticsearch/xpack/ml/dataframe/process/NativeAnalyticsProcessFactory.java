@@ -71,7 +71,7 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
     }
 
     void setProcessConnectTimeout(TimeValue processConnectTimeout) {
-        this.processConnectTimeout = Duration.ofMillis(processConnectTimeout.getMillis());
+        this.processConnectTimeout = processConnectTimeout.toDuration();
     }
 
     @Override

@@ -50,7 +50,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsOptions;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunkingSettings;
@@ -97,6 +96,7 @@ import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.inference.DataFormat.BASE64;
 import static org.elasticsearch.inference.DataType.IMAGE;
+import static org.elasticsearch.inference.InferenceStringTests.TEST_IMAGE_DATA_URI;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
@@ -559,18 +559,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
         try (var service = createService(factory)) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                mockModel,
-                null,
-                null,
-                null,
-                List.of(""),
-                false,
-                new HashMap<>(),
-                InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(mockModel, null, null, null, List.of(""), false, new HashMap<>(), InputType.INGEST, null, listener);
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
             MatcherAssert.assertThat(
@@ -601,7 +590,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 false,
                 new HashMap<>(),
                 InputType.SEARCH,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -624,18 +613,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
         try (var service = createService(factory)) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                mockModel,
-                null,
-                null,
-                null,
-                List.of(""),
-                false,
-                new HashMap<>(),
-                InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(mockModel, null, null, null, List.of(""), false, new HashMap<>(), InputType.INGEST, null, listener);
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
             MatcherAssert.assertThat(
@@ -677,18 +655,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
             var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(elasticInferenceServiceURL, "my-model-id");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of("input text"),
-                false,
-                new HashMap<>(),
-                InputType.SEARCH,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, null, null, null, List.of("input text"), false, new HashMap<>(), InputType.SEARCH, null, listener);
             var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
 
             assertThat(
@@ -733,18 +700,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             var input = "input text";
             var inputType = "search";
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of(input),
-                false,
-                new HashMap<>(),
-                InputType.fromString(inputType),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, null, null, null, List.of(input), false, new HashMap<>(), InputType.fromString(inputType), null, listener);
             var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
 
             assertThat(result, instanceOf(DenseEmbeddingFloatResults.class));
@@ -791,7 +747,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 false,
                 new HashMap<>(),
                 InputType.SEARCH,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
             var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
@@ -857,18 +813,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(elasticInferenceServiceURL, "my-model-id");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of("input text"),
-                false,
-                new HashMap<>(),
-                InputType.SEARCH,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, null, null, null, List.of("input text"), false, new HashMap<>(), InputType.SEARCH, null, listener);
             var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
 
             // Verify the response was processed correctly
@@ -935,7 +880,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 
-            service.unifiedCompletionInfer(model, request, InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            service.unifiedCompletionInfer(model, request, null, listener);
 
             // We don't need to check the actual response as we're only testing header propagation
             listener.actionGet(TEST_REQUEST_TIMEOUT);
@@ -992,7 +937,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 
-            service.unifiedCompletionInfer(model, request, InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            service.unifiedCompletionInfer(model, request, null, listener);
 
             // We don't need to check the actual response as we're only testing header propagation
             listener.actionGet(TEST_REQUEST_TIMEOUT);
@@ -1157,7 +1102,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 
-            service.unifiedCompletionInfer(model, request, InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            service.unifiedCompletionInfer(model, request, null, listener);
 
             // Receiving results for validation
             InferenceServiceResults inferenceServiceResults = listener.actionGet(TEST_REQUEST_TIMEOUT);
@@ -1323,7 +1268,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 List.of(new ChunkInferenceInput("hello world"), new ChunkInferenceInput("dense embedding")),
                 new HashMap<>(),
                 InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1378,7 +1323,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             service.embeddingInfer(
                 model,
                 new EmbeddingRequest(List.of(new InferenceStringGroup("first_input")), InputType.INGEST, Map.of()),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1442,7 +1387,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 List.of(new ChunkInferenceInput(firstInput), new ChunkInferenceInput(secondInput)),
                 new HashMap<>(),
                 InputType.fromString(inputType),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1513,15 +1458,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
         try (var service = createService(senderFactory, getUrl(webServer))) {
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
-            service.chunkedInfer(
-                model,
-                null,
-                List.of(),
-                new HashMap<>(),
-                InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.chunkedInfer(model, null, List.of(), new HashMap<>(), InputType.INGEST, null, listener);
 
             var results = listener.actionGet(TEST_REQUEST_TIMEOUT);
             assertThat(results, empty());
@@ -1555,18 +1492,13 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
             var inputs = List.of(
                 new InferenceStringGroup("first_input"),
-                new InferenceStringGroup(new InferenceString(IMAGE, BASE64, "second_input"))
+                new InferenceStringGroup(new InferenceString(IMAGE, BASE64, TEST_IMAGE_DATA_URI))
             );
 
             var inputType = randomFrom(InputType.INGEST, InputType.SEARCH);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.embeddingInfer(
-                model,
-                new EmbeddingRequest(inputs, inputType, Map.of()),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.embeddingInfer(model, new EmbeddingRequest(inputs, inputType, Map.of()), null, listener);
 
             var results = listener.actionGet(TEST_REQUEST_TIMEOUT);
 
@@ -1599,12 +1531,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             var inputType = randomFrom(InputType.INGEST, InputType.SEARCH);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.embeddingInfer(
-                model,
-                new EmbeddingRequest(inputs, inputType, Map.of()),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.embeddingInfer(model, new EmbeddingRequest(inputs, inputType, Map.of()), null, listener);
 
             var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
             assertThat(
@@ -1911,7 +1838,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             service.unifiedCompletionInfer(
                 model,
                 UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1977,17 +1904,18 @@ public class ElasticInferenceServiceTests extends ESTestCase {
     }
 
     public void testBuildModelFromConfigAndSecrets_UnsupportedTaskType() throws IOException {
-        var modelConfigurations = new ModelConfigurations(
-            INFERENCE_ENTITY_ID,
-            TaskType.ANY,
-            ElasticInferenceService.NAME,
-            mock(ServiceSettings.class)
-        );
+        // Need to use a mock here because ModelConfigurations does not accept TaskType.ANY as a valid argument
+        var modelConfigurationsMock = mock(ModelConfigurations.class);
+        when(modelConfigurationsMock.getInferenceEntityId()).thenReturn(INFERENCE_ENTITY_ID);
+        when(modelConfigurationsMock.getTaskType()).thenReturn(TaskType.ANY);
+        when(modelConfigurationsMock.getService()).thenReturn(ElasticInferenceService.NAME);
+        when(modelConfigurationsMock.getServiceSettings()).thenReturn(mock(ServiceSettings.class));
+
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var inferenceService = createService(senderFactory)) {
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
-                () -> inferenceService.buildModelFromConfigAndSecrets(modelConfigurations, mock(ModelSecrets.class))
+                () -> inferenceService.buildModelFromConfigAndSecrets(modelConfigurationsMock, mock(ModelSecrets.class))
             );
             assertThat(
                 thrownException.getMessage(),

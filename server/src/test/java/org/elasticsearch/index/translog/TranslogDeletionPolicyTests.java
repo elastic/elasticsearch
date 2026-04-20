@@ -94,6 +94,7 @@ public class TranslogDeletionPolicyTests extends ESTestCase {
                 new TragicExceptionHolder(),
                 seqNo -> {},
                 BigArrays.NON_RECYCLING_INSTANCE,
+                null,
                 TranslogTests.RANDOMIZING_IO_BUFFERS,
                 TranslogConfig.NOOP_OPERATION_LISTENER,
                 TranslogOperationAsserter.DEFAULT,

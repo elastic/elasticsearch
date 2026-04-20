@@ -50,6 +50,7 @@ import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -402,7 +403,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         logger.debug("state: [CREATED]");
 
         this.checkIndexOnStartup = indexSettings.getValue(IndexSettings.INDEX_CHECK_ON_STARTUP);
-        this.translogConfig = new TranslogConfig(shardId, shardPath().resolveTranslog(), indexSettings, bigArrays);
+        this.translogConfig = new TranslogConfig(
+            shardId,
+            shardPath().resolveTranslog(),
+            indexSettings,
+            bigArrays,
+            circuitBreakerService.getBreaker(CircuitBreaker.REQUEST)
+        );
         final String aId = shardRouting.allocationId().getId();
         final long primaryTerm = indexSettings.getIndexMetadata().primaryTerm(shardId.id());
         this.pendingPrimaryTerm = primaryTerm;

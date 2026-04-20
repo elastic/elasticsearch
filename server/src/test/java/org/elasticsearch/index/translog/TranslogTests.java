@@ -42,6 +42,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -309,7 +310,8 @@ public class TranslogTests extends ESTestCase {
             bufferSize,
             randomBoolean() ? DiskIoBufferPool.INSTANCE : RANDOMIZING_IO_BUFFERS,
             Objects.requireNonNullElse(listener, (d, s, l) -> {}),
-            true
+            true,
+            null
         );
     }
 
@@ -1406,7 +1408,8 @@ public class TranslogTests extends ESTestCase {
             ByteSizeValue.of(1, ByteSizeUnit.KB),
             randomBoolean() ? DiskIoBufferPool.INSTANCE : RANDOMIZING_IO_BUFFERS,
             TranslogConfig.NOOP_OPERATION_LISTENER,
-            true
+            true,
+            null
         );
 
         final Set<Long> persistedSeqNos = new HashSet<>();
@@ -4090,7 +4093,8 @@ public class TranslogTests extends ESTestCase {
             ByteSizeValue.of(1, ByteSizeUnit.KB),
             randomBoolean() ? DiskIoBufferPool.INSTANCE : RANDOMIZING_IO_BUFFERS,
             TranslogConfig.NOOP_OPERATION_LISTENER,
-            false
+            false,
+            null
         );
         var translogUUID = Translog.createEmptyTranslog(
             config.getTranslogPath(),
@@ -4129,11 +4133,12 @@ public class TranslogTests extends ESTestCase {
     }
 
     public void testTranslogWriterBufferCircuitBreaker() throws IOException {
-        final var bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), ByteSizeValue.ofGb(1));
-        final CircuitBreaker circuitBreaker = bigArrays.circuitBreaker();
+        final var breakerService = LimitedBreaker.service(CircuitBreaker.REQUEST, ByteSizeValue.ofGb(1));
+        final CircuitBreaker circuitBreaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
         assertNotNull("circuit breaker must be non null", circuitBreaker);
         assertThat(circuitBreaker.getUsed(), equalTo(0L));
 
+        final var bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService);
         final var tempDir = createTempDir();
         final var indexSettings = IndexSettingsModule.newIndexSettings(
             shardId.getIndex(),
@@ -4147,7 +4152,8 @@ public class TranslogTests extends ESTestCase {
             TranslogConfig.DEFAULT_BUFFER_SIZE,
             DiskIoBufferPool.INSTANCE,
             TranslogConfig.NOOP_OPERATION_LISTENER,
-            true
+            true,
+            circuitBreaker
         );
 
         try (var tl = createTranslog(config)) {

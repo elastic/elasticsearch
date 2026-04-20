@@ -58,9 +58,8 @@ import java.util.Objects;
  * keep it as-is. For results which are both small and long-lived it may be better to copy them into a freshly-allocated {@code byte[]}.
  * <p>
  * Any memory allocated in this way is tracked by the {@link org.elasticsearch.common.breaker} subsystem if and only if the caller passes in
- * a non-null {@link CircuitBreaker} at creation time.
- * Use {@link #RecyclerBytesStreamOutput(BigArrays)} to automatically inherit the {@code Recycler<BytesRef>} and the
- * circuit breaker (if any) configured on a {@link BigArrays} instance.
+ * a non-null {@link CircuitBreaker} at creation time. If the provided {@link CircuitBreaker} is {@code null} then the allocations performed
+ * here are untracked by circuit-breakers, even if the {@code Recycler<BytesRef>} was obtained from {@link BigArrays#bytesRefRecycler()}.
  */
 public class RecyclerBytesStreamOutput extends BytesStream implements Releasable {
 
@@ -96,11 +95,6 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
 
     public RecyclerBytesStreamOutput(Recycler<BytesRef> recycler) {
         this(recycler, null);
-    }
-
-    // TODO (in this PR): BigArrays and BytesRefRecycler should not be coupled. Break dependency.
-    public RecyclerBytesStreamOutput(BigArrays bigArrays) {
-        this(bigArrays.bytesRefRecycler(), bigArrays.circuitBreaker());
     }
 
     public RecyclerBytesStreamOutput(Recycler<BytesRef> recycler, @Nullable CircuitBreaker circuitBreaker) {
@@ -617,8 +611,8 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     }
 
     private void ensureCapacityFromPosition(long newPosition) {
-        // Integer.MAX_VALUE is not a multiple of the page size so we can only allocate the largest multiple of the pagesize that is less
-        // than Integer.MAX_VALUE
+        // Integer.MAX_VALUE is not a multiple of the page size so we can only allocate the largest multiple of
+        // the pagesize that is less than Integer.MAX_VALUE
         if (newPosition > Integer.MAX_VALUE - (Integer.MAX_VALUE % pageSize)) {
             throw new IllegalArgumentException(getClass().getSimpleName() + " cannot hold more than 2GB of data");
         } else if (pages == null) {

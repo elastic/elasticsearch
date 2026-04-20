@@ -226,6 +226,9 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
         String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
         createIndex(INDEX_NAME);
 
+        // Raise the limit high enough to allow the 6MB document to be indexed without tripping the breaker.
+        updateClusterSettings(Settings.builder().put("indices.breaker.request.limit", "20mb"));
+
         prepareIndex(INDEX_NAME).setId("huge")
             .setSource(
                 jsonBuilder().startObject()

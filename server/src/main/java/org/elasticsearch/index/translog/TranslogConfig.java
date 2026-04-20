@@ -9,10 +9,12 @@
 
 package org.elasticsearch.index.translog;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.DiskIoBufferPool;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
@@ -38,6 +40,8 @@ public final class TranslogConfig {
     private final DiskIoBufferPool diskIoBufferPool;
     private final OperationListener operationListener;
     private final boolean fsync;
+    @Nullable
+    private final CircuitBreaker circuitBreaker;
 
     /**
      * Creates a new TranslogConfig instance
@@ -55,7 +59,28 @@ public final class TranslogConfig {
             DEFAULT_BUFFER_SIZE,
             DiskIoBufferPool.INSTANCE,
             NOOP_OPERATION_LISTENER,
-            true
+            true,
+            null
+        );
+    }
+
+    public TranslogConfig(
+        ShardId shardId,
+        Path translogPath,
+        IndexSettings indexSettings,
+        BigArrays bigArrays,
+        @Nullable CircuitBreaker circuitBreaker
+    ) {
+        this(
+            shardId,
+            translogPath,
+            indexSettings,
+            bigArrays,
+            DEFAULT_BUFFER_SIZE,
+            DiskIoBufferPool.INSTANCE,
+            NOOP_OPERATION_LISTENER,
+            true,
+            circuitBreaker
         );
     }
 
@@ -68,7 +93,7 @@ public final class TranslogConfig {
         DiskIoBufferPool diskIoBufferPool,
         OperationListener operationListener
     ) {
-        this(shardId, translogPath, indexSettings, bigArrays, bufferSize, diskIoBufferPool, operationListener, true);
+        this(shardId, translogPath, indexSettings, bigArrays, bufferSize, diskIoBufferPool, operationListener, true, null);
     }
 
     public TranslogConfig(
@@ -79,7 +104,8 @@ public final class TranslogConfig {
         ByteSizeValue bufferSize,
         DiskIoBufferPool diskIoBufferPool,
         OperationListener operationListener,
-        boolean fsync
+        boolean fsync,
+        @Nullable CircuitBreaker circuitBreaker
     ) {
         this.bufferSize = bufferSize;
         this.indexSettings = indexSettings;
@@ -89,6 +115,7 @@ public final class TranslogConfig {
         this.diskIoBufferPool = diskIoBufferPool;
         this.operationListener = operationListener;
         this.fsync = fsync;
+        this.circuitBreaker = circuitBreaker;
     }
 
     /**
@@ -143,6 +170,14 @@ public final class TranslogConfig {
      */
     public boolean fsync() {
         return fsync;
+    }
+
+    /**
+     * @return the circuit breaker used to track translog buffer memory, or `null` if CB tracking is disabled.
+     */
+    @Nullable
+    public CircuitBreaker getCircuitBreaker() {
+        return circuitBreaker;
     }
 
     /**

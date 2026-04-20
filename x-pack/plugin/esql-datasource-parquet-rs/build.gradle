@@ -113,6 +113,7 @@ tasks.named("test").configure {
 }
 
 tasks.named("dependencyLicenses").configure {
+  mapping from: /arrow-.*/, to: 'arrow'
   mapping from: /parquet-.*/, to: 'parquet'
   mapping from: /hadoop-.*/, to: 'hadoop'
 }

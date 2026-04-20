@@ -3383,11 +3383,7 @@ public class AnalyzerTests extends ESTestCase {
      */
     public void testFromQueryWithConflictingTsTypesSucceeds() {
         FieldCapabilitiesResponse caps = buildCapsWithConflictingTsTypes();
-        IndexResolution resolution = IndexResolver.mergedMappings(
-            "test",
-            fieldsInfoOnCurrentVersion(caps, false),
-            (p, r) -> Map.of()
-        );
+        IndexResolution resolution = IndexResolver.mergedMappings("test", fieldsInfoOnCurrentVersion(caps, false), (p, r) -> Map.of());
         var plan = analyze("FROM test | KEEP status", analyzer(resolution, TEST_VERIFIER));
         assertThat(plan.output(), hasSize(1));
         assertThat(plan.output().getFirst().name(), equalTo("status"));
@@ -3401,11 +3397,7 @@ public class AnalyzerTests extends ESTestCase {
      */
     public void testTsStatsQueryWithConflictingTsTypesMarksFieldUnsupported() {
         FieldCapabilitiesResponse caps = buildCapsWithConflictingTsTypes();
-        IndexResolution resolution = IndexResolver.mergedMappings(
-            "test",
-            fieldsInfoOnCurrentVersion(caps, true),
-            (p, r) -> Map.of()
-        );
+        IndexResolution resolution = IndexResolver.mergedMappings("test", fieldsInfoOnCurrentVersion(caps, true), (p, r) -> Map.of());
         assertThat(resolution.get().mapping().get("status"), instanceOf(InvalidMappedField.class));
         var plan = analyze("TS test | STATS avg(rate(bytes_in)) BY status", analyzer(resolution, TEST_VERIFIER));
         var statusAttr = plan.output().stream().filter(a -> a.name().equals("status")).findFirst().orElseThrow();
@@ -3418,11 +3410,7 @@ public class AnalyzerTests extends ESTestCase {
      */
     public void testTsWithoutStatsAndConflictingTsTypesSucceeds() {
         FieldCapabilitiesResponse caps = buildCapsWithConflictingTsTypes();
-        IndexResolution resolution = IndexResolver.mergedMappings(
-            "test",
-            fieldsInfoOnCurrentVersion(caps, false),
-            (p, r) -> Map.of()
-        );
+        IndexResolution resolution = IndexResolver.mergedMappings("test", fieldsInfoOnCurrentVersion(caps, false), (p, r) -> Map.of());
         var plan = analyze("TS test | KEEP status", analyzer(resolution, TEST_VERIFIER));
         assertThat(plan.output(), hasSize(1));
         assertThat(plan.output().getFirst().name(), equalTo("status"));
@@ -3435,11 +3423,7 @@ public class AnalyzerTests extends ESTestCase {
      */
     public void testPromqlQueryWithConflictingTsTypesMarksFieldUnsupported() {
         FieldCapabilitiesResponse caps = buildCapsWithConflictingTsTypes();
-        IndexResolution resolution = IndexResolver.mergedMappings(
-            "test",
-            fieldsInfoOnCurrentVersion(caps, true),
-            (p, r) -> Map.of()
-        );
+        IndexResolution resolution = IndexResolver.mergedMappings("test", fieldsInfoOnCurrentVersion(caps, true), (p, r) -> Map.of());
         assertThat(resolution.get().mapping().get("status"), instanceOf(InvalidMappedField.class));
         var plan = analyze("""
             PROMQL index=test

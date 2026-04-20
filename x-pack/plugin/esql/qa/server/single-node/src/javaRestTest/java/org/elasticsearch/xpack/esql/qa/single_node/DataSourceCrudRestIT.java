@@ -18,6 +18,7 @@ import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -46,6 +47,20 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
+    }
+
+    // The CRUD endpoints are stateful-only (no @ServerlessScope); skip when running against a serverless cluster.
+    @Before
+    public void skipIfServerless() throws IOException {
+        try {
+            client().performRequest(new Request("GET", "/_query/data_source"));
+        } catch (ResponseException e) {
+            int code = e.getResponse().getStatusLine().getStatusCode();
+            if (code == 410) {
+                throw new org.junit.AssumptionViolatedException("data source CRUD is not available in serverless");
+            }
+            throw e;
+        }
     }
 
     public void testLifecycle() throws IOException {

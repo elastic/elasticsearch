@@ -1309,10 +1309,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
         for (RangeAwareFormatReader.SplitRange range : ranges) {
             for (Map.Entry<String, Object> entry : range.statistics().entrySet()) {
-                assertFalse(
-                    "Split stat value must not be a Parquet Binary: " + entry.getKey(),
-                    entry.getValue() instanceof Binary
-                );
+                assertFalse("Split stat value must not be a Parquet Binary: " + entry.getKey(), entry.getValue() instanceof Binary);
             }
         }
     }

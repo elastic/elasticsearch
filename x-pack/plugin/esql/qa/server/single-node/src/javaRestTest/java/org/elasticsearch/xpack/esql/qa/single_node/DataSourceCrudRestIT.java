@@ -91,6 +91,19 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
         assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString("unknown data source type"));
     }
 
+    public void testValidatorRejectsUnknownSetting() throws IOException {
+        ResponseException ex = expectThrows(
+            ResponseException.class,
+            () -> putDataSource("bad_setting", "s3", Map.of("region", "us-east-1", "not_a_real_setting", "x"))
+        );
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+    }
+
+    public void testValidatorRejectsInvalidName() {
+        ResponseException ex = expectThrows(ResponseException.class, () -> putDataSource("BadName", "s3", Map.of()));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+    }
+
     private static Map<String, Object> getDataSource(String name) throws IOException {
         Response resp = client().performRequest(new Request("GET", "/_query/data_source/" + name));
         return entityAsMap(resp);

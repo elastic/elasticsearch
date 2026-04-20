@@ -46,14 +46,13 @@ setup:
           type: s3
           settings: { }
 
----
-"unknown-type":
+  # Leading underscore is reserved for dot-indices / hidden names.
   - do:
-      catch: /unknown data source type/
+      catch: /invalid data source name/
       esql.put_data_source:
-        name: my_ds
+        name: "_leading"
         body:
-          type: definitely_not_a_real_type
+          type: s3
           settings: { }
 
 ---
@@ -63,6 +62,27 @@ setup:
       esql.put_data_source:
         name: my_ds
         body:
+          settings: { }
+
+---
+"malformed-body":
+  # Non-string type -> ObjectParser rejects with 400 at the REST layer.
+  - do:
+      catch: bad_request
+      esql.put_data_source:
+        name: my_ds
+        body:
+          type: 42
+          settings: { }
+
+---
+"unknown-type":
+  - do:
+      catch: /unknown data source type/
+      esql.put_data_source:
+        name: my_ds
+        body:
+          type: definitely_not_a_real_type
           settings: { }
 
 ---

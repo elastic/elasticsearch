@@ -111,6 +111,27 @@ public class PutDataSourceActionRequestTests extends AbstractWireSerializingTest
         assertThat(v.getMessage(), containsString("data source type is missing"));
     }
 
+    public void testValidateRejectsWhitespaceOnlyName() {
+        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "   ", "s3", null, Map.of());
+        ActionRequestValidationException v = r.validate();
+        assertThat(v, notNullValue());
+        assertThat(v.getMessage(), containsString("data source name is missing"));
+    }
+
+    public void testValidateRejectsNameWithInvalidCharacters() {
+        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "bad#name", "s3", null, Map.of());
+        ActionRequestValidationException v = r.validate();
+        assertThat(v, notNullValue());
+        assertThat(v.getMessage(), containsString("invalid data source name"));
+    }
+
+    public void testValidateRejectsNameStartingWithUnderscore() {
+        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "_leading_underscore", "s3", null, Map.of());
+        ActionRequestValidationException v = r.validate();
+        assertThat(v, notNullValue());
+        assertThat(v.getMessage(), containsString("invalid data source name"));
+    }
+
     public void testValidateAcceptsAbsentSettingsAsEmpty() {
         // Matches ES-wide precedent: absent optional container ≡ empty map (see CreateIndexRequest
         // Settings.EMPTY default, SLM optionalConstructorArg, inference removeFromMapOrDefaultEmpty).

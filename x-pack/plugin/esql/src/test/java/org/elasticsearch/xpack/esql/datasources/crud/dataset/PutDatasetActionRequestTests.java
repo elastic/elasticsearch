@@ -132,6 +132,27 @@ public class PutDatasetActionRequestTests extends AbstractWireSerializingTestCas
         assertThat(v.getMessage(), containsString("dataset resource is missing"));
     }
 
+    public void testValidateRejectsWhitespaceOnlyName() {
+        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "   ", "parent", "s3://bucket", null, Map.of());
+        ActionRequestValidationException v = r.validate();
+        assertThat(v, notNullValue());
+        assertThat(v.getMessage(), containsString("dataset name is missing"));
+    }
+
+    public void testValidateRejectsNameWithInvalidCharacters() {
+        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "bad#name", "parent", "s3://bucket", null, Map.of());
+        ActionRequestValidationException v = r.validate();
+        assertThat(v, notNullValue());
+        assertThat(v.getMessage(), containsString("invalid dataset name"));
+    }
+
+    public void testValidateRejectsNameStartingWithUnderscore() {
+        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "_leading", "parent", "s3://bucket", null, Map.of());
+        ActionRequestValidationException v = r.validate();
+        assertThat(v, notNullValue());
+        assertThat(v.getMessage(), containsString("invalid dataset name"));
+    }
+
     public void testValidateAcceptsAbsentSettingsAsEmpty() {
         // Absent optional container ≡ empty — a normal client shape for datasets inheriting from the parent.
         Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "my_ds", "parent", "s3://bucket", null, null);

@@ -46,6 +46,15 @@ setup:
           data_source: parent
           resource: "s3://x/"
 
+  # Leading underscore is reserved for dot-indices / hidden names.
+  - do:
+      catch: /invalid dataset name/
+      esql.put_dataset:
+        name: "_leading"
+        body:
+          data_source: parent
+          resource: "s3://x/"
+
 ---
 "missing-data-source":
   - do:

@@ -442,6 +442,8 @@ tests:
 - class: org.elasticsearch.xpack.inference.queries.SemanticQueryBuilderTests
   method: testToQuery {p0=true}
   issue: https://github.com/elastic/elasticsearch/issues/146778
+- class: org.elasticsearch.reindex.ReindexerTests
+  issue: https://github.com/elastic/elasticsearch/issues/146047
 
 # Examples:
 #

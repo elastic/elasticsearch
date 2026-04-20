@@ -481,7 +481,7 @@ Use the lookup query vector builder to retrieve an existing vector from a stored
 
 #### `text_embedding` [text-embedding-builder] 
 
-Use the `text_embedding` query vector builder to generate a query vector from text input at search time.
+Use the `text_embedding` query vector builder to generate a query vector from text input.
 
 ```console
 POST my-index/_search

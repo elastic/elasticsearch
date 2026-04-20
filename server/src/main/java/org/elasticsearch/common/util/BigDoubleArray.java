@@ -62,7 +62,7 @@ final class BigDoubleArray extends AbstractBigByteArray implements DoubleArray {
 
     @Override
     protected int numBytesPerElement() {
-        return Integer.BYTES;
+        return Double.BYTES;
     }
 
     @Override

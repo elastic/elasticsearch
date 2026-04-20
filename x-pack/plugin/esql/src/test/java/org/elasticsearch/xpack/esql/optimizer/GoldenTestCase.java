@@ -603,8 +603,9 @@ public abstract class GoldenTestCase extends ESTestCase {
 
     private static Test.TestResult verifyExisting(Path output, QueryPlan<?> plan) throws IOException {
         String full = plan.toString(Node.NodeStringFormat.FULL);
-        String testString = normalize(normalizeString(full));
-        if (testString.equals(normalize(Files.readString(output)))) {
+        String actualString = normalize(normalizeString(full));
+        String expectedString = normalize(Files.readString(output));
+        if (actualString.equals(expectedString)) {
             if (System.getProperty("golden.cleanactual") != null) {
                 Path path = actualPath(output);
                 if (Files.exists(path)) {
@@ -622,6 +623,8 @@ public abstract class GoldenTestCase extends ESTestCase {
             logger.info("Creating actual file at " + actualPath.toAbsolutePath());
             Files.writeString(actualPath, normalizeString(full), StandardCharsets.UTF_8);
         }
+
+        logger.info("Test failure:\n[Actual]\n{}\n[Expected]\n{}\n", actualString, expectedString);
         return Test.TestResult.FAILURE;
     }
 

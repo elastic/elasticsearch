@@ -55,6 +55,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
@@ -844,6 +845,59 @@ public class SearchEngineTests extends AbstractEngineTestCase {
 
             IOUtils.close(commit1, commit2);
         }
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
+    }
+
+    public void testSegmentGenerationListenerNotLeakedOnConcurrentClose() throws Exception {
+        var indexConfig = indexConfig();
+        var searchTaskQueue = new DeterministicTaskQueue();
+
+        try (var indexEngine = newIndexEngine(indexConfig)) {
+            indexEngine.index(randomDoc("1"));
+            indexEngine.flush();
+
+            var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue);
+            notifyCommits(indexEngine, searchEngine);
+            searchTaskQueue.runAllRunnableTasks();
+
+            // Target a generation far in the future so the listener is always registered (never completes immediately,
+            // and it fails on close)
+            var futureTermAndGen = new PrimaryTermAndGeneration(Long.MAX_VALUE, Long.MAX_VALUE);
+
+            var barrier = new CyclicBarrier(3);
+            var listenerResult = new PlainActionFuture<Long>();
+
+            Thread registerThread = new Thread(() -> {
+                safeAwait(barrier);
+                searchEngine.addOrExecuteSegmentGenerationListener(futureTermAndGen, listenerResult);
+            });
+
+            Thread closeThread = new Thread(() -> {
+                safeAwait(barrier);
+                try {
+                    searchEngine.close();
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+
+            registerThread.start();
+            closeThread.start();
+
+            // Let both threads race: close and register concurrently
+            safeAwait(barrier);
+
+            closeThread.join(TimeValue.timeValueSeconds(5).millis());
+            registerThread.join(TimeValue.timeValueSeconds(5).millis());
+
+            // We registered a listener in the future, so it should always fail with an AlreadyClosedException
+            var exception = expectThrows(Exception.class, () -> listenerResult.actionGet(TimeValue.timeValueSeconds(2)));
+            assertThat(exception, instanceOf(AlreadyClosedException.class));
+        }
+
         assertWarnings(
             "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
                 + "See the breaking changes documentation for the next major version."

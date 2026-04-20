@@ -3322,7 +3322,6 @@ public class AnalyzerTests extends ESTestCase {
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
-                false,
                 new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true, false),
                 IndexResolver.DO_NOT_GROUP
             );
@@ -3333,7 +3332,6 @@ public class AnalyzerTests extends ESTestCase {
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
-                false,
                 new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, false, false),
                 IndexResolver.DO_NOT_GROUP
             );
@@ -3357,7 +3355,6 @@ public class AnalyzerTests extends ESTestCase {
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
-                false,
                 new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true, false),
                 IndexResolver.DO_NOT_GROUP
             );
@@ -3371,7 +3368,6 @@ public class AnalyzerTests extends ESTestCase {
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
-                false,
                 new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, false, true, false),
                 IndexResolver.DO_NOT_GROUP
             );
@@ -3389,7 +3385,6 @@ public class AnalyzerTests extends ESTestCase {
         FieldCapabilitiesResponse caps = buildCapsWithConflictingTsTypes();
         IndexResolution resolution = IndexResolver.mergedMappings(
             "test",
-            false,
             fieldsInfoOnCurrentVersion(caps, false),
             (p, r) -> Map.of()
         );
@@ -3408,7 +3403,6 @@ public class AnalyzerTests extends ESTestCase {
         FieldCapabilitiesResponse caps = buildCapsWithConflictingTsTypes();
         IndexResolution resolution = IndexResolver.mergedMappings(
             "test",
-            false,
             fieldsInfoOnCurrentVersion(caps, true),
             (p, r) -> Map.of()
         );
@@ -3426,7 +3420,6 @@ public class AnalyzerTests extends ESTestCase {
         FieldCapabilitiesResponse caps = buildCapsWithConflictingTsTypes();
         IndexResolution resolution = IndexResolver.mergedMappings(
             "test",
-            false,
             fieldsInfoOnCurrentVersion(caps, false),
             (p, r) -> Map.of()
         );
@@ -3444,7 +3437,6 @@ public class AnalyzerTests extends ESTestCase {
         FieldCapabilitiesResponse caps = buildCapsWithConflictingTsTypes();
         IndexResolution resolution = IndexResolver.mergedMappings(
             "test",
-            false,
             fieldsInfoOnCurrentVersion(caps, true),
             (p, r) -> Map.of()
         );

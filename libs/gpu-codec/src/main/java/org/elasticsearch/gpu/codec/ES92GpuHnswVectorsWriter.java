@@ -382,6 +382,9 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         CuVSMatrix.DataType dataType,
         long totalDeviceMemory
     ) {
+        // CAGRA requires the intermediate graph degree to be strictly larger than the graph degree
+        intermediateGraphDegree = Math.max(graphDegree + 1, intermediateGraphDegree);
+
         CagraIndexParams.CuvsDistanceType distanceType = switch (similarityFunction) {
             case COSINE -> CagraIndexParams.CuvsDistanceType.CosineExpanded;
             case EUCLIDEAN -> CagraIndexParams.CuvsDistanceType.L2Expanded;
@@ -425,6 +428,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                 .withCuVSIvfPqParams(ivfPqParams)
                 .withGraphDegree(graphDegree)
                 .withIntermediateGraphDegree(intermediateGraphDegree)
+                .withNNDescentNumIterations(5)
                 .withMetric(distanceType)
                 .build();
         } else {

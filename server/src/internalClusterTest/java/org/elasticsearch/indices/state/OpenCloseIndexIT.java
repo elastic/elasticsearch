@@ -23,7 +23,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -373,14 +376,37 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         }
 
         final int uncommittedTranslogOps = uncommittedOps;
+
         assertBusy(() -> {
+            for (IndicesService indicesService : internalCluster().getDataNodeInstances(IndicesService.class)) {
+                final var index = internalCluster().clusterService().state().metadata().getProject().index(indexName).getIndex();
+                IndexService indexService = indicesService.indexServiceSafe(index);
+                for (IndexShard shard : indexService) {
+                    if (shard.routingEntry().primary()) {
+                        logger.info(
+                            "Shard [{}] status: lastKnownGlobalCheckpoint={}, lastSyncedGlobalCheckpoint={}, "
+                                + "localCheckpoint={}, maxSeqNo={}",
+                            shard.shardId(),
+                            shard.getLastKnownGlobalCheckpoint(),
+                            shard.getLastSyncedGlobalCheckpoint(),
+                            shard.seqNoStats().getLocalCheckpoint(),
+                            shard.seqNoStats().getMaxSeqNo()
+                        );
+                    }
+                }
+            }
+
             IndicesStatsResponse stats = indicesAdmin().prepareStats(indexName).clear().setTranslog(true).get();
             assertThat(stats.getIndex(indexName), notNullValue());
-            assertThat(
-                stats.getIndex(indexName).getPrimaries().getTranslog().estimatedNumberOfOperations(),
-                equalTo(uncommittedTranslogOps)
+            var translogStats = stats.getIndex(indexName).getPrimaries().getTranslog();
+            logger.info(
+                "TranslogStats: estimatedOps={}, uncommittedOps={}, expected={}",
+                translogStats.estimatedNumberOfOperations(),
+                translogStats.getUncommittedOperations(),
+                uncommittedTranslogOps
             );
-            assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().getUncommittedOperations(), equalTo(uncommittedTranslogOps));
+            assertThat(translogStats.estimatedNumberOfOperations(), equalTo(uncommittedTranslogOps));
+            assertThat(translogStats.getUncommittedOperations(), equalTo(uncommittedTranslogOps));
         });
 
         assertAcked(indicesAdmin().prepareClose("test"));

@@ -108,7 +108,7 @@ public abstract class SenderService<M extends Model> implements InferenceService
         ActionListener<InferenceServiceResults> listener
     ) {
         SubscribableListener.newForked(this::init).<InferenceServiceResults>andThen((inferListener) -> {
-            var resolvedInferenceTimeout = ServiceUtils.resolveInferenceTimeout(timeout, inputType, clusterService);
+            var resolvedInferenceTimeout = ServiceUtils.resolveInferenceTimeout(timeout, inputType, clusterService, model.getTaskType());
             var inferenceInput = createInput(this, model, input, inputType, query, returnDocuments, topN, stream);
             doInfer(model, inferenceInput, taskSettings, resolvedInferenceTimeout, inferListener);
         }).addListener(listener);

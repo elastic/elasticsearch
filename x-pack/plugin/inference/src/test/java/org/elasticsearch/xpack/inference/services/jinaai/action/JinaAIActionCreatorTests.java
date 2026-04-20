@@ -25,10 +25,10 @@ import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingType;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsModelTests;
-import org.elasticsearch.xpack.inference.services.jinaai.rerank.JinaAIRerankModelTests;
 import org.elasticsearch.xpack.inference.services.jinaai.request.JinaAIEmbeddingsRequestEntity;
 import org.elasticsearch.xpack.inference.services.jinaai.request.JinaAIRerankRequestEntity;
 import org.elasticsearch.xpack.inference.services.jinaai.request.JinaAIUtils;
+import org.elasticsearch.xpack.inference.services.jinaai.rerank.JinaAIRerankModelTests;
 import org.junit.After;
 import org.junit.Before;
 
@@ -107,11 +107,7 @@ public class JinaAIActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, Map.of());
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(
-                new EmbeddingsInput(List.of(TEST_EMBEDDING_INPUT), null),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            action.execute(new EmbeddingsInput(List.of(TEST_EMBEDDING_INPUT), null), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
 

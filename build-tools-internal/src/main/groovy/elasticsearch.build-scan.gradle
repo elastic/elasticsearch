@@ -113,6 +113,8 @@ develocity {
         if (prId != 'false') {
           def prBaseUrl = (System.getenv('BUILDKITE_PULL_REQUEST_REPO') - ".git").replaceFirst("git://", "https://")
           value 'Git Commit ID', System.getenv('BUILDKITE_COMMIT')
+          value 'PR Source Branch', System.getenv('BUILDKITE_BRANCH')
+          value 'PR Target Branch', System.getenv('BUILDKITE_PULL_REQUEST_BASE_BRANCH')
           tag "pr/${prId}"
           tag 'pull-request'
           link 'Source', "${prBaseUrl}/tree/${System.getenv('BUILDKITE_COMMIT')}"

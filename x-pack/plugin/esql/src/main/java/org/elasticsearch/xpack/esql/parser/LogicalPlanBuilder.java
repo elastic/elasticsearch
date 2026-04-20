@@ -794,72 +794,32 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitChangePointCommand(EsqlBaseParser.ChangePointCommandContext ctx) {
         Source src = source(ctx);
         Attribute value = visitQualifiedName(ctx.value);
-        Attribute key = visitChangePointOn(ctx.changePointConfiguration(), src);
+        Attribute key = ctx.key == null ? new UnresolvedAttribute(src, "@timestamp") : visitQualifiedName(ctx.key);
 
-        Tuple<Attribute, Attribute> asAttributes = visitChangePointAs(ctx.changePointConfiguration(), src);
-        Attribute targetType = asAttributes.v1();
-        Attribute targetPvalue = asAttributes.v2();
+        UnresolvedAttribute parsedTargetTypeColumn = visitQualifiedName(ctx.targetType);
+        UnresolvedAttribute parsedTargetPvalueColumn = visitQualifiedName(ctx.targetPvalue);
 
-        return child -> new ChangePoint(src, child, value, key, targetType, targetPvalue);
-    }
-
-    private Attribute visitChangePointOn(List<EsqlBaseParser.ChangePointConfigurationContext> changePointOptionsContexts, Source src) {
-        Attribute key = null;
-        for (EsqlBaseParser.ChangePointConfigurationContext changePointContext : changePointOptionsContexts) {
-            if (changePointContext.key != null) {
-                if (key != null) {
-                    throw new ParsingException(source(changePointContext), "CHANGE_POINT supports only one ON clause");
-                }
-                key = visitQualifiedName(changePointContext.key);
-            }
+        if (parsedTargetTypeColumn != null && parsedTargetTypeColumn.qualifier() != null) {
+            throw qualifiersUnsupportedInFieldDefinitions(parsedTargetTypeColumn.source(), ctx.targetType.getText());
         }
-        return key == null ? new UnresolvedAttribute(src, "@timestamp") : key;
-    }
 
-    private Tuple<Attribute, Attribute> visitChangePointAs(
-        List<EsqlBaseParser.ChangePointConfigurationContext> changePointOptionsContexts,
-        Source src
-    ) {
-        UnresolvedAttribute unresolvedTargetValue = null;
-        UnresolvedAttribute unresolvedTargetPvalue = null;
-        boolean optionResolved = false;
-        for (EsqlBaseParser.ChangePointConfigurationContext changePointContext : changePointOptionsContexts) {
-            if (changePointContext.targetType != null) {
-                if (optionResolved) {
-                    throw new ParsingException(source(changePointContext), "CHANGE_POINT supports only one AS clause");
-                }
-                optionResolved = true;
-
-                unresolvedTargetValue = visitQualifiedName(changePointContext.targetType);
-                unresolvedTargetPvalue = visitQualifiedName(changePointContext.targetPvalue);
-
-                if (unresolvedTargetValue != null && unresolvedTargetValue.qualifier() != null) {
-                    throw qualifiersUnsupportedInFieldDefinitions(unresolvedTargetValue.source(), changePointContext.targetType.getText());
-                }
-                if (unresolvedTargetPvalue != null && unresolvedTargetPvalue.qualifier() != null) {
-                    throw qualifiersUnsupportedInFieldDefinitions(
-                        unresolvedTargetPvalue.source(),
-                        changePointContext.targetPvalue.getText()
-                    );
-                }
-
-            }
+        if (parsedTargetPvalueColumn != null && parsedTargetPvalueColumn.qualifier() != null) {
+            throw qualifiersUnsupportedInFieldDefinitions(parsedTargetPvalueColumn.source(), ctx.targetPvalue.getText());
         }
 
         Attribute targetType = new ReferenceAttribute(
             src,
             null,
-            unresolvedTargetValue == null ? "type" : unresolvedTargetValue.name(),
+            parsedTargetTypeColumn == null ? "type" : parsedTargetTypeColumn.name(),
             DataType.KEYWORD
         );
         Attribute targetPvalue = new ReferenceAttribute(
             src,
             null,
-            unresolvedTargetPvalue == null ? "pvalue" : unresolvedTargetPvalue.name(),
+            parsedTargetPvalueColumn == null ? "pvalue" : parsedTargetPvalueColumn.name(),
             DataType.DOUBLE
         );
-
-        return new Tuple<>(targetType, targetPvalue);
+        return child -> new ChangePoint(src, child, value, key, targetType, targetPvalue);
     }
 
     private Tuple<Mode, String> parsePolicyName(EsqlBaseParser.EnrichPolicyNameContext ctx) {
@@ -1481,7 +1441,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             params.bucketsLiteral(),
             params.scrapeIntervalLiteral(),
             valueColumnName,
-            new UnresolvedTimestamp(source)
+            new UnresolvedTimestamp(source),
+            false
         );
     }
 

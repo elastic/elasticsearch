@@ -16,6 +16,11 @@ setup:
                 index: false
                 doc_values:
                   cardinality: high
+              ip:
+                type: ip
+                index: false
+                doc_values:
+                  cardinality: high
 
   - do:
       index:
@@ -23,6 +28,7 @@ setup:
         id: "1"
         body:
           keyword: "key1"
+          ip: "192.168.0.1"
 
   - do:
       index:
@@ -30,6 +36,8 @@ setup:
         id: "2"
         body:
           keyword: "key2"
+          ip: "192.168.0.2"
+
   - do:
       indices.refresh: {}
 
@@ -161,4 +169,32 @@ setup:
   - length:   { hits.hits: 2  }
   - match: { hits.hits.0.sort.0: key2 }
   - match: { hits.hits.1.sort.0: key1 }
+
+
+---
+"Test match query on ip field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { match: { ip: { query: "192.168.0.1" } } } }
+  - length:   { hits.hits: 1  }
+
+---
+"Test terms query on ip field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { terms: { ip: [ "192.168.0.1", "192.168.0.2" ] } } }
+  - length:   { hits.hits: 2  }
+
+---
+"Test range query on ip field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { range: { ip: { gte: "192.168.0.1" } } } }
+  - length:   { hits.hits: 2  }
 

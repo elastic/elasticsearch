@@ -144,7 +144,8 @@ public final class ResponseValueUtils {
             case LONG, COUNTER_LONG -> (block, offset, scratch) -> ((LongBlock) block).getLong(offset);
             case INTEGER, COUNTER_INTEGER -> (block, offset, scratch) -> ((IntBlock) block).getInt(offset);
             case DOUBLE, COUNTER_DOUBLE -> (block, offset, scratch) -> ((DoubleBlock) block).getDouble(offset);
-            case KEYWORD, TEXT -> (block, offset, scratch) -> ((BytesRefBlock) block).getBytesRef(offset, scratch).utf8ToString();
+            case KEYWORD, TEXT, FLATTENED -> (block, offset, scratch) -> ((BytesRefBlock) block).getBytesRef(offset, scratch)
+                .utf8ToString();
             case IP -> (block, offset, scratch) -> {
                 BytesRef val = ((BytesRefBlock) block).getBytesRef(offset, scratch);
                 return ipToString(val);

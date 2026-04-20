@@ -101,7 +101,7 @@ public class VerifierTests extends ESTestCase {
         final String unsupported = "unsupported";
         final String multiTyped = "multi_typed";
 
-        EsField unsupportedField = new UnsupportedEsField(unsupported, List.of("flattened"));
+        EsField unsupportedField = new UnsupportedEsField(unsupported, List.of("binary"));
         // Use linked maps/sets to fix the order in the error message.
         LinkedHashSet<String> ipIndices = new LinkedHashSet<>();
         ipIndices.add("test1");
@@ -128,7 +128,7 @@ public class VerifierTests extends ESTestCase {
 
         analyzer.error(
             "from test* | dissect unsupported \"%{foo}\"",
-            equalTo("1:22: Cannot use field [unsupported] with unsupported type [flattened]")
+            equalTo("1:22: Cannot use field [unsupported] with unsupported type [binary]")
         );
         analyzer.error(
             "from test* | dissect multi_typed \"%{foo}\"",
@@ -140,7 +140,7 @@ public class VerifierTests extends ESTestCase {
 
         analyzer.error(
             "from test* | grok unsupported \"%{WORD:foo}\"",
-            equalTo("1:19: Cannot use field [unsupported] with unsupported type [flattened]")
+            equalTo("1:19: Cannot use field [unsupported] with unsupported type [binary]")
         );
         analyzer.error(
             "from test* | grok multi_typed \"%{WORD:foo}\"",
@@ -152,7 +152,7 @@ public class VerifierTests extends ESTestCase {
 
         analyzer.error(
             "from test* | enrich client_cidr on unsupported",
-            equalTo("1:36: Cannot use field [unsupported] with unsupported type [flattened]")
+            equalTo("1:36: Cannot use field [unsupported] with unsupported type [binary]")
         );
         analyzer.error(
             "from test* | enrich client_cidr on multi_typed",
@@ -162,10 +162,7 @@ public class VerifierTests extends ESTestCase {
             )
         );
 
-        analyzer.error(
-            "from test* | eval x = unsupported",
-            equalTo("1:23: Cannot use field [unsupported] with unsupported type [flattened]")
-        );
+        analyzer.error("from test* | eval x = unsupported", equalTo("1:23: Cannot use field [unsupported] with unsupported type [binary]"));
         analyzer.error(
             "from test* | eval x = multi_typed",
             equalTo(
@@ -176,7 +173,7 @@ public class VerifierTests extends ESTestCase {
 
         analyzer.error(
             "from test* | eval x = to_lower(unsupported)",
-            equalTo("1:32: Cannot use field [unsupported] with unsupported type [flattened]")
+            equalTo("1:32: Cannot use field [unsupported] with unsupported type [binary]")
         );
         analyzer.error(
             "from test* | eval x = to_lower(multi_typed)",
@@ -188,7 +185,7 @@ public class VerifierTests extends ESTestCase {
 
         analyzer.error(
             "from test* | stats count(1) by unsupported",
-            equalTo("1:32: Cannot use field [unsupported] with unsupported type [flattened]")
+            equalTo("1:32: Cannot use field [unsupported] with unsupported type [binary]")
         );
         analyzer.error(
             "from test* | stats count(1) by multi_typed",
@@ -200,7 +197,7 @@ public class VerifierTests extends ESTestCase {
         if (EsqlCapabilities.Cap.INLINE_STATS.isEnabled()) {
             analyzer.error(
                 "from test* | inline stats count(1) by unsupported",
-                equalTo("1:39: Cannot use field [unsupported] with unsupported type [flattened]")
+                equalTo("1:39: Cannot use field [unsupported] with unsupported type [binary]")
             );
             analyzer.error(
                 "from test* | inline stats count(1) by multi_typed",
@@ -213,7 +210,7 @@ public class VerifierTests extends ESTestCase {
 
         analyzer.error(
             "from test* | stats values(unsupported)",
-            equalTo("1:27: Cannot use field [unsupported] with unsupported type [flattened]")
+            equalTo("1:27: Cannot use field [unsupported] with unsupported type [binary]")
         );
         analyzer.error(
             "from test* | stats values(multi_typed)",
@@ -225,7 +222,7 @@ public class VerifierTests extends ESTestCase {
         if (EsqlCapabilities.Cap.INLINE_STATS.isEnabled()) {
             analyzer.error(
                 "from test* | inline stats values(unsupported)",
-                equalTo("1:34: Cannot use field [unsupported] with unsupported type [flattened]")
+                equalTo("1:34: Cannot use field [unsupported] with unsupported type [binary]")
             );
             analyzer.error(
                 "from test* | inline stats values(multi_typed)",
@@ -238,7 +235,7 @@ public class VerifierTests extends ESTestCase {
 
         analyzer.error(
             "from test* | stats values(unsupported)",
-            equalTo("1:27: Cannot use field [unsupported] with unsupported type [flattened]")
+            equalTo("1:27: Cannot use field [unsupported] with unsupported type [binary]")
         );
         analyzer.error(
             "from test* | stats values(multi_typed)",
@@ -263,7 +260,7 @@ public class VerifierTests extends ESTestCase {
 
         analyzer.error(
             "from test* | mv_expand unsupported",
-            equalTo("1:24: Cannot use field [unsupported] with unsupported type [flattened]")
+            equalTo("1:24: Cannot use field [unsupported] with unsupported type [binary]")
         );
         analyzer.error(
             "from test* | mv_expand multi_typed",
@@ -275,7 +272,7 @@ public class VerifierTests extends ESTestCase {
 
         analyzer.error(
             "from test* | rename unsupported as x",
-            equalTo("1:21: Cannot use field [unsupported] with unsupported type [flattened]")
+            equalTo("1:21: Cannot use field [unsupported] with unsupported type [binary]")
         );
         analyzer.error(
             "from test* | rename multi_typed as x",
@@ -295,7 +292,7 @@ public class VerifierTests extends ESTestCase {
         // not gated by Project.expressionsResolved() which treats UnsupportedAttribute as resolved.
         analyzer.error(
             "from test* | keep unsupported | rename unsupported as x",
-            equalTo("1:40: Cannot use field [unsupported] with unsupported type [flattened]")
+            equalTo("1:40: Cannot use field [unsupported] with unsupported type [binary]")
         );
         analyzer.error(
             "from test* | keep multi_typed | rename multi_typed as x",
@@ -305,10 +302,7 @@ public class VerifierTests extends ESTestCase {
             )
         );
 
-        analyzer.error(
-            "from test* | sort unsupported asc",
-            equalTo("1:19: Cannot use field [unsupported] with unsupported type [flattened]")
-        );
+        analyzer.error("from test* | sort unsupported asc", equalTo("1:19: Cannot use field [unsupported] with unsupported type [binary]"));
         analyzer.error(
             "from test* | sort multi_typed desc",
             equalTo(
@@ -319,7 +313,7 @@ public class VerifierTests extends ESTestCase {
 
         analyzer.error(
             "from test* | where unsupported is null",
-            equalTo("1:20: Cannot use field [unsupported] with unsupported type [flattened]")
+            equalTo("1:20: Cannot use field [unsupported] with unsupported type [binary]")
         );
         analyzer.error(
             "from test* | where multi_typed is not null",
@@ -334,7 +328,7 @@ public class VerifierTests extends ESTestCase {
             String errorType = functionName.equalsIgnoreCase("to_timeduration") ? "time_duration" : "date_period";
             analyzer.error(
                 "from test* | eval x = now() + " + functionName + "(unsupported)",
-                equalTo("1:" + lineNumber + ": Cannot use field [unsupported] with unsupported type [flattened]")
+                equalTo("1:" + lineNumber + ": Cannot use field [unsupported] with unsupported type [binary]")
             );
             analyzer.error(
                 "from test* | eval x = now() + " + functionName + "(multi_typed)",
@@ -342,7 +336,7 @@ public class VerifierTests extends ESTestCase {
             );
             analyzer.error(
                 "from test* | eval x = unsupported, y = now() + " + functionName + "(x)",
-                containsString("1:23: Cannot use field [unsupported] with unsupported type [flattened]")
+                containsString("1:23: Cannot use field [unsupported] with unsupported type [binary]")
             );
             analyzer.error(
                 "from test* | eval x = multi_typed, y = now() + " + functionName + "(x)",

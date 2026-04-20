@@ -907,6 +907,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                     doc.field("lt", "2025-01-01");
                     doc.endObject();
                 }
+                case FLATTENED -> {
+                    doc.startObject();
+                    doc.field("k", "foo");
+                    doc.field("n", 1);
+                    doc.endObject();
+                }
                 case EXPONENTIAL_HISTOGRAM -> ExponentialHistogramXContent.serialize(doc, EXPONENTIAL_HISTOGRAM_VALUE);
                 case DENSE_VECTOR -> doc.value(List.of(0.5, 10, 6));
                 case HISTOGRAM -> createHistogramValue(doc);
@@ -1062,6 +1068,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 }
                 yield nullValue();
             }
+            case FLATTENED -> {
+                if (DataType.FLATTENED.supportedVersion().supportedOn(minimumVersion, Build.current().isSnapshot())) {
+                    yield equalTo(Map.of("k", "foo", "n", "1"));
+                }
+                yield nullValue();
+            }
 
             default -> throw new AssertionError("unsupported field type [" + type + "]");
         };
@@ -1209,6 +1221,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case DATE_RANGE -> {
                 if (DATE_RANGE.supportedVersion().supportedOn(minimumVersion, Build.current().isSnapshot())) {
                     yield equalTo("date_range");
+                }
+                yield equalTo("unsupported");
+            }
+            case FLATTENED -> {
+                if (DataType.FLATTENED.supportedVersion().supportedOn(minimumVersion, Build.current().isSnapshot())) {
+                    yield equalTo("flattened");
                 }
                 yield equalTo("unsupported");
             }
@@ -1390,6 +1408,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Longs")
                 : matchesList().item("column_at_a_time:LongsFromDocValues.Singleton");
             case DATETIME, DATE_NANOS -> matchesList().item("column_at_a_time:LongsFromDocValues.Singleton");
+            case FLATTENED -> matchesList().item(startsWith("column_at_a_time:"));
             case NULL -> // TODO figure out why stored field preference makes this go to _source
                 useStoredLoader()
                     ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes")

@@ -1188,6 +1188,19 @@ public final class EsqlTestUtils {
                     throw new UncheckedIOException(e);
                 }
             }
+            case FLATTENED -> {
+                try {
+                    yield BytesReference.bytes(
+                        JsonXContent.contentBuilder()
+                            .startObject()
+                            .field(randomAlphaOfLength(3), randomAlphaOfLength(10))
+                            .field(randomAlphaOfLength(3), randomAlphaOfLength(10))
+                            .endObject()
+                    ).toBytesRef();
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
             case TSID_DATA_TYPE -> randomTsId().toBytesRef();
             case HISTOGRAM -> randomHistogram();
             case DENSE_VECTOR -> Arrays.asList(randomArray(10, 10, i -> new Float[10], ESTestCase::randomFloat));

@@ -297,6 +297,12 @@ public enum DataType implements Writeable {
      */
     TEXT(builder().esType("text").estimatedSize(1024).supportedOnAllNodes()),
     /**
+     * The entire JSON-like content of a {@code flattened} field, loaded as bytes.
+     */
+    FLATTENED(
+        builder().esType("flattened").estimatedSize(1024).docValues().underConstruction(DataTypesTransportVersions.ESQL_FLATTENED_DATATYPE)
+    ),
+    /**
      * Millisecond precision date, stored as a 64-bit signed number.
      */
     DATETIME(builder().esType("date").typeName("DATETIME").estimatedSize(Long.BYTES).docValues().supportedOnAllNodes()),
@@ -1178,5 +1184,9 @@ public enum DataType implements Writeable {
          * Development version for partial_agg type support (used by ToPartial/FromPartial aggregate functions).
          */
         public static final TransportVersion ESQL_AGG_FROM_PARTIAL = TransportVersion.fromName("esql_agg_from_partial");
+        /**
+         * Development version for flattened type support.
+         */
+        public static final TransportVersion ESQL_FLATTENED_DATATYPE = TransportVersion.fromName("esql_flattened_datatype");
     }
 }

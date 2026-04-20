@@ -323,14 +323,13 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         intTest().createAlias().test(randomInt());
     }
 
-    public void testFlattenedUnsupported() throws IOException {
-        assumeOriginalTypesReported();
+    public void testFlattened() throws IOException {
         new Test("flattened").createIndex("test", "flattened");
         index("test", """
             {"flattened": {"a": "foo"}}""");
         Map<String, Object> result = runEsql("FROM test* | LIMIT 2");
 
-        assertResultMap(result, List.of(unsupportedColumnInfo("flattened", "flattened")), List.of(matchesList().item(null)));
+        assertResultMap(result, List.of(columnInfo("flattened", "flattened")), List.of(matchesList().item(matchesMap().entry("a", "foo"))));
     }
 
     public void testEmptyMapping() throws IOException {

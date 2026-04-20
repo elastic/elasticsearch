@@ -277,7 +277,7 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
         TopNEncoder encoder = switch (type) {
             // HEY! If you see a compilation failure on this switch read the method javadoc.
             case IP -> TopNEncoder.IP;
-            case TEXT, KEYWORD -> TopNEncoder.UTF8;
+            case TEXT, KEYWORD, FLATTENED -> TopNEncoder.UTF8;
             case VERSION -> TopNEncoder.VERSION;
             case DOC_DATA_TYPE -> new DocVectorEncoder(shardContexts);
             case BOOLEAN, NULL, BYTE, SHORT, INTEGER, LONG, DOUBLE, FLOAT, HALF_FLOAT, DATETIME, DATE_NANOS, DATE_PERIOD, TIME_DURATION,
@@ -306,7 +306,7 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
     private static TopNEncoder keyEncoder(DataType type) {
         return switch (type) {
             case IP -> TopNEncoder.IP;
-            case TEXT, KEYWORD -> TopNEncoder.UTF8;
+            case TEXT, KEYWORD, FLATTENED -> TopNEncoder.UTF8;
             case VERSION -> TopNEncoder.VERSION;
             case BOOLEAN, NULL, BYTE, SHORT, INTEGER, LONG, DOUBLE, FLOAT, HALF_FLOAT, DATETIME, DATE_NANOS, DATE_PERIOD, TIME_DURATION,
                 OBJECT, SCALED_FLOAT, UNSIGNED_LONG -> TopNEncoder.DEFAULT_SORTABLE;

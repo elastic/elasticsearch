@@ -2196,7 +2196,7 @@ public class EsqlCapabilities {
         /**
          * Support query approximation.
          */
-        APPROXIMATION_V6,
+        APPROXIMATION_V7,
 
         /**
          * Create a ScoreOperator only when shard contexts are available
@@ -2532,6 +2532,16 @@ public class EsqlCapabilities {
          * Fix for column pruning in FORK.
          */
         FORK_PRUNE_ALL_COLUMNS_FIX,
+
+        /**
+         * Support query approximation with LOOKUP JOIN
+         */
+        APPROXIMATION_LOOKUP_JOIN(Build.current().isSnapshot()),
+
+        /**
+         * Support query approximation with INLINE STATS
+         */
+        APPROXIMATION_INLINE_STATS(Build.current().isSnapshot()),
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

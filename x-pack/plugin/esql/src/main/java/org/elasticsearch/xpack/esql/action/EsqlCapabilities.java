@@ -2495,6 +2495,11 @@ public class EsqlCapabilities {
         FIX_STARTS_WITH_ENDS_WITH_PUSHDOWN_ON_INDEX,
 
         /**
+         * Fix for column pruning in FORK.
+         */
+        FORK_PRUNE_ALL_COLUMNS_FIX,
+
+        /**
          * Fix TBUCKET with a numeric bucket count returning a verification exception instead of empty results
          * when the top-level request filter covers a time range with no matching indices.
          * See https://github.com/elastic/elasticsearch/issues/146354

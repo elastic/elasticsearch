@@ -361,9 +361,6 @@ tests:
 - class: org.elasticsearch.transport.TransportHandshakerTests
   method: testHandshakeRequestAndResponse
   issue: https://github.com/elastic/elasticsearch/issues/146743
-- class: org.elasticsearch.synonyms.SynonymsManagementAPIServiceTests
-  method: testBulkUpdateEmptySet
-  issue: https://github.com/elastic/elasticsearch/issues/146743
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/146553
@@ -400,9 +397,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {csv-spec:stats_sparkline.sparklineComplexWithGrouping}
   issue: https://github.com/elastic/elasticsearch/issues/146729
-- class: org.elasticsearch.synonyms.SynonymsManagementAPIServiceTests
-  method: testTransportVersionGateRejectsLargeSetsOnOldCluster
-  issue: https://github.com/elastic/elasticsearch/issues/146743
 - class: org.elasticsearch.transport.ClusterConnectionManagerTests
   method: testConcurrentConnectsDuringClose
   issue: https://github.com/elastic/elasticsearch/issues/146743
@@ -421,9 +415,6 @@ tests:
 - class: org.elasticsearch.reindex.ReindexBasicTests
   method: testCopyManyWithAutoSlicing
   issue: https://github.com/elastic/elasticsearch/issues/146741
-- class: org.elasticsearch.synonyms.SynonymsManagementAPIServiceTests
-  method: testPutSynonymRuleUpgradeGuardRejectsOnOldCluster
-  issue: https://github.com/elastic/elasticsearch/issues/146743
 - class: org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotReindexRelocationOnShutdownIT
   method: testReindexRelocatesWithSearchableSnapshotSource
   issue: https://github.com/elastic/elasticsearch/issues/146710

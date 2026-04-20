@@ -33,7 +33,7 @@ Defaults to `</em>`.
 Only applies when highlight is true. Defaults to `default`.
 
 
-`analyzer`
+`analyzer` {applies_to}`stack: preview 9.4.1`
 :   (keyword) Name of the analyzer to use for scoring and highlighting. When omitted, defaults to the standard
 analyzer. The name must match a registered analyzer (prebuilt or plugin-contributed), such as
 `standard`, `whitespace`, `simple`, `keyword`, `english`, `french`, `german`, `spanish`, etc.

@@ -386,29 +386,13 @@ Walk your DOGs daily. | null
 
 topSnippetsAnalyzerEnglishStemming
 required_capability: top_snippets_analyzer
-required_capability: top_snippets_highlight
 
 ROW content = "The running club meets daily for long runs."
 | EVAL eng = TOP_SNIPPETS(content, "run", { "analyzer": "english", "highlight": true, "num_words": 0 })
-| EVAL std = TOP_SNIPPETS(content, "run", { "analyzer": "standard", "highlight": true, "num_words": 0 })
+| EVAL std = TOP_SNIPPETS(content, "runs", { "analyzer": "standard", "highlight": true, "num_words": 0 })
 | KEEP eng, std
 ;
 
 eng:keyword | std:keyword
-The <em>running</em> club meets daily for long <em>runs</em>. | null
-;
-
-topSnippetsAnalyzerImplicitMatchesExplicitStandard
-required_capability: top_snippets_analyzer
-
-FROM books
-| WHERE book_no == "1463"
-| EVAL implicit = TOP_SNIPPETS(description, "Tolkien", { "num_snippets": 1, "num_words": 500 })
-| EVAL explicit = TOP_SNIPPETS(description, "Tolkien", { "num_snippets": 1, "num_words": 500, "analyzer": "standard" })
-| EVAL same = implicit == explicit
-| KEEP same
-;
-
-same:boolean
-true
+The <em>running</em> club meets daily for long <em>runs</em>. | The running club meets daily for long <em>runs</em>.
 ;

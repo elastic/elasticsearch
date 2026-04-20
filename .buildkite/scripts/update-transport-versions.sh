@@ -16,6 +16,12 @@ NEW_COMMIT_MESSAGE="[CI] Update transport version definitions"
 
 echo "--- Generating updated transport version definitions"
 # Calculate backport branches based on pull request version labels
+# Pre-check so grep's "no matches" exit code doesn't kill the script under set -euo pipefail
+if ! echo "${GITHUB_PR_LABELS}" | tr ',' '\n' | grep -qE "v[0-9]+\.[0-9]+\.[0-9]+"; then
+  echo "Skipping as pull request contains no version labels"
+  exit 0
+fi
+
 backport_branches=$(
   echo "${GITHUB_PR_LABELS}" \
     | tr ',' '\n' \
@@ -23,11 +29,6 @@ backport_branches=$(
     | sed -E 's/^v([0-9]+)\.([0-9]+)\.[0-9]+$/\1.\2/' \
     | paste -sd, -
 )
-
-if [[ -z "${backport_branches}" ]]; then
-  echo "Skipping as pull request contains no version labels"
-  exit 0
-fi
 
 .ci/scripts/run-gradle.sh generateTransportVersion --backport-branches="${backport_branches}"
 

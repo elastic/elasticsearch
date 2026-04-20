@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 146087
+summary: Make synonym rule limit configurable at the cluster level and increase the limit from 10,000 to 100,000
+type: enhancement

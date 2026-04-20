@@ -122,7 +122,7 @@ class DLMFrozenCleanupService extends AbstractDLMPeriodicMasterOnlyService {
                 }
             }
         } catch (Exception e) {
-            logger.warn("Failed to check for orphaned frozen transition artifacts", e);
+            logger.warn("Failed to clean up orphaned frozen transition artifacts", e);
         }
     }
 

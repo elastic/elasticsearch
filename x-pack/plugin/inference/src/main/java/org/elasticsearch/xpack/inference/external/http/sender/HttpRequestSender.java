@@ -227,7 +227,7 @@ public class HttpRequestSender implements Sender {
         waitForStartToComplete();
 
         var preservedListener = ContextPreservingActionListener.wrapPreservingContext(listener, threadPool.getThreadContext());
-        var timedListener = new TimedListener<>(timeout, preservedListener, threadPool);
+        var timedListener = new TimedListener<>(timeout, preservedListener, threadPool, request.getInferenceEntityId());
 
         threadPool.executor(UTILITY_THREAD_POOL_NAME)
             .execute(() -> requestSender.send(logger, request, timedListener::hasCompleted, responseHandler, timedListener.getListener()));

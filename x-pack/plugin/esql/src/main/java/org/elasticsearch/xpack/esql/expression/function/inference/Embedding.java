@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -150,7 +151,9 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
 
     public TimeValue inputTimeout() {
         String value = optionStringValue(OPTION_TIMEOUT);
-        return value == null ? null : TimeValue.parseTimeValue(value, OPTION_TIMEOUT);
+        return value == null
+            ? BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
+            : TimeValue.parseTimeValue(value, OPTION_TIMEOUT);
     }
 
     @Override

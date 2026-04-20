@@ -14,6 +14,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.core.inference.InferenceContext;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItem;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItem.PositionValueCountsBuilder;
@@ -23,6 +24,8 @@ import org.elasticsearch.xpack.esql.inference.InputTextReader;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+
+import static org.elasticsearch.xpack.esql.inference.InferenceService.COMPLETION_PRODUCT_USE_CASE;
 
 /**
  * Iterator that converts a block of prompt strings into inference request items.
@@ -100,7 +103,8 @@ class CompletionRequestIterator implements BulkInferenceRequestItemIterator {
         }
 
         InferenceAction.Request.Builder builder = InferenceAction.Request.builder(inferenceId, TaskType.COMPLETION)
-            .setInput(List.of(prompt));
+            .setInput(List.of(prompt))
+            .setContext(new InferenceContext(COMPLETION_PRODUCT_USE_CASE));
         if (timeout != null) {
             builder.setInferenceTimeout(timeout);
         }

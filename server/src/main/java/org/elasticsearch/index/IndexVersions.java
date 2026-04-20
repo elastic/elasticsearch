@@ -255,6 +255,7 @@ public class IndexVersions {
     public static final IndexVersion TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD = def(9_093_0_00, Version.LUCENE_10_4_0);
     public static final IndexVersion TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT = def(9_094_0_00, Version.LUCENE_10_4_0);
     public static final IndexVersion DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES = def(9_095_0_00, Version.LUCENE_10_4_0);
+    public static final IndexVersion SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN = def(9_096_00_0, Version.LUCENE_10_4_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

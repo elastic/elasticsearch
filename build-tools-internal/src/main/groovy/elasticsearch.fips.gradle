@@ -73,32 +73,6 @@ if (buildParams.inFipsJvm) {
         }
       }
 
-      // Locate the FIPS SecurityManager policy from the previous major's BWC checkout.
-      // Old ES versions (before 9.0) install SecurityManager at bootstrap and need this
-      // policy to grant BouncyCastle FIPS the required permissions.
-      String fipsPolicyFilename = isFips140_3 ? 'fips_java_bc2.policy' : 'fips_java.policy'
-      File fipsPolicyFile = null
-      def bwcFipsPolicyConfig = null
-      int currentMajor = buildParams.bwcVersions.currentVersion.major
-      def prevMajorVersions = buildParams.bwcVersions.unreleased.findAll { v -> v.major == currentMajor - 1 }
-      def prevMajorInfo = null
-      if (!prevMajorVersions.isEmpty()) {
-        prevMajorInfo = buildParams.bwcVersions.unreleasedInfo(prevMajorVersions.max())
-      } else {
-        prevMajorInfo = buildParams.bwcVersions.unmaintainedPreviousMajor.orElse(null)
-      }
-      if (prevMajorInfo != null) {
-        def bwcProjectRelDir = prevMajorInfo.gradleProjectPath().replaceFirst(':', '').replace(':', '/')
-        def checkoutDir = new File(rootProject.projectDir, "${bwcProjectRelDir}/build/bwc/checkout-${prevMajorInfo.branch()}")
-        fipsPolicyFile = new File(checkoutDir, "build-tools-internal/src/main/resources/${fipsPolicyFilename}")
-
-        bwcFipsPolicyConfig = configurations.create('bwcFipsPolicy') {
-          withDependencies {
-            add(dependencies.project(path: prevMajorInfo.gradleProjectPath(), configuration: 'checkout'))
-          }
-        }
-      }
-
       project.afterEvaluate {
         // ensure that bouncycastle is on classpath for the all of test types, must happen in evaluateAfter since the rest tests explicitly
         // set the class path to help maintain pure black box testing, and here we are adding to that classpath
@@ -138,17 +112,40 @@ if (buildParams.inFipsJvm) {
         tasks.withType(StandaloneRestIntegTestTask).configureEach {
           inputs.files(extraFipsJarsConfiguration).withNormalizer(ClasspathNormalizer)
           nonInputProperties.systemProperty "tests.cluster.fips.jars.path", "${-> extraFipsJarsConfiguration.asPath}"
-          if (bwcFipsPolicyConfig != null) {
+        }
+      }
+
+      // BWC test projects: explicit dependency on the previous major's checkout so the
+      // FIPS policy file is available before old-version clusters start. This mirrors
+      // the pattern used by AbstractYamlRestCompatTestPlugin for pulling resources from
+      // the old branch's source tree.
+      pluginManager.withPlugin('elasticsearch.bwc-test') {
+        String fipsPolicyFilename = isFips140_3 ? 'fips_java_bc2.policy' : 'fips_java.policy'
+        int currentMajor = buildParams.bwcVersions.currentVersion.major
+        def prevMajorVersions = buildParams.bwcVersions.unreleased.findAll { v -> v.major == currentMajor - 1 }
+        def prevMajorInfo = null
+        if (!prevMajorVersions.isEmpty()) {
+          prevMajorInfo = buildParams.bwcVersions.unreleasedInfo(prevMajorVersions.max())
+        } else {
+          prevMajorInfo = buildParams.bwcVersions.unmaintainedPreviousMajor.orElse(null)
+        }
+        if (prevMajorInfo != null) {
+          def bwcProjectRelDir = prevMajorInfo.gradleProjectPath().replaceFirst(':', '').replace(':', '/')
+          def checkoutDir = new File(rootProject.projectDir, "${bwcProjectRelDir}/build/bwc/checkout-${prevMajorInfo.branch()}")
+          File fipsPolicyFile = new File(checkoutDir, "build-tools-internal/src/main/resources/${fipsPolicyFilename}")
+
+          def bwcFipsPolicyConfig = configurations.create('bwcFipsPolicy')
+          dependencies.add(bwcFipsPolicyConfig.name, dependencies.project(path: prevMajorInfo.gradleProjectPath(), configuration: 'checkout'))
+
+          tasks.withType(StandaloneRestIntegTestTask).configureEach {
             dependsOn bwcFipsPolicyConfig
+            systemProperty('tests.cluster.fips.policy.path', fipsPolicyFile.absolutePath)
           }
         }
       }
 
       project.tasks.withType(Test).configureEach { Test task ->
         dependsOn 'fipsResources'
-        if (fipsPolicyFile != null) {
-          task.systemProperty('tests.cluster.fips.policy.path', fipsPolicyFile.absolutePath)
-        }
         task.systemProperty('javax.net.ssl.trustStorePassword', 'password')
         task.systemProperty('javax.net.ssl.keyStorePassword', 'password')
         task.systemProperty('javax.net.ssl.trustStoreType', 'BCFKS')

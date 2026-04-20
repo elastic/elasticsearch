@@ -11,7 +11,6 @@ package org.elasticsearch.test.cluster.local;
 
 import org.elasticsearch.test.cluster.util.resource.Resource;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
 
 public class FipsEnabledClusterConfigProvider implements LocalClusterConfigProvider {
@@ -40,18 +39,16 @@ public class FipsEnabledClusterConfigProvider implements LocalClusterConfigProvi
 
             // Inject SecurityManager policy from the previous major's BWC checkout for old ES versions
             // that still install SecurityManager at bootstrap. The policy file path is provided by the
-            // build system via the tests.cluster.fips.policy.path system property.
+            // build system via the tests.cluster.fips.policy.path system property, and the checkout is
+            // guaranteed to exist via a Gradle dependency on the BWC checkout configuration.
             String fipsPolicyPath = System.getProperty("tests.cluster.fips.policy.path");
             if (fipsPolicyPath != null) {
-                Path policyPath = Path.of(fipsPolicyPath);
-                if (Files.exists(policyPath)) {
-                    builder.configFile("fips_java.policy", Resource.fromFile(policyPath));
-                    builder.systemProperty(
-                        "java.security.policy",
-                        () -> "=${ES_PATH_CONF}/fips_java.policy",
-                        n -> n.getVersion().before("9.0.0")
-                    );
-                }
+                builder.configFile("fips_java.policy", Resource.fromFile(Path.of(fipsPolicyPath)));
+                builder.systemProperty(
+                    "java.security.policy",
+                    () -> "=${ES_PATH_CONF}/fips_java.policy",
+                    n -> n.getVersion().before("9.0.0")
+                );
             }
         }
     }

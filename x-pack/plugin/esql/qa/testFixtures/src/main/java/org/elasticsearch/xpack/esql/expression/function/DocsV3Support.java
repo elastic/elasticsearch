@@ -723,7 +723,7 @@ public abstract class DocsV3Support {
             }
             FunctionInfo info = EsqlFunctionRegistry.functionInfo(definition);
             assert info != null;
-            renderTypes(name, description.args());
+            boolean hasTypes = renderTypes(name, description.args());
             renderParametersList(description.args());
             renderDescription(description.description(), info.detailedDescription(), info.note());
             Optional<EsqlFunctionRegistry.ArgSignature> mapArgSignature = description.args()

@@ -449,6 +449,7 @@ public class SynonymsManagementAPIService {
                 .filter(QueryBuilders.termQuery(OBJECT_TYPE_FIELD, SYNONYM_RULE_OBJECT_TYPE))
         )
             .size(size)
+            .sort(SortBuilders.fieldSort(SYNONYMS_SET_FIELD).order(SortOrder.ASC))
             .sort(SortBuilders.fieldSort(SYNONYM_RULE_ID_FIELD).order(SortOrder.ASC))
             .trackTotalHits(true)
             .fetchSource(false)
@@ -456,7 +457,7 @@ public class SynonymsManagementAPIService {
             .fetchField(SYNONYMS_FIELD);
 
         if (searchAfter != null) {
-            source.searchAfter(new Object[] { searchAfter });
+            source.searchAfter(new Object[] { synonymSetId, searchAfter });
         }
 
         client.execute(

@@ -101,6 +101,22 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * Same request-level filter pattern as {@link #testInSubqueryWithTopLevelFilter}, for {@code NOT IN}.
+     */
+    public void testNotInSubqueryWithTopLevelFilter() {
+        var request = syncEsqlQueryRequest("""
+            FROM test
+            | WHERE id NOT IN (FROM test | WHERE color == "red" | KEEP id)
+            | SORT id
+            | KEEP id, color
+            """).filter(new RangeQueryBuilder("id").gte(3)).pragmas(getPragmas());
+        try (var resp = run(request)) {
+            assertColumnNames(resp.columns(), List.of("id", "color"));
+            assertValues(resp.values(), List.of(List.of(4, "blue"), List.of(6, "blue")));
+        }
+    }
+
     // ---- IN subquery combined with other conditions ----
 
     public void testInSubqueryWithAdditionalFilter() {

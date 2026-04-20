@@ -231,6 +231,12 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         });
     }
 
+    protected String minimalIsInvalidRoutingPathErrorMessage(Mapper mapper) {
+        assumeFalse("invalid routing path error message is only checked for mappers created with the new format", useLegacyFormat);
+
+        return super.minimalIsInvalidRoutingPathErrorMessage(mapper);
+    }
+
     private void registerDefaultEisEndpoint() {
         globalModelRegistry.putDefaultIdIfAbsent(
             new InferenceService.DefaultConfigId(

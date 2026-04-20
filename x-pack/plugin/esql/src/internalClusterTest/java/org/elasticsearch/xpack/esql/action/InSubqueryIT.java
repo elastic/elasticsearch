@@ -10,11 +10,13 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.junit.Before;
 
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 
 /**
  * Integration tests for WHERE ... IN (subquery) and WHERE ... NOT IN (subquery).
@@ -79,6 +81,23 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
         try (var resp = run("FROM test | WHERE id IN (FROM test | WHERE color == \"red\" | KEEP id) | SORT id | KEEP id, color")) {
             assertColumnNames(resp.columns(), List.of("id", "color"));
             assertValues(resp.values(), List.of(List.of(1, "red"), List.of(3, "red"), List.of(5, "red")));
+        }
+    }
+
+    /**
+     * Request-level filter (same JSON {@code filter} object as REST ES|QL {@code POST ... /_query})
+     * intersects with IN-subquery execution.
+     */
+    public void testInSubqueryWithTopLevelFilter() {
+        var request = syncEsqlQueryRequest("""
+            FROM test
+            | WHERE id IN (FROM test | WHERE color == "red" | KEEP id)
+            | SORT id
+            | KEEP id, color
+            """).filter(new RangeQueryBuilder("id").gte(3)).pragmas(getPragmas());
+        try (var resp = run(request)) {
+            assertColumnNames(resp.columns(), List.of("id", "color"));
+            assertValues(resp.values(), List.of(List.of(3, "red"), List.of(5, "red")));
         }
     }
 

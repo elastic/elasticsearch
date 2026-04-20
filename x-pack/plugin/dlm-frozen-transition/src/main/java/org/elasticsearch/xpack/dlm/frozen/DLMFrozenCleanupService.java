@@ -130,7 +130,7 @@ class DLMFrozenCleanupService extends AbstractDLMPeriodicMasterOnlyService {
         return projectMetadata.indices()
             .values()
             .stream()
-            .filter(indexMetadata -> indexMetadata.getSettings().getAsBoolean(DLMConvertToFrozen.DLM_MANAGED_SETTING_KEY, false))
+            .filter(indexMetadata -> DLMConvertToFrozen.DLM_MANAGED_SETTING.get(indexMetadata.getSettings()))
             .map(IndexMetadata::getIndex)
             .map(Index::getName)
             .filter(indexName -> isIndexOrphaned(indexName, projectMetadata))
@@ -184,8 +184,7 @@ class DLMFrozenCleanupService extends AbstractDLMPeriodicMasterOnlyService {
         // Possibly resolve mounted snapshot to source index
         indexToCheck = Optional.ofNullable(indexName)
             .map(projectMetadata::index)
-            .map(IndexMetadata::getSettings)
-            .map(s -> s.get(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_INDEX_NAME_SETTING_KEY))
+            .map(im -> SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING.get(im.getSettings())
             .orElse(indexToCheck);
 
         // possibly resolve force merged index to source index

@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -74,12 +76,60 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
 
     private List<Attribute> inferSchemaIfNeeded(List<Attribute> attributes, StorageObject object) throws IOException {
         if (attributes != null && attributes.isEmpty() == false) {
+            if (needsFullSchemaSupplement(attributes)) {
+                List<Attribute> inferred;
+                try (var stream = object.newStream()) {
+                    inferred = NdJsonSchemaInferrer.inferSchema(stream, schemaSampleSize);
+                }
+                return mergeInferredWithPreferred(inferred, attributes);
+            }
             return attributes;
         }
 
         try (var stream = object.newStream()) {
             return NdJsonSchemaInferrer.inferSchema(stream, schemaSampleSize);
         }
+    }
+
+    /**
+     * Coordinator-supplied schemas may only list projected columns. Dotted columns such as {@code languages.long}
+     * need their prefix column ({@code languages}) present for NDJSON decoding; detect that case and merge with a
+     * fresh file inference pass.
+     */
+    private static boolean needsFullSchemaSupplement(List<Attribute> attributes) {
+        for (Attribute a : attributes) {
+            String name = a.name();
+            int dot = name.indexOf('.');
+            if (dot <= 0) {
+                continue;
+            }
+            String prefix = name.substring(0, dot);
+            boolean hasPrefix = false;
+            for (Attribute o : attributes) {
+                if (o.name().equals(prefix)) {
+                    hasPrefix = true;
+                    break;
+                }
+            }
+            if (hasPrefix == false) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Union by column name: inferred file order first, then overlay coordinator types/nullability for matching names.
+     */
+    private static List<Attribute> mergeInferredWithPreferred(List<Attribute> inferred, List<Attribute> preferred) {
+        Map<String, Attribute> byName = new LinkedHashMap<>();
+        for (Attribute a : inferred) {
+            byName.put(a.name(), a);
+        }
+        for (Attribute p : preferred) {
+            byName.put(p.name(), p);
+        }
+        return List.copyOf(byName.values());
     }
 
     private static int schemaSampleSize(Settings settings) {
@@ -108,17 +158,28 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     }
 
     @Override
+    public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) throws IOException {
+        return read(
+            object,
+            FormatReadContext.builder().projectedColumns(projectedColumns).batchSize(batchSize).errorPolicy(defaultErrorPolicy()).build()
+        );
+    }
+
+    @Override
     public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
         boolean skipFirstLine = context.firstSplit() == false;
         boolean trimLastPartialLine = context.lastSplit() == false;
+        ErrorPolicy errorPolicy = context.errorPolicy() != null ? context.errorPolicy() : defaultErrorPolicy();
         return new NdJsonPageIterator(
             object,
             context.projectedColumns(),
             context.batchSize(),
+            context.rowLimit(),
             blockFactory,
             skipFirstLine,
             trimLastPartialLine,
-            inferSchemaIfNeeded(resolvedSchema, object)
+            inferSchemaIfNeeded(resolvedSchema, object),
+            errorPolicy
         );
     }
 

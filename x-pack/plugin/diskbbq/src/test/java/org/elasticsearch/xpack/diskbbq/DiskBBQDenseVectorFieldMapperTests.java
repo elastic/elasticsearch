@@ -69,7 +69,7 @@ public class DiskBBQDenseVectorFieldMapperTests extends MapperServiceTestCase {
         }
     }
 
-    public void testDefaultsToBBQDiskWhenLicensed() throws IOException {
+    public void testDefaultsToBBQDiskWhenLicensedOnStatelessNode() throws IOException {
         final int dims = randomIntBetween(1, 4096);
         MapperService mapperService = createMapperService(getVersion(), Settings.EMPTY, () -> true, fieldMapping(b -> {
             b.field("type", "dense_vector");

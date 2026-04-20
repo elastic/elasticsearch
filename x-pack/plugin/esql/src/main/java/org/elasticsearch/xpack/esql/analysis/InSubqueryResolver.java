@@ -77,7 +77,7 @@ public class InSubqueryResolver {
     }
 
     private static LogicalPlan resolveInSubqueries(LogicalPlan plan) {
-        return plan.transformDown(Filter.class, InSubqueryResolver::resolveInSubqueryInFilter);
+        return plan.transformUp(Filter.class, InSubqueryResolver::resolveInSubqueryInFilter);
     }
 
     private static boolean hasInSubquery(LogicalPlan plan) {

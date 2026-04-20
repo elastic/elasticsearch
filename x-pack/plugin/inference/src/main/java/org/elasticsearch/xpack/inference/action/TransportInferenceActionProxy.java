@@ -19,6 +19,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
@@ -35,6 +36,7 @@ import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import java.io.IOException;
 
 import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
+import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.resolveTimeoutForTaskType;
 
 public class TransportInferenceActionProxy extends HandledTransportAction<InferenceActionProxy.Request, InferenceAction.Response> {
     public static final ElasticsearchStatusException CHAT_COMPLETION_STREAMING_ONLY_EXCEPTION = new ElasticsearchStatusException(
@@ -67,18 +69,22 @@ public class TransportInferenceActionProxy extends HandledTransportAction<Infere
     protected void doExecute(Task task, InferenceActionProxy.Request request, ActionListener<InferenceAction.Response> listener) {
         try {
             ActionListener<UnparsedModel> getModelListener = listener.delegateFailureAndWrap((l, unparsedModel) -> {
-                switch (unparsedModel.taskType()) {
+                // The task type of the unparsed model cannot be ANY, which allows us to resolve the appropriate default timeout
+                // in sendInferenceActionRequest()
+                var taskTypeFromModel = unparsedModel.taskType();
+                switch (taskTypeFromModel) {
                     case CHAT_COMPLETION -> sendUnifiedCompletionRequest(request, l);
                     case EMBEDDING -> sendEmbeddingRequest(request, l);
-                    case null, default -> sendInferenceActionRequest(request, l);
+                    default -> sendInferenceActionRequest(request, l, taskTypeFromModel);
                 }
             });
 
-            switch (request.getTaskType()) {
+            var taskType = request.getTaskType();
+            switch (taskType) {
                 case ANY -> modelRegistry.getModelWithSecrets(request.getInferenceEntityId(), getModelListener);
                 case CHAT_COMPLETION -> sendUnifiedCompletionRequest(request, listener);
                 case EMBEDDING -> sendEmbeddingRequest(request, listener);
-                case null, default -> sendInferenceActionRequest(request, listener);
+                default -> sendInferenceActionRequest(request, listener, taskType);
             }
         } catch (Exception e) {
             listener.onFailure(e);
@@ -101,7 +107,7 @@ public class TransportInferenceActionProxy extends HandledTransportAction<Infere
                 unifiedRequest = UnifiedCompletionAction.Request.parseRequest(
                     request.getInferenceEntityId(),
                     request.getTaskType(),
-                    request.getTimeout(),
+                    resolveTimeoutForTaskType(TaskType.CHAT_COMPLETION, request.getTimeout()),
                     request.getContext(),
                     parser
                 );
@@ -120,7 +126,7 @@ public class TransportInferenceActionProxy extends HandledTransportAction<Infere
             embeddingRequest = EmbeddingAction.Request.parseRequest(
                 request.getInferenceEntityId(),
                 request.getTaskType(),
-                request.getTimeout(),
+                resolveTimeoutForTaskType(TaskType.EMBEDDING, request.getTimeout()),
                 request.getContext(),
                 parser
             );
@@ -129,8 +135,11 @@ public class TransportInferenceActionProxy extends HandledTransportAction<Infere
         execute(EmbeddingAction.INSTANCE, embeddingRequest, listener);
     }
 
-    private void sendInferenceActionRequest(InferenceActionProxy.Request request, ActionListener<InferenceAction.Response> listener)
-        throws IOException {
+    private void sendInferenceActionRequest(
+        InferenceActionProxy.Request request,
+        ActionListener<InferenceAction.Response> listener,
+        TaskType taskTypeFromModel
+    ) throws IOException {
         InferenceAction.Request.Builder inferenceActionRequestBuilder;
         try (var parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, request.getContent(), request.getContentType())) {
             inferenceActionRequestBuilder = InferenceAction.Request.parseRequest(
@@ -139,7 +148,8 @@ public class TransportInferenceActionProxy extends HandledTransportAction<Infere
                 request.getContext(),
                 parser
             );
-            inferenceActionRequestBuilder.setInferenceTimeout(request.getTimeout()).setStream(request.isStreaming());
+            var resolvedTimeout = resolveTimeoutForTaskType(taskTypeFromModel, request.getTimeout());
+            inferenceActionRequestBuilder.setInferenceTimeout(resolvedTimeout).setStream(request.isStreaming());
         }
 
         execute(InferenceAction.INSTANCE, inferenceActionRequestBuilder.build(), listener);

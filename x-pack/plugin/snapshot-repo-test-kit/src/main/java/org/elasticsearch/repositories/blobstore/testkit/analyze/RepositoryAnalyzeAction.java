@@ -965,53 +965,20 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
         private void verifyPrefixListing(BlobContainer blobContainer, Map<String, BlobMetadata> allBlobs) throws IOException {
             // Verify that listing with the common prefix "test-blob-" returns all matching blobs with correct metadata
             final String commonPrefix = "test-blob-";
-            final Map<String, BlobMetadata> prefixResults = blobContainer.listBlobsByPrefix(
-                OperationPurpose.REPOSITORY_ANALYSIS,
-                commonPrefix
-            );
+            final String subsetPrefix = commonPrefix + "1";
             final Map<String, BlobMetadata> expectedFromPrefix = new HashMap<>();
+            final Map<String, BlobMetadata> expectedFromSubsetPrefix = new HashMap<>();
             for (Map.Entry<String, BlobMetadata> entry : allBlobs.entrySet()) {
-                if (entry.getKey().startsWith(commonPrefix)) {
-                    expectedFromPrefix.put(entry.getKey(), entry.getValue());
+                String blobName = entry.getKey();
+                if (blobName.startsWith(commonPrefix)) {
+                    expectedFromPrefix.put(blobName, entry.getValue());
+                    if (blobName.startsWith(subsetPrefix)) {
+                        expectedFromSubsetPrefix.put(blobName, entry.getValue());
+                    }
                 }
             }
-            if (prefixResults.keySet().equals(expectedFromPrefix.keySet()) == false) {
-                final Set<String> missing = new HashSet<>(expectedFromPrefix.keySet());
-                missing.removeAll(prefixResults.keySet());
-                final Set<String> extra = new HashSet<>(prefixResults.keySet());
-                extra.removeAll(expectedFromPrefix.keySet());
-                fail(
-                    new RepositoryVerificationException(
-                        request.repositoryName,
-                        "listBlobsByPrefix(\""
-                            + commonPrefix
-                            + "\") returned incorrect results: missing="
-                            + missing
-                            + ", unexpected="
-                            + extra
-                    )
-                );
-                return;
-            }
-            for (Map.Entry<String, BlobMetadata> entry : expectedFromPrefix.entrySet()) {
-                final BlobMetadata actual = prefixResults.get(entry.getKey());
-                if (actual.length() != entry.getValue().length()) {
-                    fail(
-                        new RepositoryVerificationException(
-                            request.repositoryName,
-                            "listBlobsByPrefix(\""
-                                + commonPrefix
-                                + "\") returned incorrect size for blob ["
-                                + entry.getKey()
-                                + "]: expected "
-                                + entry.getValue().length()
-                                + " but got "
-                                + actual.length()
-                        )
-                    );
-                    return;
-                }
-            }
+            verifyPrefixListingForExistingPrefix(blobContainer, expectedFromPrefix, commonPrefix);
+            verifyPrefixListingForExistingPrefix(blobContainer, expectedFromSubsetPrefix, subsetPrefix);
 
             // Verify that listing with a prefix matching no blobs returns empty results
             final String noMatchPrefix = "nonexistent-prefix-";
@@ -1030,6 +997,54 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             }
 
             logger.trace("prefix-based listing verified for [{}:{}]", request.getRepositoryName(), blobPath);
+        }
+
+        private void verifyPrefixListingForExistingPrefix(
+            BlobContainer blobContainer,
+            Map<String, BlobMetadata> expectedFromPrefix,
+            String existingPrefix
+        ) throws IOException {
+            final Map<String, BlobMetadata> prefixResults = blobContainer.listBlobsByPrefix(
+                OperationPurpose.REPOSITORY_ANALYSIS,
+                existingPrefix
+            );
+            if (prefixResults.keySet().equals(expectedFromPrefix.keySet()) == false) {
+                final Set<String> missing = new HashSet<>(expectedFromPrefix.keySet());
+                missing.removeAll(prefixResults.keySet());
+                final Set<String> extra = new HashSet<>(prefixResults.keySet());
+                extra.removeAll(expectedFromPrefix.keySet());
+                fail(
+                    new RepositoryVerificationException(
+                        request.repositoryName,
+                        "listBlobsByPrefix(\""
+                            + existingPrefix
+                            + "\") returned incorrect results: missing="
+                            + missing
+                            + ", unexpected="
+                            + extra
+                    )
+                );
+                return;
+            }
+            for (Map.Entry<String, BlobMetadata> entry : expectedFromPrefix.entrySet()) {
+                final BlobMetadata actual = prefixResults.get(entry.getKey());
+                if (actual.length() != entry.getValue().length()) {
+                    fail(
+                        new RepositoryVerificationException(
+                            request.repositoryName,
+                            "listBlobsByPrefix(\""
+                                + existingPrefix
+                                + "\") returned incorrect size for blob ["
+                                + entry.getKey()
+                                + "]: expected "
+                                + entry.getValue().length()
+                                + " but got "
+                                + actual.length()
+                        )
+                    );
+                    return;
+                }
+            }
         }
 
         private void deleteContainer() {

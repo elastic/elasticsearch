@@ -385,8 +385,13 @@ public class IndexingPressure implements IndexingPressureMonitor {
         return markPrimaryOperationStarted(operations, bytes, forceExecution, false);
     }
 
-    public Releasable trackPrimaryOperationExpansion(int operations, long expandedBytes, boolean forceExecution) {
-        return markPrimaryOperationStarted(operations, expandedBytes, forceExecution, true);
+    /**
+     * Starts accounting for additional primary bytes beyond the incoming request size (for example parsing overhead
+     * and, later, update requests expansion).
+     */
+    public PrimaryExpansionTracker trackPrimaryOperationExpansion(int operations, long expandedBytes, boolean forceExecution) {
+        updatePrimaryOperationsAndBytes(operations, expandedBytes, forceExecution, true);
+        return new PrimaryExpansionTracker(operations, expandedBytes, forceExecution);
     }
 
     // visible for testing
@@ -395,6 +400,20 @@ public class IndexingPressure implements IndexingPressureMonitor {
     }
 
     private Releasable markPrimaryOperationStarted(int operations, long bytes, boolean forceExecution, boolean operationExpansionTracking) {
+        updatePrimaryOperationsAndBytes(operations, bytes, forceExecution, operationExpansionTracking);
+        return wrapReleasable(() -> { releasePrimaryOperationsAndBytes(operations, bytes, operationExpansionTracking); });
+    }
+
+    private void releasePrimaryOperationsAndBytes(int operations, long bytes, boolean operationExpansionTracking) {
+        logger.trace(() -> Strings.format("removing [%d] primary operations and [%d] bytes", operations, bytes));
+        this.currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
+        this.currentPrimaryBytes.getAndAdd(-bytes);
+        if (operationExpansionTracking == false) {
+            this.currentPrimaryOps.getAndAdd(-operations);
+        }
+    }
+
+    private void updatePrimaryOperationsAndBytes(int operations, long bytes, boolean forceExecution, boolean operationExpansionTracking) {
         long combinedBytes = this.currentCombinedCoordinatingAndPrimaryBytes.addAndGet(bytes);
         long replicaWriteBytes = this.currentReplicaBytes.get();
         long totalBytes = combinedBytes + replicaWriteBytes;
@@ -434,14 +453,42 @@ public class IndexingPressure implements IndexingPressureMonitor {
             currentPrimaryOps.getAndAdd(operations);
             totalPrimaryOps.getAndAdd(operations);
         }
-        return wrapReleasable(() -> {
-            logger.trace(() -> Strings.format("removing [%d] primary operations and [%d] bytes", operations, bytes));
-            this.currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
-            this.currentPrimaryBytes.getAndAdd(-bytes);
-            if (operationExpansionTracking == false) {
-                this.currentPrimaryOps.getAndAdd(-operations);
+    }
+
+    public final class PrimaryExpansionTracker implements Releasable {
+
+        private final AtomicBoolean closed = new AtomicBoolean();
+        private final int operations;
+        private final boolean forceExecution;
+        private final AtomicLong expandedBytes;
+
+        private PrimaryExpansionTracker(int operations, long bytes, boolean forceExecution) {
+            this.operations = operations;
+            this.forceExecution = forceExecution;
+            this.expandedBytes = new AtomicLong(bytes);
+        }
+
+        public void addExpandedBytes(long expandedBytes) {
+            assert this.closed.get() == false : "the PrimaryOperationPressureExpansionTracker has been closed";
+            IndexingPressure.this.updatePrimaryOperationsAndBytes(0, expandedBytes, forceExecution, true);
+            this.expandedBytes.addAndGet(expandedBytes);
+        }
+
+        public void removeExpandedBytes(long expandedBytes) {
+            assert this.closed.get() == false : "the PrimaryOperationPressureExpansionTracker has been closed";
+            IndexingPressure.this.releasePrimaryOperationsAndBytes(0, expandedBytes, true);
+            this.expandedBytes.getAndAdd(-expandedBytes);
+        }
+
+        @Override
+        public void close() {
+            if (closed.compareAndSet(false, true)) {
+                IndexingPressure.this.releasePrimaryOperationsAndBytes(operations, expandedBytes.get(), true);
+            } else {
+                logger.error("IndexingPressure memory is adjusted twice", new IllegalStateException("Releasable is called twice"));
+                assert false : "IndexingPressure is adjusted twice";
             }
-        });
+        }
     }
 
     public Releasable trackReplicaOperationExpansion(long expandedBytes, boolean forceExecution) {

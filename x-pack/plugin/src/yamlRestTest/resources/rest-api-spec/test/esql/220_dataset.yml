@@ -4,7 +4,7 @@ setup:
       capabilities:
         - method: GET
           path: /_query/dataset
-          capabilities: [dataset_management]
+          capabilities: [data_sources]
       test_runner_features: capabilities
       reason: "ES|QL dataset CRUD API"
 

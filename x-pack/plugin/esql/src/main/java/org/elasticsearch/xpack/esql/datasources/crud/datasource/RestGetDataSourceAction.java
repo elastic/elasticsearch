@@ -15,6 +15,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xpack.core.esql.EsqlDataSourcesCapabilities;
 
 import java.util.List;
 import java.util.Set;
@@ -22,7 +23,6 @@ import java.util.Set;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetDataSourceAction extends BaseRestHandler {
-    private static final String DATA_SOURCE_MANAGEMENT = "data_source_management";
 
     @Override
     public List<Route> routes() {
@@ -52,6 +52,6 @@ public class RestGetDataSourceAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        return Set.of(DATA_SOURCE_MANAGEMENT);
+        return Set.of(EsqlDataSourcesCapabilities.DATA_SOURCES);
     }
 }

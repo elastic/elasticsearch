@@ -4,7 +4,7 @@ setup:
       capabilities:
         - method: GET
           path: /_query/data_source
-          capabilities: [data_source_management]
+          capabilities: [data_sources]
       test_runner_features: capabilities
       reason: "ES|QL data source CRUD API"
 

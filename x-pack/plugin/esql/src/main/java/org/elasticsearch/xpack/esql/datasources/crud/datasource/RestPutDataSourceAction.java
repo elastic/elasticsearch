@@ -13,6 +13,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.esql.EsqlDataSourcesCapabilities;
 
 import java.io.IOException;
 import java.util.List;
@@ -22,7 +23,6 @@ import java.util.Set;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutDataSourceAction extends BaseRestHandler {
-    private static final String DATA_SOURCE_MANAGEMENT = "data_source_management";
 
     @Override
     public List<Route> routes() {
@@ -59,6 +59,6 @@ public class RestPutDataSourceAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        return Set.of(DATA_SOURCE_MANAGEMENT);
+        return Set.of(EsqlDataSourcesCapabilities.DATA_SOURCES);
     }
 }

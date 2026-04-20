@@ -16,9 +16,9 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
-import org.elasticsearch.xpack.esql.datasources.crud.datasource.bzip2.Bzip2DataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.crud.datasource.http.HttpDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.crud.datasource.ndjson.NdJsonDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.util.ArrayList;

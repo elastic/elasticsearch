@@ -42,7 +42,6 @@ public class DataSourceService {
 
     private static final Logger logger = LogManager.getLogger(DataSourceService.class);
 
-    // Operator-only. Intentionally tighter than the dataset cap; revisited in esql-planning#502.
     public static final Setting<Integer> MAX_DATA_SOURCES_COUNT_SETTING = Setting.intSetting(
         "esql.data_sources.max_count",
         100,

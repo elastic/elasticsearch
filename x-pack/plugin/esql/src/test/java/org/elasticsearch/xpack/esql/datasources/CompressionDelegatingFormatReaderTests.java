@@ -49,7 +49,7 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
         byte[] compressed = gzip(csvContent);
 
         StorageObject rawObject = new BytesStorageObject(compressed, StoragePath.of("file:///data.csv.gz"));
-        DecompressionCodec codec = new org.elasticsearch.xpack.esql.datasources.crud.datasource.gzip.GzipDecompressionCodec();
+        DecompressionCodec codec = new org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec();
 
         FormatReader innerReader = new CapturingFormatReader();
         FormatReader delegating = new CompressionDelegatingFormatReader(innerReader, codec);

@@ -255,8 +255,8 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         assertTrue("both operations must return", doneGate.await(30, TimeUnit.SECONDS));
 
         // Exactly one of two valid end states:
-        // a) DELETE wins → PUT dataset gets ResourceNotFoundException at ~DatasetService.java:142
-        // b) PUT wins → DELETE gets ElasticsearchStatusException(CONFLICT) at ~DataSourceService.java:184
+        // a) DELETE wins → PUT dataset's CAS re-check throws ResourceNotFoundException.
+        // b) PUT wins → DELETE sees the dependent dataset and throws ElasticsearchStatusException(CONFLICT).
         boolean putOk = isActionSuccess(putFuture[0]);
         boolean deleteOk = isActionSuccess(deleteFuture[0]);
 
@@ -323,10 +323,6 @@ public class DataSourceCrudIT extends ESIntegTestCase {
             PutDatasetAction.INSTANCE,
             putDatasetRequest(datasetName, dsName, "test://logs/", Map.of())
         );
-
-        // Give the PUT's pre-task validation (which runs on the transport thread before the CAS task
-        // is submitted) a moment to complete against the still-present parent.
-        Thread.sleep(100);
 
         // Release barrier — master now runs DELETE task (succeeds), then PUT's task (re-check sees
         // parent is gone and throws ResourceNotFoundException).

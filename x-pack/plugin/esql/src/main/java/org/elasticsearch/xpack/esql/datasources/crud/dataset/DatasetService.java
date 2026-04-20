@@ -40,7 +40,6 @@ public class DatasetService {
 
     private static final Logger logger = LogManager.getLogger(DatasetService.class);
 
-    // Operator-only. Validation of the chosen defaults + ceiling is tracked at esql-planning#502.
     public static final Setting<Integer> MAX_DATASETS_COUNT_SETTING = Setting.intSetting(
         "esql.datasets.max_count",
         1_000,

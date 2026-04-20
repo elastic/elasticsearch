@@ -541,7 +541,7 @@ POST my-index/_search
 3. The format of the input value. Defaults to `text` for text input. Defaults to `base64` for image input.
 4. The value used to generate the embedding. For image, this must be a data URI for a base64-encoded image. The example above is a small sample base64 string. In real usage, this would be a much longer string generated from an actual image file.
 
-##### Example: multiple inputs (multimodal - image + text) [embedding-example-array-input]
+##### Example: multiple inputs (image + text) [embedding-example-array-input]
 
 ```console
 POST my-index/_search

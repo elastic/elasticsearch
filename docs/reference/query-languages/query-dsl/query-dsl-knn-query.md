@@ -456,7 +456,7 @@ $$$knn-query-builder-embedding$$$ `embedding` {applies_to}`stack: preview` {appl
 stack: ga 9.4
 ```
 
-Use the lookup query vector builder to retrieve an existing vector from a stored document and use it as the query vector.
+Use the `lookup` query vector builder to retrieve an existing vector from a stored document and use it as the query vector.
 
 ```console
 {

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
@@ -87,6 +89,7 @@ public class ApproximationGoldenTests extends GoldenTestCase {
     }
 
     public void testLookupJoin() {
+        assumeTrue("needs approximation lookup join", EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN.isEnabled());
         runGoldenTest("""
             SET approximation=true;
             FROM many_numbers

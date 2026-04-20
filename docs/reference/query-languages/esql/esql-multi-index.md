@@ -12,9 +12,9 @@ products:
 # Use ES|QL to query multiple indices [esql-multi-index]
 
 With {{esql}}, you can execute a single query across multiple
-[indices](/manage-data/data-store/index-basics),
-[data streams](/manage-data/data-store/data-streams),
-[aliases](/manage-data/data-store/aliases),
+[indices](/manage-data/data-store/index-basics.md),
+[data streams](/manage-data/data-store/data-streams.md),
+[aliases](/manage-data/data-store/aliases.md),
 [views](/reference/query-languages/esql/esql-views.md) or
 [subqueries](/reference/query-languages/esql/esql-subquery.md).
 To do so, use comma-separated lists, wildcards and date arithmetic.

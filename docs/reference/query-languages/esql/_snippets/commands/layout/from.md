@@ -4,9 +4,9 @@ stack: ga
 ```
 
 The `FROM` source command returns a table with data from an
-[index](/manage-data/data-store/index-basics),
-[data stream](/manage-data/data-store/data-streams),
-[alias](/manage-data/data-store/aliases),
+[index](/manage-data/data-store/index-basics.md),
+[data stream](/manage-data/data-store/data-streams-md),
+[alias](/manage-data/data-store/aliases.md),
 [view](/reference/query-languages/esql/esql-views.md) or
 [subquery](/reference/query-languages/esql/esql-subquery.md).
 

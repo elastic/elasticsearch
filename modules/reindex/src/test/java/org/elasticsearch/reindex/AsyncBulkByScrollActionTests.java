@@ -1395,7 +1395,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     /**
-     * Sliced bulk-by-scroll must retain scroll when {@code max_docs} is at most the batch size: otherwise the search has
+     * Sliced bulk-by-scroll must retain scroll when {@code max_docs} is at most the batch size. Otherwise, the search has
      * {@code slice} with neither scroll nor point-in-time, which fails request validation.
      */
     public void testKeepScrollWhenMaxDocsAtMostScrollSizeButSliced() {

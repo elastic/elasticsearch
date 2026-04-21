@@ -127,6 +127,15 @@ export function parseMutedEntries(yamlText: string): MutedEntry[] {
   return entries;
 }
 
+function mutedEntryKey(e: MutedEntry): string {
+  return `${e.className}|${e.method ?? ""}`;
+}
+
+export function diffMutedEntries(before: MutedEntry[], after: MutedEntry[]): MutedEntry[] {
+  const afterKeys = new Set(after.map(mutedEntryKey));
+  return before.filter((e) => afterKeys.has(mutedEntryKey(e)) === false);
+}
+
 export function classifyChangedFiles(files: string[]): ClassifiedTest[] {
   const tests: ClassifiedTest[] = [];
 

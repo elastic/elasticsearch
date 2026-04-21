@@ -13,6 +13,7 @@ import {
   BATCH_CAPS,
   parseMutedEntries,
   MutedEntry,
+  diffMutedEntries,
 } from "./repeat-changed-tests";
 
 describe("toGradleProject", () => {
@@ -683,5 +684,57 @@ describe("parseMutedEntries", () => {
     expect(parseMutedEntries(yaml)).toEqual([
       { className: "org.elasticsearch.Foo", method: "testBar" },
     ]);
+  });
+});
+
+describe("diffMutedEntries", () => {
+  test("returns empty when before and after match", () => {
+    const entries: MutedEntry[] = [
+      { className: "org.elasticsearch.Foo", method: "testBar" },
+    ];
+    expect(diffMutedEntries(entries, entries)).toEqual([]);
+  });
+
+  test("reports entries present in before but missing in after", () => {
+    const before: MutedEntry[] = [
+      { className: "org.elasticsearch.Foo", method: "testBar" },
+      { className: "org.elasticsearch.Baz", method: "testQux" },
+    ];
+    const after: MutedEntry[] = [
+      { className: "org.elasticsearch.Foo", method: "testBar" },
+    ];
+    expect(diffMutedEntries(before, after)).toEqual([
+      { className: "org.elasticsearch.Baz", method: "testQux" },
+    ]);
+  });
+
+  test("ignores entries only present in after (newly muted)", () => {
+    const before: MutedEntry[] = [];
+    const after: MutedEntry[] = [
+      { className: "org.elasticsearch.Foo", method: "testBar" },
+    ];
+    expect(diffMutedEntries(before, after)).toEqual([]);
+  });
+
+  test("treats whole-class mute and method-level mute as distinct", () => {
+    const before: MutedEntry[] = [{ className: "org.elasticsearch.Foo" }];
+    const after: MutedEntry[] = [
+      { className: "org.elasticsearch.Foo", method: "testBar" },
+    ];
+    expect(diffMutedEntries(before, after)).toEqual([
+      { className: "org.elasticsearch.Foo" },
+    ]);
+  });
+
+  test("ignores reordering", () => {
+    const before: MutedEntry[] = [
+      { className: "org.elasticsearch.A", method: "testX" },
+      { className: "org.elasticsearch.B", method: "testY" },
+    ];
+    const after: MutedEntry[] = [
+      { className: "org.elasticsearch.B", method: "testY" },
+      { className: "org.elasticsearch.A", method: "testX" },
+    ];
+    expect(diffMutedEntries(before, after)).toEqual([]);
   });
 });

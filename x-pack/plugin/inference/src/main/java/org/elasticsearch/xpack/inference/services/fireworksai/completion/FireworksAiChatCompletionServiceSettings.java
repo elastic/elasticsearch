@@ -40,17 +40,16 @@ public class FireworksAiChatCompletionServiceSettings extends FilteredXContentOb
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(6_000);
 
     public static FireworksAiChatCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
 
-        String modelId = ServiceUtils.extractRequiredString(
+        var modelId = ServiceUtils.extractRequiredString(
             map,
             ServiceFields.MODEL_ID,
             ModelConfigurations.SERVICE_SETTINGS,
             validationException
         );
-        String url = ServiceUtils.extractOptionalString(map, ServiceFields.URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        URI uri = ServiceUtils.convertToUri(url, ServiceFields.URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
+        var uri = ServiceUtils.extractOptionalUri(map, ServiceFields.URL, validationException);
+        var rateLimitSettings = RateLimitSettings.of(
             map,
             DEFAULT_RATE_LIMIT_SETTINGS,
             validationException,
@@ -78,6 +77,20 @@ public class FireworksAiChatCompletionServiceSettings extends FilteredXContentOb
         this.modelId = in.readString();
         this.uri = ServiceUtils.createOptionalUri(in.readOptionalString());
         this.rateLimitSettings = new RateLimitSettings(in);
+    }
+
+    @Override
+    public FireworksAiChatCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            FireworksAiService.NAME,
+            ConfigurationParseContext.REQUEST
+        );
+        validationException.throwIfValidationErrorsExist();
+        return new FireworksAiChatCompletionServiceSettings(this.modelId, this.uri, extractedRateLimitSettings);
     }
 
     @Override

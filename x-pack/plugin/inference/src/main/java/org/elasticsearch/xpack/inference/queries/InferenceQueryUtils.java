@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryRewriteAsyncAction;
@@ -576,7 +575,6 @@ public final class InferenceQueryUtils {
                 l.onResponse(Tuple.tuple(fullyQualifiedInferenceId, inferenceResults));
             });
 
-            final TimeValue timeout = InferenceAction.Request.getDefaultTimeoutForTaskType(taskType);
             switch (taskType) {
                 case TEXT_EMBEDDING, SPARSE_EMBEDDING -> executeAsyncWithOrigin(
                     client,
@@ -591,7 +589,7 @@ public final class InferenceQueryUtils {
                         List.of(query),
                         Map.of(),
                         InputType.INTERNAL_SEARCH,
-                        timeout,
+                        null,
                         false
                     ),
                     responseListener
@@ -604,7 +602,7 @@ public final class InferenceQueryUtils {
                         inferenceId,
                         taskType,
                         new EmbeddingRequest(List.of(new InferenceStringGroup(query)), InputType.INTERNAL_SEARCH, Map.of()),
-                        timeout
+                        null
                     ),
                     responseListener
                 );

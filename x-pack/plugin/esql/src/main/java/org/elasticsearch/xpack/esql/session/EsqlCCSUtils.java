@@ -13,6 +13,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
+import org.elasticsearch.action.fieldcaps.RemoteDatasetNotSupportedException;
 import org.elasticsearch.action.fieldcaps.RemoteViewNotSupportedException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -204,17 +205,25 @@ public class EsqlCCSUtils {
      * Collects all view errors across all clusters and merges them into a single exception.
      */
     static void checkForViewErrors(Map<String, List<FieldCapabilitiesFailure>> failures) {
-        RemoteViewNotSupportedException merged = null;
+        RemoteViewNotSupportedException mergedViews = null;
+        RemoteDatasetNotSupportedException mergedDatasets = null;
         for (var entry : failures.entrySet()) {
             for (FieldCapabilitiesFailure failure : entry.getValue()) {
                 Throwable cause = ExceptionsHelper.unwrapCause(failure.getException());
                 if (cause instanceof RemoteViewNotSupportedException viewEx) {
-                    merged = merged == null ? viewEx : RemoteViewNotSupportedException.merge(merged, viewEx);
+                    mergedViews = mergedViews == null ? viewEx : RemoteViewNotSupportedException.merge(mergedViews, viewEx);
+                } else if (cause instanceof RemoteDatasetNotSupportedException datasetEx) {
+                    mergedDatasets = mergedDatasets == null
+                        ? datasetEx
+                        : RemoteDatasetNotSupportedException.merge(mergedDatasets, datasetEx);
                 }
             }
         }
-        if (merged != null) {
-            throw merged;
+        if (mergedViews != null) {
+            throw mergedViews;
+        }
+        if (mergedDatasets != null) {
+            throw mergedDatasets;
         }
     }
 

@@ -2092,7 +2092,13 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             192,
             INVALID_PROJECT_ROUTING_EXCEPTION_VERSION
         ),
-        TASK_RELOCATED_EXCEPTION(TaskRelocatedException.class, TaskRelocatedException::new, 193, TASK_RELOCATED_EXCEPTION_VERSION);
+        TASK_RELOCATED_EXCEPTION(TaskRelocatedException.class, TaskRelocatedException::new, 193, TASK_RELOCATED_EXCEPTION_VERSION),
+        REMOTE_DATASET_NOT_SUPPORTED_EXCEPTION(
+            org.elasticsearch.action.fieldcaps.RemoteDatasetNotSupportedException.class,
+            org.elasticsearch.action.fieldcaps.RemoteDatasetNotSupportedException::new,
+            194,
+            org.elasticsearch.action.fieldcaps.RemoteDatasetNotSupportedException.REMOTE_DATASET_NOT_SUPPORTED_EXCEPTION_VERSION
+        );
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;

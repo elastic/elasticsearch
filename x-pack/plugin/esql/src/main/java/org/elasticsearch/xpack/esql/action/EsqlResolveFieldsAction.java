@@ -13,11 +13,13 @@ import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.fieldcaps.RemoteDatasetNotSupportedException;
 import org.elasticsearch.action.fieldcaps.RemoteViewNotSupportedException;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -74,15 +76,29 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
 
     @Override
     protected void doExecute(Task task, FieldCapabilitiesRequest request, final ActionListener<EsqlResolveFieldsResponse> listener) {
+        final IndicesOptions indicesOptionsBeforePatch = request.indicesOptions();
         // During CCS, resolveViews is only set on a request from the originating cluster and is therefore only true on a remote cluster
-        if (request.indicesOptions().indexAbstractionOptions().resolveViews()) {
+        if (indicesOptionsBeforePatch.indexAbstractionOptions().resolveViews()) {
             Set<String> viewsLocalToRemoteCluster = getViews(
                 request.indices(),
-                request.indicesOptions(),
+                indicesOptionsBeforePatch,
                 request.getResolvedIndexExpressions()
             );
             if (viewsLocalToRemoteCluster.isEmpty() == false) {
                 listener.onFailure(remoteViewDetectedException(request.clusterAlias(), viewsLocalToRemoteCluster));
+                return;
+            }
+        }
+        applyEsqlFieldCapsDatasetResolution(request);
+        // resolveDatasets is not serialized across the transport layer; use the same CCS gate as views.
+        if (indicesOptionsBeforePatch.indexAbstractionOptions().resolveViews()) {
+            Set<String> datasetsLocalToRemoteCluster = getLocalDatasetNames(
+                request.indices(),
+                request.indicesOptions(),
+                request.getResolvedIndexExpressions()
+            );
+            if (datasetsLocalToRemoteCluster.isEmpty() == false) {
+                listener.onFailure(remoteDatasetDetectedException(request.clusterAlias(), datasetsLocalToRemoteCluster));
                 return;
             }
         }
@@ -100,6 +116,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
                         .indexAbstractionOptions(
                             IndicesOptions.IndexAbstractionOptions.builder(remoteRequest.indicesOptions().indexAbstractionOptions())
                                 .resolveViews(true)
+                                .resolveDatasets(true)
                         )
                         .build()
                 );
@@ -129,6 +146,24 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
         }, listener);
     }
 
+    /**
+     * Dataset resolution is not serialized on {@link IndicesOptions} across the transport layer. ES|QL field caps always
+     * requires local dataset abstractions to be visible for authorization and planning, so apply it on every coordinating
+     * execution of this action.
+     */
+    private static void applyEsqlFieldCapsDatasetResolution(FieldCapabilitiesRequest request) {
+        IndicesOptions current = request.indicesOptions();
+        var abstractionOptions = current.indexAbstractionOptions();
+        if (abstractionOptions.resolveDatasets()) {
+            return;
+        }
+        request.indicesOptions(
+            IndicesOptions.builder(current)
+                .indexAbstractionOptions(IndicesOptions.IndexAbstractionOptions.builder(abstractionOptions).resolveDatasets(true).build())
+                .build()
+        );
+    }
+
     private Set<String> getViews(String[] indices, IndicesOptions indicesOptions, ResolvedIndexExpressions resolvedIndexExpressions) {
         var projectState = projectResolver.getProjectState(clusterService.state());
         var result = viewResolutionService.resolveViews(projectState, indices, indicesOptions, resolvedIndexExpressions);
@@ -138,5 +173,20 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
     private RemoteViewNotSupportedException remoteViewDetectedException(String clusterAlias, Set<String> detectedViews) {
         List<String> qualifiedViews = detectedViews.stream().sorted().map(v -> clusterAlias + ":" + v).toList();
         return new RemoteViewNotSupportedException(qualifiedViews);
+    }
+
+    private Set<String> getLocalDatasetNames(
+        String[] indices,
+        IndicesOptions indicesOptions,
+        ResolvedIndexExpressions resolvedIndexExpressions
+    ) {
+        var projectState = projectResolver.getProjectState(clusterService.state());
+        var result = viewResolutionService.resolveDatasets(projectState, indices, indicesOptions, resolvedIndexExpressions);
+        return Arrays.stream(result.datasets()).map(Dataset::getName).collect(Collectors.toSet());
+    }
+
+    private RemoteDatasetNotSupportedException remoteDatasetDetectedException(String clusterAlias, Set<String> detectedDatasets) {
+        List<String> qualifiedDatasets = detectedDatasets.stream().sorted().map(d -> clusterAlias + ":" + d).toList();
+        return new RemoteDatasetNotSupportedException(qualifiedDatasets);
     }
 }

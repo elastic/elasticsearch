@@ -577,10 +577,13 @@ class IndicesAndAliasesResolver {
     }
 
     private boolean shouldSetResolvedIndexExpressions(IndicesRequest.Replaceable replaceable, ResolvedIndexExpressions resolved) {
-        // Only store resolved expressions if cross-project mode or if views should be resolved, to avoid unnecessary memory
-        // usage. Once we've migrated from `indices()` to using resolved expressions holistically, we will always store them.
+        // Only store resolved expressions if cross-project mode, or if views or datasets should be resolved, to avoid unnecessary memory
+        // usage. The dataset gate mirrors the view gate: datasets are expected to participate in field caps the same way views do
+        // (field caps reads resolvedIndexExpressions in EsqlResolveFieldsAction), so we preserve the same storage pathway.
+        // Once we've migrated from `indices()` to using resolved expressions holistically, we will always store them.
         if (crossProjectModeDecider.crossProjectEnabled() == false
-            && replaceable.indicesOptions().indexAbstractionOptions().resolveViews() == false) {
+            && replaceable.indicesOptions().indexAbstractionOptions().resolveViews() == false
+            && replaceable.indicesOptions().indexAbstractionOptions().resolveDatasets() == false) {
             return false;
         }
 

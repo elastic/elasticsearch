@@ -77,6 +77,9 @@ public class IndexResolver {
         .gatekeeperOptions(
             IndicesOptions.GatekeeperOptions.builder().ignoreThrottled(true).allowClosedIndices(true).allowAliasToMultipleIndices(true)
         )
+        .indexAbstractionOptions(
+            IndicesOptions.IndexAbstractionOptions.builder(IndicesOptions.DEFAULT.indexAbstractionOptions()).resolveDatasets(true).build()
+        )
         .build();
 
     /**

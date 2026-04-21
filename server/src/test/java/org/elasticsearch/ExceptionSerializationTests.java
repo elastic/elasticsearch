@@ -883,6 +883,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(191, org.elasticsearch.action.fieldcaps.RemoteViewNotSupportedException.class);
         ids.put(192, org.elasticsearch.search.crossproject.InvalidProjectRoutingException.class);
         ids.put(193, org.elasticsearch.index.reindex.TaskRelocatedException.class);
+        ids.put(194, org.elasticsearch.action.fieldcaps.RemoteDatasetNotSupportedException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

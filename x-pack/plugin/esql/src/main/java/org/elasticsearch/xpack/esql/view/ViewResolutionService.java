@@ -11,6 +11,7 @@ import org.elasticsearch.action.ResolvedIndexExpression;
 import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexAbstractionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -63,6 +64,45 @@ public class ViewResolutionService {
         return new ViewResolutionResult(views, resolvedIndexExpressions);
     }
 
+    /**
+     * Resolves dataset index abstractions referenced by {@code indexPatterns}, mirroring {@link #resolveViews}
+     * but for {@link IndexAbstraction.Type#DATASET}. Requires {@link IndicesOptions.IndexAbstractionOptions#resolveDatasets()}
+     * on {@code indicesOptions} for datasets to be visible to resolution.
+     */
+    public DatasetResolutionResult resolveDatasets(
+        ProjectState projectState,
+        String[] indexPatterns,
+        IndicesOptions indicesOptions,
+        ResolvedIndexExpressions resolvedIndexExpressions
+    ) {
+        if (indexPatterns == null || indexPatterns.length == 0) {
+            return new DatasetResolutionResult(new Dataset[0], resolvedIndexExpressions);
+        }
+
+        IndexAbstractionResolver indexAbstractionResolver = new IndexAbstractionResolver(indexNameExpressionResolver);
+        var indicesLookup = projectState.metadata().getIndicesLookup();
+
+        if (resolvedIndexExpressions == null) {
+            resolvedIndexExpressions = indexAbstractionResolver.resolveIndexAbstractions(
+                List.of(indexPatterns),
+                indicesOptions,
+                projectState.metadata(),
+                componentSelector -> indicesLookup.keySet(),
+                (index, selector) -> true,
+                true
+            );
+        }
+        checkViewsExist(resolvedIndexExpressions, indicesOptions);
+        Dataset[] datasets = resolvedIndexExpressions.getLocalIndicesList()
+            .stream()
+            .map(indicesLookup::get)
+            .filter(indexAbstraction -> indexAbstraction != null && indexAbstraction.getType() == IndexAbstraction.Type.DATASET)
+            .map(indexAbstraction -> (Dataset) indexAbstraction)
+            .toArray(Dataset[]::new);
+
+        return new DatasetResolutionResult(datasets, resolvedIndexExpressions);
+    }
+
     private void checkViewsExist(ResolvedIndexExpressions resolvedIndexExpressions, IndicesOptions indicesOptions) {
         if (indicesOptions.ignoreUnavailable()) {
             return;
@@ -75,4 +115,6 @@ public class ViewResolutionService {
     }
 
     public record ViewResolutionResult(View[] views, ResolvedIndexExpressions resolvedIndexExpressions) {}
+
+    public record DatasetResolutionResult(Dataset[] datasets, ResolvedIndexExpressions resolvedIndexExpressions) {}
 }

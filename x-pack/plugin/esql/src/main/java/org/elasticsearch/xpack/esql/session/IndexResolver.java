@@ -15,7 +15,6 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
-import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.IndicesOptions.CrossProjectModeOptions;
 import org.elasticsearch.client.internal.Client;
@@ -185,10 +184,15 @@ public class IndexResolver {
     /**
      * Like {@code IndexResolver#resolveIndicesVersioned}
      * but for flat world queries.
+     * <p>
+     * The {@code additionalLenientCaps} parameter, when non-null, carries the merged response of the
+     * per-scope lenient field-caps calls fired ahead of the required call. Its caps are unioned with the
+     * required response before mappings are built, so that view names that resolve to concrete remote
+     * indices contribute to the resolved mappings for this leaf.
      */
     public void resolveMainFlatIndicesVersioned(
         String requiredIndexPattern,
-        String optionalIndexPattern,
+        @Nullable FieldCapabilitiesResponse additionalLenientCaps,
         String projectRouting,
         Set<String> fieldNames,
         QueryBuilder requestFilter,
@@ -210,71 +214,53 @@ public class IndexResolver {
             var infe = (IndexNotFoundException) ExceptionsHelper.unwrap(e, IndexNotFoundException.class);
             l.onFailure(infe != null ? new VerificationException("Unknown index [" + infe.getIndex().getName() + "]") : e);
         });
-        var mergeResponseListener = new GroupedActionListener<EsqlResolveFieldsResponse>(
-            2,
-            translatedListener.delegateFailureAndWrap((l, responses) -> {
-                var response = merge(responses);
-                var overallMinimumVersion = TransportVersion.min(minimumVersion, response.minTransportVersion());
-                var indexPattern = String.join(",", requiredIndexPattern, optionalIndexPattern);
-                FieldsInfo info = new FieldsInfo(
-                    response,
-                    overallMinimumVersion,
-                    Build.current().isSnapshot(),
-                    useAggregateMetricDoubleWhenNotSupported,
-                    useDenseVectorWhenNotSupported,
-                    hasTimeSeriesAggregation
-                );
-                l.onResponse(
-                    new Versioned<>(
-                        mergedMappings(
-                            indexPattern,
-                            true,
-                            info,
-                            trackUnmappedFieldIndices,
-                            (ignored, fieldCapabilitiesResponse) -> Maps.transformValues(
-                                EsqlResolvedIndexExpression.from(fieldCapabilitiesResponse),
-                                v -> List.copyOf(v.expression())
-                            )
-                        ),
-                        info.minTransportVersion()
-                    )
-                );
-            })
-        );
-        maybeResolveIndices(
+        var request = createFieldCapsRequest(
+            FLAT_OPTIONS,
             requiredIndexPattern,
-            createFieldCapsRequest(
-                FLAT_OPTIONS,
-                requiredIndexPattern,
-                projectRouting,
-                fieldNames,
-                requestFilter,
-                includeAllDimensions,
-                true
-            ),
-            mergeResponseListener
+            projectRouting,
+            fieldNames,
+            requestFilter,
+            includeAllDimensions,
+            true
         );
-        maybeResolveIndices(
-            optionalIndexPattern,
-            createFieldCapsRequest(
-                LENIENT_FLAT_OPTIONS,
-                optionalIndexPattern,
-                projectRouting,
-                fieldNames,
-                requestFilter,
-                includeAllDimensions,
-                true
-            ),
-            mergeResponseListener
-        );
+        client.execute(EsqlResolveFieldsAction.TYPE, request, translatedListener.delegateFailureAndWrap((l, response) -> {
+            FieldCapabilitiesResponse caps = additionalLenientCaps == null
+                ? response.caps()
+                : mergeCaps(response.caps(), additionalLenientCaps);
+            var overallMinimumVersion = TransportVersion.min(minimumVersion, caps.minTransportVersion());
+            FieldsInfo info = new FieldsInfo(
+                caps,
+                overallMinimumVersion,
+                Build.current().isSnapshot(),
+                useAggregateMetricDoubleWhenNotSupported,
+                useDenseVectorWhenNotSupported,
+                hasTimeSeriesAggregation
+            );
+            l.onResponse(
+                new Versioned<>(
+                    mergedMappings(
+                        requiredIndexPattern,
+                        true,
+                        info,
+                        trackUnmappedFieldIndices,
+                        (ignored, fieldCapabilitiesResponse) -> Maps.transformValues(
+                            EsqlResolvedIndexExpression.from(fieldCapabilitiesResponse),
+                            v -> List.copyOf(v.expression())
+                        )
+                    ),
+                    info.minTransportVersion()
+                )
+            );
+        }));
     }
 
     /**
-     * Issues a single lenient field-caps call (LENIENT_FLAT_OPTIONS, CPS-enabled). Used for per-scope dirty
-     * lenient groups whose only purpose is to act as a remote-view trip-wire and to apply positional exclusion
-     * semantics on the remote — the response is intentionally not merged into mappings, since that already
-     * happens via the required + clean-combined optional path. The listener receives the response on success
-     * (or the failure on error, which propagates RemoteViewNotSupportedException as expected).
+     * Issues a single lenient field-caps call (LENIENT_FLAT_OPTIONS, CPS-enabled). Used for per-scope lenient
+     * pattern groups so that (a) remote-view trip-wires fire and (b) positive responses contribute to mappings
+     * (e.g. when a view name resolves to a concrete remote index). The collected responses are merged and then
+     * folded into each per-leaf required response; see
+     * {@link #resolveMainFlatIndicesVersioned(String, FieldCapabilitiesResponse, String, Set, QueryBuilder, boolean,
+     *  TransportVersion, boolean, boolean, boolean, boolean, ActionListener)}.
      */
     public void resolveLenientOnly(
         String optionalIndexPattern,
@@ -295,39 +281,46 @@ public class IndexResolver {
         maybeResolveIndices(optionalIndexPattern, request, listener);
     }
 
+    /**
+     * Merges an arbitrary list of {@link EsqlResolveFieldsResponse}s into a single {@link FieldCapabilitiesResponse}.
+     * Returns {@code null} when the input is empty (no lenient calls were made).
+     */
+    @Nullable
+    public static FieldCapabilitiesResponse mergeLenientResponses(Collection<EsqlResolveFieldsResponse> responses) {
+        if (responses.isEmpty()) {
+            return null;
+        }
+        return responses.stream().map(EsqlResolveFieldsResponse::caps).reduce(IndexResolver::mergeCaps).get();
+    }
+
+    private static FieldCapabilitiesResponse mergeCaps(FieldCapabilitiesResponse r1, FieldCapabilitiesResponse r2) {
+        return FieldCapabilitiesResponse.builder()
+            .withResolvedLocally(ResolvedIndexExpressions.merge(r1.getResolvedLocally(), r2.getResolvedLocally()))
+            .withResolvedRemotely(mergeMaps(r1.getResolvedRemotely(), r2.getResolvedRemotely(), ResolvedIndexExpressions::merge))
+            .withFields(
+                mergeMaps(
+                    r1.get(),
+                    r2.get(),
+                    (f1, f2) -> mergeMaps(f1, f2, (fc1, fc2) -> /*same field from the same concrete index. Safe to pick any*/ fc1)
+                )
+            )
+            .withIndexResponses(combine(r1.getIndexResponses(), r2.getIndexResponses()))
+            .withFailures(combine(r1.getFailures(), r2.getFailures()))
+            // minTransportVersion is always present with CPS
+            .withMinTransportVersion(TransportVersion.min(r1.minTransportVersion(), r2.minTransportVersion()))
+            .build();
+    }
+
+    private static <T> Map<String, T> mergeMaps(Map<String, T> m1, Map<String, T> m2, BinaryOperator<T> merger) {
+        return Stream.concat(m1.entrySet().stream(), m2.entrySet().stream()).collect(toMap(Map.Entry::getKey, Map.Entry::getValue, merger));
+    }
+
     private void maybeResolveIndices(String pattern, FieldCapabilitiesRequest request, ActionListener<EsqlResolveFieldsResponse> listener) {
         if (pattern.isEmpty()) {
             listener.onResponse(null);
         } else {
             client.execute(EsqlResolveFieldsAction.TYPE, request, listener);
         }
-    }
-
-    private static FieldCapabilitiesResponse merge(Collection<EsqlResolveFieldsResponse> responses) {
-        return responses.stream()
-            .map(EsqlResolveFieldsResponse::caps)
-            .reduce(
-                (r1, r2) -> FieldCapabilitiesResponse.builder()
-                    .withResolvedLocally(ResolvedIndexExpressions.merge(r1.getResolvedLocally(), r2.getResolvedLocally()))
-                    .withResolvedRemotely(merge(r1.getResolvedRemotely(), r2.getResolvedRemotely(), ResolvedIndexExpressions::merge))
-                    .withFields(
-                        merge(
-                            r1.get(),
-                            r2.get(),
-                            (f1, f2) -> merge(f1, f2, (fc1, fc2) -> /*same field from the same concrete index. Safe to pick any*/ fc1)
-                        )
-                    )
-                    .withIndexResponses(combine(r1.getIndexResponses(), r2.getIndexResponses()))
-                    .withFailures(combine(r1.getFailures(), r2.getFailures()))
-                    // minTransportVersion is always present with CPS
-                    .withMinTransportVersion(TransportVersion.min(r1.minTransportVersion(), r2.minTransportVersion()))
-                    .build()
-            )
-            .get(); // at least one response should be present
-    }
-
-    private static <T> Map<String, T> merge(Map<String, T> m1, Map<String, T> m2, BinaryOperator<T> merger) {
-        return Stream.concat(m1.entrySet().stream(), m2.entrySet().stream()).collect(toMap(Map.Entry::getKey, Map.Entry::getValue, merger));
     }
 
     private void doResolveIndices(

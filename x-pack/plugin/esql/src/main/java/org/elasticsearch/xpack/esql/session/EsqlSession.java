@@ -12,7 +12,9 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.TriConsumer;
@@ -44,6 +46,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
+import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse;
 import org.elasticsearch.xpack.esql.action.TimeSpanMarker;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
@@ -1329,57 +1332,75 @@ public class EsqlSession {
                 listener
             );
         } else {
-            // Fan out the per-required-pattern calls (no optional pattern is combined here). Once those
-            // complete, fire one lenient field-caps call per lenient group as an independent fan-out.
-            // The lenient calls' purpose is the remote-view trip-wire and bookkeeping; their responses
-            // do not contribute to mappings.
+            // First, fire one lenient field-caps call per lenient pattern group in parallel. Each group represents
+            // an isolated view scope and may carry its own positional exclusions, so the calls cannot be merged
+            // on the wire — they need to apply their exclusions independently on the remote(s).
+            //
+            // The collected responses serve a dual purpose:
+            // 1. trip-wire — any RemoteViewNotSupportedException short-circuits resolution.
+            // 2. mapping contribution — when a view name resolves to a concrete remote index, its caps are
+            // unioned with each per-leaf required response so the resolved mappings include those fields.
+            //
+            // Once all lenient responses are in, we fan out the per-leaf required calls and pass the merged
+            // lenient caps so each leaf's IndexResolution can incorporate them.
             //
             // TODO: Optimization: groups without exclusions could be unioned into a single lenient call
             // (saving N-1 round-trips). Groups with exclusions must remain isolated to preserve
             // per-scope positional exclusion semantics.
-            forAll(
-                preAnalysis.indexes().entrySet().iterator(),
+            collectLenientResponses(
                 result,
-                (e, r, l) -> preAnalyzeFlatMainIndices(
-                    e.getKey(),
-                    "",
-                    e.getValue(),
-                    configuration.projectRouting(),
-                    preAnalysis,
-                    executionInfo,
-                    trackUnmappedFieldIndices,
-                    r,
-                    requestFilter,
-                    l
-                ),
+                configuration.projectRouting(),
+                requestFilter,
+                executionInfo,
                 listener.delegateFailureAndWrap(
-                    (l, r) -> fanOutLenientCalls(r, configuration.projectRouting(), requestFilter, executionInfo, l)
+                    (l, mergedLenientCaps) -> forAll(
+                        preAnalysis.indexes().entrySet().iterator(),
+                        result,
+                        (e, r, inner) -> preAnalyzeFlatMainIndices(
+                            e.getKey(),
+                            e.getValue(),
+                            mergedLenientCaps,
+                            configuration.projectRouting(),
+                            preAnalysis,
+                            executionInfo,
+                            trackUnmappedFieldIndices,
+                            r,
+                            requestFilter,
+                            inner
+                        ),
+                        l
+                    )
                 )
             );
         }
     }
 
-    private void fanOutLenientCalls(
+    private void collectLenientResponses(
         PreAnalysisResult result,
         String projectRouting,
         QueryBuilder requestFilter,
         EsqlExecutionInfo executionInfo,
-        ActionListener<PreAnalysisResult> listener
+        ActionListener<FieldCapabilitiesResponse> listener
     ) {
-        if (result.lenientGroups().isEmpty()) {
-            listener.onResponse(result);
+        var groups = result.lenientGroups();
+        if (groups.isEmpty()) {
+            listener.onResponse(null);
             return;
         }
-        forAll(result.lenientGroups().iterator(), result, (group, r, l) -> {
+        var grouped = new GroupedActionListener<EsqlResolveFieldsResponse>(
+            groups.size(),
+            listener.map(IndexResolver::mergeLenientResponses)
+        );
+        for (var group : groups) {
             executionInfo.queryProfile().incFieldCapsCalls();
             indexResolver.resolveLenientOnly(
                 String.join(",", group.patterns()),
                 projectRouting,
-                r.fieldNames,
+                result.fieldNames,
                 createQueryFilter(IndexMode.STANDARD, requestFilter),
-                l.delegateFailureAndWrap((inner, ignored) -> inner.onResponse(r))
+                grouped
             );
-        }, listener);
+        }
     }
 
     private void preAnalyzeMainIndices(
@@ -1443,8 +1464,8 @@ public class EsqlSession {
 
     private void preAnalyzeFlatMainIndices(
         IndexPattern indexPattern,
-        String optionalPattern,
         IndexMode indexMode,
+        FieldCapabilitiesResponse additionalLenientCaps,
         String projectRouting,
         PreAnalyzer.PreAnalysis preAnalysis,
         EsqlExecutionInfo executionInfo,
@@ -1456,7 +1477,7 @@ public class EsqlSession {
         executionInfo.queryProfile().incFieldCapsCalls();
         indexResolver.resolveMainFlatIndicesVersioned(
             indexPattern.indexPattern(),
-            optionalPattern,
+            additionalLenientCaps,
             projectRouting,
             result.fieldNames,
             createQueryFilter(indexMode, requestFilter),
@@ -1477,7 +1498,7 @@ public class EsqlSession {
                     executionInfo.queryProfile().incFieldCapsCalls();
                     indexResolver.resolveMainFlatIndicesVersioned(
                         indexPattern.indexPattern(),
-                        optionalPattern,
+                        additionalLenientCaps,
                         projectRouting,
                         result.fieldNames,
                         requestFilter,

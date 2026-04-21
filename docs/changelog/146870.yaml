@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 146864
+pr: 146870
+summary: Allow appending synonyms to existing rules via replace_all=false
+type: enhancement

@@ -16,6 +16,7 @@ import {
   diffMutedEntries,
   locateUnmutedTest,
   findUnmutedTests,
+  dedupeTests,
 } from "./repeat-changed-tests";
 
 describe("toGradleProject", () => {
@@ -894,5 +895,64 @@ describe("findUnmutedTests", () => {
       located: [],
       unlocated: [],
     });
+  });
+});
+
+describe("dedupeTests", () => {
+  test("removes duplicate unit test", () => {
+    const tests: ClassifiedTest[] = [
+      { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "org.elasticsearch.FooTests" },
+      { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "org.elasticsearch.FooTests" },
+    ];
+    expect(dedupeTests(tests)).toHaveLength(1);
+  });
+
+  test("keeps tests with different fqcn", () => {
+    const tests: ClassifiedTest[] = [
+      { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "org.elasticsearch.FooTests" },
+      { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "org.elasticsearch.BarTests" },
+    ];
+    expect(dedupeTests(tests)).toHaveLength(2);
+  });
+
+  test("keeps yaml runner and suite for the same project as distinct", () => {
+    const tests: ClassifiedTest[] = [
+      { gradleProject: ":x-pack:plugin:ml", kind: "yamlRestTestRunner", sourceSet: "yamlRestTest" },
+      {
+        gradleProject: ":x-pack:plugin:ml",
+        kind: "yamlRestTestSuite",
+        sourceSet: "yamlRestTest",
+        suitePath: "ml/foo",
+      },
+    ];
+    expect(dedupeTests(tests)).toHaveLength(2);
+  });
+
+  test("removes duplicate yaml suite", () => {
+    const tests: ClassifiedTest[] = [
+      {
+        gradleProject: ":x-pack:plugin:ml",
+        kind: "yamlRestTestSuite",
+        sourceSet: "yamlRestTest",
+        suitePath: "ml/foo",
+      },
+      {
+        gradleProject: ":x-pack:plugin:ml",
+        kind: "yamlRestTestSuite",
+        sourceSet: "yamlRestTest",
+        suitePath: "ml/foo",
+      },
+    ];
+    expect(dedupeTests(tests)).toHaveLength(1);
+  });
+
+  test("preserves input order", () => {
+    const tests: ClassifiedTest[] = [
+      { gradleProject: ":a", kind: "test", sourceSet: "test", fqcn: "A" },
+      { gradleProject: ":b", kind: "test", sourceSet: "test", fqcn: "B" },
+      { gradleProject: ":a", kind: "test", sourceSet: "test", fqcn: "A" },
+    ];
+    const result = dedupeTests(tests);
+    expect(result.map((t) => t.fqcn)).toEqual(["A", "B"]);
   });
 });

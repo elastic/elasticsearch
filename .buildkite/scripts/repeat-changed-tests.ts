@@ -205,6 +205,18 @@ export function findUnmutedTests(
   return { located, unlocated };
 }
 
+export function dedupeTests(tests: ClassifiedTest[]): ClassifiedTest[] {
+  const seen = new Set<string>();
+  const result: ClassifiedTest[] = [];
+  for (const t of tests) {
+    const key = `${t.gradleProject}|${t.kind}|${t.fqcn ?? t.suitePath ?? ""}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(t);
+  }
+  return result;
+}
+
 export function classifyChangedFiles(files: string[]): ClassifiedTest[] {
   const tests: ClassifiedTest[] = [];
 

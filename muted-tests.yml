@@ -414,6 +414,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
   method: test {csv-spec:qstr-function.testQstrInStatsWithGrouping}
   issue: https://github.com/elastic/elasticsearch/issues/146934
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:stats.whereNullConjunctionBeforeStats}
+  issue: https://github.com/elastic/elasticsearch/issues/146935
 
 # Examples:
 #

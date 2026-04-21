@@ -210,6 +210,9 @@ toc:
                   - file: esql/functions-operators/date-time-functions/day_name.md
                   - file: esql/functions-operators/date-time-functions/month_name.md
                   - file: esql/functions-operators/date-time-functions/now.md
+                  - hidden: esql/functions-operators/date-time-functions/range_max.md
+                  - hidden: esql/functions-operators/date-time-functions/range_min.md
+                  - hidden: esql/functions-operators/date-time-functions/range_within.md
                   - file: esql/functions-operators/date-time-functions/trange.md
               - file: esql/functions-operators/ip-functions.md
                 children:
@@ -317,7 +320,7 @@ toc:
                   - file: esql/functions-operators/string-functions/url_decode.md
               - file: esql/functions-operators/dense-vector-functions.md
                 children:
-                  - hidden: esql/functions-operators/dense-vector-functions/embedding.md
+                  - file: esql/functions-operators/dense-vector-functions/embedding.md
                   - file: esql/functions-operators/dense-vector-functions/knn.md
                   - file: esql/functions-operators/dense-vector-functions/text_embedding.md
                   - file: esql/functions-operators/dense-vector-functions/v_cosine.md

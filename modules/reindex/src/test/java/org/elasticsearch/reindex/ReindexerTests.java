@@ -586,11 +586,10 @@ public class ReindexerTests extends ESTestCase {
         final AtomicInteger closeCount = new AtomicInteger(0);
         final ActionListener<BulkByScrollResponse> delegate = spy(ActionListener.noop());
         final BytesReference pitId = new BytesArray("pit-id");
-        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(
-            pitId,
-            delegate,
-            id -> closeCount.incrementAndGet()
-        );
+        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(pitId, delegate, (id, done) -> {
+            closeCount.incrementAndGet();
+            done.onResponse(null);
+        });
 
         wrapped.onResponse(reindexResponseWithResumeInfo());
 
@@ -605,11 +604,10 @@ public class ReindexerTests extends ESTestCase {
         final AtomicInteger closeCount = new AtomicInteger(0);
         final ActionListener<BulkByScrollResponse> delegate = spy(ActionListener.noop());
         final BytesReference pitId = new BytesArray("pit-id");
-        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(
-            pitId,
-            delegate,
-            id -> closeCount.incrementAndGet()
-        );
+        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(pitId, delegate, (id, done) -> {
+            closeCount.incrementAndGet();
+            done.onResponse(null);
+        });
 
         wrapped.onFailure(new TaskRelocatedException());
 
@@ -624,11 +622,10 @@ public class ReindexerTests extends ESTestCase {
         final AtomicInteger closeCount = new AtomicInteger(0);
         final ActionListener<BulkByScrollResponse> delegate = spy(ActionListener.noop());
         final BytesReference pitId = new BytesArray("pit-id");
-        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(
-            pitId,
-            delegate,
-            id -> closeCount.incrementAndGet()
-        );
+        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(pitId, delegate, (id, done) -> {
+            closeCount.incrementAndGet();
+            done.onResponse(null);
+        });
 
         wrapped.onResponse(reindexResponseWithBulkAndSearchFailures(null, null));
 
@@ -644,12 +641,10 @@ public class ReindexerTests extends ESTestCase {
         final BytesReference latestPitId = new BytesArray("latest-pit-id");
         final BytesReference[] closedPitId = new BytesReference[1];
         final ActionListener<BulkByScrollResponse> delegate = spy(ActionListener.noop());
-        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(
-            initialPitId,
-            delegate,
-            id -> closedPitId[0] = id
-        );
-
+        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(initialPitId, delegate, (id, done) -> {
+            closedPitId[0] = id;
+            done.onResponse(null);
+        });
         wrapped.onResponse(reindexResponseWithPitId(latestPitId));
 
         verify(delegate).onResponse(any());
@@ -663,11 +658,10 @@ public class ReindexerTests extends ESTestCase {
         final BytesReference initialPitId = new BytesArray("initial-pit-id");
         final BytesReference[] closedPitId = new BytesReference[1];
         final ActionListener<BulkByScrollResponse> delegate = spy(ActionListener.noop());
-        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(
-            initialPitId,
-            delegate,
-            id -> closedPitId[0] = id
-        );
+        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(initialPitId, delegate, (id, done) -> {
+            closedPitId[0] = id;
+            done.onResponse(null);
+        });
 
         wrapped.onResponse(reindexResponseWithBulkAndSearchFailures(null, null));
 
@@ -682,13 +676,10 @@ public class ReindexerTests extends ESTestCase {
         final AtomicInteger closeCount = new AtomicInteger(0);
         final ActionListener<BulkByScrollResponse> delegate = spy(ActionListener.noop());
         final BytesReference pitId = new BytesArray("pit-id");
-        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(
-            pitId,
-            delegate,
-            id -> closeCount.incrementAndGet(),
-            null,
-            () -> true
-        );
+        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(pitId, delegate, (id, done) -> {
+            closeCount.incrementAndGet();
+            done.onResponse(null);
+        }, null, () -> true);
 
         wrapped.onResponse(reindexResponseWithBulkAndSearchFailures(null, null));
 
@@ -703,11 +694,10 @@ public class ReindexerTests extends ESTestCase {
         final AtomicInteger closeCount = new AtomicInteger(0);
         final ActionListener<BulkByScrollResponse> delegate = spy(ActionListener.noop());
         final BytesReference pitId = new BytesArray("pit-id");
-        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(
-            pitId,
-            delegate,
-            id -> closeCount.incrementAndGet()
-        );
+        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(pitId, delegate, (id, done) -> {
+            closeCount.incrementAndGet();
+            done.onResponse(null);
+        });
 
         wrapped.onFailure(new RuntimeException("other failure"));
 
@@ -726,13 +716,10 @@ public class ReindexerTests extends ESTestCase {
         task.setWorker(Float.POSITIVE_INFINITY, 0);
         // Do not call requestRelocation() - task.isRelocationRequested() is false
 
-        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(
-            pitId,
-            delegate,
-            id -> closeCount.incrementAndGet(),
-            task,
-            () -> false
-        );
+        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(pitId, delegate, (id, done) -> {
+            closeCount.incrementAndGet();
+            done.onResponse(null);
+        }, task, () -> false);
 
         wrapped.onFailure(new RuntimeException("other failure"));
 
@@ -752,13 +739,10 @@ public class ReindexerTests extends ESTestCase {
         task.setWorker(Float.POSITIVE_INFINITY, 0);
         task.requestRelocation();
 
-        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(
-            pitId,
-            delegate,
-            id -> closeCount.incrementAndGet(),
-            task,
-            () -> true
-        );
+        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(pitId, delegate, (id, done) -> {
+            closeCount.incrementAndGet();
+            done.onResponse(null);
+        }, task, () -> true);
 
         wrapped.onFailure(new TaskCancelledException("cancelled during relocation"));
 
@@ -2085,7 +2069,7 @@ public class ReindexerTests extends ESTestCase {
                     return;
                 }
                 if (path.contains("_pit") && "DELETE".equals(method)) {
-                    exchange.sendResponseHeaders(200, -1);
+                    respondJson(exchange, 200, "{}");
                     return;
                 }
                 exchange.sendResponseHeaders(404, -1);

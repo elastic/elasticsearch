@@ -447,6 +447,21 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/146553
+- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
+  method: test {csv-spec:external-basic.filterByEmploymentStatus [GCS]}
+  issue: https://github.com/elastic/elasticsearch/issues/146982
+- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
+  method: test {csv-spec:external-basic.dropColumn [GCS]}
+  issue: https://github.com/elastic/elasticsearch/issues/146983
+- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
+  method: test {csv-spec:external-basic.selectSpecificColumns [HTTP]}
+  issue: https://github.com/elastic/elasticsearch/issues/146985
+- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
+  method: test {csv-spec:external-basic.sampleWithStats [HTTP]}
+  issue: https://github.com/elastic/elasticsearch/issues/146990
+- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
+  method: test {csv-spec:external-basic.mvCountFromSplit [S3]}
+  issue: https://github.com/elastic/elasticsearch/issues/146991
 
 # Examples:
 #

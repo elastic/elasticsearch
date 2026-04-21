@@ -22,9 +22,10 @@ import java.util.List;
  * of all test tasks that actually executed in the previous build.
  * <p>
  * The {@code failedTestTasks} field is populated from
- * {@code api/builds/<buildId>/gradle-build-cache-performance} and contains the task
- * paths of test tasks that failed at the Gradle level (e.g. resource leaks detected
- * after tests passed). This enables four-state logic in the retry plugin:
+ * {@code api/builds/<buildId>/gradle-failures} (specifically {@code buildFailures[].taskPath})
+ * and contains the task paths of test tasks that failed at the Gradle level (e.g.
+ * resource leaks detected after tests passed). This enables four-state logic in the
+ * retry plugin:
  * <ul>
  *   <li>Task in workUnits: rerun only failed tests</li>
  *   <li>Task in failedTestTasks but not workUnits: run all tests (non-test failure)</li>

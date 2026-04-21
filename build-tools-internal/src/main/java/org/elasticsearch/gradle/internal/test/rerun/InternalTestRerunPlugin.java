@@ -79,6 +79,9 @@ public abstract class InternalTestRerunPlugin implements Plugin<Project> {
             return;
         }
 
+        // Branch order matters: a task in failedTestTasks is also in executedTestTasks, so
+        // State 2 must be checked before State 3. Reversing these branches would classify a
+        // Gradle-level failure (e.g. resource leak) as "confirmed passed" and skip it.
         WorkUnit workUnit = testsBuildServiceProvider.get().getWorkUnitForTask(test.getPath());
         if (workUnit != null) {
             // State 1: Task has recorded test failures — rerun only failed tests

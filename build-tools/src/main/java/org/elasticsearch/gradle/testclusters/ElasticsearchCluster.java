@@ -611,7 +611,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
      */
     @Internal
     public List<String> getLeakMessages() {
-        return nodes.stream().map(ElasticsearchNode::getLeakMessage).filter(Objects::nonNull).collect(Collectors.toList());
+        return nodes.stream().map(ElasticsearchNode::getLeakMessage).filter(Objects::nonNull).toList();
     }
 
     @Override

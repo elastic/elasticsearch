@@ -59,7 +59,11 @@ public class IdeltaDoubleAggregator {
         current.combine(groupId, timestamps, values, otherPosition);
     }
 
-    public static Block evaluateFinal(DoubleIdeltaGroupingState state, IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
+    public static Block evaluateFinal(
+        DoubleIdeltaGroupingState state,
+        IntVector selected,
+        GroupingAggregatorEvaluationContext evalContext
+    ) {
         return state.evaluateFinal(selected, evalContext);
     }
 

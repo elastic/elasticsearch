@@ -15,6 +15,7 @@ You can learn how to:
 
 **Run and control reindexing**
 - [Basic reindexing example](#basic-reindexing-example)
+- [Search context keep-alive (scroll vs point-in-time)](#docs-reindex-search-context-keep-alive)
 - [Reindex asynchronously](#docs-reindex-task-api)
 - [Reindex multiple indices sequentially](#docs-reindex-multiple-sequentially)
 - [Reindex from multiple indices in a single request](#docs-reindex-multiple-sources)
@@ -86,6 +87,12 @@ POST _reindex
 
 -->
 
+## Search context keep-alive (scroll and point-in-time) [docs-reindex-search-context-keep-alive]
+
+The Reindex API [`scroll`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-reindex) query parameter sets how long a **scroll** search context stays open between batches when reindex uses **scroll**-based pagination (for example, reindex-from-remote on old remote clusters on a version below 7.10).
+
+For all other reindexing cases, reindexing uses **point-in-time (PIT)** search internally. PIT **keep-alive** is **not** derived from the `scroll` parameter but is instead controlled internally.
+
 ## Reindex asynchronously [docs-reindex-task-api]
 
 If the request contains `wait_for_completion=false`, {{es}} performs some preflight checks, launches the request, and returns a `task` you can use to cancel or get the status of the task. {{es}} creates a record of this task as a document at `_tasks/<task_id>`.
@@ -118,7 +125,7 @@ Set `requests_per_second` to any positive decimal number (for example, `1.4`, `6
 Requests are throttled by padding each batch with a wait time.
 To disable throttling, set `requests_per_second` to `-1`.
 
-The throttling is done by waiting between batches so that the `scroll` that the reindex API uses internally can be given a timeout that takes into account the padding. The padding time is the difference between the batch size divided by the `requests_per_second` and the time spent writing. By default the batch size is `1000`, so if `requests_per_second` is set to `500`:
+The throttling is done by waiting between batches so that the search context the reindex API uses internally (scroll or point-in-time, depending on the request) can be given a timeout that takes into account the padding. The padding time is the difference between the batch size divided by the `requests_per_second` and the time spent writing. By default the batch size is `1000`, so if `requests_per_second` is set to `500`:
 
 ```txt
 target_time = 1000 / 500 per second = 2 seconds
@@ -139,7 +146,7 @@ The task ID can be found using the [task management APIs](https://www.elastic.co
 
 Just like when setting it on the Reindex API, `requests_per_second` can be either `-1` to disable throttling or any decimal number like `1.7` or `12` to throttle to that level.
 Rethrottling that speeds up the query takes effect immediately, but rethrottling that slows down the query will take effect after completing the current batch.
-This prevents scroll timeouts.
+This prevents the search context from timing out between batches.
 
 ## Reindex with slicing [docs-reindex-slice]
 

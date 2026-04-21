@@ -45,7 +45,6 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
@@ -74,43 +73,106 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         .name("bucket", "bin");
     public static final TransportVersion ESQL_BUCKET_OFFSET = TransportVersion.fromName("esql_bucket_offset");
 
-    // TODO maybe we should just cover the whole of representable dates here - like ten years, 100 years, 1000 years, all the way up.
-    // That way you never end up with more than the target number of buckets.
-    private static final Unit YEAR_OF_CENTURY = Unit.from(Rounding.DateTimeUnit.YEAR_OF_CENTURY);
-    private static final Unit MONTH_OF_YEAR = Unit.from(Rounding.DateTimeUnit.MONTH_OF_YEAR);
-    private static final Unit WEEK_OF_WEEKYEAR = Unit.from(Rounding.DateTimeUnit.WEEK_OF_WEEKYEAR);
-    private static final List<Unit> DAY_OF_MONTH_OR_FINER = List.of(
-        Unit.from(Rounding.DateTimeUnit.DAY_OF_MONTH),
-        Unit.from(TimeValue.timeValueHours(12)),
-        Unit.from(TimeValue.timeValueHours(3)),
-        Unit.from(TimeValue.timeValueHours(1)),
-        Unit.from(TimeValue.timeValueMinutes(30)),
-        Unit.from(TimeValue.timeValueMinutes(10)),
-        Unit.from(TimeValue.timeValueMinutes(5)),
-        Unit.from(TimeValue.timeValueMinutes(1)),
-        Unit.from(TimeValue.timeValueSeconds(30)),
-        Unit.from(TimeValue.timeValueSeconds(10)),
-        Unit.from(TimeValue.timeValueSeconds(5)),
-        Unit.from(TimeValue.timeValueSeconds(1)),
-        Unit.from(TimeValue.timeValueMillis(100)),
-        Unit.from(TimeValue.timeValueMillis(50)),
-        Unit.from(TimeValue.timeValueMillis(10)),
-        Unit.from(TimeValue.timeValueMillis(1))
-    );
+    private record DateRoundingPicker(int buckets, long from, long to, ZoneId zoneId, long offset) {
 
-    private record Unit(Function<ZoneId, Rounding> fn) implements Function<ZoneId, Rounding> {
+        // TODO maybe we should just cover the whole of representable dates here - like ten years, 100 years, 1000 years, all the way up.
+        // That way you never end up with more than the target number of buckets.
+        static final Unit[] PRIMARY_UNITS = {
+            Unit.of(Rounding.DateTimeUnit.DAY_OF_MONTH),
+            Unit.of(TimeValue.timeValueHours(12)),
+            Unit.of(TimeValue.timeValueHours(3)),
+            Unit.of(TimeValue.timeValueHours(1)),
+            Unit.of(TimeValue.timeValueMinutes(30)),
+            Unit.of(TimeValue.timeValueMinutes(10)),
+            Unit.of(TimeValue.timeValueMinutes(5)),
+            Unit.of(TimeValue.timeValueMinutes(1)),
+            Unit.of(TimeValue.timeValueSeconds(30)),
+            Unit.of(TimeValue.timeValueSeconds(10)),
+            Unit.of(TimeValue.timeValueSeconds(5)),
+            Unit.of(TimeValue.timeValueSeconds(1)),
+            Unit.of(TimeValue.timeValueMillis(100)),
+            Unit.of(TimeValue.timeValueMillis(50)),
+            Unit.of(TimeValue.timeValueMillis(10)),
+            Unit.of(TimeValue.timeValueMillis(1)) };
 
-        public static Unit from(Rounding.DateTimeUnit unit) {
-            return new Unit(zoneId -> Rounding.builder(unit).timeZone(zoneId).build());
+        static final Unit[] SECONDARY_UNITS = {
+            Unit.of(Rounding.DateTimeUnit.WEEK_OF_WEEKYEAR),
+            Unit.of(Rounding.DateTimeUnit.MONTH_OF_YEAR),
+            Unit.of(Rounding.DateTimeUnit.YEAR_OF_CENTURY) };
+
+        /**
+         * A factory for a particular bucket granularity (e.g. 5 minutes, 1 hour). Knows how to build
+         * a {@link Rounding} for a given timezone, optionally with a millisecond offset that shifts all
+         * bucket boundaries by a fixed amount.
+         */
+        interface Unit {
+            /** Build a rounding with an explicit millisecond offset applied to every bucket boundary. */
+            Rounding rounding(ZoneId zoneId, long offset);
+
+            default Rounding rounding(ZoneId zoneId) {
+                return rounding(zoneId, 0L);
+            }
+
+            static Unit of(Rounding.DateTimeUnit value) {
+                return (zoneId, offset) -> Rounding.builder(value).timeZone(zoneId).offset(offset).build();
+            }
+
+            static Unit of(TimeValue value) {
+                return (zoneId, offset) -> Rounding.builder(value).timeZone(zoneId).offset(offset).build();
+            }
         }
 
-        public static Unit from(TimeValue interval) {
-            return new Unit(zoneId -> Rounding.builder(interval).timeZone(zoneId).build());
+        // The offset only shifts bucket boundaries, not bucket width;
+        // we do not use offset for candidate probes to avoid false negative.
+        // E.g., for a query range [10:00;11:00] and target=60,
+        // the one-minute candidate would be falsely rejected otherwise:
+        // offset=0: [0th <10:00:00>][1st <10:01:00>] ... [60th <10:59:00>] <= target 1m is finest.
+        // offset=+30s: [0th <09:59:30>][1st <10:00:30>] ... [61st <10:59:30>] > target 1m is NOT finest.
+        Rounding pickRounding() {
+            Unit best = findLastOk(PRIMARY_UNITS);
+            if (best != null) {
+                return best.rounding(zoneId, offset);
+            }
+            for (Unit unit : SECONDARY_UNITS) {
+                if (roundingIsOk(unit.rounding(zoneId))) {
+                    return unit.rounding(zoneId, offset);
+                }
+            }
+            return SECONDARY_UNITS[SECONDARY_UNITS.length - 1].rounding(zoneId, offset);
         }
 
-        @Override
-        public Rounding apply(ZoneId zoneId) {
-            return fn.apply(zoneId);
+        private Unit findLastOk(Unit[] candidates) {
+            int low = 0;
+            int high = candidates.length - 1;
+            Unit best = null;
+            while (low <= high) {
+                int mid = (low + high) >>> 1;
+                var unit = candidates[mid];
+                if (roundingIsOk(unit.rounding(zoneId))) {
+                    best = unit;
+                    low = mid + 1;
+                } else {
+                    high = mid - 1;
+                }
+            }
+            return best;
+        }
+
+        /**
+         * True if the rounding produces less than or equal to the requested number of buckets.
+         */
+        boolean roundingIsOk(Rounding rounding) {
+            Rounding.Prepared r = rounding.prepareForUnknown();
+            long bucket = r.round(from);
+            int used = 0;
+            while (used < buckets) {
+                bucket = r.nextRoundingValue(bucket);
+                used++;
+                if (bucket >= to) {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 
@@ -365,64 +427,12 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             long f = foldToLong(foldContext, from);
             long t = foldToLong(foldContext, to);
             if (min != null && max != null) {
-                return new DateRoundingPicker(b, f, t, configuration.zoneId(), offset).pickRounding().prepare(min, max);
+                return new DateRoundingPicker(b, f, t, configuration.zoneId(), 0L).pickRounding().prepare(min, max);
             }
-            return new DateRoundingPicker(b, f, t, configuration.zoneId(), offset).pickRounding().prepareForUnknown();
+            return new DateRoundingPicker(b, f, t, configuration.zoneId(), 0L).pickRounding().prepareForUnknown();
         } else {
             assert DataType.isTemporalAmount(buckets.dataType()) : "Unexpected span data type [" + buckets.dataType() + "]";
             return DateTrunc.createRounding(buckets.fold(foldContext), configuration.zoneId(), min, max, offset);
-        }
-    }
-
-    private record DateRoundingPicker(int buckets, long from, long to, ZoneId zoneId, long offset) {
-        Rounding pickRounding() {
-            Rounding best = findLastOk(DAY_OF_MONTH_OR_FINER);
-            if (best != null) {
-                return best;
-            }
-            Rounding week = WEEK_OF_WEEKYEAR.apply(zoneId);
-            if (roundingIsOk(week)) {
-                return week;
-            }
-            Rounding month = MONTH_OF_YEAR.apply(zoneId);
-            if (roundingIsOk(month)) {
-                return month;
-            }
-            return YEAR_OF_CENTURY.apply(zoneId);
-        }
-
-        private Rounding findLastOk(List<Unit> candidates) {
-            int low = 0;
-            int high = candidates.size() - 1;
-            Rounding best = null;
-            while (low <= high) {
-                int mid = (low + high) >>> 1;
-                Rounding candidate = candidates.get(mid).apply(zoneId);
-                if (roundingIsOk(candidate)) {
-                    best = candidate;
-                    low = mid + 1;
-                } else {
-                    high = mid - 1;
-                }
-            }
-            return best;
-        }
-
-        /**
-         * True if the rounding produces less than or equal to the requested number of buckets.
-         */
-        boolean roundingIsOk(Rounding rounding) {
-            Rounding.Prepared r = rounding.prepareForUnknown();
-            long bucket = r.round(from);
-            int used = 0;
-            while (used < buckets) {
-                bucket = r.nextRoundingValue(bucket);
-                used++;
-                if (bucket >= to) {
-                    return true;
-                }
-            }
-            return false;
         }
     }
 
@@ -506,14 +516,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     }
 
     private static TypeResolution isStringOrDate(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
-        return TypeResolutions.isType(
-            e,
-            exp -> DataType.isString(exp) || DataType.isDateTime(exp),
-            operationName,
-            paramOrd,
-            "datetime",
-            "string"
-        );
+        return isType(e, exp -> DataType.isString(exp) || DataType.isDateTime(exp), operationName, paramOrd, "datetime", "string");
     }
 
     @Override

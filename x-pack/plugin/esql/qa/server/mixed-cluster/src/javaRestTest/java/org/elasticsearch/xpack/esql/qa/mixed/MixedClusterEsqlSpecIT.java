@@ -28,7 +28,6 @@ import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilit
 
 public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     private static final Path CSV_DATA_PATH = CsvTestUtils.createCsvDataDirectory();
-    private static final Version FLATTENED_DATATYPE_MIN_VERSION = Version.fromString("9.5.0");
 
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.mixedVersionCluster(CSV_DATA_PATH);
@@ -80,9 +79,19 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
         assumeTrue("Test " + testName + " is skipped on " + bwcVersion, isEnabled(testName, instructions, bwcVersion));
         if (testCase.requiredCapabilities.contains(LOAD_FLATTENED_FIELD.capabilityName())) {
             assumeTrue(
-                "Flattened root fields are only supported when all nodes are on/after " + FLATTENED_DATATYPE_MIN_VERSION,
-                bwcVersion == null || bwcVersion.onOrAfter(FLATTENED_DATATYPE_MIN_VERSION)
+                "Flattened root fields require old cluster support for [" + LOAD_FLATTENED_FIELD.capabilityName() + "]",
+                oldClusterHasFeature("esql." + LOAD_FLATTENED_FIELD.capabilityName())
             );
+        }
+    }
+
+    protected static boolean oldClusterHasFeature(String featureId) {
+        assert oldClusterTestFeatureService != null;
+        try {
+            return oldClusterTestFeatureService.clusterHasFeature(featureId);
+        } catch (IllegalArgumentException e) {
+            // Older clusters can report no knowledge of newly introduced features.
+            return false;
         }
     }
 

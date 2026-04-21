@@ -340,7 +340,16 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
                 List.of(matchesList().item(matchesMap().entry("a", "foo")))
             );
         } else {
-            assertResultMap(result, List.of(unsupportedColumnInfo("flattened", "flattened")), List.of(matchesList().item(null)));
+            assertResultMap(
+                result,
+                matchesList().item(
+                    matchesMap().entry("name", "flattened")
+                        .entry("type", "unsupported")
+                        .entry("original_types", List.of("flattened"))
+                        .extraOk()
+                ),
+                List.of(matchesList().item(null))
+            );
         }
     }
 

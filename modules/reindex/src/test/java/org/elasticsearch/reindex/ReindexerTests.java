@@ -1837,14 +1837,14 @@ public class ReindexerTests extends ESTestCase {
     }
 
     /**
-     * Remote open-PIT uses {@link ReindexPlugin#REINDEX_PIT_KEEP_ALIVE_SETTING} for {@code keep_alive}; the reindex {@code scroll}
-     * parameter does not affect it.
+     * Remote open-PIT uses {@link ReindexPlugin#REINDEX_PIT_KEEP_ALIVE_SETTING} for {@code keep_alive}. The reindex {@code scroll}
+     * parameter does not affect PIT.
      */
     @SuppressForbidden(reason = "use http server for testing")
     public void testRemoteOpenPitUsesClusterPitKeepAliveSetting() throws Exception {
         assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
-        final TimeValue expected = TimeValue.timeValueMinutes(17);
+        final TimeValue expected = TimeValue.timeValueMinutes(randomIntBetween(5, 20));
         final AtomicReference<String> capturedKeepAlive = new AtomicReference<>();
         HttpServer server = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         server.createContext("/", exchange -> {

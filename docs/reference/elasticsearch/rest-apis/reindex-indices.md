@@ -87,9 +87,9 @@ POST _reindex
 
 -->
 
-## Search context keep-alive (scroll and point-in-time) [docs-reindex-search-context-keep-alive]
+## Search context keep-alive [docs-reindex-search-context-keep-alive]
 
-The Reindex API [`scroll`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-reindex) query parameter sets how long a **scroll** search context stays open between batches when reindex uses **scroll**-based pagination (for example, reindex-from-remote on old remote clusters on a version below 7.10).
+The Reindex API [`scroll`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-reindex) query parameter sets how long a **scroll** search context stays open between batches when reindex uses **scroll**-based pagination (this is solely for reindexing-from-remote on old remote clusters on a version below 7.10).
 
 For all other reindexing cases, reindexing uses **point-in-time (PIT)** search internally. PIT **keep-alive** is **not** derived from the `scroll` parameter but is instead controlled internally.
 

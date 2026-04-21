@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.bzip2;
 
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayInputStream;
@@ -22,7 +23,7 @@ import java.nio.charset.StandardCharsets;
 public class Bzip2DecompressionCodecTests extends ESTestCase {
 
     public void testNameAndExtensions() {
-        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec();
+        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         assertEquals("bzip2", codec.name());
         assertTrue(codec.extensions().contains(".bz2"));
         assertTrue(codec.extensions().contains(".bz"));
@@ -32,7 +33,7 @@ public class Bzip2DecompressionCodecTests extends ESTestCase {
         String original = "hello,world\n1,2\nbar,baz";
         byte[] compressed = bzip2(original.getBytes(StandardCharsets.UTF_8));
 
-        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec();
+        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         try (InputStream decompressed = codec.decompress(new ByteArrayInputStream(compressed))) {
             byte[] result = decompressed.readAllBytes();
             assertEquals(original, new String(result, StandardCharsets.UTF_8));
@@ -41,7 +42,7 @@ public class Bzip2DecompressionCodecTests extends ESTestCase {
 
     public void testInvalidBzip2Throws() throws IOException {
         byte[] invalidBzip2 = new byte[] { 0x00, 0x01, 0x02 };
-        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec();
+        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         IOException e = expectThrows(IOException.class, () -> {
             try (InputStream ignored = codec.decompress(new ByteArrayInputStream(invalidBzip2))) {
@@ -53,7 +54,7 @@ public class Bzip2DecompressionCodecTests extends ESTestCase {
 
     public void testEmptyInput() throws IOException {
         byte[] compressed = bzip2(new byte[0]);
-        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec();
+        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         try (InputStream decompressed = codec.decompress(new ByteArrayInputStream(compressed))) {
             byte[] result = decompressed.readAllBytes();
@@ -70,7 +71,7 @@ public class Bzip2DecompressionCodecTests extends ESTestCase {
         String original = sb.toString();
         byte[] compressed = bzip2(original.getBytes(StandardCharsets.UTF_8));
 
-        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec();
+        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         try (InputStream decompressed = codec.decompress(new ByteArrayInputStream(compressed))) {
             String result = new String(decompressed.readAllBytes(), StandardCharsets.UTF_8);
             assertEquals("Multi-block decompression must match original", original, result);
@@ -79,7 +80,7 @@ public class Bzip2DecompressionCodecTests extends ESTestCase {
 
     public void testDecompressHeaderValidation() throws IOException {
         byte[] notBzip2 = "XX".getBytes(StandardCharsets.UTF_8);
-        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec();
+        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         IOException e = expectThrows(IOException.class, () -> codec.decompress(new ByteArrayInputStream(notBzip2)));
         assertTrue(e.getMessage().contains("Not a bzip2 stream"));
     }

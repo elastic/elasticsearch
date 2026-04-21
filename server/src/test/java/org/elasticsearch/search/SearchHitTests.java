@@ -457,6 +457,38 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         }
     }
 
+    public void testInnerHitsImmutable() {
+        SearchHits placeholder = SearchHits.EMPTY_WITH_TOTAL_HITS; // ALWAYS_REFERENCED; no lifecycle management needed
+
+        // setInnerHits wraps the map
+        SearchHit hit = new SearchHit(1, "id");
+        try {
+            Map<String, SearchHits> map = new HashMap<>();
+            map.put("a", placeholder);
+            hit.setInnerHits(map);
+            Map<String, SearchHits> inner = hit.getInnerHits();
+            expectThrows(UnsupportedOperationException.class, () -> inner.put("extra", placeholder));
+            expectThrows(UnsupportedOperationException.class, () -> inner.remove("a"));
+            expectThrows(UnsupportedOperationException.class, inner::clear);
+        } finally {
+            hit.decRef();
+        }
+
+        // withInnerHits (constructor path for unpooled hits) also wraps the map
+        SearchHit unpooledHit = SearchHit.unpooled(2, "id2");
+        Map<String, SearchHits> map2 = new HashMap<>();
+        map2.put("b", placeholder);
+        SearchHit pooledHit = unpooledHit.withInnerHits(map2);
+        try {
+            Map<String, SearchHits> inner2 = pooledHit.getInnerHits();
+            expectThrows(UnsupportedOperationException.class, () -> inner2.put("extra", placeholder));
+            expectThrows(UnsupportedOperationException.class, () -> inner2.remove("b"));
+            expectThrows(UnsupportedOperationException.class, inner2::clear);
+        } finally {
+            pooledHit.decRef();
+        }
+    }
+
     @Override
     protected void dispose(SearchHit searchHit) {
         if (searchHit != null) {

@@ -429,6 +429,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
   method: test {csv-spec:unmapped-type-conflicts.noTypeConflictKeepTriggersLoadInlineStatsWithFilter}
   issue: https://github.com/elastic/elasticsearch/issues/147023
+- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
+  method: test {csv-spec:external-basic.topSnippetsFunction [HTTP]}
+  issue: https://github.com/elastic/elasticsearch/issues/147049
 
 # Examples:
 #

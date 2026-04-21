@@ -325,9 +325,6 @@ tests:
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testReindexFailsWhenPitRelocationFails
   issue: https://github.com/elastic/elasticsearch/issues/146650
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/146553
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testReindexTaskRelocatesOnNodeShutdown
   issue: https://github.com/elastic/elasticsearch/issues/146696

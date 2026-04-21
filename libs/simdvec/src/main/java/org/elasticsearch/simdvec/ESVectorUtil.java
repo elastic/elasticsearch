@@ -558,4 +558,56 @@ public class ESVectorUtil {
         Objects.checkFromIndexSize(bytesRef.offset, bytesRef.length, bytesRef.bytes.length);
         return IMPL.codePointCount(bytesRef);
     }
+
+    /**
+     * Computes dest = scale * other + scaledDes * dest
+     *
+     * @param scaleOther a multiplicative factor for other
+     * @param other the other vector
+     * @param scaleDest a multiplicative factor for dest
+     * @param dest the destination vector
+     */
+    public static void linearCombination(float scaleOther, float[] other, float scaleDest, float[] dest) {
+        IMPL.linearCombination(scaleOther, other, scaleDest, dest);
+    }
+
+    /**
+     * Calculates an approximation of the LogSumExp of the input array in base 2.
+     * The formula used is: log2(sum_i(pow(2, x[i]))).
+     * This implementation uses the log-sum-exp trick for numerical stability and Not-Quite-Trascendental functions for speed.
+     *
+     * @param vector The input array of double values (log probabilities/values).
+     * @return The log-sum-exp result.
+     */
+    public static float logSumExpNQT(float[] vector) {
+        return IMPL.logSumExpNQT(vector);
+    }
+
+    /**
+     * Calculates a shifted and scaled LogSumExp of the input arrays in base 2, according to the formula:
+     * log2(sum_i(pow(2, (v1[i] - v2[i]) / eps)))
+     * This implementation uses the log-sum-exp trick for numerical stability and Not-Quite-Trascendental functions for speed.
+     *
+     * @param v1 The first input array of double values (log probabilities/values).
+     * @param v2 The second input array of double values (log probabilities/values).
+     * @param eps The normalization constant (that is, the temperature parameter).
+     * @return The log-sum-exp result.
+     */
+    public static float logSumExpNQTDiff(float[] v1, float[] v2, float eps) {
+        return IMPL.logSumExpNQTDiff(v1, v2, eps);
+    }
+
+    /**
+     * Compute the following operation:
+     * result[i] = pow(2, (a + v1[i] - v2[i]) / eps)
+     * This implementation uses the log-sum-exp trick for numerical stability.
+     *
+     * @param v1 The first input array of double values (log probabilities/values).
+     * @param v2 The second input array of double values (log probabilities/values).
+     * @param eps The normalization constant (that is, the temperature parameter).
+     * @param result The output array.
+     */
+    public static void pow2DiffAndScaleNQT(float[] v1, float[] v2, float a, float eps, float[] result) {
+        IMPL.pow2DiffAndScaleNQT(v1, v2, a, eps, result);
+    }
 }

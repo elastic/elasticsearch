@@ -47,6 +47,9 @@ FROM partial_mapping_sample_data
 
 #### Example
 
+Field `unmapped_message` is not mapped; it doesn't appear in the mapping of index `partial_mapping_sample_data`. It appears,
+however, in the stored `_source` of all documents in this index.
+
 The `LOAD` option will load this field from `_source` and treat it like a `keyword` type field.
 
 

@@ -399,18 +399,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testWatcherWithApiKey {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/146874
-- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerBFloat16BulkBenchmarkTests
-  method: testRandom {p0=DOT_PRODUCT p1=1024}
-  issue: https://github.com/elastic/elasticsearch/issues/146889
-- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerBFloat16BulkBenchmarkTests
-  method: testSequential {p0=EUCLIDEAN p1=1024}
-  issue: https://github.com/elastic/elasticsearch/issues/146890
-- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerBFloat16BulkBenchmarkTests
-  method: testRandom {p0=EUCLIDEAN p1=1024}
-  issue: https://github.com/elastic/elasticsearch/issues/146891
-- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerBFloat16BulkBenchmarkTests
-  method: testSequential {p0=DOT_PRODUCT p1=1024}
-  issue: https://github.com/elastic/elasticsearch/issues/146892
 
 # Examples:
 #

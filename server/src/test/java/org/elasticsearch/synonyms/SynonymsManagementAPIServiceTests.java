@@ -213,7 +213,7 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
     public void testAppendToNonExistentSetCreatesIt() throws Exception {
         SynonymRule[] rules = randomSynonymsSet(3);
 
-        var client = new AppendTestClient(threadPool, false, 0);
+        var client = new AppendTestClient(threadPool, 0);
         var service = buildService(client, clusterService, rules.length + 1, SynonymsManagementAPIService.BULK_CHUNK_SIZE);
 
         var future = new PlainActionFuture<SynonymsManagementAPIService.SynonymsReloadResult>();
@@ -233,7 +233,7 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
         SynonymRule[] rules = randomSynonymsSet(3);
         int existingCount = 5;
 
-        var client = new AppendTestClient(threadPool, true, existingCount);
+        var client = new AppendTestClient(threadPool, existingCount);
         var service = buildService(client, clusterService, existingCount + rules.length + 1, SynonymsManagementAPIService.BULK_CHUNK_SIZE);
 
         var future = new PlainActionFuture<SynonymsManagementAPIService.SynonymsReloadResult>();
@@ -253,7 +253,7 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
         int existingCount = 8;
         SynonymRule[] rules = randomSynonymsSet(3); // 8 + 3 = 11 > 10
 
-        var client = new AppendTestClient(threadPool, true, existingCount);
+        var client = new AppendTestClient(threadPool, existingCount);
         var service = buildService(client, clusterService, maxRules, SynonymsManagementAPIService.BULK_CHUNK_SIZE);
 
         boolean[] failed = { false };
@@ -387,18 +387,16 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
     }
 
     /**
-     * A client for append-mode tests that simulates GET (set existence), SEARCH (rule count), and BULK
-     * (insert) responses. Fails the test if a delete-by-query is attempted.
+     * A client for append-mode tests that simulates SEARCH (rule count) and BULK (insert) responses.
+     * Fails the test if a delete-by-query is attempted.
      */
     private static class AppendTestClient extends NoOpClient {
         final AtomicBoolean deleteByQueryIssued = new AtomicBoolean(false);
         final AtomicInteger bulkRequestCount = new AtomicInteger();
-        private final boolean setExists;
         private final long existingRuleCount;
 
-        AppendTestClient(ThreadPool threadPool, boolean setExists, long existingRuleCount) {
+        AppendTestClient(ThreadPool threadPool, long existingRuleCount) {
             super(threadPool);
-            this.setExists = setExists;
             this.existingRuleCount = existingRuleCount;
         }
 
@@ -409,21 +407,6 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
             Request request,
             ActionListener<Response> listener
         ) {
-            if (request instanceof GetRequest getRequest) {
-                var result = new GetResult(
-                    getRequest.index(),
-                    getRequest.id(),
-                    setExists ? 0L : SequenceNumbers.UNASSIGNED_SEQ_NO,
-                    setExists ? 1L : SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
-                    setExists ? 1 : -1,
-                    setExists,
-                    null,
-                    null,
-                    null
-                );
-                ((ActionListener<GetResponse>) listener).onResponse(new GetResponse(result));
-                return;
-            }
             if (request instanceof SearchRequest) {
                 ActionListener.respondAndRelease(
                     (ActionListener<SearchResponse>) listener,

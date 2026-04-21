@@ -512,63 +512,43 @@ public class SynonymsManagementAPIService {
         boolean refresh,
         ActionListener<SynonymsReloadResult> listener
     ) {
-        // GET the synonym set document to determine whether this is a create or an update, and to
-        // handle the IndexNotFoundException case (index not yet created) gracefully.
-        client.prepareGet(SYNONYMS_ALIAS_NAME, synonymSetId).execute(ActionListener.wrap(getResponse -> {
-            if (getResponse.isExists() == false) {
-                // New set — no existing rules; limit check is purely on the incoming batch.
-                if (synonymsSet.length > maxSynonymRules) {
-                    listener.onFailure(
-                        new IllegalArgumentException("The number of synonym rules in a synonym set cannot exceed " + maxSynonymRules)
-                    );
-                    return;
-                }
-                doAppendBulkInsert(synonymSetId, synonymsSet, refresh, UpdateSynonymsResultStatus.CREATED, listener);
-            } else {
-                // Existing set — count rules that are NOT being replaced by the incoming batch, so
-                // that updates to existing IDs don't inflate the count and cause false limit errors.
-                List<String> incomingIds = Arrays.stream(synonymsSet)
-                    .map(SynonymRule::id)
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
-                BoolQueryBuilder countQuery = QueryBuilders.boolQuery()
+        // Count existing rules to check the limit and distinguish CREATED from UPDATED.
+        // IndexNotFoundException means the index doesn't exist yet — treat as zero existing rules.
+        client.prepareSearch(SYNONYMS_ALIAS_NAME)
+            .setQuery(
+                QueryBuilders.boolQuery()
                     .must(QueryBuilders.termQuery(SYNONYMS_SET_FIELD, synonymSetId))
-                    .filter(QueryBuilders.termQuery(OBJECT_TYPE_FIELD, SYNONYM_RULE_OBJECT_TYPE));
-                if (incomingIds.isEmpty() == false) {
-                    countQuery.mustNot(QueryBuilders.termsQuery(SYNONYM_RULE_ID_FIELD, incomingIds));
+                    .filter(QueryBuilders.termQuery(OBJECT_TYPE_FIELD, SYNONYM_RULE_OBJECT_TYPE))
+            )
+            .setSize(0)
+            .setPreference(Preference.LOCAL.type())
+            .setTrackTotalHits(true)
+            .execute(ActionListener.wrap(searchResponse -> {
+                long existingCount = searchResponse.getHits().getTotalHits().value();
+                doAppendAfterCount(synonymSetId, synonymsSet, refresh, existingCount, listener);
+            }, e -> {
+                if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
+                    doAppendAfterCount(synonymSetId, synonymsSet, refresh, 0L, listener);
+                } else {
+                    listener.onFailure(e);
                 }
-                client.prepareSearch(SYNONYMS_ALIAS_NAME)
-                    .setQuery(countQuery)
-                    .setSize(0)
-                    .setPreference(Preference.LOCAL.type())
-                    .setTrackTotalHits(true)
-                    .execute(listener.delegateFailureAndWrap((l, searchResponse) -> {
-                        long nonOverlappingCount = searchResponse.getHits().getTotalHits().value();
-                        if (nonOverlappingCount + synonymsSet.length > maxSynonymRules) {
-                            l.onFailure(
-                                new IllegalArgumentException(
-                                    "The number of synonym rules in a synonym set cannot exceed " + maxSynonymRules
-                                )
-                            );
-                            return;
-                        }
-                        doAppendBulkInsert(synonymSetId, synonymsSet, refresh, UpdateSynonymsResultStatus.UPDATED, l);
-                    }));
-            }
-        }, e -> {
-            if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
-                // Index doesn't exist yet — treat as new set creation.
-                if (synonymsSet.length > maxSynonymRules) {
-                    listener.onFailure(
-                        new IllegalArgumentException("The number of synonym rules in a synonym set cannot exceed " + maxSynonymRules)
-                    );
-                    return;
-                }
-                doAppendBulkInsert(synonymSetId, synonymsSet, refresh, UpdateSynonymsResultStatus.CREATED, listener);
-            } else {
-                listener.onFailure(e);
-            }
-        }));
+            }));
+    }
+
+    private void doAppendAfterCount(
+        String synonymSetId,
+        SynonymRule[] synonymsSet,
+        boolean refresh,
+        long existingCount,
+        ActionListener<SynonymsReloadResult> listener
+    ) {
+        UpdateSynonymsResultStatus status = existingCount == 0
+            ? UpdateSynonymsResultStatus.CREATED
+            : UpdateSynonymsResultStatus.UPDATED;
+        if (checkSynonymRuleCount(existingCount + synonymsSet.length, listener) == false) {
+            return;
+        }
+        doAppendBulkInsert(synonymSetId, synonymsSet, refresh, status, listener);
     }
 
     private void doAppendBulkInsert(

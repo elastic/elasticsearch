@@ -30,6 +30,8 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.transport.BytesRefRecycler;
+import org.elasticsearch.transport.MockBytesRefRecycler;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -129,11 +131,13 @@ public class MockBigArrays extends BigArrays {
                 }
             }
         }
+        MockBytesRefRecycler.ensureAllPagesAreReleased();
     }
 
     private final Random random;
     private final PageCacheRecycler recycler;
     private final CircuitBreakerService breakerService;
+    private final MockBytesRefRecycler mockBytesRefRecycler;
 
     /**
      * Create {@linkplain BigArrays} with a configured limit.
@@ -157,6 +161,7 @@ public class MockBigArrays extends BigArrays {
         super(recycler, breakerService, CircuitBreaker.REQUEST, checkBreaker);
         this.recycler = recycler;
         this.breakerService = breakerService;
+        this.mockBytesRefRecycler = recycler != null ? new MockBytesRefRecycler(recycler) : null;
         long seed;
         try {
             seed = SeedUtils.parseSeed(RandomizedContext.current().getRunnerSeedAsString());
@@ -164,6 +169,11 @@ public class MockBigArrays extends BigArrays {
             seed = 0;
         }
         random = new Random(seed);
+    }
+
+    @Override
+    public BytesRefRecycler bytesRefRecycler() {
+        return mockBytesRefRecycler != null ? mockBytesRefRecycler : super.bytesRefRecycler();
     }
 
     @Override

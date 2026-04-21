@@ -214,12 +214,7 @@ public abstract class SenderService<M extends Model> implements InferenceService
     @Override
     public void embeddingInfer(Model model, EmbeddingRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
         SubscribableListener.newForked(this::init).<InferenceServiceResults>andThen((embeddingInferListener) -> {
-            var resolvedInferenceTimeout = resolveInferenceTimeout(
-                timeout,
-                request.inputType(),
-                clusterService,
-                model.getTaskType()
-            );
+            var resolvedInferenceTimeout = resolveInferenceTimeout(timeout, request.inputType(), clusterService, model.getTaskType());
             if (supportsImageEmbeddingContent() == false && containsNonTextEntry(request.inputs())) {
                 listener.onFailure(
                     new ElasticsearchStatusException(

@@ -15,6 +15,7 @@ import {
   MutedEntry,
   diffMutedEntries,
   locateUnmutedTest,
+  findUnmutedTests,
 } from "./repeat-changed-tests";
 
 describe("toGradleProject", () => {
@@ -832,5 +833,66 @@ describe("locateUnmutedTest", () => {
     expect(
       locateUnmutedTest(entry, ["server/src/main/java/org/elasticsearch/NotATest.java"])
     ).toBeNull();
+  });
+});
+
+describe("findUnmutedTests", () => {
+  const repoFiles = [
+    "server/src/test/java/org/elasticsearch/index/IndexTests.java",
+  ];
+
+  test("returns empty when nothing changed", () => {
+    const yaml = `tests:
+- class: org.elasticsearch.index.IndexTests
+  method: testFoo
+`;
+    expect(findUnmutedTests(yaml, yaml, repoFiles)).toEqual({
+      located: [],
+      unlocated: [],
+    });
+  });
+
+  test("locates an unmuted test that still exists", () => {
+    const before = `tests:
+- class: org.elasticsearch.index.IndexTests
+  method: testFoo
+`;
+    const after = "tests:\n";
+    expect(findUnmutedTests(before, after, repoFiles)).toEqual({
+      located: [
+        {
+          gradleProject: ":server",
+          kind: "test",
+          sourceSet: "test",
+          fqcn: "org.elasticsearch.index.IndexTests",
+        },
+      ],
+      unlocated: [],
+    });
+  });
+
+  test("reports unlocated when the class file was removed", () => {
+    const before = `tests:
+- class: org.elasticsearch.deleted.GoneTests
+  method: testFoo
+`;
+    const after = "tests:\n";
+    expect(findUnmutedTests(before, after, repoFiles)).toEqual({
+      located: [],
+      unlocated: [
+        { className: "org.elasticsearch.deleted.GoneTests", method: "testFoo" },
+      ],
+    });
+  });
+
+  test("handles empty before yaml (file did not exist at merge base)", () => {
+    const after = `tests:
+- class: org.elasticsearch.index.IndexTests
+  method: testFoo
+`;
+    expect(findUnmutedTests("", after, repoFiles)).toEqual({
+      located: [],
+      unlocated: [],
+    });
   });
 });

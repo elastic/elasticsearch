@@ -178,6 +178,33 @@ export function locateUnmutedTest(entry: MutedEntry, repoFiles: string[]): Class
   return null;
 }
 
+export interface UnmuteDetectionResult {
+  located: ClassifiedTest[];
+  unlocated: MutedEntry[];
+}
+
+export function findUnmutedTests(
+  oldYamlText: string,
+  newYamlText: string,
+  repoFiles: string[]
+): UnmuteDetectionResult {
+  const before = parseMutedEntries(oldYamlText);
+  const after = parseMutedEntries(newYamlText);
+  const unmuted = diffMutedEntries(before, after);
+
+  const located: ClassifiedTest[] = [];
+  const unlocated: MutedEntry[] = [];
+  for (const entry of unmuted) {
+    const test = locateUnmutedTest(entry, repoFiles);
+    if (test === null) {
+      unlocated.push(entry);
+    } else {
+      located.push(test);
+    }
+  }
+  return { located, unlocated };
+}
+
 export function classifyChangedFiles(files: string[]): ClassifiedTest[] {
   const tests: ClassifiedTest[] = [];
 

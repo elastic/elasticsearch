@@ -51,6 +51,6 @@ public interface PostFilterableKnnQuery {
     /** Creates a filter-less delegate for post-filtering — type-specific. */
     @FunctionalInterface
     interface PostFilterDelegateFactory {
-        PostFilterableKnnQuery create(int scaledNumCands, KnnSearchStrategy strategy, boolean earlyTermination);
+        PostFilterableKnnQuery create(int scaledK, int scaledNumCands, KnnSearchStrategy strategy, boolean earlyTermination);
     }
 }

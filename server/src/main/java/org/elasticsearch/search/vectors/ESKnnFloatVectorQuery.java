@@ -26,10 +26,10 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
     private final int kParam;
     private long vectorOpsCount;
     private final boolean earlyTermination;
-    private final boolean shouldPostFilter;
     private final FixedBitSet seenDocs;
     private final TopDocs seedResults;
 
+    // Written in mergeLeafResults() during rewrite(); read by capturedResults() in the same rewrite chain
     private TopDocs capturedMergedResults;
 
     public ESKnnFloatVectorQuery(String field, float[] target, int k, int numCands, Query filter, KnnSearchStrategy strategy) {
@@ -45,7 +45,7 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
         KnnSearchStrategy strategy,
         boolean earlyTermination
     ) {
-        this(field, target, k, numCands, filter, strategy, earlyTermination, true, null, null);
+        this(field, target, k, numCands, filter, strategy, earlyTermination, null, null);
     }
 
     ESKnnFloatVectorQuery(
@@ -56,60 +56,39 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
         Query filter,
         KnnSearchStrategy strategy,
         boolean earlyTermination,
-        boolean isPostFilterDelegate,
-        FixedBitSet seenDocs
-    ) {
-        this(field, target, k, numCands, filter, strategy, earlyTermination, isPostFilterDelegate, seenDocs, null);
-    }
-
-    ESKnnFloatVectorQuery(
-        String field,
-        float[] target,
-        int k,
-        int numCands,
-        Query filter,
-        KnnSearchStrategy strategy,
-        boolean earlyTermination,
-        boolean shouldPostFilter,
         FixedBitSet seenDocs,
         TopDocs seedResults
     ) {
         super(field, target, numCands, filter, strategy);
         this.kParam = k;
         this.earlyTermination = earlyTermination;
-        this.shouldPostFilter = shouldPostFilter;
         this.seenDocs = seenDocs;
         this.seedResults = seedResults;
     }
 
     @Override
     public Query rewrite(IndexSearcher indexSearcher) throws IOException {
-        if (shouldPostFilter) {
-            Query postFiltered = PostFilterHelper.maybePostFilterRewrite(indexSearcher, filter, field, ctx -> {
-                FloatVectorValues fvv = ctx.reader().getFloatVectorValues(field);
-                return fvv != null ? fvv.size() : 0;
-            },
-                (scaledNumCands, strategy, et) -> new ESKnnFloatVectorQuery(
-                    field,
-                    getTargetCopy(),
-                    scaledNumCands,
-                    scaledNumCands,
-                    null,
-                    strategy,
-                    et,
-                    true,
-                    null
-                ),
-                kParam,
-                searchStrategy,
-                earlyTermination,
-                ops -> this.vectorOpsCount = ops,
-                null
-            );
-            return postFiltered != null ? postFiltered : super.rewrite(indexSearcher);
-        } else {
-            return super.rewrite(indexSearcher);
-        }
+        Query postFiltered = PostFilterHelper.maybePostFilterRewrite(indexSearcher, filter, field, ctx -> {
+            FloatVectorValues fvv = ctx.reader().getFloatVectorValues(field);
+            return fvv != null ? fvv.size() : 0;
+        },
+            (scaledK, scaledNumCands, strategy, et) -> new ESKnnFloatVectorQuery(
+                field,
+                getTargetCopy(),
+                scaledK,
+                scaledNumCands,
+                null,
+                strategy,
+                et
+            ),
+            kParam,
+            k,
+            searchStrategy,
+            earlyTermination,
+            ops -> this.vectorOpsCount = ops,
+            null
+        );
+        return postFiltered != null ? postFiltered : super.rewrite(indexSearcher);
     }
 
     @Override
@@ -143,7 +122,6 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
             new ExcludeDocsQuery(newSeenDocs, reader),
             searchStrategy,
             earlyTermination,
-            true,
             newSeenDocs,
             capturedMergedResults
         );

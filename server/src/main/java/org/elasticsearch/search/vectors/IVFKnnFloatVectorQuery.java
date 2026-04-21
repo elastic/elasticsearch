@@ -59,7 +59,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery implements
         float visitRatio,
         boolean doPrecondition
     ) {
-        this(field, query, k, numCands, filter, visitRatio, doPrecondition, true, null);
+        this(field, query, k, numCands, filter, visitRatio, doPrecondition, null);
     }
 
     IVFKnnFloatVectorQuery(
@@ -70,10 +70,9 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery implements
         Query filter,
         float visitRatio,
         boolean doPrecondition,
-        boolean shouldPostFilter,
         Map<Integer, FixedBitSet> skipCentroidsPerLeaf
     ) {
-        super(field, visitRatio, k, numCands, filter, doPrecondition, shouldPostFilter);
+        super(field, visitRatio, k, numCands, filter, doPrecondition);
         this.query = query;
         this.originalQuery = query.clone();
         this.skipCentroidsPerLeaf = skipCentroidsPerLeaf;
@@ -105,9 +104,6 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery implements
             .append("]");
         if (this.filter != null) {
             buffer.append("[").append(this.filter).append("]");
-        }
-        if (this.shouldPostFilter) {
-            buffer.append("[true]");
         }
         return buffer.toString();
     }
@@ -242,7 +238,6 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery implements
             null,
             scaledVisitRatio,
             doPrecondition,
-            true,
             null
         );
     }
@@ -255,17 +250,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery implements
     @Override
     public PostFilterableKnnQuery createRetryQuery(IndexReader reader) {
         Map<Integer, FixedBitSet> mergedSkip = mergeSkipCentroids();
-        return new IVFKnnFloatVectorQuery(
-            field,
-            originalQuery.clone(),
-            k,
-            numCands,
-            null,
-            providedVisitRatio,
-            doPrecondition,
-            true,
-            mergedSkip
-        );
+        return new IVFKnnFloatVectorQuery(field, originalQuery.clone(), k, numCands, null, providedVisitRatio, doPrecondition, mergedSkip);
     }
 
     @Override

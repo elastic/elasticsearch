@@ -51,6 +51,7 @@ final class PostFilterHelper {
         PostFilterableKnnQuery.VectorCountSupplier vectorCountSupplier,
         PostFilterableKnnQuery.PostFilterDelegateFactory delegateFactory,
         int kParam,
+        int numCands,
         KnnSearchStrategy searchStrategy,
         boolean earlyTermination,
         LongConsumer vectorOpsCallback,
@@ -76,6 +77,7 @@ final class PostFilterHelper {
             filterWeight,
             selectivity,
             kParam,
+            numCands,
             searchStrategy,
             earlyTermination,
             delegateFactory,
@@ -111,15 +113,17 @@ final class PostFilterHelper {
         Weight filterWeight,
         float selectivity,
         int kParam,
+        int numCands,
         KnnSearchStrategy searchStrategy,
         boolean earlyTermination,
         PostFilterableKnnQuery.PostFilterDelegateFactory delegateFactory,
         LongConsumer vectorOpsCallback,
         BitSetProducer parentsFilter
     ) throws IOException {
-        int scaledNumCands = (int) Math.ceil(kParam / selectivity);
+        int scaledK = (int) Math.ceil(kParam / selectivity);
+        int scaledNumCands = (int) Math.min(Integer.MAX_VALUE, Math.ceil((double) numCands / selectivity));
         KnnSearchStrategy seeded = new KnnSearchStrategy.Seeded(null, 0, searchStrategy);
-        PostFilterableKnnQuery delegate = delegateFactory.create(scaledNumCands, seeded, earlyTermination);
+        PostFilterableKnnQuery delegate = delegateFactory.create(scaledK, scaledNumCands, seeded, earlyTermination);
         IndexReader reader = searcher.getIndexReader();
         return new PostFilterAwareKnnQuery(delegate, filterWeight, kParam, reader, vectorOpsCallback, parentsFilter);
     }

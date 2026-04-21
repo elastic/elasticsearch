@@ -55,21 +55,12 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     protected final int k;
     protected final int numCands;
     protected final Query filter;
-    protected final boolean shouldPostFilter;
     protected long vectorOpsCount;
     protected boolean doPrecondition;
 
     protected TopDocs capturedResults;
 
-    protected AbstractIVFKnnVectorQuery(
-        String field,
-        float visitRatio,
-        int k,
-        int numCands,
-        Query filter,
-        boolean doPrecondition,
-        boolean shouldPostFilter
-    ) {
+    protected AbstractIVFKnnVectorQuery(String field, float visitRatio, int k, int numCands, Query filter, boolean doPrecondition) {
         if (k < 1) {
             throw new IllegalArgumentException("k must be at least 1, got: " + k);
         }
@@ -85,7 +76,6 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         this.filter = filter;
         this.numCands = numCands;
         this.doPrecondition = doPrecondition;
-        this.shouldPostFilter = shouldPostFilter;
     }
 
     @Override
@@ -101,7 +91,6 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         if (o == null || getClass() != o.getClass()) return false;
         AbstractIVFKnnVectorQuery that = (AbstractIVFKnnVectorQuery) o;
         return k == that.k
-            && shouldPostFilter == that.shouldPostFilter
             && numCands == that.numCands
             && Objects.equals(field, that.field)
             && Objects.equals(filter, that.filter)
@@ -110,7 +99,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, k, numCands, filter, providedVisitRatio, shouldPostFilter);
+        return Objects.hash(field, k, numCands, filter, providedVisitRatio);
     }
 
     @Override
@@ -129,7 +118,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         float visitRatio = providedVisitRatio;
 
         IVFCollectorManager collectorManager = getKnnCollectorManager(Math.round(2f * k), indexSearcher);
-        if (filterWeight != null && shouldPostFilter) {
+        if (filterWeight != null) {
             int totalVectors = countTotalVectors(leaves);
             float selectivity = computeSelectivity(filterWeight, leaves, totalVectors);
             if (selectivity > POST_FILTERING_THRESHOLD) {

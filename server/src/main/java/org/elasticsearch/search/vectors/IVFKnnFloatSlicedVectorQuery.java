@@ -79,7 +79,7 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
         BytesRef sliceId,
         Map<Integer, FixedBitSet> mergedSkip
     ) {
-        super(field, query, k, numCands, filter, visitRatio, doPrecondition, true, mergedSkip);
+        super(field, query, k, numCands, filter, visitRatio, doPrecondition, mergedSkip);
         this.sliceField = Objects.requireNonNull(sliceField);
         this.sliceId = Objects.requireNonNull(sliceId);
     }

@@ -33,7 +33,6 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
     private long vectorOpsCount;
     private final boolean earlyTermination;
     private final BitSetProducer parentsFilter;
-    private final boolean shouldPostFilter;
     private final FixedBitSet seenDocs;
     private final TopDocs seedResults;
 
@@ -48,7 +47,7 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
         BitSetProducer parentsFilter,
         KnnSearchStrategy strategy
     ) {
-        this(field, query, childFilter, k, numCands, parentsFilter, strategy, false, true, null, null);
+        this(field, query, childFilter, k, numCands, parentsFilter, strategy, false, null, null);
     }
 
     public ESDiversifyingChildrenByteKnnVectorQuery(
@@ -61,7 +60,7 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
         KnnSearchStrategy strategy,
         boolean earlyTermination
     ) {
-        this(field, query, childFilter, k, numCands, parentsFilter, strategy, earlyTermination, true, null, null);
+        this(field, query, childFilter, k, numCands, parentsFilter, strategy, earlyTermination, null, null);
     }
 
     ESDiversifyingChildrenByteKnnVectorQuery(
@@ -73,7 +72,6 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
         BitSetProducer parentsFilter,
         KnnSearchStrategy strategy,
         boolean earlyTermination,
-        boolean shouldPostFilter,
         FixedBitSet seenDocs,
         TopDocs seedResults
     ) {
@@ -82,41 +80,34 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
         this.numCands = numCands;
         this.earlyTermination = earlyTermination;
         this.parentsFilter = parentsFilter;
-        this.shouldPostFilter = shouldPostFilter;
         this.seenDocs = seenDocs;
         this.seedResults = seedResults;
     }
 
     @Override
     public Query rewrite(IndexSearcher indexSearcher) throws IOException {
-        if (shouldPostFilter) {
-            Query postFiltered = PostFilterHelper.maybePostFilterRewrite(indexSearcher, filter, field, ctx -> {
-                ByteVectorValues bvv = ctx.reader().getByteVectorValues(field);
-                return bvv != null ? bvv.size() : 0;
-            },
-                (scaledNumCands, strategy, et) -> new ESDiversifyingChildrenByteKnnVectorQuery(
-                    field,
-                    getTargetCopy(),
-                    null,
-                    scaledNumCands,
-                    scaledNumCands,
-                    parentsFilter,
-                    strategy,
-                    et,
-                    true,
-                    null,
-                    null
-                ),
-                kParam,
-                searchStrategy,
-                earlyTermination,
-                ops -> this.vectorOpsCount = ops,
-                parentsFilter
-            );
-            return postFiltered != null ? postFiltered : super.rewrite(indexSearcher);
-        } else {
-            return super.rewrite(indexSearcher);
-        }
+        Query postFiltered = PostFilterHelper.maybePostFilterRewrite(indexSearcher, filter, field, ctx -> {
+            ByteVectorValues bvv = ctx.reader().getByteVectorValues(field);
+            return bvv != null ? bvv.size() : 0;
+        },
+            (scaledK, scaledNumCands, strategy, et) -> new ESDiversifyingChildrenByteKnnVectorQuery(
+                field,
+                getTargetCopy(),
+                null,
+                scaledK,
+                scaledNumCands,
+                parentsFilter,
+                strategy,
+                et
+            ),
+            kParam,
+            numCands,
+            searchStrategy,
+            earlyTermination,
+            ops -> this.vectorOpsCount = ops,
+            parentsFilter
+        );
+        return postFiltered != null ? postFiltered : super.rewrite(indexSearcher);
     }
 
     @Override
@@ -151,7 +142,6 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
             parentsFilter,
             searchStrategy,
             earlyTermination,
-            true,
             newSeenDocs,
             capturedMergedResults
         );

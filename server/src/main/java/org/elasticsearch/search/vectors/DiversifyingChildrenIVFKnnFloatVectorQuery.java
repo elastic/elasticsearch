@@ -57,10 +57,9 @@ public class DiversifyingChildrenIVFKnnFloatVectorQuery extends IVFKnnFloatVecto
         BitSetProducer parentsFilter,
         float visitRatio,
         boolean doPrecondition,
-        boolean shouldPostFilter,
         Map<Integer, FixedBitSet> skipCentroidsPerLeaf
     ) {
-        super(field, query, k, numCands, childFilter, visitRatio, doPrecondition, shouldPostFilter, skipCentroidsPerLeaf);
+        super(field, query, k, numCands, childFilter, visitRatio, doPrecondition, skipCentroidsPerLeaf);
         this.parentsFilter = parentsFilter;
     }
 
@@ -85,7 +84,6 @@ public class DiversifyingChildrenIVFKnnFloatVectorQuery extends IVFKnnFloatVecto
             parentsFilter,
             scaledVisitRatio,
             doPrecondition,
-            true,
             null
         );
     }
@@ -102,7 +100,6 @@ public class DiversifyingChildrenIVFKnnFloatVectorQuery extends IVFKnnFloatVecto
             parentsFilter,
             providedVisitRatio,
             doPrecondition,
-            true,
             mergedSkip
         );
     }

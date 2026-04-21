@@ -51,7 +51,7 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
  */
 public class PostFilterAwareKnnQuery extends Query implements QueryProfilerProvider {
 
-    public static final float POST_FILTERING_THRESHOLD = 0.7f;
+    public static final float POST_FILTERING_THRESHOLD = 0.1f;
 
     static final int MAX_ROUNDS = 5;
 

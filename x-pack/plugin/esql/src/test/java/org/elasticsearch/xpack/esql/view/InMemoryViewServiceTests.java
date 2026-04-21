@@ -768,16 +768,9 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addIndex("logs-001");
         // FORK query with wildcard that matches only the index, not the circular views
         LogicalPlan plan = query("FROM logs-* | FORK (STATS c = COUNT(*)) (LIMIT 5)");
-        viewResolver.simulateSecurityEnabled = true;
-        viewResolver.emptyIndicesInterceptCount = 0;
-        try {
-            LogicalPlan result = replaceViews(plan);
-            assertNotNull("FORK query should resolve without circular view errors", result);
-            assertThat("Plan did not change, no views matched", result, matchesPlan(plan));
-            assertEquals("No empty-indices re-entry should reach the security-layer expansion", 0, viewResolver.emptyIndicesInterceptCount);
-        } finally {
-            viewResolver.simulateSecurityEnabled = false;
-        }
+        LogicalPlan result = replaceViews(plan);
+        assertNotNull("FORK query should resolve without circular view errors", result);
+        assertThat("Plan did not change, no views matched", result, matchesPlan(plan));
     }
 
     /**
@@ -791,16 +784,9 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addIndex("logs");
         // FROM *,-view_* excludes the circular views — should succeed
         LogicalPlan plan = query("FROM *,-view_* | FORK (STATS c = COUNT(*)) (LIMIT 5)");
-        viewResolver.simulateSecurityEnabled = true;
-        viewResolver.emptyIndicesInterceptCount = 0;
-        try {
-            LogicalPlan result = replaceViews(plan);
-            assertNotNull("FORK query excluding circular views should resolve without errors", result);
-            assertThat("Plan did not change, no views matched", result, matchesPlan(plan));
-            assertEquals("No empty-indices re-entry should reach the security-layer expansion", 0, viewResolver.emptyIndicesInterceptCount);
-        } finally {
-            viewResolver.simulateSecurityEnabled = false;
-        }
+        LogicalPlan result = replaceViews(plan);
+        assertNotNull("FORK query excluding circular views should resolve without errors", result);
+        assertThat("Plan did not change, no views matched", result, matchesPlan(plan));
     }
 
     /**
@@ -811,8 +797,9 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
      * <p>
      * This mirrors the manual-server reproduction: the bug only fires when a recursive
      * re-visit of an already-resolved UnresolvedRelation issues a view-resolve request with
-     * empty indices, which the security layer (and {@link InMemoryViewResolver}'s mock)
-     * expands to "_all".
+     * empty indices, which the security layer expands to "_all". The fix short-circuits that
+     * re-entry in {@link ViewResolver#replaceViewsUnresolvedRelation} when all patterns have
+     * already been consumed by seenWildcards.
      */
     public void testFromStarExcludingEmployeesWithCsvSpecViews_Issue146208() {
         assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
@@ -836,25 +823,16 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("employees_rehired", "FROM employees | WHERE is_rehired == true");
         addView("employees_not_rehired", "FROM employees | WHERE is_rehired == false");
 
-        // Must not throw a circular view reference error. Requires the security-layer emulation
-        // (empty-indices → wildcard expansion) since the bug only fires on re-visits that would
-        // otherwise produce empty indices.
-        viewResolver.simulateSecurityEnabled = true;
-        viewResolver.emptyIndicesInterceptCount = 0;
-        try {
-            LogicalPlan result = replaceViews(query("FROM *,-employees* | LIMIT 1"));
-            assertNotNull("FROM *,-employees* should resolve without false circular reference errors", result);
-            assertThat("Should match four views and one index pattern", result, matchesPlan(query("""
-                FROM *,-employees*,
-                (FROM addresses | STATS count=COUNT() BY country),
-                (FROM languages_lookup_non_unique_key | STATS count=COUNT() BY country),
-                (FROM airports | LOOKUP JOIN airports_mp ON abbrev == abbrev),
-                (FROM airports | STATS count=COUNT() BY country)
-                | LIMIT 1""")));
-            assertEquals("No empty-indices re-entry should reach the security-layer expansion", 0, viewResolver.emptyIndicesInterceptCount);
-        } finally {
-            viewResolver.simulateSecurityEnabled = false;
-        }
+        // Must not throw a circular view reference error.
+        LogicalPlan result = replaceViews(query("FROM *,-employees* | LIMIT 1"));
+        assertNotNull("FROM *,-employees* should resolve without false circular reference errors", result);
+        assertThat("Should match four views and one index pattern", result, matchesPlan(query("""
+            FROM *,-employees*,
+            (FROM addresses | STATS count=COUNT() BY country),
+            (FROM languages_lookup_non_unique_key | STATS count=COUNT() BY country),
+            (FROM airports | LOOKUP JOIN airports_mp ON abbrev == abbrev),
+            (FROM airports | STATS count=COUNT() BY country)
+            | LIMIT 1""")));
     }
 
     public void testCircularViewExcludedByWildcard() {

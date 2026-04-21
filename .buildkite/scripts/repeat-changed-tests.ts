@@ -1,4 +1,4 @@
-import { stringify } from "yaml";
+import { parse, stringify } from "yaml";
 import { execSync } from "child_process";
 import { resolve, dirname } from "path";
 
@@ -85,6 +85,46 @@ export function toGradleProject(path: string): string {
 
 export function toFqcn(javaPath: string): string {
   return javaPath.replace(/\//g, ".");
+}
+
+export interface MutedEntry {
+  className: string;
+  method?: string;
+}
+
+interface RawMutedTest {
+  class?: string;
+  method?: string;
+  methods?: string[];
+}
+
+interface RawMutedTestsFile {
+  tests?: RawMutedTest[];
+}
+
+export function parseMutedEntries(yamlText: string): MutedEntry[] {
+  if (yamlText.trim() === "") return [];
+  const parsed = parse(yamlText) as RawMutedTestsFile | null;
+  const rawTests = parsed?.tests ?? [];
+
+  const entries: MutedEntry[] = [];
+  for (const t of rawTests) {
+    if (!t.class) continue;
+    const methodsList = t.methods ?? [];
+    const hasAnyMethod = methodsList.length > 0 || t.method !== undefined;
+
+    if (!hasAnyMethod) {
+      entries.push({ className: t.class });
+      continue;
+    }
+    for (const m of methodsList) {
+      entries.push({ className: t.class, method: m });
+    }
+    if (t.method !== undefined) {
+      entries.push({ className: t.class, method: t.method });
+    }
+  }
+  return entries;
 }
 
 export function classifyChangedFiles(files: string[]): ClassifiedTest[] {

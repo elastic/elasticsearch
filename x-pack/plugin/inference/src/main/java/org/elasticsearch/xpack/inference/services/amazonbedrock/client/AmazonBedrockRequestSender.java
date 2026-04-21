@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -101,7 +102,7 @@ public class AmazonBedrockRequestSender implements Sender {
     }
 
     @Override
-    public void startAsynchronously(ActionListener<Void> listener) {
+    public void startAsynchronously(ActionListener<Void> listener, @Nullable TimeValue timeout) {
 
         throw new UnsupportedOperationException("not implemented");
     }

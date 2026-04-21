@@ -107,7 +107,7 @@ public abstract class SenderService<M extends Model> implements InferenceService
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        SubscribableListener.newForked(this::init).<InferenceServiceResults>andThen((inferListener) -> {
+        SubscribableListener.<Void>newForked(l -> init(l, timeout)).<InferenceServiceResults>andThen((inferListener) -> {
             var resolvedInferenceTimeout = ServiceUtils.resolveInferenceTimeout(timeout, inputType, clusterService);
             var inferenceInput = createInput(this, model, input, inputType, query, returnDocuments, topN, stream);
             doInfer(model, inferenceInput, taskSettings, resolvedInferenceTimeout, inferListener);
@@ -196,7 +196,7 @@ public abstract class SenderService<M extends Model> implements InferenceService
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        SubscribableListener.newForked(this::init).<InferenceServiceResults>andThen((completionInferListener) -> {
+        SubscribableListener.<Void>newForked(l -> init(l, timeout)).<InferenceServiceResults>andThen((completionInferListener) -> {
             if (supportsChatCompletionReasoning() == false && request.containsChatCompletionReasoning()) {
                 throwUnsupportedReasoningUnifiedCompletionOperation(name());
             }
@@ -210,7 +210,7 @@ public abstract class SenderService<M extends Model> implements InferenceService
 
     @Override
     public void embeddingInfer(Model model, EmbeddingRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
-        SubscribableListener.newForked(this::init).<InferenceServiceResults>andThen((embeddingInferListener) -> {
+        SubscribableListener.<Void>newForked(l -> init(l, timeout)).<InferenceServiceResults>andThen((embeddingInferListener) -> {
             if (supportsImageEmbeddingContent() == false && containsNonTextEntry(request.inputs())) {
                 listener.onFailure(
                     new ElasticsearchStatusException(
@@ -271,7 +271,7 @@ public abstract class SenderService<M extends Model> implements InferenceService
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
     ) {
-        SubscribableListener.newForked(this::init).<List<ChunkedInference>>andThen((chunkedInferListener) -> {
+        SubscribableListener.<Void>newForked(l -> init(l, timeout)).<List<ChunkedInference>>andThen((chunkedInferListener) -> {
             ValidationException validationException = new ValidationException();
             validateInputType(inputType, model, validationException);
             validationException.throwIfValidationErrorsExist();
@@ -342,22 +342,22 @@ public abstract class SenderService<M extends Model> implements InferenceService
     }
 
     public void start(Model model, ActionListener<Boolean> listener) {
-        SubscribableListener.newForked(this::init)
-            .<Boolean>andThen((doStartListener) -> doStart(model, doStartListener))
-            .addListener(listener);
+        start(model, null, listener);
     }
 
     @Override
-    public void start(Model model, @Nullable TimeValue unused, ActionListener<Boolean> listener) {
-        start(model, listener);
+    public void start(Model model, @Nullable TimeValue timeout, ActionListener<Boolean> listener) {
+        SubscribableListener.<Void>newForked(l -> init(l, timeout))
+            .<Boolean>andThen((doStartListener) -> doStart(model, doStartListener))
+            .addListener(listener);
     }
 
     protected void doStart(Model model, ActionListener<Boolean> listener) {
         listener.onResponse(true);
     }
 
-    private void init(ActionListener<Void> listener) {
-        sender.startAsynchronously(listener);
+    private void init(ActionListener<Void> listener, @Nullable TimeValue timeout) {
+        sender.startAsynchronously(listener, timeout);
     }
 
     @Override

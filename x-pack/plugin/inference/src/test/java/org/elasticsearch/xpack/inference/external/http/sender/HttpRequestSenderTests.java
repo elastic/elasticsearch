@@ -44,7 +44,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
@@ -73,7 +72,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class HttpRequestSenderTests extends ESTestCase {
-    private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
     private HttpClientManager clientManager;
@@ -90,7 +88,7 @@ public class HttpRequestSenderTests extends ESTestCase {
     @After
     public void shutdown() throws IOException, InterruptedException {
         if (threadRef.get() != null) {
-            threadRef.get().join(TIMEOUT.millis());
+            threadRef.get().join(TEST_REQUEST_TIMEOUT.millis());
         }
 
         clientManager.close();
@@ -147,54 +145,33 @@ public class HttpRequestSenderTests extends ESTestCase {
         }
     }
 
-    public void testStart_ThrowsExceptionWaitingForStartToComplete() {
+    public void testStartSync_ThrowsServiceUnavailableWhenStartupTimesOut() {
         var mockManager = createMockHttpClientManager();
-        doThrow(new IllegalArgumentException("failed")).when(mockManager).start();
 
-        // Force the startup to never complete
+        // Use a latch that is never counted down to simulate a hung startup
         var latch = new CountDownLatch(1);
-        var sender = new HttpRequestSender(
-            threadPool,
-            mockManager,
-            mock(RequestSender.class),
-            mock(RequestExecutor.class),
-            latch,
-            // Override the wait time so we don't block the test for too long
-            TimeValue.timeValueMillis(1)
-        );
+        var sender = new HttpRequestSender(threadPool, mockManager, mock(RequestSender.class), mock(RequestExecutor.class), latch);
 
-        var exception = expectThrows(IllegalStateException.class, sender::startSynchronously);
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> sender.startSynchronously(TimeValue.timeValueMillis(1)));
 
         assertThat(exception.getMessage(), is("Http sender startup did not complete in time"));
+        assertThat(exception.status(), is(RestStatus.SERVICE_UNAVAILABLE));
     }
 
-    public void testStartAsync_WaitsAsyncForStartToComplete_ThrowsWhenItTimesOut_ThenSucceeds() {
+    public void testStartAsync_ThrowsServiceUnavailableWhenStartupTimesOut() {
         var mockManager = createMockHttpClientManager();
+
+        // Use a latch that is never counted down to simulate a hung startup
         var latch = new CountDownLatch(1);
-        var sender = new HttpRequestSender(
-            threadPool,
-            mockManager,
-            mock(RequestSender.class),
-            mock(RequestExecutor.class),
-            latch,
-            // Override the wait time so we don't block the test for too long
-            TimeValue.timeValueMillis(1)
-        );
+        var sender = new HttpRequestSender(threadPool, mockManager, mock(RequestSender.class), mock(RequestExecutor.class), latch);
 
         var listener = new PlainActionFuture<Void>();
-        sender.startAsynchronously(listener);
+        // Pass a very short timeout so the test doesn't hang
+        sender.startAsynchronously(listener, TimeValue.timeValueMillis(1));
 
-        var exception = expectThrows(IllegalStateException.class, () -> listener.actionGet(TIMEOUT));
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
         assertThat(exception.getMessage(), is("Http sender startup did not complete in time"));
-
-        // simulate the start completing
-        latch.countDown();
-
-        var listenerCompleted = new PlainActionFuture<Void>();
-        sender.startAsynchronously(listenerCompleted);
-        assertNull(listenerCompleted.actionGet(TIMEOUT));
-
-        verify(mockManager, times(1)).start();
+        assertThat(exception.status(), is(RestStatus.SERVICE_UNAVAILABLE));
     }
 
     public void testCreateSender_CanCallStartAsyncMultipleTimes() throws Exception {
@@ -208,12 +185,12 @@ public class HttpRequestSenderTests extends ESTestCase {
             for (int i = 0; i < asyncCalls; i++) {
                 PlainActionFuture<Void> listener = new PlainActionFuture<>();
                 listenerList.add(listener);
-                sender.startAsynchronously(listener);
+                sender.startAsynchronously(listener, null);
             }
 
             for (int i = 0; i < asyncCalls; i++) {
                 PlainActionFuture<Void> listener = listenerList.get(i);
-                assertNull(listener.actionGet(TIMEOUT));
+                assertNull(listener.actionGet(TEST_REQUEST_TIMEOUT));
             }
         }
 
@@ -231,13 +208,13 @@ public class HttpRequestSenderTests extends ESTestCase {
             for (int i = 0; i < asyncCalls; i++) {
                 PlainActionFuture<Void> listener = new PlainActionFuture<>();
                 listenerList.add(listener);
-                sender.startAsynchronously(listener);
+                sender.startAsynchronously(listener, null);
                 sender.startSynchronously();
             }
 
             for (int i = 0; i < asyncCalls; i++) {
                 PlainActionFuture<Void> listener = listenerList.get(i);
-                assertNull(listener.actionGet(TIMEOUT));
+                assertNull(listener.actionGet(TEST_REQUEST_TIMEOUT));
             }
         }
 
@@ -280,7 +257,7 @@ public class HttpRequestSenderTests extends ESTestCase {
                 listener
             );
 
-            var result = listener.actionGet(TIMEOUT);
+            var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
             assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
 
             assertThat(webServer.requests(), hasSize(1));
@@ -320,7 +297,7 @@ public class HttpRequestSenderTests extends ESTestCase {
 
             sender.sendWithoutQueuing(mock(Logger.class), request, responseHandler, null, listener);
 
-            var result = listener.actionGet(TIMEOUT);
+            var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
             assertThat(result, instanceOf(ElasticInferenceServiceAuthorizationResponseEntity.class));
             var authResponse = (ElasticInferenceServiceAuthorizationResponseEntity) result;
             assertThat(authResponse.authorizedEndpoints(), is(elserResponse.responseEntity().authorizedEndpoints()));
@@ -371,7 +348,7 @@ public class HttpRequestSenderTests extends ESTestCase {
                 listener
             );
 
-            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
 
             assertThat(thrownException.getMessage(), is(format("Request timed out after [%s]", TimeValue.timeValueNanos(1))));
             assertThat(thrownException.status(), is(RestStatus.GATEWAY_TIMEOUT));
@@ -398,7 +375,7 @@ public class HttpRequestSenderTests extends ESTestCase {
                 listener
             );
 
-            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
 
             assertThat(thrownException.getMessage(), is(format("Request timed out after [%s]", TimeValue.timeValueNanos(1))));
             assertThat(thrownException.status(), is(RestStatus.GATEWAY_TIMEOUT));
@@ -426,7 +403,7 @@ public class HttpRequestSenderTests extends ESTestCase {
                 listener
             );
 
-            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
 
             assertThat(thrownException.getMessage(), is(format("Request timed out after [%s]", TimeValue.timeValueNanos(1))));
             assertThat(thrownException.status(), is(RestStatus.GATEWAY_TIMEOUT));

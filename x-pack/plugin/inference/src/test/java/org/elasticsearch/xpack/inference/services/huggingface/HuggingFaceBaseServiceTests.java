@@ -84,7 +84,7 @@ public class HuggingFaceBaseServiceTests extends ESTestCase {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).startAsynchronously(any());
+            verify(sender, times(1)).startAsynchronously(any(), any());
         }
 
         verify(sender, times(1)).close();

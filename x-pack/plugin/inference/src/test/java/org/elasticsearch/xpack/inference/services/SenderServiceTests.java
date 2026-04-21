@@ -92,7 +92,7 @@ public class SenderServiceTests extends ESTestCase {
             service.start(mock(Model.class), listener);
 
             listener.actionGet(TIMEOUT);
-            verify(sender, times(1)).startAsynchronously(any());
+            verify(sender, times(1)).startAsynchronously(any(), any());
             verify(factory, times(1)).createSender();
         }
 
@@ -117,7 +117,7 @@ public class SenderServiceTests extends ESTestCase {
             listener2.actionGet(TIMEOUT);
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(2)).startAsynchronously(any());
+            verify(sender, times(2)).startAsynchronously(any(), any());
         }
 
         verify(sender, times(1)).close();
@@ -360,7 +360,7 @@ public class SenderServiceTests extends ESTestCase {
             ActionListener<Void> listener = invocationOnMock.getArgument(0);
             listener.onResponse(null);
             return Void.TYPE;
-        }).when(sender).startAsynchronously(any());
+        }).when(sender).startAsynchronously(any(), any());
 
         return sender;
     }

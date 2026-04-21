@@ -415,7 +415,7 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).startAsynchronously(any());
+            verify(sender, times(1)).startAsynchronously(any(), any());
         }
 
         verify(sender, times(1)).close();
@@ -454,7 +454,7 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).startAsynchronously(any());
+            verify(sender, times(1)).startAsynchronously(any(), any());
         }
 
         verify(sender, times(1)).close();
@@ -495,7 +495,7 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).startAsynchronously(any());
+            verify(sender, times(1)).startAsynchronously(any(), any());
         }
 
         verify(sender, times(1)).close();
@@ -538,7 +538,7 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).startAsynchronously(any());
+            verify(sender, times(1)).startAsynchronously(any(), any());
         }
 
         verify(sender, times(1)).close();
@@ -618,7 +618,7 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
             ActionListener<Void> listener = invocation.getArgument(0);
             listener.onResponse(null);
             return Void.TYPE;
-        }).when(sender).startAsynchronously(any());
+        }).when(sender).startAsynchronously(any(), any());
 
         var s = mock(HttpRequestSender.Factory.class);
         when(s.createSender()).thenReturn(sender);

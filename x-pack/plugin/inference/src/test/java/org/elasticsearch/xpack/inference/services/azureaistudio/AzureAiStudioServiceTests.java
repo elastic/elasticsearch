@@ -1269,7 +1269,7 @@ public class AzureAiStudioServiceTests extends InferenceServiceTestCase {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).startAsynchronously(any());
+            verify(sender, times(1)).startAsynchronously(any(), any());
         }
 
         verify(sender, times(1)).close();
@@ -1308,7 +1308,7 @@ public class AzureAiStudioServiceTests extends InferenceServiceTestCase {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).startAsynchronously(any());
+            verify(sender, times(1)).startAsynchronously(any(), any());
         }
 
         verify(sender, times(1)).close();

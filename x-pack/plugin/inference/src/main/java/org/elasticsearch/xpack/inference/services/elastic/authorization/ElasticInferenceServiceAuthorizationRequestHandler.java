@@ -164,7 +164,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
             authModelListener.onFailure(e);
         });
 
-        SubscribableListener.newForked(sender::startAsynchronously)
+        SubscribableListener.<Void>newForked(l -> sender.startAsynchronously(l, null))
             .andThen(authFactory::getAuthenticationApplier)
             .<InferenceServiceResults>andThen((authListener, authApplier) -> {
                 var requestMetadata = extractRequestMetadataFromThreadContext(threadPool.getThreadContext());

@@ -675,6 +675,135 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         assertAnalysisFailureMessage(analyseRepositoryExpectFailure(request).getMessage());
     }
 
+    public void testFailsIfChildrenNotEmpty() {
+        final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
+        request.blobCount(1);
+        request.maxBlobSize(ByteSizeValue.ofBytes(10L));
+        blobStore.setDisruption(new Disruption() {
+            @Override
+            public Map<String, BlobContainer> onChildren(BlobContainer self, Map<String, BlobContainer> actual) {
+                if (actual.isEmpty()) {
+                    // Inject a spurious child directory when the flat container should have none
+                    return Map.of("spurious-dir", self);
+                }
+                return actual;
+            }
+        });
+        assertAnalysisFailureMessage(analyseRepositoryExpectFailure(request).getMessage());
+    }
+
+    public void testFailsIfChildrenMissingAfterWrite() {
+        final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
+        request.blobCount(1);
+        request.maxBlobSize(ByteSizeValue.ofBytes(10L));
+        blobStore.setDisruption(new Disruption() {
+            @Override
+            public Map<String, BlobContainer> onChildren(BlobContainer self, Map<String, BlobContainer> actual) {
+                if (actual.containsKey("test-child-dir-1")) {
+                    // Hide the child directory that was just written
+                    return Map.of();
+                }
+                return actual;
+            }
+        });
+        assertAnalysisFailureMessage(analyseRepositoryExpectFailure(request).getMessage());
+    }
+
+    public void testFailsOnChildrenException() {
+        final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
+        request.blobCount(1);
+        request.maxBlobSize(ByteSizeValue.ofBytes(10L));
+        final CountDown countDown = new CountDown(1);
+        blobStore.setDisruption(new Disruption() {
+            @Override
+            public Map<String, BlobContainer> onChildren(BlobContainer self, Map<String, BlobContainer> actual) throws IOException {
+                if (countDown.countDown()) {
+                    throw new IOException("simulated children listing failure");
+                }
+                return actual;
+            }
+        });
+        final Exception exception = analyseRepositoryExpectFailure(request);
+        assertAnalysisFailureMessage(exception.getMessage());
+        final IOException ioException = (IOException) ExceptionsHelper.unwrap(exception, IOException.class);
+        assert ioException != null : exception;
+        assertThat(ioException.getMessage(), equalTo("simulated children listing failure"));
+    }
+
+    public void testFailsIfPartialChildrenListing() {
+        final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
+        request.blobCount(1);
+        request.maxBlobSize(ByteSizeValue.ofBytes(10L));
+        blobStore.setDisruption(new Disruption() {
+            @Override
+            public Map<String, BlobContainer> onChildren(BlobContainer self, Map<String, BlobContainer> actual) {
+                if (actual.containsKey("test-child-dir-1") && actual.containsKey("test-child-dir-2")) {
+                    // Return only one of the two expected directories
+                    return Map.of("test-child-dir-2", actual.get("test-child-dir-2"));
+                }
+                return actual;
+            }
+        });
+        assertAnalysisFailureMessage(analyseRepositoryExpectFailure(request).getMessage());
+    }
+
+    public void testFailsIfChildListBlobsReportsBlobMissing() {
+        final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
+        request.blobCount(1);
+        request.maxBlobSize(ByteSizeValue.ofBytes(10L));
+        blobStore.setDisruption(new Disruption() {
+            @Override
+            public Map<String, BlobMetadata> onChildListBlobs(String dirName, Map<String, BlobMetadata> actual) {
+                if (dirName.equals("test-child-dir-1") && actual.isEmpty() == false) {
+                    final HashMap<String, BlobMetadata> disrupted = new HashMap<>(actual);
+                    disrupted.remove(disrupted.keySet().iterator().next());
+                    return disrupted;
+                }
+                return actual;
+            }
+        });
+        assertAnalysisFailureMessage(analyseRepositoryExpectFailure(request).getMessage());
+    }
+
+    public void testFailsIfChildListBlobsReportsExtraBlob() {
+        final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
+        request.blobCount(1);
+        request.maxBlobSize(ByteSizeValue.ofBytes(10L));
+        blobStore.setDisruption(new Disruption() {
+            @Override
+            public Map<String, BlobMetadata> onChildListBlobs(String dirName, Map<String, BlobMetadata> actual) {
+                if (dirName.equals("test-child-dir-1") && actual.isEmpty() == false) {
+                    final HashMap<String, BlobMetadata> disrupted = new HashMap<>(actual);
+                    disrupted.put("spurious-blob", new BlobMetadata("spurious-blob", 0));
+                    return disrupted;
+                }
+                return actual;
+            }
+        });
+        assertAnalysisFailureMessage(analyseRepositoryExpectFailure(request).getMessage());
+    }
+
+    public void testFailsOnChildListBlobsException() {
+        final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
+        request.blobCount(1);
+        request.maxBlobSize(ByteSizeValue.ofBytes(10L));
+        final CountDown countDown = new CountDown(1);
+        blobStore.setDisruption(new Disruption() {
+            @Override
+            public Map<String, BlobMetadata> onChildListBlobs(String dirName, Map<String, BlobMetadata> actual) throws IOException {
+                if (countDown.countDown()) {
+                    throw new IOException("simulated child listBlobs failure");
+                }
+                return actual;
+            }
+        });
+        final Exception exception = analyseRepositoryExpectFailure(request);
+        assertAnalysisFailureMessage(exception.getMessage());
+        final IOException ioException = (IOException) ExceptionsHelper.unwrap(exception, IOException.class);
+        assert ioException != null : exception;
+        assertThat(ioException.getMessage(), equalTo("simulated child listBlobs failure"));
+    }
+
     private RepositoryVerificationException analyseRepositoryExpectFailure(RepositoryAnalyzeAction.Request request) {
         return safeAwaitAndUnwrapFailure(
             RepositoryVerificationException.class,
@@ -829,6 +958,14 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
 
         default Map<String, BlobMetadata> onPrefixList(String prefix, Map<String, BlobMetadata> filteredListing) throws IOException {
             return filteredListing;
+        }
+
+        default Map<String, BlobContainer> onChildren(BlobContainer self, Map<String, BlobContainer> actual) throws IOException {
+            return actual;
+        }
+
+        default Map<String, BlobMetadata> onChildListBlobs(String dirName, Map<String, BlobMetadata> actual) throws IOException {
+            return actual;
         }
     }
 
@@ -1036,9 +1173,17 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         }
 
         @Override
-        public Map<String, BlobContainer> children(OperationPurpose purpose) {
+        public Map<String, BlobContainer> children(OperationPurpose purpose) throws IOException {
             assertPurpose(purpose);
-            return Map.of();
+            final Map<String, BlobContainer> actual = new HashMap<>();
+            for (final String blobName : blobs.keySet()) {
+                final int slashIdx = blobName.indexOf('/');
+                if (slashIdx > 0) {
+                    final String dirName = blobName.substring(0, slashIdx);
+                    actual.putIfAbsent(dirName, new DisruptibleChildBlobContainer(path(), dirName, blobs, disruption));
+                }
+            }
+            return disruption.onChildren(this, actual);
         }
 
         @Override
@@ -1085,6 +1230,22 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
                 }
             } else {
                 listener.onResponse(OptionalBytesReference.MISSING);
+            }
+        }
+
+        private static class DisruptibleChildBlobContainer extends ChildBlobContainer {
+            private final String dirName;
+            private final Disruption disruption;
+
+            DisruptibleChildBlobContainer(BlobPath parentPath, String dirName, Map<String, byte[]> blobs, Disruption disruption) {
+                super(parentPath, dirName, blobs);
+                this.dirName = dirName;
+                this.disruption = disruption;
+            }
+
+            @Override
+            public Map<String, BlobMetadata> listBlobs(OperationPurpose purpose) throws IOException {
+                return disruption.onChildListBlobs(dirName, super.listBlobs(purpose));
             }
         }
     }

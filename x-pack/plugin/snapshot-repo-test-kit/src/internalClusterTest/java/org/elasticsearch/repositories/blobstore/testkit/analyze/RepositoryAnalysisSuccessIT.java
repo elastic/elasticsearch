@@ -52,6 +52,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -349,6 +350,7 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         private final Map<String, BytesRegister> registers = ConcurrentCollections.newConcurrentMap();
         private final AtomicBoolean firstRegisterRead = new AtomicBoolean(true);
         private final AtomicLong prefixListCallCount = new AtomicLong();
+        private final AtomicLong childrenCallCount = new AtomicLong();
 
         private final Object registerMutex = new Object();
         private long contendedRegisterValue = 0L;
@@ -491,9 +493,15 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
                 } else {
                     blobs.put(blobName, contents);
                 }
-                assertThat(blobs.keySet().toString(), blobs.size(), lessThanOrEqualTo(maxBlobCount + 1 /* overwrite-check blob */));
+                final int childBlobCount = 4;
+                // +1 for overwrite-check blob, +childBlobCount for temporary child-listing blobs written by verifyChildrenListing
+                assertThat(blobs.keySet().toString(), blobs.size(), lessThanOrEqualTo(maxBlobCount + 1 + childBlobCount));
                 final long currentTotal = totalBytesWritten.addAndGet(blobSize - existingSize);
-                assertThat(currentTotal, lessThanOrEqualTo(maxTotalBlobSize + maxBlobSize /* max size of overwrite-check blob */));
+                final long childBlobSize = childBlobCount; // 1 byte each
+                assertThat(
+                    currentTotal,
+                    lessThanOrEqualTo(maxTotalBlobSize + maxBlobSize /* max size of overwrite-check blob */ + childBlobSize)
+                );
             } finally {
                 writeSemaphore.release();
             }
@@ -525,6 +533,11 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
                 prefixListCallCount.get(),
                 greaterThanOrEqualTo(1L)
             );
+            assertThat(
+                "children was never called by RepositoryAnalyzeAction, so verifyChildrenListing was never called",
+                childrenCallCount.get(),
+                greaterThanOrEqualTo(1L)
+            );
             synchronized (registerMutex) {
                 assertThat(contendedRegisterValue, equalTo(expectedRegisterOperationCount));
                 assertThat(uncontendedRegisterValue, greaterThanOrEqualTo(expectedRegisterOperationCount));
@@ -552,7 +565,16 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         @Override
         public Map<String, BlobContainer> children(OperationPurpose purpose) {
             assertPurpose(purpose);
-            return Map.of();
+            childrenCallCount.incrementAndGet();
+            final Map<String, BlobContainer> children = new HashMap<>();
+            for (final String blobName : blobs.keySet()) {
+                final int slashIdx = blobName.indexOf('/');
+                if (slashIdx > 0) {
+                    final String dirName = blobName.substring(0, slashIdx);
+                    children.putIfAbsent(dirName, new ChildBlobContainer(path(), dirName, blobs));
+                }
+            }
+            return children;
         }
 
         @Override

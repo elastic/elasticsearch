@@ -943,6 +943,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                     if (missingBlobs.isEmpty()) {
                         logger.trace("all expected blobs found, cleaning up [{}:{}]", request.getRepositoryName(), blobPath);
                         verifyPrefixListing(blobContainer, blobsMap);
+                        verifyChildrenListing(blobContainer);
                     } else {
                         final RepositoryVerificationException repositoryVerificationException = new RepositoryVerificationException(
                             request.repositoryName,
@@ -1043,6 +1044,89 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                         )
                     );
                     return;
+                }
+            }
+        }
+
+        /**
+         * Verify that {@link BlobContainer#children} correctly reports child containers using delimiter-based hierarchical listing.
+         * <ol>
+         *     <li>Verify the flat test container has no children (all test blobs are written without subdirectories).</li>
+         *     <li>Write blobs into subdirectories and verify {@code children()} returns the subdirectories.</li>
+         *     <li>Cleans up the subdirectories blobs.</li>
+         * </ol>
+         */
+        private void verifyChildrenListing(BlobContainer blobContainer) throws IOException {
+            // Step 1: flat container should have no children
+            final Map<String, BlobContainer> childContainers = blobContainer.children(OperationPurpose.REPOSITORY_ANALYSIS);
+            if (childContainers.isEmpty() == false) {
+                fail(
+                    new RepositoryVerificationException(
+                        request.repositoryName,
+                        "children() should return no child containers for a flat blob container but returned " + childContainers.keySet()
+                    )
+                );
+                return;
+            }
+
+            // Step 2: write a blob into a subdirectory and verify children() discovers it
+            final Map<String, List<String>> parentChildMap = Map.of(
+                "test-child-dir-1",
+                List.of("test-child-blob-1a", "test-child-blob-1b"),
+                "test-child-dir-2",
+                List.of("test-child-blob-2a", "test-child-blob-2b")
+            );
+            for (Map.Entry<String, List<String>> entry : parentChildMap.entrySet()) {
+                final String parentBlobName = entry.getKey();
+                for (final String childBlobName : entry.getValue()) {
+                    blobContainer.writeBlob(
+                        OperationPurpose.REPOSITORY_ANALYSIS,
+                        parentBlobName + "/" + childBlobName,
+                        new BytesArray(new byte[] { 0 }),
+                        true
+                    );
+                }
+            }
+            try {
+                final Map<String, BlobContainer> childContainersAfterWrite = blobContainer.children(OperationPurpose.REPOSITORY_ANALYSIS);
+                if (childContainersAfterWrite.keySet().equals(parentChildMap.keySet()) == false) {
+                    fail(
+                        new RepositoryVerificationException(
+                            request.repositoryName,
+                            "children() should return [" + parentChildMap.keySet() + "] but returned " + childContainersAfterWrite.keySet()
+                        )
+                    );
+                    return;
+                }
+                for (Map.Entry<String, List<String>> entry : parentChildMap.entrySet()) {
+                    final String dirName = entry.getKey();
+                    final Set<String> childBlobs = childContainersAfterWrite.get(dirName)
+                        .listBlobs(OperationPurpose.REPOSITORY_ANALYSIS)
+                        .keySet();
+                    final Set<String> expectedChildBlobs = new HashSet<>(entry.getValue());
+                    if (childBlobs.equals(expectedChildBlobs) == false) {
+                        fail(
+                            new RepositoryVerificationException(
+                                request.repositoryName,
+                                "children() should return ["
+                                    + expectedChildBlobs
+                                    + "] for directory ["
+                                    + dirName
+                                    + "] but returned "
+                                    + childBlobs
+                            )
+                        );
+                        logger.trace("children listing verified for [{}:{}]", request.getRepositoryName(), blobPath);
+                    }
+                }
+            } finally {
+                // Step 3: clean up the subdirectory blob
+                for (Map.Entry<String, List<String>> entry : parentChildMap.entrySet()) {
+                    final List<String> childBlobNames = entry.getValue()
+                        .stream()
+                        .map(childBlobName -> entry.getKey() + "/" + childBlobName)
+                        .toList();
+                    blobContainer.deleteBlobsIgnoringIfNotExists(OperationPurpose.REPOSITORY_ANALYSIS, childBlobNames.iterator());
                 }
             }
         }

@@ -492,6 +492,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapperTests
   method: testIsEnabled
   issue: https://github.com/elastic/elasticsearch/issues/147009
+- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
+  method: test {csv-spec:external-basic.selectHeightVariants [S3]}
+  issue: https://github.com/elastic/elasticsearch/issues/147012
 
 # Examples:
 #

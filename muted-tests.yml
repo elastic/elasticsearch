@@ -468,6 +468,42 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
   method: test {csv-spec:external-basic.filterByEmployeeNumber [LOCAL]}
   issue: https://github.com/elastic/elasticsearch/issues/147016
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:exponential_histogram.All aggs grouped by TBucket and Instance (time series mode)}
+  issue: https://github.com/elastic/elasticsearch/issues/147020
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:match-operator.matchWithStats}
+  issue: https://github.com/elastic/elasticsearch/issues/147021
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:keep.whereWithCount}
+  issue: https://github.com/elastic/elasticsearch/issues/147022
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:unmapped-type-conflicts.noTypeConflictKeepTriggersLoadInlineStatsWithFilter}
+  issue: https://github.com/elastic/elasticsearch/issues/147023
+- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
+  method: test {csv-spec:external-basic.convertToDouble [AZURE]}
+  issue: https://github.com/elastic/elasticsearch/issues/147027
+- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
+  method: test {csv-spec:external-basic.filterByGender [S3]}
+  issue: https://github.com/elastic/elasticsearch/issues/147029
+- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
+  method: test {csv-spec:external-basic.filterAndSort [LOCAL]}
+  issue: https://github.com/elastic/elasticsearch/issues/147031
+- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
+  method: test {csv-spec:external-basic.selectSpecificColumns [LOCAL]}
+  issue: https://github.com/elastic/elasticsearch/issues/147035
+- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
+  method: test {csv-spec:external-basic.categorizeByFullName [AZURE]}
+  issue: https://github.com/elastic/elasticsearch/issues/147036
+- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
+  method: test {csv-spec:external-basic.mvMaxFromSplit [GCS]}
+  issue: https://github.com/elastic/elasticsearch/issues/147037
+- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
+  method: test {csv-spec:external-basic.mvDedupeFromSplit [LOCAL]}
+  issue: https://github.com/elastic/elasticsearch/issues/147039
+- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
+  method: test {csv-spec:external-basic.mvCountFromSplit [GCS]}
+  issue: https://github.com/elastic/elasticsearch/issues/147040
 
 # Examples:
 #

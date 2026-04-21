@@ -17,7 +17,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.test.cluster.util.Version;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TemporaryFolder;
@@ -48,13 +47,6 @@ public abstract class AbstractRollingUpgradeWithSecurityTestCase extends Paramet
                     return repoDirectory.getRoot().getPath();
                 }
             });
-
-        // Avoid triggering bogus assertion when serialized parsed mappings don't match with original mappings, because _source key is
-        // inconsistent. Assume non-parseable versions (serverless) do not need this.
-        if (Version.tryParse(getOldClusterVersion()).map(v -> v.before(Version.fromString("8.18.0"))).orElse(false)) {
-            cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
-            cluster.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
-        }
         return cluster.build();
     }
 

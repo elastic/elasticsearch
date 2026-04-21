@@ -74,6 +74,8 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
 
         createIndex(INDEX_NAME);
 
+        // Raise the limit high enough to allow 5 x 2MB documents to be indexed without tripping the breaker.
+        updateClusterSettings(Settings.builder().put("indices.breaker.request.limit", "20mb"));
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
             builders.add(
@@ -90,6 +92,7 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
         indexRandom(true, builders);
         refresh(INDEX_NAME);
         ensureGreen(INDEX_NAME);
+        updateClusterSettings(Settings.builder().put("indices.breaker.request.limit", "5mb"));
 
         long breakerBefore = getRequestBreakerUsed(coordinatorNode);
 
@@ -144,6 +147,8 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
         String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
         createIndex(INDEX_NAME);
 
+        // Raise the limit high enough to allow 10 x 1.5MB documents to be indexed without tripping the breaker.
+        updateClusterSettings(Settings.builder().put("indices.breaker.request.limit", "20mb"));
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
             builders.add(
@@ -160,6 +165,7 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
         indexRandom(true, builders);
         refresh(INDEX_NAME);
         ensureGreen(INDEX_NAME);
+        updateClusterSettings(Settings.builder().put("indices.breaker.request.limit", "5mb"));
 
         long breakerBefore = getRequestBreakerUsed(coordinatorNode);
 
@@ -291,6 +297,8 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
         String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
         createIndex(INDEX_NAME);
 
+        // Raise the limit high enough to allow 10 x 1.5MB documents to be indexed without tripping the breaker.
+        updateClusterSettings(Settings.builder().put("indices.breaker.request.limit", "20mb"));
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
             builders.add(
@@ -307,6 +315,7 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
         indexRandom(true, builders);
         refresh(INDEX_NAME);
         ensureGreen(INDEX_NAME);
+        updateClusterSettings(Settings.builder().put("indices.breaker.request.limit", "5mb"));
 
         long initialBreaker = getRequestBreakerUsed(coordinatorNode);
 

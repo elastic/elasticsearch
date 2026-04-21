@@ -504,6 +504,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
   method: test {csv-spec:external-basic.mvCountFromSplit [GCS]}
   issue: https://github.com/elastic/elasticsearch/issues/147040
+- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
+  method: test {csv-spec:external-basic.enrich [GCS]}
+  issue: https://github.com/elastic/elasticsearch/issues/147044
 
 # Examples:
 #

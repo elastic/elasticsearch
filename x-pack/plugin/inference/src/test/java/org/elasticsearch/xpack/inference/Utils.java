@@ -53,6 +53,7 @@ import static org.mockito.Mockito.when;
 public final class Utils {
 
     public static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(30);
+    private static final int MAX_THREADS = 4;
 
     private Utils() {
         throw new UnsupportedOperationException("Utils is a utility class and should not be instantiated");
@@ -74,11 +75,15 @@ public final class Utils {
     }
 
     public static ScalingExecutorBuilder[] inferenceUtilityExecutors() {
+        return inferenceUtilityExecutors(MAX_THREADS, MAX_THREADS);
+    }
+
+    public static ScalingExecutorBuilder[] inferenceUtilityExecutors(int maxUtilityThreads, int maxResponseThreads) {
         return new ScalingExecutorBuilder[] {
             new ScalingExecutorBuilder(
                 UTILITY_THREAD_POOL_NAME,
                 1,
-                4,
+                maxUtilityThreads,
                 TimeValue.timeValueMinutes(10),
                 false,
                 "xpack.inference.utility_thread_pool"
@@ -86,7 +91,7 @@ public final class Utils {
             new ScalingExecutorBuilder(
                 INFERENCE_RESPONSE_THREAD_POOL_NAME,
                 1,
-                4,
+                maxResponseThreads,
                 TimeValue.timeValueMinutes(10),
                 false,
                 "xpack.inference.inference_response_thread_pool"

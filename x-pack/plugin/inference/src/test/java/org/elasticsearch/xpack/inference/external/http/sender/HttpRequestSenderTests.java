@@ -43,6 +43,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -225,8 +226,6 @@ public class HttpRequestSenderTests extends ESTestCase {
         var senderFactory = new HttpRequestSender.Factory(createWithEmptySettings(threadPool), clientManager, mockClusterServiceEmpty());
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = """
                 {
                   "object": "list",
@@ -277,8 +276,6 @@ public class HttpRequestSenderTests extends ESTestCase {
         var senderFactory = createSenderFactory(clientManager, threadRef);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             var url = getUrl(webServer);
             var elserResponse = getEisElserAuthorizationResponse(url);
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(elserResponse.responseJson()));
@@ -304,28 +301,6 @@ public class HttpRequestSenderTests extends ESTestCase {
         }
     }
 
-    public void testHttpRequestSender_Throws_WhenCallingSendBeforeStart() throws Exception {
-        var senderFactory = new HttpRequestSender.Factory(
-            ServiceComponentsTests.createWithEmptySettings(threadPool),
-            clientManager,
-            mockClusterServiceEmpty()
-        );
-
-        try (var sender = senderFactory.createSender()) {
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            var thrownException = expectThrows(
-                AssertionError.class,
-                () -> sender.send(
-                    RequestManagerTests.createMockWithRateLimitingEnabled(),
-                    new EmbeddingsInput(List.of(), null),
-                    null,
-                    listener
-                )
-            );
-            assertThat(thrownException.getMessage(), is("call start() before sending a request"));
-        }
-    }
-
     public void testHttpRequestSender_Throws_WhenATimeoutOccurs() throws Exception {
         var mockManager = mock(HttpClientManager.class);
         when(mockManager.getHttpClient()).thenReturn(mock(HttpClient.class));
@@ -338,7 +313,6 @@ public class HttpRequestSenderTests extends ESTestCase {
 
         try (var sender = senderFactory.createSender()) {
             assertThat(sender, instanceOf(HttpRequestSender.class));
-            sender.startSynchronously();
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             sender.send(
@@ -365,8 +339,6 @@ public class HttpRequestSenderTests extends ESTestCase {
         );
 
         try (var sender = senderFactory.createSender()) {
-            sender.startSynchronously();
-
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             sender.send(
                 RequestManagerTests.createMockWithRateLimitingEnabled(),
@@ -392,8 +364,6 @@ public class HttpRequestSenderTests extends ESTestCase {
         );
 
         try (var sender = senderFactory.createSender()) {
-            sender.startSynchronously();
-
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             sender.sendWithoutQueuing(
                 mock(Logger.class),
@@ -407,6 +377,102 @@ public class HttpRequestSenderTests extends ESTestCase {
 
             assertThat(thrownException.getMessage(), is(format("Request timed out after [%s]", TimeValue.timeValueNanos(1))));
             assertThat(thrownException.status(), is(RestStatus.GATEWAY_TIMEOUT));
+        }
+    }
+
+    public void testConcurrentSend_OnlyStartsOnce() throws Exception {
+        // We need at least 2 utility threads because the first is used to by the startAsynchronous() method, and the second is
+        // used to start the RequestExecutor
+        final var maxUtilityThreads = 2;
+        final var maxResponseThreads = 2;
+        try (var smallThreadPool = createThreadPool(inferenceUtilityExecutors(maxUtilityThreads, maxResponseThreads))) {
+            var mockManager = createMockHttpClientManager();
+            // Use a latch that is never counted down to simulate a hung startup
+            var latch = new CountDownLatch(1);
+            var sender = new HttpRequestSender(smallThreadPool, mockManager, mock(RequestSender.class), mock(RequestExecutor.class), latch);
+
+            // Use more threads than the utility thread pool size
+            final var threadCountMinimum = maxUtilityThreads + 2;
+            final var threadCount = between(threadCountMinimum, threadCountMinimum + 5);
+            final var barrier = new CyclicBarrier(threadCount);
+            final var threads = new ArrayList<Thread>();
+            final var futures = new ArrayList<PlainActionFuture<InferenceServiceResults>>();
+
+            for (int i = 0; i < threadCount; i++) {
+                final var future = new PlainActionFuture<InferenceServiceResults>();
+                futures.add(future);
+                final var threadName = "send-thread-" + i;
+                threads.add(new Thread(() -> {
+                    safeAwait(barrier);
+                    sender.send(
+                        RequestManagerTests.createMockWithRateLimitingEnabled(),
+                        new EmbeddingsInput(List.of(), null),
+                        TimeValue.timeValueNanos(1),
+                        future
+                    );
+                }, threadName));
+            }
+
+            for (var thread : threads) {
+                thread.start();
+            }
+            for (var thread : threads) {
+                thread.join(TEST_REQUEST_TIMEOUT.millis());
+            }
+
+            for (var future : futures) {
+                expectThrows(ElasticsearchStatusException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
+            }
+
+            verify(mockManager, times(1)).start();
+        }
+    }
+
+    public void testConcurrentSendWithoutQueuing_OnlyStartsOnce() throws Exception {
+        // We need at least 2 utility threads because the first is used to by the startAsynchronous() method, and the second is
+        // used to start the RequestExecutor
+        final var maxUtilityThreads = 2;
+        final var maxResponseThreads = 2;
+        try (var smallThreadPool = createThreadPool(inferenceUtilityExecutors(maxUtilityThreads, maxResponseThreads))) {
+            var mockManager = createMockHttpClientManager();
+            var latch = new CountDownLatch(1);
+            var sender = new HttpRequestSender(smallThreadPool, mockManager, mock(RequestSender.class), mock(RequestExecutor.class), latch);
+
+            // Use more threads than the utility thread pool size
+            final var threadCountMinimum = maxUtilityThreads + 2;
+            final var threadCount = between(threadCountMinimum, threadCountMinimum + 5);
+            final var barrier = new CyclicBarrier(threadCount);
+            final var threads = new ArrayList<Thread>();
+            final var futures = new ArrayList<PlainActionFuture<InferenceServiceResults>>();
+
+            for (int i = 0; i < threadCount; i++) {
+                final var future = new PlainActionFuture<InferenceServiceResults>();
+                futures.add(future);
+                final var threadName = "send-without-queuing-thread-" + i;
+                threads.add(new Thread(() -> {
+                    safeAwait(barrier);
+                    sender.sendWithoutQueuing(
+                        mock(Logger.class),
+                        mock(Request.class),
+                        mock(ResponseHandler.class),
+                        TimeValue.timeValueNanos(1),
+                        future
+                    );
+                }, threadName));
+            }
+
+            for (var thread : threads) {
+                thread.start();
+            }
+            for (var thread : threads) {
+                thread.join(TEST_REQUEST_TIMEOUT.millis());
+            }
+
+            for (var future : futures) {
+                expectThrows(ElasticsearchStatusException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
+            }
+
+            verify(mockManager, times(1)).start();
         }
     }
 

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -184,6 +183,7 @@ public class HttpRequestSender implements Sender {
 
     /**
      * Send a request at some point in the future. The timeout used is retrieved from the settings.
+     * Startup is initiated automatically if it has not already been started.
      *
      * @param requestCreator  a factory for creating a request to be sent to a 3rd party service
      * @param inferenceInputs the list of string input to send in the request
@@ -198,19 +198,15 @@ public class HttpRequestSender implements Sender {
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        assert startInitiated.get() : "call start() before sending a request";
-        if (startCompleted.get() == false) {
-            listener.onFailure(
-                new ElasticsearchStatusException("Http sender has not finished starting up", RestStatus.SERVICE_UNAVAILABLE)
-            );
-            return;
-        }
-        service.execute(requestCreator, inferenceInputs, timeout, listener);
+        SubscribableListener.<Void>newForked(l -> startAsynchronously(l, timeout))
+            .<InferenceServiceResults>andThen(sendListener -> service.execute(requestCreator, inferenceInputs, timeout, sendListener))
+            .addListener(listener);
     }
 
     /**
      * This method sends a request and parses the response. It does not leverage any queuing or
      * rate limiting logic. This method should only be used for requests that are not sent often.
+     * Startup is initiated automatically if it has not already been started.
      *
      * @param logger          A logger to use for messages
      * @param request         A request to be sent
@@ -225,18 +221,15 @@ public class HttpRequestSender implements Sender {
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        assert startInitiated.get() : "call start() before sending a request";
-        if (startCompleted.get() == false) {
-            listener.onFailure(
-                new ElasticsearchStatusException("Http sender has not finished starting up", RestStatus.SERVICE_UNAVAILABLE)
-            );
-            return;
-        }
-
-        var preservedListener = ContextPreservingActionListener.wrapPreservingContext(listener, threadPool.getThreadContext());
-        var timedListener = new TimedListener<>(timeout, preservedListener, threadPool);
-
-        threadPool.executor(UTILITY_THREAD_POOL_NAME)
-            .execute(() -> requestSender.send(logger, request, timedListener::hasCompleted, responseHandler, timedListener.getListener()));
+        SubscribableListener.<Void>newForked(l -> startAsynchronously(l, timeout))
+            .<InferenceServiceResults>andThen(sendListener -> {
+                var preservedListener = ContextPreservingActionListener.wrapPreservingContext(sendListener, threadPool.getThreadContext());
+                var timedListener = new TimedListener<>(timeout, preservedListener, threadPool);
+                threadPool.executor(UTILITY_THREAD_POOL_NAME)
+                    .execute(
+                        () -> requestSender.send(logger, request, timedListener::hasCompleted, responseHandler, timedListener.getListener())
+                    );
+            })
+            .addListener(listener);
     }
 }

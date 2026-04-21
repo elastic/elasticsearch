@@ -477,6 +477,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
   method: test {csv-spec:external-basic.enrich [AZURE]}
   issue: https://github.com/elastic/elasticsearch/issues/147001
+- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
+  method: test {csv-spec:external-basic.mvSumFromMvAppend [S3]}
+  issue: https://github.com/elastic/elasticsearch/issues/147004
 
 # Examples:
 #

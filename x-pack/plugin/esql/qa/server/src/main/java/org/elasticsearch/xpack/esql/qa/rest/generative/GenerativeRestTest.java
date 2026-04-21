@@ -105,17 +105,13 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "Plan \\[ProjectExec\\[\\[<no-fields>.* optimized incorrectly due to missing references",
         "The incoming YAML document exceeds the limit:", // still to investigate, but it seems to be specific to the test framework
         "Data too large", // Circuit breaker exceptions eg. https://github.com/elastic/elasticsearch/issues/130072
-        "long overflow", // https://github.com/elastic/elasticsearch/issues/135759
-        "can't find input for", // https://github.com/elastic/elasticsearch/issues/136596
+        "long overflow", // https://github.com/elastic/elasticsearch/issues/99575
         "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/138231
         // https://github.com/elastic/elasticsearch/issues/142537 for null arguments in clamp() function
         "'field' must not be null in clamp\\(\\)", // clamp/clamp_min/clamp_max reject NULL field from unmapped fields
         "must be \\[boolean, date, ip, string or numeric except unsigned_long or counter types\\]", // type mismatch in top() arguments
         "Does not support yet aggregations over constants", // https://github.com/elastic/elasticsearch/issues/118292
-        "found value \\[.*\\] type \\[unsupported\\]", // https://github.com/elastic/elasticsearch/issues/142761
         "Field \\[.*\\] of type \\[.*\\] does not support match.* queries",
-        // https://github.com/elastic/elasticsearch/issues/145570
-        "function cannot operate on \\[from .*\\], which is not a field from an index mapping",
         // https://github.com/elastic/elasticsearch/issues/145570
         "function cannot operate on \\[.*\\], which is not a field from an index mapping",
         "\\[:\\] operator cannot operate on \\[.*\\], which is not a field from an index mapping",
@@ -138,7 +134,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "second argument of .* must be \\[date_nanos or datetime\\], found value \\[@timestamp\\] type \\[.*\\]",
         "expected named expression for grouping; got ",
         "Time-series aggregations require direct use of @timestamp which was not found. If @timestamp was renamed in EVAL, "
-            + "use the original @timestamp field instead.", // https://github.com/elastic/elasticsearch/issues/140607
+            + "use the original @timestamp field instead.", // https://github.com/elastic/elasticsearch/pull/141196
 
         // Ts-command errors awaiting fixes
         "Output has changed from \\[.*\\] to \\[.*\\]" // https://github.com/elastic/elasticsearch/issues/134794
@@ -149,10 +145,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         .map(x -> Pattern.compile(x, Pattern.DOTALL))
         .collect(Collectors.toSet());
 
-    private static final Pattern FULL_TEXT_AFTER_SORT_PATTERN = Pattern.compile(
-        ".*\\[(KQL|QSTR)] function cannot be used after SORT.*",
-        Pattern.DOTALL
-    );
     /**
      * Matches "Unknown column [X]" errors, optionally followed by ", did you mean [Y]?".
      * This error is expected when an unmapped field is used after a schema-fixing command (KEEP, DROP, STATS)
@@ -165,15 +157,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         Pattern.DOTALL
     );
     private static final Pattern UNKNOWN_COLUMN_PATTERN = Pattern.compile(".*Unknown column \\[([^]]+)].*", Pattern.DOTALL);
-    /**
-     * Matches "first argument of [X] is [null] so second argument must also be [null] but was [Y]" errors.
-     * This happens when an unmapped field (which resolves to DataType.NULL) is used in a binary operation
-     * with a non-null typed field. See https://github.com/elastic/elasticsearch/issues/142115
-     */
-    private static final Pattern NULL_TYPE_MISMATCH_PATTERN = Pattern.compile(
-        ".*first argument of \\[([^]]+)] is \\[null] so second argument must also be \\[null] but was \\[.*].*",
-        Pattern.DOTALL
-    );
+
     /**
      * Matches "... argument of [X] must be [Y], found value [Z] type [T]" errors.
      * This happens when an unmapped field ends up with a different data type that doesn't match the one of the function's argument(s).
@@ -362,7 +346,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isUnmappedFieldError(ctx.errorMessage, ctx.query),
         ctx -> isScalarTypeMismatchError(ctx.errorMessage),
         ctx -> isFieldFullTextError(ctx.errorMessage, ctx.query, ctx.previousCommands, ctx.currentSchema),
-        ctx -> isFullTextAfterSampleBug(ctx.errorMessage, ctx.query),
         ctx -> isFullTextAfterWhereBugs(ctx.errorMessage),
         ctx -> isLenientFalseFailedToCreateFullTextQueryError(ctx.errorMessage, ctx.query), };
 
@@ -453,9 +436,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     /**
      * Checks if the error is a known unmapped field error. This covers:
      * <ul>
-     *   <li>"[KQL|QSTR] function cannot be used after SORT" (https://github.com/elastic/elasticsearch/issues/142959)</li>
-     *   <li>"Rule execution limit [100] reached" - can happen with complex plans involving "nullify" unmapped fields
-     *       (https://github.com/elastic/elasticsearch/issues/142390)</li>
      *   <li>"Unknown column [X], did you mean [Y]?" - both X and Y must be unmapped field names</li>
      *   <li>"Unknown column [X]" (no suggestion) - X must be an unmapped field name</li>
      *   <li>"first argument of [X] is [null] so second argument must also be [null] but was [Y]" -
@@ -472,16 +452,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             return false;
         }
         String errorWithoutLineBreaks = normalizeErrorMessage(errorMessage);
-        if (errorWithoutLineBreaks.contains("Rule execution limit [100] reached")) {
-            return true;
-        }
 
-        Matcher matcher = FULL_TEXT_AFTER_SORT_PATTERN.matcher(errorWithoutLineBreaks);
-        if (matcher.matches()) {
-            return true;
-        }
-
-        matcher = UNKNOWN_COLUMN_WITH_SUGGESTION_PATTERN.matcher(errorWithoutLineBreaks);
+        Matcher matcher = UNKNOWN_COLUMN_WITH_SUGGESTION_PATTERN.matcher(errorWithoutLineBreaks);
         if (matcher.matches()) {
             String unknownColumn = matcher.group(1);
             String suggestedColumn = matcher.group(2);
@@ -492,12 +464,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         if (matcher.matches()) {
             String unknownColumn = matcher.group(1);
             return UNMAPPED_NAMES.contains(unknownColumn);
-        }
-
-        matcher = NULL_TYPE_MISMATCH_PATTERN.matcher(errorWithoutLineBreaks);
-        if (matcher.matches()) {
-            String expression = matcher.group(1);
-            return UNMAPPED_NAMES.stream().anyMatch(expression::contains);
         }
 
         matcher = ANY_TYPE_MISMATCH_PATTERN.matcher(errorWithoutLineBreaks);
@@ -735,15 +701,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ".*\\[(KQL|QSTR)] function cannot be used after SAMPLE.*",
         Pattern.DOTALL
     );
-
-    /**
-     * SAMPLE should not block QSTR/KQL when it appears after the WHERE containing them, but currently it does.
-     * See https://github.com/elastic/elasticsearch/issues/142694
-     */
-    static boolean isFullTextAfterSampleBug(String errorMessage, String query) {
-        return FULL_TEXT_AFTER_SAMPLE_PATTERN.matcher(normalizeErrorMessage(errorMessage)).matches()
-            && query.toLowerCase(Locale.ROOT).contains("| sample");
-    }
 
     private static final Pattern FULL_TEXT_AFTER_WHERE_PATTERN = Pattern.compile(
         ".*(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after \\(?(?i:WHERE).*",

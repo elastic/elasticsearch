@@ -27,6 +27,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.Utils;
+import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapperTests;
 import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
@@ -86,11 +87,25 @@ public class ShardBulkInferenceActionFilterBasicLicenseIT extends ESIntegTestCas
     }
 
     @Override
+    protected boolean forbidPrivateIndexSettings() {
+        // For setting index version
+        return false;
+    }
+
+    @Override
     public Settings indexSettings() {
-        var builder = Settings.builder()
+        var settingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
-            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat);
-        return builder.build();
+            .put(
+                IndexMetadata.SETTING_VERSION_CREATED,
+                SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(useLegacyFormat)
+            );
+
+        if (useLegacyFormat) {
+            settingsBuilder.put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat);
+        }
+
+        return settingsBuilder.build();
     }
 
     public void testLicenseInvalidForInference() {

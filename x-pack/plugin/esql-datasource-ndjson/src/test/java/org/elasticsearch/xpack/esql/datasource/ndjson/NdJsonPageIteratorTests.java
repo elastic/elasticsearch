@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ConstantNullBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
@@ -126,6 +127,65 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             IntBlock idBlock = page.getBlock(0);
             assertEquals(1, idBlock.getInt(0));
             assertEquals(2, idBlock.getInt(1));
+        }
+    }
+
+    /**
+     * Same shape as {@code NdJsonFixtureGenerator} output from {@code employees.csv}: flat keys such as
+     * {@code languages.long} must decode when {@code languages} is also a scalar column.
+     */
+    public void testFlatDottedColumnsFromEmployeesFixtureShape() throws IOException {
+        String ndjson = """
+            {
+                "birth_date":"1953-09-02T00:00:00Z",
+                "emp_no":10001,
+                "first_name":"Georgi",
+                "gender":"M",
+                "hire_date":"1986-06-26T00:00:00Z",
+                "languages":2,
+                "languages.long":2,
+                "languages.short":2,
+                "languages.byte":2,
+                "last_name":"Facello",
+                "salary":57305,
+                "height":2.03,
+                "height.float":2.03,
+                "height.scaled_float":2.03,
+                "height.half_float":2.03,
+                "still_hired":true,
+                "avg_worked_seconds":268728049,
+                "job_positions":["Senior Python Developer","Accountant"],
+                "is_rehired":[false,true],
+                "salary_change":[1.19],
+                "salary_change.int":[1],
+                "salary_change.long":[1],
+                "salary_change.keyword":["1.19"]
+            }""";
+        var object = new BytesStorageObject("memory://employees-qa.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        try (var iterator = reader.read(object, List.of("emp_no", "first_name", "languages.long", "avg_worked_seconds"), 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            assertThat(page.getBlock(0), Matchers.instanceOf(IntBlock.class));
+            assertThat(page.getBlock(1), Matchers.instanceOf(BytesRefBlock.class));
+            assertEquals(10001, ((IntBlock) page.getBlock(0)).getInt(0));
+            Block languagesLong = page.getBlock(2);
+            if (languagesLong instanceof IntBlock il) {
+                assertEquals(2, il.getInt(0));
+            } else if (languagesLong instanceof LongBlock ll) {
+                assertEquals(2L, ll.getLong(0));
+            } else {
+                fail("unexpected block for languages.long: " + languagesLong);
+            }
+            Block avgWorked = page.getBlock(3);
+            if (avgWorked instanceof IntBlock iw) {
+                assertEquals(268728049, iw.getInt(0));
+            } else if (avgWorked instanceof LongBlock lw) {
+                assertEquals(268728049L, lw.getLong(0));
+            } else {
+                fail("unexpected block for avg_worked_seconds: " + avgWorked);
+            }
         }
     }
 

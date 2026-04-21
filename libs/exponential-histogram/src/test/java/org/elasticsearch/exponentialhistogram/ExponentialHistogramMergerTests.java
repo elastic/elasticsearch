@@ -36,6 +36,8 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ExponentialHistogramMergerTests extends ExponentialHistogramTestCase {
 
@@ -199,6 +201,176 @@ public class ExponentialHistogramMergerTests extends ExponentialHistogramTestCas
             assertThat(esBreaker.getUsed(), equalTo(singleBufferSize));
         }
         assertThat(esBreaker.getUsed(), equalTo(0L));
+    }
+
+    public void testDifference() {
+        ExponentialHistogram a = ExponentialHistogramTestUtils.randomHistogram();
+        ExponentialHistogram b = ExponentialHistogramTestUtils.randomHistogram();
+        CircuitBreaker esBreaker = newLimitedBreaker(ByteSizeValue.ofMb(100));
+        try (
+            ExponentialHistogramMerger.Factory factory = ExponentialHistogramMerger.createFactory(100, breaker(esBreaker));
+            ExponentialHistogramMerger merged = factory.createMerger();
+            ExponentialHistogramMerger diffMerger = factory.createMerger();
+        ) {
+
+            merged.add(a);
+            merged.add(b);
+
+            ExponentialHistogram reference;
+            try (ExponentialHistogramMerger temp = factory.createMerger()) {
+                // merge A with dummy to (a) reduce the scale and (b) increase the zero threshold if required
+                ExponentialHistogram dummy = ExponentialHistogram.builder(merged.get().scale(), ExponentialHistogramCircuitBreaker.noop())
+                    .zeroBucket(merged.get().zeroBucket().withCount(1))
+                    .build();
+                temp.add(dummy);
+                temp.add(a);
+
+                ZeroBucket zeroBucket = temp.get().zeroBucket();
+                zeroBucket = zeroBucket.withCount(zeroBucket.count() - 1);
+
+                reference = ExponentialHistogram.builder(temp.get(), ExponentialHistogramCircuitBreaker.noop())
+                    .zeroBucket(zeroBucket)
+                    .build();
+            }
+
+            // Add a histogram to the merger just to make sure it is properly cleared when setToDifference is called
+            diffMerger.add(ExponentialHistogramTestUtils.randomHistogram());
+
+            diffMerger.setToDifference(merged.get(), b);
+            ExponentialHistogram diff = diffMerger.get();
+
+            if (reference.zeroBucket().count() == 0) {
+                assertThat(diff.zeroBucket().count(), equalTo(0L));
+            } else {
+                assertThat(diff.zeroBucket(), equalTo(reference.zeroBucket()));
+            }
+            assertBucketsEqual(diff.negativeBuckets(), reference.negativeBuckets());
+            assertBucketsEqual(diff.positiveBuckets(), reference.positiveBuckets());
+
+            assertThat(diff.valueCount(), equalTo(a.valueCount()));
+            assertThat(diff.sum(), closeTo(a.sum(), 0.000001));
+
+            if (a.valueCount() > 0) {
+                if (b.valueCount() == 0 || a.max() > b.max()) {
+                    // maximum should be preserved
+                    assertThat(diff.max(), equalTo(a.max()));
+                } else {
+                    double estimatedMax = ExponentialHistogramUtils.estimateMax(
+                        reference.zeroBucket(),
+                        reference.negativeBuckets(),
+                        reference.positiveBuckets()
+                    ).getAsDouble();
+                    // exact maximum of a was lost during merging, the result should have a sane estimate.
+                    assertThat(diff.max(), greaterThanOrEqualTo(a.max()));
+                    assertThat(diff.max(), lessThanOrEqualTo(b.max()));
+                    assertThat(diff.max(), lessThanOrEqualTo(estimatedMax));
+                }
+
+                if (b.valueCount() == 0 || a.min() < b.min()) {
+                    // minimum should be preserved
+                    assertThat(diff.min(), equalTo(a.min()));
+                } else {
+                    double estimatedMin = ExponentialHistogramUtils.estimateMin(
+                        reference.zeroBucket(),
+                        reference.negativeBuckets(),
+                        reference.positiveBuckets()
+                    ).getAsDouble();
+                    // exact minimum of a was lost during merging, the result should have a sane estimate.
+                    assertThat(diff.min(), lessThanOrEqualTo(a.min()));
+                    assertThat(diff.min(), greaterThanOrEqualTo(b.min()));
+                    assertThat(diff.min(), greaterThanOrEqualTo(estimatedMin));
+                }
+            } else {
+                assertThat(diff.min(), equalTo(Double.NaN));
+                assertThat(diff.max(), equalTo(Double.NaN));
+            }
+        }
+    }
+
+    public void testDifferenceFailsWhenACountLessThanBCount() {
+        ExponentialHistogram a = ExponentialHistogram.create(100, breaker(), 1.0, 2.0);
+        autoReleaseOnTestEnd((ReleasableExponentialHistogram) a);
+        ExponentialHistogram b = ExponentialHistogram.create(100, breaker(), 1.0, 2.0, 3.0);
+        autoReleaseOnTestEnd((ReleasableExponentialHistogram) b);
+
+        try (ExponentialHistogramMerger merger = ExponentialHistogramMerger.create(breaker())) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> merger.setToDifference(a, b));
+            assertThat(e.getMessage(), containsString("a.count < b.count"));
+        }
+    }
+
+    public void testDifferenceFailsWhenAScaleGreaterThanBScale() {
+        ExponentialHistogram a = createAutoReleasedHistogram(b -> b.scale(10).setPositiveBucket(100, 5).min(1.0).max(10.0));
+        ExponentialHistogram b = createAutoReleasedHistogram(b2 -> b2.scale(5).setPositiveBucket(3, 2).min(1.0).max(10.0));
+
+        try (ExponentialHistogramMerger merger = ExponentialHistogramMerger.create(breaker())) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> merger.setToDifference(a, b));
+            assertThat(e.getMessage(), containsString("a.scale > b.scale"));
+        }
+    }
+
+    public void testDifferenceFailsWhenAMinGreaterThanBMin() {
+        ExponentialHistogram a = ExponentialHistogram.create(100, breaker(), 5.0, 10.0);
+        autoReleaseOnTestEnd((ReleasableExponentialHistogram) a);
+        ExponentialHistogram b = ExponentialHistogram.create(100, breaker(), 1.0);
+        autoReleaseOnTestEnd((ReleasableExponentialHistogram) b);
+
+        try (ExponentialHistogramMerger merger = ExponentialHistogramMerger.create(breaker())) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> merger.setToDifference(a, b));
+            assertThat(e.getMessage(), containsString("a.min > b.min"));
+        }
+    }
+
+    public void testDifferenceFailsWhenAMaxLessThanBMax() {
+        ExponentialHistogram a = ExponentialHistogram.create(100, breaker(), 1.0, 5.0);
+        autoReleaseOnTestEnd((ReleasableExponentialHistogram) a);
+        ExponentialHistogram b = ExponentialHistogram.create(100, breaker(), 10.0);
+        autoReleaseOnTestEnd((ReleasableExponentialHistogram) b);
+
+        try (ExponentialHistogramMerger merger = ExponentialHistogramMerger.create(breaker())) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> merger.setToDifference(a, b));
+            assertThat(e.getMessage(), containsString("a.max < b.max"));
+        }
+    }
+
+    public void testDifferenceFailsWhenAZeroThresholdLessThanBZeroThreshold() {
+        ExponentialHistogram a = createAutoReleasedHistogram(
+            b -> b.zeroBucket(ZeroBucket.create(1.0, 5)).setPositiveBucket(10, 3).min(0.5).max(10.0)
+        );
+        ExponentialHistogram b = createAutoReleasedHistogram(
+            b2 -> b2.zeroBucket(ZeroBucket.create(5.0, 2)).setPositiveBucket(10, 1).min(0.5).max(10.0)
+        );
+
+        try (ExponentialHistogramMerger merger = ExponentialHistogramMerger.create(breaker())) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> merger.setToDifference(a, b));
+            assertThat(e.getMessage(), containsString("a.zeroThreshold < b.zeroThreshold"));
+        }
+    }
+
+    public void testDifferenceFailsWhenAZeroCountLessThanBZeroCount() {
+        ExponentialHistogram a = createAutoReleasedHistogram(
+            b -> b.zeroBucket(ZeroBucket.create(5.0, 2)).setPositiveBucket(10, 5).min(0.1).max(10.0)
+        );
+        ExponentialHistogram b = createAutoReleasedHistogram(
+            b2 -> b2.zeroBucket(ZeroBucket.create(5.0, 5)).setPositiveBucket(10, 1).min(0.1).max(10.0)
+        );
+
+        try (ExponentialHistogramMerger merger = ExponentialHistogramMerger.create(breaker())) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> merger.setToDifference(a, b));
+            assertThat(e.getMessage(), containsString("a.zeroCount < b.zeroCount"));
+        }
+    }
+
+    public void testDifferenceFailsWhenBucketCountInALessThanB() {
+        ExponentialHistogram a = createAutoReleasedHistogram(
+            b -> b.scale(0).setPositiveBucket(5, 2).setPositiveBucket(6, 5).min(1.0).max(100.0)
+        );
+        ExponentialHistogram b = createAutoReleasedHistogram(b2 -> b2.scale(0).setPositiveBucket(5, 5).min(1.0).max(100.0));
+
+        try (ExponentialHistogramMerger merger = ExponentialHistogramMerger.create(breaker())) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> merger.setToDifference(a, b));
+            assertThat(e.getMessage(), containsString("A has a smaller count for the same bucket than B"));
+        }
     }
 
     private void assertBucketsEqual(ExponentialHistogram.Buckets bucketsA, ExponentialHistogram.Buckets bucketsB) {

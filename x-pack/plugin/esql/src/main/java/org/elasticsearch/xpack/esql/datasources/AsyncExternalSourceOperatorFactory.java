@@ -61,6 +61,12 @@ import java.util.concurrent.Executor;
  *   <li>ES ThreadPool integration - All executors come from ES, not standalone threads</li>
  *   <li>Backpressure via buffer - Uses {@link AsyncExternalSourceBuffer} with waitForSpace()</li>
  * </ul>
+ * <p>
+ * The {@code executor} passed in runs background file reads: it is typically the {@code generic} pool
+ * (via {@link org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext#fileReadExecutor}, set in
+ * {@code LocalExecutionPlanner}) so blocked producers do not starve {@code esql_worker} drivers that
+ * {@link AsyncExternalSourceBuffer#pollPage()}. {@link ExternalSourceDrainUtils} uses
+ * {@link AsyncExternalSourceBuffer#awaitSpaceForProducer} (not {@link org.elasticsearch.action.support.PlainActionFuture}).
  *
  * @see AsyncExternalSourceBuffer
  * @see AsyncExternalSourceOperator

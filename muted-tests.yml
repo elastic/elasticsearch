@@ -450,6 +450,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests
   method: testMinimalToMaximal {p0=true p1=BASIC}
   issue: https://github.com/elastic/elasticsearch/issues/146967
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/146553
 
 # Examples:
 #

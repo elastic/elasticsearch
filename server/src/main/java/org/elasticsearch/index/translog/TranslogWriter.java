@@ -259,9 +259,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             final long offset = totalOffset;
             try {
                 operation.writeToTranslogBuffer(buffer);
-            } catch (final RuntimeException e) {
-                closeWithTragicEvent(e);
-                throw e;
+            } catch (final Exception ex) {
+                closeWithTragicEvent(ex);
+                throw ex;
             }
             totalOffset += operation.length();
 

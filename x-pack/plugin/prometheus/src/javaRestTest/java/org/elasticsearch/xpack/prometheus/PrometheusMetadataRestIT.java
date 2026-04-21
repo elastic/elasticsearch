@@ -14,6 +14,7 @@ import org.elasticsearch.test.rest.ObjectPath;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -69,6 +70,15 @@ public class PrometheusMetadataRestIT extends AbstractPrometheusRestIT {
         @SuppressWarnings("unchecked")
         Map<String, Object> data = (Map<String, Object>) op.evaluate("data");
         assertThat(data.size(), equalTo(1));
+        Map.Entry<String, Object> returnedMetric = data.entrySet().iterator().next();
+        assertThat(returnedMetric.getKey(), anyOf(equalTo("limit_metric_alpha"), equalTo("limit_metric_beta")));
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> entries = (List<Map<String, Object>>) returnedMetric.getValue();
+        assertThat(entries, hasSize(1));
+        assertThat(entries.get(0).get("type"), equalTo("gauge"));
+        assertThat(entries.get(0).get("help"), equalTo(""));
+        assertThat(entries.get(0).get("unit"), equalTo(""));
     }
 
     public void testCustomIndexVariantRoutes() throws Exception {
@@ -88,6 +98,26 @@ public class PrometheusMetadataRestIT extends AbstractPrometheusRestIT {
         @SuppressWarnings("unchecked")
         Map<String, Object> data = (Map<String, Object>) op.evaluate("data");
         assertThat(data, not(hasKey("generic_only_metric")));
+    }
+
+    public void testMetricParameterFiltersToSingleMetricName() throws Exception {
+        writeMetric("filtered_metric", Map.of("job", "test"));
+        writeMetric("other_metric", Map.of("job", "test"));
+
+        Request request = metadataRequest();
+        request.addParameter("metric", "filtered_metric");
+
+        ObjectPath op = ObjectPath.createFromResponse(client().performRequest(request));
+        assertThat(op.evaluate("status"), equalTo("success"));
+        assertThat(op.evaluate("data.filtered_metric"), notNullValue());
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) op.evaluate("data");
+        assertThat(data.size(), equalTo(1));
+        assertThat(data, not(hasKey("other_metric")));
+        assertThat(op.evaluate("data.filtered_metric.0.type"), equalTo("gauge"));
+        assertThat(op.evaluate("data.filtered_metric.0.help"), equalTo(""));
+        assertThat(op.evaluate("data.filtered_metric.0.unit"), equalTo(""));
     }
 
     /**
@@ -130,6 +160,47 @@ public class PrometheusMetadataRestIT extends AbstractPrometheusRestIT {
         List<Map<String, Object>> entries = (List<Map<String, Object>>) op.evaluate("data.multi_type_metric");
         assertThat(entries, hasSize(2));
         assertThat(entries.stream().map(e -> (String) e.get("type")).toList(), containsInAnyOrder("gauge", "counter"));
+    }
+
+    public void testLimitPerMetricCapsEntriesForSingleMetricName() throws Exception {
+        writeMetric("limited_multi_type_metric", Map.of("job", "test"));
+
+        Request putCustomTemplate = new Request("PUT", "/_component_template/metrics-prometheus@custom");
+        putCustomTemplate.setJsonEntity("""
+            {
+              "template": {
+                "mappings": {
+                  "dynamic_templates": [
+                    {
+                      "counter": {
+                        "path_match": "metrics.*",
+                        "mapping": {
+                          "type": "double",
+                          "time_series_metric": "counter"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+            """);
+        client().performRequest(putCustomTemplate);
+
+        writeMetricTo("generic", "limited", "limited_multi_type_metric", Map.of("job", "test"));
+
+        Request request = metadataRequest();
+        request.addParameter("limit_per_metric", "1");
+
+        ObjectPath op = ObjectPath.createFromResponse(client().performRequest(request));
+        assertThat(op.evaluate("status"), equalTo("success"));
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> entries = (List<Map<String, Object>>) op.evaluate("data.limited_multi_type_metric");
+        assertThat(entries, hasSize(1));
+        assertThat(entries.get(0).get("type"), anyOf(equalTo("gauge"), equalTo("counter")));
+        assertThat(entries.get(0).get("help"), equalTo(""));
+        assertThat(entries.get(0).get("unit"), equalTo(""));
     }
 
     /**

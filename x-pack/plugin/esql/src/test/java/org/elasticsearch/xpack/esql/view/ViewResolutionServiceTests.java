@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Dataset;
+import org.elasticsearch.cluster.metadata.DataSourceReference;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -53,8 +54,8 @@ public class ViewResolutionServiceTests extends ESTestCase {
         ViewResolutionService service = newService();
         final String n1 = "logs-dataset";
         final String n2 = "metrics-dataset";
-        Dataset d1 = new Dataset(n1, "ds", "s3://bucket/logs/*.parquet", null, Map.of());
-        Dataset d2 = new Dataset(n2, "ds", "s3://bucket/metrics/*.parquet", null, Map.of());
+        Dataset d1 = new Dataset(n1, new DataSourceReference("ds"), "s3://bucket/logs/*.parquet", null, Map.of());
+        Dataset d2 = new Dataset(n2, new DataSourceReference("ds"), "s3://bucket/metrics/*.parquet", null, Map.of());
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .putProjectMetadata(ProjectMetadata.builder(ProjectId.DEFAULT).datasets(Map.of(n1, d1, n2, d2)).build())
             .build();
@@ -74,8 +75,8 @@ public class ViewResolutionServiceTests extends ESTestCase {
         ViewResolutionService service = newService();
         final String n1 = "my-dataset-1";
         final String n2 = "other-dataset-2";
-        Dataset d1 = new Dataset(n1, "ds-source", "s3://bucket/logs/*.parquet", null, Map.of());
-        Dataset d2 = new Dataset(n2, "ds-source", "s3://bucket/metrics/*.parquet", null, Map.of());
+        Dataset d1 = new Dataset(n1, new DataSourceReference("ds-source"), "s3://bucket/logs/*.parquet", null, Map.of());
+        Dataset d2 = new Dataset(n2, new DataSourceReference("ds-source"), "s3://bucket/metrics/*.parquet", null, Map.of());
         IndexMetadata index = IndexMetadata.builder("my-dataset-index")
             .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
@@ -98,7 +99,7 @@ public class ViewResolutionServiceTests extends ESTestCase {
     public void testResolveDatasetsExcludedWhenResolveDatasetsFalse() {
         ViewResolutionService service = newService();
         final String datasetName = "visible-dataset";
-        Dataset dataset = new Dataset(datasetName, "ds", "s3://bucket/p", null, Map.of());
+        Dataset dataset = new Dataset(datasetName, new DataSourceReference("ds"), "s3://bucket/p", null, Map.of());
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .putProjectMetadata(ProjectMetadata.builder(ProjectId.DEFAULT).datasets(Map.of(datasetName, dataset)).build())
             .build();

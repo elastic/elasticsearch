@@ -51,19 +51,22 @@ PUT semantic-embeddings
     "properties": {
       "content": {
         "type": "semantic_text",
-<<<<<<< Updated upstream
         "inference_id": "my-inference-endpoint", <1>
         "search_inference_id": "my-search-inference-endpoint", <2>
         "index_options": { <3>
-=======
-        "inference_id": "my-openai-endpoint" <1>
+          "dense_vector": {
+            "type": "int8_hnsw"
+          }
+        }
       }
     }
   }
 }
 ```
 
-1. The `inference_id` of the {{infer}} endpoint to use to generate embeddings.
+1. The `inference_id` of the {{infer}} endpoint used to generate embeddings at index time.
+2. The `search_inference_id` of the {{infer}} endpoint used to generate embeddings at query time. If omitted, the endpoint defined by `inference_id` is used at both index and query time.
+3. (Optional) Overrides default index options for the underlying vector, for example, `int8_hnsw` for dense vectors. For available configurations, refer to [dense vector index options](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-index-options).
 
 The recommended way to use `semantic_text` is by having dedicated {{infer}}
 endpoints for ingestion and search. This ensures that search speed remains
@@ -424,9 +427,9 @@ PUT my-index-000004
     "properties": {
       "inference_field": {
         "type": "semantic_text",
-        "inference_id": "my-text-embedding-endpoint",
-        "index_options": {
->>>>>>> Stashed changes
+        "inference_id": "my-text-embedding-endpoint", <1>
+        "search_inference_id": "my-search-endpoint", <2>
+        "index_options": { <3>
           "dense_vector": {
             "type": "bbq_disk"
           }

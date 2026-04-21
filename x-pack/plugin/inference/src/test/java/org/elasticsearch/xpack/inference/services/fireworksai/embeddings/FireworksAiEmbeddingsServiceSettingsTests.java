@@ -344,18 +344,9 @@ public class FireworksAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
         );
 
         assertThat(thrownException.validationErrors().size(), is(1));
-        assertThat(
-            thrownException.validationErrors().getFirst(),
-            is(
-                Strings.format(
-                    """
-                        [service_settings] Invalid url [%s] received for field [url]. \
-                        Error: unable to parse url [%s]. Reason: Illegal character in authority""",
-                    url,
-                    url
-                )
-            )
-        );
+        assertThat(thrownException.validationErrors().getFirst(), is(Strings.format("""
+            [service_settings] Invalid url [%s] received for field [url]. \
+            Error: unable to parse url [%s]. Reason: Illegal character in authority""", url, url)));
     }
 
     public void testFromMap_InvalidSimilarity_ThrowsError() {

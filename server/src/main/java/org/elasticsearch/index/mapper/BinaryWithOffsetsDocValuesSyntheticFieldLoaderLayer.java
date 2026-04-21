@@ -14,6 +14,7 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -61,7 +62,7 @@ final class BinaryWithOffsetsDocValuesSyntheticFieldLoaderLayer implements Compo
 
     @Override
     public SourceLoader.SyntheticFieldLoader.DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
-        MultiValuedSortedBinaryDocValues valueDocValues = MultiValuedSortedBinaryDocValues.from(leafReader, name);
+        SortedBinaryDocValues valueDocValues = MultiValuedSortedBinaryDocValues.from(leafReader, name);
         return docValues = ValuesWithOffsetsDocValuesLoader.binaryLoader(
             valueDocValues,
             DocValues.getSorted(leafReader, offsetsFieldName),

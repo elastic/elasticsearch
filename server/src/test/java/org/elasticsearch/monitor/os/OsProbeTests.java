@@ -12,10 +12,7 @@ package org.elasticsearch.monitor.os;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Rule;
-import org.junit.rules.TemporaryFolder;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -35,9 +32,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class OsProbeTests extends ESTestCase {
-
-    @Rule
-    public TemporaryFolder tempDir = new TemporaryFolder();
 
     public void testOsInfo() throws IOException {
         final int allocatedProcessors = randomIntBetween(1, Runtime.getRuntime().availableProcessors());
@@ -236,9 +230,7 @@ public class OsProbeTests extends ESTestCase {
 
         final var cgroup = probe.osStats().getCgroup();
 
-        assertNotNull(cgroup);
-        assertNull(cgroup.getCpuCfsPeriodMicros());
-        assertNull(cgroup.getCpuCfsQuotaMicros());
+        assertNull(cgroup);
     }
 
     public void testCgroupProbeWithInvalidCpuMax() {
@@ -251,9 +243,7 @@ public class OsProbeTests extends ESTestCase {
 
         final var cgroup = probe.osStats().getCgroup();
 
-        assertNotNull(cgroup);
-        assertNull(cgroup.getCpuCfsPeriodMicros());
-        assertNull(cgroup.getCpuCfsQuotaMicros());
+        assertNull(cgroup);
     }
 
     public void testCgroupProbeWithMissingCpuAcct() {
@@ -398,9 +388,8 @@ public class OsProbeTests extends ESTestCase {
         assertThat(osProbe.getTotalPhysicalMemorySize(), greaterThan(0L));
     }
 
-    @SuppressForbidden(reason = "JUnit 4's TemporaryFolder only supports java.io.File")
     public void testReadSingleLine() throws Exception {
-        var file = tempDir.newFile("single-line.txt").toPath();
+        var file = createTempFile();
         Files.writeString(file, "test");
 
         var line = OsProbe.readSingleLine(file);
@@ -408,23 +397,21 @@ public class OsProbeTests extends ESTestCase {
         assertEquals("test", line);
     }
 
-    @SuppressForbidden(reason = "JUnit 4's TemporaryFolder only supports java.io.File")
     public void testReadSingleLineEmptyFile() throws Exception {
-        var file = tempDir.newFile("single-line.txt").toPath();
+        var file = createTempFile();
 
         assertThrows(IllegalStateException.class, () -> OsProbe.readSingleLine(file));
     }
 
-    @SuppressForbidden(reason = "JUnit 4's TemporaryFolder only supports java.io.File")
     public void testReadSingleLineFileWithMultipleLines() throws Exception {
-        var file = tempDir.newFile("single-line.txt").toPath();
+        var file = createTempFile();
         Files.writeString(file, """
             first
             second
             third
             """);
 
-        assertThrows(IllegalStateException.class, () -> OsProbe.readSingleLine(file));
+        assertThrows(AssertionError.class, () -> OsProbe.readSingleLine(file));
     }
 
     private static List<String> getProcSelfGroupLines(int cgroupsVersion, String hierarchy) {

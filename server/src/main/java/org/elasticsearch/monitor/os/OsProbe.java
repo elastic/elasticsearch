@@ -12,6 +12,7 @@ package org.elasticsearch.monitor.os;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
@@ -328,18 +329,16 @@ public class OsProbe {
      * @param path path to the file to read
      * @return the single line
      * @throws IOException if an I/O exception occurs reading the file
-     * @throws IllegalStateException if the file contains zero or more than one lines
+     * @throws IllegalStateException if the file contains zero lines
      */
     // visible for tests
     static String readSingleLine(final Path path) throws IOException {
         final List<String> lines = Files.readAllLines(path);
-        return switch (lines.size()) {
-            case 1 -> lines.getFirst();
-            case 0 -> throw new IllegalStateException("File %s is empty, exactly one line was expected".formatted(path));
-            default -> throw new IllegalStateException(
-                "File %s is invalid, it contains more than one line and one was expected".formatted(path)
-            );
-        };
+        if (lines.isEmpty()) {
+            throw new IllegalStateException(Strings.format("File %s is empty, exactly one line was expected", path));
+        }
+        assert lines.size() == 1 : String.join("\n", lines);
+        return lines.getFirst();
     }
 
     private static Optional<String> maybeSingleLine(final List<String> lines) {
@@ -762,8 +761,8 @@ public class OsProbe {
 
             final String cpuAcctControlGroup;
             final BigInteger cgroupCpuAcctUsageNanos;
-            final Long cgroupCpuAcctCpuCfsPeriodMicros;
-            final Long cgroupCpuAcctCpuCfsQuotaMicros;
+            final long cgroupCpuAcctCpuCfsPeriodMicros;
+            final long cgroupCpuAcctCpuCfsQuotaMicros;
             final String cpuControlGroup;
             final OsStats.Cgroup.CpuStat cpuStat;
             final String memoryControlGroup;
@@ -782,13 +781,12 @@ public class OsProbe {
                 cgroupCpuAcctUsageNanos = cpuStatsMap.get("usage_usec").multiply(THOUSAND); // convert from micros to nanos
 
                 long[] cpuLimits = getCgroupV2CpuLimit(cpuControlGroup);
-                if (cpuLimits != null) {
-                    cgroupCpuAcctCpuCfsQuotaMicros = cpuLimits[0];
-                    cgroupCpuAcctCpuCfsPeriodMicros = cpuLimits[1];
-                } else {
-                    cgroupCpuAcctCpuCfsQuotaMicros = null;
-                    cgroupCpuAcctCpuCfsPeriodMicros = null;
+                if (cpuLimits == null) {
+                    logger.debug("no cpu_quota and cpu_period data found in cpu.max");
+                    return null;
                 }
+                cgroupCpuAcctCpuCfsQuotaMicros = cpuLimits[0];
+                cgroupCpuAcctCpuCfsPeriodMicros = cpuLimits[1];
 
                 cpuStat = new OsStats.Cgroup.CpuStat(
                     cpuStatsMap.get("nr_periods"),

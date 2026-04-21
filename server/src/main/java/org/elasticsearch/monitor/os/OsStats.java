@@ -376,10 +376,8 @@ public class OsStats implements Writeable, ToXContentFragment {
         private final String cpuAcctControlGroup;
         private final BigInteger cpuAcctUsageNanos;
         private final String cpuControlGroup;
-        @Nullable
-        private final Long cpuCfsPeriodMicros;
-        @Nullable
-        private final Long cpuCfsQuotaMicros;
+        private final long cpuCfsPeriodMicros;
+        private final long cpuCfsQuotaMicros;
         private final CpuStat cpuStat;
         private final String memoryControlGroup;
         private final String memoryLimitInBytes;
@@ -483,8 +481,8 @@ public class OsStats implements Writeable, ToXContentFragment {
             final String cpuAcctControlGroup,
             final BigInteger cpuAcctUsageNanos,
             final String cpuControlGroup,
-            @Nullable final Long cpuCfsPeriodMicros,
-            @Nullable final Long cpuCfsQuotaMicros,
+            final long cpuCfsPeriodMicros,
+            final long cpuCfsQuotaMicros,
             final CpuStat cpuStat,
             final String memoryControlGroup,
             final String memoryLimitInBytes,
@@ -505,18 +503,12 @@ public class OsStats implements Writeable, ToXContentFragment {
             cpuAcctControlGroup = in.readString();
             cpuAcctUsageNanos = in.readBigInteger();
             cpuControlGroup = in.readString();
-            cpuCfsPeriodMicros = readPositiveLong(in);
-            cpuCfsQuotaMicros = readPositiveLong(in);
+            cpuCfsPeriodMicros = in.readLong();
+            cpuCfsQuotaMicros = in.readLong();
             cpuStat = new CpuStat(in);
             memoryControlGroup = in.readOptionalString();
             memoryLimitInBytes = in.readOptionalString();
             memoryUsageInBytes = in.readOptionalString();
-        }
-
-        @Nullable
-        private static Long readPositiveLong(StreamInput in) throws IOException {
-            final var value = in.readLong();
-            return value < 0 ? null : value;
         }
 
         @Override
@@ -524,8 +516,8 @@ public class OsStats implements Writeable, ToXContentFragment {
             out.writeString(cpuAcctControlGroup);
             out.writeBigInteger(cpuAcctUsageNanos);
             out.writeString(cpuControlGroup);
-            out.writeLong(cpuCfsPeriodMicros == null ? -1 : cpuCfsPeriodMicros);
-            out.writeLong(cpuCfsQuotaMicros == null ? -1 : cpuCfsQuotaMicros);
+            out.writeLong(cpuCfsPeriodMicros);
+            out.writeLong(cpuCfsQuotaMicros);
             cpuStat.writeTo(out);
             out.writeOptionalString(memoryControlGroup);
             out.writeOptionalString(memoryLimitInBytes);

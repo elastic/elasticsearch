@@ -35,8 +35,8 @@ public class OsStatsTests extends ESTestCase {
             randomAlphaOfLength(8),
             randomUnsignedLongBetween(BigInteger.ZERO, BigInteger.valueOf(Long.MAX_VALUE)),
             randomAlphaOfLength(8),
-            randomNonNegativeLongOrNull(),
-            randomNonNegativeLongOrNull(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
             new OsStats.Cgroup.CpuStat(
                 randomUnsignedLongBetween(BigInteger.ZERO, BigInteger.valueOf(Long.MAX_VALUE).multiply(BigInteger.TWO)),
                 randomUnsignedLongBetween(BigInteger.ZERO, BigInteger.valueOf(Long.MAX_VALUE).multiply(BigInteger.TWO)),

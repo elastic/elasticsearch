@@ -181,6 +181,7 @@ public class ViewResolver {
                 case Fork fork -> {
                     replaceViewsFork(fork, parser, seenInner, viewQueries, depth, planListener.delegateFailureAndWrap((l, result) -> {
                         plan.forEachDown(resolvedPlans::add);
+                        result.forEachDown(resolvedPlans::add);
                         l.onResponse(result);
                     }));
                     return;
@@ -195,6 +196,9 @@ public class ViewResolver {
                         depth,
                         planListener.delegateFailureAndWrap((l, result) -> {
                             plan.forEachDown(resolvedPlans::add);
+                            // Also mark the resolved result subtree so transformDown does not
+                            // re-process view-body nodes the UR was replaced with.
+                            result.forEachDown(resolvedPlans::add);
                             l.onResponse(result);
                         })
                     );
@@ -810,12 +814,24 @@ public class ViewResolver {
         // Parse the view query with the view name, which causes all Source objects
         // to be tagged with the view name during parsing
         LogicalPlan subquery = parser.apply(view.query(), view.name());
-        if (subquery instanceof UnresolvedRelation ur) {
-            // Simple UnresolvedRelation subqueries are not kept as views, so we can compact them together and avoid branched plans
+        if (subquery instanceof UnresolvedRelation ur && containsExclusion(ur) == false) {
+            // Simple UnresolvedRelation subqueries are not kept as views, so we can compact them together and avoid branched plans.
+            // But exclusion patterns must stay scoped to the view body — a bare UR with an exclusion that gets merged with sibling
+            // or outer URs would have its exclusion's scope widened across the merged pattern list (see #146XXX), so those are
+            // wrapped in a NamedSubquery via the else branch to prevent merging.
             return ur;
         } else {
-            // More complex subqueries are maintained with the view name for branch identification
+            // More complex subqueries (or simple URs containing exclusions) are maintained with the view name for branch identification
             return new NamedSubquery(subquery.source(), subquery, view.name());
         }
+    }
+
+    private static boolean containsExclusion(UnresolvedRelation ur) {
+        for (String pattern : ur.indexPattern().indexPattern().split(",")) {
+            if (patternIsExclusion(pattern)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

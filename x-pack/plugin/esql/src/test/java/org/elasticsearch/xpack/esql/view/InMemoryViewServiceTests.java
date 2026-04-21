@@ -163,7 +163,9 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addIndex("logs-public");
         addIndex("logs-secret");
         LogicalPlan plan = query("FROM safe-logs,logs-secret");
-        assertThat(replaceViews(plan), matchesPlan(query("FROM logs*,-logs-secret,logs-secret")));
+        // The view body's -logs-secret exclusion stays scoped to the view — it must not widen
+        // onto the sibling outer pattern "logs-secret", which explicitly asks to include it.
+        assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM logs*,-logs-secret),(FROM logs-secret)")));
     }
 
     public void testExclusionWithNoRemainingIndexMatch() {
@@ -197,6 +199,31 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("data-view-origin", "FROM data-index-origin");
         LogicalPlan plan = query("FROM match-nothing-*,-*-view-*,data-view-*");
         assertThat(replaceViews(plan), matchesPlan(query("FROM data-index-origin,-*-view-*,data-view-*")));
+    }
+
+    /**
+     * A view body's exclusion must stay scoped to its own body. When the body is a simple
+     * {@link UnresolvedRelation} containing an exclusion, it must not be merged with sibling or
+     * outer URs, because the merge concatenates patterns into one UR and widens the scope of
+     * the exclusion to everything in the combined pattern list.
+     * <p>
+     * Real-world failure (ServerlessCrossProjectEsqlIT):
+     * <pre>
+     *   indices: index-a1, index-a2, index-b1, index-b2
+     *   view data-view = FROM index-b*,-*2        (scopes to index-b*, excludes index-b2)
+     *   query: FROM index-a*,data-view            (expects index-a1, index-a2, index-b1)
+     * </pre>
+     * Before the fix the resolver merged into {@code UR(index-a*,index-b*,-*2)} so the view
+     * body's {@code -*2} excluded {@code index-a2} as well, producing only {@code a1, b1}.
+     */
+    public void testViewBodyExclusionNotLeakedToOuter() {
+        addIndex("index-a1");
+        addIndex("index-a2");
+        addIndex("index-b1");
+        addIndex("index-b2");
+        addView("data-view", "FROM index-b*,-*2");
+        LogicalPlan plan = query("FROM index-a*,data-view");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM index-a*),(FROM index-b*,-*2)")));
     }
 
     public void testExclusionMultipleViews() {

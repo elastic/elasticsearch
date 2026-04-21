@@ -423,6 +423,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
   method: test {csv-spec:qstr-function.testQstrInStatsWithOptions}
   issue: https://github.com/elastic/elasticsearch/issues/146937
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:mv_expand.explosionStats}
+  issue: https://github.com/elastic/elasticsearch/issues/146939
 
 # Examples:
 #

@@ -435,6 +435,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
   method: test {csv-spec:k8s-timeseries-promql.minute_scalar}
   issue: https://github.com/elastic/elasticsearch/issues/146951
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:k8s-timeseries-promql.minute_scalar}
+  issue: https://github.com/elastic/elasticsearch/issues/146956
 
 # Examples:
 #

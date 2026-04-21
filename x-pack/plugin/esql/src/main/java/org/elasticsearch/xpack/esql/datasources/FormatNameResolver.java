@@ -8,9 +8,8 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
-
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.util.Locale;
 import java.util.Map;
@@ -82,7 +81,10 @@ public final class FormatNameResolver {
 
     /**
      * Resolves the format reader using config and source path, looking up the result in the registry.
-     * Validates the {@code reader} alias and throws on unknown values.
+     * <p>
+     * Config-based overrides ({@code reader}, {@code format}) are resolved via {@link #resolve} and
+     * looked up by name. Extension-based resolution delegates to {@link FormatReaderRegistry#byExtension}
+     * which handles compound extensions (e.g. {@code .ndjson.bz}) and compression codecs.
      */
     public static FormatReader resolveReader(Map<String, Object> config, String objectName, FormatReaderRegistry registry) {
         if (config != null) {
@@ -91,16 +93,17 @@ public final class FormatNameResolver {
                 String alias = readerOverride.toString().toLowerCase(Locale.ROOT);
                 String formatName = READER_ALIAS_TO_FORMAT.get(alias);
                 if (formatName == null) {
-                    throw new IllegalArgumentException(
-                        "Unknown reader [" + alias + "]; supported values: " + supportedReaderAliases()
-                    );
+                    throw new IllegalArgumentException("Unknown reader [" + alias + "]; supported values: " + supportedReaderAliases());
                 }
                 return registry.byName(formatName);
             }
-        }
-        String formatName = resolve(config, objectName);
-        if (formatName != null) {
-            return registry.byName(formatName);
+            Object formatOverride = config.get(CONFIG_FORMAT);
+            if (formatOverride != null) {
+                String name = formatOverride.toString().toLowerCase(Locale.ROOT);
+                if (name.isEmpty() == false) {
+                    return registry.byName(name);
+                }
+            }
         }
         return registry.byExtension(objectName);
     }

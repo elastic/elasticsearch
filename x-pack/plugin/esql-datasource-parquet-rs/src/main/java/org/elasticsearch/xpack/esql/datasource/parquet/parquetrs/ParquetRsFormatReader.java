@@ -123,6 +123,7 @@ public class ParquetRsFormatReader implements FormatReader {
 
     @Override
     public SourceMetadata metadata(StorageObject object) throws IOException {
+        NativeLibLoader.ensureLoaded();
         String path = resolveReadPath(object);
         String[] rawSchema = ParquetRsBridge.getSchema(path, configJson);
         List<Attribute> attributes = parseSchema(rawSchema);
@@ -222,6 +223,7 @@ public class ParquetRsFormatReader implements FormatReader {
 
     @Override
     public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+        NativeLibLoader.ensureLoaded();
         String path = resolveReadPath(object);
         List<String> projectedColumns = context.projectedColumns();
         int batchSize = context.batchSize();

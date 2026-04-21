@@ -16,10 +16,6 @@ package org.elasticsearch.xpack.esql.datasource.parquet.parquetrs;
  */
 final class ParquetRsBridge {
 
-    static {
-        NativeLibLoader.load();
-    }
-
     private ParquetRsBridge() {}
 
     // ---- Reader lifecycle ----

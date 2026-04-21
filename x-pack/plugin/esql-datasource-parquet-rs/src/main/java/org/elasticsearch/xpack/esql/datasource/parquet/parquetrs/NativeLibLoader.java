@@ -20,19 +20,47 @@ import java.util.Locale;
 
 /**
  * Loads the native parquet-rs shared library from the classpath.
+ * <p>
+ * Loading failures are captured rather than thrown so that a missing native library
+ * produces a clean query error instead of crashing the node via an uncaught
+ * {@link UnsatisfiedLinkError} or {@link ExceptionInInitializerError}.
  */
 final class NativeLibLoader {
 
     private static final Logger logger = LogManager.getLogger(NativeLibLoader.class);
 
     private static volatile boolean loaded = false;
+    private static volatile String loadError = null;
 
     private NativeLibLoader() {}
 
-    static synchronized void load() {
-        if (loaded) {
+    /**
+     * Ensures the native library has been loaded successfully.
+     *
+     * @throws IllegalStateException if the library could not be loaded
+     */
+    static void ensureLoaded() {
+        if (loaded == false && loadError == null) {
+            load();
+        }
+        if (loadError != null) {
+            throw new IllegalStateException("Native parquet-rs library is not available: " + loadError);
+        }
+    }
+
+    private static synchronized void load() {
+        if (loaded || loadError != null) {
             return;
         }
+        try {
+            doLoad();
+        } catch (Throwable t) {
+            loadError = t.getMessage();
+            logger.warn("Failed to load native parquet-rs library: [{}]", loadError);
+        }
+    }
+
+    private static void doLoad() {
         String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
         String arch = System.getProperty("os.arch", "").toLowerCase(Locale.ROOT);
 

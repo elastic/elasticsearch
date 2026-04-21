@@ -80,6 +80,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -528,7 +529,7 @@ public class SynonymsManagementAPIService {
                 // that updates to existing IDs don't inflate the count and cause false limit errors.
                 List<String> incomingIds = Arrays.stream(synonymsSet)
                     .map(SynonymRule::id)
-                    .filter(id -> id != null)
+                    .filter(Objects::nonNull)
                     .collect(Collectors.toList());
                 BoolQueryBuilder countQuery = QueryBuilders.boolQuery()
                     .must(QueryBuilders.termQuery(SYNONYMS_SET_FIELD, synonymSetId))

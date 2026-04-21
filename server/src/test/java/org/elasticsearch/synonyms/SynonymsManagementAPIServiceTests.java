@@ -218,7 +218,7 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
 
         var future = new PlainActionFuture<SynonymsManagementAPIService.SynonymsReloadResult>();
         service.putSynonymsSet("my-set", rules, false, true, future);
-        var result = future.actionGet();
+        var result = safeGet(future);
 
         assertThat(result.synonymsOperationResult(), equalTo(SynonymsManagementAPIService.UpdateSynonymsResultStatus.CREATED));
         assertThat("delete-by-query must not be issued on append", client.deleteByQueryIssued.get(), equalTo(false));
@@ -238,7 +238,7 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
 
         var future = new PlainActionFuture<SynonymsManagementAPIService.SynonymsReloadResult>();
         service.putSynonymsSet("my-set", rules, false, true, future);
-        var result = future.actionGet();
+        var result = safeGet(future);
 
         assertThat(result.synonymsOperationResult(), equalTo(SynonymsManagementAPIService.UpdateSynonymsResultStatus.UPDATED));
         assertThat("delete-by-query must not be issued on append", client.deleteByQueryIssued.get(), equalTo(false));
@@ -265,7 +265,7 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
 
         assertTrue("expected onFailure", failed[0]);
         assertThat(holder[0], instanceOf(IllegalArgumentException.class));
-        assertThat(holder[0].getMessage(), containsString("exceed"));
+        assertThat(holder[0].getMessage(), containsString("The number of synonym rules in a synonym set cannot exceed " + maxRules));
         assertThat("no bulk insert should be issued", client.bulkRequestCount.get(), equalTo(0));
     }
 
@@ -305,8 +305,12 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
                 return;
             }
             if (request instanceof SearchRequest) {
-                SearchHits hits = SearchHits.empty(new TotalHits(ruleCount, TotalHits.Relation.EQUAL_TO), Float.NaN);
-                ActionListener.respondAndRelease((ActionListener<SearchResponse>) listener, SearchResponseUtils.successfulResponse(hits));
+                ActionListener.respondAndRelease(
+                    (ActionListener<SearchResponse>) listener,
+                    SearchResponseUtils.successfulResponse(
+                        SearchHits.unpooled(SearchHits.EMPTY, new TotalHits(ruleCount, TotalHits.Relation.EQUAL_TO), Float.NaN)
+                    )
+                );
                 return;
             }
             if (request instanceof IndexRequest) {
@@ -421,8 +425,12 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
                 return;
             }
             if (request instanceof SearchRequest) {
-                SearchHits hits = SearchHits.empty(new TotalHits(existingRuleCount, TotalHits.Relation.EQUAL_TO), Float.NaN);
-                ((ActionListener<SearchResponse>) listener).onResponse(SearchResponseUtils.successfulResponse(hits));
+                ActionListener.respondAndRelease(
+                    (ActionListener<SearchResponse>) listener,
+                    SearchResponseUtils.successfulResponse(
+                        SearchHits.unpooled(SearchHits.EMPTY, new TotalHits(existingRuleCount, TotalHits.Relation.EQUAL_TO), Float.NaN)
+                    )
+                );
                 return;
             }
             if (request instanceof BulkRequest) {

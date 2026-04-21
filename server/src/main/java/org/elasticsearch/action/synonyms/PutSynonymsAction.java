@@ -88,7 +88,7 @@ public class PutSynonymsAction extends ActionType<SynonymUpdateResponse> {
             try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, content, contentType)) {
                 ParsedBody parsed = PARSER.apply(parser, null);
                 this.synonymRules = parsed.rules().toArray(new SynonymRule[0]);
-                this.replaceAll = parsed.replaceAll() != null ? parsed.replaceAll() : true;
+                this.replaceAll = Objects.requireNonNullElse(parsed.replaceAll(), true);
             } catch (Exception e) {
                 throw new IllegalArgumentException("Failed to parse: " + content.utf8ToString(), e);
             }

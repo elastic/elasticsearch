@@ -420,28 +420,22 @@ public class SynonymsManagementAPIService {
     }
 
     /**
-     * A single page of synonym rules together with the cursor value needed to fetch the next page.
-     * {@code nextSearchAfter} is {@code null} when this is the last page.
-     */
-    public record SynonymRulesPage(PagedResult<SynonymRule> result, String nextSearchAfter) {}
-
-    /**
-     * Retrieves a single page of synonym rules using search_after for stable cursor-based pagination
+     * Retrieves a single page of synonym rules using search_after for cursor-based pagination
      * that is not limited by {@code max_result_window}. On the first call pass {@code null} for
-     * {@code searchAfter} to start from the beginning. Pass the {@code next_search_after} value from
-     * the previous response to fetch subsequent pages. Returns {@code null} for {@code nextSearchAfter}
-     * when the last page has been reached.
+     * {@code searchAfter} to start from the beginning. Pass the {@code id} of the last rule in
+     * the previous response to fetch subsequent pages. When the returned page has fewer results
+     * than {@code size}, the last page has been reached.
      *
      * @param synonymSetId the synonym set to paginate
      * @param size         number of rules per page
      * @param searchAfter  last rule ID from a previous response, or {@code null} for the first page
-     * @param listener     receives the page result with the cursor for the next page
+     * @param listener     receives the page result
      */
     public void getSynonymSetRulesPage(
         String synonymSetId,
         int size,
         String searchAfter,
-        ActionListener<SynonymRulesPage> listener
+        ActionListener<PagedResult<SynonymRule>> listener
     ) {
         SearchSourceBuilder source = new SearchSourceBuilder().query(
             QueryBuilders.boolQuery()
@@ -469,10 +463,10 @@ public class SynonymsManagementAPIService {
                 if (hits.length == 0) {
                     if (totalHits == 0) {
                         checkSynonymSetExists(synonymSetId, l.delegateFailure((existsListener, ignored) -> {
-                            existsListener.onResponse(new SynonymRulesPage(new PagedResult<>(0, new SynonymRule[0]), null));
+                            existsListener.onResponse(new PagedResult<>(0, new SynonymRule[0]));
                         }));
                     } else {
-                        l.onResponse(new SynonymRulesPage(new PagedResult<>(totalHits, new SynonymRule[0]), null));
+                        l.onResponse(new PagedResult<>(totalHits, new SynonymRule[0]));
                     }
                     return;
                 }
@@ -480,9 +474,7 @@ public class SynonymsManagementAPIService {
                 SynonymRule[] rules = Arrays.stream(hits)
                     .map(SynonymsManagementAPIService::hitToSynonymRule)
                     .toArray(SynonymRule[]::new);
-                // If we got fewer results than requested, this is the last page.
-                String nextSearchAfter = hits.length == size ? rules[rules.length - 1].id() : null;
-                l.onResponse(new SynonymRulesPage(new PagedResult<>(totalHits, rules), nextSearchAfter));
+                l.onResponse(new PagedResult<>(totalHits, rules));
             })
         );
     }

@@ -165,10 +165,9 @@ setup:
   - length: { synonyms_set: 2 }
   - match: { synonyms_set.0.id: "test-id-1" }
   - match: { synonyms_set.1.id: "test-id-2" }
-  - is_true: next_search_after
-  - set: { next_search_after: cursor }
+  - set: { synonyms_set.1.id: cursor }
 
-  # Second page: resume with search_after — returns last rule, no further cursor
+  # Second page: resume with search_after — returns last rule
   - do:
       synonyms.get_synonym:
         id: test-get-synonyms
@@ -178,7 +177,6 @@ setup:
   - match: { count: 3 }
   - length: { synonyms_set: 1 }
   - match: { synonyms_set.0.id: "test-id-3" }
-  - not_exists: next_search_after
 
 ---
 "search_after on first page with exact page size returns cursor":
@@ -190,7 +188,7 @@ setup:
           capabilities: [ synonyms_get_search_after ]
       reason: "synonyms_get_search_after capability needed"
 
-  # Request exactly all 3 rules in one page — cursor is returned because hits == size
+  # Request exactly all 3 rules in one page — client uses last id as cursor
   - do:
       synonyms.get_synonym:
         id: test-get-synonyms
@@ -198,10 +196,9 @@ setup:
 
   - match: { count: 3 }
   - length: { synonyms_set: 3 }
-  - is_true: next_search_after
-  - set: { next_search_after: cursor }
+  - set: { synonyms_set.2.id: cursor }
 
-  # Following the cursor returns an empty page with no further cursor
+  # Following the cursor returns an empty page
   - do:
       synonyms.get_synonym:
         id: test-get-synonyms
@@ -210,26 +207,6 @@ setup:
 
   - match: { count: 3 }
   - length: { synonyms_set: 0 }
-  - not_exists: next_search_after
-
----
-"No next_search_after when all results fit on one page":
-  - requires:
-      test_runner_features: [ capabilities ]
-      capabilities:
-        - method: GET
-          path: /_synonyms/{synonymsSet}
-          capabilities: [ synonyms_get_search_after ]
-      reason: "synonyms_get_search_after capability needed"
-
-  - do:
-      synonyms.get_synonym:
-        id: test-get-synonyms
-        size: 10
-
-  - match: { count: 3 }
-  - length: { synonyms_set: 3 }
-  - not_exists: next_search_after
 
 ---
 "from and search_after cannot be combined":

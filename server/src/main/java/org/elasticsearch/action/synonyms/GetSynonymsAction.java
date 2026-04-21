@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.synonyms.PagedResult;
 import org.elasticsearch.synonyms.SynonymRule;
 import org.elasticsearch.synonyms.SynonymsManagementAPIService;
-import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -95,51 +94,13 @@ public class GetSynonymsAction extends AbstractSynonymsPagedResultAction<GetSyno
     }
 
     public static class Response extends AbstractPagedResultResponse<SynonymRule> {
-        private final String nextSearchAfter;
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            if (in.getTransportVersion().supports(SYNONYMS_GET_SEARCH_AFTER)) {
-                this.nextSearchAfter = in.readOptionalString();
-            } else {
-                this.nextSearchAfter = null;
-            }
         }
 
         public Response(PagedResult<SynonymRule> result) {
             super(result);
-            this.nextSearchAfter = null;
-        }
-
-        public Response(SynonymsManagementAPIService.SynonymRulesPage page) {
-            super(page.result());
-            this.nextSearchAfter = page.nextSearchAfter();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            if (out.getTransportVersion().supports(SYNONYMS_GET_SEARCH_AFTER)) {
-                out.writeOptionalString(nextSearchAfter);
-            }
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            {
-                builder.field("count", totalCount);
-                builder.array(resultFieldName(), (Object[]) resultList);
-                if (nextSearchAfter != null) {
-                    builder.field("next_search_after", nextSearchAfter);
-                }
-            }
-            builder.endObject();
-            return builder;
-        }
-
-        public String nextSearchAfter() {
-            return nextSearchAfter;
         }
 
         @Override
@@ -161,20 +122,6 @@ public class GetSynonymsAction extends AbstractSynonymsPagedResultAction<GetSyno
         @Override
         PagedResult<SynonymRule> getResults() {
             return (PagedResult<SynonymRule>) super.getResults();
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            if (super.equals(o) == false) return false;
-            Response response = (Response) o;
-            return Objects.equals(nextSearchAfter, response.nextSearchAfter);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(super.hashCode(), nextSearchAfter);
         }
     }
 }

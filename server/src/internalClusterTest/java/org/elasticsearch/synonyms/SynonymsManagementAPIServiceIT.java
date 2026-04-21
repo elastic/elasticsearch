@@ -116,7 +116,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         String synonymSetId = randomIdentifier();
         // Use bulkUpdateSynonymsSet to bypass the write-time limit check so we can store more than maxRules
         PlainActionFuture<Void> putFuture = new PlainActionFuture<>();
-        synsApiService.bulkUpdateSynonymsSet(synonymSetId, randomSynonymsSet(rulesNumber, rulesNumber), putFuture);
+        synsApiService.bulkUpdateSynonymsSet(synonymSetId, randomSynonymsSet(rulesNumber, rulesNumber), 0, putFuture);
         safeGet(putFuture);
 
         try (var mockLog = MockLog.capture(SynonymsManagementAPIService.class)) {

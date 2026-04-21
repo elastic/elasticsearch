@@ -333,8 +333,14 @@ public class ViewResolver {
         String[] originalPatterns
     ) {
         List<ViewPlan> result = new ArrayList<>();
-        List<String> unresolvedPatterns = new ArrayList<>();
         HashSet<String> addedViews = new HashSet<>();
+        // Positive patterns that must remain in the unresolved UR because they contribute non-view
+        // resources or were not visible / unauthorized. We collect them here during the first pass
+        // but emit them into unresolvedPatterns in original-query order during the second pass,
+        // so exclusion patterns stay at their original positions — reordering them changes the
+        // semantics of {@link IndexAbstractionResolver}, which applies exclusions against state
+        // accumulated so far.
+        HashSet<String> patternsNeedingUnresolved = new HashSet<>();
         int unresolvedInsertPos = -1;
 
         for (var expr : response.getResolvedIndexExpressions().expressions()) {
@@ -346,7 +352,7 @@ public class ViewResolver {
                 if (unresolvedInsertPos < 0) {
                     unresolvedInsertPos = result.size();
                 }
-                unresolvedPatterns.add(expr.original());
+                patternsNeedingUnresolved.add(expr.original());
                 continue;
             }
 
@@ -380,18 +386,28 @@ public class ViewResolver {
                 if (unresolvedInsertPos < 0) {
                     unresolvedInsertPos = result.size();
                 }
-                unresolvedPatterns.add(expr.original());
+                patternsNeedingUnresolved.add(expr.original());
             }
         }
 
-        // Preserve exclusion patterns targeting non-view resources
-        if (unresolvedPatterns.isEmpty() == false) {
-            var viewNames = getMetadata().views();
-            for (String pattern : originalPatterns) {
-                if (patternIsExclusion(pattern) && isConcreteViewExclusion(pattern, viewNames::containsKey) == false) {
+        // Second pass: build unresolvedPatterns from originalPatterns in original order, keeping
+        // positive patterns flagged above and exclusions that don't target concrete views.
+        List<String> unresolvedPatterns = new ArrayList<>();
+        var viewNames = getMetadata().views();
+        for (String pattern : originalPatterns) {
+            if (patternIsExclusion(pattern)) {
+                if (isConcreteViewExclusion(pattern, viewNames::containsKey) == false) {
                     unresolvedPatterns.add(pattern);
                 }
+            } else if (patternsNeedingUnresolved.contains(pattern)) {
+                unresolvedPatterns.add(pattern);
             }
+        }
+
+        // Only emit the UR plan if it would contribute at least one positive pattern.
+        // A UR with only exclusions has no positive basis to match against and would be a
+        // semantically empty input — preserve prior behavior of omitting it in that case.
+        if (patternsNeedingUnresolved.isEmpty() == false) {
             result.add(unresolvedInsertPos, createUnresolvedRelationPlan(unresolvedRelation, unresolvedPatterns));
         }
 

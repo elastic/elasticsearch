@@ -180,6 +180,25 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(replaceViews(plan), matchesPlan(query("FROM logs2,logs*,-logs3")));
     }
 
+    /**
+     * Exclusion patterns must be preserved at their original position in the unresolved-pattern
+     * list, not appended after positive patterns. Pattern order matters because
+     * {@code IndexAbstractionResolver} processes exclusions against prior accumulated state —
+     * reordering {@code -*-view-*} from before {@code data-view-*} to after it changes the
+     * semantics (the exclusion would now strip {@code data-view-*} matches from the result).
+     * <p>
+     * {@code match-nothing-*} is dropped here because its expansion is empty+SUCCESS in the
+     * null-fallback path. In the security-enabled path it would be NOT_VISIBLE and preserved,
+     * but the exclusion-order bug exists on either path.
+     */
+    public void testExclusionPreservesOriginalOrder() {
+        addIndex("data-index-origin");
+        addIndex("data-view-extra");
+        addView("data-view-origin", "FROM data-index-origin");
+        LogicalPlan plan = query("FROM match-nothing-*,-*-view-*,data-view-*");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM data-index-origin,-*-view-*,data-view-*")));
+    }
+
     public void testExclusionMultipleViews() {
         addView("view1", "FROM emp1");
         addView("view2", "FROM emp2");

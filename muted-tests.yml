@@ -462,6 +462,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.datasources.ExternalSourceDrainUtilsTests
   method: testBudgetAccountingAcrossAsyncBoundaries
   issue: https://github.com/elastic/elasticsearch/issues/147065
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search.vectors/260_knn_lookup_query_builder/Test lookup base64 query vector builder with exclude_source_vectors false}
+  issue: https://github.com/elastic/elasticsearch/issues/147069
 
 # Examples:
 #

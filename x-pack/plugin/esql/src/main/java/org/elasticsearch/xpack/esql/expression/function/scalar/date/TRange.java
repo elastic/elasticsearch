@@ -211,10 +211,8 @@ public class TRange extends EsqlConfigurationFunction
 
     @Override
     public Expression surrogate() {
-        long[] range = getRange(FoldContext.small());
-
-        Expression startLiteral = new Literal(source(), range[0], timestamp.dataType());
-        Expression endLiteral = new Literal(source(), range[1], timestamp.dataType());
+        Expression startLiteral = rangeStartLiteral(FoldContext.small(), timestamp.dataType());
+        Expression endLiteral = rangeEndLiteral(FoldContext.small(), timestamp.dataType());
 
         return new And(source(), new GreaterThan(source(), timestamp, startLiteral), new LessThanOrEqual(source(), timestamp, endLiteral));
     }
@@ -229,7 +227,15 @@ public class TRange extends EsqlConfigurationFunction
         return timestamp.nullable();
     }
 
-    private long[] getRange(FoldContext foldContext) {
+    public Literal rangeStartLiteral(FoldContext foldContext, DataType targetType) {
+        return new Literal(source(), getRange(foldContext, targetType)[0], targetType);
+    }
+
+    public Literal rangeEndLiteral(FoldContext foldContext, DataType targetType) {
+        return new Literal(source(), getRange(foldContext, targetType)[1], targetType);
+    }
+
+    private long[] getRange(FoldContext foldContext, DataType targetType) {
         Instant rangeStart;
         Instant rangeEnd;
 
@@ -251,11 +257,11 @@ public class TRange extends EsqlConfigurationFunction
             throw new InvalidArgumentException("TRANGE rangeStart time [{}] must be before rangeEnd time [{}]", rangeStart, rangeEnd);
         }
 
-        if (timestamp.dataType() == DataType.DATE_NANOS && first.dataType() == DataType.DATE_NANOS) {
+        if (targetType == DataType.DATE_NANOS && first.dataType() == DataType.DATE_NANOS) {
             return new long[] { DateUtils.toLong(rangeStart), DateUtils.toLong(rangeEnd) };
         }
 
-        boolean convertToNanos = timestamp.dataType() == DataType.DATE_NANOS;
+        boolean convertToNanos = targetType == DataType.DATE_NANOS;
         return new long[] {
             convertToNanos ? DateUtils.toLong(rangeStart) : rangeStart.toEpochMilli(),
             convertToNanos ? DateUtils.toLong(rangeEnd) : rangeEnd.toEpochMilli() };

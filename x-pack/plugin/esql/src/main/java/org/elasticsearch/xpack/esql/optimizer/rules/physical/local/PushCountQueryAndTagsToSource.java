@@ -15,6 +15,7 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -57,9 +58,17 @@ import java.util.Optional;
 public class PushCountQueryAndTagsToSource extends PhysicalOptimizerRules.OptimizerRule<AggregateExec> {
     @Override
     protected PhysicalPlan rule(AggregateExec aggregateExec) {
-        if (
-        // Ensures we are only grouping by one field (2 aggregates: count + group by field).
-        aggregateExec.aggregates().size() == 2
+        // The rule applies only when the aggregate has:
+        // - exactly one grouping key
+        // - exactly one aggregate (the COUNT itself)
+        // This rejects multi-grouping queries and multi-aggregate queries (e.g. COUNT + MAX).
+        // The COUNT must be Count(*), without a filter on the count itself.
+        if (aggregateExec.groupings().size() == 1
+            && (aggregateExec.aggregates().size() == 1
+                // The second "aggregate" must be the grouping itself.
+                // Sometimes CombineProjections or other rules may remove it, so we check for both 1 and 2 aggs
+                || aggregateExec.aggregates().size() == 2
+                    && Expressions.equalsAsAttribute(Alias.unwrap(aggregateExec.aggregates().get(1)), aggregateExec.groupings().getFirst()))
             && aggregateExec.aggregates().getFirst() instanceof Alias alias
             && alias.child() instanceof Count count
             && count.hasFilter() == false // We don't support pushing down counts where the filter is *on the count itself*.

@@ -29,50 +29,49 @@ import org.elasticsearch.core.Releasables;
 // end generated imports
 
 /**
- * An irate grouping aggregation definition for int.
- * This class is generated. Edit `X-IrateAggregator.java.st` instead.
+ * An idelta grouping aggregation definition for long.
+ * This class is generated. Edit `X-IdeltaAggregator.java.st` instead.
  */
 @GroupingAggregator(
-    value = { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "INT_BLOCK") }
+    value = { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "LONG_BLOCK") }
 )
-public class IrateIntAggregator {
-    public static IntIrateGroupingState initGrouping(DriverContext driverContext, boolean isDateNanos) {
-        final int dateFactor = isDateNanos ? 1_000_000_000 : 1000;
-        return new IntIrateGroupingState(driverContext.bigArrays(), driverContext.breaker(), dateFactor);
+public class IdeltaLongAggregator {
+    public static LongIdeltaGroupingState initGrouping(DriverContext driverContext) {
+        return new LongIdeltaGroupingState(driverContext.bigArrays(), driverContext.breaker());
     }
 
-    public static void combine(IntIrateGroupingState current, int groupId, int value, long timestamp) {
+    public static void combine(LongIdeltaGroupingState current, int groupId, long value, long timestamp) {
         current.ensureCapacity(groupId);
         current.append(groupId, timestamp, value);
     }
 
     public static String describe() {
-        return "instant change of ints";
+        return "instant delta of longs";
     }
 
     public static void combineIntermediate(
-        IntIrateGroupingState current,
+        LongIdeltaGroupingState current,
         int groupId,
         LongBlock timestamps,
-        IntBlock values,
+        LongBlock values,
         int otherPosition
     ) {
         current.combine(groupId, timestamps, values, otherPosition);
     }
 
-    public static Block evaluateFinal(IntIrateGroupingState state, IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
+    public static Block evaluateFinal(LongIdeltaGroupingState state, IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
         return state.evaluateFinal(selected, evalContext);
     }
 
-    private static class IntIrateState {
-        static final long BASE_RAM_USAGE = RamUsageEstimator.sizeOfObject(IntIrateState.class);
+    private static class LongIdeltaState {
+        static final long BASE_RAM_USAGE = RamUsageEstimator.sizeOfObject(LongIdeltaState.class);
         long lastTimestamp;
         long secondLastTimestamp = -1;
-        int lastValue;
-        int secondLastValue;
+        long lastValue;
+        long secondLastValue;
         boolean hasSecond;
 
-        IntIrateState(long lastTimestamp, int lastValue) {
+        LongIdeltaState(long lastTimestamp, long lastValue) {
             this.lastTimestamp = lastTimestamp;
             this.lastValue = lastValue;
             this.hasSecond = false;
@@ -83,18 +82,16 @@ public class IrateIntAggregator {
         }
     }
 
-    public static final class IntIrateGroupingState implements Releasable, Accountable, GroupingAggregatorState {
-        private ObjectArray<IntIrateState> states;
+    public static final class LongIdeltaGroupingState implements Releasable, Accountable, GroupingAggregatorState {
+        private ObjectArray<LongIdeltaState> states;
         private final BigArrays bigArrays;
         private final CircuitBreaker breaker;
         private long stateBytes; // for individual states
-        private final int dateFactor;
 
-        IntIrateGroupingState(BigArrays bigArrays, CircuitBreaker breaker, int dateFactor) {
+        LongIdeltaGroupingState(BigArrays bigArrays, CircuitBreaker breaker) {
             this.bigArrays = bigArrays;
             this.breaker = breaker;
             this.states = bigArrays.newObjectArray(1);
-            this.dateFactor = dateFactor;
         }
 
         void ensureCapacity(int groupId) {
@@ -102,15 +99,15 @@ public class IrateIntAggregator {
         }
 
         void adjustBreaker(long bytes) {
-            breaker.addEstimateBytesAndMaybeBreak(bytes, "<<rate aggregation>>");
+            breaker.addEstimateBytesAndMaybeBreak(bytes, "<<idelta aggregation>>");
             stateBytes += bytes;
             assert stateBytes >= 0 : stateBytes;
         }
 
-        void append(int groupId, long timestamp, int value) {
+        void append(int groupId, long timestamp, long value) {
             var state = states.get(groupId);
             if (state == null) {
-                state = new IntIrateState(timestamp, value);
+                state = new LongIdeltaState(timestamp, value);
                 states.set(groupId, state);
                 adjustBreaker(state.bytesUsed());
             } else {
@@ -131,7 +128,7 @@ public class IrateIntAggregator {
             }
         }
 
-        void combine(int groupId, LongBlock timestamps, IntBlock values, int otherPosition) {
+        void combine(int groupId, LongBlock timestamps, LongBlock values, int otherPosition) {
             final int valueCount = timestamps.getValueCount(otherPosition);
             if (valueCount == 0) {
                 return;
@@ -139,10 +136,10 @@ public class IrateIntAggregator {
             final int firstTs = timestamps.getFirstValueIndex(otherPosition);
             final int firstIndex = values.getFirstValueIndex(otherPosition);
             ensureCapacity(groupId);
-            append(groupId, timestamps.getLong(firstTs), values.getInt(firstIndex));
+            append(groupId, timestamps.getLong(firstTs), values.getLong(firstIndex));
             if (valueCount > 1) {
                 ensureCapacity(groupId);
-                append(groupId, timestamps.getLong(firstTs + 1), values.getInt(firstIndex + 1));
+                append(groupId, timestamps.getLong(firstTs + 1), values.getLong(firstIndex + 1));
             }
         }
 
@@ -162,7 +159,7 @@ public class IrateIntAggregator {
             final int positionCount = selected.getPositionCount();
             try (
                 LongBlock.Builder timestamps = blockFactory.newLongBlockBuilder(positionCount * 2);
-                IntBlock.Builder values = blockFactory.newIntBlockBuilder(positionCount * 2);
+                LongBlock.Builder values = blockFactory.newLongBlockBuilder(positionCount * 2);
             ) {
                 for (int i = 0; i < positionCount; i++) {
                     final var groupId = selected.getInt(i);
@@ -176,9 +173,9 @@ public class IrateIntAggregator {
                         timestamps.endPositionEntry();
 
                         values.beginPositionEntry();
-                        values.appendInt(state.lastValue);
+                        values.appendLong(state.lastValue);
                         if (state.hasSecond) {
-                            values.appendInt(state.secondLastValue);
+                            values.appendLong(state.secondLastValue);
                         }
                         values.endPositionEntry();
                     } else {
@@ -201,13 +198,7 @@ public class IrateIntAggregator {
                         rates.appendNull();
                         continue;
                     }
-                    // When the last value is less than the previous one, we assume a reset
-                    // and use the last value directly.
-                    final double ydiff = state.lastValue >= state.secondLastValue
-                        ? state.lastValue - state.secondLastValue
-                        : state.lastValue;
-                    final long xdiff = state.lastTimestamp - state.secondLastTimestamp;
-                    rates.appendDouble(ydiff / xdiff * dateFactor);
+                    rates.appendDouble(state.lastValue - state.secondLastValue);
                 }
                 return rates.build();
             }

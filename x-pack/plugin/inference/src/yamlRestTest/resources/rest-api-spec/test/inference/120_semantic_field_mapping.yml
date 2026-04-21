@@ -9,7 +9,7 @@ setup:
         inference_id: embedding-inference-id
         body: >
           {
-            "service": "embedding_test_service",
+            "service": "text_embedding_test_service",
             "service_settings": {
               "model": "my_model",
               "dimensions": 4,

@@ -190,10 +190,18 @@ public class ViewResolver {
                     return;
                 }
                 case Fork fork -> {
-                    replaceViewsFork(fork, parser, seenInner, viewQueries, optionalFieldCapsPatterns, depth, planListener.delegateFailureAndWrap((l, result) -> {
-                        plan.forEachDown(resolvedPlans::add);
-                        l.onResponse(result);
-                    }));
+                    replaceViewsFork(
+                        fork,
+                        parser,
+                        seenInner,
+                        viewQueries,
+                        optionalFieldCapsPatterns,
+                        depth,
+                        planListener.delegateFailureAndWrap((l, result) -> {
+                            plan.forEachDown(resolvedPlans::add);
+                            l.onResponse(result);
+                        })
+                    );
                     return;
                 }
                 case UnresolvedRelation ur -> {
@@ -320,7 +328,13 @@ public class ViewResolver {
                 });
             }
             chain.andThenApply(ignored -> {
-                List<ViewPlan> subqueries = buildOrderedSubqueries(unresolvedRelation, response, resolvedViews, patterns, optionalFieldCapsPatterns);
+                List<ViewPlan> subqueries = buildOrderedSubqueries(
+                    unresolvedRelation,
+                    response,
+                    resolvedViews,
+                    patterns,
+                    optionalFieldCapsPatterns
+                );
                 if (subqueries.size() == 1) {
                     return subqueries.getFirst().plan();
                 }

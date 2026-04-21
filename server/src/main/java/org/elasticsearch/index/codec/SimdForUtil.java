@@ -11,23 +11,24 @@ package org.elasticsearch.index.codec;
 
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 
-// Inspired from https://fulmicoton.com/posts/bitpacking/
-// Encodes multiple integers in a long to get SIMD-like speedups.
-// If bitsPerValue <= 8 then we pack 8 ints per long
-// else if bitsPerValue <= 16 we pack 4 ints per long
-// else we pack 2 ints per long
-public final class ForUtil {
+/**
+ * Equivalent to {@link ForUtil} but with SIMD-accelerated expand and collapse operations
+ * supplied by {@link ESVectorUtil}. The public API is identical to {@link ForUtil}, allowing
+ * the two classes to be benchmarked directly against each other.
+ */
+public final class SimdForUtil {
 
-    public static final int BLOCK_SIZE_SHIFT = 7;
-    public static final int BLOCK_SIZE = 1 << BLOCK_SIZE_SHIFT;
+    public static final int BLOCK_SIZE_SHIFT = ForUtil.BLOCK_SIZE_SHIFT;
+    public static final int BLOCK_SIZE = ForUtil.BLOCK_SIZE;
     private static final int BLOCK_SIZE_MASK = BLOCK_SIZE - 1;
 
     private static final ThreadLocal<long[]> scratch = ThreadLocal.withInitial(() -> new long[BLOCK_SIZE / 2]);
 
-    private ForUtil() {}
+    private SimdForUtil() {}
 
     private static long expandMask32(long mask32) {
         return mask32 | (mask32 << 32);
@@ -54,72 +55,35 @@ public final class ForUtil {
     }
 
     private static void expand8(long[] arr, int offset) {
-        for (int i = 0; i < 16; ++i) {
-            long l = arr[i + offset];
-            arr[i + offset] = (l >>> 56) & 0xFFL;
-            arr[16 + i + offset] = (l >>> 48) & 0xFFL;
-            arr[32 + i + offset] = (l >>> 40) & 0xFFL;
-            arr[48 + i + offset] = (l >>> 32) & 0xFFL;
-            arr[64 + i + offset] = (l >>> 24) & 0xFFL;
-            arr[80 + i + offset] = (l >>> 16) & 0xFFL;
-            arr[96 + i + offset] = (l >>> 8) & 0xFFL;
-            arr[112 + i + offset] = l & 0xFFL;
-        }
+        ESVectorUtil.expandLongs8(arr, offset);
     }
 
     private static void expand8To32(long[] arr, int offset) {
-        for (int i = 0; i < 16; ++i) {
-            long l = arr[i + offset];
-            arr[i + offset] = (l >>> 24) & 0x000000FF000000FFL;
-            arr[16 + i + offset] = (l >>> 16) & 0x000000FF000000FFL;
-            arr[32 + i + offset] = (l >>> 8) & 0x000000FF000000FFL;
-            arr[48 + i + offset] = l & 0x000000FF000000FFL;
-        }
+        ESVectorUtil.expandLongs8To32(arr, offset);
     }
 
     private static void collapse8(long[] arr, int offset) {
-        for (int i = 0; i < 16; ++i) {
-            arr[i + offset] = (arr[i + offset] << 56) | (arr[16 + i + offset] << 48) | (arr[32 + i + offset] << 40) | (arr[48 + i + offset]
-                << 32) | (arr[64 + i + offset] << 24) | (arr[80 + i + offset] << 16) | (arr[96 + i + offset] << 8) | arr[112 + i + offset];
-        }
+        ESVectorUtil.collapseLongs8(arr, offset);
     }
 
     private static void expand16(long[] arr, int offset) {
-        for (int i = 0; i < 32; ++i) {
-            long l = arr[i + offset];
-            arr[i + offset] = (l >>> 48) & 0xFFFFL;
-            arr[32 + i + offset] = (l >>> 32) & 0xFFFFL;
-            arr[64 + i + offset] = (l >>> 16) & 0xFFFFL;
-            arr[96 + i + offset] = l & 0xFFFFL;
-        }
+        ESVectorUtil.expandLongs16(arr, offset);
     }
 
     private static void expand16To32(long[] arr, int offset) {
-        for (int i = 0; i < 32; ++i) {
-            long l = arr[i + offset];
-            arr[i + offset] = (l >>> 16) & 0x0000FFFF0000FFFFL;
-            arr[32 + i + offset] = l & 0x0000FFFF0000FFFFL;
-        }
+        ESVectorUtil.expandLongs16To32(arr, offset);
     }
 
     private static void collapse16(long[] arr, int offset) {
-        for (int i = 0; i < 32; ++i) {
-            arr[i + offset] = (arr[i + offset] << 48) | (arr[32 + i + offset] << 32) | (arr[64 + i + offset] << 16) | arr[96 + i + offset];
-        }
+        ESVectorUtil.collapseLongs16(arr, offset);
     }
 
     private static void expand32(long[] arr, int offset) {
-        for (int i = 0; i < 64; ++i) {
-            long l = arr[i + offset];
-            arr[i + offset] = l >>> 32;
-            arr[64 + i + offset] = l & 0xFFFFFFFFL;
-        }
+        ESVectorUtil.expandLongs32(arr, offset);
     }
 
     private static void collapse32(long[] arr, int offset) {
-        for (int i = 0; i < 64; ++i) {
-            arr[i + offset] = (arr[i + offset] << 32) | arr[64 + i + offset];
-        }
+        ESVectorUtil.collapseLongs32(arr, offset);
     }
 
     /** Encode an array of longs into {@code out}. The array size is expected to be a multiple of {@code BLOCK_SIZE}. */

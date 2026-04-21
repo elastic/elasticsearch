@@ -13,6 +13,7 @@ import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.index.codec.ForUtil;
+import org.elasticsearch.index.codec.SimdForUtil;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
@@ -49,8 +50,8 @@ public final class DocValuesForUtil {
     }
 
     public void encode(long[] in, int bitsPerValue, final DataOutput out) throws IOException {
-        if (bitsPerValue <= 24) { // these bpvs are handled efficiently by ForUtil
-            ForUtil.encode(in, bitsPerValue, out);
+        if (bitsPerValue <= 24) { // these bpvs are handled efficiently by SimdForUtil
+            SimdForUtil.encode(in, bitsPerValue, out);
         } else if (bitsPerValue <= 32) {
             for (int k = 0; k < blockSize >> ForUtil.BLOCK_SIZE_SHIFT; k++) {
                 collapse32(in, k * ForUtil.BLOCK_SIZE);
@@ -78,7 +79,7 @@ public final class DocValuesForUtil {
 
     public void decode(int bitsPerValue, final DataInput in, long[] out) throws IOException {
         if (bitsPerValue <= 24) {
-            ForUtil.decode(bitsPerValue, in, out);
+            SimdForUtil.decode(bitsPerValue, in, out);
         } else if (bitsPerValue <= 32) {
             for (int k = 0; k < blockSize >> ForUtil.BLOCK_SIZE_SHIFT; k++) {
                 in.readLongs(out, k * ForUtil.BLOCK_SIZE, ForUtil.BLOCK_SIZE / 2);

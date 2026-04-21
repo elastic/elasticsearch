@@ -471,6 +471,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
   method: test {csv-spec:external-basic.aggregateByGender [HTTP]}
   issue: https://github.com/elastic/elasticsearch/issues/146999
+- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
+  method: test {csv-spec:external-basic.renameColumn [HTTP]}
+  issue: https://github.com/elastic/elasticsearch/issues/147000
 
 # Examples:
 #

@@ -36,20 +36,22 @@ public abstract sealed class GroupingFunction extends Function implements PostAn
             if (p instanceof Aggregate) {
                 return;
             }
-            if (p instanceof LimitBy) {
-                // EvaluatableGroupingFunction (e.g. BUCKET) can be computed row-by-row, so it is
-                // safe to use as a LIMIT ... BY key. NonEvaluatableGroupingFunction (e.g. CATEGORIZE)
-                // would require more changes to the LimitBy operators to work with them.
-                p.forEachExpression(
-                    NonEvaluatableGroupingFunction.class,
-                    gf -> failures.add(fail(gf, "cannot use grouping function [{}] outside of a STATS command", gf.sourceText()))
-                );
-                return;
-            }
+            // NonEvaluatableGroupingFunction (e.g. CATEGORIZE) is only allowed inside a STATS command,
+            // since it relies on aggregation-specific state to be evaluated.
             p.forEachExpression(
-                GroupingFunction.class,
+                NonEvaluatableGroupingFunction.class,
                 gf -> failures.add(fail(gf, "cannot use grouping function [{}] outside of a STATS command", gf.sourceText()))
             );
+            // EvaluatableGroupingFunction (e.g. BUCKET) can be computed row-by-row, so it is also
+            // allowed as a LIMIT ... BY key on top of STATS.
+            if (p instanceof LimitBy == false) {
+                p.forEachExpression(
+                    EvaluatableGroupingFunction.class,
+                    gf -> failures.add(
+                        fail(gf, "cannot use grouping function [{}] outside of a STATS or LIMIT BY command", gf.sourceText())
+                    )
+                );
+            }
         };
     }
 

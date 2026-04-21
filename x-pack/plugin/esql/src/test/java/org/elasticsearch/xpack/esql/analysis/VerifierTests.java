@@ -747,15 +747,15 @@ public class VerifierTests extends ESTestCase {
     public void testBucketOnlyInAggs() {
         defaultAnalyzer().error(
             "FROM test | WHERE ABS(BUCKET(emp_no, 100.)) > 0",
-            equalTo("1:23: cannot use grouping function [BUCKET(emp_no, 100.)] outside of a STATS command")
+            equalTo("1:23: cannot use grouping function [BUCKET(emp_no, 100.)] outside of a STATS or LIMIT BY command")
         );
         defaultAnalyzer().error(
             "FROM test | EVAL 3 + BUCKET(emp_no, 100.)",
-            equalTo("1:22: cannot use grouping function [BUCKET(emp_no, 100.)] outside of a STATS command")
+            equalTo("1:22: cannot use grouping function [BUCKET(emp_no, 100.)] outside of a STATS or LIMIT BY command")
         );
         defaultAnalyzer().error(
             "FROM test | SORT BUCKET(emp_no, 100.)",
-            equalTo("1:18: cannot use grouping function [BUCKET(emp_no, 100.)] outside of a STATS command")
+            equalTo("1:18: cannot use grouping function [BUCKET(emp_no, 100.)] outside of a STATS or LIMIT BY command")
         );
     }
 

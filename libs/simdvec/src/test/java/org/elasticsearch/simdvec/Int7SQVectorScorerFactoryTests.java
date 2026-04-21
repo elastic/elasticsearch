@@ -24,6 +24,7 @@ import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.ScalarQuantizedVectorSimilarity;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.OffHeapQuantizedByteVectorValues;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -55,6 +56,11 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
     // bounds of the range of values that can be seen by int7 scalar quantized vectors
     static final byte MIN_INT7_VALUE = 0;
     static final byte MAX_INT7_VALUE = 127;
+
+    @BeforeClass
+    public static void requiresHeapSegments() {
+        assumeTrue("scorer only supported on JDK 22+", SUPPORTS_HEAP_SEGMENTS);
+    }
 
     // Tests that the provider instance is present or not on expected platforms/architectures
     public void testSupport() {

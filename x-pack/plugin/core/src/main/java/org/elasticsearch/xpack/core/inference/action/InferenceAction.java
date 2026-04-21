@@ -24,7 +24,6 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.inference.InferenceContext;
 
@@ -46,7 +45,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         super(NAME);
     }
 
-    public static class Request extends BaseInferenceActionRequest implements ToXContent {
+    public static class Request extends BaseInferenceActionRequest {
 
         public static final ParseField INPUT = new ParseField("input");
         public static final ParseField INPUT_TYPE = new ParseField("input_type");
@@ -71,25 +70,12 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             PARSER.declareString(Builder::setInferenceTimeout, TIMEOUT);
         }
 
-        public static Builder parseRequest(String inferenceEntityId, TaskType taskType, InferenceContext context, XContentParser parser) {
-            return parseRequest(inferenceEntityId, taskType, context, parser, false);
-        }
-
-        private static Builder parseRequest(
-            String inferenceEntityId,
-            TaskType taskType,
-            InferenceContext context,
-            XContentParser parser,
-            boolean internal
-        ) {
+        public static Builder parseRequest(String inferenceEntityId, TaskType taskType, InferenceContext context, XContentParser parser)
+            throws IOException {
             Request.Builder builder = PARSER.apply(parser, null);
             builder.setInferenceEntityId(inferenceEntityId);
             builder.setTaskType(taskType);
             builder.setContext(context);
-            if (internal == false) {
-                // Explicit validation: reject internal-only input types from external (REST) callers
-                InputType.fromRestString(builder.getInputType().toString());
-            }
             return builder;
         }
 
@@ -332,25 +318,6 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(INPUT.getPreferredName(), input);
-            builder.field(INPUT_TYPE.getPreferredName(), inputType);
-            if (taskSettings.isEmpty() == false) {
-                builder.field(TASK_SETTINGS.getPreferredName(), taskSettings);
-            }
-            if (query != null) {
-                builder.field(QUERY.getPreferredName(), query);
-            }
-            if (returnDocuments != null) {
-                builder.field(RETURN_DOCUMENTS.getPreferredName(), returnDocuments);
-            }
-            if (topN != null) {
-                builder.field(TOP_N.getPreferredName(), topN);
-            }
-            return builder;
-        }
-
-        @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
@@ -437,12 +404,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             }
 
             public Builder setInputType(String inputType) {
-                this.inputType = InputType.fromString(inputType);
+                this.inputType = InputType.fromRestString(inputType);
                 return this;
-            }
-
-            InputType getInputType() {
-                return inputType;
             }
 
             public Builder setTaskSettings(Map<String, Object> taskSettings) {

@@ -425,7 +425,7 @@ describe("generatePipeline", () => {
 
     const pipeline = generatePipeline(tests);
     expect(pipeline.steps).toHaveLength(1);
-    expect(pipeline.steps[0].group).toBe("Repeat Changed Tests");
+    expect(pipeline.steps[0].group).toBe("repeat-changed-tests");
 
     const step = pipeline.steps[0].steps[0];
     expect(step.label).toBe("unit tests");
@@ -455,7 +455,7 @@ describe("generatePipeline", () => {
     expect(pipeline.steps).toHaveLength(1);
 
     const group = pipeline.steps[0];
-    expect(group.group).toBe("Repeat Changed Tests");
+    expect(group.group).toBe("repeat-changed-tests");
     expect(group.steps).toHaveLength(1);
 
     const step = group.steps[0];
@@ -481,7 +481,7 @@ describe("generatePipeline", () => {
 
     const pipeline = generatePipeline(tests);
     expect(pipeline.steps).toHaveLength(1);
-    expect(pipeline.steps[0].group).toBe("Repeat Changed Tests");
+    expect(pipeline.steps[0].group).toBe("repeat-changed-tests");
     expect(pipeline.steps[0].steps).toHaveLength(2);
     expect(pipeline.steps[0].steps[0].label).toBe("unit tests");
     expect(pipeline.steps[0].steps[0].key).toBe("repeat-changed-tests:unit");
@@ -510,7 +510,7 @@ describe("generatePipeline", () => {
   test("returns empty group for empty input", () => {
     const pipeline = generatePipeline([]);
     expect(pipeline.steps).toHaveLength(1);
-    expect(pipeline.steps[0].group).toBe("Repeat Changed Tests");
+    expect(pipeline.steps[0].group).toBe("repeat-changed-tests");
     expect(pipeline.steps[0].steps).toEqual([]);
   });
 });

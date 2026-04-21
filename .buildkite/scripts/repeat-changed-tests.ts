@@ -261,7 +261,7 @@ export function generatePipeline(tests: ClassifiedTest[]): Pipeline {
   return {
     steps: [
       {
-        group: "Repeat Changed Tests",
+        group: "repeat-changed-tests",
         steps: allSteps,
       },
     ],

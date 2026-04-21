@@ -31,25 +31,25 @@ import static java.time.temporal.ChronoUnit.HOURS;
  * Builds the {@link LogicalPlan} for a Prometheus {@code /api/v1/metadata} request.
  *
  * <p><b>Plan shape without metric filter:</b>
- * <pre>
+ * <pre>{@code
  * Limit(esqlLimit)
  * \_ Aggregate(groupings=[metric_name, metric_type, unit])
  *    \_ Eval(metric_type = MV_MIN(metric_type), unit = MV_MIN(unit))
  *       \_ MetricsInfo
- *          \_ Filter(@timestamp &gt;= start AND @timestamp &lt;= end)
+ *          \_ Filter(@timestamp >= start AND @timestamp <= end)
  *             \_ UnresolvedRelation(index, TS)
- * </pre>
+ * }</pre>
  *
  * <p><b>Plan shape with metric filter:</b>
- * <pre>
+ * <pre>{@code
  * Limit(esqlLimit)
  * \_ Aggregate(groupings=[metric_name, metric_type, unit])
  *    \_ Eval(metric_type = MV_MIN(metric_type), unit = MV_MIN(unit))
  *       \_ Filter(metric_name == metric)
  *          \_ MetricsInfo
- *             \_ Filter(@timestamp &gt;= start AND @timestamp &lt;= end)
+ *             \_ Filter(@timestamp >= start AND @timestamp <= end)
  *                \_ UnresolvedRelation(index, TS)
- * </pre>
+ * }</pre>
  *
  * <p>The ES|QL Limit caps the total number of rows fetched. A finite limit is only possible when
  * both {@code limit} and {@code limit_per_metric} are set: {@code (limit + 1) * limitPerMetric}.
@@ -129,13 +129,10 @@ final class PrometheusMetadataPlanBuilder {
      * results at the cluster's {@code esql.query.result_truncation_max_size} setting.
      */
     private static int computeEsqlLimit(int limit, int limitPerMetric) {
-        if (limit > 0 && limitPerMetric > 0) {
-            try {
-                return Math.multiplyExact(Math.addExact(limit, 1), limitPerMetric);
-            } catch (ArithmeticException e) {
-                return Integer.MAX_VALUE;
-            }
+        if (limit <= 0 || limitPerMetric <= 0) {
+            return Integer.MAX_VALUE;
         }
-        return Integer.MAX_VALUE;
+        long esqlLimit = ((long) limit + 1) * limitPerMetric;
+        return esqlLimit > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) esqlLimit;
     }
 }

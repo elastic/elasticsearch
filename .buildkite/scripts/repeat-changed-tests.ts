@@ -173,11 +173,11 @@ const KIND_LABELS: Record<TestKind, string> = {
 };
 
 const KIND_KEYS: Record<TestKind, string> = {
-  test: "Repeat Changed Tests:unit",
-  internalClusterTest: "Repeat Changed Tests:integ",
-  javaRestTest: "Repeat Changed Tests:java-rest",
-  yamlRestTestRunner: "Repeat Changed Tests:yaml-runner",
-  yamlRestTestSuite: "Repeat Changed Tests:yaml-suite",
+  test: "repeat-changed-tests:unit",
+  internalClusterTest: "repeat-changed-tests:integ",
+  javaRestTest: "repeat-changed-tests:java-rest",
+  yamlRestTestRunner: "repeat-changed-tests:yaml-runner",
+  yamlRestTestSuite: "repeat-changed-tests:yaml-suite",
 };
 
 export function generateBatchCommand(batch: ClassifiedTest[]): string {

@@ -429,7 +429,7 @@ describe("generatePipeline", () => {
 
     const step = pipeline.steps[0].steps[0];
     expect(step.label).toBe("unit tests");
-    expect(step.key).toBe("Repeat Changed Tests:unit");
+    expect(step.key).toBe("repeat-changed-tests:unit");
     expect(step.parallelism).toBeUndefined();
     expect(step.env).toBeUndefined();
     expect(step.command).toBe(
@@ -460,7 +460,7 @@ describe("generatePipeline", () => {
 
     const step = group.steps[0];
     expect(step.label).toBe("java rest tests");
-    expect(step.key).toBe("Repeat Changed Tests:java-rest");
+    expect(step.key).toBe("repeat-changed-tests:java-rest");
     expect(step.parallelism).toBe(2);
     expect(step.env).toBeDefined();
     expect(step.env!["BATCH_COMMAND_0"]).toContain("repeat-rest-test.sh");
@@ -484,9 +484,9 @@ describe("generatePipeline", () => {
     expect(pipeline.steps[0].group).toBe("Repeat Changed Tests");
     expect(pipeline.steps[0].steps).toHaveLength(2);
     expect(pipeline.steps[0].steps[0].label).toBe("unit tests");
-    expect(pipeline.steps[0].steps[0].key).toBe("Repeat Changed Tests:unit");
+    expect(pipeline.steps[0].steps[0].key).toBe("repeat-changed-tests:unit");
     expect(pipeline.steps[0].steps[1].label).toBe("integ tests");
-    expect(pipeline.steps[0].steps[1].key).toBe("Repeat Changed Tests:integ");
+    expect(pipeline.steps[0].steps[1].key).toBe("repeat-changed-tests:integ");
   });
 
   test("yaml runners and suites get separate labels", () => {

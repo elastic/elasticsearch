@@ -336,7 +336,7 @@ public class EsqlSession {
         analyzedPlan(
             plan,
             viewResolution.viewQueries(),
-            viewResolution.remoteExclusions(),
+            viewResolution.optionalFieldCapsPatterns(),
             statement.setting(UNMAPPED_FIELDS),
             finalConfiguration,
             executionInfo,
@@ -864,7 +864,7 @@ public class EsqlSession {
     private void analyzedPlan(
         LogicalPlan parsed,
         Map<String, String> viewResolution,
-        Set<String> remoteExclusions,
+        List<String> optionalFieldCapsPatterns,
         UnmappedResolution unmappedResolution,
         Configuration configuration,
         EsqlExecutionInfo executionInfo,
@@ -884,7 +884,7 @@ public class EsqlSession {
             parsed,
             preAnalysis.enriches().isEmpty() == false,
             unmappedResolution == UnmappedResolution.LOAD
-        ).withViewResolution(viewResolution, remoteExclusions).withMinimumTransportVersion(localClusterMinimumVersion);
+        ).withViewResolution(viewResolution, optionalFieldCapsPatterns).withMinimumTransportVersion(localClusterMinimumVersion);
         String description = requestFilter == null ? "the only attempt without filter" : "first attempt with filter";
         // Extract timestamp bounds eagerly from the request filter so they can be threaded through to the analyzer,
         // even when index resolution is retried without the filter (e.g. because the filter covers an empty time range).
@@ -1351,12 +1351,7 @@ public class EsqlSession {
     }
 
     private static String buildOptionalViewPattern(PreAnalysisResult result) {
-        if (result.remoteExclusions().isEmpty()) {
-            return Strings.collectionToCommaDelimitedString(result.viewResolution().keySet());
-        }
-        List<String> parts = new ArrayList<>(result.viewResolution().keySet());
-        parts.addAll(result.remoteExclusions());
-        return Strings.collectionToCommaDelimitedString(parts);
+        return Strings.collectionToCommaDelimitedString(result.optionalFieldCapsPatterns());
     }
 
     private void preAnalyzeMainIndices(
@@ -1696,7 +1691,7 @@ public class EsqlSession {
         Set<String> wildcardJoinIndices,
         Map<IndexPattern, IndexResolution> indexResolution,
         Map<String, String> viewResolution,
-        Set<String> remoteExclusions,
+        List<String> optionalFieldCapsPatterns,
         Map<String, IndexResolution> lookupIndices,
         EnrichResolution enrichResolution,
         InferenceResolution inferenceResolution,
@@ -1710,7 +1705,7 @@ public class EsqlSession {
                 wildcardJoinIndices,
                 new HashMap<>(),
                 new HashMap<>(),
-                Set.of(),
+                List.of(),
                 new HashMap<>(),
                 null,
                 InferenceResolution.EMPTY,
@@ -1729,13 +1724,13 @@ public class EsqlSession {
             return this;
         }
 
-        PreAnalysisResult withViewResolution(Map<String, String> viewResolution, Set<String> remoteExclusions) {
+        PreAnalysisResult withViewResolution(Map<String, String> viewResolution, List<String> optionalFieldCapsPatterns) {
             return new PreAnalysisResult(
                 fieldNames,
                 wildcardJoinIndices,
                 indexResolution,
                 viewResolution,
-                remoteExclusions,
+                optionalFieldCapsPatterns,
                 lookupIndices,
                 enrichResolution,
                 inferenceResolution,
@@ -1750,7 +1745,7 @@ public class EsqlSession {
                 wildcardJoinIndices,
                 indexResolution,
                 viewResolution,
-                remoteExclusions,
+                optionalFieldCapsPatterns,
                 lookupIndices,
                 enrichResolution,
                 inferenceResolution,
@@ -1765,7 +1760,7 @@ public class EsqlSession {
                 wildcardJoinIndices,
                 indexResolution,
                 viewResolution,
-                remoteExclusions,
+                optionalFieldCapsPatterns,
                 lookupIndices,
                 enrichResolution,
                 inferenceResolution,
@@ -1780,7 +1775,7 @@ public class EsqlSession {
                 wildcardJoinIndices,
                 indexResolution,
                 viewResolution,
-                remoteExclusions,
+                optionalFieldCapsPatterns,
                 lookupIndices,
                 enrichResolution,
                 inferenceResolution,
@@ -1801,7 +1796,7 @@ public class EsqlSession {
                 wildcardJoinIndices,
                 indexResolution,
                 viewResolution,
-                remoteExclusions,
+                optionalFieldCapsPatterns,
                 lookupIndices,
                 enrichResolution,
                 inferenceResolution,

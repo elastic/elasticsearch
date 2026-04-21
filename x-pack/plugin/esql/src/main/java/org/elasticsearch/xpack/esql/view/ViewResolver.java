@@ -108,7 +108,7 @@ public class ViewResolver {
     /**
      * Result of view resolution containing both the rewritten plan and the view queries.
      */
-    public record ViewResolutionResult(LogicalPlan plan, Map<String, String> viewQueries, Set<String> remoteExclusions) {}
+    public record ViewResolutionResult(LogicalPlan plan, Map<String, String> viewQueries, List<String> optionalFieldCapsPatterns) {}
 
     /**
      * Replaces views in the logical plan with their subqueries recursively.
@@ -136,9 +136,9 @@ public class ViewResolver {
         ActionListener<ViewResolutionResult> listener
     ) {
         Map<String, String> viewQueries = new HashMap<>();
-        Set<String> remoteExclusions = new LinkedHashSet<>();
+        List<String> optionalFieldCapsPatterns = new ArrayList<>();
         if (viewsFeatureEnabled() == false || getMetadata().views().isEmpty()) {
-            listener.onResponse(new ViewResolutionResult(plan, viewQueries, remoteExclusions));
+            listener.onResponse(new ViewResolutionResult(plan, viewQueries, optionalFieldCapsPatterns));
             return;
         }
         replaceViews(
@@ -146,13 +146,13 @@ public class ViewResolver {
             parser,
             new LinkedHashSet<>(),
             viewQueries,
-            remoteExclusions,
+            optionalFieldCapsPatterns,
             0,
             listener.delegateFailureAndWrap((l, rewritten) -> {
                 LogicalPlan postProcessed = rewriteUnionAllsWithNamedSubqueries(rewritten);
                 postProcessed = compactNestedViewUnionAlls(postProcessed);
                 postProcessed = postProcessed.transformDown(NamedSubquery.class, UnaryPlan::child);
-                listener.onResponse(new ViewResolutionResult(postProcessed, viewQueries, remoteExclusions));
+                listener.onResponse(new ViewResolutionResult(postProcessed, viewQueries, optionalFieldCapsPatterns));
             })
         );
     }
@@ -162,7 +162,7 @@ public class ViewResolver {
         BiFunction<String, String, LogicalPlan> parser,
         LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
-        Set<String> remoteExclusions,
+        List<String> optionalFieldCapsPatterns,
         int depth,
         ActionListener<LogicalPlan> listener
     ) {
@@ -190,7 +190,7 @@ public class ViewResolver {
                     return;
                 }
                 case Fork fork -> {
-                    replaceViewsFork(fork, parser, seenInner, viewQueries, remoteExclusions, depth, planListener.delegateFailureAndWrap((l, result) -> {
+                    replaceViewsFork(fork, parser, seenInner, viewQueries, optionalFieldCapsPatterns, depth, planListener.delegateFailureAndWrap((l, result) -> {
                         plan.forEachDown(resolvedPlans::add);
                         l.onResponse(result);
                     }));
@@ -203,7 +203,7 @@ public class ViewResolver {
                         seenInner,
                         seenWildcards,
                         viewQueries,
-                        remoteExclusions,
+                        optionalFieldCapsPatterns,
                         depth,
                         planListener.delegateFailureAndWrap((l, result) -> {
                             plan.forEachDown(resolvedPlans::add);
@@ -224,7 +224,7 @@ public class ViewResolver {
         BiFunction<String, String, LogicalPlan> parser,
         LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
-        Set<String> remoteExclusions,
+        List<String> optionalFieldCapsPatterns,
         int depth,
         ActionListener<LogicalPlan> listener
     ) {
@@ -239,7 +239,7 @@ public class ViewResolver {
                     parser,
                     seenViews,
                     viewQueries,
-                    remoteExclusions,
+                    optionalFieldCapsPatterns,
                     depth + 1,
                     l.delegateFailureAndWrap((subListener, newPlan) -> {
                         if (newPlan instanceof Subquery sq && sq.child() instanceof NamedSubquery named) {
@@ -273,7 +273,7 @@ public class ViewResolver {
         LinkedHashSet<String> seenViews,
         HashSet<String> seenWildcards,
         Map<String, String> viewQueries,
-        Set<String> remoteExclusions,
+        List<String> optionalFieldCapsPatterns,
         int depth,
         ActionListener<LogicalPlan> listener
     ) {
@@ -309,7 +309,7 @@ public class ViewResolver {
                         parser,
                         branchSeenViews,
                         viewQueries,
-                        remoteExclusions,
+                        optionalFieldCapsPatterns,
                         depth + 1,
                         l2.delegateFailureAndWrap((l3, fullyResolved) -> {
                             ViewPlan viewPlan = new ViewPlan(view.name(), fullyResolved);
@@ -320,7 +320,7 @@ public class ViewResolver {
                 });
             }
             chain.andThenApply(ignored -> {
-                List<ViewPlan> subqueries = buildOrderedSubqueries(unresolvedRelation, response, resolvedViews, patterns, remoteExclusions);
+                List<ViewPlan> subqueries = buildOrderedSubqueries(unresolvedRelation, response, resolvedViews, patterns, optionalFieldCapsPatterns);
                 if (subqueries.size() == 1) {
                     return subqueries.getFirst().plan();
                 }
@@ -339,7 +339,7 @@ public class ViewResolver {
         EsqlResolveViewAction.Response response,
         HashMap<String, ViewPlan> resolvedViews,
         String[] originalPatterns,
-        Set<String> remoteExclusions
+        List<String> optionalFieldCapsPatterns
     ) {
         List<ViewPlan> result = new ArrayList<>();
         List<String> unresolvedPatterns = new ArrayList<>();
@@ -354,9 +354,7 @@ public class ViewResolver {
                     unresolvedInsertPos = result.size();
                 }
                 unresolvedPatterns.add(expr.original());
-                if (expr.original().contains(":-")) {
-                    remoteExclusions.add(expr.original());
-                }
+                addOptionalFieldCapsPattern(optionalFieldCapsPatterns, expr.original());
                 continue;
             }
 
@@ -380,6 +378,7 @@ public class ViewResolver {
                 if (vp != null) {
                     if (addedViews.add(index)) {
                         exprViews.add(vp);
+                        addOptionalFieldCapsPattern(optionalFieldCapsPatterns, index);
                     }
                 } else {
                     hasNonView = true;
@@ -406,6 +405,19 @@ public class ViewResolver {
             }
         }
 
+        // Preserve local exclusion patterns targeting non-view resources. These do not appear
+        // in ResolvedIndexExpressions (the local resolver applies them and drops them), so we
+        // recover them from the original FROM patterns and append them to the unresolved relation
+        // so field caps still sees the exclusion.
+        var viewNames = getMetadata().views();
+        for (String pattern : originalPatterns) {
+            if (patternIsExclusion(pattern)
+                && RemoteClusterAware.isRemoteIndexName(pattern) == false
+                && isConcreteViewExclusion(pattern, viewNames::containsKey) == false) {
+                unresolvedPatterns.add(pattern);
+            }
+        }
+
         if (unresolvedPatterns.isEmpty() == false && hasPositivePattern(unresolvedPatterns)) {
             if (unresolvedInsertPos < 0) {
                 unresolvedInsertPos = result.size();
@@ -414,6 +426,12 @@ public class ViewResolver {
         }
 
         return result;
+    }
+
+    private static void addOptionalFieldCapsPattern(List<String> optionalFieldCapsPatterns, String pattern) {
+        if (optionalFieldCapsPatterns.contains(pattern) == false) {
+            optionalFieldCapsPatterns.add(pattern);
+        }
     }
 
     private void validateViewReferenceAndMarkSeen(String viewName, LinkedHashSet<String> seenViews) {

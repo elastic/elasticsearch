@@ -414,6 +414,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:k8s-timeseries-promql.hour_scalar}
   issue: https://github.com/elastic/elasticsearch/issues/146949
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:k8s-timeseries-promql.minute_scalar}
+  issue: https://github.com/elastic/elasticsearch/issues/146951
 
 # Examples:
 #

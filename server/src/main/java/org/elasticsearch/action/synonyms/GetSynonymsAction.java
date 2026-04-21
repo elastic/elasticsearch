@@ -54,7 +54,7 @@ public class GetSynonymsAction extends AbstractSynonymsPagedResultAction<GetSyno
         }
 
         /** Cursor-based request. {@code searchAfter} is {@code null} on the first page. */
-        public Request(String synonymsSetId, int size, String searchAfter) {
+        public Request(String synonymsSetId, String searchAfter, int size) {
             super(0, size);
             Objects.requireNonNull(synonymsSetId, "Synonym set ID cannot be null");
             this.synonymsSetId = synonymsSetId;

@@ -243,8 +243,12 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
                 return;
             }
             if (request instanceof SearchRequest) {
-                SearchHits hits = SearchHits.empty(new TotalHits(ruleCount, TotalHits.Relation.EQUAL_TO), Float.NaN);
-                ActionListener.respondAndRelease((ActionListener<SearchResponse>) listener, SearchResponseUtils.successfulResponse(hits));
+                ActionListener.respondAndRelease(
+                    (ActionListener<SearchResponse>) listener,
+                    SearchResponseUtils.successfulResponse(
+                        SearchHits.unpooled(SearchHits.EMPTY, new TotalHits(ruleCount, TotalHits.Relation.EQUAL_TO), Float.NaN)
+                    )
+                );
                 return;
             }
             if (request instanceof IndexRequest) {
@@ -304,7 +308,7 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
         long totalHits = 5L;
 
         var service = buildService(
-            new SingleSearchResponseClient(threadPool, new SearchHit[] { rule1, rule2 }, totalHits),
+            new SearchWithExistsCheckClient(threadPool, new SearchHit[] { rule1, rule2 }, totalHits, true),
             clusterService,
             10_000,
             SynonymsManagementAPIService.BULK_CHUNK_SIZE
@@ -328,7 +332,7 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
         long totalHits = 1L;
 
         var service = buildService(
-            new SingleSearchResponseClient(threadPool, new SearchHit[] { rule1 }, totalHits),
+            new SearchWithExistsCheckClient(threadPool, new SearchHit[] { rule1 }, totalHits, true),
             clusterService,
             10_000,
             SynonymsManagementAPIService.BULK_CHUNK_SIZE
@@ -349,7 +353,7 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
         long totalHits = 5L;
 
         var service = buildService(
-            new SingleSearchResponseClient(threadPool, new SearchHit[0], totalHits),
+            new SearchWithExistsCheckClient(threadPool, new SearchHit[0], totalHits, true),
             clusterService,
             10_000,
             SynonymsManagementAPIService.BULK_CHUNK_SIZE
@@ -395,11 +399,12 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
 
         var future = new PlainActionFuture<PagedResult<SynonymRule>>();
         service.getSynonymSetRulesPage("missing-set", 10, null, future);
-        expectThrows(ResourceNotFoundException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
+        var ex = expectThrows(ResourceNotFoundException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
+        assertThat(ex.getMessage(), containsString("synonyms set [missing-set] not found"));
     }
 
     private static SearchHit ruleHit(int docId, String ruleId, String synonyms) {
-        SearchHit hit = new SearchHit(docId);
+        SearchHit hit = SearchHit.unpooled(docId);
         hit.setDocumentField(new DocumentField(SynonymRule.ID_FIELD.getPreferredName(), List.of(ruleId)));
         hit.setDocumentField(new DocumentField(SynonymRule.SYNONYMS_FIELD.getPreferredName(), List.of(synonyms)));
         return hit;
@@ -408,34 +413,6 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
     /**
      * Returns a fixed SearchResponse for all SearchRequests. Does not handle GetRequests.
      */
-    private static class SingleSearchResponseClient extends NoOpClient {
-        private final SearchHit[] hits;
-        private final long totalHits;
-
-        SingleSearchResponseClient(ThreadPool threadPool, SearchHit[] hits, long totalHits) {
-            super(threadPool);
-            this.hits = hits;
-            this.totalHits = totalHits;
-        }
-
-        @Override
-        @SuppressWarnings("unchecked")
-        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
-            ActionType<Response> action,
-            Request request,
-            ActionListener<Response> listener
-        ) {
-            if (request instanceof SearchRequest) {
-                SearchHits searchHits = new SearchHits(hits, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), Float.NaN);
-                SearchResponse response = SearchResponseUtils.successfulResponse(searchHits);
-                searchHits.decRef();
-                ActionListener.respondAndRelease((ActionListener<SearchResponse>) listener, response);
-                return;
-            }
-            super.doExecute(action, request, listener);
-        }
-    }
-
     /**
      * Returns a fixed SearchResponse for SearchRequests and a configurable GetResponse for the
      * synonym-set-exists check triggered when totalHits == 0.
@@ -460,10 +437,12 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
             ActionListener<Response> listener
         ) {
             if (request instanceof SearchRequest) {
-                SearchHits searchHits = new SearchHits(hits, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), Float.NaN);
-                SearchResponse response = SearchResponseUtils.successfulResponse(searchHits);
-                searchHits.decRef();
-                ActionListener.respondAndRelease((ActionListener<SearchResponse>) listener, response);
+                ActionListener.respondAndRelease(
+                    (ActionListener<SearchResponse>) listener,
+                    SearchResponseUtils.successfulResponse(
+                        SearchHits.unpooled(hits, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), Float.NaN)
+                    )
+                );
                 return;
             }
             if (request instanceof GetRequest getRequest) {

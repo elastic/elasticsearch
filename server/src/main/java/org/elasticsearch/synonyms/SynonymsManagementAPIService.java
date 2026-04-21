@@ -420,16 +420,9 @@ public class SynonymsManagementAPIService {
     }
 
     /**
-     * Retrieves a single page of synonym rules using search_after for cursor-based pagination
-     * that is not limited by {@code max_result_window}. On the first call pass {@code null} for
-     * {@code searchAfter} to start from the beginning. Pass the {@code id} of the last rule in
-     * the previous response to fetch subsequent pages. When the returned page has fewer results
-     * than {@code size}, the last page has been reached.
-     *
-     * @param synonymSetId the synonym set to paginate
-     * @param size         number of rules per page
-     * @param searchAfter  last rule ID from a previous response, or {@code null} for the first page
-     * @param listener     receives the page result
+     * Returns one page of synonym rules using search_after cursor pagination.
+     * Pass {@code null} for {@code searchAfter} on the first call; pass the last returned rule's
+     * {@code id} to advance. A page smaller than {@code size} indicates the last page.
      */
     public void getSynonymSetRulesPage(
         String synonymSetId,

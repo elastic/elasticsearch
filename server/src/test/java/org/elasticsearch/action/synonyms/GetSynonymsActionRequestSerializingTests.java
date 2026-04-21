@@ -14,6 +14,8 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class GetSynonymsActionRequestSerializingTests extends AbstractWireSerializingTestCase<GetSynonymsAction.Request> {
 
     @Override
@@ -30,7 +32,7 @@ public class GetSynonymsActionRequestSerializingTests extends AbstractWireSerial
             return new GetSynonymsAction.Request(synonymsSetId, randomIntBetween(1, Integer.MAX_VALUE), size);
         } else {
             // cursor-based: from is always 0, searchAfter may be null (first page) or a rule ID
-            return new GetSynonymsAction.Request(synonymsSetId, size, randomBoolean() ? null : randomIdentifier());
+            return new GetSynonymsAction.Request(synonymsSetId, randomBoolean() ? null : randomIdentifier(), size);
         }
     }
 
@@ -57,7 +59,7 @@ public class GetSynonymsActionRequestSerializingTests extends AbstractWireSerial
                 case 2 -> searchAfter = randomValueOtherThan(searchAfter, () -> randomBoolean() ? null : randomIdentifier());
                 default -> throw new AssertionError("Illegal randomisation branch");
             }
-            return new GetSynonymsAction.Request(synonymsSetId, size, searchAfter);
+            return new GetSynonymsAction.Request(synonymsSetId, searchAfter, size);
         }
     }
 
@@ -65,16 +67,22 @@ public class GetSynonymsActionRequestSerializingTests extends AbstractWireSerial
         int overLimit = randomIntBetween(10_001, Integer.MAX_VALUE);
 
         // cursor-based request with size over the limit
-        var cursorRequest = new GetSynonymsAction.Request("my-set", overLimit, (String) null);
-        assertNotNull("expected validation error for size=" + overLimit, cursorRequest.validate());
+        var cursorRequest = new GetSynonymsAction.Request("my-set", (String) null, overLimit);
+        var cursorValidation = cursorRequest.validate();
+        assertNotNull("expected validation error for size=" + overLimit, cursorValidation);
+        assertThat(cursorValidation.getMessage(), containsString("[size] must be less than or equal to 10000"));
 
         // legacy offset-based request with size over the limit
         var legacyRequest = new GetSynonymsAction.Request("my-set", 0, overLimit);
-        assertNotNull("expected validation error for size=" + overLimit, legacyRequest.validate());
+        var legacyValidation = legacyRequest.validate();
+        assertNotNull("expected validation error for size=" + overLimit, legacyValidation);
+        assertThat(legacyValidation.getMessage(), containsString("[size] must be less than or equal to 10000"));
     }
 
     public void testValidationRejectsNegativeFrom() {
         var request = new GetSynonymsAction.Request("my-set", randomIntBetween(-1000, -1), randomIntBetween(0, 10));
-        assertNotNull(request.validate());
+        var validation = request.validate();
+        assertNotNull(validation);
+        assertThat(validation.getMessage(), containsString("[from] must be a positive integer"));
     }
 }

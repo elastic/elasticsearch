@@ -129,9 +129,9 @@ public abstract class AbstractSynonymsPagedResultAction<T extends ActionResponse
      */
     public abstract static class AbstractPagedResultResponse<T extends Writeable> extends ActionResponse implements ToXContentObject {
 
-        protected final Writeable[] resultList;
+        private final Writeable[] resultList;
 
-        protected final long totalCount;
+        private final long totalCount;
 
         protected abstract String resultFieldName();
 

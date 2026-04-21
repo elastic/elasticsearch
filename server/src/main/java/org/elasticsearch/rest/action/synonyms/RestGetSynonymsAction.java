@@ -41,21 +41,21 @@ public class RestGetSynonymsAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
+        if (restRequest.hasParam("from") && restRequest.hasParam("search_after")) {
+            throw new IllegalArgumentException("[from] and [search_after] cannot be used together");
+        }
         String synonymsSet = restRequest.param("synonymsSet");
         int size = restRequest.paramAsInt("size", DEFAULT_SIZE_PARAM);
         int from = restRequest.paramAsInt("from", DEFAULT_FROM_PARAM);
         String searchAfterRaw = restRequest.param("search_after");
         String searchAfter = (searchAfterRaw == null || searchAfterRaw.isBlank()) ? null : searchAfterRaw;
-        if (restRequest.hasParam("from") && searchAfter != null) {
-            throw new IllegalArgumentException("[from] and [search_after] cannot be used together");
-        }
         GetSynonymsAction.Request request;
         if (from != 0) {
             // Legacy offset-based pagination (also catches negative from, which validation will reject)
             request = new GetSynonymsAction.Request(synonymsSet, from, size);
         } else {
             // Cursor-based pagination: searchAfter is null on the first page
-            request = new GetSynonymsAction.Request(synonymsSet, size, searchAfter);
+            request = new GetSynonymsAction.Request(synonymsSet, searchAfter, size);
         }
         return channel -> client.execute(GetSynonymsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

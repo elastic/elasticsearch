@@ -468,6 +468,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
   method: test {csv-spec:external-basic.filterByEmployeeNumber [LOCAL]}
   issue: https://github.com/elastic/elasticsearch/issues/147016
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:exponential_histogram.All aggs grouped by TBucket and Instance (time series mode)}
+  issue: https://github.com/elastic/elasticsearch/issues/147020
 
 # Examples:
 #

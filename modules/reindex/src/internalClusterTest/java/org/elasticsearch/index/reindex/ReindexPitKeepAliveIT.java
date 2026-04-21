@@ -9,25 +9,23 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.action.support.ActionFilter;
+import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.plugins.NetworkPlugin;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.reindex.TransportReindexAction;
 import org.elasticsearch.rest.root.MainRestPlugin;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportInterceptor;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportResponseHandler;
+import org.junit.After;
 
 import java.util.Collection;
 import java.util.List;
@@ -36,6 +34,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -44,34 +43,32 @@ import static org.hamcrest.Matchers.equalTo;
 @ESIntegTestCase.ClusterScope(numDataNodes = 1, numClientNodes = 0)
 public class ReindexPitKeepAliveIT extends ESIntegTestCase {
 
-    /** Captured keep-alive from the last open-PIT transport request observed on this node (inter-node traffic). */
+    /**
+     * Captured keep-alive from the last {@link OpenPointInTimeRequest} executed on this JVM (local actions bypass transport handlers).
+     */
     public static final AtomicReference<TimeValue> LAST_OPEN_PIT_KEEP_ALIVE = new AtomicReference<>();
 
-    public static final class OpenPitKeepAliveCapturingPlugin extends Plugin implements NetworkPlugin {
+    public static final class OpenPitKeepAliveCapturingPlugin extends Plugin implements ActionPlugin {
         @Override
-        public List<TransportInterceptor> getTransportInterceptors(
-            NamedWriteableRegistry namedWriteableRegistry,
-            ThreadContext threadContext
-        ) {
-            return List.of(new TransportInterceptor() {
+        public List<ActionFilter> getActionFilters() {
+            return List.of(new ActionFilter() {
                 @Override
-                public AsyncSender interceptSender(AsyncSender sender) {
-                    return new AsyncSender() {
-                        @Override
-                        public <T extends TransportResponse> void sendRequest(
-                            Transport.Connection connection,
-                            String action,
-                            TransportRequest request,
-                            TransportRequestOptions options,
-                            TransportResponseHandler<T> handler
-                        ) {
-                            if (TransportOpenPointInTimeAction.TYPE.name().equals(action)
-                                && request instanceof OpenPointInTimeRequest openPit) {
-                                LAST_OPEN_PIT_KEEP_ALIVE.set(openPit.keepAlive());
-                            }
-                            sender.sendRequest(connection, action, request, options, handler);
-                        }
-                    };
+                public int order() {
+                    return Integer.MIN_VALUE;
+                }
+
+                @Override
+                public <Request extends ActionRequest, Response extends ActionResponse> void apply(
+                    Task task,
+                    String action,
+                    Request request,
+                    ActionListener<Response> listener,
+                    ActionFilterChain<Request, Response> chain
+                ) {
+                    if (TransportOpenPointInTimeAction.TYPE.name().equals(action) && request instanceof OpenPointInTimeRequest openPit) {
+                        LAST_OPEN_PIT_KEEP_ALIVE.set(openPit.keepAlive());
+                    }
+                    chain.proceed(task, action, request, listener);
                 }
             });
         }
@@ -96,13 +93,12 @@ public class ReindexPitKeepAliveIT extends ESIntegTestCase {
     }
 
     @Override
+    @After
     public void tearDown() throws Exception {
         try {
             assertAcked(
                 clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
-                    .setPersistentSettings(
-                        Settings.builder().putNull(ReindexPlugin.REINDEX_PIT_KEEP_ALIVE_SETTING.getKey()).build()
-                    )
+                    .setPersistentSettings(Settings.builder().putNull(ReindexPlugin.REINDEX_PIT_KEEP_ALIVE_SETTING.getKey()).build())
             );
         } finally {
             LAST_OPEN_PIT_KEEP_ALIVE.set(null);
@@ -110,22 +106,17 @@ public class ReindexPitKeepAliveIT extends ESIntegTestCase {
         }
     }
 
-    public void testPersistentClusterSettingControlsLocalReindexOpenPitKeepAlive() throws Exception {
+    public void testClusterSettingControlsLocalReindexOpenPitKeepAlive() throws Exception {
         assumeTrue("reindex PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
-        final TimeValue configured = TimeValue.timeValueMinutes(16);
+        final TimeValue configured = TimeValue.timeValueMinutes(randomIntBetween(10, 20));
         assertAcked(
             clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                 .setPersistentSettings(
-                    Settings.builder()
-                        .put(ReindexPlugin.REINDEX_PIT_KEEP_ALIVE_SETTING.getKey(), configured.getStringRep())
-                        .build()
+                    Settings.builder().put(ReindexPlugin.REINDEX_PIT_KEEP_ALIVE_SETTING.getKey(), configured.getStringRep()).build()
                 )
         );
-        assertThat(
-            clusterService().getClusterSettings().get(ReindexPlugin.REINDEX_PIT_KEEP_ALIVE_SETTING),
-            equalTo(configured)
-        );
+        assertThat(clusterService().getClusterSettings().get(ReindexPlugin.REINDEX_PIT_KEEP_ALIVE_SETTING), equalTo(configured));
 
         LAST_OPEN_PIT_KEEP_ALIVE.set(null);
 
@@ -135,15 +126,17 @@ public class ReindexPitKeepAliveIT extends ESIntegTestCase {
         assertAcked(prepareCreate(dest).get());
         final int numDocs = between(1, 20);
         indexRandom(true, source, numDocs);
+        assertNoFailures(indicesAdmin().prepareRefresh(source).get());
 
         final ReindexRequest reindexRequest = new ReindexRequest().setSourceIndices(source).setDestIndex(dest);
-        reindexRequest.setScroll(TimeValue.timeValueHours(3));
+        reindexRequest.setScroll(TimeValue.timeValueMinutes(randomIntBetween(0, 5)));
 
         BulkByScrollResponse reindexResponse = client().execute(ReindexAction.INSTANCE, reindexRequest).actionGet();
         assertThat(reindexResponse.getSearchFailures().size(), equalTo(0));
         assertThat(reindexResponse.getBulkFailures().size(), equalTo(0));
+        assertThat(reindexResponse.getCreated(), equalTo((long) numDocs));
 
-        assertBusy(() -> assertThat(LAST_OPEN_PIT_KEEP_ALIVE.get(), equalTo(configured)));
-        assertHitCount(prepareSearch(dest).setSize(0), numDocs);
+        assertThat(LAST_OPEN_PIT_KEEP_ALIVE.get(), equalTo(configured));
+        assertBusy(() -> assertHitCount(prepareSearch(dest).setSize(0).setTrackTotalHits(true), numDocs));
     }
 }

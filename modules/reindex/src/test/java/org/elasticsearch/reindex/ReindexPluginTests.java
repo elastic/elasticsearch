@@ -35,10 +35,7 @@ public class ReindexPluginTests extends ESTestCase {
     }
 
     public void testReindexPitKeepAliveDefault() {
-        assertThat(
-            ReindexPlugin.REINDEX_PIT_KEEP_ALIVE_SETTING.get(Settings.EMPTY),
-            equalTo(TimeValue.timeValueMinutes(5))
-        );
+        assertThat(ReindexPlugin.REINDEX_PIT_KEEP_ALIVE_SETTING.get(Settings.EMPTY), equalTo(TimeValue.timeValueMinutes(5)));
     }
 
     public void testReindexPitKeepAliveAcceptsMinAndMax() {

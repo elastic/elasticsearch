@@ -338,7 +338,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         if (Strings.isNullOrEmpty(clusterAlias)) {
             clusterAlias = ProjectRoutingResolver.ORIGIN;
         } else {
-            // We can't resolve remotes on remote cluster
+            // We can't resolve remotes on remote cluster - and this should be only non-empty on MRT=false where this
+            // method is not run on the remote side.
             assert remoteShardIterators.isEmpty() : "Unexpected: trying to resolve remote indices on remote cluster [" + clusterAlias + "]";
         }
         Map<String, Float> concreteIndexBoosts = new HashMap<>();
@@ -772,7 +773,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 original.getLocalClusterAlias(),
                 resolvedIndices,
                 original.pointInTimeBuilder(),
-
                 shouldMinimizeRoundtrips(original),
                 isExplain,
                 isProfile,
@@ -1923,9 +1923,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
         }
 
-        // Fan-out CCS (ccs_minimize_roundtrips=false): the merged search runs on the querying cluster with no
-        // SearchRequest#localClusterAlias, so resolveIndexBoosts only maps local index UUIDs. Remote shard scores do not
-        // receive cluster-qualified indices_boost entries from the coordinator; use ccs_minimize_roundtrips=true instead.
         IndexBoosts concreteIndexBoosts = resolveIndexBoosts(searchRequest, projectState.cluster(), remoteShardIterators);
 
         adjustSearchType(searchRequest, shardIterators.size() == 1);

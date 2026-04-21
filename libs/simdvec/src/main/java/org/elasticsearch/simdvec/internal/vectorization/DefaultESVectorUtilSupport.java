@@ -575,4 +575,12 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
             result[j] = MathUtils.pow2NQT((a + v1[j] - v2[j]) / eps);
         }
     }
+
+    @Override
+    public void decodeMultiByteLongs(byte[] in, int bytesPerValue, long[] out, int count) {
+        long mask = (1L << (bytesPerValue << 3)) - 1;
+        for (int i = 0, byteOffset = 0; i < count; i++, byteOffset += bytesPerValue) {
+            out[i] = (long) BitUtil.VH_LE_LONG.get(in, byteOffset) & mask;
+        }
+    }
 }

@@ -105,4 +105,12 @@ public interface ESVectorUtilSupport {
     float logSumExpNQTDiff(float[] v1, float[] v2, float eps);
 
     void pow2DiffAndScaleNQT(float[] v1, float[] v2, float a, float eps, float[] result);
+
+    /**
+     * Decodes {@code count} values packed as {@code bytesPerValue} little-endian bytes each from
+     * {@code in} into {@code out}. {@code bytesPerValue} must be 5, 6, or 7.
+     * The caller must ensure {@code in} has at least {@code count * bytesPerValue} readable bytes
+     * and {@code out} has at least {@code count} elements.
+     */
+    void decodeMultiByteLongs(byte[] in, int bytesPerValue, long[] out, int count);
 }

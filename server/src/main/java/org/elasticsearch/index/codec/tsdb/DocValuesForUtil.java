@@ -13,6 +13,7 @@ import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.index.codec.ForUtil;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 
@@ -94,11 +95,8 @@ public final class DocValuesForUtil {
     private void decodeFiveSixOrSevenBytesPerValue(int bitsPerValue, final DataInput in, long[] out) throws IOException {
         // NOTE: we expect multibyte values to be written "least significant byte" first
         int bytesPerValue = bitsPerValue / Byte.SIZE;
-        long mask = (1L << bitsPerValue) - 1;
         in.readBytes(this.encoded, 0, bytesPerValue * blockSize);
-        for (int i = 0; i < blockSize; ++i) {
-            out[i] = ByteUtils.readLongLE(this.encoded, i * bytesPerValue) & mask;
-        }
+        ESVectorUtil.decodeMultiByteLongs(this.encoded, bytesPerValue, out, blockSize);
     }
 
     private static void collapse32(long[] arr, int offset) {

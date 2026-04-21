@@ -543,6 +543,14 @@ public class ESVectorUtil {
     }
 
     /**
+     * Decodes {@code count} values packed as {@code bytesPerValue} little-endian bytes each from
+     * {@code in} into {@code out}. {@code bytesPerValue} must be 5, 6, or 7.
+     */
+    public static void decodeMultiByteLongs(byte[] in, int bytesPerValue, long[] out, int count) {
+        IMPL.decodeMultiByteLongs(in, bytesPerValue, out, count);
+    }
+
+    /**
      * Count the number of Unicode code points in a utf-8 encoded string. Assumes that the input
      * string is correctly encoded. If the input string is incorrectly encoded, no errors will be
      * thrown, but invalid results will be returned.

@@ -16,6 +16,7 @@ import jdk.incubator.vector.LongVector;
 import jdk.incubator.vector.VectorMask;
 import jdk.incubator.vector.VectorOperators;
 import jdk.incubator.vector.VectorShape;
+import jdk.incubator.vector.VectorShuffle;
 import jdk.incubator.vector.VectorSpecies;
 
 import org.apache.lucene.util.BitUtil;
@@ -42,8 +43,46 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
     private static final VectorSpecies<Float> FLOAT_SPECIES = PanamaVectorConstants.PREFERRED_FLOAT_SPECIES;
     private static final VectorSpecies<Integer> INTEGER_SPECIES = PanamaVectorConstants.PREFERRED_INTEGER_SPECIES;
+    private static final VectorSpecies<Long> LONG_SPECIES = PanamaVectorConstants.PREFERRED_LONG_SPECIES;
     /** Whether integer vectors can be trusted to actually be fast. */
     static final boolean HAS_FAST_INTEGER_VECTORS = PanamaVectorConstants.ENABLE_INTEGER_VECTORS;
+
+    // For the byte-shuffle decode, VPSHUFB on x86 only shuffles within each 128-bit lane.
+    // Our shuffle indices for 5/6/7 bytes-per-value cross that lane boundary in a 256-bit vector
+    // (e.g. for bpv=5, output lane 2 at bytes 16-23 needs source bytes 10-14 from the lower half).
+    // On 512-bit machines VPERMB handles arbitrary cross-lane byte permutation in one instruction,
+    // so using the full-width species is fine. On 256-bit (AVX2-only) machines we fall back to
+    // 128-bit vectors where all source indices are guaranteed within-lane (max index = 1*7+6 = 13 < 16).
+    private static final VectorSpecies<Byte> DECODE_BYTE_SPECIES = VECTOR_BITSIZE >= 512
+        ? PanamaVectorConstants.PREFERRED_BYTE_SPECIES
+        : ByteVector.SPECIES_128;
+    private static final VectorSpecies<Long> DECODE_LONG_SPECIES = VECTOR_BITSIZE >= 512
+        ? LONG_SPECIES
+        : LongVector.SPECIES_128;
+    private static final int DECODE_LONG_LANE_COUNT = DECODE_LONG_SPECIES.length();
+
+    // Per-bpv byte-shuffle that gathers source bytes into the low bytes of each 8-byte long lane.
+    // Invalid high bytes within each lane point to index 0 (a safe dummy); the AND mask cleans them.
+    private static final VectorShuffle<Byte> DECODE_SHUFFLE_5 = buildDecodeShuffleMask(5);
+    private static final VectorShuffle<Byte> DECODE_SHUFFLE_6 = buildDecodeShuffleMask(6);
+    private static final VectorShuffle<Byte> DECODE_SHUFFLE_7 = buildDecodeShuffleMask(7);
+    private static final LongVector DECODE_MASK_5 = LongVector.broadcast(DECODE_LONG_SPECIES, (1L << 40) - 1);
+    private static final LongVector DECODE_MASK_6 = LongVector.broadcast(DECODE_LONG_SPECIES, (1L << 48) - 1);
+    private static final LongVector DECODE_MASK_7 = LongVector.broadcast(DECODE_LONG_SPECIES, (1L << 56) - 1);
+
+    private static VectorShuffle<Byte> buildDecodeShuffleMask(int bytesPerValue) {
+        int laneCount = DECODE_LONG_LANE_COUNT;
+        int[] indices = new int[laneCount * Long.BYTES];
+        for (int lane = 0; lane < laneCount; lane++) {
+            for (int b = 0; b < Long.BYTES; b++) {
+                // Valid bytes: map to the correct source position in the packed input.
+                // Padding bytes (b >= bytesPerValue): map to index 0 as a harmless dummy;
+                // the subsequent AND with DECODE_MASK_N zeros them in the long output.
+                indices[lane * Long.BYTES + b] = b < bytesPerValue ? lane * bytesPerValue + b : 0;
+            }
+        }
+        return VectorShuffle.fromValues(DECODE_BYTE_SPECIES, indices);
+    }
 
     static final boolean SUPPORTS_NATIVE_VECTORS = NativeAccess.instance().getVectorSimilarityFunctions().isPresent();
 
@@ -1267,6 +1306,33 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
             }
         }
         return true;
+    }
+
+    @Override
+    public void decodeMultiByteLongs(byte[] in, int bytesPerValue, long[] out, int count) {
+        final VectorShuffle<Byte> shuffle;
+        final LongVector mask;
+        switch (bytesPerValue) {
+            case 5 -> { shuffle = DECODE_SHUFFLE_5; mask = DECODE_MASK_5; }
+            case 6 -> { shuffle = DECODE_SHUFFLE_6; mask = DECODE_MASK_6; }
+            case 7 -> { shuffle = DECODE_SHUFFLE_7; mask = DECODE_MASK_7; }
+            default -> throw new AssertionError("unexpected bytesPerValue: " + bytesPerValue);
+        }
+        int vecInBytes = DECODE_LONG_LANE_COUNT * bytesPerValue;
+        int outOffset = 0;
+        int inOffset = 0;
+        for (; outOffset + DECODE_LONG_LANE_COUNT <= count; outOffset += DECODE_LONG_LANE_COUNT, inOffset += vecInBytes) {
+            ByteVector.fromArray(DECODE_BYTE_SPECIES, in, inOffset)
+                .rearrange(shuffle)
+                .reinterpretAsLongs()
+                .and(mask)
+                .intoArray(out, outOffset);
+        }
+        // scalar tail (runs only when count is not a multiple of DECODE_LONG_LANE_COUNT)
+        long longMask = mask.lane(0);
+        for (; outOffset < count; outOffset++, inOffset += bytesPerValue) {
+            out[outOffset] = (long) BitUtil.VH_LE_LONG.get(in, inOffset) & longMask;
+        }
     }
 
     @Override

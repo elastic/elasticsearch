@@ -444,18 +444,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
   method: test {csv-spec:external-basic.lookupJoin [HTTP]}
   issue: https://github.com/elastic/elasticsearch/issues/147055
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=mget/90_synthetic_source/keyword with normalizer and skip store original value}
-  issue: https://github.com/elastic/elasticsearch/issues/147056
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=indices.simulate_index_template/10_basic/Simulate index template with data stream with mapping and setting overrides}
-  issue: https://github.com/elastic/elasticsearch/issues/147057
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=get/100_synthetic_source/fields with ignore_malformed}
-  issue: https://github.com/elastic/elasticsearch/issues/147059
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=mget/90_synthetic_source/keyword with built-in normalizer}
-  issue: https://github.com/elastic/elasticsearch/issues/147060
 - class: org.elasticsearch.reindex.management.ReindexManagementClientYamlTestSuiteIT
   method: test {yaml=reindex/30_cancel_reindex/Cancel running reindex returns response and GET confirms completed}
   issue: https://github.com/elastic/elasticsearch/issues/146314
@@ -471,6 +459,45 @@ tests:
 - class: org.elasticsearch.xpack.esql.datasources.ExternalSourceDrainUtilsTests
   method: testCancellationWhileWaitingOnWaitForSpace
   issue: https://github.com/elastic/elasticsearch/issues/147073
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search/395_binary_doc_values_search/*}
+  issue: https://github.com/elastic/elasticsearch/issues/147064
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=get/100_synthetic_source/fields with ignore_malformed}
+  issue: https://github.com/elastic/elasticsearch/issues/147064
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=mget/90_synthetic_source/keyword with normalizer and skip store original value}
+  issue: https://github.com/elastic/elasticsearch/issues/147064
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=mget/90_synthetic_source/keyword with built-in normalizer}
+  issue: https://github.com/elastic/elasticsearch/issues/147064
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=mget/90_synthetic_source/keyword with non-lowercase normalizer}
+  issue: https://github.com/elastic/elasticsearch/issues/147064
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=mapping/20_synthetic_source/synthetic_source text with ignored multi-field and multiple values in the same doc}
+  issue: https://github.com/elastic/elasticsearch/issues/147064
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=mapping/20_synthetic_source/synthetic_source text with normalized keyword with default skip store original value}
+  issue: https://github.com/elastic/elasticsearch/issues/147064
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=mapping/20_synthetic_source/synthetic_source text with normalized keyword with skip store original value}
+  issue: https://github.com/elastic/elasticsearch/issues/147064
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=mapping/20_synthetic_source/synthetic_source text with normalized keyword with store original value}
+  issue: https://github.com/elastic/elasticsearch/issues/147064
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=logsdb/10_settings/override sort mode settings}
+  issue: https://github.com/elastic/elasticsearch/issues/147064
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=logsdb/10_settings/override sort order settings}
+  issue: https://github.com/elastic/elasticsearch/issues/147064
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=logsdb/10_settings/override sort missing settings}
+  issue: https://github.com/elastic/elasticsearch/issues/147064
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=indices.simulate_index_template/10_basic/Simulate index template with data stream with mapping and setting overrides}
+  issue: https://github.com/elastic/elasticsearch/issues/147064
 
 # Examples:
 #

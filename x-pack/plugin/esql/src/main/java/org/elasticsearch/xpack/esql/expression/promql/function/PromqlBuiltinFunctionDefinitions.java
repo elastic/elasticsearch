@@ -89,10 +89,7 @@ class PromqlBuiltinFunctionDefinitions {
 
     static final PromqlFunctionDefinition DAYS_IN_MONTH = PromqlFunctionDefinition.def()
         .dateTime(
-            (source, date, configuration) -> new ToDouble(
-                source,
-                new DaysInMonth(source, date, configuration.withZoneId(ZoneOffset.UTC))
-            )
+            (source, date, configuration) -> new ToDouble(source, new DaysInMonth(source, date, configuration.withZoneId(ZoneOffset.UTC)))
         )
         .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
         .description("returns the number of days in the month of each of those timestamps (in UTC)")

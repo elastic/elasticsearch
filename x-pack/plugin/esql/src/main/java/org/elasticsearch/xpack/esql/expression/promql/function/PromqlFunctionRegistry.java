@@ -40,7 +40,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Clamp
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToRadians;
-import org.elasticsearch.xpack.esql.expression.function.scalar.date.DaysInMonth;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acosh;

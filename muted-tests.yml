@@ -468,6 +468,9 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search.vectors/260_knn_lookup_query_builder/Test lookup base64 query vector builder with exclude_source_vectors true}
   issue: https://github.com/elastic/elasticsearch/issues/147070
+- class: org.elasticsearch.xpack.esql.datasources.ExternalSourceDrainUtilsTests
+  method: testCancellationWhileWaitingOnWaitForSpace
+  issue: https://github.com/elastic/elasticsearch/issues/147073
 
 # Examples:
 #

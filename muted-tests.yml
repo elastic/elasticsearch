@@ -262,9 +262,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=mget/60_realtime_refresh/Realtime Refresh}
   issue: https://github.com/elastic/elasticsearch/issues/146410
-- class: org.elasticsearch.index.reindex.ReindexClientYamlTestSuiteIT
-  method: test {yaml=reindex/10_basic/Response format for version conflict with conflicts=proceed}
-  issue: https://github.com/elastic/elasticsearch/issues/146419
 - class: org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SubstituteRoundToGoldenTests
   method: testDateTruncNotTransformToQueryAndTags
   issue: https://github.com/elastic/elasticsearch/issues/146458
@@ -289,9 +286,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeUnmappedLoadIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/145900
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=aggregations/sig_terms/Test background filter count}
-  issue: https://github.com/elastic/elasticsearch/issues/146599
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=reindex/10_basic/Response format for updated}
   issue: https://github.com/elastic/elasticsearch/issues/146607
@@ -444,6 +438,33 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
   method: test {csv-spec:k8s-timeseries-promql.day_of_week_sunday}
   issue: https://github.com/elastic/elasticsearch/issues/146958
+- class: org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests
+  method: testMinimalToMaximal {p0=true p1=ENTERPRISE}
+  issue: https://github.com/elastic/elasticsearch/issues/146966
+- class: org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests
+  method: testMinimalToMaximal {p0=true p1=BASIC}
+  issue: https://github.com/elastic/elasticsearch/issues/146967
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/146553
+- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
+  method: test {csv-spec:external-basic.filterByEmploymentStatus [GCS]}
+  issue: https://github.com/elastic/elasticsearch/issues/146982
+- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
+  method: test {csv-spec:external-basic.dropColumn [GCS]}
+  issue: https://github.com/elastic/elasticsearch/issues/146983
+- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
+  method: test {csv-spec:external-basic.selectSpecificColumns [HTTP]}
+  issue: https://github.com/elastic/elasticsearch/issues/146985
+- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
+  method: test {csv-spec:external-basic.sampleWithStats [HTTP]}
+  issue: https://github.com/elastic/elasticsearch/issues/146990
+- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
+  method: test {csv-spec:external-basic.mvCountFromSplit [S3]}
+  issue: https://github.com/elastic/elasticsearch/issues/146991
+- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
+  method: test {csv-spec:external-basic.selectAdditionalColumns [GCS]}
+  issue: https://github.com/elastic/elasticsearch/issues/146993
 
 # Examples:
 #

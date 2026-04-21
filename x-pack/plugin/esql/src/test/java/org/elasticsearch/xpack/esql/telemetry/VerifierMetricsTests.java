@@ -34,6 +34,7 @@ import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.GROK;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.INLINE_STATS;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.KEEP;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LIMIT;
+import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LIMIT_BY;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LOOKUP_JOIN;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LOOKUP_JOIN_ON_EXPRESSION;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.MV_EXPAND;
@@ -56,6 +57,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, eval(c));
         assertEquals(0, grok(c));
         assertEquals(0, limit(c));
+        assertEquals(0, limitBy(c));
         assertEquals(0, sort(c));
         assertEquals(0, stats(c));
         assertEquals(0, promql(c));
@@ -82,6 +84,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(1L, eval(c));
         assertEquals(0, grok(c));
         assertEquals(0, limit(c));
+        assertEquals(0, limitBy(c));
         assertEquals(0, sort(c));
         assertEquals(0, stats(c));
         assertEquals(0, promql(c));
@@ -108,6 +111,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, eval(c));
         assertEquals(1L, grok(c));
         assertEquals(0, limit(c));
+        assertEquals(0, limitBy(c));
         assertEquals(0, sort(c));
         assertEquals(0, stats(c));
         assertEquals(0, promql(c));
@@ -134,7 +138,34 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, eval(c));
         assertEquals(0, grok(c));
         assertEquals(1L, limit(c));
+        assertEquals(0, limitBy(c));
         assertEquals(0, sort(c));
+        assertEquals(0, stats(c));
+        assertEquals(0, promql(c));
+        assertEquals(0, where(c));
+        assertEquals(0, enrich(c));
+        assertEquals(0, mvExpand(c));
+        assertEquals(0, show(c));
+        assertEquals(0, row(c));
+        assertEquals(1L, from(c));
+        assertEquals(0, ts(c));
+        assertEquals(0, drop(c));
+        assertEquals(0, keep(c));
+        assertEquals(0, rename(c));
+        assertEquals(0, lookupJoinOnFields(c));
+        assertEquals(0, lookupJoinOnExpression(c));
+        assertEquals(0, inlineStats(c));
+        assertEquals(0, subqueryInFromCommand(c));
+    }
+
+    public void testLimitByQuery() {
+        Counters c = esql("from employees | sort first_name | limit 3 by gender");
+        assertEquals(0, dissect(c));
+        assertEquals(0, eval(c));
+        assertEquals(0, grok(c));
+        assertEquals(0, limit(c));
+        assertEquals(1L, limitBy(c));
+        assertEquals(1L, sort(c));
         assertEquals(0, stats(c));
         assertEquals(0, promql(c));
         assertEquals(0, where(c));
@@ -159,6 +190,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, eval(c));
         assertEquals(0, grok(c));
         assertEquals(0, limit(c));
+        assertEquals(0, limitBy(c));
         assertEquals(1L, sort(c));
         assertEquals(0, stats(c));
         assertEquals(0, promql(c));
@@ -184,6 +216,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, eval(c));
         assertEquals(0, grok(c));
         assertEquals(0, limit(c));
+        assertEquals(0, limitBy(c));
         assertEquals(0, sort(c));
         assertEquals(1L, stats(c));
         assertEquals(0, promql(c));
@@ -210,6 +243,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, eval(c));
         assertEquals(0, grok(c));
         assertEquals(0, limit(c));
+        assertEquals(0, limitBy(c));
         assertEquals(0, sort(c));
         assertEquals(0, stats(c));
         assertEquals(0, promql(c));
@@ -235,6 +269,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, eval(c));
         assertEquals(0, grok(c));
         assertEquals(1L, limit(c));
+        assertEquals(0, limitBy(c));
         assertEquals(1L, sort(c));
         assertEquals(0, stats(c));
         assertEquals(0, promql(c));
@@ -280,6 +315,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(1L, eval(c));
         assertEquals(1L, grok(c));
         assertEquals(1L, limit(c));
+        assertEquals(0, limitBy(c));
         assertEquals(2L, sort(c));
         assertEquals(1L, stats(c));
         assertEquals(0, promql(c));
@@ -369,6 +405,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(1L, eval(c));
         assertEquals(0, grok(c));
         assertEquals(1L, limit(c));
+        assertEquals(0, limitBy(c));
         assertEquals(1L, sort(c));
         assertEquals(0, stats(c));
         assertEquals(0, promql(c));
@@ -404,6 +441,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, eval(c));
         assertEquals(0, grok(c));
         assertEquals(1L, limit(c));
+        assertEquals(0, limitBy(c));
         assertEquals(0, sort(c));
         assertEquals(0, stats(c));
         assertEquals(0, promql(c));
@@ -429,6 +467,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, eval(c));
         assertEquals(0, grok(c));
         assertEquals(0, limit(c));
+        assertEquals(0, limitBy(c));
         assertEquals(0, sort(c));
         assertEquals(1L, stats(c));
         assertEquals(0, promql(c));
@@ -455,6 +494,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, eval(c));
         assertEquals(0, grok(c));
         assertEquals(0, limit(c));
+        assertEquals(0, limitBy(c));
         assertEquals(0, sort(c));
         assertEquals(0, stats(c));
         assertEquals(0, promql(c));
@@ -480,6 +520,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, eval(c));
         assertEquals(0, grok(c));
         assertEquals(0, limit(c));
+        assertEquals(0, limitBy(c));
         assertEquals(1L, sort(c));
         assertEquals(1L, stats(c));
         assertEquals(0, promql(c));
@@ -511,6 +552,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, eval(c));
         assertEquals(0, grok(c));
         assertEquals(0, limit(c));
+        assertEquals(0, limitBy(c));
         assertEquals(0, sort(c));
         assertEquals(0, stats(c));
         assertEquals(0, promql(c));
@@ -540,6 +582,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, eval(c));
         assertEquals(0, grok(c));
         assertEquals(0, limit(c));
+        assertEquals(0, limitBy(c));
         assertEquals(0, sort(c));
         assertEquals(1L, stats(c));
         assertEquals(0, promql(c));
@@ -571,6 +614,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, eval(c));
         assertEquals(0, grok(c));
         assertEquals(0, limit(c));
+        assertEquals(0, limitBy(c));
         assertEquals(0, sort(c));
         assertEquals(0, stats(c));
         assertEquals(0, promql(c));
@@ -602,6 +646,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, eval(c));
         assertEquals(0, grok(c));
         assertEquals(0, limit(c));
+        assertEquals(0, limitBy(c));
         assertEquals(0, sort(c));
         assertEquals(1L, stats(c));
         assertEquals(0, promql(c));
@@ -632,6 +677,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(1L, eval(c));
         assertEquals(0, grok(c));
         assertEquals(0, limit(c));
+        assertEquals(0, limitBy(c));
         assertEquals(0, sort(c));
         assertEquals(1L, stats(c));
         assertEquals(0, promql(c));
@@ -667,6 +713,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(1L, eval(c));
         assertEquals(0, grok(c));
         assertEquals(0, limit(c));
+        assertEquals(0, limitBy(c));
         assertEquals(0, sort(c));
         assertEquals(1L, stats(c));
         assertEquals(0, promql(c));
@@ -698,6 +745,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(1L, eval(c));
         assertEquals(0, grok(c));
         assertEquals(0, limit(c));
+        assertEquals(0, limitBy(c));
         assertEquals(0, sort(c));
         assertEquals(0, stats(c));
         assertEquals(0, promql(c));
@@ -727,6 +775,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, eval(c));
         assertEquals(0, grok(c));
         assertEquals(0, limit(c));
+        assertEquals(0, limitBy(c));
         assertEquals(0, sort(c));
         assertEquals(1L, stats(c));
         assertEquals(0, promql(c));
@@ -757,6 +806,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, eval(c));
         assertEquals(0, grok(c));
         assertEquals(0, limit(c));
+        assertEquals(0, limitBy(c));
         assertEquals(0, sort(c));
         assertEquals(0, stats(c));
         assertEquals(0, promql(c));
@@ -789,6 +839,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(1L, eval(c));
         assertEquals(0, grok(c));
         assertEquals(0, limit(c));
+        assertEquals(0, limitBy(c));
         assertEquals(0, sort(c));
         assertEquals(1L, stats(c));
         assertEquals(0, promql(c));
@@ -817,6 +868,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, eval(c));
         assertEquals(0, grok(c));
         assertEquals(0, limit(c));
+        assertEquals(0, limitBy(c));
         assertEquals(0, sort(c));
         assertEquals(0, stats(c));
         assertEquals(1, promql(c));
@@ -850,6 +902,10 @@ public class VerifierMetricsTests extends ESTestCase {
 
     private long limit(Counters c) {
         return c.get(FEATURES_PREFIX + LIMIT);
+    }
+
+    private long limitBy(Counters c) {
+        return c.get(FEATURES_PREFIX + LIMIT_BY);
     }
 
     private long sort(Counters c) {

@@ -182,6 +182,27 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                 ) },
             new Object[] {
                 new Test(
+                    """
+                        FROM idx
+                        | LIMIT 3 BY host
+                        """,
+                    Map.ofEntries(Map.entry("FROM", 1), Map.entry("LIMIT BY", 1)),
+                    Map.ofEntries(),
+                    true
+                ) },
+            new Object[] {
+                new Test(
+                    """
+                        FROM idx
+                        | SORT id
+                        | LIMIT 3 BY host
+                        """,
+                    Map.ofEntries(Map.entry("FROM", 1), Map.entry("SORT", 1), Map.entry("LIMIT BY", 1)),
+                    Map.ofEntries(),
+                    true
+                ) },
+            new Object[] {
+                new Test(
                     "TS time_series_idx | STATS max(cpu) BY host | LIMIT 10",
                     Map.ofEntries(Map.entry("TS", 1), Map.entry("STATS", 1), Map.entry("LIMIT", 1)),
                     Map.ofEntries(Map.entry("MAX", 1)),

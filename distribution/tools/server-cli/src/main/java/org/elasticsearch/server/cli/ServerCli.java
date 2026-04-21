@@ -302,7 +302,7 @@ class ServerCli extends EnvironmentAwareCommand {
 
     // protected to allow tests to override
     protected SecureSettingsLoader secureSettingsLoader(Environment env) {
-        String source = System.getenv().getOrDefault("ES_SECURE_SETTINGS_SOURCE", "keystore");
+        String source = System.getProperty("es.secure_settings.source", "keystore");
         return switch (source) {
             case "keystore" -> new KeyStoreLoader();
             case "file_settings" -> new FileSettingsClusterSecretsLoader();

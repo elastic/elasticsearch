@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.TimeValue;
@@ -17,6 +16,11 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
  * Utility for draining pages from a {@link CloseableIterator} into an {@link AsyncExternalSourceBuffer}
  * with backpressure. Uses blocking wait instead of spin-wait, relying on the buffer's
  * {@code notifyNotFull()} in {@code finish()} to wake producers when no more input is needed.
+ *
+ * <p>Buffer-space blocking uses {@link AsyncExternalSourceBuffer#awaitSpaceForProducer} (a timed condition wait
+ * on the buffer's not-full lock), not {@link org.elasticsearch.action.support.PlainActionFuture}, so a
+ * producer and a consumer on different threads of the same named pool (e.g. {@code esql_worker}) do not
+ * trip {@code PlainActionFuture}'s same-pool completion assertion.
  */
 public final class ExternalSourceDrainUtils {
 
@@ -30,12 +34,7 @@ public final class ExternalSourceDrainUtils {
 
     public static void drainPages(CloseableIterator<Page> pages, AsyncExternalSourceBuffer buffer, TimeValue timeout) {
         while (pages.hasNext() && buffer.noMoreInputs() == false) {
-            var spaceListener = buffer.waitForSpace();
-            if (spaceListener.isDone() == false) {
-                PlainActionFuture<Void> future = new PlainActionFuture<>();
-                spaceListener.addListener(future);
-                future.actionGet(timeout);
-            }
+            buffer.awaitSpaceForProducer(timeout);
             if (buffer.noMoreInputs()) {
                 break;
             }
@@ -64,12 +63,7 @@ public final class ExternalSourceDrainUtils {
             if (rowLimit != FormatReader.NO_LIMIT && totalRows >= rowLimit) {
                 break;
             }
-            var spaceListener = buffer.waitForSpace();
-            if (spaceListener.isDone() == false) {
-                PlainActionFuture<Void> future = new PlainActionFuture<>();
-                spaceListener.addListener(future);
-                future.actionGet(timeout);
-            }
+            buffer.awaitSpaceForProducer(timeout);
             if (buffer.noMoreInputs()) {
                 break;
             }

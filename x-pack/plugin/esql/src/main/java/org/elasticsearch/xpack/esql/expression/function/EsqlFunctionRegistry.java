@@ -596,6 +596,7 @@ public class EsqlFunctionRegistry {
                 PercentileOverTime.DEFINITION,
                 // dense vector functions
                 TextEmbedding.DEFINITION,
+                Embedding.DEFINITION,
                 CosineSimilarity.DEFINITION,
                 DotProduct.DEFINITION,
                 L1Norm.DEFINITION,
@@ -616,8 +617,7 @@ public class EsqlFunctionRegistry {
                 RangeMin.DEFINITION,
                 RangeWithin.DEFINITION,
                 ToDateRange.DEFINITION,
-                Sparkline.DEFINITION,
-                Embedding.DEFINITION } };
+                Sparkline.DEFINITION } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

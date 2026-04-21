@@ -257,8 +257,13 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             }
             assert bufferedBytes == buffer.size();
             final long offset = totalOffset;
+            try {
+                operation.writeToTranslogBuffer(buffer);
+            } catch (final RuntimeException e) {
+                closeWithTragicEvent(e);
+                throw e;
+            }
             totalOffset += operation.length();
-            operation.writeToTranslogBuffer(buffer);
 
             assert minSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
             assert maxSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;

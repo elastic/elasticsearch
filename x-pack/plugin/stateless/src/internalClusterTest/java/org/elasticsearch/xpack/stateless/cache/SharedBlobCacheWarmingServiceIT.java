@@ -18,6 +18,7 @@
 package org.elasticsearch.xpack.stateless.cache;
 
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.LogEvent;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -36,6 +37,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -1185,16 +1187,35 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
     }
 
     /**
-     * An {@link org.elasticsearch.test.MockLog.SeenEventExpectation} that ensure we've seen the log message
-     * indicating that the cache warming with the provided description has completed.
+     * Expects the cache warming completion line from {@link SharedBlobCacheWarmingService} (shard/merge warmers log
+     * {@code "{} {} warming completed in {} ms ..."}). Production code logs at DEBUG when the run is under 5s and at
+     * INFO otherwise, so we accept either level to avoid flaky CI on slow machines.
      */
     private static MockLog.LoggingExpectation expectCacheWarmingCompleteEvent(Type type) {
-        return new MockLog.SeenEventExpectation(
-            Strings.format("notifies that %s warming completed", type),
-            SharedBlobCacheWarmingService.class.getCanonicalName(),
-            Level.DEBUG,
-            Strings.format("* %s warming completed in *", type)
-        );
+        final String messagePattern = Strings.format("* %s warming completed in *", type);
+        final String loggerName = SharedBlobCacheWarmingService.class.getCanonicalName();
+        final String expectationName = Strings.format("notifies that %s warming completed", type);
+        return new MockLog.LoggingExpectation() {
+            private final CountDownLatch seenLatch = new CountDownLatch(1);
+
+            @Override
+            public void match(LogEvent event) {
+                if (event.getLoggerName().equals(loggerName) == false) {
+                    return;
+                }
+                if (event.getLevel() != Level.DEBUG && event.getLevel() != Level.INFO) {
+                    return;
+                }
+                if (Regex.simpleMatch(messagePattern, event.getMessage().getFormattedMessage())) {
+                    seenLatch.countDown();
+                }
+            }
+
+            @Override
+            public void assertMatched() {
+                assertThat("expected to see " + expectationName + " but did not", seenLatch.getCount(), equalTo(0L));
+            }
+        };
     }
 
     private static void shutdownNode(String indexNode) {

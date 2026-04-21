@@ -9,12 +9,14 @@ package org.elasticsearch.xpack.esql.expression.function.grouping;
 
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.View;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -228,6 +230,32 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             | SORT bucket
             """))) {
             assertThat(findColumn(response, "bucket").meta(), nullValue());
+        }
+    }
+
+    public void testTBucketGroupingColumnMetadata() {
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("ts-index")
+                .setSettings(Settings.builder().put("mode", "time_series").putList("routing_path", List.of("host")))
+                .setMapping(
+                    "@timestamp",
+                    "type=date",
+                    "host",
+                    "type=keyword,time_series_dimension=true",
+                    "metric",
+                    "type=long,time_series_metric=gauge"
+                )
+                .get()
+        );
+        client().prepareIndex("ts-index")
+            .setSource("@timestamp", "2024-06-01T12:00:00.000Z", "host", "host-1", "metric", 42)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        try (var response = run(syncEsqlQueryRequest("TS ts-index | STATS max(metric) BY tb = TBUCKET(1 hour)"))) {
+            assertThat(findColumn(response, "tb").meta(), nullValue());
         }
     }
 

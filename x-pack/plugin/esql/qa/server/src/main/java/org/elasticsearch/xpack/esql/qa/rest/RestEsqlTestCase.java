@@ -1932,6 +1932,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                     result,
                     getResultMatcher(result),
                     matchesList().item(matchesMap().entry("name", "bucket").entry("type", "date").extraOk()),
+                    // above column might contain bucket metadata if request is routed to a node supporting this feature
                     hasSize(greaterThanOrEqualTo(1))
                 );
 

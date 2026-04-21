@@ -278,12 +278,20 @@ public final class RandomMappingGenerator {
                 optionalSet(s, 1, "index", randomBoolean());
                 optionalSet(s, 1, "index_options", randomFrom("docs", "freqs", "positions", "offsets"));
                 optionalSet(s, 1, "norms", randomBoolean());
-                optionalSet(s, 1, "index_phrases", true);
-                optionalSet(s, 1, "position_increment_gap", randomFrom(100, 0, 50, 200));
+                boolean indexed = Boolean.FALSE.equals(s.get("index")) == false;
+                Object indexOpts = s.get("index_options");
+                // omitted index_options defaults to "positions" (see TextParams.textIndexOptions)
+                boolean positionsEnabled = indexed && (indexOpts == null || "positions".equals(indexOpts) || "offsets".equals(indexOpts));
+                if (positionsEnabled) {
+                    optionalSet(s, 1, "index_phrases", true);
+                    optionalSet(s, 1, "position_increment_gap", randomFrom(100, 0, 50, 200));
+                }
                 optionalSet(s, 1, "similarity", randomFrom("BM25", "boolean"));
                 optionalSet(s, 1, "term_vector", randomFrom("no", "yes", "with_positions", "with_offsets", "with_positions_offsets"));
                 optionalSet(s, 1, "eager_global_ordinals", true);
-                optionalSet(s, 1, "fielddata", true);
+                if (indexed) {
+                    optionalSet(s, 1, "fielddata", true);
+                }
             }
             case "match_only_text" -> {
             }

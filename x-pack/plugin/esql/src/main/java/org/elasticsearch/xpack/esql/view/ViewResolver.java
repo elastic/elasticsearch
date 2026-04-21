@@ -127,7 +127,7 @@ public class ViewResolver {
 
         public boolean hasExclusions() {
             for (String p : patterns) {
-                if (isExclusion(p)) {
+                if (RemoteClusterAware.isIndexExclusion(p)) {
                     return true;
                 }
             }
@@ -166,20 +166,12 @@ public class ViewResolver {
             listener.onResponse(new ViewResolutionResult(plan, viewQueries, lenientGroups));
             return;
         }
-        replaceViews(
-            plan,
-            parser,
-            new LinkedHashSet<>(),
-            viewQueries,
-            lenientGroups,
-            0,
-            listener.delegateFailureAndWrap((l, rewritten) -> {
-                LogicalPlan postProcessed = rewriteUnionAllsWithNamedSubqueries(rewritten);
-                postProcessed = compactNestedViewUnionAlls(postProcessed);
-                postProcessed = postProcessed.transformDown(NamedSubquery.class, UnaryPlan::child);
-                listener.onResponse(new ViewResolutionResult(postProcessed, viewQueries, lenientGroups));
-            })
-        );
+        replaceViews(plan, parser, new LinkedHashSet<>(), viewQueries, lenientGroups, 0, listener.delegateFailureAndWrap((l, rewritten) -> {
+            LogicalPlan postProcessed = rewriteUnionAllsWithNamedSubqueries(rewritten);
+            postProcessed = compactNestedViewUnionAlls(postProcessed);
+            postProcessed = postProcessed.transformDown(NamedSubquery.class, UnaryPlan::child);
+            listener.onResponse(new ViewResolutionResult(postProcessed, viewQueries, lenientGroups));
+        }));
     }
 
     private void replaceViews(
@@ -215,10 +207,18 @@ public class ViewResolver {
                     return;
                 }
                 case Fork fork -> {
-                    replaceViewsFork(fork, parser, seenInner, viewQueries, lenientGroups, depth, planListener.delegateFailureAndWrap((l, result) -> {
-                        plan.forEachDown(resolvedPlans::add);
-                        l.onResponse(result);
-                    }));
+                    replaceViewsFork(
+                        fork,
+                        parser,
+                        seenInner,
+                        viewQueries,
+                        lenientGroups,
+                        depth,
+                        planListener.delegateFailureAndWrap((l, result) -> {
+                            plan.forEachDown(resolvedPlans::add);
+                            l.onResponse(result);
+                        })
+                    );
                     return;
                 }
                 case UnresolvedRelation ur -> {
@@ -385,7 +385,7 @@ public class ViewResolver {
             // resolved indices) and the optional call (so view detection on remotes also accounts
             // for the exclusion's positional semantics). Concrete local view exclusions are skipped
             // since the view system handles them and we don't want them to reach the index resolver.
-            if (isExclusion(original)) {
+            if (RemoteClusterAware.isIndexExclusion(original)) {
                 if (isConcreteViewExclusion(original, viewNames::containsKey) == false) {
                     if (unresolvedInsertPos < 0) {
                         unresolvedInsertPos = result.size();
@@ -458,7 +458,7 @@ public class ViewResolver {
         // resolution locally regardless of resolver-level CPS, so flat exclusions are stripped from
         // ResolvedIndexExpressions. CPS-qualified exclusions are preserved and already handled above.
         for (String pattern : originalPatterns) {
-            if (isExclusion(pattern) == false || isConcreteViewExclusion(pattern, viewNames::containsKey)) {
+            if (RemoteClusterAware.isIndexExclusion(pattern) == false || isConcreteViewExclusion(pattern, viewNames::containsKey)) {
                 continue;
             }
             // CPS-qualified exclusions go through the main loop already; skip them here to avoid duplicates
@@ -488,7 +488,7 @@ public class ViewResolver {
         // remote-view detection requires a name that might shadow a view on the remote.
         boolean hasViewName = false;
         for (String p : scopeLenient) {
-            if (isExclusion(p) == false) {
+            if (RemoteClusterAware.isIndexExclusion(p) == false) {
                 hasViewName = true;
                 break;
             }
@@ -518,32 +518,12 @@ public class ViewResolver {
     }
 
     /**
-     * Checks whether a pattern is an exclusion in any of the three supported forms:
-     * <ul>
-     *   <li>{@code -foo} — flat local exclusion</li>
-     *   <li>{@code linked:-foo} — CPS-qualified local-name exclusion</li>
-     *   <li>{@code -linked:*} — whole-cluster exclusion (cluster prefix starts with {@code -})</li>
-     * </ul>
-     * Mirrors the canonical detection in {@link org.elasticsearch.transport.RemoteClusterAware#groupClusterIndices}
-     * and {@link org.elasticsearch.cluster.metadata.IndexAbstractionResolver}.
-     */
-    static boolean isExclusion(String pattern) {
-        String[] split = RemoteClusterAware.splitIndexName(pattern);
-        String cluster = split[0];
-        if (cluster != null && cluster.isEmpty() == false && cluster.charAt(0) == '-') {
-            return true;
-        }
-        String localPart = split[1];
-        return localPart.isEmpty() == false && localPart.charAt(0) == '-';
-    }
-
-    /**
      * Checks whether a pattern is a flat (non-CPS-qualified) exclusion targeting a concrete
      * (non-wildcard) view name. Views are local resources, so CPS-qualified exclusions are not
      * concrete view exclusions even if their local part matches a view name.
      */
     private static boolean isConcreteViewExclusion(String pattern, Predicate<String> viewExistsPredicate) {
-        if (isExclusion(pattern) == false || RemoteClusterAware.isRemoteIndexName(pattern)) {
+        if (RemoteClusterAware.isIndexExclusion(pattern) == false || RemoteClusterAware.isRemoteIndexName(pattern)) {
             return false;
         }
         String target = pattern.substring(1);
@@ -552,7 +532,7 @@ public class ViewResolver {
 
     private static boolean hasPositivePattern(List<String> patterns) {
         for (String p : patterns) {
-            if (isExclusion(p) == false) {
+            if (RemoteClusterAware.isIndexExclusion(p) == false) {
                 return true;
             }
         }

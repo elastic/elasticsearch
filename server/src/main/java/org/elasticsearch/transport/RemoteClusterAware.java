@@ -101,6 +101,26 @@ public abstract class RemoteClusterAware implements LinkedProjectConfigService.L
     }
 
     /**
+     * Checks whether a single index expression is a positional exclusion in any of the supported forms:
+     * <ul>
+     *   <li>{@code -foo} — flat local-name exclusion (handled by {@link org.elasticsearch.cluster.metadata.IndexAbstractionResolver})</li>
+     *   <li>{@code remote:-foo} — CPS-qualified local-name exclusion</li>
+     *   <li>{@code -remote:*} — whole-cluster exclusion (handled by {@link #groupClusterIndices})</li>
+     * </ul>
+     * The expression is assumed to be a single index expression (no commas).
+     */
+    public static boolean isIndexExclusion(String indexExpression) {
+        assert indexExpression != null : "Must not pass null indexExpression";
+        String[] split = splitIndexName(indexExpression);
+        String cluster = split[0];
+        if (cluster != null && cluster.isEmpty() == false && cluster.charAt(0) == '-') {
+            return true;
+        }
+        String localPart = split[1];
+        return localPart.isEmpty() == false && localPart.charAt(0) == '-';
+    }
+
+    /**
      * @return the cluster alias or LOCAL_CLUSTER_GROUP_KEY if the split represents local index
      */
     public static String getClusterAlias(String[] split) {

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResolvedIndexExpressions;
@@ -22,6 +23,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
@@ -29,6 +31,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -201,9 +204,15 @@ public class IndexResolver {
         boolean trackUnmappedFieldIndices,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
+        // Translate IndexNotFoundException coming from the field-caps validator into a VerificationException so the
+        // planner surfaces it as an "Unknown index" verification error rather than a raw IndexNotFoundException.
+        var translatedListener = listener.delegateResponse((l, e) -> {
+            var infe = (IndexNotFoundException) ExceptionsHelper.unwrap(e, IndexNotFoundException.class);
+            l.onFailure(infe != null ? new VerificationException("Unknown index [" + infe.getIndex().getName() + "]") : e);
+        });
         var mergeResponseListener = new GroupedActionListener<EsqlResolveFieldsResponse>(
             2,
-            listener.delegateFailureAndWrap((l, responses) -> {
+            translatedListener.delegateFailureAndWrap((l, responses) -> {
                 var response = merge(responses);
                 var overallMinimumVersion = TransportVersion.min(minimumVersion, response.minTransportVersion());
                 var indexPattern = String.join(",", requiredIndexPattern, optionalIndexPattern);

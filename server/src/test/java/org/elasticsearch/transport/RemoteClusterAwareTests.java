@@ -162,6 +162,16 @@ public class RemoteClusterAwareTests extends ESTestCase {
 
     }
 
+    public void testIsIndexExclusion() {
+        assertTrue(RemoteClusterAware.isIndexExclusion("-foo"));
+        assertTrue(RemoteClusterAware.isIndexExclusion("remote:-foo"));
+        assertTrue(RemoteClusterAware.isIndexExclusion("-remote:*"));
+        assertTrue(RemoteClusterAware.isIndexExclusion("-rem*:*"));
+        assertFalse(RemoteClusterAware.isIndexExclusion("foo"));
+        assertFalse(RemoteClusterAware.isIndexExclusion("remote:foo"));
+        assertFalse(RemoteClusterAware.isIndexExclusion("*:foo"));
+    }
+
     public void testGetRemoteIndexExpressions() {
         {
             List<String> remoteIndexExpressions = RemoteClusterAware.getRemoteIndexExpressions("index-1");

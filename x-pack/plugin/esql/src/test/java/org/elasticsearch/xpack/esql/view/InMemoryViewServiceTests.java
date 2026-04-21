@@ -1750,17 +1750,6 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(groups.get(0).patterns(), equalTo(List.of("view1", "linked:-emp9")));
     }
 
-    public void testIsExclusionRecognizesAllForms() {
-        // Sanity check that ViewResolver.isExclusion catches every form RemoteClusterAware accepts.
-        assertTrue(ViewResolver.isExclusion("-foo"));
-        assertTrue(ViewResolver.isExclusion("linked:-foo"));
-        assertTrue(ViewResolver.isExclusion("-linked:*"));
-        assertTrue(ViewResolver.isExclusion("-rem*:*"));
-        assertFalse(ViewResolver.isExclusion("foo"));
-        assertFalse(ViewResolver.isExclusion("linked:foo"));
-        assertFalse(ViewResolver.isExclusion("*:foo"));
-    }
-
     private ViewResolver.ViewResolutionResult resolveResult(String esql) {
         PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
         viewResolver.replaceViews(query(esql), this::parse, future);

@@ -489,6 +489,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
   method: test {csv-spec:external-basic.filterAndSort [LOCAL]}
   issue: https://github.com/elastic/elasticsearch/issues/147031
+- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
+  method: test {csv-spec:external-basic.selectSpecificColumns [LOCAL]}
+  issue: https://github.com/elastic/elasticsearch/issues/147035
 
 # Examples:
 #

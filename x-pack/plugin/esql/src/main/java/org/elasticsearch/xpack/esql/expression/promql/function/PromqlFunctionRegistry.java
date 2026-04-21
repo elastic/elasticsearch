@@ -144,6 +144,12 @@ public class PromqlFunctionRegistry {
         PromqlBuiltinFunctionDefinitions.SCALAR,
         Pi.PROMQL_DEFINITION,
         PromqlBuiltinFunctionDefinitions.YEAR,
+        PromqlBuiltinFunctionDefinitions.MONTH,
+        PromqlBuiltinFunctionDefinitions.DAY_OF_MONTH,
+        PromqlBuiltinFunctionDefinitions.DAY_OF_WEEK,
+        PromqlBuiltinFunctionDefinitions.DAY_OF_YEAR,
+        PromqlBuiltinFunctionDefinitions.HOUR,
+        PromqlBuiltinFunctionDefinitions.MINUTE,
         PromqlBuiltinFunctionDefinitions.TIME, };
 
     public static final PromqlFunctionRegistry INSTANCE = new PromqlFunctionRegistry();
@@ -184,13 +190,7 @@ public class PromqlFunctionRegistry {
         "sort_desc",
 
         // Time functions
-        "day_of_month",
-        "day_of_week",
-        "day_of_year",
         "days_in_month",
-        "hour",
-        "minute",
-        "month",
         "timestamp",
 
         // Label manipulation functions

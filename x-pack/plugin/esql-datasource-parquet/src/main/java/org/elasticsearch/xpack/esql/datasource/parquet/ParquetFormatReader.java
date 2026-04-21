@@ -400,7 +400,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             List<SplitRange> ranges = new ArrayList<>(rowGroups.size());
             for (BlockMetaData block : rowGroups) {
                 Map<String, Object> stats = buildRowGroupStats(block);
-                ranges.add(new SplitRange(block.getStartingPos(), block.getTotalByteSize(), stats));
+                ranges.add(new SplitRange(block.getStartingPos(), block.getCompressedSize(), stats));
             }
             List<SplitRange> coalesced = coalesceRowGroupRanges(ranges, DEFAULT_ROW_GROUP_MACRO_SPLIT_TARGET_BYTES);
             return coalesced.size() < 2 ? ranges : coalesced;

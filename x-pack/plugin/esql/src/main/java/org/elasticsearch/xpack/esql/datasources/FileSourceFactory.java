@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Executor;
 
@@ -244,23 +243,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
     }
 
     private FormatReader resolveFormatReader(String objectName, Map<String, Object> config) {
-        if (config != null) {
-            Object readerOverride = config.get(FormatNameResolver.CONFIG_READER);
-            if (readerOverride != null) {
-                String alias = readerOverride.toString().toLowerCase(Locale.ROOT);
-                String formatName = FormatNameResolver.readerAliasToFormat(alias);
-                if (formatName == null) {
-                    throw new IllegalArgumentException(
-                        "Unknown reader [" + alias + "]; supported values: " + FormatNameResolver.supportedReaderAliases()
-                    );
-                }
-                return formatRegistry.byName(formatName);
-            }
-        }
-        String formatName = FormatNameResolver.resolve(config, objectName);
-        if (formatName != null) {
-            return formatRegistry.byName(formatName);
-        }
-        return formatRegistry.byExtension(objectName);
+        return FormatNameResolver.resolveReader(config, objectName, formatRegistry);
     }
 }

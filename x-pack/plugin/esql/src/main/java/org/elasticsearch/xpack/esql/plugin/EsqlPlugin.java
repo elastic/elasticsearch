@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.DataSourceMetadata;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -264,7 +265,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             services.threadPool().executor(ThreadPool.Names.GENERIC)
         );
 
-        if (dataSourceModule.formatReaderRegistry().hasFormat(FORMAT_PARQUET)
+        if (Build.current().isSnapshot()
+            && dataSourceModule.formatReaderRegistry().hasFormat(FORMAT_PARQUET)
             && dataSourceModule.formatReaderRegistry().hasFormat(FORMAT_PARQUET_RS)) {
             boolean useParquetRs = READER_PARQUET_RS.equals(DEFAULT_PARQUET_READER);
             dataSourceModule.formatReaderRegistry()

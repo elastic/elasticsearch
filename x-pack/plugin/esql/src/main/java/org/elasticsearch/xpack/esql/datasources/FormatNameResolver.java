@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 
 import java.util.Locale;
 import java.util.Map;
@@ -32,12 +35,9 @@ public final class FormatNameResolver {
     static final String CONFIG_FORMAT = "format";
     static final String CONFIG_READER = "reader";
 
-    private static final Map<String, String> READER_ALIAS_TO_FORMAT = Map.of(
-        EsqlPlugin.READER_PARQUET_RS,
-        EsqlPlugin.FORMAT_PARQUET_RS,
-        EsqlPlugin.READER_JAVA,
-        EsqlPlugin.FORMAT_PARQUET
-    );
+    private static final Map<String, String> READER_ALIAS_TO_FORMAT = Build.current().isSnapshot()
+        ? Map.of(EsqlPlugin.READER_PARQUET_RS, EsqlPlugin.FORMAT_PARQUET_RS, EsqlPlugin.READER_JAVA, EsqlPlugin.FORMAT_PARQUET)
+        : Map.of(EsqlPlugin.READER_JAVA, EsqlPlugin.FORMAT_PARQUET);
 
     private FormatNameResolver() {}
 
@@ -78,6 +78,31 @@ public final class FormatNameResolver {
 
     public static Set<String> supportedReaderAliases() {
         return READER_ALIAS_TO_FORMAT.keySet();
+    }
+
+    /**
+     * Resolves the format reader using config and source path, looking up the result in the registry.
+     * Validates the {@code reader} alias and throws on unknown values.
+     */
+    public static FormatReader resolveReader(Map<String, Object> config, String objectName, FormatReaderRegistry registry) {
+        if (config != null) {
+            Object readerOverride = config.get(CONFIG_READER);
+            if (readerOverride != null) {
+                String alias = readerOverride.toString().toLowerCase(Locale.ROOT);
+                String formatName = READER_ALIAS_TO_FORMAT.get(alias);
+                if (formatName == null) {
+                    throw new IllegalArgumentException(
+                        "Unknown reader [" + alias + "]; supported values: " + supportedReaderAliases()
+                    );
+                }
+                return registry.byName(formatName);
+            }
+        }
+        String formatName = resolve(config, objectName);
+        if (formatName != null) {
+            return registry.byName(formatName);
+        }
+        return registry.byExtension(objectName);
     }
 
     private static String formatFromExtension(String sourcePath) {

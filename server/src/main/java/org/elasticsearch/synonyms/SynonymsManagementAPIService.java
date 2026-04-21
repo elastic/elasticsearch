@@ -485,6 +485,7 @@ public class SynonymsManagementAPIService {
             bulkUpdateSynonymsSet(
                 synonymSetId,
                 synonymsSet,
+                0,
                 deleteByQueryResponseListener.delegateFailure((bulkInsertResponseListener, ignored) -> {
                     UpdateSynonymsResultStatus updateSynonymsResultStatus = created
                         ? UpdateSynonymsResultStatus.CREATED
@@ -525,50 +526,31 @@ public class SynonymsManagementAPIService {
             .setTrackTotalHits(true)
             .execute(ActionListener.wrap(searchResponse -> {
                 long existingCount = searchResponse.getHits().getTotalHits().value();
-                doAppendAfterCount(synonymSetId, synonymsSet, refresh, existingCount, listener);
+                UpdateSynonymsResultStatus status = existingCount == 0
+                    ? UpdateSynonymsResultStatus.CREATED
+                    : UpdateSynonymsResultStatus.UPDATED;
+                if (checkSynonymRuleCount(existingCount + synonymsSet.length, listener) == false) {
+                    return;
+                }
+                bulkUpdateSynonymsSet(synonymSetId, synonymsSet, 0, listener.delegateFailure((l, ignored) -> {
+                    checkIndexSearchableAndReloadAnalyzers(synonymSetId, refresh, false, status, l);
+                }));
             }, e -> {
                 if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
-                    doAppendAfterCount(synonymSetId, synonymsSet, refresh, 0L, listener);
+                    if (checkSynonymRuleCount(synonymsSet.length, listener) == false) {
+                        return;
+                    }
+                    bulkUpdateSynonymsSet(synonymSetId, synonymsSet, 0, listener.delegateFailure((l, ignored) -> {
+                        checkIndexSearchableAndReloadAnalyzers(synonymSetId, refresh, false, UpdateSynonymsResultStatus.CREATED, l);
+                    }));
                 } else {
                     listener.onFailure(e);
                 }
             }));
     }
 
-    private void doAppendAfterCount(
-        String synonymSetId,
-        SynonymRule[] synonymsSet,
-        boolean refresh,
-        long existingCount,
-        ActionListener<SynonymsReloadResult> listener
-    ) {
-        UpdateSynonymsResultStatus status = existingCount == 0
-            ? UpdateSynonymsResultStatus.CREATED
-            : UpdateSynonymsResultStatus.UPDATED;
-        if (checkSynonymRuleCount(existingCount + synonymsSet.length, listener) == false) {
-            return;
-        }
-        doAppendBulkInsert(synonymSetId, synonymsSet, refresh, status, listener);
-    }
-
-    private void doAppendBulkInsert(
-        String synonymSetId,
-        SynonymRule[] synonymsSet,
-        boolean refresh,
-        UpdateSynonymsResultStatus status,
-        ActionListener<SynonymsReloadResult> listener
-    ) {
-        bulkUpdateSynonymsSet(synonymSetId, synonymsSet, listener.delegateFailure((l, ignored) -> {
-            checkIndexSearchableAndReloadAnalyzers(synonymSetId, refresh, false, status, l);
-        }));
-    }
-
-    // Open for testing adding more synonyms set than the limit allows for
-    void bulkUpdateSynonymsSet(String synonymSetId, SynonymRule[] synonymsSet, ActionListener<Void> listener) {
-        executeBulkChunks(synonymSetId, synonymsSet, 0, listener);
-    }
-
-    private void executeBulkChunks(String synonymSetId, SynonymRule[] synonymsSet, int offset, ActionListener<Void> listener) {
+    // Open for testing
+    void bulkUpdateSynonymsSet(String synonymSetId, SynonymRule[] synonymsSet, int offset, ActionListener<Void> listener) {
         int end = Math.min(offset + bulkChunkSize, synonymsSet.length);
         boolean isLastChunk = end == synonymsSet.length;
         // Refresh only on the last chunk so all rules become visible on the same forced refresh.
@@ -601,7 +583,7 @@ public class SynonymsManagementAPIService {
             if (isLastChunk) {
                 l.onResponse(null);
             } else {
-                executeBulkChunks(synonymSetId, synonymsSet, end, l);
+                bulkUpdateSynonymsSet(synonymSetId, synonymsSet, end, l);
             }
         }));
     }

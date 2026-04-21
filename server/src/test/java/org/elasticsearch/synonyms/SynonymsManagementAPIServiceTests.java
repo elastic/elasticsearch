@@ -89,7 +89,7 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
         var service = buildService(countingClient, clusterService, numRules, chunkSize);
 
         var future = new PlainActionFuture<Void>();
-        service.bulkUpdateSynonymsSet("my-set", rules, future);
+        service.bulkUpdateSynonymsSet("my-set", rules, 0, future);
         safeGet(future);
 
         // +1 for the synonym set document written in the first chunk
@@ -109,7 +109,7 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
         );
 
         var future = new PlainActionFuture<Void>();
-        service.bulkUpdateSynonymsSet("my-set", new SynonymRule[0], future);
+        service.bulkUpdateSynonymsSet("my-set", new SynonymRule[0], 0, future);
         safeGet(future);
 
         assertThat(countingClient.bulkRequestCount.get(), equalTo(1));
@@ -199,7 +199,7 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
         var service = buildService(failingClient, clusterService, numRules, chunkSize);
 
         var future = new PlainActionFuture<Void>();
-        service.bulkUpdateSynonymsSet("my-set", rules, future);
+        service.bulkUpdateSynonymsSet("my-set", rules, 0, future);
 
         Exception ex = expectThrows(Exception.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
         assertThat(ex.getMessage(), containsString("Error updating synonyms"));

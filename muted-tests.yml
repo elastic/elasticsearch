@@ -468,6 +468,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
   method: test {csv-spec:external-basic.convertToDouble [HTTP]}
   issue: https://github.com/elastic/elasticsearch/issues/146997
+- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
+  method: test {csv-spec:external-basic.aggregateByGender [HTTP]}
+  issue: https://github.com/elastic/elasticsearch/issues/146999
 
 # Examples:
 #

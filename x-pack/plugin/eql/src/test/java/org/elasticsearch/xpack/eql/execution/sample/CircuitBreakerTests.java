@@ -215,6 +215,46 @@ public class CircuitBreakerTests extends ESTestCase {
         assertEquals(0, failures.get());
     }
 
+    /**
+     * When both the sample query and the subsequent PIT close fail, the outer listener
+     * must still be invoked exactly once (with the query failure), and the close failure
+     * must be swallowed/logged rather than re-delivered.
+     */
+    public void testQueryAndCloseFailureDoesNotInvokeListenerTwice() {
+        QueryClient client = new QueryClient() {
+            @Override
+            public void query(QueryRequest r, ActionListener<SearchResponse> l) {
+                l.onFailure(new IllegalStateException("simulated query failure"));
+            }
+
+            @Override
+            public void close(ActionListener<Boolean> closed) {
+                closed.onFailure(new IllegalStateException("simulated PIT close failure"));
+            }
+
+            @Override
+            public void fetchHits(Iterable<List<HitReference>> refs, ActionListener<List<List<SearchHit>>> listener) {
+                listener.onResponse(Collections.emptyList());
+            }
+        };
+
+        SampleIterator iterator = new SampleIterator(
+            client,
+            mockCriteria(),
+            randomIntBetween(10, 500),
+            new Limit(1000, 0),
+            CIRCUIT_BREAKER,
+            1,
+            randomBoolean()
+        );
+
+        AtomicInteger responses = new AtomicInteger();
+        AtomicInteger failures = new AtomicInteger();
+        iterator.execute(ActionListener.assertOnce(wrap(p -> responses.incrementAndGet(), ex -> failures.incrementAndGet())));
+        assertEquals(0, responses.get());
+        assertEquals(1, failures.get());
+    }
+
     private Sample mockSample() {
         List<SearchHit> searchHits = new ArrayList<>();
         searchHits.add(SearchHit.unpooled(1, String.valueOf(1)));

@@ -162,7 +162,7 @@ public class TumblingWindow implements Executable {
         tumbleWindow(matcher.firstPositiveStage, runAfter(listener, () -> {
             matcher.clear();
             // The outer listener has already been invoked by runAfter; a close-PIT failure must not propagate to it.
-            client.close(ActionListener.wrap(r -> {}, e -> log.warn("Failed to close PIT", e)));
+            client.close(ActionListener.wrap(r -> {}, e -> log.warn("Failed to close PIT after sequence query", e)));
         }));
     }
 

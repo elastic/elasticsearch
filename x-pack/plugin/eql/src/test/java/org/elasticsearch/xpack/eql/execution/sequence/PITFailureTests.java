@@ -223,6 +223,66 @@ public class PITFailureTests extends ESTestCase {
     }
 
     /**
+     * When both the sequence query and the subsequent PIT close fail, the outer listener
+     * must still be invoked exactly once (with the query failure), and the close failure
+     * must be swallowed/logged rather than re-delivered.
+     */
+    public void testQueryAndCloseFailureDoesNotInvokeListenerTwice() {
+        CircuitBreaker cb = new NoopCircuitBreaker("testcb");
+        QueryClient client = new QueryClient() {
+            @Override
+            public void query(QueryRequest r, ActionListener<SearchResponse> l) {
+                l.onFailure(new IllegalStateException("simulated query failure"));
+            }
+
+            @Override
+            public void close(ActionListener<Boolean> closed) {
+                closed.onFailure(new IllegalStateException("simulated PIT close failure"));
+            }
+
+            @Override
+            public void fetchHits(Iterable<List<HitReference>> refs, ActionListener<List<List<SearchHit>>> listener) {
+                listener.onResponse(Collections.emptyList());
+            }
+        };
+
+        List<SequenceCriterion> criteria = new ArrayList<>();
+        criteria.add(
+            new SequenceCriterion(
+                0,
+                new BoxedQueryRequest(
+                    () -> SearchSourceBuilder.searchSource().size(10).query(matchAllQuery()).terminateAfter(0),
+                    "@timestamp",
+                    emptyList(),
+                    emptySet()
+                ),
+                keyExtractors,
+                TimestampExtractor.INSTANCE,
+                null,
+                ImplicitTiebreakerHitExtractor.INSTANCE,
+                false,
+                false
+            )
+        );
+        SequenceMatcher matcher = new SequenceMatcher(1, false, TimeValue.MINUS_ONE, null, booleanArrayOf(1, false), cb);
+        TumblingWindow window = new TumblingWindow(
+            client,
+            criteria,
+            null,
+            matcher,
+            Collections.emptyList(),
+            randomBoolean(),
+            randomBoolean()
+        );
+
+        AtomicInteger responses = new AtomicInteger();
+        AtomicInteger failures = new AtomicInteger();
+        window.execute(ActionListener.assertOnce(wrap(p -> responses.incrementAndGet(), ex -> failures.incrementAndGet())));
+        assertEquals(0, responses.get());
+        assertEquals(1, failures.get());
+    }
+
+    /**
      *  This class is used by {@code PITFailureTests.testPitCloseOnFailure} method
      *  to test that PIT close is never (wrongly) invoked if PIT open failed.
      */

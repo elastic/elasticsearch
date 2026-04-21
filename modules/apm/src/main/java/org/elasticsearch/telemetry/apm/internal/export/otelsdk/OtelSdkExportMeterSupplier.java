@@ -66,7 +66,7 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
             return resources.systemMeterProvider().get("elasticsearch");
         }
     }
-  
+
     public void setDiskBufferPath(Path path) {
         this.diskBufferPath = path;
     }

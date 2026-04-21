@@ -132,9 +132,7 @@ public class FullClusterRestartSystemIndexCompatibilityIT extends FullClusterRes
 
             // Similar to above, verify the cleanup task deletes the short-lived async search after keep_alive expires.
             searchAsyncAndStoreId(asyncSearchRequestShortLived, "n_id2");
-            // (The doc count was already 3 from above, so after the following request it will be 4 until the cleanup task runs.)
-            // There is a bug: https://github.com/elastic/elasticsearch/issues/146184, uncomment the following line when fixed.
-            // assertBusy(() -> assertDocCountNoWarnings(client(), asyncSearchIndex, 3));
+            assertBusy(() -> assertDocCountNoWarnings(client(), asyncSearchIndex, 3));
         }
 
     }

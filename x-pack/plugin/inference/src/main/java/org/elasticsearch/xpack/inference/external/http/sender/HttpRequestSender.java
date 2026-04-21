@@ -224,7 +224,7 @@ public class HttpRequestSender implements Sender {
         SubscribableListener.<Void>newForked(l -> startAsynchronously(l, timeout))
             .<InferenceServiceResults>andThen(sendListener -> {
                 var preservedListener = ContextPreservingActionListener.wrapPreservingContext(sendListener, threadPool.getThreadContext());
-                var timedListener = new TimedListener<>(timeout, preservedListener, threadPool);
+                var timedListener = new TimedListener<>(timeout, preservedListener, threadPool, request.getInferenceEntityId());
                 threadPool.executor(UTILITY_THREAD_POOL_NAME)
                     .execute(
                         () -> requestSender.send(logger, request, timedListener::hasCompleted, responseHandler, timedListener.getListener())

@@ -58,16 +58,6 @@ import static org.hamcrest.Matchers.notNullValue;
  * <p>Changing the datafeed's own index pattern (e.g. narrowing from two explicit clusters to
  * one) requires a stop/update/restart cycle because the datafeed config is immutable while
  * running.
- *
- * <h2>CCS versus CPS mode</h2>
- *
- * These tests use standard CCS (cross-cluster search via {@code cluster.remote.*} settings)
- * rather than true CPS (cross-project search) mode. The {@code serverless.cross_project.enabled}
- * feature flag changes how the search layer operates: it labels the origin cluster as
- * {@code _origin} instead of {@code (local)} in the {@code _clusters} metadata and makes
- * {@code skip_unavailable} default to true for all remotes. However, {@code DatafeedConfig}
- * currently rejects {@code resolveCrossProjectIndexExpression} in its indices options, so
- * true CPS mode is not yet available for ML datafeeds.
  */
 public class CcsDatafeedStatsIT extends ESRestTestCase {
 
@@ -216,7 +206,7 @@ public class CcsDatafeedStatsIT extends ESRestTestCase {
      * Verifies that a datafeed searching only local indices (no CCS) does NOT
      * produce remote_cluster_stats, even when the cluster has remote connections configured.
      */
-    public void testLocalOnlyDatafeedHasNoCrossProjectStats() throws Exception {
+    public void testLocalOnlyDatafeedHasNoCrossClusterStats() throws Exception {
         String localIndex = "local_test_data";
         String jobId = "local-only-stats-job";
         String datafeedId = jobId + "-datafeed";
@@ -520,6 +510,73 @@ public class CcsDatafeedStatsIT extends ESRestTestCase {
             stopDatafeed(datafeedId);
             closeJob(jobId);
             removeRemoteCluster("project_b");
+        } finally {
+            stopDatafeed(datafeedId);
+            closeJob(jobId);
+            removeRemoteCluster("project_b");
+        }
+    }
+
+    /**
+     * Inverse of {@link #testTopologyExpansionWhileRunning()} at the cluster-admin level: with a
+     * running {@code *:} datafeed, removes the dynamically added {@code project_b} remote definition.
+     * The datafeed should keep running; {@code stabilized_cluster_aliases} may retain {@code project_b}
+     * until CCS stops listing that alias in search responses, but
+     * {@code project_a} must remain observable and the datafeed must stay {@code started}.
+     */
+    @SuppressWarnings("unchecked")
+    public void testTopologyContractionWhileRunning() throws Exception {
+        String sharedIndex = "topo_contract_live_data";
+        String jobId = "topo-contract-live-job";
+        String datafeedId = jobId + "-datafeed";
+
+        try (RestClient remoteA = remoteClientA()) {
+            createRemoteIndex(remoteA, sharedIndex);
+            indexRemoteData(remoteA, sharedIndex);
+        }
+        try (RestClient remoteB = remoteClientB()) {
+            createRemoteIndex(remoteB, sharedIndex);
+            indexRemoteData(remoteB, sharedIndex);
+        }
+
+        addRemoteCluster("project_b", remoteClusterB.getTransportEndpoint(0));
+        assertBusy(() -> {
+            Response infoResponse = client().performRequest(new Request("GET", "_remote/info"));
+            assertThat(entityAsString(infoResponse), containsString("project_b"));
+        }, 30, TimeUnit.SECONDS);
+
+        createAnomalyDetectorWithDatafeed(jobId, datafeedId, "*:" + sharedIndex);
+        openJob(jobId);
+        startDatafeed(datafeedId);
+
+        try {
+            assertBusy(() -> {
+                Map<String, Object> stats = getDatafeedStats(datafeedId);
+                assertThat(stats.get("state"), equalTo("started"));
+                assertThat(stats, hasKey("remote_cluster_stats"));
+                Map<String, Object> ccs = (Map<String, Object>) stats.get("remote_cluster_stats");
+                List<String> aliases = (List<String>) ccs.get("stabilized_cluster_aliases");
+                assertThat(aliases, hasItem("project_a"));
+                assertThat(aliases, hasItem("project_b"));
+            }, 60, TimeUnit.SECONDS);
+
+            removeRemoteCluster("project_b");
+            assertBusy(() -> {
+                Response infoResponse = client().performRequest(new Request("GET", "_remote/info"));
+                assertThat(entityAsString(infoResponse), not(containsString("project_b")));
+            }, 30, TimeUnit.SECONDS);
+
+            assertBusy(() -> {
+                Map<String, Object> stats = getDatafeedStats(datafeedId);
+                assertThat(stats.get("state"), equalTo("started"));
+                assertThat(stats, hasKey("remote_cluster_stats"));
+                Map<String, Object> ccs = (Map<String, Object>) stats.get("remote_cluster_stats");
+                List<String> aliases = (List<String>) ccs.get("stabilized_cluster_aliases");
+                assertThat(aliases, hasItem("project_a"));
+            }, 60, TimeUnit.SECONDS);
+
+            stopDatafeed(datafeedId);
+            closeJob(jobId);
         } finally {
             stopDatafeed(datafeedId);
             closeJob(jobId);

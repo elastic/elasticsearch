@@ -178,7 +178,7 @@ public class RestReindexRethrottleActionTests extends RestActionTestCase {
      * contents of the response body as an {@link ObjectPath}.
      */
     private ObjectPath execute(RestRequest request, RestStatus expectedStatus) throws Exception {
-        FakeRestChannel channel = new FakeRestChannel(request, true, 1);
+        FakeRestChannel channel = new FakeRestChannel(request, true);
         ThreadContext threadContext = verifyingClient.threadPool().getThreadContext();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             controller().dispatchRequest(request, channel, threadContext);

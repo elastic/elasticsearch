@@ -52,17 +52,20 @@ import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.Azure
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.azureaistudio.rerank.AzureAiStudioRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.azureaistudio.rerank.AzureAiStudioRerankTaskSettings;
-import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsTaskSettings;
+import org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiEntraIdApiKeySecrets;
+import org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiOAuth2Secrets;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.completion.CohereCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankTaskSettings;
+import org.elasticsearch.xpack.inference.services.contextualai.rerank.ContextualAiRerankServiceSettings;
+import org.elasticsearch.xpack.inference.services.contextualai.rerank.ContextualAiRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.custom.CustomSecretSettings;
 import org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings;
 import org.elasticsearch.xpack.inference.services.custom.CustomTaskSettings;
@@ -170,6 +173,7 @@ public class InferenceNamedWriteablesProvider {
         addHuggingFaceNamedWriteables(namedWriteables);
         addOpenAiNamedWriteables(namedWriteables);
         addCohereNamedWriteables(namedWriteables);
+        addContextualAiNamedWriteables(namedWriteables);
         addGroqNamedWriteables(namedWriteables);
         addAzureOpenAiNamedWriteables(namedWriteables);
         addAzureAiStudioNamedWriteables(namedWriteables);
@@ -200,6 +204,19 @@ public class InferenceNamedWriteablesProvider {
         namedWriteables.addAll(SageMakerSchemas.namedWriteables());
 
         return namedWriteables;
+    }
+
+    private static void addContextualAiNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                ContextualAiRerankServiceSettings.NAME,
+                ContextualAiRerankServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(TaskSettings.class, ContextualAiRerankTaskSettings.NAME, ContextualAiRerankTaskSettings::new)
+        );
     }
 
     private static void addGroqNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
@@ -432,10 +449,13 @@ public class InferenceNamedWriteablesProvider {
     private static void addAzureOpenAiNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
-                AzureOpenAiSecretSettings.class,
-                AzureOpenAiSecretSettings.NAME,
-                AzureOpenAiSecretSettings::new
+                SecretSettings.class,
+                AzureOpenAiEntraIdApiKeySecrets.NAME,
+                AzureOpenAiEntraIdApiKeySecrets::new
             )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(SecretSettings.class, AzureOpenAiOAuth2Secrets.NAME, AzureOpenAiOAuth2Secrets::new)
         );
 
         namedWriteables.add(

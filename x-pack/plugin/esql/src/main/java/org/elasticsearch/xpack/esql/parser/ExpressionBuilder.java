@@ -42,7 +42,6 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
@@ -69,7 +68,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Ins
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
-import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.math.BigInteger;
@@ -125,7 +123,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     protected final ParsingContext context;
 
-    public record ParsingContext(QueryParams params, PlanTelemetry telemetry, InferenceSettings inferenceSettings, String viewName) {}
+    public record ParsingContext(QueryParams params, InferenceSettings inferenceSettings, String viewName) {}
 
     ExpressionBuilder(ParsingContext context) {
         this.context = context;
@@ -716,14 +714,12 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 args = singletonList(Literal.keyword(source(ctx), "*"));
             }
         }
-        return new UnresolvedFunction(source(ctx), name, FunctionResolutionStrategy.DEFAULT, args);
+        return new UnresolvedFunction(source(ctx), name, args);
     }
 
     @Override
     public String visitFunctionName(EsqlBaseParser.FunctionNameContext ctx) {
-        String name = functionName(ctx);
-        context.telemetry().function(name);
-        return name;
+        return functionName(ctx);
     }
 
     private String functionName(EsqlBaseParser.FunctionNameContext ctx) {
@@ -801,7 +797,6 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         }
         Expression expr = expression(parseTree);
         var convertFunction = converterToFactory.apply(source, expr, ConfigurationAware.CONFIGURATION_MARKER);
-        context.telemetry().function(convertFunction.getClass());
         return convertFunction;
     }
 

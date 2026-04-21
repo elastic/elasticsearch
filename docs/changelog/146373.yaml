@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 146330
+pr: 146373
+summary: "ESQL:DS: fix single file splitting and bzip2 bytes counting"
+type: bug

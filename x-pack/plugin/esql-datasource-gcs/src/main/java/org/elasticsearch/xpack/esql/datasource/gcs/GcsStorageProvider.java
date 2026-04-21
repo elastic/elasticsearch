@@ -42,10 +42,13 @@ import java.util.NoSuchElementException;
  *   <li>Application Default Credentials (ADC) — environment variable, metadata server, etc.</li>
  * </ul>
  * <p>
- * Note: this implementation does not currently provide native async support
- * ({@code readBytesAsync} / {@code supportsNativeAsync}). The GCS Java client does support
- * async operations, and adding native async would improve Parquet parallel column chunk reads.
- * TODO: implement native async via the GCS async client for improved Parquet read performance.
+ * {@link GcsStorageObject} provides optimized I/O via GCS {@link com.google.cloud.ReadChannel}:
+ * <ul>
+ *   <li>{@code readBytes} reads directly into {@link java.nio.ByteBuffer} without intermediate copies</li>
+ *   <li>{@code readBytesAsync} uses executor-based async with efficient ReadChannel reads</li>
+ * </ul>
+ * The async path blocks a worker thread (not truly non-blocking like HTTP sendAsync or S3AsyncClient)
+ * but avoids the byte[] allocation overhead of the default InputStream-based wrappers.
  */
 public final class GcsStorageProvider implements StorageProvider {
     private volatile Storage storage;

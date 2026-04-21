@@ -57,8 +57,6 @@ public class SeqNoPruningIT extends ESIntegTestCase {
     }
 
     public void testSeqNoPrunedAfterMerge() throws Exception {
-        assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
-
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNodes(2);
         ensureStableCluster(3);
@@ -140,8 +138,6 @@ public class SeqNoPruningIT extends ESIntegTestCase {
     }
 
     public void testSeqNoPartiallyPrunedWithRetentionLease() throws Exception {
-        assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
-
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNodes(2);
         ensureStableCluster(3);
@@ -302,8 +298,6 @@ public class SeqNoPruningIT extends ESIntegTestCase {
      * that still need to be replayed to the replica.
      */
     public void testSeqNoRetainedDuringInProgressRecovery() throws Exception {
-        assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
-
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNodes(2);
         ensureStableCluster(3);
@@ -424,8 +418,6 @@ public class SeqNoPruningIT extends ESIntegTestCase {
     }
 
     public void testSeqNoPrunedAfterMergeWithTsdbCodec() throws Exception {
-        assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
-
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
         ensureStableCluster(2);
@@ -492,8 +484,6 @@ public class SeqNoPruningIT extends ESIntegTestCase {
      * by a force merge.
      */
     public void testWritesSucceedOnReplicaAfterSeqNoPruning() throws Exception {
-        assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
-
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNodes(2);
         ensureStableCluster(3);

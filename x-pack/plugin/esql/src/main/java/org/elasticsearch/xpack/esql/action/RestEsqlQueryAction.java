@@ -61,7 +61,7 @@ public class RestEsqlQueryAction extends BaseRestHandler {
         if (partialResults != null) {
             esqlRequest.allowPartialResults(partialResults);
         }
-        LOGGER.debug("Beginning execution of ESQL query.\nQuery string: [{}]", esqlRequest.query());
+        LOGGER.debug("Beginning execution of ESQL query.\nQuery string: [{}]", esqlRequest.queryDescription());
 
         return channel -> {
             RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());

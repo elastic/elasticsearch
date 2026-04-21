@@ -1,0 +1,6 @@
+area: Machine Learning
+issues:
+ - 144888
+pr: 144909
+summary: Fix NPE when preview datafeed checks `date_nanos` for an unmapped time field
+type: bug

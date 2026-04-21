@@ -86,9 +86,7 @@ public abstract class BaseJinaAIEmbeddingsServiceSettings extends FilteredXConte
 
         boolean multimodalModel = handleMultimodalModelField.apply(map, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return constructor.construct(
             commonServiceSettings,

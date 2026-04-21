@@ -1,0 +1,4 @@
+Limit[1000[INTEGER],false,false]
+\_Project[[message{f(PotentiallyUnmappedKeywordEsField)}#0]]
+  \_Filter[LIKE(TOSTRING(message{f(PotentiallyUnmappedKeywordEsField)}#0), "Connected*", false)]
+    \_EsRelation[sample_data,no_mapping_sample_data][@timestamp{f}#1, client_ip{f}#2, event_duration{f}#3, message{f(PotentiallyUnmappedKeywordEsField)}#0]

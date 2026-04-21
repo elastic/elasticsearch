@@ -50,16 +50,17 @@ public class ESVectorUtil {
         return ESVectorizationProvider.getInstance().newES91OSQVectorsScorer(input, dimension, bulkSize);
     }
 
-    public static ESNextOSQVectorsScorer getESNextOSQVectorsScorer(
+    public static ES940OSQVectorsScorer getES940OSQVectorsScorer(
         IndexInput input,
         byte queryBits,
         byte indexBits,
         int dimension,
         int dataLength,
-        int bulkSize
+        int bulkSize,
+        ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding
     ) throws IOException {
         return ESVectorizationProvider.getInstance()
-            .newESNextOSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize);
+            .newES940OSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize, int4Encoding);
     }
 
     public static ES92Int7VectorsScorer getES92Int7VectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException {
@@ -86,6 +87,14 @@ public class ESVectorUtil {
             throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
         }
         return IMPL.squareDistance(a, b);
+    }
+
+    public static float squareDistance(float[] a, float[] b, int offset, int length) {
+        if (a.length != b.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
+        }
+        Objects.checkFromIndexSize(offset, length, a.length);
+        return IMPL.squareDistance(a, b, offset, length);
     }
 
     public static float cosine(byte[] a, byte[] b) {
@@ -363,21 +372,50 @@ public class ESVectorUtil {
      */
     public static void squareDistanceBulk(float[] q, float[] v0, float[] v1, float[] v2, float[] v3, float[] distances) {
         if (q.length != v0.length) {
-            throw new IllegalArgumentException("vector dimensions differ: " + q.length + "!=" + v0.length);
+            throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!=" + v0.length);
         }
         if (q.length != v1.length) {
-            throw new IllegalArgumentException("vector dimensions differ: " + q.length + "!=" + v1.length);
+            throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!=" + v1.length);
         }
         if (q.length != v2.length) {
-            throw new IllegalArgumentException("vector dimensions differ: " + q.length + "!=" + v2.length);
+            throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!=" + v2.length);
         }
         if (q.length != v3.length) {
-            throw new IllegalArgumentException("vector dimensions differ: " + q.length + "!=" + v3.length);
+            throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!=" + v3.length);
         }
         if (distances.length != 4) {
             throw new IllegalArgumentException("distances array must have length 4, but was: " + distances.length);
         }
         IMPL.squareDistanceBulk(q, v0, v1, v2, v3, distances);
+    }
+
+    public static void squareDistanceBulk(
+        float[] q,
+        int qOffset,
+        int length,
+        float[] v0,
+        float[] v1,
+        float[] v2,
+        float[] v3,
+        float[] distances
+    ) {
+        if (q.length != v0.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!=" + v0.length);
+        }
+        if (q.length != v1.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!=" + v1.length);
+        }
+        if (q.length != v2.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!=" + v2.length);
+        }
+        if (q.length != v3.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!=" + v3.length);
+        }
+        if (distances.length != 4) {
+            throw new IllegalArgumentException("distances array must have length 4, but was: " + distances.length);
+        }
+        Objects.checkFromIndexSize(qOffset, length, q.length);
+        IMPL.squareDistanceBulk(q, qOffset, length, v0, v1, v2, v3, distances);
     }
 
     /**
@@ -481,6 +519,30 @@ public class ESVectorUtil {
     }
 
     /**
+     * Checks whether the byte sequence {@code term} appears as a contiguous subsequence
+     * within {@code value}.
+     *
+     * @param value       the byte array to search in
+     * @param valueOffset the starting index within value
+     * @param valueLength the number of bytes to search
+     * @param term        the byte array containing the term to search for
+     * @param termOffset  the starting index within term
+     * @param termLength  the number of bytes in the term
+     * @return true if term is found within value
+     */
+    public static boolean contains(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength) {
+        Objects.checkFromIndexSize(valueOffset, valueLength, value.length);
+        Objects.checkFromIndexSize(termOffset, termLength, term.length);
+        if (termLength == 0) {
+            return true;
+        }
+        if (termLength > valueLength) {
+            return false;
+        }
+        return IMPL.contains(value, valueOffset, valueLength, term, termOffset, termLength);
+    }
+
+    /**
      * Count the number of Unicode code points in a utf-8 encoded string. Assumes that the input
      * string is correctly encoded. If the input string is incorrectly encoded, no errors will be
      * thrown, but invalid results will be returned.
@@ -495,5 +557,57 @@ public class ESVectorUtil {
         }
         Objects.checkFromIndexSize(bytesRef.offset, bytesRef.length, bytesRef.bytes.length);
         return IMPL.codePointCount(bytesRef);
+    }
+
+    /**
+     * Computes dest = scale * other + scaledDes * dest
+     *
+     * @param scaleOther a multiplicative factor for other
+     * @param other the other vector
+     * @param scaleDest a multiplicative factor for dest
+     * @param dest the destination vector
+     */
+    public static void linearCombination(float scaleOther, float[] other, float scaleDest, float[] dest) {
+        IMPL.linearCombination(scaleOther, other, scaleDest, dest);
+    }
+
+    /**
+     * Calculates an approximation of the LogSumExp of the input array in base 2.
+     * The formula used is: log2(sum_i(pow(2, x[i]))).
+     * This implementation uses the log-sum-exp trick for numerical stability and Not-Quite-Trascendental functions for speed.
+     *
+     * @param vector The input array of double values (log probabilities/values).
+     * @return The log-sum-exp result.
+     */
+    public static float logSumExpNQT(float[] vector) {
+        return IMPL.logSumExpNQT(vector);
+    }
+
+    /**
+     * Calculates a shifted and scaled LogSumExp of the input arrays in base 2, according to the formula:
+     * log2(sum_i(pow(2, (v1[i] - v2[i]) / eps)))
+     * This implementation uses the log-sum-exp trick for numerical stability and Not-Quite-Trascendental functions for speed.
+     *
+     * @param v1 The first input array of double values (log probabilities/values).
+     * @param v2 The second input array of double values (log probabilities/values).
+     * @param eps The normalization constant (that is, the temperature parameter).
+     * @return The log-sum-exp result.
+     */
+    public static float logSumExpNQTDiff(float[] v1, float[] v2, float eps) {
+        return IMPL.logSumExpNQTDiff(v1, v2, eps);
+    }
+
+    /**
+     * Compute the following operation:
+     * result[i] = pow(2, (a + v1[i] - v2[i]) / eps)
+     * This implementation uses the log-sum-exp trick for numerical stability.
+     *
+     * @param v1 The first input array of double values (log probabilities/values).
+     * @param v2 The second input array of double values (log probabilities/values).
+     * @param eps The normalization constant (that is, the temperature parameter).
+     * @param result The output array.
+     */
+    public static void pow2DiffAndScaleNQT(float[] v1, float[] v2, float a, float eps, float[] result) {
+        IMPL.pow2DiffAndScaleNQT(v1, v2, a, eps, result);
     }
 }

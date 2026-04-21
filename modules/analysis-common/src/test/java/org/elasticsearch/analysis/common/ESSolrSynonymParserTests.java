@@ -73,17 +73,30 @@ public class ESSolrSynonymParserTests extends ESTokenStreamTestCase {
         assertThat(ex.getMessage(), containsString("Invalid synonym rule at line 1"));
     }
 
-    public void testCircuitBreaker() {
+    public void testCircuitBreakerDuringAdd() {
         TestCircuitBreaker circuitBreaker = new TestCircuitBreaker();
         circuitBreaker.startBreaking();
 
-        // Circuit breaker should be called on the first rule and every 1024th rule afterward, so even a single-rule synonym set should
-        // be able to trip the breaker
+        // Circuit breaker is checked on the first pair and every 8192nd pair afterward during add(),
+        // so even a single-rule synonym set should be able to trip the breaker
         ESSolrSynonymParser parser = new ESSolrSynonymParser(true, false, true, new StandardAnalyzer(), circuitBreaker);
         String rules = """
             foo, bar, baz
             """;
         StringReader rulesReader = new StringReader(rules);
         assertThrows(CircuitBreakingException.class, () -> parser.parse(rulesReader));
+    }
+
+    public void testCircuitBreakerDuringBuild() throws IOException, ParseException {
+        TestCircuitBreaker circuitBreaker = new TestCircuitBreaker();
+
+        ESSolrSynonymParser parser = new ESSolrSynonymParser(true, false, false, new StandardAnalyzer(), circuitBreaker);
+        String rules = """
+            foo, bar, baz
+            """;
+        parser.parse(new StringReader(rules));
+
+        circuitBreaker.startBreaking();
+        assertThrows(CircuitBreakingException.class, () -> parser.build());
     }
 }

@@ -80,8 +80,8 @@ public record SemanticTextField(
 
     public record InferenceResult(
         String inferenceId,
-        MinimalServiceSettings modelSettings,
-        ChunkingSettings chunkingSettings,
+        @Nullable MinimalServiceSettings modelSettings,
+        @Nullable ChunkingSettings chunkingSettings,
         Map<String, List<Chunk>> chunks
     ) {}
 
@@ -107,7 +107,7 @@ public record SemanticTextField(
         return getChunksFieldName(fieldName) + "." + CHUNKED_OFFSET_FIELD;
     }
 
-    record ParserContext(boolean useLegacyFormat, String fieldName, XContentType xContentType) {}
+    protected record ParserContext(boolean useLegacyFormat, String fieldName, XContentType xContentType) {}
 
     static SemanticTextField parse(XContentParser parser, ParserContext context) throws IOException {
         return SEMANTIC_TEXT_FIELD_PARSER.parse(parser, context);
@@ -157,7 +157,7 @@ public record SemanticTextField(
         }
         builder.startObject(INFERENCE_FIELD);
         builder.field(INFERENCE_ID_FIELD, inference.inferenceId);
-        builder.field(MODEL_SETTINGS_FIELD, inference.modelSettings);
+        builder.field(MODEL_SETTINGS_FIELD, inference.modelSettings != null ? inference.modelSettings.getFilteredXContentObject() : null);
         if (inference.chunkingSettings != null) {
             builder.field(CHUNKING_SETTINGS_FIELD, inference.chunkingSettings);
         }

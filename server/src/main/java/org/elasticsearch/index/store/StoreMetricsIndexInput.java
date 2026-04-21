@@ -100,6 +100,15 @@ public class StoreMetricsIndexInput extends FilterIndexInput implements DirectAc
     }
 
     @Override
+    public boolean withByteBufferSlices(long[] offsets, int length, int count, CheckedConsumer<ByteBuffer[], IOException> action)
+        throws IOException {
+        if (in instanceof DirectAccessInput dai) {
+            return dai.withByteBufferSlices(offsets, length, count, action);
+        }
+        return false;
+    }
+
+    @Override
     public Optional<Boolean> isLoaded() {
         return in.isLoaded();
     }

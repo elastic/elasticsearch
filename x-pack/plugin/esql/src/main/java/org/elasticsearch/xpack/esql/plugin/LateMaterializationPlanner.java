@@ -13,7 +13,9 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
+import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceFieldWithConstantOrNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertFieldExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushTopNToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSourceAttributes;
@@ -98,7 +100,7 @@ class LateMaterializationPlanner {
 
         LocalPhysicalOptimizerContext context = contextFactory.apply(SEARCH_STATS_TOP_N_REPLACEMENT);
 
-        List<Attribute> physicalPlanOutput = toPhysical(topN, context).output();
+        List<Attribute> physicalPlanOutput = toNonOptimizedPhysicalDataPlan(topN, context).output();
         Attribute doc = physicalPlanOutput.stream().filter(EsQueryExec::isDocAttribute).findFirst().orElse(null);
         if (doc == null) {
             return Optional.empty();
@@ -131,7 +133,7 @@ class LateMaterializationPlanner {
         ExchangeSinkExec updatedDataPlan = originalPlan.replaceChildAndUpdateOutput(updatedFragmentExec);
 
         // Replace the TopN child with the data driver as the source.
-        PhysicalPlan reductionPlan = toPhysical(fragmentExec.fragment(), context).transformDown(TopNExec.class, t -> {
+        PhysicalPlan reductionPlan = toNonOptimizedPhysicalDataPlan(fragmentExec.fragment(), context).transformDown(TopNExec.class, t -> {
             PhysicalPlan exchangeExec = new ExchangeSourceExec(topN.source(), expectedDataOutput, false /* isIntermediateAgg */);
             // If the fragment is already sorted, tell the node-reduce TopN that its input will be sorted already
             boolean fragmentIsSorted = updatedFragment.child() instanceof TopN;
@@ -145,15 +147,24 @@ class LateMaterializationPlanner {
         return Optional.of(new ReductionPlan(reductionPlanWithSize, updatedDataPlan, LocalPhysicalOptimization.DISABLED));
     }
 
-    private static PhysicalPlan toPhysical(LogicalPlan plan, LocalPhysicalOptimizerContext context) {
-        return new InsertFieldExtraction().apply(new ReplaceSourceAttributes().apply(LocalMapper.INSTANCE.map(plan)), context);
+    /**
+     * A stripped-down version of {@link org.elasticsearch.xpack.esql.planner.PlannerUtils#localPlan}, doing just the bare minimum to
+     * translate the logical plan to a physical one. This is needed here since we need to solidify the expected output between the data
+     * drivers and node-reduce one.
+     */
+    private static PhysicalPlan toNonOptimizedPhysicalDataPlan(LogicalPlan plan, LocalPhysicalOptimizerContext context) {
+        var logicalContext = new LocalLogicalOptimizerContext(context.configuration(), context.foldCtx(), context.searchStats());
+        // Replace NULL-typed fields (from UNMAPPED_FIELDS="NULLIFY") with constant nulls in the *data* node using
+        // ReplaceFieldWithConstantOrNull, so that InsertFieldExtraction in the *node-reduce* driver won't try to load them from the index.
+        // TODO: Do this in InsertFieldExtraction (See #146068) in the node-reduce driver instead.
+        LogicalPlan optimized = new ReplaceFieldWithConstantOrNull().apply(plan, logicalContext);
+        return new InsertFieldExtraction().apply(new ReplaceSourceAttributes().apply(LocalMapper.INSTANCE.map(optimized)), context);
     }
 
     private LateMaterializationPlanner() { /* static class */ }
 
-    // A hack to avoid the ReplaceFieldWithConstantOrNull optimization, since we don't have search stats during the reduce planning phase.
-    // This sidesteps the issue by just assuming all fields exist and have no other meaningful stats. The local data optimizer will use the
-    // real statistics.
+    // We don't have real search stats during the reduce planning phase, so we assume all fields exist and have no other meaningful stats.
+    // The local data optimizer will use the real statistics.
     private static final SearchStats SEARCH_STATS_TOP_N_REPLACEMENT = new SearchStats.UnsupportedSearchStats() {
         @Override
         public boolean exists(FieldAttribute.FieldName field) {

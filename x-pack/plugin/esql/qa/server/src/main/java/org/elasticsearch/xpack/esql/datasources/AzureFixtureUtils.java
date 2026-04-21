@@ -18,6 +18,9 @@ import com.azure.storage.common.StorageSharedKeyCredential;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
+import java.util.HashSet;
+import java.util.Set;
+
 /**
  * Shared utilities for Azure fixture-based integration tests.
  * Provides fixture infrastructure for testing ESQL external data sources with Azure Blob Storage.
@@ -34,9 +37,6 @@ public final class AzureFixtureUtils {
 
     /** Container name - matches S3 BUCKET for consistent path structure */
     public static final String CONTAINER = S3FixtureUtils.BUCKET;
-
-    /** Resource path for test fixtures */
-    private static final String FIXTURES_RESOURCE_PATH = "/iceberg-fixtures";
 
     private AzureFixtureUtils() {}
 
@@ -79,13 +79,13 @@ public final class AzureFixtureUtils {
      */
     public static void loadFixturesFromResources(String fixtureAddress) {
         try {
-            int[] count = { 0 };
-            FixtureUtils.forEachFixtureEntry(AzureFixtureUtils.class, (relativePath, content) -> {
+            Set<String> loadedKeys = new HashSet<>();
+            FixtureUtils.forEachFixtureEntryMergingAllClasspathRoots(AzureFixtureUtils.class.getClassLoader(), (relativePath, content) -> {
                 String key = S3FixtureUtils.WAREHOUSE + "/" + relativePath;
                 addBlobToFixture(fixtureAddress, key, content);
-                count[0]++;
+                loadedKeys.add(key);
             });
-            logger.info("Loaded {} fixture files into Azure fixture", count[0]);
+            logger.info("Loaded {} fixture file(s) into Azure fixture: {}", loadedKeys.size(), String.join(", ", loadedKeys));
         } catch (Exception e) {
             logger.error("Failed to load fixtures from resources", e);
             throw new RuntimeException(e);

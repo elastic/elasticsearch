@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.compute.data.BlockStreamInput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -88,7 +89,7 @@ public class Configuration implements Writeable {
         QueryPragmas pragmas,
         int resultTruncationMaxSizeRegular,
         int resultTruncationDefaultSizeRegular,
-        String query,
+        @Nullable String query,
         boolean profile,
         Map<String, Map<String, Column>> tables,
         long queryStartTimeNanos,
@@ -109,7 +110,7 @@ public class Configuration implements Writeable {
         this.resultTruncationDefaultSizeRegular = resultTruncationDefaultSizeRegular;
         this.resultTruncationMaxSizeTimeseries = resultTruncationMaxSizeTimeseries;
         this.resultTruncationDefaultSizeTimeseries = resultTruncationDefaultSizeTimeseries;
-        this.query = query;
+        this.query = query != null ? query : "";
         this.profile = profile;
         this.tables = tables;
         assert tables != null;
@@ -357,7 +358,7 @@ public class Configuration implements Writeable {
         QueryPragmas pragmas,
         int resultTruncationMaxSizeRegular,
         int resultTruncationDefaultSizeRegular,
-        String query,
+        @Nullable String query,
         boolean profile,
         Map<String, Map<String, Column>> tables,
         long queryStartTimeNanos,
@@ -379,7 +380,7 @@ public class Configuration implements Writeable {
         this.resultTruncationDefaultSizeRegular = resultTruncationDefaultSizeRegular;
         this.resultTruncationMaxSizeTimeseries = resultTruncationMaxSizeTimeseries;
         this.resultTruncationDefaultSizeTimeseries = resultTruncationDefaultSizeTimeseries;
-        this.query = query;
+        this.query = query != null ? query : "";
         this.profile = profile;
         this.tables = tables;
         assert tables != null;
@@ -411,6 +412,33 @@ public class Configuration implements Writeable {
      * Returns a new Configuration with the given view queries added.
      */
     public Configuration withViewQueries(Map<String, String> viewQueries) {
+        return new Configuration(
+            zoneId,
+            now,
+            locale,
+            username,
+            clusterName,
+            pragmas,
+            resultTruncationMaxSizeRegular,
+            resultTruncationDefaultSizeRegular,
+            query,
+            profile,
+            tables,
+            queryStartTimeNanos,
+            allowPartialResults,
+            resultTruncationMaxSizeTimeseries,
+            resultTruncationDefaultSizeTimeseries,
+            projectRouting,
+            approximationSettings,
+            viewQueries,
+            explainOnly
+        );
+    }
+
+    /**
+     * Returns a copy of this configuration with the supplied timezone.
+     */
+    public Configuration withZoneId(ZoneId zoneId) {
         return new Configuration(
             zoneId,
             now,

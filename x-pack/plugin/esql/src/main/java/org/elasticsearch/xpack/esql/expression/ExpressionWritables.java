@@ -11,7 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.xpack.esql.core.expression.ExpressionCoreWritables;
-import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateWritables;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextWritables;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ScalarFunctionWritables;
@@ -75,13 +75,18 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialCo
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDisjoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialWithin;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StBuffer;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDimension;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDistance;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StEnvelope;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohash;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohex;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeometryType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotile;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StIsEmpty;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StNPoints;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplify;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopology;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StX;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StXMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StXMin;
@@ -217,6 +222,9 @@ public class ExpressionWritables {
         entries.add(Space.ENTRY);
         entries.add(Sqrt.ENTRY);
         entries.add(StEnvelope.ENTRY);
+        entries.add(StDimension.ENTRY);
+        entries.add(StGeometryType.ENTRY);
+        entries.add(StIsEmpty.ENTRY);
         entries.add(StNPoints.ENTRY);
         entries.add(StXMax.ENTRY);
         entries.add(StXMin.ENTRY);
@@ -279,7 +287,9 @@ public class ExpressionWritables {
             StGeohash.ENTRY,
             StGeotile.ENTRY,
             StGeohex.ENTRY,
-            StSimplify.ENTRY
+            StBuffer.ENTRY,
+            StSimplify.ENTRY,
+            StSimplifyPreserveTopology.ENTRY
         );
     }
 

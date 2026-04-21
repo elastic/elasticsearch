@@ -17,6 +17,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -28,12 +29,18 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.simdvec.VectorSimilarityType.DOT_PRODUCT;
 import static org.elasticsearch.simdvec.VectorSimilarityType.EUCLIDEAN;
 import static org.elasticsearch.simdvec.VectorSimilarityType.MAXIMUM_INNER_PRODUCT;
+import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 import static org.hamcrest.Matchers.closeTo;
 
 public class FloatVectorScorerFactoryTests extends AbstractVectorTestCase {
 
     private static final int TIMES = 100; // a loop iteration times
     private static final double DELTA = 1e-6;
+
+    @BeforeClass
+    public static void requiresHeapSegments() {
+        assumeTrue("scorer only supported on JDK 22+", SUPPORTS_HEAP_SEGMENTS);
+    }
 
     // Tests that the provider instance is present or not on expected platforms/architectures
     public void testSupport() {
@@ -163,6 +170,30 @@ public class FloatVectorScorerFactoryTests extends AbstractVectorTestCase {
                 for (int times = 0; times < TIMES; times++) {
                     int queryIdx = randomIntBetween(0, size - 1);
                     scoreBulkVectors(dims, size, in, vectors, queryIdx, factory);
+                }
+            }
+        }
+    }
+
+    // Verifies that bulkScore with zero nodes returns NEGATIVE_INFINITY without throwing,
+    // as Lucene's exactSearch path can call bulkScore with an empty batch when filters exclude all docs.
+    public void testBulkScoreWithZeroNodes() throws IOException {
+        assumeTrue(notSupportedMsg(), supported());
+        var factory = AbstractVectorTestCase.factory.get();
+        final int dims = randomIntBetween(64, 4096);
+        final int size = randomIntBetween(2, 100);
+
+        try (var dir = new MMapDirectory(createTempDir("testBulkScoreWithZeroNodes"))) {
+            String fileName = "testBulkScoreWithZeroNodes-" + dims;
+            writeTestDataFile(FloatVectorScorerFactoryTests::randomVector, dir, fileName, size, dims, new float[size][]);
+            try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
+                for (var sim : List.of(DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT)) {
+                    var values = vectorValues(dims, size, in, sim.function());
+                    var supplier = factory.getFloatVectorScorerSupplier(sim, in, values).get();
+                    var scorer = supplier.scorer();
+                    scorer.setScoringOrdinal(0);
+                    float result = scorer.bulkScore(new int[0], new float[0], 0);
+                    assertEquals(Float.NEGATIVE_INFINITY, result, 0f);
                 }
             }
         }

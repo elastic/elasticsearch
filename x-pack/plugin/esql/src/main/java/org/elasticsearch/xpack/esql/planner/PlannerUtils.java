@@ -34,7 +34,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.Queries;
-import org.elasticsearch.xpack.esql.datasources.FilterPushdownRegistry;
+import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
@@ -79,8 +79,6 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
-import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS;
-import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.EXTRACT_SPATIAL_CENTROID;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.NONE;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.xpack.esql.capabilities.TranslationAware.translatable;
@@ -296,12 +294,12 @@ public class PlannerUtils {
         FoldContext foldCtx,
         PhysicalPlan plan,
         SearchStats searchStats,
-        FilterPushdownRegistry filterPushdownRegistry,
+        FormatReaderRegistry formatReaderRegistry,
         PlanTimeProfile planTimeProfile
     ) {
         final var logicalOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
         var physicalOptimizer = new LocalPhysicalPlanOptimizer(
-            new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, searchStats, filterPushdownRegistry)
+            new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, searchStats, formatReaderRegistry)
         );
 
         return localPlan(plan, logicalOptimizer, physicalOptimizer, planTimeProfile);
@@ -491,6 +489,7 @@ public class PlannerUtils {
                 case EXTRACT_SPATIAL_CENTROID, EXTRACT_SPATIAL_BOUNDS_AND_CENTROID -> ElementType.DOUBLE;
                 default -> ElementType.BYTES_REF;
             };
+            case PARTIAL_AGG -> ElementType.COMPOSITE;
             case AGGREGATE_METRIC_DOUBLE -> ElementType.AGGREGATE_METRIC_DOUBLE;
             case EXPONENTIAL_HISTOGRAM -> ElementType.EXPONENTIAL_HISTOGRAM;
             case TDIGEST -> ElementType.TDIGEST;

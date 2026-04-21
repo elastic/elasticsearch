@@ -25,6 +25,15 @@ public sealed interface FloatVector extends Vector permits ConstantFloatVector, 
 
     float getFloat(int position);
 
+    /**
+     * Copies values from this vector into the destination array.
+     */
+    default void copyTo(int srcPosition, float[] dst, int dstPosition, int length) {
+        for (int i = 0; i < length; i++) {
+            dst[dstPosition + i] = getFloat(srcPosition + i);
+        }
+    }
+
     @Override
     FloatBlock asBlock();
 

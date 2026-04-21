@@ -1,0 +1,5 @@
+area: Reindex
+issues: []
+pr: 146134
+summary: Restore initial thread context during reindex etc
+type: bug

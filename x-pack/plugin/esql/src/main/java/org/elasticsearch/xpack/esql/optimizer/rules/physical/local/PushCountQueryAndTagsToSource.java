@@ -15,11 +15,15 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproximate;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -28,6 +32,8 @@ import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 
 import java.util.List;
@@ -57,33 +63,68 @@ import java.util.Optional;
 public class PushCountQueryAndTagsToSource extends PhysicalOptimizerRules.OptimizerRule<AggregateExec> {
     @Override
     protected PhysicalPlan rule(AggregateExec aggregateExec) {
-        if (
-        // Ensures we are only grouping by one field (2 aggregates: count + group by field).
-        aggregateExec.aggregates().size() == 2
+        // The rule applies only when the aggregate has:
+        // - exactly one grouping key
+        // - exactly one aggregate (the COUNT itself)
+        // This rejects multi-grouping queries and multi-aggregate queries (e.g. COUNT + MAX).
+        // The COUNT must be Count(*) or CountApproximate(*), without a filter on the count itself.
+        if (aggregateExec.groupings().size() == 1
+            && (aggregateExec.aggregates().size() == 1
+                // The second "aggregate" must be the grouping itself.
+                // Sometimes CombineProjections or other rules may remove it, so we check for both 1 and 2 aggs
+                || aggregateExec.aggregates().size() == 2
+                    && Expressions.equalsAsAttribute(Alias.unwrap(aggregateExec.aggregates().get(1)), aggregateExec.groupings().getFirst()))
             && aggregateExec.aggregates().getFirst() instanceof Alias alias
-            && alias.child() instanceof Count count
-            && count.hasFilter() == false // We don't support pushing down counts where the filter is *on the count itself*.
-            && count.field() instanceof Literal // Ensures count(*) or equivalent.
+            && ((alias.child() instanceof Count count && count.hasFilter() == false && count.field() instanceof Literal)
+                || (alias.child() instanceof CountApproximate ca && ca.hasFilter() == false && ca.field() instanceof Literal))
             && aggregateExec.child() instanceof EvalExec evalExec
             && evalExec.child() instanceof EsQueryExec queryExec
             && queryExec.queryBuilderAndTags().size() > 1 // Ensures there are query and tags to push down.
         ) {
+            AggregateFunction count = (AggregateFunction) alias.child();
             var withFilter = tryMerge(queryExec.queryBuilderAndTags());
             if (withFilter.isEmpty() || withFilter.stream().allMatch(PushCountQueryAndTagsToSource::shouldPush) == false) {
                 return aggregateExec;
+            }
+            List<Attribute> statsOutput;
+            if (count instanceof CountApproximate ca) {
+                statsOutput = AbstractPhysicalOperationProviders.intermediateAttributes(
+                    List.of(alias.replaceChild(new Count(ca.source(), ca.field(), ca.filter(), ca.window()))),
+                    aggregateExec.groupings()
+                );
+            } else {
+                statsOutput = aggregateExec.output();
             }
             EsStatsQueryExec statsQueryExec = new EsStatsQueryExec(
                 queryExec.source(),
                 queryExec.indexPattern(),
                 null, // query
                 queryExec.limit(),
-                aggregateExec.output(),
+                statsOutput,
                 new EsStatsQueryExec.ByStat(withFilter)
             );
             // Wrap with FilterExec to remove empty buckets (keep buckets where count > 0). This was automatically handled by the
             // AggregateExec, but since we removed it, we need to do it manually.
             Attribute countAttr = statsQueryExec.output().get(1);
-            return new FilterExec(Source.EMPTY, statsQueryExec, new GreaterThan(Source.EMPTY, countAttr, ZERO));
+            PhysicalPlan plan = new FilterExec(Source.EMPTY, statsQueryExec, new GreaterThan(Source.EMPTY, countAttr, ZERO));
+
+            if (count instanceof CountApproximate) {
+                Attribute originalCount = aggregateExec.output().get(1);
+                Attribute originalSeen = aggregateExec.output().get(2);
+                Attribute longCount = statsOutput.get(1);
+                Attribute longSeen = statsOutput.get(2);
+                plan = new EvalExec(
+                    plan.source(),
+                    plan,
+                    List.of(
+                        new Alias(longCount.source(), longCount.name(), new ToDouble(Source.EMPTY, longCount), originalCount.id()),
+                        new Alias(longSeen.source(), longSeen.name(), longSeen, originalSeen.id())
+                    )
+                );
+                plan = new ProjectExec(aggregateExec.source(), plan, aggregateExec.output());
+            }
+
+            return plan;
         }
         return aggregateExec;
     }

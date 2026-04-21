@@ -1071,7 +1071,8 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                         () -> false,
                         builder,
                         new MultiBucketConsumerService.MultiBucketConsumer(context.maxBuckets(), context.breaker()),
-                        PipelineTree.EMPTY
+                        PipelineTree.EMPTY,
+                        null
                     )
                 );
                 assertThat(

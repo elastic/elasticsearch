@@ -1,0 +1,2 @@
+FROM employees
+| STATS last_name = SUM(LENGTH(last_name)), first_name = SUM(LENGTH(first_name))

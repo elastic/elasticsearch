@@ -21,8 +21,19 @@ import java.io.IOException;
  * This class is generated. Edit {@code X-Vector.java.st} instead.
  */
 public sealed interface IntVector extends Vector permits ConstantIntVector, IntArrayVector, IntBigArrayVector, IntRangeVector,
-    ConstantNullVector, org.elasticsearch.compute.data.arrow.IntArrowBufVector {
+    ConstantNullVector, org.elasticsearch.compute.data.arrow.IntArrowBufVector, org.elasticsearch.compute.data.arrow.UInt8ArrowBufVector,
+    org.elasticsearch.compute.data.arrow.Int8ArrowBufVector, org.elasticsearch.compute.data.arrow.UInt16ArrowBufVector,
+    org.elasticsearch.compute.data.arrow.Int16ArrowBufVector {
     int getInt(int position);
+
+    /**
+     * Copies values from this vector into the destination array.
+     */
+    default void copyTo(int srcPosition, int[] dst, int dstPosition, int length) {
+        for (int i = 0; i < length; i++) {
+            dst[dstPosition + i] = getInt(srcPosition + i);
+        }
+    }
 
     @Override
     IntBlock asBlock();

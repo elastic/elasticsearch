@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDataSourcePlugin;
@@ -297,7 +298,6 @@ public class DataSourceModuleTests extends ESTestCase {
         assertNotNull(module.storageProviderRegistry());
         assertNotNull(module.formatReaderRegistry());
         assertNotNull(module.sourceFactories());
-        assertNotNull(module.filterPushdownRegistry());
 
         // No providers should be registered
         assertFalse("No file provider should be registered", module.storageProviderRegistry().hasProvider("file"));

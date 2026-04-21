@@ -240,7 +240,9 @@ public class CircuitBreakerTests extends ESTestCase {
                     0,
                     ShardSearchFailure.EMPTY_ARRAY,
                     Clusters.EMPTY,
-                    searchRequest.pointInTimeBuilder().getEncodedId()
+                    searchRequest.pointInTimeBuilder().getEncodedId(),
+                    null,
+                    null
                 )
             );
         }

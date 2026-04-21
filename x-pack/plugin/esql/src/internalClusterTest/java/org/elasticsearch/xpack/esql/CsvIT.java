@@ -43,6 +43,7 @@ import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.useragent.UserAgentPlugin;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -83,7 +84,10 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -119,6 +123,7 @@ public class CsvIT extends ESTestCase {
     private static final Logger logger = LogManager.getLogger(CsvIT.class);
     private static final EsqlCapabilities ENABLED_CAPS = EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, false);
     private static final EsqlCapabilities ALL_CAPS = EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, true);
+    private static final int BULK_INDEX_BATCH_SIZE = 10_000;
 
     private static InternalTestCluster cluster;
     private static String currentGroupName = null;
@@ -157,9 +162,12 @@ public class CsvIT extends ESTestCase {
     public static void setupCluster() throws Exception {
         long start = System.currentTimeMillis();
         logger.info("Creating test cluster");
+        var nodeDirectory = createTempDir();
+        var configDirectory = nodeDirectory.resolve("config");
+        createCustomRegexConfig(configDirectory);
         cluster = new InternalTestCluster(
             randomLong(),
-            createTempDir(),
+            nodeDirectory,
             false,
             true,
             1,
@@ -176,7 +184,7 @@ public class CsvIT extends ESTestCase {
 
                 @Override
                 public java.nio.file.Path nodeConfigPath(int nodeOrdinal) {
-                    return null;
+                    return configDirectory;
                 }
             },
             0,
@@ -194,6 +202,7 @@ public class CsvIT extends ESTestCase {
                 MapperExtrasPlugin.class,
                 SpatialPlugin.class,
                 UnsignedLongMapperPlugin.class,
+                UserAgentPlugin.class,
                 VersionFieldPlugin.class,
                 Wildcard.class
             ),
@@ -245,6 +254,7 @@ public class CsvIT extends ESTestCase {
                 Map.of()
             );
 
+            CsvAssert.assertMetadata(expected, actual.columnNames(), actual.columnTypes(), logger);
             CsvAssert.assertDataWithValueConverter(
                 expected,
                 actual.values(),
@@ -367,13 +377,33 @@ public class CsvIT extends ESTestCase {
         Stream.of(request.indices()).flatMap(pattern -> {
             assert pattern.contains("<") == false : "Date-math is not supported in test";
             if (pattern.contains("*")) {
-                assert pattern.endsWith("*") : "Only suffix patterns are supported in test";
-                var prefix = pattern.substring(pattern.startsWith("-") ? 1 : 0, pattern.length() - 1);
+                if (pattern.equals("*")) {
+                    switch (currentGroupName) {
+                        // Temporarily allow a few so they have time to migrate away
+                        case "enrich", "inlinestats", "limit", "lookup-join" -> logger.warn("stop using FROM *");
+                        default -> throw new IllegalStateException(
+                            "FROM * is not allowed in csv-spec tests because it makes them brittle. We add new data sets frequently."
+                        );
+                    }
+                    return CSV_DATASET.values().stream();
+                }
+                if (pattern.endsWith("*") == false) {
+                    throw new IllegalStateException("CsvIT only supports suffix patterns but got: " + pattern);
+                }
+                String prefix = pattern.substring(pattern.startsWith("-") ? 1 : 0, pattern.length() - 1);
+                if (prefix.length() < 3) {
+                    throw new IllegalStateException(
+                        "FROM pattern* may not be short in csv-spec tests because it makes them brittle. We add new data sets frequently."
+                    );
+                }
                 return CSV_DATASET.values().stream().filter(ds -> ds.indexName().startsWith(prefix));
             } else {
                 return Stream.of(CSV_DATASET.get(pattern));
             }
-        }).filter(Objects::nonNull).forEach(resource -> indices.maybeLoad(resource.indexName(), resource));
+        })
+            .filter(Objects::nonNull)
+            .filter(resource -> resource.requiredCapabilities().stream().allMatch(EsqlCapabilities.Cap::isEnabled))
+            .forEach(resource -> indices.maybeLoad(resource.indexName(), resource));
     }
 
     private static void loadInference(GetInferenceModelAction.Request request) {
@@ -413,6 +443,14 @@ public class CsvIT extends ESTestCase {
                             .setId(document.id())
                             .setSource(document.json().toString(), XContentType.JSON)
                     );
+                    if (bulk.numberOfActions() >= BULK_INDEX_BATCH_SIZE) {
+                        var result = bulk.get();
+                        assertFalse(
+                            "Must load dataset [" + dataset.indexName() + "] successfully: " + result.buildFailureMessage(),
+                            result.hasFailures()
+                        );
+                        bulk = cluster.client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+                    }
                 }
                 if (bulk.numberOfActions() > 0) {
                     var result = bulk.get();
@@ -489,7 +527,10 @@ public class CsvIT extends ESTestCase {
             logger.info("Unloading view [{}]", name);
             assertAcked(
                 cluster.client()
-                    .execute(DeleteViewAction.INSTANCE, new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, name))
+                    .execute(
+                        DeleteViewAction.INSTANCE,
+                        new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { name })
+                    )
             );
         }
     };
@@ -527,6 +568,16 @@ public class CsvIT extends ESTestCase {
             if (failure != null) {
                 throw new RuntimeException("Resource loading failure", failure);
             }
+        }
+    }
+
+    private static void createCustomRegexConfig(Path configDir) throws IOException {
+        // create a subdir for the user-agent with custom regex files so we can test the USER_AGENT with the regex_file option
+        Path userAgentDir = configDir.resolve("user-agent");
+        Files.createDirectories(userAgentDir);
+        try (InputStream is = CsvIT.class.getResourceAsStream("/custom-regexes.yml")) {
+            assert is != null : "custom-regexes.yml not found on classpath";
+            Files.copy(is, userAgentDir.resolve("custom-regexes.yml"));
         }
     }
 

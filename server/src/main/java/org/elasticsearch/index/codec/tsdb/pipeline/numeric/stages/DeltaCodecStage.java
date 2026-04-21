@@ -69,11 +69,21 @@ public final class DeltaCodecStage implements NumericCodecStage {
     @Override
     public void decode(final long[] values, final int valueCount, final DecodingContext context) throws IOException {
         assert valueCount >= 1 : "valueCount must be at least 1";
-        final long first = context.metadata().readZLong();
-        values[0] += first;
-        for (int i = 1; i < valueCount; i++) {
-            values[i] += values[i - 1];
+        long sum = context.metadata().readZLong();
+        for (int i = 0; i < valueCount; i++) {
+            sum += values[i];
+            values[i] = sum;
         }
+    }
+
+    public static void encodeStatic(final DeltaCodecStage stage, final long[] values, int valueCount, final EncodingContext context)
+        throws IOException {
+        stage.encode(values, valueCount, context);
+    }
+
+    public static void decodeStatic(final DeltaCodecStage stage, final long[] values, int valueCount, final DecodingContext context)
+        throws IOException {
+        stage.decode(values, valueCount, context);
     }
 
     private static boolean isMonotonic(final long[] values, final int valueCount) {

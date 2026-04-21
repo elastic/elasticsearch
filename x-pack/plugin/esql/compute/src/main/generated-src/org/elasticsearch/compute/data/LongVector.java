@@ -21,9 +21,19 @@ import java.io.IOException;
  * This class is generated. Edit {@code X-Vector.java.st} instead.
  */
 public sealed interface LongVector extends Vector permits ConstantLongVector, LongArrayVector, LongBigArrayVector, ConstantNullVector,
-    org.elasticsearch.compute.data.arrow.LongArrowBufVector {
+    org.elasticsearch.compute.data.arrow.LongArrowBufVector, org.elasticsearch.compute.data.arrow.UInt32ArrowBufVector,
+    org.elasticsearch.compute.data.arrow.LongMul1kArrowBufVector {
 
     long getLong(int position);
+
+    /**
+     * Copies values from this vector into the destination array.
+     */
+    default void copyTo(int srcPosition, long[] dst, int dstPosition, int length) {
+        for (int i = 0; i < length; i++) {
+            dst[dstPosition + i] = getLong(srcPosition + i);
+        }
+    }
 
     @Override
     LongBlock asBlock();

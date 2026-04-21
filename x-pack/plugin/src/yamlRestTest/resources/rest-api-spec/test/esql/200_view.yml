@@ -87,6 +87,133 @@ setup:
   - length: { views: 0 }
 
 ---
+"delete-multiple-views":
+  - do:
+      esql.put_view:
+        name: dogs
+        body:
+          query: 'FROM test | WHERE animal == "dog"'
+
+  - do:
+      esql.put_view:
+        name: cats
+        body:
+          query: 'FROM test | WHERE animal == "cat"'
+
+  - do:
+      esql.put_view:
+        name: foxes
+        body:
+          query: 'FROM test | WHERE animal == "fox"'
+
+  - do:
+      esql.get_view: { }
+
+  - length: { views: 3 }
+
+  - do:
+      esql.delete_view:
+        name: dogs,cats
+
+  - do:
+      esql.get_view: { }
+
+  - length: { views: 1 }
+  - match: { views.0.name: "foxes" }
+
+  - do:
+      esql.delete_view:
+        name: foxes
+
+  - do:
+      esql.get_view: { }
+
+  - length: { views: 0 }
+
+---
+"delete-multiple-views-with-wildcard":
+  - do:
+      esql.put_view:
+        name: animals-1
+        body:
+          query: 'FROM test | WHERE animal == "dog"'
+
+  - do:
+      esql.put_view:
+        name: animals-2
+        body:
+          query: 'FROM test | WHERE animal == "cat"'
+
+  - do:
+      esql.put_view:
+        name: faxes
+        body:
+          query: 'FROM test | WHERE animal == "office_appliance"'
+
+  - do:
+      esql.get_view: { }
+
+  - length: { views: 3 }
+
+  - do:
+      esql.delete_view:
+        name: animals-*
+
+  - do:
+      esql.get_view: { }
+
+  - length: { views: 1 }
+  - match: { views.0.name: "faxes" }
+
+---
+"delete-all-views":
+  - do:
+      esql.put_view:
+        name: dogs
+        body:
+          query: 'FROM test | WHERE animal == "dog"'
+
+  - do:
+      esql.put_view:
+        name: cats
+        body:
+          query: 'FROM test | WHERE animal == "cat"'
+
+  - do:
+      esql.get_view: { }
+
+  - length: { views: 2 }
+
+  - do:
+      esql.delete_view:
+        name: _all
+
+  - do:
+      esql.get_view: { }
+
+  - length: { views: 0 }
+
+---
+"delete-multiple-views-one-missing":
+  - do:
+      esql.put_view:
+        name: dogs
+        body:
+          query: 'FROM test | WHERE animal == "dog"'
+
+  - do:
+      catch: /view \[nonexistent\] not found/
+      esql.delete_view:
+        name: dogs,nonexistent
+
+  # The view should still exist since the request failed
+  - do:
+      esql.get_view:
+        name: dogs
+
+  - match: { views.0.name: "dogs" }
+
+---
 "invalid-views":
   - do:
       catch: /invalid view name/
@@ -246,7 +373,7 @@ setup:
         index: myindex
 
   - do:
-      catch: /Invalid alias name \[myview\]. an index, data stream, or ESQL view exists with the same name as the alias|is not available when running in serverless mode/
+      catch: /Invalid alias name \[myview\]. an index, data stream, (ESQL view, or ESQL dataset|or ESQL view) exists with the same name as the alias|is not available when running in serverless mode/
       indices.put_alias:
         index: myindex
         name: myview
@@ -276,7 +403,7 @@ setup:
         name: myviewds
 
   - do:
-      catch: /Invalid alias name \[myview\]. an index, data stream, or ESQL view exists with the same name as the alias|is not available when running in serverless mode/
+      catch: /Invalid alias name \[myview\]. an index, data stream, (ESQL view, or ESQL dataset|or ESQL view) exists with the same name as the alias|is not available when running in serverless mode/
       indices.put_alias:
         index: myviewds
         name: myview

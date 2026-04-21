@@ -275,11 +275,12 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
         suppliers.addAll(casesForDate("2020-02-03T10:12:14+01:00", "Europe/Madrid", "2020-02-03T10:12:14.000+01:00"));
         suppliers.addAll(casesForDate("2020-06-30T10:12:14+02:00", "Europe/Madrid", "2020-06-30T10:12:14.000+02:00"));
 
-        FunctionAppliesTo histogramAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", true);
+        FunctionAppliesTo histogramPreviewAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", true);
+        FunctionAppliesTo histogramGaAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.4.0", "", true);
         suppliers = TestCaseSupplier.mapTestCases(suppliers, tc -> tc.withData(tc.getData().stream().map(typedData -> {
             DataType type = typedData.type();
             if (type == DataType.HISTOGRAM || type == DataType.EXPONENTIAL_HISTOGRAM) {
-                return typedData.withAppliesTo(histogramAppliesTo);
+                return typedData.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo);
             }
             return typedData;
         }).toList()));

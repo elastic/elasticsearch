@@ -48,6 +48,7 @@ import static org.elasticsearch.nativeaccess.Int4TestUtils.unpackNibbles;
 import static org.elasticsearch.simdvec.VectorSimilarityType.DOT_PRODUCT;
 import static org.elasticsearch.simdvec.VectorSimilarityType.EUCLIDEAN;
 import static org.elasticsearch.simdvec.VectorSimilarityType.MAXIMUM_INNER_PRODUCT;
+import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.createDenseInt4VectorValues;
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.writePackedVectorWithCorrection;
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;

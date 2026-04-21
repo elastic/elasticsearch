@@ -111,7 +111,6 @@ $endif$
             sort.collect(value, $if(hasOutputField)$outputValue, $endif$groupId);
         }
 
-        @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
 $if(hasOutputField)$
             sort.toBlocks(driverContext.blockFactory(), blocks, offset, selected);

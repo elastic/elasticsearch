@@ -19,13 +19,14 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproximate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDev;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
+import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
@@ -36,6 +37,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -43,7 +45,7 @@ import static org.hamcrest.Matchers.is;
 public class ReplaceSampledStatsBySampleAndStatsTests extends ESTestCase {
 
     public void testReplace_count() {
-        Alias count = countAlias(Literal.keyword(Source.EMPTY, "*"));
+        Alias count = countApproximateAlias(Literal.keyword(Source.EMPTY, "*"));
         SampledAggregateExec sampledAgg = sampledAggregate(esQueryExec(), List.of(count), List.of(), AggregatorMode.INITIAL, 0.5);
 
         PhysicalPlan result = applyRule(sampledAgg);
@@ -61,21 +63,9 @@ public class ReplaceSampledStatsBySampleAndStatsTests extends ESTestCase {
         assertThat(sampleExec.child(), instanceOf(EsQueryExec.class));
     }
 
-    public void testReplace_sumWithGrouping_noSampling() {
-        FieldAttribute salary = fieldAttribute("salary", DataType.INTEGER);
-        Alias sum = new Alias(Source.EMPTY, "sum", new Sum(Source.EMPTY, salary));
-        FieldAttribute dept = fieldAttribute("dept", DataType.KEYWORD);
-        SampledAggregateExec sampledAgg = sampledAggregate(esQueryExec(), List.of(sum), List.of(dept), AggregatorMode.INITIAL, 1.0);
-
-        PhysicalPlan result = applyRule(sampledAgg);
-
-        AggregateExec aggExec = assertAggregate(result, sampledAgg);
-        assertThat(aggExec.child(), instanceOf(EsQueryExec.class));
-    }
-
     public void testReplace_countAndStddev_finalMode() {
         FieldAttribute empNo = fieldAttribute("emp_no", DataType.INTEGER);
-        Alias count = countAlias(empNo);
+        Alias count = countApproximateAlias(empNo);
         Alias stddev = new Alias(Source.EMPTY, "stddev", new StdDev(Source.EMPTY, empNo));
         SampledAggregateExec sampledAgg = sampledAggregate(esQueryExec(), List.of(count, stddev), List.of(), AggregatorMode.FINAL, 0.3);
 
@@ -94,7 +84,7 @@ public class ReplaceSampledStatsBySampleAndStatsTests extends ESTestCase {
     }
 
     public void testReplace_countAndSum() {
-        Alias count = countAlias(Literal.keyword(Source.EMPTY, "*"));
+        Alias count = countApproximateAlias(Literal.keyword(Source.EMPTY, "*"));
         FieldAttribute salary = fieldAttribute("salary", DataType.INTEGER);
         Alias sum = new Alias(Source.EMPTY, "sum", new Sum(Source.EMPTY, salary));
         FieldAttribute dept = fieldAttribute("dept", DataType.KEYWORD);
@@ -133,6 +123,31 @@ public class ReplaceSampledStatsBySampleAndStatsTests extends ESTestCase {
         assertThat(aggExec.child(), instanceOf(SampleExec.class));
         SampleExec sampleExec = (SampleExec) aggExec.child();
         assertThat(sampleExec.probability(), is(sampledAgg.sampleProbability()));
+    }
+
+    public void testReplace_join() {
+        Alias count = countApproximateAlias(Literal.keyword(Source.EMPTY, "*"));
+        EsQueryExec left = esQueryExec();
+        EsQueryExec right = esQueryExec();
+        LookupJoinExec lookupJoin = lookupJoinExec(left, right);
+        SampledAggregateExec sampledAgg = sampledAggregate(lookupJoin, List.of(count), List.of(), AggregatorMode.INITIAL, 0.5);
+
+        PhysicalPlan result = applyRule(sampledAgg);
+
+        assertThat(result, instanceOf(ProjectExec.class));
+        ProjectExec project = (ProjectExec) result;
+        assertThat(project.child(), instanceOf(EvalExec.class));
+        EvalExec eval = (EvalExec) project.child();
+        // COUNT and its bucket must be sample-corrected.
+        assertThat(eval.fields(), hasSize(2));
+        AggregateExec aggExec = assertAggregate(eval.child(), sampledAgg);
+        assertThat(aggExec.child(), instanceOf(LookupJoinExec.class));
+        LookupJoinExec lookupJoinExec = (LookupJoinExec) aggExec.child();
+        assertThat(lookupJoinExec.left(), instanceOf(SampleExec.class));
+        SampleExec sampleExec = (SampleExec) lookupJoinExec.left();
+        assertThat(sampleExec.probability(), is(sampledAgg.sampleProbability()));
+        assertThat(sampleExec.child(), equalTo(left));
+        assertThat(lookupJoinExec.right(), equalTo(right));
     }
 
     private static PhysicalPlan applyRule(SampledAggregateExec sampledAgg) {
@@ -188,8 +203,12 @@ public class ReplaceSampledStatsBySampleAndStatsTests extends ESTestCase {
         return new EsQueryExec(Source.EMPTY, "test", IndexMode.STANDARD, List.of(), null, null, null, List.of());
     }
 
-    private static Alias countAlias(Expression field) {
-        return new Alias(Source.EMPTY, "count", new Count(Source.EMPTY, field));
+    private static LookupJoinExec lookupJoinExec(PhysicalPlan left, PhysicalPlan right) {
+        return new LookupJoinExec(Source.EMPTY, left, right, List.of(), List.of(), List.of(), null);
+    }
+
+    private static Alias countApproximateAlias(Expression field) {
+        return new Alias(Source.EMPTY, "count", new CountApproximate(Source.EMPTY, field));
     }
 
     private static FieldAttribute fieldAttribute(String name, DataType type) {

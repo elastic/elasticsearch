@@ -17,7 +17,7 @@ import java.io.IOException;
 /**
  * Deserializes bytes back to values as the terminal stage of the decode pipeline.
  *
- * <p>Unlike {@link NumericDecoder}, payload stages read directly from a
+ * <p>Unlike {@link TransformDecoder}, payload stages read directly from a
  * {@link org.apache.lucene.store.DataInput} rather than reading metadata from the context.
  */
 public interface PayloadDecoder {

@@ -12,7 +12,6 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.OperatorTestCase;
-import org.elasticsearch.core.Nullable;
 import org.hamcrest.Matcher;
 
 import java.util.HashSet;
@@ -21,8 +20,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class MetricsInfoOperatorTests extends OperatorTestCase {
 
@@ -107,8 +109,17 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected void assertStatus(@Nullable Map<String, Object> map, List<Page> input, List<Page> output) {
-        assertNull(map);
+    protected void assertStatus(Map<String, Object> map, List<Page> input, List<Page> output) {
+        var totalInputRows = input.stream().mapToInt(Page::getPositionCount).sum();
+        var totalOutputRows = output.stream().mapToInt(Page::getPositionCount).sum();
+        assertMap(
+            map,
+            matchesMap().entry("mode", "INITIAL")
+                .entry("pages_received", input.size())
+                .entry("rows_received", totalInputRows)
+                .entry("rows_emitted", totalOutputRows)
+                .entry("metrics_accumulated", greaterThanOrEqualTo(0))
+        );
     }
 
     private Operator createInitialOperator() {
@@ -1027,6 +1038,99 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
             assertThat(collectMultiValues(output, 5, 0), equalTo(Set.of("metric.name")));
 
             output.releaseBlocks();
+        }
+    }
+
+    /**
+     * Simulates the cross-cluster scenario: INTERMEDIATE on the remote cluster merges INITIAL outputs from two different data streams —
+     * one with single-valued dimension_fields and another with multi-valued dimension_fields — into a single multi-row page.
+     * The FINAL operator on the coordinator must correctly process this mixed-cardinality page.
+     */
+    public void testFinalModeMultiRowPageMixedSingleAndMultiValuedDimensions() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        try (Operator op = createFinalOperator()) {
+            Page multiRowPage = buildMultiRowFinalPage(
+                blockFactory,
+                List.of("metric.value", "activemq.connections.count", "activemq.consumers.count"),
+                List.of(Set.of("ds-gauge"), Set.of("ds-activemq.broker"), Set.of("ds-activemq.broker")),
+                List.of(Set.of(), Set.of(), Set.of()),
+                List.of(Set.of("gauge"), Set.of("counter"), Set.of("gauge")),
+                List.of(Set.of("double"), Set.of("long"), Set.of("long")),
+                List.of(
+                    Set.of("metric.name"),
+                    Set.of("cloud.instance.id", "broker.name", "agent.id", "host.name"),
+                    Set.of("cloud.instance.id", "broker.name", "agent.id", "host.name")
+                )
+            );
+
+            op.addInput(multiRowPage);
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            assertThat(output.getPositionCount(), equalTo(3));
+
+            boolean foundGauge = false;
+            boolean foundCounter = false;
+            boolean foundConsumers = false;
+            for (int row = 0; row < output.getPositionCount(); row++) {
+                BytesRefBlock nameBlock = output.getBlock(0);
+                String name = nameBlock.getBytesRef(nameBlock.getFirstValueIndex(row), new BytesRef()).utf8ToString();
+                Set<String> dims = collectMultiValues(output, 5, row);
+                Set<String> ds = collectMultiValues(output, 1, row);
+                if ("metric.value".equals(name)) {
+                    foundGauge = true;
+                    assertThat(ds, equalTo(Set.of("ds-gauge")));
+                    assertThat(dims, equalTo(Set.of("metric.name")));
+                } else if ("activemq.connections.count".equals(name)) {
+                    foundCounter = true;
+                    assertThat(ds, equalTo(Set.of("ds-activemq.broker")));
+                    assertThat(dims, equalTo(Set.of("cloud.instance.id", "broker.name", "agent.id", "host.name")));
+                } else if ("activemq.consumers.count".equals(name)) {
+                    foundConsumers = true;
+                    assertThat(ds, equalTo(Set.of("ds-activemq.broker")));
+                    assertThat(dims, equalTo(Set.of("cloud.instance.id", "broker.name", "agent.id", "host.name")));
+                }
+            }
+            assertTrue("Missing metric.value row", foundGauge);
+            assertTrue("Missing activemq.connections.count row", foundCounter);
+            assertTrue("Missing activemq.consumers.count row", foundConsumers);
+
+            output.releaseBlocks();
+        }
+    }
+
+    /**
+     * Build a multi-row 6-column page for FINAL mode input, simulating the output of
+     * an INTERMEDIATE operator that merged results from multiple data streams.
+     */
+    private static Page buildMultiRowFinalPage(
+        BlockFactory blockFactory,
+        List<String> metricNames,
+        List<Set<String>> dataStreamsList,
+        List<Set<String>> unitsList,
+        List<Set<String>> metricTypesList,
+        List<Set<String>> fieldTypesList,
+        List<Set<String>> dimensionFieldsList
+    ) {
+        int rowCount = metricNames.size();
+        try (
+            BytesRefBlock.Builder nameB = blockFactory.newBytesRefBlockBuilder(rowCount);
+            BytesRefBlock.Builder dsB = blockFactory.newBytesRefBlockBuilder(rowCount);
+            BytesRefBlock.Builder unitB = blockFactory.newBytesRefBlockBuilder(rowCount);
+            BytesRefBlock.Builder mtB = blockFactory.newBytesRefBlockBuilder(rowCount);
+            BytesRefBlock.Builder ftB = blockFactory.newBytesRefBlockBuilder(rowCount);
+            BytesRefBlock.Builder dfB = blockFactory.newBytesRefBlockBuilder(rowCount)
+        ) {
+            for (int i = 0; i < rowCount; i++) {
+                nameB.appendBytesRef(new BytesRef(metricNames.get(i)));
+                appendSet(dsB, dataStreamsList.get(i));
+                appendSet(unitB, unitsList.get(i));
+                appendSet(mtB, metricTypesList.get(i));
+                appendSet(ftB, fieldTypesList.get(i));
+                appendSet(dfB, dimensionFieldsList.get(i));
+            }
+            return new Page(nameB.build(), dsB.build(), unitB.build(), mtB.build(), ftB.build(), dfB.build());
         }
     }
 

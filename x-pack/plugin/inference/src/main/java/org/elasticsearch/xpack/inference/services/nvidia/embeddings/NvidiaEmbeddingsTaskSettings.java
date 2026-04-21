@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.inference.common.model.Truncation;
 import org.elasticsearch.xpack.inference.services.nvidia.NvidiaUtils;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -71,9 +70,7 @@ public class NvidiaEmbeddingsTaskSettings implements TaskSettings {
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new NvidiaEmbeddingsTaskSettings(inputType, truncation);
     }
@@ -199,7 +196,7 @@ public class NvidiaEmbeddingsTaskSettings implements TaskSettings {
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        NvidiaEmbeddingsTaskSettings updatedSettings = NvidiaEmbeddingsTaskSettings.fromMap(new HashMap<>(newSettings));
+        NvidiaEmbeddingsTaskSettings updatedSettings = NvidiaEmbeddingsTaskSettings.fromMap(newSettings);
         return of(this, updatedSettings);
     }
 }

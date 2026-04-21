@@ -14,7 +14,7 @@ import java.util.Map;
  * Auto-detecting partition detector that tries Hive-style detection first,
  * then falls back to template-based detection if a path template is configured.
  */
-final class AutoPartitionDetector implements PartitionDetector {
+public final class AutoPartitionDetector implements PartitionDetector {
 
     private final PartitionConfig partitionConfig;
 
@@ -22,7 +22,7 @@ final class AutoPartitionDetector implements PartitionDetector {
         this.partitionConfig = partitionConfig;
     }
 
-    static PartitionDetector fromConfig(PartitionConfig config) {
+    public static PartitionDetector fromConfig(PartitionConfig config) {
         if (config == null) {
             return HivePartitionDetector.INSTANCE;
         }

@@ -7,9 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -44,6 +42,12 @@ public class QuerySettingsTests extends ESTestCase {
     private static SettingsValidationContext SNAPSHOT_CTX_WITH_CPS_ENABLED = new SettingsValidationContext(true, true);
 
     private static SettingsValidationContext SNAPSHOT_CTX_WITH_CPS_DISABLED = new SettingsValidationContext(false, true);
+
+    private static List<SettingsValidationContext> allSettingsValidationContexts = List.of(
+        NON_SNAPSHOT_CTX_WITH_CPS_ENABLED,
+        SNAPSHOT_CTX_WITH_CPS_ENABLED,
+        SNAPSHOT_CTX_WITH_CPS_DISABLED
+    );
 
     public void testValidate_NonExistingSetting() {
         String settingName = "non_existing";
@@ -100,40 +104,27 @@ public class QuerySettingsTests extends ESTestCase {
         assertValid(setting, of("UTC"), equalTo(ZoneId.of("UTC")), NON_SNAPSHOT_CTX_WITH_CPS_ENABLED);
     }
 
-    public void testValidate_UnmappedFields_techPreview() {
-        assumeFalse("Requires no snapshot", Build.current().isSnapshot());
-
-        validateUnmappedFields("FAIL", "NULLIFY");
-        var settingName = QuerySettings.UNMAPPED_FIELDS.name();
-        assertInvalid(
-            settingName,
-            NON_SNAPSHOT_CTX_WITH_CPS_ENABLED,
-            of("UNKNOWN"),
-            "Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution [UNKNOWN], must be one of [FAIL, NULLIFY]"
-        );
-    }
-
-    public void testValidate_UnmappedFields_allValues() {
-        assumeTrue("Requires unmapped fields", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V2.isEnabled());
-        validateUnmappedFields("FAIL", "NULLIFY", "LOAD");
-    }
-
-    private void validateUnmappedFields(String... values) {
+    public void testValidate_UnmappedFields() {
         var setting = QuerySettings.UNMAPPED_FIELDS;
+        String[] values = new String[] { "DEFAULT", "NULLIFY", "LOAD" };
 
-        assertDefault(setting, equalTo(UnmappedResolution.FAIL));
+        assertDefault(setting, equalTo(UnmappedResolution.DEFAULT));
 
         for (String value : values) {
             assertValid(setting, of(randomizeCase(value)), equalTo(UnmappedResolution.valueOf(value)));
         }
 
         assertInvalid(setting.name(), of(12), "Setting [" + setting.name() + "] must be of type KEYWORD");
-        assertInvalid(
-            setting.name(),
-            of("UNKNOWN"),
-            "Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution [UNKNOWN], must be one of "
-                + Arrays.toString(values)
-        );
+
+        for (SettingsValidationContext ctx : allSettingsValidationContexts) {
+            assertInvalid(
+                setting.name(),
+                ctx,
+                of("UNKNOWN"),
+                "Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution [UNKNOWN], must be one of "
+                    + Arrays.toString(values)
+            );
+        }
     }
 
     public void testValidate_Approximation() {
@@ -257,8 +248,6 @@ public class QuerySettingsTests extends ESTestCase {
     public static void generateDocs() throws Exception {
         List<QuerySettings.QuerySettingDef<?>> settings = QuerySettings.SETTINGS_BY_NAME.values()
             .stream()
-            // TODO this is non-snapshot, but we don't want to expose it yet
-            .filter(def -> def != QuerySettings.PROJECT_ROUTING)
             .sorted(Comparator.comparing(QuerySettings.QuerySettingDef::name))
             .toList();
 
@@ -270,14 +259,6 @@ public class QuerySettingsTests extends ESTestCase {
             );
             settingsDocsSupport.renderDocs();
         }
-
-        // TODO remote this when project routing is public
-        // we only want the Kibana JSON for now
-        new DocsV3Support.SettingsDocsSupport(
-            QuerySettings.PROJECT_ROUTING,
-            QuerySettingsTests.class,
-            DocsV3Support.callbacksFromSystemProperty()
-        ).renderKibanaCommandDefinition();
 
         DocsV3Support.SettingsTocDocsSupport toc = new DocsV3Support.SettingsTocDocsSupport(
             settings,

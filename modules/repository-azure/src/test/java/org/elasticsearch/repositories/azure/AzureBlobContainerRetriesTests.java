@@ -46,8 +46,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
+import org.elasticsearch.rest.RequestParams;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.fixture.HttpHeaderParser;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -66,7 +66,6 @@ import java.nio.file.NoSuchFileException;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Base64;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -353,7 +352,7 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
     }
 
     public void testWriteLargeBlob() throws Exception {
-        final int maxRetries = randomIntBetween(2, 5);
+        final int maxRetries = randomIntBetween(4, 8);
         logger.info("--> max retries: {}", maxRetries);
 
         final byte[] data = randomBytes(ByteSizeUnit.MB.toIntBytes(10) + randomIntBetween(0, ByteSizeUnit.MB.toIntBytes(1)));
@@ -373,8 +372,7 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
 
             try {
                 if ("PUT".equals(exchange.getRequestMethod())) {
-                    final Map<String, String> params = new HashMap<>();
-                    RestUtils.decodeQueryString(exchange.getRequestURI().getRawQuery(), 0, params);
+                    final var params = RequestParams.fromQueryString(exchange.getRequestURI().getRawQuery());
 
                     final String blockId = params.get("blockid");
                     assert Strings.hasText(blockId) == false || AzureFixtureHelper.assertValidBlockId(blockId);
@@ -429,7 +427,6 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
         try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", data), data.length)) {
             blobContainer.writeBlob(randomPurpose(), "write_large_blob", stream, data.length, false);
         }
-
         assertThat(countDownUploads.get(), equalTo(0));
         assertThat(countDownComplete.isCountedDown(), is(true));
         assertThat(blocks.isEmpty(), is(true));
@@ -451,8 +448,7 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "write_large_blob_streaming"), exchange -> {
 
             if ("PUT".equals(exchange.getRequestMethod())) {
-                final Map<String, String> params = new HashMap<>();
-                RestUtils.decodeQueryString(exchange.getRequestURI().getRawQuery(), 0, params);
+                final var params = RequestParams.fromQueryString(exchange.getRequestURI().getRawQuery());
 
                 final String blockId = params.get("blockid");
                 assert Strings.hasText(blockId) == false || AzureFixtureHelper.assertValidBlockId(blockId);
@@ -672,11 +668,11 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
     }
 
     private BlobContainer createBlobContainer(int maxRetries, String secondaryHost, LocationMode locationMode) {
-        return createBlobContainer(maxRetries, null, null, null, null, null, BlobPath.EMPTY, secondaryHost, locationMode);
+        return createBlobContainer(maxRetries, null, null, null, null, null, null, BlobPath.EMPTY, secondaryHost, locationMode);
     }
 
     private BlobContainer createBlobContainer(int maxRetries) {
-        return createBlobContainer(maxRetries, null, null, null, null, null, null);
+        return createBlobContainer(maxRetries, null, null, null, null, null, null, null);
     }
 
     @Override
@@ -697,17 +693,19 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
 
     @Override
     protected BlobContainer createBlobContainer(
-        @Nullable Integer maxRetries,
-        @Nullable TimeValue readTimeout,
-        @Nullable Boolean disableChunkedEncoding,
-        @Nullable Integer maxConnections,
-        @Nullable ByteSizeValue bufferSize,
-        @Nullable Integer maxBulkDeletes,
-        @Nullable BlobPath blobContainerPath
+        final @Nullable Integer maxRetries,
+        final @Nullable TimeValue readTimeout,
+        final @Nullable TimeValue requestTimeout,
+        final @Nullable Boolean disableChunkedEncoding,
+        final @Nullable Integer maxConnections,
+        final @Nullable ByteSizeValue bufferSize,
+        final @Nullable Integer maxBulkDeletes,
+        final @Nullable BlobPath blobContainerPath
     ) {
         return createBlobContainer(
             maxRetries,
             readTimeout,
+            requestTimeout,
             disableChunkedEncoding,
             maxConnections,
             bufferSize,
@@ -721,6 +719,7 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
     private BlobContainer createBlobContainer(
         @Nullable Integer maxRetries,
         @Nullable TimeValue readTimeout,
+        @Nullable TimeValue timeout,
         @Nullable Boolean disableChunkedEncoding,
         @Nullable Integer maxConnections,
         @Nullable ByteSizeValue bufferSize,
@@ -745,7 +744,11 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
         if (maxRetries != null) {
             clientSettings.put(MAX_RETRIES_SETTING.getConcreteSettingForNamespace(clientName).getKey(), maxRetries);
         }
-        clientSettings.put(TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), TimeValue.timeValueSeconds(1));
+        if (timeout != null) {
+            clientSettings.put(TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), timeout);
+        } else {
+            clientSettings.put(TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), SAFE_AWAIT_TIMEOUT);
+        }
         if (readTimeout != null) {
             clientSettings.put(READ_TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), readTimeout);
         }

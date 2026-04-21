@@ -16,19 +16,22 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproximate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.LeafExec;
+import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampledAggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.planner.AggregateMapper;
 
 import java.util.ArrayList;
@@ -57,63 +60,73 @@ public class ReplaceSampledStatsBySampleAndStats extends PhysicalOptimizerRules.
     @Override
     protected PhysicalPlan rule(SampledAggregateExec plan) {
         double sampleProbability = (double) Foldables.literalValueOf(plan.sampleProbability());
+        assert sampleProbability < 1.0;
 
-        PhysicalPlan child = sampleProbability == 1.0
-            ? plan.child()
-            : plan.child().transformUp(LeafExec.class, leaf -> new SampleExec(Source.EMPTY, leaf, plan.sampleProbability()));
+        // The only non-unary plans that are currently supported are lookup joins.
+        // At the moment, the left side of the join is the "expensive" side and
+        // will be sampled, while the right side is just a lookup table.
+        // This will probably change in the future, in which case this logic
+        // must be reconsidered.
+        assert plan.allMatch(p -> p instanceof LeafExec || p instanceof UnaryExec || p instanceof LookupJoinExec);
+
+        Holder<Boolean> sampledAdded = new Holder<>(false);
+        PhysicalPlan child = plan.child().transformDown(p -> {
+            if (p instanceof LeafExec && sampledAdded.get() == false) {
+                sampledAdded.set(true);
+                return new SampleExec(Source.EMPTY, p, plan.sampleProbability());
+            } else {
+                return p;
+            }
+        });
 
         List<Alias> sampleCorrections = new ArrayList<>();
         List<Attribute> intermediateAttributes = new ArrayList<>();
 
-        if (sampleProbability == 1.0) {
-            intermediateAttributes = plan.intermediateAttributes();
-        } else {
-            Expression bucketSampleProbability = new Div(
-                Source.EMPTY,
-                plan.sampleProbability(),
-                Literal.integer(Source.EMPTY, ApproximationPlan.BUCKET_COUNT)
-            );
+        Expression bucketSampleProbability = new Div(
+            Source.EMPTY,
+            plan.sampleProbability(),
+            Literal.integer(Source.EMPTY, ApproximationPlan.BUCKET_COUNT)
+        );
 
-            Set<String> originalIntermediateNames = plan.originalIntermediateAttributes()
-                .stream()
-                .map(NamedExpression::name)
-                .collect(Collectors.toSet());
+        Set<String> originalIntermediateNames = plan.originalIntermediateAttributes()
+            .stream()
+            .map(NamedExpression::name)
+            .collect(Collectors.toSet());
 
-            // The first intermediate attributes are the grouping keys.
-            int idx = 0;
-            for (int g = 0; g < plan.groupings().size(); g++) {
-                intermediateAttributes.add(plan.intermediateAttributes().get(idx++));
+        // The first intermediate attributes are the grouping keys.
+        int idx = 0;
+        for (int g = 0; g < plan.groupings().size(); g++) {
+            intermediateAttributes.add(plan.intermediateAttributes().get(idx++));
+        }
+
+        // The following intermediate attributes are the aggregates states.
+        // They come in the same order as the aggregates.
+        for (NamedExpression aggOrKey : plan.aggregates()) {
+            if ((aggOrKey instanceof Alias alias && alias.child() instanceof AggregateFunction) == false) {
+                // This is a grouping key and has already been added to the intermediate attributes.
+                continue;
             }
 
-            // The following intermediate attributes are the aggregates states.
-            // They come in the same order as the aggregates.
-            for (NamedExpression aggOrKey : plan.aggregates()) {
-                if ((aggOrKey instanceof Alias alias && alias.child() instanceof AggregateFunction) == false) {
-                    // This is a grouping key and has already been added to the intermediate attributes.
-                    continue;
-                }
+            AggregateFunction aggFn = (AggregateFunction) ((Alias) aggOrKey).child();
+            boolean aggFnNeedsCorrection = aggFn instanceof CountApproximate || aggFn instanceof Sum;
 
-                AggregateFunction aggFn = (AggregateFunction) ((Alias) aggOrKey).child();
-                boolean aggFnNeedsCorrection = aggFn instanceof Count || aggFn instanceof Sum;
+            List<IntermediateStateDesc> stateDescs = AggregateMapper.intermediateStateDesc(aggFn, plan.groupings().isEmpty() == false);
+            for (IntermediateStateDesc desc : stateDescs) {
+                Attribute attr = plan.intermediateAttributes().get(idx++);
 
-                List<IntermediateStateDesc> stateDescs = AggregateMapper.intermediateStateDesc(aggFn, plan.groupings().isEmpty() == false);
-                for (IntermediateStateDesc desc : stateDescs) {
-                    Attribute attr = plan.intermediateAttributes().get(idx++);
-
-                    if (aggFnNeedsCorrection && desc.type() != ElementType.BOOLEAN) {
-                        // Create a new alias for the uncorrected value, and reuse the existing attribute for the corrected value.
-                        Alias uncorrectedAlias = new Alias(Source.EMPTY, attr.name(), attr);
-                        intermediateAttributes.add(uncorrectedAlias.toAttribute());
-                        Expression corrected = new Div(
-                            Source.EMPTY,
-                            uncorrectedAlias.toAttribute(),
-                            originalIntermediateNames.contains(attr.name()) ? plan.sampleProbability() : bucketSampleProbability
-                        );
-                        Alias correctedAlias = new Alias(Source.EMPTY, attr.name(), corrected, attr.id());
-                        sampleCorrections.add(correctedAlias);
-                    } else {
-                        intermediateAttributes.add(attr);
-                    }
+                if (aggFnNeedsCorrection && desc.type() != ElementType.BOOLEAN) {
+                    // Create a new alias for the uncorrected value, and reuse the existing attribute for the corrected value.
+                    Alias uncorrectedAlias = new Alias(Source.EMPTY, attr.name(), attr);
+                    intermediateAttributes.add(uncorrectedAlias.toAttribute());
+                    Expression corrected = new Div(
+                        Source.EMPTY,
+                        uncorrectedAlias.toAttribute(),
+                        originalIntermediateNames.contains(attr.name()) ? plan.sampleProbability() : bucketSampleProbability
+                    );
+                    Alias correctedAlias = new Alias(Source.EMPTY, attr.name(), corrected, attr.id());
+                    sampleCorrections.add(correctedAlias);
+                } else {
+                    intermediateAttributes.add(attr);
                 }
             }
         }

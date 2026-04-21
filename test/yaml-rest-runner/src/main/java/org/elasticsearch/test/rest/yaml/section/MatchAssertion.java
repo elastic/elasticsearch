@@ -97,6 +97,6 @@ public class MatchAssertion extends Assertion {
             assertThat(actualValue, instanceOf(List.class));
             assertMap((List<?>) actualValue, matchesList((List<?>) expectedValue));
         }
-        assertThat(actualValue, equalTo(expectedValue));
+        assertThat("field [" + getField() + "] does not match the expected value", actualValue, equalTo(expectedValue));
     }
 }

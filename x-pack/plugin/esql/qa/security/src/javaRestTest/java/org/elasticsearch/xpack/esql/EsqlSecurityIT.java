@@ -21,7 +21,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -46,6 +45,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -83,7 +83,11 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("logs_foo_after_2021_alias", "x-pack-test-password", "logs_foo_after_2021_alias", false)
         .user("user_without_monitor_privileges", "x-pack-test-password", "user_without_monitor_privileges", false)
         .user("user_with_monitor_privileges", "x-pack-test-password", "user_with_monitor_privileges", false)
-        .feature(FeatureFlag.ESQL_VIEWS)
+        .user("view_dls_user", "x-pack-test-password", "view_dls_user", false)
+        .user("view_index_dls_user", "x-pack-test-password", "view_index_dls_user", false)
+        .user("view_dls_nested_view_user", "x-pack-test-password", "view_dls_nested_view_user", false)
+        .user("view_fls_user", "x-pack-test-password", "view_fls_user", false)
+        .user("view_dls_fls_user", "x-pack-test-password", "view_dls_fls_user", false)
         .build();
 
     @Override
@@ -573,6 +577,71 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
     }
 
+    public void testViewWithDocumentLevelSecurity() throws Exception {
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("view_dls_user", "FROM view-user1 | STATS sum=sum(value)")
+        );
+        validateDlsFlsViewException(resp.getResponse(), "view-user1");
+    }
+
+    public void testViewWithFieldLevelSecurity() throws Exception {
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("view_fls_user", "FROM view-user1 | STATS sum=sum(value)")
+        );
+        validateDlsFlsViewException(resp.getResponse(), "view-user1");
+    }
+
+    public void testViewWithDocumentAndFieldLevelSecurity() throws Exception {
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("view_dls_fls_user", "FROM view-user1 | STATS sum=sum(value)")
+        );
+        validateDlsFlsViewException(resp.getResponse(), "view-user1");
+    }
+
+    public void testViewDlsOnWildcardPattern() throws Exception {
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("view_dls_user", "FROM view-user* | STATS sum=sum(value)")
+        );
+        validateDlsFlsViewException(resp.getResponse(), "view-user1");
+    }
+
+    /**
+     * Tests a scenario, where the parent view has DLS, but the nested view has no DLS or FLS.
+     * This ensures that the DLS check is applied at the parent view level
+     */
+    public void testViewDlsOnNestedViewOuter() throws Exception {
+        createView("test-admin", "nested-dls-view-no-dls", "FROM view-user* | STATS sum=sum(value)");
+        createView("test-admin", "nested-dls-view-dls", "FROM nested-dls-view-no-dls");
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("view_dls_nested_view_user", "FROM nested-dls-view-dls | STATS sum=sum(value)")
+        );
+        validateDlsFlsViewException(resp.getResponse(), "nested-dls-view-dls");
+    }
+
+    /**
+     * Tests a scenario, where the parent view has no DLS or FLS, but the nested view has DLS.
+     * This ensures that the DLS check is applied at the child view level
+     */
+    public void testViewDlsOnNestedViewInner() throws Exception {
+        createView("test-admin", "nested-dls-view-dls", "FROM view-user* | STATS sum=sum(value)");
+        createView("test-admin", "nested-dls-view-no-dls", "FROM nested-dls-view-dls");
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("view_dls_nested_view_user", "FROM nested-dls-view-no-dls | STATS sum=sum(value)")
+        );
+        validateDlsFlsViewException(resp.getResponse(), "nested-dls-view-dls");
+    }
+
+    public void testUserCanQueryViewWhileHavingDlsOnUnderlyingIndices() throws Exception {
+        Response resp = runESQLCommand("view_index_dls_user", "FROM view-user1 | STATS sum=sum(value)");
+        assertOK(resp);
+    }
+
     public void testDocumentLevelSecurity() throws Exception {
         Response resp = runESQLCommand("user3", "from index | stats sum=sum(value)");
         assertOK(resp);
@@ -733,6 +802,27 @@ public class EsqlSecurityIT extends ESRestTestCase {
             assertThat("Should have optimized physical plan", hasOptimizedPhysicalPlan, is(true));
             assertThat("Should have optimized local logical plan from data node", hasLocalLogicalPlan, is(true));
             assertThat("Should have local physical plan from data node", hasLocalPhysicalPlan, is(true));
+        }
+    }
+
+    private void validateDlsFlsViewException(Response response, String expectedViewNames) throws IOException {
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+        Map<String, Object> entity = entityAsMap(response.getEntity());
+        assertThat(entity, hasKey("error"));
+        Object error = entity.get("error");
+        if (error instanceof Map<?, ?> errorMap) {
+            assertThat(errorMap, hasKey("reason"));
+            assertThat(errorMap, hasKey("views_with_dls_or_fls"));
+            assertThat(
+                errorMap.get("reason"),
+                equalTo(
+                    "Views with document or field level security restrictions are not supported."
+                        + " Remove DLS/FLS restrictions from the affected views in the role definition, or exclude the views from the request."
+                )
+            );
+            assertThat(errorMap.get("views_with_dls_or_fls"), equalTo(expectedViewNames));
+        } else {
+            fail("unexpected error format: " + error);
         }
     }
 

@@ -11,6 +11,7 @@ package org.elasticsearch.datastreams.lifecycle;
 
 import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.health.node.DslErrorInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -21,7 +22,7 @@ import java.util.Set;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore.MAX_ERROR_MESSAGE_LENGTH;
+import static org.elasticsearch.dlm.DataStreamLifecycleErrorStore.MAX_ERROR_MESSAGE_LENGTH;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;

@@ -49,7 +49,7 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.PaginatedHitSource;
+import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.injection.guice.Inject;
@@ -300,7 +300,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         // Since we delete the source index on success, we want to fail the whole job if there are _any_ documents that fail to reindex:
         ActionListener<BulkByScrollResponse> checkForFailuresListener = ActionListener.wrap(bulkByScrollResponse -> {
             if (bulkByScrollResponse.getSearchFailures().isEmpty() == false) {
-                PaginatedHitSource.SearchFailure firstSearchFailure = bulkByScrollResponse.getSearchFailures().get(0);
+                PaginatedSearchFailure firstSearchFailure = bulkByScrollResponse.getSearchFailures().get(0);
                 listener.onFailure(
                     new ElasticsearchException(
                         "Failure reading data from {} caused by {}",

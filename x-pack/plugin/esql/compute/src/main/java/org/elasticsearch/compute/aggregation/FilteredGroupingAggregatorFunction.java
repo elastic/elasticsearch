@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.IntArrayBlock;
@@ -35,6 +34,8 @@ record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next, Expre
         GroupingAggregatorFunction {
 
     FilteredGroupingAggregatorFunction {
+        // Filtered aggregators may filter out entire pages, so the underlying aggregator
+        // may not see all groups. It needs to know this so it can initialize unseen groups to null.
         next.selectedMayContainUnseenGroups(new SeenGroupIds.Empty());
     }
 
@@ -46,6 +47,9 @@ record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next, Expre
             AddInput nextAdd = null;
             try {
                 nextAdd = next.prepareProcessRawInputPage(seenGroupIds, page);
+                if (nextAdd == null) {
+                    return null;
+                }
                 AddInput result = new FilteredAddInput(mask.mask(), nextAdd, page.getPositionCount());
                 mask = null;
                 nextAdd = null;
@@ -117,13 +121,19 @@ record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next, Expre
     }
 
     @Override
-    public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-        next.evaluateIntermediate(blocks, offset, selected);
+    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
+        return next.prepareEvaluateIntermediate(selected, ctx);
     }
 
     @Override
-    public void evaluateFinal(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evaluationContext) {
-        next.evaluateFinal(blocks, offset, selected, evaluationContext);
+    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
+        return next.prepareEvaluateFinal(selected, ctx);
     }
 
     @Override

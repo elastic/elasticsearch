@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -30,6 +31,9 @@ public class ToDateRange extends AbstractConvertFunction {
         "ToDateRange",
         ToDateRange::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToDateRange.class)
+        .unary(ToDateRange::new)
+        .name("to_date_range", "to_daterange");
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(Map.entry(DATE_RANGE, (source, fieldEval) -> fieldEval));
 

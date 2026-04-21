@@ -57,6 +57,14 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
     }
 
     @Override
+    protected Settings getIndexSettings() {
+        return Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name())
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+            .build();
+    }
+
+    @Override
     protected IndexVersion getVersion() {
         return IndexVersionUtils.randomVersionBetween(
             IndexVersions.V_8_8_0,
@@ -82,8 +90,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         ).documentMapper();
     }
 
-    private static ParsedDocument parseDocument(DocumentMapper docMapper, CheckedConsumer<XContentBuilder, IOException> f)
-        throws IOException {
+    private ParsedDocument parseDocument(DocumentMapper docMapper, CheckedConsumer<XContentBuilder, IOException> f) throws IOException {
         // Add the @timestamp field required by DataStreamTimestampFieldMapper for all time series indices
         return docMapper.parse(source(null, b -> {
             f.accept(b);
@@ -91,7 +98,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         }, null));
     }
 
-    private static BytesRef parseAndGetTsid(DocumentMapper docMapper, CheckedConsumer<XContentBuilder, IOException> f) throws IOException {
+    private BytesRef parseAndGetTsid(DocumentMapper docMapper, CheckedConsumer<XContentBuilder, IOException> f) throws IOException {
         return parseDocument(docMapper, f).rootDoc().getBinaryValue(TimeSeriesIdFieldMapper.NAME);
     }
 
@@ -113,10 +120,10 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
     }
 
     public void testDisabledInStandardMode() throws Exception {
-        DocumentMapper docMapper = createMapperService(
-            getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.name()).build(),
-            mapping(b -> {})
-        ).documentMapper();
+        Settings.Builder builder = getIndexSettingsBuilder();
+        builder.put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.name());
+        builder.remove(IndexMetadata.INDEX_ROUTING_PATH.getKey());
+        DocumentMapper docMapper = createMapperService(builder.build(), mapping(b -> {})).documentMapper();
         assertThat(docMapper.metadataMapper(TimeSeriesIdFieldMapper.class), is(nullValue()));
 
         ParsedDocument doc = docMapper.parse(source("id", b -> b.field("field", "value"), null));

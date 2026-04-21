@@ -12,11 +12,15 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.common.util.BigArrays;
+$if(v1_boolean)$
 import org.elasticsearch.common.util.ByteArray;
-$if(!v1_boolean)$
+$elseif(v1_BytesRef)$
+import org.elasticsearch.common.util.BytesRefArray;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+$else$
 import org.elasticsearch.common.util.$v1_Type$Array;
 $endif$
-import org.elasticsearch.common.util.$v2_Type$Array;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
@@ -34,17 +38,19 @@ import java.util.BitSet;
 
 /**
  * A time-series aggregation function that collects the $Occurrence$ occurrence value of a time series in a specified interval.
- * This class is generated. Edit `X-AllValueByTimestafmpAggregator.java.st` instead.
+ * This class is generated. Edit `X-AllValueByTimestampAggregator.java.st` instead.
  */
 @Aggregator(
-    {
+    processNulls = true,
+    value = {
         @IntermediateState(name = "observed", type = "BOOLEAN"),
         @IntermediateState(name = "timestampPresent", type = "BOOLEAN"),
         @IntermediateState(name = "timestamp", type = "$v2_TYPE$"),
         @IntermediateState(name = "values", type = "$v1_TYPE$_BLOCK") }
 )
 @GroupingAggregator(
-    {
+    processNulls = true,
+    value = {
         @IntermediateState(name = "observed", type = "BOOLEAN_BLOCK"),
         @IntermediateState(name = "timestampsPresent", type = "BOOLEAN_BLOCK"),
         @IntermediateState(name = "timestamps", type = "$v2_TYPE$_BLOCK"),
@@ -183,11 +189,15 @@ public class $Prefix$$Occurrence$$v1_Type$By$v2_Type$Aggregator {
     }
 
     public static Block evaluateFinal($Prefix$$v2_Type$$v1_Type$State current, DriverContext ctx) {
-        return current.intermediateValuesBlockBuilder(ctx);
+        return current.valuesBlock(ctx);
     }
 
     public static GroupingState initGrouping(DriverContext driverContext) {
+        $if(v1_BytesRef)$
+        return new GroupingState(driverContext.bigArrays(), driverContext.breaker());
+        $else$
         return new GroupingState(driverContext.bigArrays());
+        $endif$
     }
 
     public static void combine(GroupingState current, int group, @Position int position, $v1_Type$Block values, $v2_Type$Block timestamps) {
@@ -221,167 +231,141 @@ public class $Prefix$$Occurrence$$v1_Type$By$v2_Type$Aggregator {
         return state.evaluateFinal(selected, ctx);
     }
 
-    public static final class GroupingState extends AbstractArrayState {
-        private final BigArrays bigArrays;
+    public static final class GroupingState extends AbstractAllBy$v2_Type$GroupingState {
 
         /**
-         * The group-indexed observed flags
+         * First values, stored in a dense array to minimize per-group overhead.
          */
-        private ByteArray observed;
+        $if(v1_BytesRef)$
+        private ObjectArray<BreakingBytesRefBuilder> firstValues;
+        private final CircuitBreaker breaker;
+        $elseif(v1_boolean)$
+        private ByteArray firstValues;
+        $else$
+        private $v1_Type$Array firstValues;
+        $endif$
 
         /**
-         * The group-indexed timestamps seen flags
+         * The second-and-beyond values. Null for groups with zero or one value.
          */
-        private ByteArray hasTimestamp;
-
-        /**
-         * The group-indexed timestamps
-         */
-        private $v2_Type$Array timestamps;
-
-        /**
-         * The group-indexed values
-         */
-        private ObjectArray<$if(v1_BytesRef)$BytesRefArray$elseif(v1_boolean)$ByteArray$else$$v1_Type$Array$endif$> values;
+        private ObjectArray<$v1_TailArray$> tailValues;
 
         private int maxGroupId = -1;
 
-        GroupingState(BigArrays bigArrays) {
+        GroupingState(BigArrays bigArrays$if(v1_BytesRef)$, CircuitBreaker breaker$endif$) {
             super(bigArrays);
-            this.bigArrays = bigArrays;
+            $if(v1_BytesRef)$
+            this.breaker = breaker;
+            $endif$
             boolean success = false;
-            ByteArray observed = null;
-            ByteArray hasTimestamp = null;
-            $v2_Type$Array timestamps = null;
             try {
-                // Initialize observed
-                observed = bigArrays.newByteArray(1, false);
-                observed.set(0, (byte) -1);
-                this.observed = observed;
-
-                // Initialize hasTimestamp
-                hasTimestamp = bigArrays.newByteArray(1, false);
-                hasTimestamp.set(0, (byte) -1);
-                this.hasTimestamp = hasTimestamp;
-
-                // Initialize timestamps
-                timestamps = bigArrays.new$v2_Type$Array(1, false);
-                $if(v2_long)$
-                timestamps.set(0, -1L);
-                $else$
-                timestamps.set(0, -1);
-                $endif$
-                this.timestamps = timestamps;
-
-                // Initialize values
                 $if(v1_BytesRef)$
-                this.values = bigArrays.newObjectArray(1);
+                this.firstValues = bigArrays.newObjectArray(1);
+                this.firstValues.set(0, null);
+                $elseif(v1_boolean)$
+                this.firstValues = bigArrays.newByteArray(1, false);
                 $else$
-                this.values = bigArrays.newObjectArray(1);
+                this.firstValues = bigArrays.new$v1_Type$Array(1, false);
                 $endif$
-                this.values.set(0, null);
-
-                // Enable group id tracking because we use has hasValue in the
-                // collection itself to detect when a value first arrives.
-                enableGroupIdTracking(new SeenGroupIds.Empty());
                 success = true;
             } finally {
                 if (success == false) {
-                    if (values != null) {
-                        for (long i = 0; i < values.size(); i++) {
-                            Releasables.close(values.get(i));
-                        }
-                    }
-                    Releasables.close(observed, hasTimestamp, timestamps, values, super::close);
+                    Releasables.close(firstValues, super::close);
                 }
             }
         }
 
         void collectValue(int group, boolean timestampPresent, $v2_type$ timestamp, int position, $v1_Type$Block valuesBlock) {
-            boolean updated = false;
-            if (withinBounds(group)) {
-                if (hasValue(group) == false
-                    || (hasTimestamp.get(group) == 0 && timestampPresent)
-                    || (timestampPresent && timestamp $if(First)$<$else$>$endif$ timestamps.get(group))) {
-                    // We never saw this group before, even if it's within bounds.
-                    // Or, the incoming non-null timestamp wins against the null one in the state.
-                    // Or, we found a better timestamp for this group.
-                    updated = true;
+            if (group <= maxGroupId) {
+                if (hasValue(group) == false // We never saw this group before, even if it's within bounds.
+                    || (nullKey(group) && timestampPresent) // Or, the incoming non-null timestamp wins against the null one in the state.
+                    || (timestampPresent && timestamp $if(First)$<$else$>$endif$ key(group)) // Or, we found a better timestamp for this group.
+                ) {
+                    updateValue(group, timestampPresent, timestamp, valuesBlock, position);
                 }
             } else {
                 // We must grow all arrays to accommodate this group id
-                observed = bigArrays.grow(observed, group + 1);
-                hasTimestamp = bigArrays.grow(hasTimestamp, group + 1);
-                timestamps = bigArrays.grow(timestamps, group + 1);
-                values = bigArrays.grow(values, group + 1);
-                updated = true;
+                grow(group);
+                maxGroupId = group;
+                updateValue(group, timestampPresent, timestamp, valuesBlock, position);
             }
-            if (updated) {
-                observed.set(group, (byte) 1);
-                hasTimestamp.set(group, (byte) (timestampPresent ? 1 : 0));
-                timestamps.set(group, timestamp);
-                boolean success = false;
-                $if(v1_BytesRef)$
-                BytesRefArray groupValues = null;
-                try {
-                    if (valuesBlock.isNull(position) == false) {
-                        int count = valuesBlock.getValueCount(position);
-                        int offset = valuesBlock.getFirstValueIndex(position);
-                        groupValues = new BytesRefArray(count, bigArrays);
-                        BytesRef scratch = new BytesRef();
-                        for (int i = 0; i < count; ++i) {
-                            groupValues.append(valuesBlock.getBytesRef(i + offset, scratch));
-                        }
-                    }
-                    success = true;
-                    Releasables.close(values.get(group));
-                    values.set(group, groupValues);
-                } finally {
-                    if (success == false) {
-                        Releasables.close(groupValues);
-                    }
-                }
-                $else$
-                $if(v1_boolean)$ByteArray$else$$v1_Type$Array$endif$ groupValues = null;
-                try {
-                    if (valuesBlock.isNull(position) == false) {
-                        int count = valuesBlock.getValueCount(position);
-                        int offset = valuesBlock.getFirstValueIndex(position);
-                        $if(v1_boolean)$
-                        groupValues = BigArrays.NON_RECYCLING_INSTANCE.newByteArray(count);
-                        for (int i = 0; i < count; ++i) {
-                            groupValues.set(i, (byte) (valuesBlock.get$v1_Type$(i + offset) ? 1 : 0));
-                        }
-                        $else$
-                        groupValues = bigArrays.new$v1_Type$Array(count);
-                        for (int i = 0; i < count; ++i) {
-                            groupValues.set(i, valuesBlock.get$v1_Type$(i + offset));
-                        }
-                        $endif$
-                    }
-                    success = true;
-                    Releasables.close(values.get(group));
-                    values.set(group, groupValues);
-                } finally {
-                    if (success == false) {
-                        Releasables.close(groupValues);
-                    }
-                }
-                $endif$
-            }
-            maxGroupId = Math.max(maxGroupId, group);
             trackGroupId(group);
+        }
+
+        private void updateValue(int group, boolean timestampPresent, $v2_type$ timestamp, $v1_Type$Block valuesBlock, int position) {
+            if (valuesBlock.isNull(position)) {
+                markNullValue(group);
+            } else {
+                clearNullValue(group);
+            }
+            if (timestampPresent == false) {
+                markNullKey(group);
+            } else {
+                clearNullKey(group);
+            }
+            key(group, timestamp);
+            if (valuesBlock.isNull(position) == false) {
+                int count = valuesBlock.getValueCount(position);
+                int offset = valuesBlock.getFirstValueIndex(position);
+                $if(v1_BytesRef)$
+                BytesRef firstScratch = new BytesRef();
+                valuesBlock.getBytesRef(offset, firstScratch);
+                BreakingBytesRefBuilder firstBuilder = firstValues.get(group);
+                if (firstBuilder == null) {
+                    firstBuilder = new BreakingBytesRefBuilder(breaker, "$Occurrence$", firstScratch.length);
+                    firstValues.set(group, firstBuilder);
+                }
+                firstBuilder.copyBytes(firstScratch);
+                $elseif(v1_boolean)$
+                firstValues.set(group, (byte) (valuesBlock.getBoolean(offset) ? 1 : 0));
+                $else$
+                firstValues.set(group, valuesBlock.get$v1_Type$(offset));
+                $endif$
+                if (count > 1) {
+                    $v1_TailArray$ tail = getTailForWriting(group, count - 1);
+                    $if(v1_BytesRef)$
+                    BytesRef scratch = new BytesRef();
+                    for (int i = 1; i < count; ++i) {
+                        tail.append(valuesBlock.getBytesRef(offset + i, scratch));
+                    }
+                    $elseif(v1_boolean)$
+                    for (int i = 1; i < count; ++i) {
+                        tail.set(i - 1, (byte) (valuesBlock.getBoolean(offset + i) ? 1 : 0));
+                    }
+                    $else$
+                    for (int i = 1; i < count; ++i) {
+                        tail.set(i - 1, valuesBlock.get$v1_Type$(offset + i));
+                    }
+                    $endif$
+                } else {
+                    clearTailValues(group);
+                }
+            } else {
+                clearTailValues(group);
+            }
+        }
+
+        @Override
+        protected void grow(int group) {
+            super.grow(group);
+            firstValues = bigArrays.grow(firstValues, group + 1);
         }
 
         @Override
         public void close() {
-            for (long i = 0; i < values.size(); i++) {
-                Releasables.close(values.get(i));
+            $if(v1_BytesRef)$
+            for (long i = 0; i < firstValues.size(); i++) {
+                Releasables.close(firstValues.get(i));
             }
-            Releasables.close(observed, hasTimestamp, timestamps, values, super::close);
+            $endif$
+            if (tailValues != null) {
+                for (long i = 0; i < tailValues.size(); i++) {
+                    Releasables.close(tailValues.get(i));
+                }
+            }
+            Releasables.close(firstValues, tailValues, super::close);
         }
 
-        @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             try (
                 var observedBlockBuilder = driverContext.blockFactory().newBooleanBlockBuilder(selected.getPositionCount());
@@ -390,11 +374,11 @@ public class $Prefix$$Occurrence$$v1_Type$By$v2_Type$Aggregator {
             ) {
                 for (int p = 0; p < selected.getPositionCount(); p++) {
                     int group = selected.getInt(p);
-                    if (withinBounds(group)) {
+                    if (group <= maxGroupId) {
                         // We must have seen this group before and saved its state
-                        observedBlockBuilder.appendBoolean(observed.get(group) == 1);
-                        hasTimestampBuilder.appendBoolean(hasTimestamp.get(group) == 1);
-                        timestampsBuilder.append$v2_Type$(timestamps.get(group));
+                        observedBlockBuilder.appendBoolean(hasValue(group));
+                        hasTimestampBuilder.appendBoolean(nullKey(group) == false);
+                        timestampsBuilder.append$v2_Type$(key(group));
                     } else {
                         // Unknown group so we append nulls everywhere
                         observedBlockBuilder.appendBoolean(false);
@@ -407,58 +391,112 @@ public class $Prefix$$Occurrence$$v1_Type$By$v2_Type$Aggregator {
                 blocks[offset + 0] = observedBlockBuilder.build();
                 blocks[offset + 1] = hasTimestampBuilder.build();
                 blocks[offset + 2] = timestampsBuilder.build();
-                blocks[offset + 3] = intermediateValuesBlockBuilder(selected, driverContext.blockFactory());
+                blocks[offset + 3] = valuesBlock(selected, driverContext.blockFactory());
             }
         }
 
         Block evaluateFinal(IntVector groups, GroupingAggregatorEvaluationContext evalContext) {
-            return intermediateValuesBlockBuilder(groups, evalContext.blockFactory());
+            return valuesBlock(groups, evalContext.blockFactory());
         }
 
-        private boolean withinBounds(int group) {
-            return group < Math.min(Math.min(timestamps.size(), values.size()), Math.min(observed.size(), hasTimestamp.size()));
+        private $v1_TailArray$ getTail(int group) {
+            if (tailValues == null) {
+                return null;
+            }
+            if (group >= tailValues.size()) {
+                return null;
+            }
+            return tailValues.get(group);
         }
 
-        private Block intermediateValuesBlockBuilder(IntVector groups, BlockFactory blockFactory) {
+$if(v1_BytesRef)$
+        private BytesRefArray getTailForWriting(int group, int count) {
+            if (tailValues == null) {
+                tailValues = bigArrays.newObjectArray(group + 1);
+            } else if (group >= tailValues.size()) {
+                tailValues = bigArrays.grow(tailValues, group + 1);
+            } else {
+                Releasables.close(tailValues.get(group));
+            }
+            // BytesRefArray is append-only so we always need a fresh one; there is no way to clear and reuse it.
+            BytesRefArray tail = new BytesRefArray(count, bigArrays);
+            tailValues.set(group, tail);
+            return tail;
+        }
+
+$else$
+        private $v1_TailArray$ getTailForWriting(int group, int count) {
+            $v1_TailArray$ existing;
+            if (tailValues == null) {
+                tailValues = bigArrays.newObjectArray(group + 1);
+                existing = null;
+            } else if (group >= tailValues.size()) {
+                tailValues = bigArrays.grow(tailValues, group + 1);
+                existing = null;
+            } else {
+                existing = tailValues.get(group);
+            }
+            if (existing == null) {
+                $v1_TailArray$ tail = $if(v1_boolean)$bigArrays.newByteArray(count)$else$bigArrays.new$v1_Type$Array(count)$endif$;
+                tailValues.set(group, tail);
+                return tail;
+            }
+            if (existing.size() == count) {
+                return existing;
+            }
+            $v1_TailArray$ resized = bigArrays.resize(existing, count);
+            tailValues.set(group, resized);
+            return resized;
+        }
+$endif$
+
+        private void clearTailValues(int group) {
+            $v1_TailArray$ tail = getTail(group);
+            if (tail != null) {
+                Releasables.close(tail);
+                tailValues.set(group, null);
+            }
+        }
+
+        private Block valuesBlock(IntVector groups, BlockFactory blockFactory) {
             try (var valuesBuilder = blockFactory.new$v1_Type$BlockBuilder(groups.getPositionCount())) {
                 for (int p = 0; p < groups.getPositionCount(); p++) {
                     int group = groups.getInt(p);
-                    int count = 0;
-                    if (withinBounds(group) && observed.get(group) == 1 && values.get(group) != null) {
-                        count = (int) values.get(group).size();
-                    }
-                    switch (count) {
-                        case 0 -> valuesBuilder.appendNull();
-                        $if(v1_BytesRef)$
-                        case 1 -> {
-                            BytesRef bytesScratch = new BytesRef();
-                            values.get(group).get(0, bytesScratch);
-                            valuesBuilder.appendBytesRef(bytesScratch);
-                        }
-                        $else$
-                        $if(v1_boolean)$
-                        case 1 -> valuesBuilder.append$v1_Type$(values.get(group).get(0) == 1);
-                        $else$
-                        case 1 -> valuesBuilder.append$v1_Type$(values.get(group).get(0));
-                        $endif$
-                        $endif$
-                        default -> {
+                    if (group <= maxGroupId && hasValue(group) && nullValue(group) == false) {
+                        $v1_TailArray$ tail = getTail(group);
+                        int tailCount = tail == null ? 0 : (int) tail.size();
+                        if (tailCount == 0) {
+                            $if(v1_BytesRef)$
+                            valuesBuilder.appendBytesRef(firstValues.get(group).bytesRefView());
+                            $elseif(v1_boolean)$
+                            valuesBuilder.appendBoolean(firstValues.get(group) == 1);
+                            $else$
+                            valuesBuilder.append$v1_Type$(firstValues.get(group));
+                            $endif$
+                        } else {
                             valuesBuilder.beginPositionEntry();
-                            for (int i = 0; i < count; ++i) {
+                            $if(v1_BytesRef)$
+                            valuesBuilder.appendBytesRef(firstValues.get(group).bytesRefView());
+                            $elseif(v1_boolean)$
+                            valuesBuilder.appendBoolean(firstValues.get(group) == 1);
+                            $else$
+                            valuesBuilder.append$v1_Type$(firstValues.get(group));
+                            $endif$
+                            for (int i = 0; i < tailCount; ++i) {
                                 $if(v1_BytesRef)$
                                 BytesRef bytesScratch = new BytesRef();
-                                values.get(group).get(i, bytesScratch);
+                                tail.get(i, bytesScratch);
                                 valuesBuilder.appendBytesRef(bytesScratch);
+                                $elseif(v1_boolean)$
+                                valuesBuilder.appendBoolean(tail.get(i) == 1);
                                 $else$
-                                $if(v1_boolean)$
-                                valuesBuilder.append$v1_Type$(values.get(group).get(i) == 1);
-                                $else$
-                                valuesBuilder.append$v1_Type$(values.get(group).get(i));
-                                $endif$
+                                valuesBuilder.append$v1_Type$(tail.get(i));
                                 $endif$
                             }
                             valuesBuilder.endPositionEntry();
                         }
+                    } else {
+                        valuesBuilder.appendNull();
                     }
                 }
                 return valuesBuilder.build();

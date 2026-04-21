@@ -1,8 +1,5 @@
 ---
 setup:
-  - requires:
-      cluster_features: prometheus_plugin
-      reason: Prometheus plugin only available in snapshot builds
   - do:
       cluster.health:
         wait_for_events: languid

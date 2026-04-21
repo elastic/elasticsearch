@@ -149,6 +149,8 @@ public class AnyFloatAggregator {
 
         /**
          * The group-indexed values
+         * TODO: apply the firstValue/tailValues optimization from X-AllValueByTimestampAggregator.java.st
+         * to inline single-element groups and avoid the ~64 byte ObjectArray wrapper overhead.
          */
         private ObjectArray<FloatArray> values;
 
@@ -223,7 +225,6 @@ public class AnyFloatAggregator {
             Releasables.close(observed, values, super::close);
         }
 
-        @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             try (var observedBlockBuilder = driverContext.blockFactory().newBooleanBlockBuilder(selected.getPositionCount())) {
                 for (int p = 0; p < selected.getPositionCount(); ++p) {

@@ -11,6 +11,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
+import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.test.NoOpReleasable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -29,6 +31,8 @@ import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
+import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractBytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.mapper.flattened.KeyedFlattenedDocValuesBlockLoader;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -40,9 +44,12 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.TemporalityAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -54,6 +61,7 @@ import org.mockito.Mockito;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyMap;
@@ -195,6 +203,232 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             blockLoader,
             instanceOf(KeyedFlattenedDocValuesBlockLoader.class)
         );
+    }
+
+    public void testTemporalityForMissingSetting() throws IOException {
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
+            createMapperService(mapping(b -> b.startObject("metric_temporality").field("type", "keyword").endObject())),
+            null
+        );
+        var shardContext = new EsPhysicalOperationProviders.DefaultShardContext(
+            0,
+            new NoOpReleasable(),
+            searchExecutionContext,
+            AliasFilter.EMPTY
+        );
+        var provider = new EsPhysicalOperationProviders(
+            FoldContext.small(),
+            new IndexedByShardIdFromSingleton<>(shardContext),
+            null,
+            PlannerSettings.DEFAULTS
+        );
+        ValuesSourceReaderOperator.LoaderAndConverter loaderAndConverter = temporalityLoader(provider);
+        assertThat(loaderAndConverter.loader(), equalTo(ConstantNull.INSTANCE));
+    }
+
+    public void testTemporalityHappyPath() throws IOException {
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
+            createMapperService(
+                tsdbSettings("metric_temporality"),
+                mapping(
+                    b -> b.startObject("@timestamp")
+                        .field("type", "date")
+                        .endObject()
+                        .startObject("metric_temporality")
+                        .field("type", "keyword")
+                        .field("time_series_dimension", true)
+                        .endObject()
+                )
+            ),
+            null
+        );
+        var shardContext = new EsPhysicalOperationProviders.DefaultShardContext(
+            0,
+            new NoOpReleasable(),
+            searchExecutionContext,
+            AliasFilter.EMPTY
+        );
+        var provider = new EsPhysicalOperationProviders(
+            FoldContext.small(),
+            new IndexedByShardIdFromSingleton<>(shardContext),
+            null,
+            PlannerSettings.DEFAULTS
+        );
+        ValuesSourceReaderOperator.LoaderAndConverter loaderAndConverter = temporalityLoader(provider);
+        assertThat(loaderAndConverter.loader(), instanceOf(AbstractBytesRefsFromOrdsBlockLoader.class));
+        ensureNoWarnings();
+    }
+
+    public void testTemporalityWithMissingField() throws IOException {
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
+            createMapperService(
+                tsdbSettings("missing_temporality"),
+                mapping(
+                    b -> b.startObject("@timestamp")
+                        .field("type", "date")
+                        .endObject()
+                        .startObject("host")
+                        .field("type", "keyword")
+                        .field("time_series_dimension", true)
+                        .endObject()
+                )
+            ),
+            null
+        );
+        var shardContext = new EsPhysicalOperationProviders.DefaultShardContext(
+            0,
+            new NoOpReleasable(),
+            searchExecutionContext,
+            AliasFilter.EMPTY
+        );
+        var provider = new EsPhysicalOperationProviders(
+            FoldContext.small(),
+            new IndexedByShardIdFromSingleton<>(shardContext),
+            null,
+            PlannerSettings.DEFAULTS
+        );
+        assertThat(temporalityLoader(provider).loader(), equalTo(ConstantNull.INSTANCE));
+        ensureNoWarnings();
+    }
+
+    public void testTemporalityFieldMustBeKeyword() throws IOException {
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
+            createMapperService(
+                tsdbSettings("metric_temporality"),
+                mapping(
+                    b -> b.startObject("@timestamp")
+                        .field("type", "date")
+                        .endObject()
+                        .startObject("metric_temporality")
+                        .field("type", "long")
+                        .field("time_series_dimension", true)
+                        .endObject()
+                )
+            ),
+            null
+        );
+        var shardContext = new EsPhysicalOperationProviders.DefaultShardContext(
+            0,
+            new NoOpReleasable(),
+            searchExecutionContext,
+            AliasFilter.EMPTY
+        );
+        var provider = new EsPhysicalOperationProviders(
+            FoldContext.small(),
+            new IndexedByShardIdFromSingleton<>(shardContext),
+            null,
+            PlannerSettings.DEFAULTS
+        );
+        assertThat(temporalityLoader(provider).loader(), equalTo(ConstantNull.INSTANCE));
+        assertWarnings(
+            "Line -1:-1: warnings during evaluation of []. Only first 20 failures recorded.",
+            "Line -1:-1: java.lang.IllegalArgumentException: configured temporality field [metric_temporality] has type [long], expected "
+                + "[keyword]; assuming default temporality for all values"
+        );
+    }
+
+    public void testTemporalityFieldMustBeDimension() throws IOException {
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
+            createMapperService(
+                tsdbSettings("metric_temporality"),
+                mapping(
+                    b -> b.startObject("@timestamp")
+                        .field("type", "date")
+                        .endObject()
+                        .startObject("metric_temporality")
+                        .field("type", "keyword")
+                        .endObject()
+                )
+            ),
+            null
+        );
+        var shardContext = new EsPhysicalOperationProviders.DefaultShardContext(
+            0,
+            new NoOpReleasable(),
+            searchExecutionContext,
+            AliasFilter.EMPTY
+        );
+        var provider = new EsPhysicalOperationProviders(
+            FoldContext.small(),
+            new IndexedByShardIdFromSingleton<>(shardContext),
+            null,
+            PlannerSettings.DEFAULTS
+        );
+        assertThat(temporalityLoader(provider).loader(), equalTo(ConstantNull.INSTANCE));
+        assertWarnings(
+            "Line -1:-1: warnings during evaluation of []. Only first 20 failures recorded.",
+            "Line -1:-1: java.lang.IllegalArgumentException: configured temporality field [metric_temporality] must be a time-series "
+                + "dimension; assuming default temporality for all values"
+        );
+    }
+
+    /**
+     * Verifies that when {@code index.mapping.exclude_source_vectors} is enabled,
+     * the source filter retains the original field includes from the ES|QL projection
+     * instead of replacing them with an include-all filter.
+     */
+    public void testSourceFilterPreservesIncludesWhenVectorFieldsExcluded() throws IOException {
+        var indexSettings = Settings.builder().put("index.mapping.exclude_source_vectors", true).build();
+        var mapperService = createMapperService(indexSettings, mapping(b -> {
+            b.startObject("text_field").field("type", "text").endObject();
+            b.startObject("keyword_field").field("type", "keyword").endObject();
+            b.startObject("other_field").field("type", "keyword").endObject();
+            b.startObject("embedding").field("type", "dense_vector").field("dims", 3).endObject();
+        }));
+        var searchExecutionContext = createSearchExecutionContext(mapperService, null);
+
+        SourceFilter filter = EsPhysicalOperationProviders.DefaultShardContext.buildSourceFilter(
+            Set.of("text_field", "keyword_field"),
+            searchExecutionContext.getMappingLookup(),
+            searchExecutionContext.getIndexSettings()
+        );
+
+        assertNotNull("filter must not be null", filter);
+
+        var docSource = org.elasticsearch.search.lookup.Source.fromMap(
+            Map.of("text_field", "hello", "keyword_field", "world", "other_field", "extra", "embedding", List.of(1, 2, 3)),
+            XContentType.JSON
+        );
+        var filtered = filter.filterMap(docSource);
+        var result = filtered.source();
+
+        assertThat("text_field must be present", result.containsKey("text_field"), equalTo(true));
+        assertThat("keyword_field must be present", result.containsKey("keyword_field"), equalTo(true));
+        assertThat("other_field must be excluded", result.containsKey("other_field"), equalTo(false));
+        assertThat("embedding must be excluded", result.containsKey("embedding"), equalTo(false));
+        assertThat("exactly 2 fields survive", result.size(), equalTo(2));
+    }
+
+    private ValuesSourceReaderOperator.LoaderAndConverter temporalityLoader(EsPhysicalOperationProviders provider) {
+        EsQueryExec queryExec = new EsQueryExec(
+            Source.EMPTY,
+            "test",
+            IndexMode.TIME_SERIES,
+            List.of(),
+            null,
+            null,
+            10,
+            List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
+        );
+        FieldExtractExec fieldExtractExec = new FieldExtractExec(
+            Source.EMPTY,
+            queryExec,
+            List.of(new TemporalityAttribute(Source.EMPTY)),
+            MappedFieldType.FieldExtractPreference.NONE
+        );
+        var fieldInfo = provider.extractFields(fieldExtractExec).getFirst();
+        return fieldInfo.buildLoader().build(DriverContext.WarningsMode.COLLECT, 0);
+    }
+
+    private static Settings tsdbSettings(String temporalityFieldName) {
+        return Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "host")
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
+            .put(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.getKey(), temporalityFieldName)
+            .build();
     }
 
     protected static SearchExecutionContext createMockContext() {

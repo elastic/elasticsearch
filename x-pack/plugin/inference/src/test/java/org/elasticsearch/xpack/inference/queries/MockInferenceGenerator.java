@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.queries;
 
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.WeightedToken;
@@ -36,10 +37,9 @@ public class MockInferenceGenerator {
             throw new IllegalArgumentException("Inference endpoint [" + inferenceId + "] does not exist");
         } else if (inferenceEndpointSettings.taskType() == TaskType.SPARSE_EMBEDDING) {
             inferenceResults = generateTextExpansionResults(input);
-        } else if (inferenceEndpointSettings.taskType() == TaskType.TEXT_EMBEDDING) {
-            inferenceResults = generateTextEmbeddingResults(inferenceEndpointSettings);
-        } else if (inferenceEndpointSettings.taskType() == TaskType.EMBEDDING) {
-            inferenceResults = generateTextEmbeddingResults(inferenceEndpointSettings);
+        } else if (inferenceEndpointSettings.taskType() == TaskType.TEXT_EMBEDDING
+            || inferenceEndpointSettings.taskType() == TaskType.EMBEDDING) {
+                inferenceResults = generateRawTextEmbeddingResults(inferenceEndpointSettings);
         } else {
             throw new IllegalArgumentException(
                 "Invalid task type [" + inferenceEndpointSettings.taskType() + "] for inference endpoint [" + inferenceId + "]"
@@ -60,7 +60,7 @@ public class MockInferenceGenerator {
     /**
      * Generate text embedding results. Use static embedding values so that the results are deterministic for the same dimension count.
      */
-    private static InferenceResults generateTextEmbeddingResults(MinimalServiceSettings settings) {
+    private static MlDenseEmbeddingResults generateRawTextEmbeddingResults(MinimalServiceSettings settings) {
         assert settings.dimensions() != null && settings.elementType() != null;
 
         int embeddingSize = settings.dimensions();

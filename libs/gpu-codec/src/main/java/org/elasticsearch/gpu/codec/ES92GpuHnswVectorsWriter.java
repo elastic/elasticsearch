@@ -344,11 +344,13 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                 var ivfPqIndexParams = cagraIndexParams.getCuVSIvfPqParams().getIndexParams();
                 logger.debug(
                     "Building CAGRA graph: numVectors=[{}], dims=[{}], algorithm=[{}], similarity=[{}], "
-                        + "pqDim=[{}], pqBits=[{}], nLists=[{}], dataType=[{}]",
+                        + "graphDegree=[{}], intermediateGraphDegree=[{}], pqDim=[{}], pqBits=[{}], nLists=[{}], dataType=[{}]",
                     dataset.size(),
                     dataset.columns(),
                     algorithm,
                     fieldInfo.getVectorSimilarityFunction(),
+                    cagraIndexParams.getGraphDegree(),
+                    cagraIndexParams.getIntermediateGraphDegree(),
                     ivfPqIndexParams.getPqDim(),
                     ivfPqIndexParams.getPqBits(),
                     ivfPqIndexParams.getnLists(),
@@ -368,6 +370,21 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
     }
 
     private CagraIndexParams createCagraIndexParams(VectorSimilarityFunction similarityFunction, int numVectors, int dims) {
+        return createCagraIndexParams(similarityFunction, numVectors, dims, M, beamWidth, dataType, totalDeviceMemory);
+    }
+
+    static CagraIndexParams createCagraIndexParams(
+        VectorSimilarityFunction similarityFunction,
+        int numVectors,
+        int dims,
+        int graphDegree,
+        int intermediateGraphDegree,
+        CuVSMatrix.DataType dataType,
+        long totalDeviceMemory
+    ) {
+        // CAGRA requires the intermediate graph degree to be strictly larger than the graph degree
+        intermediateGraphDegree = Math.max(graphDegree + 1, intermediateGraphDegree);
+
         CagraIndexParams.CuvsDistanceType distanceType = switch (similarityFunction) {
             case COSINE -> CagraIndexParams.CuvsDistanceType.CosineExpanded;
             case EUCLIDEAN -> CagraIndexParams.CuvsDistanceType.L2Expanded;
@@ -405,17 +422,20 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         }
 
         if (useIvfPQ) {
-            var ivfPqParams = CuVSIvfPqParamsFactory.create(numVectors, dims, distanceType, beamWidth);
+            var ivfPqParams = CuVSIvfPqParamsFactory.create(numVectors, dims, distanceType, intermediateGraphDegree);
             params = new CagraIndexParams.Builder().withNumWriterThreads(numCPUThreads)
                 .withCagraGraphBuildAlgo(CagraIndexParams.CagraGraphBuildAlgo.IVF_PQ)
                 .withCuVSIvfPqParams(ivfPqParams)
+                .withGraphDegree(graphDegree)
+                .withIntermediateGraphDegree(intermediateGraphDegree)
+                .withNNDescentNumIterations(5)
                 .withMetric(distanceType)
                 .build();
         } else {
             params = new CagraIndexParams.Builder().withNumWriterThreads(numCPUThreads)
                 .withCagraGraphBuildAlgo(CagraIndexParams.CagraGraphBuildAlgo.NN_DESCENT)
-                .withGraphDegree(M)
-                .withIntermediateGraphDegree(beamWidth)
+                .withGraphDegree(graphDegree)
+                .withIntermediateGraphDegree(intermediateGraphDegree)
                 .withNNDescentNumIterations(5)
                 .withMetric(distanceType)
                 .build();

@@ -120,6 +120,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DayName;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.MonthName;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.Now;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeMax;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeMin;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeWithin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.IpPrefix;
@@ -593,6 +596,7 @@ public class EsqlFunctionRegistry {
                 PercentileOverTime.DEFINITION,
                 // dense vector functions
                 TextEmbedding.DEFINITION,
+                Embedding.DEFINITION,
                 CosineSimilarity.DEFINITION,
                 DotProduct.DEFINITION,
                 L1Norm.DEFINITION,
@@ -608,9 +612,12 @@ public class EsqlFunctionRegistry {
                 Delay.DEFINITION,
                 // dense vector functions
                 Magnitude.DEFINITION,
+                // date_range functions
+                RangeMax.DEFINITION,
+                RangeMin.DEFINITION,
+                RangeWithin.DEFINITION,
                 ToDateRange.DEFINITION,
-                Sparkline.DEFINITION,
-                Embedding.DEFINITION } };
+                Sparkline.DEFINITION } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {
@@ -864,7 +871,9 @@ public class EsqlFunctionRegistry {
         List<EsqlFunctionRegistry.ArgSignature> args = new ArrayList<>(params.length);
         boolean variadic = false;
         int countOfParamsToDescribe = params.length;
-        if (TimestampAware.class.isAssignableFrom(def.clazz())) {
+        if (TemporalityAware.class.isAssignableFrom(def.clazz())) {
+            countOfParamsToDescribe -= 2; // skip the implicit @timestamp and temporality parameter (last or last before Configuration)
+        } else if (TimestampAware.class.isAssignableFrom(def.clazz())) {
             countOfParamsToDescribe--; // skip the implicit @timestamp parameter (last or last before Configuration)
         }
         if (ConfigurationFunction.class.isAssignableFrom(def.clazz())) {

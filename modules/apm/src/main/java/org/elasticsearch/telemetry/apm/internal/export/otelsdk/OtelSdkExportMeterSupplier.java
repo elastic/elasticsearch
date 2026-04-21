@@ -51,8 +51,10 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
         this.settings = settings;
     }
 
-    public void setDiskBufferPath(Path path) {
-        this.diskBufferPath = path;
+    // package-private for testing: pre-initializes resources, bypasses OTLP exporter creation
+    OtelSdkExportMeterSupplier(OTelMetricsResources resources) {
+        this.settings = Settings.EMPTY;
+        this.resources = resources;
     }
 
     @Override
@@ -63,6 +65,10 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
             }
             return resources.systemMeterProvider().get("elasticsearch");
         }
+    }
+  
+    public void setDiskBufferPath(Path path) {
+        this.diskBufferPath = path;
     }
 
     private OTelMetricsResources createMeteringResources() {
@@ -172,7 +178,7 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
         }
     }
 
-    private record OTelMetricsResources(
+    record OTelMetricsResources(
         SdkMeterProvider systemMeterProvider,
         SdkMeterProvider meterHealthMeterProvider,
         RuntimeTelemetry runtimeTelemetry

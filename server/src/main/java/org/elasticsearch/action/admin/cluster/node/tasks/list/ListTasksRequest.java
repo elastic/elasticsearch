@@ -34,8 +34,8 @@ public class ListTasksRequest extends BaseTasksRequest<ListTasksRequest> {
 
     private boolean detailed = false;
     private boolean waitForCompletion = false;
-
     private String[] descriptions = ANY_DESCRIPTION;
+    // if you're adding new fields, also update the copyFieldsFrom method
 
     public ListTasksRequest() {}
 
@@ -121,5 +121,13 @@ public class ListTasksRequest extends BaseTasksRequest<ListTasksRequest> {
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         return new CancellableTask(id, type, action, "", parentTaskId, headers);
+    }
+
+    public ListTasksRequest copyFieldsFrom(final ListTasksRequest request) {
+        super.copyFieldsFrom(request);
+        this.detailed = request.detailed;
+        this.waitForCompletion = request.waitForCompletion;
+        this.descriptions = request.descriptions;
+        return this;
     }
 }

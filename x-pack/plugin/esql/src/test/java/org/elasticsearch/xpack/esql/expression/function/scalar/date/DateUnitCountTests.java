@@ -56,7 +56,8 @@ public class DateUnitCountTests extends AbstractConfigurationFunctionTestCase {
                         new TestCaseSupplier.TypedData(null, DataType.DATETIME, "date")
                     ),
                     Matchers.startsWith(
-                        "DateUnitCountMillisEvaluator[dstUnit=Attribute[channel=0], srcUnit=Attribute[channel=1], date=Attribute[channel=2], zoneId="
+                        "DateUnitCountMillisEvaluator[dstUnit=Attribute[channel=0], "
+                            + "srcUnit=Attribute[channel=1], date=Attribute[channel=2], zoneId="
                     ),
                     DataType.LONG,
                     equalTo(null)
@@ -80,7 +81,8 @@ public class DateUnitCountTests extends AbstractConfigurationFunctionTestCase {
                         new TestCaseSupplier.TypedData(millis, DataType.DATETIME, "date")
                     ),
                     Matchers.startsWith(
-                        "DateUnitCountMillisEvaluator[dstUnit=Attribute[channel=0], srcUnit=Attribute[channel=1], date=Attribute[channel=2], zoneId="
+                        "DateUnitCountMillisEvaluator[dstUnit=Attribute[channel=0], "
+                            + "srcUnit=Attribute[channel=1], date=Attribute[channel=2], zoneId="
                             + zoneId
                             + "]"
                     ),
@@ -98,7 +100,8 @@ public class DateUnitCountTests extends AbstractConfigurationFunctionTestCase {
                         new TestCaseSupplier.TypedData(nanos, DataType.DATE_NANOS, "date")
                     ),
                     Matchers.startsWith(
-                        "DateUnitCountNanosEvaluator[dstUnit=Attribute[channel=0], srcUnit=Attribute[channel=1], date=Attribute[channel=2], zoneId="
+                        "DateUnitCountNanosEvaluator[dstUnit=Attribute[channel=0], "
+                            + "srcUnit=Attribute[channel=1], date=Attribute[channel=2], zoneId="
                             + zoneId
                             + "]"
                     ),

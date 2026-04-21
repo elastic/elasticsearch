@@ -32,6 +32,7 @@ import java.time.DayOfWeek;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
+import java.time.temporal.IsoFields;
 import java.time.temporal.TemporalAdjusters;
 import java.util.List;
 
@@ -213,27 +214,43 @@ public class DateUnitCount extends EsqlConfigurationFunction {
         return switch (srcUnit) {
             case HOUR -> {
                 var start = timestamp.truncatedTo(ChronoUnit.HOURS);
-                yield dstUnit.diff(start, start.plusHours(1));
+                yield diffLong(dstUnit, start, start.plusHours(1));
             }
             case DAY -> {
                 var start = timestamp.toLocalDate().atStartOfDay(timestamp.getZone());
-                yield dstUnit.diff(start, start.plusDays(1));
+                yield diffLong(dstUnit, start, start.plusDays(1));
             }
             case WEEK -> {
                 var start = timestamp.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
                     .toLocalDate()
                     .atStartOfDay(timestamp.getZone());
-                yield dstUnit.diff(start, start.plusWeeks(1));
+                yield diffLong(dstUnit, start, start.plusWeeks(1));
             }
             case MONTH -> {
                 var start = timestamp.with(TemporalAdjusters.firstDayOfMonth()).toLocalDate().atStartOfDay(timestamp.getZone());
-                yield dstUnit.diff(start, start.plusMonths(1));
+                yield diffLong(dstUnit, start, start.plusMonths(1));
             }
             case YEAR -> {
                 var start = timestamp.with(TemporalAdjusters.firstDayOfYear()).toLocalDate().atStartOfDay(timestamp.getZone());
-                yield dstUnit.diff(start, start.plusYears(1));
+                yield diffLong(dstUnit, start, start.plusYears(1));
             }
             default -> throw new IllegalArgumentException("Unsupported unit [" + srcUnit + "]");
+        };
+    }
+
+    private static long diffLong(DateDiff.Part unit, ZonedDateTime start, ZonedDateTime end) {
+        return switch (unit) {
+            case YEAR -> ChronoUnit.YEARS.between(start, end);
+            case QUARTER -> IsoFields.QUARTER_YEARS.between(start, end);
+            case MONTH -> ChronoUnit.MONTHS.between(start, end);
+            case DAYOFYEAR, DAY, WEEKDAY -> ChronoUnit.DAYS.between(start, end);
+            case WEEK -> ChronoUnit.WEEKS.between(start, end);
+            case HOUR -> ChronoUnit.HOURS.between(start, end);
+            case MINUTE -> ChronoUnit.MINUTES.between(start, end);
+            case SECOND -> ChronoUnit.SECONDS.between(start, end);
+            case MILLISECOND -> ChronoUnit.MILLIS.between(start, end);
+            case MICROSECOND -> ChronoUnit.MICROS.between(start, end);
+            case NANOSECOND -> ChronoUnit.NANOS.between(start, end);
         };
     }
 

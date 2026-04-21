@@ -276,6 +276,7 @@ public abstract class SenderService<M extends Model> implements InferenceService
         ActionListener<List<ChunkedInference>> listener
     ) {
         SubscribableListener.newForked(this::init).<List<ChunkedInference>>andThen((chunkedInferListener) -> {
+            var resolvedInferenceTimeout = resolveInferenceTimeout(timeout, inputType, clusterService, model.getTaskType());
             ValidationException validationException = new ValidationException();
             validateInputType(inputType, model, validationException);
             validationException.throwIfValidationErrorsExist();
@@ -294,7 +295,7 @@ public abstract class SenderService<M extends Model> implements InferenceService
                         return;
                     }
                     // a non-null query is not supported and is dropped by all providers
-                    doChunkedInfer(model, input, taskSettings, inputType, timeout, chunkedInferListener);
+                    doChunkedInfer(model, input, taskSettings, inputType, resolvedInferenceTimeout, chunkedInferListener);
                 }
             } else {
                 chunkedInferListener.onFailure(

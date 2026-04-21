@@ -745,7 +745,6 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         }
 
         if (model instanceof ElasticsearchInternalModel esModel) {
-
             List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
                 input,
                 EMBEDDING_MAX_BATCH_SIZE,
@@ -755,6 +754,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             if (batchedRequests.isEmpty()) {
                 listener.onResponse(List.of());
             } else {
+                timeout = resolveInferenceTimeout(timeout, inputType, getClusterService(), model.getTaskType());
                 // Avoid filling the inference queue by executing the batches in series
                 // Each batch contains up to EMBEDDING_MAX_BATCH_SIZE inference request
                 var sequentialRunner = new BatchIterator(esModel, inputType, timeout, batchedRequests);

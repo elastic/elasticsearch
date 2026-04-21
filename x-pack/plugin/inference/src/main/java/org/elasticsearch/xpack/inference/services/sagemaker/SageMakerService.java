@@ -289,6 +289,7 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
         if (input.isEmpty()) {
             listener.onResponse(List.of());
         }
+        var resolvedInferenceTimeout = resolveInferenceTimeout(timeout, inputType, clusterService, model.getTaskType());
         try {
             var sageMakerModel = ((SageMakerModel) model).override(taskSettings);
             var batchedRequests = new EmbeddingRequestChunker<>(
@@ -311,7 +312,7 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
                         false, // we never stream when chunking
                         null, // since we pass sageMakerModel as the model, we already overwrote the model with the task settings
                         inputType,
-                        timeout,
+                        resolvedInferenceTimeout,
                         ActionListener.runAfter(request.listener(), () -> l.onResponse(null))
                     )
                 );

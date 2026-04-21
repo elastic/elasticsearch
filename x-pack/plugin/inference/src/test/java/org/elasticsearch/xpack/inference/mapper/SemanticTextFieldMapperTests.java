@@ -231,6 +231,13 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         });
     }
 
+    @Override
+    protected String minimalIsInvalidRoutingPathErrorMessage(Mapper mapper) {
+        assumeFalse("invalid routing path error message is only checked for mappers created with the new format", useLegacyFormat);
+
+        return super.minimalIsInvalidRoutingPathErrorMessage(mapper);
+    }
+
     private void registerDefaultEisEndpoint() {
         globalModelRegistry.putDefaultIdIfAbsent(
             new InferenceService.DefaultConfigId(
@@ -1274,7 +1281,12 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             );
 
             final ChunkingSettings chunkingSettings = generateRandomChunkingSettings(false);
-            IndexVersion indexVersion = SparseVectorFieldMapperTests.getIndexOptionsCompatibleIndexVersion();
+            IndexVersion indexVersion = useLegacyFormat
+                ? IndexVersionUtils.randomVersionBetween(
+                    IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT,
+                    IndexVersionUtils.getPreviousVersion(IndexVersions.SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN)
+                )
+                : SparseVectorFieldMapperTests.getIndexOptionsCompatibleIndexVersion();
             final SemanticTextIndexOptions indexOptions = randomSemanticTextIndexOptions(TaskType.SPARSE_EMBEDDING);
             String fieldName = "field";
 

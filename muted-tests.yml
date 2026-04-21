@@ -378,12 +378,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
   method: test {csv-spec:tdigest.Count of tdigest with no matching rows (time series mode)}
   issue: https://github.com/elastic/elasticsearch/issues/146800
-- class: org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests
-  method: testMinimalIsInvalidInRoutingPath {p0=true p1=BASIC}
-  issue: https://github.com/elastic/elasticsearch/issues/146824
-- class: org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests
-  method: testMinimalIsInvalidInRoutingPath {p0=true p1=ENTERPRISE}
-  issue: https://github.com/elastic/elasticsearch/issues/146825
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
   method: test {csv-spec:stats.filterSometimesMatches}
   issue: https://github.com/elastic/elasticsearch/issues/146834

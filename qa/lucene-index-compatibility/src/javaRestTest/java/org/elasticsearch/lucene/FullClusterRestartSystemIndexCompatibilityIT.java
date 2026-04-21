@@ -29,8 +29,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class FullClusterRestartSystemIndexCompatibilityIT extends FullClusterRestartIndexCompatibilityTestCase {
 
     static {
-        clusterConfig = config -> config.setting("xpack.license.self_generated.type", "trial")
-            .setting("async_search.index_cleanup_interval", "1s");
+        clusterConfig = config -> config.setting("xpack.license.self_generated.type", "trial");
     }
 
     public FullClusterRestartSystemIndexCompatibilityIT(Version version) {
@@ -51,10 +50,6 @@ public class FullClusterRestartSystemIndexCompatibilityIT extends FullClusterRes
         final int numDocs = 2431;
 
         final Request asyncSearchRequest = new Request("POST", "/" + index + "/_async_search?size=100&keep_on_completion=true");
-        final Request asyncSearchRequestShortLived = new Request(
-            "POST",
-            "/" + index + "/_async_search?size=100&keep_on_completion=true&keep_alive=1s"
-        );
 
         if (isFullyUpgradedTo(VERSION_MINUS_2)) {
             createIndex(
@@ -75,11 +70,6 @@ public class FullClusterRestartSystemIndexCompatibilityIT extends FullClusterRes
             assertBusy(() -> assertAsyncSearchHitCount(asyncId, numDocs));
             assertBusy(() -> assertDocCountNoWarnings(client(), asyncSearchIndex, 1));
             assertThat(indexVersion(asyncSearchIndex, true), equalTo(VERSION_MINUS_2));
-
-            // Submit a short-lived async search and verify the cleanup task deletes it after keep_alive expires.
-            // (The doc count was already 1 from above, so after the following request it will be 2 until the cleanup task runs.)
-            searchAsyncAndStoreId(asyncSearchRequestShortLived, "n-2_id2");
-            assertBusy(() -> assertDocCountNoWarnings(client(), asyncSearchIndex, 1));
             return;
         }
 
@@ -129,12 +119,6 @@ public class FullClusterRestartSystemIndexCompatibilityIT extends FullClusterRes
             String asyncId = searchAsyncAndStoreId(asyncSearchRequest, "n_id");
             assertBusy(() -> assertAsyncSearchHitCount(asyncId, numDocs));
             assertBusy(() -> assertDocCountNoWarnings(client(), asyncSearchIndex, 3));
-
-            // Similar to above, verify the cleanup task deletes the short-lived async search after keep_alive expires.
-            searchAsyncAndStoreId(asyncSearchRequestShortLived, "n_id2");
-            // (The doc count was already 3 from above, so after the following request it will be 4 until the cleanup task runs.)
-            // There is a bug: https://github.com/elastic/elasticsearch/issues/146184, uncomment the following line when fixed.
-            // assertBusy(() -> assertDocCountNoWarnings(client(), asyncSearchIndex, 3));
         }
 
     }

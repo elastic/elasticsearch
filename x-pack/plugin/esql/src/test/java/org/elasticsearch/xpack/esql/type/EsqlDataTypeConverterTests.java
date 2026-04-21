@@ -283,6 +283,11 @@ public class EsqlDataTypeConverterTests extends ESTestCase {
             assertEquals(AGGREGATE_METRIC_DOUBLE, suggestedCast(subset));
         }
 
+        // numeric
+        {
+            assertEquals(LONG, DataType.suggestedCast(Set.of(BYTE, INTEGER, LONG)));
+        }
+
         // unsupported tests
         {
             assertNull(DataType.suggestedCast(Set.of()));

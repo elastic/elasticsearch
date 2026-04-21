@@ -375,7 +375,7 @@ public class Reindexer {
      * owns the shared PIT).
      * <p>
      * On <strong>failure</strong>: skips closing when the failure is {@link TaskRelocatedException}, or when the task
-     * has transitioned into {@link BulkByScrollTask.Lifecycle.State#RELOCATION_HANDOFF_INITIATED} so the destination
+     * has transitioned into {@link BulkByScrollTask.RelocationProgress.State#HANDOFF_INITIATED} so the destination
      * can still adopt the PIT.
      * <p>
      * The wrapped listener is notified only after {@code closePit} completes (including any async remote close and
@@ -740,9 +740,8 @@ public class Reindexer {
                 onRelocationResponseListener.onFailure(e);
                 l.onFailure(e);
             });
-            // Atomically claim the "handoff initiated" transition. If a cancel won this race the task's lifecycle is
-            // CANCELLING, and we must abort relocation so the task is not resumed on the destination node while the
-            // source is being cancelled.
+            // Claim the handoff on the task's RelocationProgress. If a concurrent cancel already won, we must abort
+            // relocation so the task is not resumed on the destination while the source is being cancelled.
             if (task.tryInitiateRelocationHandoff() == false) {
                 final TaskCancelledException cancelled = new TaskCancelledException(
                     "task cancelled before relocation handoff could begin [" + task.getReasonCancelled() + "]"

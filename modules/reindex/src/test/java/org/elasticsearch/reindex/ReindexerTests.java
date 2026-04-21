@@ -601,7 +601,7 @@ public class ReindexerTests extends ESTestCase {
         task.setWorker(Float.POSITIVE_INFINITY, null);
         task.getWorkerState().setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
         task.requestRelocation();
-        // Simulate cancellation winning the race: flip the state to CANCELLING before the handoff can fire.
+        // Simulate cancellation winning the race: flip the state to CANCELLED before the handoff can fire.
         task.ensureCancellable();
 
         final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();

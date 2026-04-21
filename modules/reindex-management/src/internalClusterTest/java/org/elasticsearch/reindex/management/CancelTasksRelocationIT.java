@@ -78,9 +78,9 @@ public class CancelTasksRelocationIT extends ESIntegTestCase {
 
     /**
      * Races a cancel against an in-progress relocation and asserts that after the race settles the task is in exactly one
-     * consistent final state — cancelled xor relocated — and that no orphan task remains on either node afterwards.
+     * consistent final state — cancelled xor relocated — and that no orphan task remains on either node afterward.
      * <p>
-     * Which side wins depends on which CAS on {@code BulkByScrollTask.Lifecycle} runs first:
+     * Which side wins depends on which CAS on {@code BulkByScrollTask.RelocationProgress} runs first:
      * <ul>
      *     <li><b>Cancel wins</b>: The source task finishes cancelled; no resumed task is created on the destination.</li>
      *     <li><b>Relocation wins</b>: The resumed task runs on the destination; the cancel is rejected.</li>

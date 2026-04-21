@@ -762,7 +762,8 @@ public class RestEsqlIT extends RestEsqlTestCase {
                     assertSleeps(
                         sleeps,
                         sleepMatcher(
-                            either(equalTo("exchange empty")).or(equalTo("exchange full")).or(equalTo("exchange empty OR exchange full"))
+                            either(equalTo("exchange empty")).or(equalTo("exchange full"))
+                                .or(equalTo("exchange empty OR exchange full"))
                                 .or(equalTo("driver iterations"))
                         )
                     );

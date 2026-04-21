@@ -78,11 +78,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
         if (request.indicesOptions().indexAbstractionOptions().resolveViews()) {
             // Force local re-resolution: the request's resolvedIndexExpressions were built on
             // the origin cluster and don't reflect exclusions that apply on this (remote) cluster.
-            Set<String> viewsLocalToRemoteCluster = getViews(
-                request.indices(),
-                request.indicesOptions(),
-                null
-            );
+            Set<String> viewsLocalToRemoteCluster = getViews(request.indices(), request.indicesOptions(), null);
             if (viewsLocalToRemoteCluster.isEmpty() == false) {
                 listener.onFailure(remoteViewDetectedException(request.clusterAlias(), viewsLocalToRemoteCluster));
                 return;

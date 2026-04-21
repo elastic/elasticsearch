@@ -50,7 +50,24 @@ public class TopSnippetsSerializationTests extends AbstractExpressionSerializati
         }
         if (randomBoolean()) {
             entries.add(Literal.keyword(Source.EMPTY, "num_words"));
-            entries.add(new Literal(Source.EMPTY, randomIntBetween(1, 1000), DataType.INTEGER));
+            entries.add(new Literal(Source.EMPTY, randomIntBetween(0, 1000), DataType.INTEGER));
+        }
+        boolean highlight = randomBoolean();
+        if (highlight) {
+            entries.add(Literal.keyword(Source.EMPTY, "highlight"));
+            entries.add(new Literal(Source.EMPTY, true, DataType.BOOLEAN));
+            if (randomBoolean()) {
+                entries.add(Literal.keyword(Source.EMPTY, "pre_tag"));
+                entries.add(Literal.keyword(Source.EMPTY, randomFrom("<em>", "<b>", "<mark>")));
+            }
+            if (randomBoolean()) {
+                entries.add(Literal.keyword(Source.EMPTY, "post_tag"));
+                entries.add(Literal.keyword(Source.EMPTY, randomFrom("</em>", "</b>", "</mark>")));
+            }
+            if (randomBoolean()) {
+                entries.add(Literal.keyword(Source.EMPTY, "encoder"));
+                entries.add(Literal.keyword(Source.EMPTY, randomFrom("default", "html")));
+            }
         }
         return new MapExpression(Source.EMPTY, entries);
     }

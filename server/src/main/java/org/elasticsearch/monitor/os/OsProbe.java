@@ -331,7 +331,6 @@ public class OsProbe {
      * @throws IOException if an I/O exception occurs reading the file
      * @throws IllegalStateException if the file contains zero lines
      */
-    // visible for tests
     static String readSingleLine(final Path path) throws IOException {
         final List<String> lines = Files.readAllLines(path);
         if (lines.isEmpty()) {
@@ -341,8 +340,9 @@ public class OsProbe {
         return lines.getFirst();
     }
 
-    private static Optional<String> maybeSingleLine(final List<String> lines) {
-        return lines.size() == 1 ? Optional.of(lines.getFirst()) : Optional.empty();
+    @Nullable
+    private static String maybeSingleLine(final List<String> lines) {
+        return lines.size() == 1 ? lines.getFirst() : null;
     }
 
     // this property is to support a hack to workaround an issue with Docker containers mounting the cgroups hierarchy inconsistently with
@@ -434,15 +434,19 @@ public class OsProbe {
 
     @Nullable
     private long[] getCgroupV2CpuLimit(String controlGroup) throws IOException {
-        return maybeSingleLine(readCgroupV2CpuLimit(controlGroup)).flatMap(entry -> {
-            String[] parts = entry.split("\\s+");
-            return parts.length != 2 ? Optional.empty() : Optional.of(parts);
-        }).map(parts -> {
-            long[] values = new long[2];
-            values[0] = "max".equals(parts[0]) ? -1L : Long.parseLong(parts[0]);
-            values[1] = Long.parseLong(parts[1]);
-            return values;
-        }).orElse(null);
+        final var entry = maybeSingleLine(readCgroupV2CpuLimit(controlGroup));
+        if (entry == null) {
+            return null;
+        }
+        String[] parts = entry.split("\\s+");
+        if (parts.length != 2) {
+            return null;
+        }
+
+        long[] values = new long[2];
+        values[0] = "max".equals(parts[0]) ? -1L : Long.parseLong(parts[0]);
+        values[1] = Long.parseLong(parts[1]);
+        return values;
     }
 
     @SuppressForbidden(reason = "access /sys/fs/cgroup/cpu.max")

@@ -411,63 +411,54 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/146553
-- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
-  method: test {csv-spec:external-basic.filterByEmploymentStatus [GCS]}
-  issue: https://github.com/elastic/elasticsearch/issues/146982
-- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
-  method: test {csv-spec:external-basic.dropColumn [GCS]}
-  issue: https://github.com/elastic/elasticsearch/issues/146983
-- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
-  method: test {csv-spec:external-basic.selectSpecificColumns [HTTP]}
-  issue: https://github.com/elastic/elasticsearch/issues/146985
-- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
-  method: test {csv-spec:external-basic.sampleWithStats [HTTP]}
-  issue: https://github.com/elastic/elasticsearch/issues/146990
-- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
-  method: test {csv-spec:external-basic.mvCountFromSplit [S3]}
-  issue: https://github.com/elastic/elasticsearch/issues/146991
-- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
-  method: test {csv-spec:external-basic.selectAdditionalColumns [GCS]}
-  issue: https://github.com/elastic/elasticsearch/issues/146993
-- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
-  method: test {csv-spec:external-basic.convertToDouble [HTTP]}
-  issue: https://github.com/elastic/elasticsearch/issues/146997
-- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
-  method: test {csv-spec:external-basic.aggregateByGender [HTTP]}
-  issue: https://github.com/elastic/elasticsearch/issues/146999
-- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
-  method: test {csv-spec:external-basic.renameColumn [HTTP]}
-  issue: https://github.com/elastic/elasticsearch/issues/147000
-- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
-  method: test {csv-spec:external-basic.enrich [AZURE]}
-  issue: https://github.com/elastic/elasticsearch/issues/147001
-- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
-  method: test {csv-spec:external-basic.mvSumFromMvAppend [S3]}
-  issue: https://github.com/elastic/elasticsearch/issues/147004
 - class: org.elasticsearch.index.reindex.ReindexClientYamlTestSuiteIT
   method: test {yaml=reindex/10_basic/Response format for created}
   issue: https://github.com/elastic/elasticsearch/issues/147005
-- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
-  method: test {csv-spec:external-basic.topNSortBySalaryDesc [S3]}
-  issue: https://github.com/elastic/elasticsearch/issues/147006
-- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
-  method: test {csv-spec:external-basic.aggregateSalaryStats [HTTP]}
-  issue: https://github.com/elastic/elasticsearch/issues/147007
 - class: org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapperTests
   method: testIsEnabled
   issue: https://github.com/elastic/elasticsearch/issues/147009
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:exponential_histogram.All aggs grouped by TBucket and Instance (time series mode)}
+  issue: https://github.com/elastic/elasticsearch/issues/147020
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:match-operator.matchWithStats}
+  issue: https://github.com/elastic/elasticsearch/issues/147021
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:keep.whereWithCount}
+  issue: https://github.com/elastic/elasticsearch/issues/147022
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:unmapped-type-conflicts.noTypeConflictKeepTriggersLoadInlineStatsWithFilter}
+  issue: https://github.com/elastic/elasticsearch/issues/147023
 - class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
-  method: test {csv-spec:external-basic.selectHeightVariants [S3]}
-  issue: https://github.com/elastic/elasticsearch/issues/147012
+  method: test {csv-spec:external-basic.topSnippetsFunction [HTTP]}
+  issue: https://github.com/elastic/elasticsearch/issues/147049
 - class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
-  method: test {csv-spec:external-basic.filterByEmploymentStatus [S3]}
-  issue: https://github.com/elastic/elasticsearch/issues/147013
+  method: test {csv-spec:external-basic.convertToLong [S3]}
+  issue: https://github.com/elastic/elasticsearch/issues/147050
 - class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
-  method: test {csv-spec:external-basic.lookupJoin [AZURE]}
-  issue: https://github.com/elastic/elasticsearch/issues/147015
+  method: test {csv-spec:external-basic.categorizeByFullName [HTTP]}
+  issue: https://github.com/elastic/elasticsearch/issues/147051
 - class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
-  method: test {csv-spec:external-basic.filterByEmployeeNumber [LOCAL]}
-  issue: https://github.com/elastic/elasticsearch/issues/147016
+  method: test {csv-spec:external-basic.externalRerankBooks [GCS]}
+  issue: https://github.com/elastic/elasticsearch/issues/147053
+- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
+  method: test {csv-spec:external-basic.lookupJoin [HTTP]}
+  issue: https://github.com/elastic/elasticsearch/issues/147055
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=mget/90_synthetic_source/keyword with normalizer and skip store original value}
+  issue: https://github.com/elastic/elasticsearch/issues/147056
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=indices.simulate_index_template/10_basic/Simulate index template with data stream with mapping and setting overrides}
+  issue: https://github.com/elastic/elasticsearch/issues/147057
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=get/100_synthetic_source/fields with ignore_malformed}
+  issue: https://github.com/elastic/elasticsearch/issues/147059
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=mget/90_synthetic_source/keyword with built-in normalizer}
+  issue: https://github.com/elastic/elasticsearch/issues/147060
+- class: org.elasticsearch.reindex.management.ReindexManagementClientYamlTestSuiteIT
+  method: test {yaml=reindex/30_cancel_reindex/Cancel running reindex returns response and GET confirms completed}
+  issue: https://github.com/elastic/elasticsearch/issues/146314
 
 # Examples:
 #

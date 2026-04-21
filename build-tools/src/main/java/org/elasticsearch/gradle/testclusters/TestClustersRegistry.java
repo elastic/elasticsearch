@@ -57,11 +57,6 @@ public abstract class TestClustersRegistry implements BuildService<BuildServiceP
 
     public void stopCluster(ElasticsearchCluster cluster, boolean taskFailed) {
         if (taskFailed) {
-            if (runningClusters.contains(cluster) == false) {
-                // Cluster was already stopped (e.g. by a doLast action that detected resource leaks
-                // and then failed the task). Nothing to clean up.
-                return;
-            }
             // If the task fails, and other tasks use this cluster, the other task will likely never be
             // executed at all, so we will never be called again to un-claim and terminate it.
             if (allowClusterToSurvive) {

@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
-import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerInferenceRequest;
@@ -40,7 +39,6 @@ import java.io.IOException;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -48,7 +46,6 @@ import static org.elasticsearch.xcontent.json.JsonXContent.jsonXContent;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredEnum;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 
 /**
  * TextEmbedding needs to differentiate between Bit, Byte, and Float types. Users must specify the
@@ -76,12 +73,8 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
     }
 
     @Override
-    public SageMakerStoredServiceSchema apiServiceSettings(
-        Map<String, Object> serviceSettings,
-        ValidationException validationException,
-        ConfigurationParseContext parseContext
-    ) {
-        return ApiServiceSettings.fromMap(serviceSettings, validationException, parseContext);
+    public SageMakerStoredServiceSchema apiServiceSettings(Map<String, Object> serviceSettings, ValidationException validationException) {
+        return ApiServiceSettings.fromMap(serviceSettings, validationException);
     }
 
     @Override
@@ -303,11 +296,7 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
             return new ApiServiceSettings(dimensions, false, similarity, elementType);
         }
 
-        static ApiServiceSettings fromMap(
-            Map<String, Object> serviceSettings,
-            ValidationException validationException,
-            ConfigurationParseContext parseContext
-        ) {
+        static ApiServiceSettings fromMap(Map<String, Object> serviceSettings, ValidationException validationException) {
             var dimensions = extractOptionalPositiveInteger(
                 serviceSettings,
                 DIMENSIONS_FIELD,
@@ -316,22 +305,14 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
             );
             var dimensionsSetByUser = extractOptionalBoolean(serviceSettings, DIMENSIONS_SET_BY_USER_FIELD, validationException);
 
-            SimilarityMeasure similarity;
-            if (parseContext == ConfigurationParseContext.PERSISTENT) {
-                similarity = Objects.requireNonNullElse(
-                    extractSimilarity(serviceSettings, ModelConfigurations.SERVICE_SETTINGS, validationException),
-                    SimilarityMeasure.DOT_PRODUCT
-                );
-            } else {
-                similarity = ServiceUtils.extractRequiredEnum(
-                    serviceSettings,
-                    ServiceFields.SIMILARITY,
-                    ModelConfigurations.SERVICE_SETTINGS,
-                    SimilarityMeasure::fromString,
-                    EnumSet.allOf(SimilarityMeasure.class),
-                    validationException
-                );
-            }
+            SimilarityMeasure similarity = ServiceUtils.extractRequiredEnum(
+                serviceSettings,
+                ServiceFields.SIMILARITY,
+                ModelConfigurations.SERVICE_SETTINGS,
+                SimilarityMeasure::fromString,
+                EnumSet.allOf(SimilarityMeasure.class),
+                validationException
+            );
 
             var elementType = extractRequiredEnum(
                 serviceSettings,

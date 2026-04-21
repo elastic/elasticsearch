@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.sagemaker.model;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.InferenceSettingsTestCase;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemasTests;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerStoredServiceSchema;
@@ -39,11 +38,6 @@ public class SageMakerServiceSettingsTests extends InferenceSettingsTestCase<Sag
 
     @Override
     protected SageMakerServiceSettings fromMutableMap(Map<String, Object> mutableMap) {
-        return SageMakerServiceSettings.fromMap(
-            SageMakerSchemasTests.mockSchemas(),
-            randomFrom(TaskType.values()),
-            mutableMap,
-            ConfigurationParseContext.PERSISTENT
-        );
+        return SageMakerServiceSettings.fromMap(SageMakerSchemasTests.mockSchemas(), randomFrom(TaskType.values()), mutableMap);
     }
 }

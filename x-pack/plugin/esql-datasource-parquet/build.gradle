@@ -30,20 +30,27 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   compileOnly project(':server')
   compileOnly project(xpackModule('esql:compute'))
-  
+
   // Parquet format support - using parquet-hadoop-bundle to avoid jar hell from duplicate shaded classes
   implementation("org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}")
-  
-  // Hadoop API types — hadoop-client-api provides Configuration, Path, FileSystem,
-  // and CompressionCodec interfaces referenced by parquet-hadoop-bundle's public API.
-  // hadoop-client-runtime is NOT required: PlainParquetConfiguration replaces the
-  // HadoopParquetConfiguration that previously pulled in Configuration(true), and
-  // codec resolution works via hadoop-client-api classes alone.
+
+  // hadoop-client-api is required at runtime because parquet-hadoop-bundle's
+  // ParquetReadOptions$Builder.set() unconditionally calls
+  // ParquetInputFormat.getFilter(conf), which triggers class loading of
+  // ParquetInputFormat -> extends FileInputFormat (a Hadoop MapReduce type
+  // defined in hadoop-client-api). Without this JAR the node crashes with
+  // NoClassDefFoundError: org/apache/hadoop/mapreduce/lib/input/FileInputFormat.
   implementation("org.apache.hadoop:hadoop-client-api:${versions.hadoop}")
+
+  // Compression libraries — inherited at runtime via extendedPlugins from
+  // esql-datasource-compression-libs; declared compileOnly so PlainCompressionCodecFactory
+  // can reference their classes at compile time.
+  compileOnly "io.airlift:aircompressor:${versions.aircompressor}"
+  compileOnly "com.github.luben:zstd-jni:${versions.zstdJni}"
+  compileOnly "org.xerial.snappy:snappy-java:${versions.snappyJava}"
 
   // hadoop-client-runtime is needed at test time because ParquetWriter.Builder.build()
   // creates HadoopParquetConfiguration which requires shaded Woodstox classes.
-  // Not needed at runtime: the read path uses PlainParquetConfiguration.
   testImplementation("org.apache.hadoop:hadoop-client-runtime:${versions.hadoop}")
 
   testImplementation project(':test:framework')

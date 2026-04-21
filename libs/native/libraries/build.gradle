@@ -19,7 +19,7 @@ configurations {
 }
 
 var zstdVersion = "1.5.7"
-var vecVersion = "1.0.92"
+var vecVersion = "1.0.105"
 
 repositories {
   exclusiveContent {
@@ -53,7 +53,7 @@ dependencies {
   libs "org.elasticsearch:zstd:${zstdVersion}:linux-x86-64"
   libs "org.elasticsearch:zstd:${zstdVersion}:windows-x86-64"
   // if testing locally, its assumed that the custom compiled binaries are copied to the correct directory
-  // See `simdvec/native/build.gradle` for details on how to compile locally
+  // See `simdvec/native/Makefile` for details on how to compile locally
   if (System.getenv("LOCAL_VEC_BINARY_OS") == null){
     libs "org.elasticsearch:vec:${vecVersion}@zip"
   }

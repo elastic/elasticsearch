@@ -145,9 +145,10 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
             assert false : "expected timestamp vector in time-series aggregation";
             throw new IllegalStateException("expected timestamp vector in time-series aggregation");
         }
-        IntVector sliceIndices = ((IntBlock) page.getBlock(channels.get(2))).asVector();
+        // TODO: channels.get(2) provides the temporality, add support for it
+        IntVector sliceIndices = ((IntBlock) page.getBlock(channels.get(3))).asVector();
         assert sliceIndices != null : "expected slice indices vector in time-series aggregation";
-        LongVector futureMaxTimestamps = ((LongBlock) page.getBlock(channels.get(3))).asVector();
+        LongVector futureMaxTimestamps = ((LongBlock) page.getBlock(channels.get(4))).asVector();
         assert futureMaxTimestamps != null : "expected future max timestamps vector in time-series aggregation";
         int sliceIndex = sliceIndices.getInt(0);
         if (sliceIndex > lastSliceIndex) {
@@ -709,8 +710,8 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
         var previousState = (0 <= previousGroupId && previousGroupId < reducedStates.size()) ? reducedStates.get(previousGroupId) : null;
         if (previousState == null || previousState.samples == 0) {
             if (state.samples == 1) {
-                firstTsSec = state.intervals[0].lastTs / dateFactor;
-                firstValue = state.intervals[0].lastValue;
+                firstTsSec = state.intervals[0].firstTs / dateFactor;
+                firstValue = state.intervals[0].firstValue;
             } else {
                 firstValue = extrapolateToBoundary(state, tbucketStart, tbucketEnd, dateFactor, true);
             }
@@ -723,7 +724,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
         if (nextState == null || nextState.samples == 0) {
             if (state.samples == 1) {
                 lastTsSec = state.intervals[0].lastTs / dateFactor;
-                lastValue = state.intervals[0].lastValue;
+                lastValue = state.intervals[0].lastValue + state.resets;
             } else {
                 lastValue = extrapolateToBoundary(state, tbucketStart, tbucketEnd, dateFactor, false);
             }

@@ -512,42 +512,4 @@ public class DocumentMapperTests extends MapperServiceTestCase {
             )
         );
     }
-
-    public void testHasConfidenceIntervalDifference() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(mapping(b -> b.startObject("field").field("type", "keyword").endObject()));
-
-        // Test with confidence_interval:0.0 in one source but not the other
-        String sourceWithConfidenceInterval = "{\"_doc\":{\"properties\":{\"vector\":{\"type\":\"dense_vector\",\"dims\":4,"
-            + "\"index\":true,\"similarity\":\"l2_norm\",\"index_options\":{\"type\":\"int4_flat\",\"confidence_interval\":0.0}}}}}";
-        String sourceWithoutConfidenceInterval = "{\"_doc\":{\"properties\":{\"vector\":{\"type\":\"dense_vector\",\"dims\":4,"
-            + "\"index\":true,\"similarity\":\"l2_norm\",\"index_options\":{\"type\":\"int4_flat\"}}}}}";
-
-        CompressedXContent compressed1 = new CompressedXContent(sourceWithConfidenceInterval);
-        CompressedXContent compressed2 = new CompressedXContent(sourceWithoutConfidenceInterval);
-
-        assertTrue(mapper.hasConfidenceIntervalDifference(compressed1, compressed2));
-
-        // Test with confidence_interval:0.0 appearing multiple times
-        String sourceWithMultipleConfidenceIntervals = "{\"_doc\":{\"properties\":{\"vector\":{\"type\":\"dense_vector\",\"dims\":4,"
-            + "\"index\":true,\"similarity\":\"l2_norm\",\"index_options\":{\"type\":\"int4_flat\",\"confidence_interval\":0.0}},"
-            + "\"another_vector\":{\"type\":\"dense_vector\",\"dims\":4,\"index\":true,\"similarity\":\"l2_norm\","
-            + "\"index_options\":{\"type\":\"int4_flat\",\"confidence_interval\":0.0}}}}}";
-        String sourceWithoutMultipleConfidenceIntervals = "{\"_doc\":{\"properties\":{\"vector\":{\"type\":\"dense_vector\","
-            + "\"dims\":4,\"index\":true,\"similarity\":\"l2_norm\",\"index_options\":{\"type\":\"int4_flat\"}},"
-            + "\"another_vector\":{\"type\":\"dense_vector\",\"dims\":4,\"index\":true,\"similarity\":\"l2_norm\","
-            + "\"index_options\":{\"type\":\"int4_flat\"}}}}}";
-
-        CompressedXContent compressed3 = new CompressedXContent(sourceWithMultipleConfidenceIntervals);
-        CompressedXContent compressed4 = new CompressedXContent(sourceWithoutMultipleConfidenceIntervals);
-
-        assertTrue(mapper.hasConfidenceIntervalDifference(compressed3, compressed4));
-
-        // Test with non-zero confidence_interval (should not match)
-        String sourceWithNonZeroConfidenceInterval = "{\"_doc\":{\"properties\":{\"vector\":{\"type\":\"dense_vector\",\"dims\":4,"
-            + "\"index\":true,\"similarity\":\"l2_norm\",\"index_options\":{\"type\":\"int4_flat\",\"confidence_interval\":0.5}}}}}";
-
-        CompressedXContent compressed5 = new CompressedXContent(sourceWithNonZeroConfidenceInterval);
-
-        assertFalse(mapper.hasConfidenceIntervalDifference(compressed5, compressed2));
-    }
 }

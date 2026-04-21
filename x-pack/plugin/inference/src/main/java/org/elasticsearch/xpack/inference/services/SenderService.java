@@ -47,6 +47,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.inference.InferenceStringGroup.containsNonTextEntry;
 import static org.elasticsearch.inference.InferenceStringGroup.indexContainingMultipleInferenceStrings;
 import static org.elasticsearch.inference.TaskType.EMBEDDING;
 import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
@@ -107,7 +108,7 @@ public abstract class SenderService<M extends Model> implements InferenceService
         ActionListener<InferenceServiceResults> listener
     ) {
         SubscribableListener.newForked(this::init).<InferenceServiceResults>andThen((inferListener) -> {
-            var resolvedInferenceTimeout = ServiceUtils.resolveInferenceTimeout(timeout, inputType, clusterService);
+            var resolvedInferenceTimeout = ServiceUtils.resolveInferenceTimeout(timeout, inputType, clusterService, model.getTaskType());
             var inferenceInput = createInput(this, model, input, inputType, query, returnDocuments, topN, stream);
             doInfer(model, inferenceInput, taskSettings, resolvedInferenceTimeout, inferListener);
         }).addListener(listener);
@@ -210,6 +211,15 @@ public abstract class SenderService<M extends Model> implements InferenceService
     @Override
     public void embeddingInfer(Model model, EmbeddingRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
         SubscribableListener.newForked(this::init).<InferenceServiceResults>andThen((embeddingInferListener) -> {
+            if (supportsImageEmbeddingContent() == false && containsNonTextEntry(request.inputs())) {
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        Strings.format("The %s service does not support embedding with image inputs", name()),
+                        RestStatus.BAD_REQUEST
+                    )
+                );
+                return;
+            }
             if (supportsMultipleItemsPerContent()) {
                 doEmbeddingInfer(model, request, timeout, embeddingInferListener);
             } else {
@@ -243,6 +253,14 @@ public abstract class SenderService<M extends Model> implements InferenceService
         return false;
     }
 
+    /**
+     * Override as necessary for services which support images in embedding inputs
+     * @return true if the service supports images in embedding inputs
+     */
+    protected boolean supportsImageEmbeddingContent() {
+        return false;
+    }
+
     @Override
     public void chunkedInfer(
         Model model,
@@ -261,6 +279,16 @@ public abstract class SenderService<M extends Model> implements InferenceService
                 if (input.isEmpty()) {
                     chunkedInferListener.onResponse(List.of());
                 } else {
+                    if (supportsImageEmbeddingContent() == false
+                        && containsNonTextEntry(input.stream().map(ChunkInferenceInput::input).toList())) {
+                        listener.onFailure(
+                            new ElasticsearchStatusException(
+                                Strings.format("The %s service does not support embedding with image inputs", name()),
+                                RestStatus.BAD_REQUEST
+                            )
+                        );
+                        return;
+                    }
                     // a non-null query is not supported and is dropped by all providers
                     doChunkedInfer(model, input, taskSettings, inputType, timeout, chunkedInferListener);
                 }

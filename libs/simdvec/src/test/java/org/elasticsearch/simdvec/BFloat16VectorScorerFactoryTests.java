@@ -18,6 +18,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.es93.OffHeapBFloat16VectorValues;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -29,12 +30,20 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.simdvec.VectorSimilarityType.DOT_PRODUCT;
 import static org.elasticsearch.simdvec.VectorSimilarityType.EUCLIDEAN;
 import static org.elasticsearch.simdvec.VectorSimilarityType.MAXIMUM_INNER_PRODUCT;
+import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 import static org.hamcrest.Matchers.closeTo;
 
 public class BFloat16VectorScorerFactoryTests extends AbstractVectorTestCase {
 
     private static final int TIMES = 100; // a loop iteration times
-    private static final double DELTA = 1e-6;
+    // BFloat16 has ~7 bits of mantissa, so relative precision is ~2^-7 ≈ 0.008.
+    // Accumulation over many dims can compound this; 1e-3 is a practical bound.
+    private static final float DELTA = 1e-3f;
+
+    @BeforeClass
+    public static void requiresHeapSegments() {
+        assumeTrue("scorer only supported on JDK 22+", SUPPORTS_HEAP_SEGMENTS);
+    }
 
     // Tests that the provider instance is present or not on expected platforms/architectures
     public void testSupport() {
@@ -227,7 +236,7 @@ public class BFloat16VectorScorerFactoryTests extends AbstractVectorTestCase {
 
             float[] actual = new float[size];
             scorer.bulkScore(nodes, actual, nodes.length);
-            assertArrayEqualsPercent(sim.toString(), expected, actual, 1, DEFAULT_DELTA);
+            assertArrayEqualsPercent(sim.toString(), expected, actual, 1, DELTA);
         }
     }
 

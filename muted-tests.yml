@@ -142,18 +142,6 @@ tests:
 - class: org.elasticsearch.xpack.transform.transforms.ClientTransformIndexerTests
   method: testDisablePitWhenCrossProjectSearchIsEnabled
   issue: https://github.com/elastic/elasticsearch/issues/144822
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
-  method: testLookupMissingField
-  issue: https://github.com/elastic/elasticsearch/issues/144697
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
-  method: testLookupMatchTypeWrong
-  issue: https://github.com/elastic/elasticsearch/issues/144694
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
-  method: testLookup
-  issue: https://github.com/elastic/elasticsearch/issues/144696
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
-  method: testLookupMissingTable
-  issue: https://github.com/elastic/elasticsearch/issues/144695
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:external-basic.scoreFunction}
   issue: https://github.com/elastic/elasticsearch/issues/145352

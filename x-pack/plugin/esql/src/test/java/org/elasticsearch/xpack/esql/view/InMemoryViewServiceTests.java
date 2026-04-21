@@ -768,8 +768,13 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addIndex("logs-001");
         // FORK query with wildcard that matches only the index, not the circular views
         LogicalPlan plan = query("FROM logs-* | FORK (STATS c = COUNT(*)) (LIMIT 5)");
-        LogicalPlan result = replaceViews(plan);
-        assertNotNull("FORK query should resolve without circular view errors", result);
+        viewResolver.simulateSecurityEnabled = true;
+        try {
+            LogicalPlan result = replaceViews(plan);
+            assertNotNull("FORK query should resolve without circular view errors", result);
+        } finally {
+            viewResolver.simulateSecurityEnabled = false;
+        }
     }
 
     /**
@@ -783,8 +788,58 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addIndex("logs");
         // FROM *,-view_* excludes the circular views — should succeed
         LogicalPlan plan = query("FROM *,-view_* | FORK (STATS c = COUNT(*)) (LIMIT 5)");
-        LogicalPlan result = replaceViews(plan);
-        assertNotNull("FORK query excluding circular views should resolve without errors", result);
+        viewResolver.simulateSecurityEnabled = true;
+        try {
+            LogicalPlan result = replaceViews(plan);
+            assertNotNull("FORK query excluding circular views should resolve without errors", result);
+        } finally {
+            viewResolver.simulateSecurityEnabled = false;
+        }
+    }
+
+    /**
+     * Reproduces <a href="https://github.com/elastic/elasticsearch/issues/146208">#146208</a>.
+     * FROM *,-employees* against a cluster populated with the csv-spec views (several simple
+     * views whose bodies share underlying wildcard patterns, plus employee views that are
+     * excluded by the outer pattern) should not trigger a false circular view reference.
+     * <p>
+     * This mirrors the manual-server reproduction: the bug only fires when a recursive
+     * re-visit of an already-resolved UnresolvedRelation issues a view-resolve request with
+     * empty indices, which the security layer (and {@link InMemoryViewResolver}'s mock)
+     * expands to "_all".
+     */
+    public void testFromStarExcludingEmployeesWithCsvSpecViews_Issue146208() {
+        assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        // Indices referenced by the csv-spec view bodies (plus "logs" from default setup)
+        addIndex("addresses");
+        addIndex("airports");
+        addIndex("airports_mp");
+        addIndex("languages_lookup_non_unique_key");
+        addIndex("employees");
+
+        // Non-employee views from views.csv-spec — none reference each other, but their bodies
+        // share underlying index patterns (airports, addresses) that the outer FROM * expands to.
+        addView("country_addresses", "FROM addresses | STATS count=COUNT() BY country");
+        addView("country_languages", "FROM languages_lookup_non_unique_key | STATS count=COUNT() BY country");
+        addView("airports_mp_filtered", "FROM airports | LOOKUP JOIN airports_mp ON abbrev == abbrev");
+        addView("country_airports", "FROM airports | STATS count=COUNT() BY country");
+
+        // Employee views — all excluded by the outer -employees* pattern
+        addView("employees_all", "FROM employees");
+        addView("employees_extra", "FROM employees, employees_all");
+        addView("employees_rehired", "FROM employees | WHERE is_rehired == true");
+        addView("employees_not_rehired", "FROM employees | WHERE is_rehired == false");
+
+        // Must not throw a circular view reference error. Requires the security-layer emulation
+        // (empty-indices → wildcard expansion) since the bug only fires on re-visits that would
+        // otherwise produce empty indices.
+        viewResolver.simulateSecurityEnabled = true;
+        try {
+            LogicalPlan result = replaceViews(query("FROM *,-employees* | LIMIT 1"));
+            assertNotNull("FROM *,-employees* should resolve without false circular reference errors", result);
+        } finally {
+            viewResolver.simulateSecurityEnabled = false;
+        }
     }
 
     public void testCircularViewExcludedByWildcard() {

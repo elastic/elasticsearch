@@ -32,6 +32,14 @@ public class InMemoryViewResolver extends ViewResolver {
     protected IndexNameExpressionResolver indexNameExpressionResolver;
     protected ClusterService clusterService;
     protected ProjectResolver projectResolver;
+    /**
+     * When true, mimic the security layer's IndicesAndAliasesResolver behavior of expanding an
+     * empty-indices request to a full wildcard match. This is needed to reproduce bugs that only
+     * surface when a recursive view-resolve request is issued with empty patterns (all wildcards
+     * already consumed by seenWildcards) AND the security layer is active to expand them.
+     * Off by default — most tests rely on empty indices producing an empty response.
+     */
+    public boolean simulateSecurityEnabled = false;
 
     public InMemoryViewResolver(
         ClusterService clusterService,
@@ -60,6 +68,15 @@ public class InMemoryViewResolver extends ViewResolver {
         EsqlResolveViewAction.Request request,
         ActionListener<EsqlResolveViewAction.Response> listener
     ) {
+        if (simulateSecurityEnabled && (request.indices() == null || request.indices().length == 0)) {
+            // IndicesAndAliasesResolver expands an empty-indices request to "_all"/wildcard;
+            // IndexAbstractionResolver (used by the null-fallback in ViewResolutionService) does
+            // not, so we substitute "*" to get the same expanded ResolvedIndexExpressions the
+            // security layer would produce. This reproduces bugs where transformDown re-visits
+            // an already-resolved UR whose wildcards are all in seenWildcards, yielding empty
+            // patterns that would otherwise produce an empty resolution and hide the bug.
+            request.indices("*");
+        }
         var action = new EsqlResolveViewAction(
             mock(TransportService.class),
             new ActionFilters(Set.of()),

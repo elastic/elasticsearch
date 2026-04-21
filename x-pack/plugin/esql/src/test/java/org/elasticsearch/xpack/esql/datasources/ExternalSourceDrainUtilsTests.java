@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
@@ -140,6 +141,68 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
         });
 
         Thread consumeThread = new Thread(() -> {
+            try {
+                barrier.await();
+                int consumed = 0;
+                while (consumed < totalPages) {
+                    Page page = buffer.pollPage();
+                    if (page != null) {
+                        page.releaseBlocks();
+                        consumed++;
+                    } else if (buffer.noMoreInputs() && buffer.size() == 0) {
+                        break;
+                    } else {
+                        Thread.yield();
+                    }
+                }
+            } catch (Exception e) {
+                buffer.finish(true);
+            }
+        });
+
+        drainThread.start();
+        consumeThread.start();
+
+        drainThread.join(30_000);
+        consumeThread.join(30_000);
+
+        assertNull("Drain should not throw", drainError.get());
+    }
+
+    /**
+     * Regression: backpressure used to block on {@code PlainActionFuture#actionGet} on the same named
+     * pool that completes the wait (e.g. two {@code esql_worker} threads), which trips
+     * {@code PlainActionFuture}'s same-pool assertion. Production now uses
+     * {@link AsyncExternalSourceBuffer#awaitSpaceForProducer} ({@code Object#wait} on the buffer's
+     * not-full lock). This test runs producer and consumer on {@link EsExecutors.EsThread} instances
+     * sharing the {@code esql_worker} pool name.
+     */
+    public void testBackpressureWithSameNamedPoolThreads() throws Exception {
+        int totalPages = 20;
+        long maxBufferBytes = 1500;
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
+
+        List<Page> sourcePages = new ArrayList<>();
+        for (int i = 0; i < totalPages; i++) {
+            sourcePages.add(createTestPage(2, 50));
+        }
+
+        AtomicReference<Exception> drainError = new AtomicReference<>();
+        CyclicBarrier barrier = new CyclicBarrier(2);
+
+        var factory = EsExecutors.daemonThreadFactory("testNode", "esql_worker");
+        Thread drainThread = factory.newThread(() -> {
+            try {
+                barrier.await();
+                ExternalSourceDrainUtils.drainPages(iteratorOf(sourcePages), buffer);
+                buffer.finish(false);
+            } catch (Exception e) {
+                drainError.set(e);
+                buffer.onFailure(e);
+            }
+        });
+
+        Thread consumeThread = factory.newThread(() -> {
             try {
                 barrier.await();
                 int consumed = 0;

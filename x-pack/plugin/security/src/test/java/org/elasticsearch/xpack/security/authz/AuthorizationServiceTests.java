@@ -3964,10 +3964,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             this.node = node;
         }
 
-
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-        }
+        public void writeTo(StreamOutput out) throws IOException {}
     }
 
     private static BytesReference createEncodedPIT(Index index) {

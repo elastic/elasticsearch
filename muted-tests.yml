@@ -486,6 +486,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
   method: test {csv-spec:external-basic.filterByGender [S3]}
   issue: https://github.com/elastic/elasticsearch/issues/147029
+- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
+  method: test {csv-spec:external-basic.filterAndSort [LOCAL]}
+  issue: https://github.com/elastic/elasticsearch/issues/147031
 
 # Examples:
 #

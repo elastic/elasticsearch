@@ -15,7 +15,6 @@ import joptsimple.OptionSpecBuilder;
 import joptsimple.util.PathConverter;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.bootstrap.BootstrapSettings;
 import org.elasticsearch.bootstrap.ServerArgs;
 import org.elasticsearch.cli.CliToolProvider;
 import org.elasticsearch.cli.Command;
@@ -303,9 +302,11 @@ class ServerCli extends EnvironmentAwareCommand {
 
     // protected to allow tests to override
     protected SecureSettingsLoader secureSettingsLoader(Environment env) {
-        return switch (BootstrapSettings.SECURE_SETTINGS_SOURCE_SETTING.get(env.settings())) {
-            case KEYSTORE -> new KeyStoreLoader();
-            case FILE_SETTINGS -> new FileSettingsClusterSecretsLoader();
+        String source = System.getenv().getOrDefault("ES_SECURE_SETTINGS_SOURCE", "keystore");
+        return switch (source) {
+            case "keystore" -> new KeyStoreLoader();
+            case "file_settings" -> new FileSettingsClusterSecretsLoader();
+            default -> throw new IllegalArgumentException("Unknown secure settings source [" + source + "]");
         };
     }
 }

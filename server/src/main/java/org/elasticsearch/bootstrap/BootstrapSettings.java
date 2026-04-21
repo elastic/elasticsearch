@@ -16,11 +16,6 @@ public final class BootstrapSettings {
 
     private BootstrapSettings() {}
 
-    public enum SecureSettingsSource {
-        KEYSTORE,
-        FILE_SETTINGS
-    }
-
     // TODO: remove this hack when insecure defaults are removed from java
     public static final Setting<Boolean> SECURITY_FILTER_BAD_DEFAULTS_SETTING = Setting.boolSetting(
         "security.manager.filter_bad_defaults",
@@ -31,12 +26,4 @@ public final class BootstrapSettings {
     public static final Setting<Boolean> MEMORY_LOCK_SETTING = Setting.boolSetting("bootstrap.memory_lock", false, Property.NodeScope);
 
     public static final Setting<Boolean> CTRLHANDLER_SETTING = Setting.boolSetting("bootstrap.ctrlhandler", true, Property.NodeScope);
-
-    public static final Setting<SecureSettingsSource> SECURE_SETTINGS_SOURCE_SETTING = Setting.enumSetting(
-        SecureSettingsSource.class,
-        "bootstrap.secure_settings.source",
-        SecureSettingsSource.KEYSTORE,
-        Property.NodeScope
-    );
-
 }

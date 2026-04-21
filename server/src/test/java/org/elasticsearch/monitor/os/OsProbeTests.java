@@ -12,6 +12,7 @@ package org.elasticsearch.monitor.os;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
@@ -397,6 +398,7 @@ public class OsProbeTests extends ESTestCase {
         assertThat(osProbe.getTotalPhysicalMemorySize(), greaterThan(0L));
     }
 
+    @SuppressForbidden(reason = "JUnit 4's TemporaryFolder only supports java.io.File")
     public void testReadSingleLine() throws Exception {
         var file = tempDir.newFile("single-line.txt").toPath();
         Files.writeString(file, "test");
@@ -406,12 +408,14 @@ public class OsProbeTests extends ESTestCase {
         assertEquals("test", line);
     }
 
+    @SuppressForbidden(reason = "JUnit 4's TemporaryFolder only supports java.io.File")
     public void testReadSingleLineEmptyFile() throws Exception {
         var file = tempDir.newFile("single-line.txt").toPath();
 
         assertThrows(IllegalStateException.class, () -> OsProbe.readSingleLine(file));
     }
 
+    @SuppressForbidden(reason = "JUnit 4's TemporaryFolder only supports java.io.File")
     public void testReadSingleLineFileWithMultipleLines() throws Exception {
         var file = tempDir.newFile("single-line.txt").toPath();
         Files.writeString(file, """

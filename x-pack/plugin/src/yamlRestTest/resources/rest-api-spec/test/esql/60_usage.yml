@@ -236,7 +236,8 @@ setup:
         body:
           query: 'from test
             | sort count desc
-            | limit 3 by message'
+            | limit 3 by message
+            | limit 100'
 
   - do: { xpack.usage: { } }
   - gt: { esql.features.limit_by: $limit_by_counter }
@@ -419,7 +420,8 @@ setup:
         body:
           query: 'from test
             | sort count desc
-            | limit 3 by message'
+            | limit 3 by message
+            | limit 100'
 
   - do: { xpack.usage: { } }
   - gt: { esql.features.limit_by: $limit_by_counter }

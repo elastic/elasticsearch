@@ -451,10 +451,10 @@ public class CcsDatafeedStatsIT extends ESRestTestCase {
 
     /**
      * Verifies that a running datafeed using a wildcard CCS pattern picks up a newly added
-     * remote cluster live, without needing to be stopped and restarted. The {@code *:} pattern
-     * is resolved at search time by the transport layer using the live {@code RemoteClusterService}
-     * state, so dynamic changes to {@code cluster.remote.*} settings are reflected on the
-     * datafeed's next search cycle.
+     * remote cluster live, without stopping the datafeed. The {@code *:} pattern is resolved at
+     * search time by the transport layer using the live {@code RemoteClusterService} state, so
+     * dynamic changes to {@code cluster.remote.*} settings are reflected on subsequent search
+     * cycles.
      */
     @SuppressWarnings("unchecked")
     public void testTopologyExpansionWhileRunning() throws Exception {
@@ -494,7 +494,19 @@ public class CcsDatafeedStatsIT extends ESRestTestCase {
                 assertThat(entityAsString(infoResponse), containsString("project_b"));
             }, 30, TimeUnit.SECONDS);
 
-            // The running datafeed should pick up project_b on its next search cycle
+            // Index fresh documents on both remotes so the datafeed's next searches fan out to
+            // both sides (helps establish CrossClusterSearchStats after the remote is added).
+            try (RestClient remoteA = remoteClientA()) {
+                indexRemoteDataNearNow(remoteA, sharedIndex);
+            }
+            try (RestClient remoteB = remoteClientB()) {
+                indexRemoteDataNearNow(remoteB, sharedIndex);
+            }
+
+            // Ensure wildcard CCS on the coordinating cluster lists both remotes in _clusters.details
+            // before asserting datafeed stats (avoids racing the datafeed against remote wiring).
+            waitForWildcardSearchRemoteDetails(sharedIndex, "project_a", "project_b");
+
             assertBusy(() -> {
                 Map<String, Object> stats = getDatafeedStats(datafeedId);
                 assertThat(stats.get("state"), equalTo("started"));
@@ -505,7 +517,7 @@ public class CcsDatafeedStatsIT extends ESRestTestCase {
                 List<String> aliases = (List<String>) ccs.get("stabilized_cluster_aliases");
                 assertThat(aliases, hasItem("project_a"));
                 assertThat(aliases, hasItem("project_b"));
-            }, 60, TimeUnit.SECONDS);
+            }, 120, TimeUnit.SECONDS);
 
             stopDatafeed(datafeedId);
             closeJob(jobId);
@@ -666,14 +678,31 @@ public class CcsDatafeedStatsIT extends ESRestTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    private void waitForWildcardSearchRemoteDetails(String index, String... remotes) throws Exception {
+        assertBusy(() -> {
+            Request probe = new Request("GET", "/*:" + index + "/_search");
+            probe.addParameter("size", "0");
+            Map<String, Object> body = parseResponseBody(client().performRequest(probe));
+            assertThat(body, hasKey("_clusters"));
+            Map<String, Object> clusters = (Map<String, Object>) body.get("_clusters");
+            assertThat(clusters, hasKey("details"));
+            Map<String, Object> details = (Map<String, Object>) clusters.get("details");
+            for (String remote : remotes) {
+                assertThat("wildcard CCS search should list remote [" + remote + "]", details, hasKey(remote));
+            }
+        }, 120, TimeUnit.SECONDS);
+    }
+
     private void addRemoteCluster(String alias, String transportEndpoint) throws IOException {
         Request request = new Request("PUT", "_cluster/settings");
         request.setJsonEntity(String.format(java.util.Locale.ROOT, """
             {
               "persistent": {
-                "cluster.remote.%s.seeds": ["%s"]
+                "cluster.remote.%s.seeds": ["%s"],
+                "cluster.remote.%s.skip_unavailable": false
               }
-            }""", alias, transportEndpoint));
+            }""", alias, transportEndpoint, alias));
         client().performRequest(request);
     }
 
@@ -729,6 +758,26 @@ public class CcsDatafeedStatsIT extends ESRestTestCase {
         StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < 50; i++) {
             long ts = oneHourAgo + (i * 60_000);
+            bulk.append("{\"index\":{\"_index\":\"").append(index).append("\"}}\n");
+            bulk.append("{\"timestamp\":").append(ts).append(",\"value\":").append(randomDoubleBetween(1.0, 100.0, true)).append("}\n");
+        }
+
+        Request bulkRequest = new Request("POST", "/_bulk");
+        bulkRequest.setJsonEntity(bulk.toString());
+        bulkRequest.addParameter("refresh", "true");
+        Response response = remote.performRequest(bulkRequest);
+        assertThat(entityAsString(response), not(containsString("\"errors\":true")));
+    }
+
+    /**
+     * Indexes documents with timestamps in the last few minutes so a running realtime datafeed
+     * (which advances {@code lastEndTimeMs}) still matches them on both remotes.
+     */
+    private void indexRemoteDataNearNow(RestClient remote, String index) throws IOException {
+        long now = System.currentTimeMillis();
+        StringBuilder bulk = new StringBuilder();
+        for (int i = 0; i < 50; i++) {
+            long ts = now - (50 - i) * 2000L;
             bulk.append("{\"index\":{\"_index\":\"").append(index).append("\"}}\n");
             bulk.append("{\"timestamp\":").append(ts).append(",\"value\":").append(randomDoubleBetween(1.0, 100.0, true)).append("}\n");
         }

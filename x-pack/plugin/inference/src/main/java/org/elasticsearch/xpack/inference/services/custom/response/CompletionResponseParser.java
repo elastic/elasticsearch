@@ -113,4 +113,9 @@ public class CompletionResponseParser extends BaseCustomResponseParser {
             );
         }
     }
+
+    @Override
+    public CompletionResponseParser updateFromMap(Map<String, Object> map, String scope, ValidationException validationException) {
+        return fromMap(map, scope, validationException);
+    }
 }

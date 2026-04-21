@@ -411,6 +411,9 @@ tests:
 - class: org.elasticsearch.benchmark.vector.scorer.VectorScorerBFloat16BulkBenchmarkTests
   method: testSequential {p0=DOT_PRODUCT p1=1024}
   issue: https://github.com/elastic/elasticsearch/issues/146892
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:qstr-function.testQstrInStatsWithGrouping}
+  issue: https://github.com/elastic/elasticsearch/issues/146934
 
 # Examples:
 #

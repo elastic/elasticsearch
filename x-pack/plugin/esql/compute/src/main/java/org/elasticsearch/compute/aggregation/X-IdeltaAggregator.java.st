@@ -59,7 +59,15 @@ public class Idelta$Type$Aggregator {
         current.combine(groupId, timestamps, values, otherPosition);
     }
 
+$if(double)$
+    public static Block evaluateFinal(
+        $Type$IdeltaGroupingState state,
+        IntVector selected,
+        GroupingAggregatorEvaluationContext evalContext
+    ) {
+$else$
     public static Block evaluateFinal($Type$IdeltaGroupingState state, IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
+$endif$
         return state.evaluateFinal(selected, evalContext);
     }
 

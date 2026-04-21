@@ -83,7 +83,6 @@ class EntitlementsTestRule implements TestRule {
         cluster = ElasticsearchCluster.local()
             .module("entitled", spec -> buildEntitlements(spec, "org.elasticsearch.entitlement.qa.entitled", ENTITLED_POLICY))
             .module(ENTITLEMENT_TEST_PLUGIN_NAME, spec -> setupEntitlements(spec, modular, policyBuilder))
-            .systemProperty("es.entitlements.enabled", "true")
             .systemProperty("es.entitlements.verify_bytecode", "true")
             .systemProperty("es.entitlements.testdir", () -> testDir.getRoot().getAbsolutePath())
             .systemProperties(spec -> tempDirSystemPropertyProvider.get(testDir.getRoot().toPath()))

@@ -196,8 +196,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         long startBatchTime = System.nanoTime();
         if (ShardBatchIndexer.canUseBatchIndexing(request, batchIndexingEnabled)) {
             ShardBatchIndexer.performBatchIndexOnPrimary(
-                request,
-                documentParsingProvider,
+                request.items(),
+                request.getEirfBatch(),
                 context,
                 listener.delegateFailure((delegate, ctx) -> {
                     if (context.hasMoreOperationsToExecute() == false) {
@@ -753,7 +753,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             final long startBulkTime = System.nanoTime();
             final Translog.Location location;
             if (ShardBatchIndexer.canUseBatchIndexing(request, batchIndexingEnabled)) {
-                ShardBatchIndexer.ReplicaBatchResult batchResult = ShardBatchIndexer.performBatchIndexOnReplica(request, replica);
+                ShardBatchIndexer.ReplicaBatchResult batchResult = ShardBatchIndexer.performBatchIndexOnReplica(
+                    request.items(),
+                    request.getEirfBatch(),
+                    replica
+                );
                 if (batchResult.processedItems() < request.items().length) {
                     location = performOnReplica(request, replica, batchResult.processedItems(), batchResult.location());
                 } else {

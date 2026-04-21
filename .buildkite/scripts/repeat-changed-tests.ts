@@ -62,7 +62,6 @@ interface PipelineStep {
 
 interface PipelineGroup {
   group: string;
-  notify: { github_commit_status: { context: string } }[];
   steps: PipelineStep[];
 }
 
@@ -173,6 +172,14 @@ const KIND_LABELS: Record<TestKind, string> = {
   yamlRestTestSuite: "yaml rest tests",
 };
 
+const KIND_KEYS: Record<TestKind, string> = {
+  test: "Repeat Changed Tests:unit",
+  internalClusterTest: "Repeat Changed Tests:integ",
+  javaRestTest: "Repeat Changed Tests:java-rest",
+  yamlRestTestRunner: "Repeat Changed Tests:yaml-runner",
+  yamlRestTestSuite: "Repeat Changed Tests:yaml-suite",
+};
+
 export function generateBatchCommand(batch: ClassifiedTest[]): string {
   const kind = batch[0].kind;
 
@@ -232,7 +239,7 @@ export function generatePipeline(tests: ClassifiedTest[]): Pipeline {
 
     const step: PipelineStep = {
       label: typeLabel,
-      key: "repeat-changed-tests",
+      key: KIND_KEYS[kind],
       command: batchCommands[0],
       timeout_in_minutes: 60,
       agents: { ...AGENTS },
@@ -254,8 +261,7 @@ export function generatePipeline(tests: ClassifiedTest[]): Pipeline {
   return {
     steps: [
       {
-        group: "repeat-changed-tests",
-        notify: [{ github_commit_status: { context: "repeat-changed-tests" } }],
+        group: "Repeat Changed Tests",
         steps: allSteps,
       },
     ],

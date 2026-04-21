@@ -425,11 +425,11 @@ describe("generatePipeline", () => {
 
     const pipeline = generatePipeline(tests);
     expect(pipeline.steps).toHaveLength(1);
-    expect(pipeline.steps[0].group).toBe("repeat-changed-tests");
+    expect(pipeline.steps[0].group).toBe("Repeat Changed Tests");
 
     const step = pipeline.steps[0].steps[0];
     expect(step.label).toBe("unit tests");
-    expect(step.key).toBe("repeat-changed-tests");
+    expect(step.key).toBe("Repeat Changed Tests:unit");
     expect(step.parallelism).toBeUndefined();
     expect(step.env).toBeUndefined();
     expect(step.command).toBe(
@@ -452,13 +452,15 @@ describe("generatePipeline", () => {
     }
 
     const pipeline = generatePipeline(tests);
+    expect(pipeline.steps).toHaveLength(1);
+
     const group = pipeline.steps[0];
-    expect(group.group).toBe("repeat-changed-tests");
+    expect(group.group).toBe("Repeat Changed Tests");
     expect(group.steps).toHaveLength(1);
 
     const step = group.steps[0];
     expect(step.label).toBe("java rest tests");
-    expect(step.key).toBe("repeat-changed-tests");
+    expect(step.key).toBe("Repeat Changed Tests:java-rest");
     expect(step.parallelism).toBe(2);
     expect(step.env).toBeDefined();
     expect(step.env!["BATCH_COMMAND_0"]).toContain("repeat-rest-test.sh");
@@ -466,7 +468,7 @@ describe("generatePipeline", () => {
     expect(step.command).toContain("BUILDKITE_PARALLEL_JOB");
   });
 
-  test("all test kinds appear in single group with shared key", () => {
+  test("all test kinds appear in single group with unique keys", () => {
     const tests: ClassifiedTest[] = [
       { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "org.elasticsearch.SomeTests" },
       {
@@ -479,12 +481,12 @@ describe("generatePipeline", () => {
 
     const pipeline = generatePipeline(tests);
     expect(pipeline.steps).toHaveLength(1);
-    expect(pipeline.steps[0].group).toBe("repeat-changed-tests");
+    expect(pipeline.steps[0].group).toBe("Repeat Changed Tests");
     expect(pipeline.steps[0].steps).toHaveLength(2);
     expect(pipeline.steps[0].steps[0].label).toBe("unit tests");
-    expect(pipeline.steps[0].steps[0].key).toBe("repeat-changed-tests");
+    expect(pipeline.steps[0].steps[0].key).toBe("Repeat Changed Tests:unit");
     expect(pipeline.steps[0].steps[1].label).toBe("integ tests");
-    expect(pipeline.steps[0].steps[1].key).toBe("repeat-changed-tests");
+    expect(pipeline.steps[0].steps[1].key).toBe("Repeat Changed Tests:integ");
   });
 
   test("yaml runners and suites get separate labels", () => {
@@ -508,7 +510,7 @@ describe("generatePipeline", () => {
   test("returns empty group for empty input", () => {
     const pipeline = generatePipeline([]);
     expect(pipeline.steps).toHaveLength(1);
-    expect(pipeline.steps[0].group).toBe("repeat-changed-tests");
+    expect(pipeline.steps[0].group).toBe("Repeat Changed Tests");
     expect(pipeline.steps[0].steps).toEqual([]);
   });
 });

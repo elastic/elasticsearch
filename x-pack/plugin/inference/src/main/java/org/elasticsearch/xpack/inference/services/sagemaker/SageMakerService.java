@@ -52,6 +52,7 @@ import static org.elasticsearch.inference.InferenceStringGroup.toStringList;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.resolveInferenceTimeout;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedEmbeddingOperation;
 
 public class SageMakerService implements InferenceService, RerankingInferenceService {
@@ -170,7 +171,7 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
             listener.onFailure(createInvalidModelException(model));
             return;
         }
-        timeout = ServiceUtils.resolveInferenceTimeout(timeout, inputType, clusterService, model.getTaskType());
+        timeout = resolveInferenceTimeout(timeout, inputType, clusterService, model.getTaskType());
         var inferenceRequest = new SageMakerInferenceRequest(query, returnDocuments, topN, input, stream, inputType);
 
         try {
@@ -245,6 +246,7 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
             listener.onFailure(createInvalidModelException(model));
             return;
         }
+        timeout = resolveInferenceTimeout(timeout, InputType.UNSPECIFIED, clusterService, TaskType.CHAT_COMPLETION);
 
         try {
             var sageMakerModel = (SageMakerModel) model;
@@ -254,7 +256,7 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
             client.invokeStream(
                 regionAndSecrets,
                 sagemakerRequest,
-                timeout != null ? timeout : DEFAULT_TIMEOUT,
+                timeout,
                 model.getInferenceEntityId(),
                 ActionListener.wrap(
                     response -> listener.onResponse(schema.chatCompletionStreamResponse(sageMakerModel, response)),

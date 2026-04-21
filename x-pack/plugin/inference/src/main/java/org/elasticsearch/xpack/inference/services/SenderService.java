@@ -49,6 +49,7 @@ import java.util.Set;
 
 import static org.elasticsearch.inference.InferenceStringGroup.containsNonTextEntry;
 import static org.elasticsearch.inference.InferenceStringGroup.indexContainingMultipleInferenceStrings;
+import static org.elasticsearch.inference.TaskType.CHAT_COMPLETION;
 import static org.elasticsearch.inference.TaskType.EMBEDDING;
 import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
@@ -56,6 +57,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInva
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.resolveInferenceTimeout;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedEmbeddingOperation;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedReasoningUnifiedCompletionOperation;
 
@@ -108,7 +110,7 @@ public abstract class SenderService<M extends Model> implements InferenceService
         ActionListener<InferenceServiceResults> listener
     ) {
         SubscribableListener.newForked(this::init).<InferenceServiceResults>andThen((inferListener) -> {
-            var resolvedInferenceTimeout = ServiceUtils.resolveInferenceTimeout(timeout, inputType, clusterService, model.getTaskType());
+            var resolvedInferenceTimeout = resolveInferenceTimeout(timeout, inputType, clusterService, model.getTaskType());
             var inferenceInput = createInput(this, model, input, inputType, query, returnDocuments, topN, stream);
             doInfer(model, inferenceInput, taskSettings, resolvedInferenceTimeout, inferListener);
         }).addListener(listener);
@@ -197,10 +199,11 @@ public abstract class SenderService<M extends Model> implements InferenceService
         ActionListener<InferenceServiceResults> listener
     ) {
         SubscribableListener.newForked(this::init).<InferenceServiceResults>andThen((completionInferListener) -> {
+            var resolvedInferenceTimeout = resolveInferenceTimeout(timeout, InputType.UNSPECIFIED, clusterService, CHAT_COMPLETION);
             if (supportsChatCompletionReasoning() == false && request.containsChatCompletionReasoning()) {
                 throwUnsupportedReasoningUnifiedCompletionOperation(name());
             }
-            doUnifiedCompletionInfer(model, new UnifiedChatInput(request, true), timeout, completionInferListener);
+            doUnifiedCompletionInfer(model, new UnifiedChatInput(request, true), resolvedInferenceTimeout, completionInferListener);
         }).addListener(listener);
     }
 
@@ -211,6 +214,12 @@ public abstract class SenderService<M extends Model> implements InferenceService
     @Override
     public void embeddingInfer(Model model, EmbeddingRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
         SubscribableListener.newForked(this::init).<InferenceServiceResults>andThen((embeddingInferListener) -> {
+            var resolvedInferenceTimeout = resolveInferenceTimeout(
+                timeout,
+                request.inputType(),
+                clusterService,
+                model.getTaskType()
+            );
             if (supportsImageEmbeddingContent() == false && containsNonTextEntry(request.inputs())) {
                 listener.onFailure(
                     new ElasticsearchStatusException(
@@ -221,11 +230,11 @@ public abstract class SenderService<M extends Model> implements InferenceService
                 return;
             }
             if (supportsMultipleItemsPerContent()) {
-                doEmbeddingInfer(model, request, timeout, embeddingInferListener);
+                doEmbeddingInfer(model, request, resolvedInferenceTimeout, embeddingInferListener);
             } else {
                 var index = indexContainingMultipleInferenceStrings(request.inputs());
                 if (index == null) {
-                    doEmbeddingInfer(model, request, timeout, embeddingInferListener);
+                    doEmbeddingInfer(model, request, resolvedInferenceTimeout, embeddingInferListener);
                 } else {
                     listener.onFailure(
                         new ElasticsearchStatusException(

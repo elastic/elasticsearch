@@ -100,16 +100,10 @@ public final class DocValuesForUtil {
     }
 
     private static void collapse32(long[] arr, int offset) {
-        for (int i = 0; i < 64; ++i) {
-            arr[i + offset] = (arr[i + offset] << 32) | arr[64 + i + offset];
-        }
+        ESVectorUtil.collapseLongs32(arr, offset);
     }
 
     private static void expand32(long[] arr, int offset) {
-        for (int i = 0; i < 64; ++i) {
-            long l = arr[i + offset];
-            arr[i + offset] = l >>> 32;
-            arr[64 + i + offset] = l & 0xFFFFFFFFL;
-        }
+        ESVectorUtil.expandLongs32(arr, offset);
     }
 }

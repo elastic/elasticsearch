@@ -190,8 +190,9 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
                     if (identifierId) {
                         throw new ParsingException(source(nameCtx), "Metric name must not be defined twice: [{}] or [{}]", id, labelValue);
                     }
-                    // set id/series from first label-based name
-                    if (id == null) {
+                    // set id/series from first label-based name ONLY for exact matches
+                    // For regex/negation matchers, keep series=null to enable lazy field resolution
+                    if (id == null && matcher == LabelMatcher.Matcher.EQ) {
                         id = labelValue;
                         series = new UnresolvedAttribute(valueCtx, id);
                     }

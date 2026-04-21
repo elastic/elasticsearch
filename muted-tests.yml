@@ -450,6 +450,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
   method: test {csv-spec:external-basic.filterByEmploymentStatus [GCS]}
   issue: https://github.com/elastic/elasticsearch/issues/146982
+- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
+  method: test {csv-spec:external-basic.dropColumn [GCS]}
+  issue: https://github.com/elastic/elasticsearch/issues/146983
 
 # Examples:
 #

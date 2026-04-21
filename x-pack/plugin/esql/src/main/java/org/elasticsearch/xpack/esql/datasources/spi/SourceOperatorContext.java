@@ -47,6 +47,7 @@ public record SourceOperatorContext(
     int maxBufferSize,
     int rowLimit,
     Executor executor,
+    @Nullable Executor fileReadExecutor,
     Map<String, Object> config,
     Map<String, Object> sourceMetadata,
     Object pushedFilter,
@@ -103,6 +104,7 @@ public record SourceOperatorContext(
             maxBufferSize,
             FormatReader.NO_LIMIT,
             executor,
+            null,
             config,
             sourceMetadata,
             pushedFilter,
@@ -137,6 +139,7 @@ public record SourceOperatorContext(
             maxBufferSize,
             FormatReader.NO_LIMIT,
             executor,
+            null,
             config,
             sourceMetadata,
             pushedFilter,
@@ -170,6 +173,7 @@ public record SourceOperatorContext(
             maxBufferSize,
             FormatReader.NO_LIMIT,
             executor,
+            null,
             config,
             sourceMetadata,
             pushedFilter,
@@ -201,6 +205,7 @@ public record SourceOperatorContext(
             maxBufferSize,
             FormatReader.NO_LIMIT,
             executor,
+            null,
             config,
             Map.of(),
             null,
@@ -226,6 +231,8 @@ public record SourceOperatorContext(
         private int maxBufferSize = 10;
         private int rowLimit = FormatReader.NO_LIMIT;
         private Executor executor;
+        @Nullable
+        private Executor fileReadExecutor;
         private Map<String, Object> config;
         private Map<String, Object> sourceMetadata;
         private Object pushedFilter;
@@ -273,6 +280,16 @@ public record SourceOperatorContext(
 
         public Builder executor(Executor executor) {
             this.executor = executor;
+            return this;
+        }
+
+        /**
+         * Optional executor for file (and similar) background reads. When set (e.g. to {@code generic}),
+         * async reads and slice-queue drain run here instead of on {@link #executor}, so producers blocked
+         * in buffer backpressure do not starve the {@code esql_worker} drivers that consume the buffer.
+         */
+        public Builder fileReadExecutor(Executor fileReadExecutor) {
+            this.fileReadExecutor = fileReadExecutor;
             return this;
         }
 
@@ -331,6 +348,7 @@ public record SourceOperatorContext(
                 maxBufferSize,
                 rowLimit,
                 executor,
+                fileReadExecutor,
                 config,
                 sourceMetadata,
                 pushedFilter,

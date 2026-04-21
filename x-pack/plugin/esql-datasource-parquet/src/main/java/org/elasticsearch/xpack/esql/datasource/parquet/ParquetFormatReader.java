@@ -15,7 +15,6 @@ import org.apache.parquet.column.ColumnReader;
 import org.apache.parquet.column.impl.ColumnReadStoreImpl;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.column.statistics.Statistics;
-import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.filter2.compat.FilterCompat;
 import org.apache.parquet.filter2.predicate.FilterPredicate;
 import org.apache.parquet.hadoop.ParquetFileReader;
@@ -126,9 +125,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
     }
 
     /**
-     * Creates a ParquetReadOptions.Builder initialized with an allocator backed by the block factory's circuit breaker.
+     * Creates a {@link PlainParquetReadOptions.Builder} initialized with an allocator backed by the
+     * block factory's circuit breaker. Uses the Hadoop-free builder that bypasses
+     * {@link ParquetReadOptions.Builder}'s unconditional loading of {@code ParquetInputFormat}
+     * (which extends Hadoop's {@code FileInputFormat}) and {@code HadoopCodecs}.
      */
-    private ParquetReadOptions.Builder readOptionsBuilder() {
+    private PlainParquetReadOptions.Builder readOptionsBuilder() {
         // parquet-mr defaults useColumnIndexFilter=true (since 1.12.0), so when a FilterPredicate
         // is set via withRecordFilter, page-index filtering (ColumnIndex/OffsetIndex) is automatically
         // active in addition to row-group level statistics, dictionary, and bloom filter checks.
@@ -136,9 +138,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         // change to be async, we'll have to unwrap the breaker if it's a LocalBreaker.
         var breaker = blockFactory.breaker();
         var allocator = new CircuitBreakerByteBufferAllocator(new HeapByteBufferAllocator(), breaker);
-        return ParquetReadOptions.builder(new PlainParquetConfiguration())
-            .withAllocator(allocator)
-            .withCodecFactory(new PlainCompressionCodecFactory());
+        return PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).withAllocator(allocator);
     }
 
     /**
@@ -326,7 +326,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
 
         InputFile parquetInputFile = new ParquetStorageObjectAdapter(object);
         FilterCompat.Filter recordFilter = resolveRecordFilter(object, parquetInputFile);
-        ParquetReadOptions.Builder optionsBuilder = readOptionsBuilder();
+        PlainParquetReadOptions.Builder optionsBuilder = readOptionsBuilder();
         if (FilterCompat.isFilteringRequired(recordFilter)) {
             optionsBuilder.withRecordFilter(recordFilter);
         }
@@ -500,7 +500,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
     ) throws IOException {
         InputFile parquetInputFile = ParquetStorageObjectAdapter.forRange(object, rangeEnd - rangeStart);
         FilterCompat.Filter recordFilter = resolveRecordFilter(object, parquetInputFile);
-        ParquetReadOptions.Builder optionsBuilder = readOptionsBuilder().withRange(rangeStart, rangeEnd);
+        PlainParquetReadOptions.Builder optionsBuilder = readOptionsBuilder().withRange(rangeStart, rangeEnd);
         if (FilterCompat.isFilteringRequired(recordFilter)) {
             optionsBuilder.withRecordFilter(recordFilter);
         }

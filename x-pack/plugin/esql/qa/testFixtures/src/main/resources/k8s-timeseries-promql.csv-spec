@@ -547,10 +547,10 @@ result:double | step:datetime
 day_of_week_sunday
 required_capability: promql_command_v0
 required_capability: promql_time_functions
-PROMQL index=k8s step=1h start="2024-05-12T00:00:00.000Z" end="2024-05-12T01:00:00.000Z" result=(day_of_week());
+PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(day_of_week(vector(1715472000)));
 
 result:double | step:datetime
-0.0           | 2024-05-12T00:00:00.000Z
+0.0           | 2024-05-10T00:00:00.000Z
 ;
 
 day_of_year_scalar
@@ -565,19 +565,19 @@ result:double | step:datetime
 hour_scalar
 required_capability: promql_command_v0
 required_capability: promql_time_functions
-PROMQL index=k8s step=1h start="2024-05-10T14:00:00.000Z" end="2024-05-10T15:00:00.000Z" result=(hour());
+PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(hour());
 
 result:double | step:datetime
-14.0          | 2024-05-10T14:00:00.000Z
+0.0           | 2024-05-10T00:00:00.000Z
 ;
 
 minute_scalar
 required_capability: promql_command_v0
 required_capability: promql_time_functions
-PROMQL index=k8s step=1h start="2024-05-10T14:30:00.000Z" end="2024-05-10T15:30:00.000Z" result=(minute());
+PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(minute());
 
 result:double | step:datetime
-30.0          | 2024-05-10T14:30:00.000Z
+0.0           | 2024-05-10T00:00:00.000Z
 ;
 
 time_in_arithmetic

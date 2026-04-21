@@ -499,6 +499,24 @@ result:double    | step:datetime
 1.7152992E9      | 2024-05-10T00:00:00.000Z
 ;
 
+year_scalar
+required_capability: promql_command_v0
+required_capability: promql_year
+PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(year());
+
+result:double | step:datetime
+2024.0        | 2024-05-10T00:00:00.000Z
+;
+
+year_with_arg
+required_capability: promql_command_v0
+required_capability: promql_year
+PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(year(vector(1712574000)));
+
+result:double | step:datetime
+2024.0        | 2024-05-10T00:00:00.000Z
+;
+
 time_in_arithmetic
 required_capability: promql_command_v0
 required_capability: promql_time
@@ -837,4 +855,3 @@ PROMQL index=k8s step=1h result=(scalar(sum(network.cost)) + 1);
 result:double | step:datetime
 62.0          | 2024-05-10T00:00:00.000Z
 ;
-

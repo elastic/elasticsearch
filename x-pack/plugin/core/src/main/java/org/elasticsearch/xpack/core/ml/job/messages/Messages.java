@@ -165,6 +165,10 @@ public final class Messages {
     public static final String JOB_AUDIT_DATAFEED_STOPPED = "Datafeed stopped";
     public static final String JOB_AUDIT_DATAFEED_STOPPED_WITH_REASON = "Datafeed stopped with reason [{0}]";
     public static final String JOB_AUDIT_DATAFEED_ISOLATED = "Datafeed isolated";
+    public static final String JOB_AUDIT_IDLE_JOB_CLOSED = "Job closed automatically during maintenance: datafeed was stopped"
+        + " and no data was received for [{0}]. To change the idle timeout,"
+        + " adjust the [xpack.ml.idle_job_auto_close_timeout] setting"
+        + " or set it to [-1] to disable automatic closing.";
     public static final String JOB_AUDIT_DATAFEED_SCOPE_CHANGED_LINKED = "Datafeed search scope changed: [{0}] linked."
         + " Data distribution may have changed due to new data sources,"
         + " which can cause temporary anomalies while the model adapts."

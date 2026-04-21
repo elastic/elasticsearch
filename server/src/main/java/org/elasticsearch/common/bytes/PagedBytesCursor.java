@@ -10,7 +10,6 @@
 package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.PageCacheRecycler;
 
@@ -28,6 +27,12 @@ import static org.elasticsearch.common.util.PageCacheRecycler.BYTE_PAGE_SIZE;
  *     This <strong>feels</strong> like {@link PagedBytesReference#streamInput()} but has
  *     <strong>much</strong> lower overhead. The combination of {@link #slice} and
  *     {@link #copyPageInto} make it quite useful for ESQL as well.
+ * </p>
+ * <p>
+ *     {@link PagedBytes} has a strong constraint on the size of the {@link #pages}.
+ *     {@link PagedBytesCursor} is <strong>often</strong> built from {@link PagedBytes},
+ *     but isn't always. When its pages match the constraint we'll set
+ *     {@link #recyclerSizedPages} to {@code true} and methods like {@link #slice} are faster.
  * </p>
  */
 public class PagedBytesCursor {
@@ -141,15 +146,23 @@ public class PagedBytesCursor {
             throw new IllegalArgumentException("not enough bytes");
         }
         if (pages[pageIndex].length - pageOffset >= Integer.BYTES) {
-            int v = (int) INT.get(pages[pageIndex], pageOffset);
-            pageOffset += Integer.BYTES;
-            remaining -= Integer.BYTES;
-            if (pageOffset >= pages[pageIndex].length && remaining > 0) {
-                pageIndex++;
-                pageOffset = 0;
-            }
-            return v;
+            return readIntFromPage();
         }
+        return readIntAcrossPages();
+    }
+
+    private int readIntFromPage() {
+        int v = (int) INT.get(pages[pageIndex], pageOffset);
+        pageOffset += Integer.BYTES;
+        remaining -= Integer.BYTES;
+        if (pageOffset >= pages[pageIndex].length && remaining > 0) {
+            pageIndex++;
+            pageOffset = 0;
+        }
+        return v;
+    }
+
+    private int readIntAcrossPages() {
         return ((readByte() & 0xFF) << 24) | ((readByte() & 0xFF) << 16) | ((readByte() & 0xFF) << 8) | (readByte() & 0xFF);
     }
 
@@ -161,15 +174,23 @@ public class PagedBytesCursor {
             throw new IllegalArgumentException("not enough bytes");
         }
         if (pages[pageIndex].length - pageOffset >= Long.BYTES) {
-            long v = (long) LONG.get(pages[pageIndex], pageOffset);
-            pageOffset += Long.BYTES;
-            remaining -= Long.BYTES;
-            if (pageOffset >= pages[pageIndex].length && remaining > 0) {
-                pageIndex++;
-                pageOffset = 0;
-            }
-            return v;
+            return readLongFromPage();
         }
+        return readLongAcrossPages();
+    }
+
+    private long readLongFromPage() {
+        long v = (long) LONG.get(pages[pageIndex], pageOffset);
+        pageOffset += Long.BYTES;
+        remaining -= Long.BYTES;
+        if (pageOffset >= pages[pageIndex].length && remaining > 0) {
+            pageIndex++;
+            pageOffset = 0;
+        }
+        return v;
+    }
+
+    private long readLongAcrossPages() {
         return ((long) (readByte() & 0xFF) << 56) | ((long) (readByte() & 0xFF) << 48) | ((long) (readByte() & 0xFF) << 40)
             | ((long) (readByte() & 0xFF) << 32) | ((long) (readByte() & 0xFF) << 24) | ((long) (readByte() & 0xFF) << 16)
             | ((long) (readByte() & 0xFF) << 8) | (long) (readByte() & 0xFF);
@@ -180,18 +201,72 @@ public class PagedBytesCursor {
      * Smaller values take fewer bytes. Negative numbers always use all 5 bytes.
      */
     public int readVInt() {
+        if (remaining >= 5 && pages[pageIndex].length - pageOffset >= 5) {
+            return readVIntFromPage();
+        }
+        return readVIntAcrossPages();
+    }
+
+    private int readVIntFromPage() {
+        byte[] page = pages[pageIndex];
+        byte b = page[pageOffset++];
+        if (b >= 0) {
+            remaining--;
+            return b;
+        }
+        int i = b & 0x7F;
+        b = page[pageOffset++];
+        i |= (b & 0x7F) << 7;
+        if (b >= 0) {
+            remaining -= 2;
+            return i;
+        }
+        b = page[pageOffset++];
+        i |= (b & 0x7F) << 14;
+        if (b >= 0) {
+            remaining -= 3;
+            return i;
+        }
+        b = page[pageOffset++];
+        i |= (b & 0x7F) << 21;
+        if (b >= 0) {
+            remaining -= 4;
+            return i;
+        }
+        b = page[pageOffset++];
+        i |= (b & 0x0F) << 28;
+        if ((b & 0xF0) != 0) {
+            throw new IllegalStateException("Invalid last byte for a vint [" + Integer.toHexString(b) + "]");
+        }
+        remaining -= 5;
+        if (pageOffset >= page.length && remaining > 0) {
+            pageIndex++;
+            pageOffset = 0;
+        }
+        return i;
+    }
+
+    private int readVIntAcrossPages() {
         byte b = readByte();
-        if (b >= 0) return b;
+        if (b >= 0) {
+            return b;
+        }
         int i = b & 0x7F;
         b = readByte();
         i |= (b & 0x7F) << 7;
-        if (b >= 0) return i;
+        if (b >= 0) {
+            return i;
+        }
         b = readByte();
         i |= (b & 0x7F) << 14;
-        if (b >= 0) return i;
+        if (b >= 0) {
+            return i;
+        }
         b = readByte();
         i |= (b & 0x7F) << 21;
-        if (b >= 0) return i;
+        if (b >= 0) {
+            return i;
+        }
         b = readByte();
         i |= (b & 0x0F) << 28;
         if ((b & 0xF0) != 0) {
@@ -415,37 +490,8 @@ public class PagedBytesCursor {
         return hasher.lastPage(flat, flat.length);
     }
 
-    /**
-     * Returns a string representing the first 100 remaining bytes,
-     * optionally followed by a count of remaining unrendered bytes. Examples:
-     * <ul>
-     *     <li>{@code [48 65 6C 6C 6F]}</li>
-     *     <li>{@code [48 65 6C 6C 6F ...2.1kb more...]}</li>
-     * </ul>
-     */
     @Override
     public String toString() {
-        int show = Math.min(remaining, 100);
-        StringBuilder sb = new StringBuilder();
-        sb.append('[');
-        int pi = pageIndex;
-        int po = pageOffset;
-        for (int i = 0; i < show; i++) {
-            int b = pages[pi][po] & 0xFF;
-            if (i > 0) {
-                sb.append(' ');
-            }
-            sb.append(Character.toUpperCase(Character.forDigit(b >> 4, 16)));
-            sb.append(Character.toUpperCase(Character.forDigit(b & 0xF, 16)));
-            po++;
-            if (po >= pages[pi].length && i < show - 1) {
-                pi++;
-                po = 0;
-            }
-        }
-        if (remaining > 100) {
-            sb.append(" ...").append(ByteSizeValue.ofBytes(remaining - 100)).append(" more...");
-        }
-        return sb.append(']').toString();
+        return PagedBytes.limitedToString(pages, pageIndex, pageOffset, remaining);
     }
 }

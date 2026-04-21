@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equ
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
+import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
@@ -36,6 +37,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -123,6 +125,31 @@ public class ReplaceSampledStatsBySampleAndStatsTests extends ESTestCase {
         assertThat(sampleExec.probability(), is(sampledAgg.sampleProbability()));
     }
 
+    public void testReplace_join() {
+        Alias count = countApproximateAlias(Literal.keyword(Source.EMPTY, "*"));
+        EsQueryExec left = esQueryExec();
+        EsQueryExec right = esQueryExec();
+        LookupJoinExec lookupJoin = lookupJoinExec(left, right);
+        SampledAggregateExec sampledAgg = sampledAggregate(lookupJoin, List.of(count), List.of(), AggregatorMode.INITIAL, 0.5);
+
+        PhysicalPlan result = applyRule(sampledAgg);
+
+        assertThat(result, instanceOf(ProjectExec.class));
+        ProjectExec project = (ProjectExec) result;
+        assertThat(project.child(), instanceOf(EvalExec.class));
+        EvalExec eval = (EvalExec) project.child();
+        // COUNT and its bucket must be sample-corrected.
+        assertThat(eval.fields(), hasSize(2));
+        AggregateExec aggExec = assertAggregate(eval.child(), sampledAgg);
+        assertThat(aggExec.child(), instanceOf(LookupJoinExec.class));
+        LookupJoinExec lookupJoinExec = (LookupJoinExec) aggExec.child();
+        assertThat(lookupJoinExec.left(), instanceOf(SampleExec.class));
+        SampleExec sampleExec = (SampleExec) lookupJoinExec.left();
+        assertThat(sampleExec.probability(), is(sampledAgg.sampleProbability()));
+        assertThat(sampleExec.child(), equalTo(left));
+        assertThat(lookupJoinExec.right(), equalTo(right));
+    }
+
     private static PhysicalPlan applyRule(SampledAggregateExec sampledAgg) {
         return new ReplaceSampledStatsBySampleAndStats().apply(sampledAgg);
     }
@@ -174,6 +201,10 @@ public class ReplaceSampledStatsBySampleAndStatsTests extends ESTestCase {
 
     private static EsQueryExec esQueryExec() {
         return new EsQueryExec(Source.EMPTY, "test", IndexMode.STANDARD, List.of(), null, null, null, List.of());
+    }
+
+    private static LookupJoinExec lookupJoinExec(PhysicalPlan left, PhysicalPlan right) {
+        return new LookupJoinExec(Source.EMPTY, left, right, List.of(), List.of(), List.of(), null);
     }
 
     private static Alias countApproximateAlias(Expression field) {

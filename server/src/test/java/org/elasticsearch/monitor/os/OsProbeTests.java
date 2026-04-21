@@ -473,8 +473,8 @@ public class OsProbeTests extends ESTestCase {
         /**
          * Set the cgroups version.
          *
-         * @param availableCgroupsVersion what version of cgroups are available, 1 or 2, or 0 for no cgroups. Normally OsProbe establishes this
-         *                                for itself.
+         * @param availableCgroupsVersion what version of cgroups are available, 1 or 2, or 0 for no cgroups. Normally OsProbe establishes
+         *                               this for itself.
          * @return {@code this}.
          */
         OsProbeMock setAvailableCgroupsVersion(int availableCgroupsVersion) {
@@ -507,8 +507,8 @@ public class OsProbeTests extends ESTestCase {
         /**
          * Sets the contents of {@code /sys/fs/cgroup/${hierarchy}/cpu.max}.
          *
-         * @param cgroupCpuMax a single line content of {@code /sys/fs/cgroup/${hierarchy}/}, where {@code ${hierarchy}} is the value passed to
-         *                    the {@link #OsProbeMock(String)} constructor.
+         * @param cgroupCpuMax a single line content of {@code /sys/fs/cgroup/${hierarchy}/}, where {@code ${hierarchy}} is the value passed
+         *                    to the {@link #OsProbeMock(String)} constructor.
          * @return {@code this}.
          */
         OsProbeMock setCgroupCpuMax(List<String> cgroupCpuMax) {

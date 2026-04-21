@@ -2,5 +2,5 @@ area: Snapshot/Restore
 issues:
  - 119303
 pr: 146595
-summary: Adding a check to verify that `BlobContainer::blobExists` works as expected
+summary: Adding a check to verify that `BlobContainer::blobExists` works as expected in the repository analysis tool
 type: enhancement

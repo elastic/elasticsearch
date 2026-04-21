@@ -86,6 +86,8 @@ public class PushCountQueryAndTagsToSource extends PhysicalOptimizerRules.Optimi
             if (withFilter.isEmpty() || withFilter.stream().allMatch(PushCountQueryAndTagsToSource::shouldPush) == false) {
                 return aggregateExec;
             }
+            // Next lines expect the agg to have a partial-output layout
+            assert aggregateExec.getMode().isOutputPartial() : "expected partial-output agg, got " + aggregateExec.getMode();
             List<Attribute> statsOutput;
             if (count instanceof CountApproximate ca) {
                 statsOutput = AbstractPhysicalOperationProviders.intermediateAttributes(

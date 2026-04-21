@@ -295,7 +295,7 @@ public class XContentMapValues {
             return new CharacterRunAutomaton(aut);
         } catch (TooComplexToDeterminizeException e) {
             throw new IllegalArgumentException(
-                "The source filter patterns are too complex to process: " + e.getMessage(),
+                "The source filter patterns [" + Arrays.toString(patterns) + "] are too complex to process: " + e.getMessage(),
                 e
             );
         }

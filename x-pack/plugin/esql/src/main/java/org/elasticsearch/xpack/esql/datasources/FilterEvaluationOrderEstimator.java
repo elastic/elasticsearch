@@ -27,7 +27,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -51,19 +50,15 @@ public final class FilterEvaluationOrderEstimator {
 
     /**
      * Returns the conjuncts reordered so the most selective (cheapest) predicates come first.
-     * If metadata is null/empty, contains a single predicate, or all conjuncts score equally,
+     * If stats are null, contain a single predicate, or all conjuncts score equally,
      * returns the original list unchanged.
      */
-    public static List<Expression> orderByEstimatedCost(List<Expression> conjuncts, Map<String, Object> sourceMetadata) {
-        if (conjuncts == null || conjuncts.size() <= 1 || sourceMetadata == null || sourceMetadata.isEmpty()) {
+    public static List<Expression> orderByEstimatedCost(List<Expression> conjuncts, SplitStats stats) {
+        if (conjuncts == null || conjuncts.size() <= 1 || stats == null) {
             return conjuncts;
         }
 
-        Object rcValue = sourceMetadata.get(SourceStatisticsSerializer.STATS_ROW_COUNT);
-        if (rcValue instanceof Number == false) {
-            return conjuncts;
-        }
-        long rowCount = ((Number) rcValue).longValue();
+        long rowCount = stats.rowCount();
         if (rowCount <= 0) {
             return conjuncts;
         }
@@ -71,8 +66,8 @@ public final class FilterEvaluationOrderEstimator {
         List<ScoredExpression> scored = new ArrayList<>(conjuncts.size());
         for (int i = 0; i < conjuncts.size(); i++) {
             Expression expr = conjuncts.get(i);
-            double selectivity = estimateSelectivity(expr, sourceMetadata, rowCount);
-            long sizeBytes = estimateColumnSize(expr, sourceMetadata);
+            double selectivity = estimateSelectivity(expr, stats, rowCount);
+            long sizeBytes = estimateColumnSize(expr, stats);
             scored.add(new ScoredExpression(expr, selectivity, sizeBytes, i));
         }
 
@@ -103,31 +98,31 @@ public final class FilterEvaluationOrderEstimator {
     private record ScoredExpression(Expression expression, double selectivity, long sizeBytes, int originalIndex) {}
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    static double estimateSelectivity(Expression expr, Map<String, Object> sourceMetadata, long rowCount) {
+    static double estimateSelectivity(Expression expr, SplitStats stats, long rowCount) {
         if (expr instanceof Equals eq) {
             String col = columnName(eq.left());
             if (col != null && eq.right().foldable()) {
-                return estimateEqualitySelectivity(col, foldValue(eq.right()), sourceMetadata);
+                return estimateEqualitySelectivity(col, foldValue(eq.right()), stats);
             }
         } else if (expr instanceof GreaterThan gt) {
             String col = columnName(gt.left());
             if (col != null && gt.right().foldable()) {
-                return estimateRangeSelectivity(col, foldValue(gt.right()), true, sourceMetadata);
+                return estimateRangeSelectivity(col, foldValue(gt.right()), true, stats);
             }
         } else if (expr instanceof GreaterThanOrEqual gte) {
             String col = columnName(gte.left());
             if (col != null && gte.right().foldable()) {
-                return estimateRangeSelectivity(col, foldValue(gte.right()), true, sourceMetadata);
+                return estimateRangeSelectivity(col, foldValue(gte.right()), true, stats);
             }
         } else if (expr instanceof LessThan lt) {
             String col = columnName(lt.left());
             if (col != null && lt.right().foldable()) {
-                return estimateRangeSelectivity(col, foldValue(lt.right()), false, sourceMetadata);
+                return estimateRangeSelectivity(col, foldValue(lt.right()), false, stats);
             }
         } else if (expr instanceof LessThanOrEqual lte) {
             String col = columnName(lte.left());
             if (col != null && lte.right().foldable()) {
-                return estimateRangeSelectivity(col, foldValue(lte.right()), false, sourceMetadata);
+                return estimateRangeSelectivity(col, foldValue(lte.right()), false, stats);
             }
         } else if (expr instanceof In in) {
             String col = columnName(in.value());
@@ -138,17 +133,17 @@ public final class FilterEvaluationOrderEstimator {
                         count++;
                     }
                 }
-                return estimateInSelectivity(col, count, sourceMetadata);
+                return estimateInSelectivity(col, count, stats);
             }
         } else if (expr instanceof IsNull isNull) {
             String col = columnName(isNull.field());
             if (col != null) {
-                return estimateNullSelectivity(col, sourceMetadata, rowCount);
+                return estimateNullSelectivity(col, stats, rowCount);
             }
         } else if (expr instanceof IsNotNull isNotNull) {
             String col = columnName(isNotNull.field());
             if (col != null) {
-                double nullSel = estimateNullSelectivity(col, sourceMetadata, rowCount);
+                double nullSel = estimateNullSelectivity(col, stats, rowCount);
                 return 1.0 - nullSel;
             }
         }
@@ -156,16 +151,10 @@ public final class FilterEvaluationOrderEstimator {
         return UNKNOWN_SELECTIVITY;
     }
 
-    /**
-     * Folds a foldable expression to its runtime value using a small allocator.
-     */
     private static Object foldValue(Expression expr) {
         return expr.fold(FoldContext.small());
     }
 
-    /**
-     * Returns the column name if the expression is a field or reference attribute, null otherwise.
-     */
     private static String columnName(Expression expr) {
         if (expr instanceof NamedExpression ne) {
             return Expressions.name(ne);
@@ -173,9 +162,6 @@ public final class FilterEvaluationOrderEstimator {
         return null;
     }
 
-    /**
-     * Collects all column names referenced by an expression.
-     */
     private static Set<String> collectColumnNames(Expression expr) {
         Set<String> names = new LinkedHashSet<>();
         expr.forEachDown(Attribute.class, attr -> {
@@ -189,9 +175,9 @@ public final class FilterEvaluationOrderEstimator {
     // -- selectivity estimators --
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    private static double estimateEqualitySelectivity(String colName, Object value, Map<String, Object> sourceMetadata) {
-        Object min = sourceMetadata.get(SourceStatisticsSerializer.columnMinKey(colName));
-        Object max = sourceMetadata.get(SourceStatisticsSerializer.columnMaxKey(colName));
+    private static double estimateEqualitySelectivity(String colName, Object value, SplitStats stats) {
+        Object min = stats.columnMin(colName);
+        Object max = stats.columnMax(colName);
         if (min == null || max == null) {
             return UNKNOWN_SELECTIVITY;
         }
@@ -213,14 +199,9 @@ public final class FilterEvaluationOrderEstimator {
         return Math.min(1.0, 1.0 / rangeWidth);
     }
 
-    private static double estimateRangeSelectivity(
-        String colName,
-        Object value,
-        boolean isGreaterThan,
-        Map<String, Object> sourceMetadata
-    ) {
-        Object min = sourceMetadata.get(SourceStatisticsSerializer.columnMinKey(colName));
-        Object max = sourceMetadata.get(SourceStatisticsSerializer.columnMaxKey(colName));
+    private static double estimateRangeSelectivity(String colName, Object value, boolean isGreaterThan, SplitStats stats) {
+        Object min = stats.columnMin(colName);
+        Object max = stats.columnMax(colName);
         if (min == null || max == null) {
             return UNKNOWN_SELECTIVITY;
         }
@@ -243,9 +224,9 @@ public final class FilterEvaluationOrderEstimator {
         return clamp(fraction);
     }
 
-    private static double estimateInSelectivity(String colName, int listSize, Map<String, Object> sourceMetadata) {
-        Object min = sourceMetadata.get(SourceStatisticsSerializer.columnMinKey(colName));
-        Object max = sourceMetadata.get(SourceStatisticsSerializer.columnMaxKey(colName));
+    private static double estimateInSelectivity(String colName, int listSize, SplitStats stats) {
+        Object min = stats.columnMin(colName);
+        Object max = stats.columnMax(colName);
         if (min == null || max == null) {
             return UNKNOWN_SELECTIVITY;
         }
@@ -256,25 +237,21 @@ public final class FilterEvaluationOrderEstimator {
         return Math.min(1.0, listSize / rangeWidth);
     }
 
-    private static double estimateNullSelectivity(String colName, Map<String, Object> sourceMetadata, long rowCount) {
-        Object ncValue = sourceMetadata.get(SourceStatisticsSerializer.columnNullCountKey(colName));
-        if (ncValue instanceof Number nc) {
-            return clamp((double) nc.longValue() / rowCount);
+    private static double estimateNullSelectivity(String colName, SplitStats stats, long rowCount) {
+        long nullCount = stats.columnNullCount(colName);
+        if (nullCount >= 0) {
+            return clamp((double) nullCount / rowCount);
         }
         return UNKNOWN_SELECTIVITY;
     }
 
-    /**
-     * Returns the column size in bytes for the smallest column referenced by the expression,
-     * or {@link #UNKNOWN_SIZE} if unavailable.
-     */
-    private static long estimateColumnSize(Expression expr, Map<String, Object> sourceMetadata) {
+    private static long estimateColumnSize(Expression expr, SplitStats stats) {
         Set<String> columns = collectColumnNames(expr);
         long minSize = UNKNOWN_SIZE;
         for (String col : columns) {
-            Object sbValue = sourceMetadata.get(SourceStatisticsSerializer.columnSizeBytesKey(col));
-            if (sbValue instanceof Number n) {
-                minSize = Math.min(minSize, n.longValue());
+            long sb = stats.columnSizeBytes(col);
+            if (sb >= 0) {
+                minSize = Math.min(minSize, sb);
             }
         }
         return minSize;
@@ -282,9 +259,6 @@ public final class FilterEvaluationOrderEstimator {
 
     // -- arithmetic helpers --
 
-    /**
-     * Returns the numeric range width (max - min) or NaN if either value is non-numeric.
-     */
     private static double numericRangeWidth(Object min, Object max) {
         double minD = toNumeric(min);
         double maxD = toNumeric(max);
@@ -294,9 +268,6 @@ public final class FilterEvaluationOrderEstimator {
         return maxD - minD;
     }
 
-    /**
-     * Converts a value to its numeric representation. Returns NaN for non-numeric types.
-     */
     private static double toNumeric(Object value) {
         if (value instanceof Number n) {
             return n.doubleValue();

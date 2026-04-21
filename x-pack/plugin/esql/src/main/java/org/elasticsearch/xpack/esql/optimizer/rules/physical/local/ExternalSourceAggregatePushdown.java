@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
-import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Shared helpers for aggregate pushdown rules ({@link PushStatsToExternalSource} and
@@ -78,7 +77,7 @@ final class ExternalSourceAggregatePushdown {
     }
 
     /**
-     * Resolves effective metadata for splits filtered by the given condition. Evaluates
+     * Resolves effective stats for splits filtered by the given condition. Evaluates
      * the filter against per-split statistics, classifying each split as MATCH, MISS, or
      * AMBIGUOUS. Returns merged statistics from MATCH-only splits, or null if any split
      * is AMBIGUOUS or classification fails.
@@ -86,38 +85,35 @@ final class ExternalSourceAggregatePushdown {
      * When a single split is present and has its own statistics, those are preferred over
      * file-level metadata to avoid misclassification when split stats differ from the whole.
      */
-    static Map<String, Object> resolveFilteredMetadata(ExternalSourceExec externalExec, Expression filterCondition) {
+    static SplitStats resolveFilteredStats(ExternalSourceExec externalExec, Expression filterCondition) {
         List<? extends ExternalSplit> splits = externalExec.splits();
 
         if (splits.isEmpty() || splits.size() == 1) {
-            Map<String, Object> metadata = null;
-            if (splits.size() == 1
-                && splits.getFirst() instanceof FileSplit fs
-                && fs.statistics() != null
-                && fs.statistics().isEmpty() == false) {
-                metadata = fs.statistics();
+            SplitStats stats = null;
+            if (splits.size() == 1 && splits.getFirst() instanceof FileSplit fs && fs.splitStats() != null) {
+                stats = fs.splitStats();
             }
-            if (metadata == null) {
-                metadata = externalExec.sourceMetadata();
+            if (stats == null) {
+                stats = SplitStats.of(externalExec.sourceMetadata());
             }
-            if (metadata == null || metadata.isEmpty()) {
+            if (stats == null) {
                 return null;
             }
-            SplitFilterClassifier.SplitMatch result = SplitFilterClassifier.classifyExpression(filterCondition, metadata);
+            SplitFilterClassifier.SplitMatch result = SplitFilterClassifier.classifyExpression(filterCondition, stats);
             return switch (result) {
-                case MATCH -> metadata;
-                case MISS -> emptyStatsMetadata();
+                case MATCH -> stats;
+                case MISS -> SplitStats.EMPTY;
                 case AMBIGUOUS -> null;
             };
         }
 
-        List<Map<String, Object>> matchedStats = new ArrayList<>();
+        List<SplitStats> matchedStats = new ArrayList<>();
         for (ExternalSplit split : splits) {
             if (split instanceof FileSplit == false) {
                 return null;
             }
-            Map<String, Object> stats = ((FileSplit) split).statistics();
-            if (stats == null || stats.isEmpty()) {
+            SplitStats stats = ((FileSplit) split).splitStats();
+            if (stats == null) {
                 return null;
             }
             SplitFilterClassifier.SplitMatch result = SplitFilterClassifier.classifyExpression(filterCondition, stats);
@@ -132,12 +128,8 @@ final class ExternalSourceAggregatePushdown {
         }
 
         if (matchedStats.isEmpty()) {
-            return emptyStatsMetadata();
+            return SplitStats.EMPTY;
         }
-        return SourceStatisticsSerializer.mergeStatistics(matchedStats);
-    }
-
-    static Map<String, Object> emptyStatsMetadata() {
-        return Map.of(SourceStatisticsSerializer.STATS_ROW_COUNT, 0L);
+        return SplitStats.merge(matchedStats);
     }
 }

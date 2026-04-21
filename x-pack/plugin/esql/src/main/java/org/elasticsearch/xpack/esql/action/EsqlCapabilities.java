@@ -1767,9 +1767,9 @@ public class EsqlCapabilities {
         DOTS_IN_FUSE,
 
         /**
-         * Support for the DATE_RANGE field type.
+         * Support for the DATE_RANGE field type, RANGE_WITHIN, TO_DATE_RANGE(string), RANGE_MIN, RANGE_MAX.
          */
-        DATE_RANGE_FIELD_TYPE(Build.current().isSnapshot()),
+        DATE_RANGE_FIELD_TYPE_V2(Build.current().isSnapshot()),
 
         /**
          * Network direction function.
@@ -2524,7 +2524,7 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code EMBEDDING} function for generating dense vector embeddings using the {@code embedding} task type.
          */
-        EMBEDDING_FUNCTION(Build.current().isSnapshot()),
+        EMBEDDING_FUNCTION,
 
         /**
          * Fix for {@code STARTS_WITH} and {@code ENDS_WITH} Lucene pushdown on {@code _index}: use wildcard escaping instead of

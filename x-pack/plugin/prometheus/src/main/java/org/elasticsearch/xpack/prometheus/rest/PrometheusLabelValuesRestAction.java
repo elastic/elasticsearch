@@ -73,9 +73,7 @@ public class PrometheusLabelValuesRestAction extends BaseRestHandler {
         String labelName = PrometheusLabelNameUtils.decodeLabelName(rawName);
         String index = request.param(INDEX_PARAM, "*");
 
-        // TODO: support multiple match[] selectors once multi-value param support is added
-        String matchSelector = request.param(MATCH_PARAM);
-        List<String> matchSelectors = matchSelector != null ? List.of(matchSelector) : List.of();
+        List<String> matchSelectors = request.repeatedParamAsList(MATCH_PARAM);
 
         // Time range
         String endParam = request.param(END_PARAM);

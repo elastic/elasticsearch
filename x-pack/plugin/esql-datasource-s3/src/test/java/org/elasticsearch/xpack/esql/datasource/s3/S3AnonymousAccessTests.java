@@ -158,6 +158,6 @@ public class S3AnonymousAccessTests extends ESTestCase {
      * Verify that auth=none is mutually exclusive with credentials.
      */
     public void testConfigurationAnonymousModeConflictsWithCredentials() {
-        expectThrows(IllegalArgumentException.class, () -> S3Configuration.fromFields("ak", "sk", null, null, "none"));
+        expectThrows(org.elasticsearch.common.ValidationException.class, () -> S3Configuration.fromFields("ak", "sk", null, null, "none"));
     }
 }

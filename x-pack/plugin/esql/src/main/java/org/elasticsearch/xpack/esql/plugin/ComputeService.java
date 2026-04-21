@@ -50,12 +50,12 @@ import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.util.Holder;
-import org.elasticsearch.xpack.esql.datasources.FilterPushdownRegistry;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.SplitCoalescer;
@@ -163,6 +163,7 @@ public class ComputeService {
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
     private final InferenceService inferenceService;
+    private final UserAgentParserRegistry userAgentParserRegistry;
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
     private final AtomicLong childSessionIdGenerator = new AtomicLong();
@@ -171,7 +172,6 @@ public class ComputeService {
     private final ExchangeService exchangeService;
     private final PlannerSettings.Holder plannerSettings;
     private final OperatorFactoryRegistry operatorFactoryRegistry;
-    private final FilterPushdownRegistry filterPushdownRegistry;
     private final FormatReaderRegistry formatReaderRegistry;
 
     @SuppressWarnings("this-escape")
@@ -183,7 +183,6 @@ public class ComputeService {
         BigArrays bigArrays,
         BlockFactory blockFactory,
         OperatorFactoryRegistry operatorFactoryRegistry,
-        FilterPushdownRegistry filterPushdownRegistry,
         FormatReaderRegistry formatReaderRegistry
     ) {
         this.searchService = transportActionServices.searchService();
@@ -196,6 +195,7 @@ public class ComputeService {
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
         this.inferenceService = transportActionServices.inferenceService();
+        this.userAgentParserRegistry = transportActionServices.userAgentParserRegistry();
         this.clusterService = transportActionServices.clusterService();
         this.projectResolver = transportActionServices.projectResolver();
         this.dataNodeComputeHandler = new DataNodeComputeHandler(
@@ -216,16 +216,11 @@ public class ComputeService {
         );
         this.plannerSettings = transportActionServices.plannerSettings();
         this.operatorFactoryRegistry = operatorFactoryRegistry;
-        this.filterPushdownRegistry = filterPushdownRegistry != null ? filterPushdownRegistry : FilterPushdownRegistry.empty();
         this.formatReaderRegistry = formatReaderRegistry;
     }
 
     PlannerSettings.Holder plannerSettings() {
         return plannerSettings;
-    }
-
-    FilterPushdownRegistry filterPushdownRegistry() {
-        return filterPushdownRegistry;
     }
 
     FormatReaderRegistry formatReaderRegistry() {
@@ -1073,6 +1068,7 @@ public class ComputeService {
                 enrichLookupService,
                 lookupFromIndexService,
                 inferenceService,
+                userAgentParserRegistry,
                 physicalOperationProviders,
                 operatorFactoryRegistry
             );
@@ -1096,7 +1092,6 @@ public class ComputeService {
                         context.foldCtx(),
                         plan,
                         SearchContextStats.from(localContexts),
-                        filterPushdownRegistry,
                         formatReaderRegistry,
                         planTimeProfile
                     );

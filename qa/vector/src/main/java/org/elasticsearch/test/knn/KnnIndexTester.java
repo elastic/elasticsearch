@@ -25,12 +25,14 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.TieredMergePolicy;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.NamedThreadFactory;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.gpu.codec.ES92GpuHnswSQVectorsFormat;
@@ -47,10 +49,12 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.test.knn.data.DataGenerator;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.management.ManagementFactory;
@@ -75,7 +79,7 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_
  * It supports various index types (HNSW, FLAT, IVF) and configurations.
  */
 public class KnnIndexTester {
-    static final Logger logger;
+    public static final Logger logger;
 
     static {
         LogConfigurator.loadLog4jPlugins();
@@ -99,7 +103,7 @@ public class KnnIndexTester {
         GPU_HNSW
     }
 
-    enum VectorEncoding {
+    public enum VectorEncoding {
         BYTE(org.apache.lucene.index.VectorEncoding.BYTE, DenseVectorFieldMapper.ElementType.BYTE),
         FLOAT32(org.apache.lucene.index.VectorEncoding.FLOAT32, DenseVectorFieldMapper.ElementType.FLOAT),
         BFLOAT16(org.apache.lucene.index.VectorEncoding.FLOAT32, DenseVectorFieldMapper.ElementType.BFLOAT16);
@@ -235,7 +239,8 @@ public class KnnIndexTester {
                     mergeWorkers,
                     args.doPrecondition(),
                     args.preconditioningBlockDims(),
-                    flatVectorThreshold
+                    flatVectorThreshold,
+                    null
                 );
             }
             case GPU_HNSW -> switch (quantizeBits) {
@@ -448,6 +453,18 @@ public class KnnIndexTester {
     }
 
     /**
+     * Bundles the vector reader, document factory and total doc count
+     * needed to create an index. Created via {@link DataGenerator#createIndexingSetup()}.
+     */
+    public record IndexingSetup(IndexVectorReader reader, KnnIndexer.DocumentFactory factory, int totalDocs) implements Closeable {
+
+        @Override
+        public void close() throws IOException {
+            reader.close();
+        }
+    }
+
+    /**
      * Runs indexing, merge, and search phases using the given directory configuration.
      * When {@code dirConfig.shared()} is true, a single directory instance is used for all
      * phases. Otherwise, separate directories are used for write and read.
@@ -466,6 +483,8 @@ public class KnnIndexTester {
     ) throws Exception {
         Directory sharedDir = dirConfig.shared() ? dirConfig.factory().create(indexPath) : null;
         try {
+            DataGenerator dataGenerator = testConfiguration.datasetConfig().createDataGenerator(testConfiguration);
+
             if (testConfiguration.reindex() || testConfiguration.forceMerge()) {
                 KnnIndexer knnIndexer = new KnnIndexer(
                     testConfiguration.docVectors(),
@@ -475,23 +494,39 @@ public class KnnIndexTester {
                     testConfiguration.vectorEncoding().luceneEncoding,
                     testConfiguration.dimensions(),
                     testConfiguration.vectorSpace(),
+                    testConfiguration.normalizeVectors(),
                     testConfiguration.numDocs(),
                     mergePolicy,
                     testConfiguration.writerBufferSizeInMb(),
                     testConfiguration.writerMaxBufferedDocs()
                 );
-                if (testConfiguration.reindex() == false && Files.exists(indexPath) == false) {
+                if (testConfiguration.reindex()) {
+                    Directory writeDir = sharedDir != null ? sharedDir : dirConfig.factory().create(indexPath);
+                    try (var setup = dataGenerator.createIndexingSetup()) {
+                        knnIndexer.createIndex(
+                            indexResults,
+                            writeDir,
+                            setup.reader(),
+                            setup.factory(),
+                            setup.totalDocs(),
+                            dataGenerator.getIndexSort()
+                        );
+                    } finally {
+                        if (writeDir != sharedDir) {
+                            writeDir.close();
+                        }
+                    }
+                } else if (Files.exists(indexPath) == false) {
                     throw new IllegalArgumentException("Index path does not exist: " + indexPath);
                 }
-                if (testConfiguration.reindex()) {
-                    reindex(knnIndexer, indexResults, sharedDir);
-                }
                 if (testConfiguration.forceMerge()) {
-                    forceMerge(knnIndexer, indexResults, sharedDir, testConfiguration);
+                    forceMerge(knnIndexer, indexResults, sharedDir, testConfiguration, dataGenerator.getIndexSort());
                 }
             }
             numSegments(indexPath, indexResults, sharedDir);
-            if (testConfiguration.queryVectors() != null && testConfiguration.numQueries() > 0) {
+
+            boolean hasQueries = testConfiguration.numQueries() > 0 && dataGenerator.hasQueries();
+            if (hasQueries) {
                 Directory readDir = sharedDir != null ? sharedDir : dirConfig.factory().create(indexPath);
                 try {
                     if (dirConfig.preWarm()) {
@@ -499,10 +534,10 @@ public class KnnIndexTester {
                         KnnSearcher.preWarmDirectory(readDir);
                         logDiagnostics(dirConfig, readDir, "After prewarm");
                     }
-                    runSearches(testConfiguration, indexPath, readDir, results, parsedArgs, indexPathName, indexType);
+                    runSearches(testConfiguration, indexPath, readDir, results, parsedArgs, indexPathName, indexType, dataGenerator);
                     logDiagnostics(dirConfig, readDir, "After search");
                 } finally {
-                    if (sharedDir == null) {
+                    if (readDir != sharedDir) {
                         readDir.close();
                     }
                 }
@@ -514,20 +549,17 @@ public class KnnIndexTester {
         }
     }
 
-    static void reindex(KnnIndexer knnIndexer, Results indexResults, Directory sharedDir) throws Exception {
+    static void forceMerge(
+        KnnIndexer knnIndexer,
+        Results indexResults,
+        Directory sharedDir,
+        TestConfiguration testConfiguration,
+        Sort indexSort
+    ) throws Exception {
         if (sharedDir != null) {
-            knnIndexer.createIndex(indexResults, sharedDir);
+            knnIndexer.forceMerge(indexResults, testConfiguration.forceMergeMaxNumSegments(), sharedDir, indexSort);
         } else {
-            knnIndexer.createIndex(indexResults);
-        }
-    }
-
-    static void forceMerge(KnnIndexer knnIndexer, Results indexResults, Directory sharedDir, TestConfiguration testConfiguration)
-        throws Exception {
-        if (sharedDir != null) {
-            knnIndexer.forceMerge(indexResults, testConfiguration.forceMergeMaxNumSegments(), sharedDir);
-        } else {
-            knnIndexer.forceMerge(indexResults, testConfiguration.forceMergeMaxNumSegments());
+            knnIndexer.forceMerge(indexResults, testConfiguration.forceMergeMaxNumSegments(), indexSort);
         }
     }
 
@@ -550,7 +582,8 @@ public class KnnIndexTester {
         Results[] results,
         ParsedArgs parsedArgs,
         String indexPathName,
-        String indexType
+        String indexType,
+        DataGenerator dataGenerator
     ) throws Exception {
         if (parsedArgs.warmUpIterations() > 0) {
             logger.info("Running the searches for " + parsedArgs.warmUpIterations() + " warm up iterations");
@@ -559,12 +592,14 @@ public class KnnIndexTester {
             for (int i = 0; i < results.length; i++) {
                 var ignoreResults = new Results(indexPathName, indexType, testConfiguration.numDocs());
                 KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
-                knnSearcher.runSearch(ignoreResults, testConfiguration.searchParams().get(i), dir);
+                var setup = dataGenerator.createSearchSetup(knnSearcher, testConfiguration.searchParams().get(i));
+                knnSearcher.search(ignoreResults, testConfiguration.searchParams().get(i), dir, setup);
             }
         }
         for (int i = 0; i < results.length; i++) {
             KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
-            knnSearcher.runSearch(results[i], testConfiguration.searchParams().get(i), dir);
+            var setup = dataGenerator.createSearchSetup(knnSearcher, testConfiguration.searchParams().get(i));
+            knnSearcher.search(results[i], testConfiguration.searchParams().get(i), dir, setup);
         }
     }
 
@@ -632,11 +667,16 @@ public class KnnIndexTester {
                 "force_merge_time(ms)",
                 "num_segments" };
 
-            // Define column headers
-            String[] searchHeaders = {
+            // Only include partition recall columns if any result has partition data
+            boolean hasPartitionRecall = queryResults.stream()
+                .anyMatch(r -> r.perPartitionRecall != null && r.perPartitionRecall.isEmpty() == false);
+
+            List<String> searchHeaderList = CollectionUtils.arrayAsArrayList(
                 "index_name",
                 "index_type",
+                "num_segments",
                 "visit_percentage(%)",
+                "actual_visit(%)",
                 "latency(ms)",
                 "net_cpu_time(ms)",
                 "avg_cpu_count",
@@ -647,9 +687,14 @@ public class KnnIndexTester {
                 "filter_cached",
                 "oversampling_factor",
                 "num_candidates",
-                "early_termination" };
-
-            // Calculate appropriate column widths based on headers and data
+                "early_termination"
+            );
+            if (hasPartitionRecall) {
+                searchHeaderList.add("partition_recall_min");
+                searchHeaderList.add("partition_recall_max");
+                searchHeaderList.add("partition_recall_avg");
+            }
+            String[] searchHeaders = searchHeaderList.toArray(String[]::new);
 
             StringBuilder sb = new StringBuilder();
 
@@ -669,10 +714,12 @@ public class KnnIndexTester {
             String[][] queryResultsArray = new String[queryResults.size()][];
             for (int i = 0; i < queryResults.size(); i++) {
                 Results queryResult = queryResults.get(i);
-                queryResultsArray[i] = new String[] {
+                List<String> row = CollectionUtils.arrayAsArrayList(
                     queryResult.indexName,
                     queryResult.indexType,
+                    Integer.toString(queryResult.numSegments),
                     String.format(Locale.ROOT, "%.3f", queryResult.visitPercentage),
+                    String.format(Locale.ROOT, "%.3f", queryResult.actualVisitPercentage),
                     String.format(Locale.ROOT, "%.2f", queryResult.avgLatency),
                     String.format(Locale.ROOT, "%.2f", queryResult.netCpuTimeMS),
                     String.format(Locale.ROOT, "%.2f", queryResult.avgCpuCount),
@@ -683,7 +730,23 @@ public class KnnIndexTester {
                     Boolean.toString(queryResult.filterCached),
                     String.format(Locale.ROOT, "%.2f", queryResult.overSamplingFactor),
                     String.format(Locale.ROOT, "%d", queryResult.numCandidates),
-                    Boolean.toString(queryResult.earlyTermination) };
+                    Boolean.toString(queryResult.earlyTermination)
+                );
+                if (hasPartitionRecall) {
+                    String partitionMin = "";
+                    String partitionMax = "";
+                    String partitionAvg = "";
+                    if (queryResult.perPartitionRecall != null && queryResult.perPartitionRecall.isEmpty() == false) {
+                        var stats = queryResult.perPartitionRecall.values().stream().mapToDouble(Float::doubleValue).summaryStatistics();
+                        partitionMin = String.format(Locale.ROOT, "%.4f", stats.getMin());
+                        partitionMax = String.format(Locale.ROOT, "%.4f", stats.getMax());
+                        partitionAvg = String.format(Locale.ROOT, "%.4f", stats.getAverage());
+                    }
+                    row.add(partitionMin);
+                    row.add(partitionMax);
+                    row.add(partitionAvg);
+                }
+                queryResultsArray[i] = row.toArray(String[]::new);
             }
 
             printBlock(sb, searchHeaders, queryResultsArray);
@@ -753,7 +816,9 @@ public class KnnIndexTester {
         long indexTimeMS;
         long forceMergeTimeMS;
         int numSegments;
+        int totalIndexVectors;
         double visitPercentage;
+        double actualVisitPercentage;
         double avgLatency;
         double qps;
         double avgRecall;
@@ -764,6 +829,7 @@ public class KnnIndexTester {
         double overSamplingFactor;
         boolean earlyTermination;
         int numCandidates;
+        Map<String, Float> perPartitionRecall;
 
         Results(String indexName, String indexType, int numDocs) {
             this.indexName = indexName;

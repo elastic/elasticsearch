@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.command.RegisteredDomainFunctionBridge;
 import org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunctionBridge;
+import org.elasticsearch.xpack.esql.evaluator.command.UserAgentFunctionBridge;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
@@ -60,7 +61,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -85,6 +85,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
+import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
@@ -128,7 +129,6 @@ import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy.DEFAULT;
 import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizerTests.releaseBuildForInlineStats;
 import static org.elasticsearch.xpack.esql.parser.ExpressionBuilder.breakIntoFragments;
 import static org.hamcrest.Matchers.allOf;
@@ -337,7 +337,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
                         new UnresolvedFunction(
                             EMPTY,
                             "fn",
-                            DEFAULT,
                             List.of(new Add(EMPTY, attribute("a"), integer(1), ConfigurationAware.CONFIGURATION_MARKER))
                         )
                     )
@@ -354,7 +353,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 PROCESSING_CMD_INPUT,
                 List.of(attribute("c"), attribute("d.e")),
                 List.of(
-                    new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
+                    new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "min", List.of(attribute("a")))),
                     attribute("c"),
                     attribute("d.e")
                 )
@@ -370,7 +369,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 PROCESSING_CMD_INPUT,
                 List.of(),
                 List.of(
-                    new Alias(EMPTY, "min(a)", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
+                    new Alias(EMPTY, "min(a)", new UnresolvedFunction(EMPTY, "min", List.of(attribute("a")))),
                     new Alias(EMPTY, "c", integer(1))
                 )
             ),
@@ -412,7 +411,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testStatsWithGroupKeyAndAggFilter() {
         var a = attribute("a");
-        var f = new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(a));
+        var f = new UnresolvedFunction(EMPTY, "min", List.of(a));
         var filter = new Alias(EMPTY, "min(a) where a > 1", new FilteredExpression(EMPTY, f, new GreaterThan(EMPTY, a, integer(1))));
         assertEqualsIgnoringIds(
             new Aggregate(EMPTY, PROCESSING_CMD_INPUT, List.of(a), List.of(filter, a)),
@@ -422,9 +421,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testStatsWithGroupKeyAndMixedAggAndFilter() {
         var a = attribute("a");
-        var min = new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(a));
-        var max = new UnresolvedFunction(EMPTY, "max", DEFAULT, List.of(a));
-        var avg = new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(a));
+        var min = new UnresolvedFunction(EMPTY, "min", List.of(a));
+        var max = new UnresolvedFunction(EMPTY, "max", List.of(a));
+        var avg = new UnresolvedFunction(EMPTY, "avg", List.of(a));
         var min_alias = new Alias(EMPTY, "min", min);
 
         var max_filter_ex = new Or(
@@ -451,7 +450,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testStatsWithoutGroupKeyMixedAggAndFilter() {
         var a = attribute("a");
-        var f = new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(a));
+        var f = new UnresolvedFunction(EMPTY, "min", List.of(a));
         var filter = new Alias(EMPTY, "min(a) where a > 1", new FilteredExpression(EMPTY, f, new GreaterThan(EMPTY, a, integer(1))));
         assertEqualsIgnoringIds(
             new Aggregate(EMPTY, PROCESSING_CMD_INPUT, List.of(), List.of(filter)),
@@ -475,7 +474,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                             PROCESSING_CMD_INPUT,
                             List.of(attribute("c"), attribute("d.e")),
                             List.of(
-                                new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "MIN", DEFAULT, List.of(attribute("a")))),
+                                new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "MIN", List.of(attribute("a")))),
                                 attribute("c"),
                                 attribute("d.e")
                             )
@@ -501,7 +500,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                         PROCESSING_CMD_INPUT,
                         List.of(),
                         List.of(
-                            new Alias(EMPTY, "MIN(a)", new UnresolvedFunction(EMPTY, "MIN", DEFAULT, List.of(attribute("a")))),
+                            new Alias(EMPTY, "MIN(a)", new UnresolvedFunction(EMPTY, "MIN", List.of(attribute("a")))),
                             new Alias(EMPTY, "c", integer(1))
                         )
                     )
@@ -1084,7 +1083,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testLimitBy() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         LogicalPlan plan = query("""
                 FROM foo
                 | SORT @timestamp DESC
@@ -1122,7 +1120,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testLimitByQualifiedName() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
+        assumeTrue("Requires qualifier support", EsqlCapabilities.Cap.NAME_QUALIFIERS.isEnabled());
         LogicalPlan plan = query("""
                 FROM foo
                 | SORT @timestamp DESC
@@ -1156,7 +1154,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testLimitByNegativeValue() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         expectThrows(
             ParsingException.class,
             containsString("value of [LIMIT -1 BY languages] must be a non negative integer, found value [-1] type [integer]"),
@@ -1168,7 +1165,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testLimitByExpressionForN() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         expectThrows(ParsingException.class, containsString("mismatched input '*'"), () -> query("""
             FROM foo
             | LIMIT -1 * 42 BY languages
@@ -2644,10 +2640,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 EMPTY,
                 unresolvedTSRelation("foo"),
                 List.of(attribute("ts")),
-                List.of(
-                    new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))),
-                    attribute("ts")
-                ),
+                List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", List.of(attribute("cpu")))), attribute("ts")),
                 null,
                 new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu) BY ts"))
             )
@@ -2658,10 +2651,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 EMPTY,
                 unresolvedTSRelation("foo,bar"),
                 List.of(attribute("ts")),
-                List.of(
-                    new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))),
-                    attribute("ts")
-                ),
+                List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", List.of(attribute("cpu")))), attribute("ts")),
                 null,
                 new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu) BY ts"))
             )
@@ -2673,16 +2663,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 unresolvedTSRelation("foo,bar"),
                 List.of(attribute("ts")),
                 List.of(
-                    new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))),
+                    new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", List.of(attribute("cpu")))),
                     new Alias(
                         EMPTY,
                         "max(rate(requests))",
-                        new UnresolvedFunction(
-                            EMPTY,
-                            "max",
-                            DEFAULT,
-                            List.of(new UnresolvedFunction(EMPTY, "rate", DEFAULT, List.of(attribute("requests"))))
-                        )
+                        new UnresolvedFunction(EMPTY, "max", List.of(new UnresolvedFunction(EMPTY, "rate", List.of(attribute("requests")))))
                     ),
                     attribute("ts")
                 ),
@@ -2696,7 +2681,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 EMPTY,
                 unresolvedTSRelation("foo*"),
                 List.of(),
-                List.of(new Alias(EMPTY, "count(errors)", new UnresolvedFunction(EMPTY, "count", DEFAULT, List.of(attribute("errors"))))),
+                List.of(new Alias(EMPTY, "count(errors)", new UnresolvedFunction(EMPTY, "count", List.of(attribute("errors"))))),
                 null,
                 new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS count(errors)"))
             )
@@ -2707,7 +2692,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 EMPTY,
                 unresolvedTSRelation("foo*"),
                 List.of(),
-                List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b"))))),
+                List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", List.of(attribute("b"))))),
                 null,
                 new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a(b)"))
             )
@@ -2718,7 +2703,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 EMPTY,
                 unresolvedTSRelation("foo*"),
                 List.of(),
-                List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b"))))),
+                List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", List.of(attribute("b"))))),
                 null,
                 new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a(b)"))
             )
@@ -2729,7 +2714,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 EMPTY,
                 unresolvedTSRelation("foo*"),
                 List.of(),
-                List.of(new Alias(EMPTY, "a1(b2)", new UnresolvedFunction(EMPTY, "a1", DEFAULT, List.of(attribute("b2"))))),
+                List.of(new Alias(EMPTY, "a1(b2)", new UnresolvedFunction(EMPTY, "a1", List.of(attribute("b2"))))),
                 null,
                 new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a1(b2)"))
             )
@@ -2741,7 +2726,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 unresolvedTSRelation("foo*,bar*"),
                 List.of(attribute("c"), attribute("d.e")),
                 List.of(
-                    new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
+                    new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "min", List.of(attribute("a")))),
                     attribute("c"),
                     attribute("d.e")
                 ),
@@ -4137,62 +4122,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         return new Alias(EMPTY, name, value);
     }
 
-    public void testChangePointAsBeforeOn() {
-        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_ARGS_ANY_ORDER.isEnabled());
-        LogicalPlan plan = query("ROW key=1, value=2 | CHANGE_POINT value AS my_type, my_pvalue ON key");
-        ChangePoint cp = as(plan, ChangePoint.class);
-        assertThat(cp.value().name(), equalTo("value"));
-        assertThat(cp.key().name(), equalTo("key"));
-        assertThat(cp.targetType().name(), equalTo("my_type"));
-        assertThat(cp.targetPvalue().name(), equalTo("my_pvalue"));
-    }
-
-    public void testChangePointOnBeforeAs() {
-        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
-        LogicalPlan plan = query("ROW key=1, value=2 | CHANGE_POINT value ON key AS my_type, my_pvalue");
-        ChangePoint cp = as(plan, ChangePoint.class);
-        assertThat(cp.value().name(), equalTo("value"));
-        assertThat(cp.key().name(), equalTo("key"));
-        assertThat(cp.targetType().name(), equalTo("my_type"));
-        assertThat(cp.targetPvalue().name(), equalTo("my_pvalue"));
-    }
-
-    public void testChangePointDuplicateOn() {
-        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_ARGS_ANY_ORDER.isEnabled());
-        expectError("ROW key=1, value=2 | CHANGE_POINT value ON key ON key2", "line 1:48: CHANGE_POINT supports only one ON clause");
-    }
-
-    public void testChangePointDuplicateOnWithAsInBetween() {
-        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_ARGS_ANY_ORDER.isEnabled());
-        expectError(
-            "ROW key=1, value=2 | CHANGE_POINT value ON key AS x, y ON key2",
-            "line 1:56: CHANGE_POINT supports only one ON clause"
-        );
-    }
-
-    public void testChangePointDuplicateAs() {
-        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_ARGS_ANY_ORDER.isEnabled());
-        expectError("ROW key=1, value=2 | CHANGE_POINT value AS a, b AS c, d", "line 1:49: CHANGE_POINT supports only one AS clause");
-    }
-
-    public void testChangePointDuplicateAsWithOnInBetween() {
-        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_ARGS_ANY_ORDER.isEnabled());
-        expectError(
-            "ROW key=1, value=2 | CHANGE_POINT count AS type, pvalue ON @timestamp AS type2, pvalue2",
-            "line 1:71: CHANGE_POINT supports only one AS clause"
-        );
-    }
-
-    public void testChangePointMissingFieldAfterOn() {
-        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
-        expectError("ROW key=1, value=2 | CHANGE_POINT count ON", "mismatched input '<EOF>'");
-    }
-
-    public void testChangePointAsWithOnlyOneArgument() {
-        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
-        expectError("ROW key=1, value=2 | CHANGE_POINT count AS type", "line 1:48: mismatched input '<EOF>' expecting {',', '.'}");
-    }
-
     public void testValidFuse() {
         LogicalPlan plan = query("""
                 FROM foo* METADATA _id, _index, _score
@@ -4691,4 +4620,66 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals(expectedFieldNames, actualFieldNames);
     }
 
+    public void testUserAgentCommand() {
+        assumeTrue("requires user_agent command capability", EsqlCapabilities.Cap.USER_AGENT_COMMAND.isEnabled());
+        LogicalPlan cmd = processingCommand("user_agent ua = a ");
+        UserAgent ua = as(cmd, UserAgent.class);
+        assertEqualsIgnoringIds(attribute("a"), ua.getInput());
+        assertFalse(ua.extractDeviceType());
+        assertEquals("_default_", ua.regexFile());
+
+        List<String> expectedFieldNames = UserAgentFunctionBridge.getAllOutputFields()
+            .keySet()
+            .stream()
+            .filter(name -> name.equals("device.type") == false)
+            .map(name -> "ua." + name)
+            .collect(Collectors.toList());
+
+        List<String> actualFieldNames = ua.generatedAttributes().stream().map(NamedExpression::name).collect(Collectors.toList());
+        assertEquals(expectedFieldNames, actualFieldNames);
+    }
+
+    public void testUserAgentCommandWithOptions() {
+        assumeTrue("requires user_agent command capability", EsqlCapabilities.Cap.USER_AGENT_COMMAND.isEnabled());
+        LogicalPlan cmd = processingCommand("user_agent ua = a WITH { \"regex_file\": \"custom\", \"extract_device_type\": true }");
+        UserAgent ua = as(cmd, UserAgent.class);
+        assertEqualsIgnoringIds(attribute("a"), ua.getInput());
+        assertTrue(ua.extractDeviceType());
+        assertEquals("custom", ua.regexFile());
+
+        List<String> expectedFieldNames = UserAgentFunctionBridge.getAllOutputFields()
+            .keySet()
+            .stream()
+            .map(name -> "ua." + name)
+            .collect(Collectors.toList());
+
+        List<String> actualFieldNames = ua.generatedAttributes().stream().map(NamedExpression::name).collect(Collectors.toList());
+        assertEquals(expectedFieldNames, actualFieldNames);
+    }
+
+    public void testUserAgentCommandWithProperties() {
+        assumeTrue("requires user_agent command capability", EsqlCapabilities.Cap.USER_AGENT_COMMAND.isEnabled());
+        LogicalPlan cmd = processingCommand("user_agent ua = a WITH { \"properties\": [\"name\", \"os\"] }");
+        UserAgent ua = as(cmd, UserAgent.class);
+
+        List<String> expectedFieldNames = List.of("ua.name", "ua.os.name", "ua.os.version", "ua.os.full");
+
+        List<String> actualFieldNames = ua.generatedAttributes().stream().map(NamedExpression::name).collect(Collectors.toList());
+        assertEquals(expectedFieldNames, actualFieldNames);
+    }
+
+    public void testUserAgentCommandInvalidOption() {
+        assumeTrue("requires user_agent command capability", EsqlCapabilities.Cap.USER_AGENT_COMMAND.isEnabled());
+        expectError(
+            "row a = \"test\" | user_agent ua = a WITH { \"unknown_option\": \"value\" }",
+            "Invalid option [unknown_option] in USER_AGENT"
+        );
+    }
+
+    public void testUserAgentCommandOriginalIgnored() {
+        assumeTrue("requires user_agent command capability", EsqlCapabilities.Cap.USER_AGENT_COMMAND.isEnabled());
+        LogicalPlan cmd = processingCommand("user_agent ua = a WITH { \"original\": true }");
+        UserAgent ua = as(cmd, UserAgent.class);
+        assertEqualsIgnoringIds(attribute("a"), ua.getInput());
+    }
 }

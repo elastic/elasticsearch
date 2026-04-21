@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
 import org.junit.BeforeClass;
 
@@ -20,9 +19,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeTo
 public class PushDownAndCombineLimitByGoldenTests extends GoldenTestCase {
 
     @BeforeClass
-    public static void checkLimitByCapability() {
-        assumeTrue("SORT | LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
-    }
+    public static void checkLimitByCapability() {}
 
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.LOGICAL_OPTIMIZATION);
 
@@ -38,7 +35,7 @@ public class PushDownAndCombineLimitByGoldenTests extends GoldenTestCase {
     public void testLimitByNotPushedPastEval() {
         runGoldenTest(
             """
-                FROM *
+                FROM airport_city_boundaries, addresses, all_types, books
                 | ENRICH languages on street
                 | KEEP abbrev, integer, year
                 | LIMIT 1 BY abbrev

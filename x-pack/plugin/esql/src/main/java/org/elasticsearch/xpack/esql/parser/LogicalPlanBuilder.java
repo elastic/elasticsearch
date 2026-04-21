@@ -21,6 +21,8 @@ import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.useragent.api.UserAgentParsedInfo;
+import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -84,6 +86,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
+import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
@@ -104,6 +107,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.SequencedMap;
 import java.util.Set;
 
 import static java.util.Collections.emptyList;
@@ -480,6 +484,123 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
+    public PlanFactory visitUserAgentCommand(EsqlBaseParser.UserAgentCommandContext ctx) {
+        Source source = source(ctx);
+
+        Attribute outputPrefix = visitQualifiedName(ctx.qualifiedName());
+        if (outputPrefix == null) {
+            throw new ParsingException(source, "USER_AGENT command requires an output field prefix");
+        }
+
+        Expression input = expression(ctx.primaryExpression());
+        if (input == null) {
+            throw new ParsingException(source, "USER_AGENT command requires an input expression");
+        }
+
+        return applyUserAgentOptions(source, input, outputPrefix, ctx.commandNamedParameters());
+    }
+
+    private PlanFactory applyUserAgentOptions(
+        Source source,
+        Expression input,
+        Attribute outputPrefix,
+        EsqlBaseParser.CommandNamedParametersContext ctx
+    ) {
+        MapExpression optionsExpression = ctx == null ? null : visitCommandNamedParameters(ctx);
+
+        String regexFile = UserAgentParserRegistry.DEFAULT_PARSER_NAME;
+        boolean extractDeviceType = false;
+        List<String> properties = List.of("name", "version", "os", "device");
+
+        if (optionsExpression != null) {
+            Map<String, Expression> optionsMap = optionsExpression.keyFoldedMap();
+
+            Expression regexFileExpr = optionsMap.remove("regex_file");
+            if (regexFileExpr != null) {
+                if ((regexFileExpr instanceof Literal && DataType.isString(regexFileExpr.dataType())) == false) {
+                    throw new ParsingException(regexFileExpr.source(), "Option [regex_file] must be a string literal");
+                }
+                regexFile = BytesRefs.toString(((Literal) regexFileExpr).value());
+            }
+
+            Expression extractDeviceTypeExpr = optionsMap.remove("extract_device_type");
+            if (extractDeviceTypeExpr != null) {
+                if ((extractDeviceTypeExpr instanceof Literal lit && lit.dataType() == DataType.BOOLEAN) == false) {
+                    throw new ParsingException(extractDeviceTypeExpr.source(), "Option [extract_device_type] must be a boolean literal");
+                }
+                extractDeviceType = (Boolean) ((Literal) extractDeviceTypeExpr).value();
+            }
+
+            Expression propertiesExpr = optionsMap.remove("properties");
+            if (propertiesExpr != null) {
+                if (propertiesExpr instanceof Literal propLit && propLit.value() instanceof List<?> propList) {
+                    properties = new ArrayList<>();
+                    for (Object item : propList) {
+                        if (item instanceof BytesRef) {
+                            properties.add(BytesRefs.toString(item));
+                        } else {
+                            throw new ParsingException(propertiesExpr.source(), "Option [properties] must be a list of string literals");
+                        }
+                    }
+                } else {
+                    throw new ParsingException(propertiesExpr.source(), "Option [properties] must be a list of string literals");
+                }
+            }
+
+            // The ingest processor supports an "original" property that includes the raw user-agent string in the output.
+            // In ES|QL this is unnecessary since the input expression is already available as a column. Silently ignore it
+            // for compatibility with ingest processor configurations.
+            optionsMap.remove("original");
+
+            if (optionsMap.isEmpty() == false) {
+                throw new ParsingException(
+                    source,
+                    "Invalid option{} {} in USER_AGENT, expected one of [regex_file, extract_device_type, properties]",
+                    optionsMap.size() > 1 ? "s" : "",
+                    optionsMap.keySet()
+                );
+            }
+        }
+
+        SequencedMap<String, Class<?>> allFields = UserAgentParsedInfo.getUserAgentInfoFields();
+        LinkedHashMap<String, Class<?>> filteredFields = new LinkedHashMap<>();
+        boolean finalExtractDeviceType = extractDeviceType;
+        for (String property : properties) {
+            switch (property) {
+                case "name" -> filteredFields.put(UserAgentParsedInfo.NAME, allFields.get(UserAgentParsedInfo.NAME));
+                case "version" -> filteredFields.put(UserAgentParsedInfo.VERSION, allFields.get(UserAgentParsedInfo.VERSION));
+                case "os" -> {
+                    filteredFields.put(UserAgentParsedInfo.OS_NAME, allFields.get(UserAgentParsedInfo.OS_NAME));
+                    filteredFields.put(UserAgentParsedInfo.OS_VERSION, allFields.get(UserAgentParsedInfo.OS_VERSION));
+                    filteredFields.put(UserAgentParsedInfo.OS_FULL, allFields.get(UserAgentParsedInfo.OS_FULL));
+                }
+                case "device" -> {
+                    filteredFields.put(UserAgentParsedInfo.DEVICE_NAME, allFields.get(UserAgentParsedInfo.DEVICE_NAME));
+                    if (finalExtractDeviceType) {
+                        filteredFields.put(UserAgentParsedInfo.DEVICE_TYPE, allFields.get(UserAgentParsedInfo.DEVICE_TYPE));
+                    }
+                }
+                default -> throw new ParsingException(
+                    source,
+                    "Unknown property [{}] in USER_AGENT, expected one of [name, version, os, device]",
+                    property
+                );
+            }
+        }
+
+        String finalRegexFile = regexFile;
+        return child -> UserAgent.createInitialInstance(
+            source,
+            child,
+            input,
+            outputPrefix,
+            finalExtractDeviceType,
+            finalRegexFile,
+            filteredFields
+        );
+    }
+
+    @Override
     public PlanFactory visitStatsCommand(EsqlBaseParser.StatsCommandContext ctx) {
         final ParserUtils.Stats stats = stats(source(ctx), ctx.grouping, ctx.stats);
         // Only the first STATS command in a TS query is treated as the time-series aggregation.
@@ -673,72 +794,32 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitChangePointCommand(EsqlBaseParser.ChangePointCommandContext ctx) {
         Source src = source(ctx);
         Attribute value = visitQualifiedName(ctx.value);
-        Attribute key = visitChangePointOn(ctx.changePointConfiguration(), src);
+        Attribute key = ctx.key == null ? new UnresolvedAttribute(src, "@timestamp") : visitQualifiedName(ctx.key);
 
-        Tuple<Attribute, Attribute> asAttributes = visitChangePointAs(ctx.changePointConfiguration(), src);
-        Attribute targetType = asAttributes.v1();
-        Attribute targetPvalue = asAttributes.v2();
+        UnresolvedAttribute parsedTargetTypeColumn = visitQualifiedName(ctx.targetType);
+        UnresolvedAttribute parsedTargetPvalueColumn = visitQualifiedName(ctx.targetPvalue);
 
-        return child -> new ChangePoint(src, child, value, key, targetType, targetPvalue);
-    }
-
-    private Attribute visitChangePointOn(List<EsqlBaseParser.ChangePointConfigurationContext> changePointOptionsContexts, Source src) {
-        Attribute key = null;
-        for (EsqlBaseParser.ChangePointConfigurationContext changePointContext : changePointOptionsContexts) {
-            if (changePointContext.key != null) {
-                if (key != null) {
-                    throw new ParsingException(source(changePointContext), "CHANGE_POINT supports only one ON clause");
-                }
-                key = visitQualifiedName(changePointContext.key);
-            }
+        if (parsedTargetTypeColumn != null && parsedTargetTypeColumn.qualifier() != null) {
+            throw qualifiersUnsupportedInFieldDefinitions(parsedTargetTypeColumn.source(), ctx.targetType.getText());
         }
-        return key == null ? new UnresolvedAttribute(src, "@timestamp") : key;
-    }
 
-    private Tuple<Attribute, Attribute> visitChangePointAs(
-        List<EsqlBaseParser.ChangePointConfigurationContext> changePointOptionsContexts,
-        Source src
-    ) {
-        UnresolvedAttribute unresolvedTargetValue = null;
-        UnresolvedAttribute unresolvedTargetPvalue = null;
-        boolean optionResolved = false;
-        for (EsqlBaseParser.ChangePointConfigurationContext changePointContext : changePointOptionsContexts) {
-            if (changePointContext.targetType != null) {
-                if (optionResolved) {
-                    throw new ParsingException(source(changePointContext), "CHANGE_POINT supports only one AS clause");
-                }
-                optionResolved = true;
-
-                unresolvedTargetValue = visitQualifiedName(changePointContext.targetType);
-                unresolvedTargetPvalue = visitQualifiedName(changePointContext.targetPvalue);
-
-                if (unresolvedTargetValue != null && unresolvedTargetValue.qualifier() != null) {
-                    throw qualifiersUnsupportedInFieldDefinitions(unresolvedTargetValue.source(), changePointContext.targetType.getText());
-                }
-                if (unresolvedTargetPvalue != null && unresolvedTargetPvalue.qualifier() != null) {
-                    throw qualifiersUnsupportedInFieldDefinitions(
-                        unresolvedTargetPvalue.source(),
-                        changePointContext.targetPvalue.getText()
-                    );
-                }
-
-            }
+        if (parsedTargetPvalueColumn != null && parsedTargetPvalueColumn.qualifier() != null) {
+            throw qualifiersUnsupportedInFieldDefinitions(parsedTargetPvalueColumn.source(), ctx.targetPvalue.getText());
         }
 
         Attribute targetType = new ReferenceAttribute(
             src,
             null,
-            unresolvedTargetValue == null ? "type" : unresolvedTargetValue.name(),
+            parsedTargetTypeColumn == null ? "type" : parsedTargetTypeColumn.name(),
             DataType.KEYWORD
         );
         Attribute targetPvalue = new ReferenceAttribute(
             src,
             null,
-            unresolvedTargetPvalue == null ? "pvalue" : unresolvedTargetPvalue.name(),
+            parsedTargetPvalueColumn == null ? "pvalue" : parsedTargetPvalueColumn.name(),
             DataType.DOUBLE
         );
-
-        return new Tuple<>(targetType, targetPvalue);
+        return child -> new ChangePoint(src, child, value, key, targetType, targetPvalue);
     }
 
     private Tuple<Mode, String> parsePolicyName(EsqlBaseParser.EnrichPolicyNameContext ctx) {
@@ -1360,18 +1441,40 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             params.bucketsLiteral(),
             params.scrapeIntervalLiteral(),
             valueColumnName,
-            new UnresolvedTimestamp(source)
+            new UnresolvedTimestamp(source),
+            false
         );
+    }
+
+    private static LogicalPlan injectDocAttribute(Source source, LogicalPlan input) {
+        return input.transformDown(r -> {
+            if (r instanceof UnresolvedRelation unresolved) {
+                List<NamedExpression> metadataFields = unresolved.metadataFields();
+                for (NamedExpression field : metadataFields) {
+                    if (field.name().equals(MetadataAttribute.DOC)) {
+                        return r;
+                    }
+                }
+                return unresolved.addMetadataField(new MetadataAttribute(source, MetadataAttribute.DOC, DataType.DOC_DATA_TYPE, false));
+            }
+            return r;
+        });
     }
 
     @Override
     public PlanFactory visitMetricsInfoCommand(EsqlBaseParser.MetricsInfoCommandContext ctx) {
-        return input -> new MetricsInfo(source(ctx), input);
+        return input -> {
+            Source source = source(ctx);
+            return new MetricsInfo(source, injectDocAttribute(source, input));
+        };
     }
 
     @Override
     public PlanFactory visitTsInfoCommand(EsqlBaseParser.TsInfoCommandContext ctx) {
-        return input -> new TsInfo(source(ctx), input);
+        return input -> {
+            var source = source(ctx);
+            return new TsInfo(source, injectDocAttribute(source, input));
+        };
     }
 
     private String getValueColumnName(EsqlBaseParser.ValueNameContext ctx, String promqlQuery) {

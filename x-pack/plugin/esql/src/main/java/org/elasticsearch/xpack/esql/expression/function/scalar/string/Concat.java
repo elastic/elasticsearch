@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -41,6 +42,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
  */
 public class Concat extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Concat", Concat::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Concat.class).unaryVariadic(Concat::new).name("concat");
 
     static final long MAX_CONCAT_LENGTH = MB.toBytes(1);
 

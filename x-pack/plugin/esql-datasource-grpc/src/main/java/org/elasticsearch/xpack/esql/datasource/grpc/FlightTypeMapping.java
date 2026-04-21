@@ -7,28 +7,15 @@
 
 package org.elasticsearch.xpack.esql.datasource.grpc;
 
-import org.apache.arrow.vector.BigIntVector;
-import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.FieldVector;
-import org.apache.arrow.vector.Float8Vector;
-import org.apache.arrow.vector.IntVector;
-import org.apache.arrow.vector.TimeStampMilliVector;
 import org.apache.arrow.vector.ValueVector;
-import org.apache.arrow.vector.VarCharVector;
-import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.arrow.BooleanArrowBufBlock;
-import org.elasticsearch.compute.data.arrow.BytesRefArrowBufBlock;
-import org.elasticsearch.compute.data.arrow.DoubleArrowBufBlock;
-import org.elasticsearch.compute.data.arrow.IntArrowBufBlock;
-import org.elasticsearch.compute.data.arrow.LongArrowBufBlock;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -45,8 +32,11 @@ final class FlightTypeMapping {
     static List<Attribute> toAttributes(Schema schema) {
         List<Attribute> attributes = new ArrayList<>(schema.getFields().size());
         for (Field field : schema.getFields()) {
-            DataType dataType = toDataType(field.getType());
-            attributes.add(new ReferenceAttribute(Source.EMPTY, field.getName(), dataType));
+            var mapping = ArrowToEsql.forField(field);
+            if (mapping == null) {
+                throw new IllegalArgumentException("Unsupported Arrow vector type: " + field.getType());
+            }
+            attributes.add(new ReferenceAttribute(Source.EMPTY, field.getName(), mapping.dataType()));
         }
         return attributes;
     }
@@ -65,46 +55,14 @@ final class FlightTypeMapping {
             flightVector.setValueCount(rowCount);
         }
 
+        // FlightClient creates a child allocator. We need to transfer vectors to the block factory's allocator
+        // since blocks live longer than the FlightClient and its allocator.
         try (var vector = transfer(flightVector, blockFactory)) {
-
-            if (vector instanceof IntVector intVec) {
-                return IntArrowBufBlock.of(intVec, blockFactory);
-
-            } else if (vector instanceof BigIntVector bigIntVec) {
-                return LongArrowBufBlock.of(bigIntVec, blockFactory);
-
-            } else if (vector instanceof Float8Vector float8Vec) {
-                return DoubleArrowBufBlock.of(float8Vec, blockFactory);
-
-            } else if (vector instanceof VarCharVector varCharVec) {
-                return BytesRefArrowBufBlock.of(varCharVec, blockFactory);
-
-            } else if (vector instanceof BitVector bitVec) {
-                return BooleanArrowBufBlock.of(bitVec, blockFactory);
-
-            } else if (vector instanceof TimeStampMilliVector tsVec) {
-                return LongArrowBufBlock.of(tsVec, blockFactory);
+            var mapping = ArrowToEsql.forField(flightVector.getField());
+            if (mapping == null) {
+                throw new IllegalArgumentException("Unsupported Arrow vector type: " + vector.getField().getType());
             }
-            throw new IllegalArgumentException("Unsupported Arrow vector type: " + vector.getClass().getSimpleName());
+            return mapping.convert(vector, blockFactory);
         }
-    }
-
-    private static DataType toDataType(ArrowType arrowType) {
-        if (arrowType instanceof ArrowType.Int intType) {
-            return intType.getBitWidth() <= 32 ? DataType.INTEGER : DataType.LONG;
-        } else if (arrowType instanceof ArrowType.FloatingPoint fpType) {
-            return switch (fpType.getPrecision()) {
-                case DOUBLE -> DataType.DOUBLE;
-                case SINGLE -> DataType.DOUBLE;
-                default -> DataType.DOUBLE;
-            };
-        } else if (arrowType instanceof ArrowType.Utf8) {
-            return DataType.KEYWORD;
-        } else if (arrowType instanceof ArrowType.Bool) {
-            return DataType.BOOLEAN;
-        } else if (arrowType instanceof ArrowType.Timestamp) {
-            return DataType.DATETIME;
-        }
-        throw new IllegalArgumentException("Unsupported Arrow type: " + arrowType);
     }
 }

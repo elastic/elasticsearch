@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.EmptySystemIndices;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
@@ -32,8 +33,12 @@ public class InMemoryViewResolver extends ViewResolver {
     protected ClusterService clusterService;
     protected ProjectResolver projectResolver;
 
-    public InMemoryViewResolver(ClusterService clusterService, Supplier<ViewMetadata> metadata) {
-        super(clusterService, null, null);
+    public InMemoryViewResolver(
+        ClusterService clusterService,
+        Supplier<ViewMetadata> metadata,
+        CrossProjectModeDecider crossProjectModeDecider
+    ) {
+        super(clusterService, null, null, crossProjectModeDecider);
         this.projectResolver = DefaultProjectResolver.INSTANCE;
         this.indexNameExpressionResolver = new IndexNameExpressionResolver(
             new ThreadContext(Settings.EMPTY),
@@ -48,11 +53,6 @@ public class InMemoryViewResolver extends ViewResolver {
     @Override
     protected ViewMetadata getMetadata() {
         return metadata.get();
-    }
-
-    protected boolean viewsFeatureEnabled() {
-        // This is a test implementation, so we assume the feature is always enabled
-        return true;
     }
 
     @Override

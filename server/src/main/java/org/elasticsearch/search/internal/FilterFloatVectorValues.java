@@ -68,6 +68,11 @@ public abstract class FilterFloatVectorValues extends FloatVectorValues implemen
     }
 
     @Override
+    public VectorScorer rescorer(float[] target) throws IOException {
+        return in.rescorer(target);
+    }
+
+    @Override
     public int ordToDoc(int ord) {
         return in.ordToDoc(ord);
     }

@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
@@ -45,13 +44,13 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
  */
 public class IpPrefix extends EsqlScalarFunction implements OptionalArgument {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "IpPrefix", IpPrefix::new);
-    public static final FunctionDefinition DEFINITION = EsqlFunctionRegistry.ternary(IpPrefix.class, IpPrefix::new, "ip_prefix")
-        .withSubCapabilities(
-            List.of(
-                // Fix a bug leading to the scratch leaking data to other rows.
-                "fix_dirty_scratch_leak"
-            )
-        );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(IpPrefix.class)
+        .ternary(IpPrefix::new)
+        .capabilities(
+            // Fix a bug leading to the scratch leaking data to other rows.
+            "fix_dirty_scratch_leak"
+        )
+        .name("ip_prefix");
 
     // Borrowed from Lucene, rfc4291 prefix
     private static final byte[] IPV4_PREFIX = new byte[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1 };

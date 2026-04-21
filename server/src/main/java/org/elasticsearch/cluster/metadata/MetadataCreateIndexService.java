@@ -311,6 +311,9 @@ public class MetadataCreateIndexService {
         if (projectMetadata.hasView(index)) {
             throw new InvalidIndexNameException(index, "already exists as an ESQL view");
         }
+        if (projectMetadata.hasDataset(index)) {
+            throw new InvalidIndexNameException(index, "already exists as an ESQL dataset");
+        }
     }
 
     /**
@@ -829,9 +832,10 @@ public class MetadataCreateIndexService {
         final boolean isSystem = validateDotIndex(request.index(), isHiddenAfterTemplates);
 
         // remove the setting it's temporary and is only relevant once we create the index
-        final Settings.Builder settingsBuilder = Settings.builder().put(aggregatedIndexSettings);
-        settingsBuilder.remove(IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey());
-        final Settings indexSettings = settingsBuilder.build();
+        final Settings indexSettings = Settings.builder()
+            .put(aggregatedIndexSettings)
+            .remove(IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey())
+            .build();
 
         final IndexMetadata.Builder tmpImdBuilder = IndexMetadata.builder(request.index());
         tmpImdBuilder.setRoutingNumShards(routingNumShards);
@@ -2006,6 +2010,12 @@ public class MetadataCreateIndexService {
                 targetIndexName
             );
         }
+        if (projectMetadata.hasDataset(targetIndexName)) {
+            throw new ResourceAlreadyExistsException(
+                "cannot resize to [{}], as an ESQL dataset already exists with that name",
+                targetIndexName
+            );
+        }
         final IndexMetadata sourceMetadata = projectMetadata.index(sourceIndex);
         if (sourceMetadata == null) {
             throw new IndexNotFoundException(sourceIndex);
@@ -2026,6 +2036,10 @@ public class MetadataCreateIndexService {
         // ensure index is read-only
         if (clusterBlocks.indexBlocked(projectMetadata.id(), ClusterBlockLevel.WRITE, sourceIndex) == false) {
             throw new IllegalStateException("index " + sourceIndex + " must be read-only to resize index. use \"index.blocks.write=true\"");
+        }
+        // ensure no resharding operation is in progress
+        if (sourceMetadata.getReshardingMetadata() != null) {
+            throw new IllegalStateException("index " + sourceIndex + " cannot be resized while a resharding operation is in progress");
         }
 
         if (INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings)) {
@@ -2184,7 +2198,8 @@ public class MetadataCreateIndexService {
     }
 
     private static boolean applyRefreshBlock(IndexMetadata indexMetadata) {
-        return 0 < indexMetadata.getNumberOfReplicas() // index has replicas
+        return (0 < indexMetadata.getNumberOfReplicas() // index has replicas or auto-expand replicas
+            || indexMetadata.getAutoExpandReplicas().enabled() && indexMetadata.getAutoExpandReplicas().maxReplicas() > 0)
             && indexMetadata.getResizeSourceIndex() == null // index is not a split/shrink index
             && indexMetadata.getInSyncAllocationIds().values().stream().allMatch(Set::isEmpty); // index is a new index
     }

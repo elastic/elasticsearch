@@ -19,10 +19,12 @@ import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMin;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 
 import java.io.IOException;
 import java.util.Comparator;
@@ -39,6 +41,13 @@ public class Clamp extends EsqlScalarFunction implements OnlySurrogateExpression
     private final Expression min;
     private final Expression max;
     private DataType resolvedType;
+
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Clamp.class).ternary(Clamp::new).name("clamp");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .ternaryValueTransformation(PromqlFunctionDefinition.MIN_SCALAR, PromqlFunctionDefinition.MAX_SCALAR, Clamp::new)
+        .description("Clamps the sample values of all elements to be within [min, max].")
+        .example("clamp(http_requests_total, 0, 100)")
+        .name("clamp");
 
     @FunctionInfo(
         returnType = { "double", "integer", "long", "double", "unsigned_long", "keyword", "ip", "boolean", "date", "version" },

@@ -16,6 +16,11 @@ esplugin {
   classname ='org.elasticsearch.test.esql.heap_attack.HeapAttackPlugin'
 }
 
+dependencies {
+  javaRestTestImplementation project(':x-pack:plugin:esql:compute')
+  javaRestTestImplementation project(':libs:swisshash')
+}
+
 tasks.named('javaRestTest') {
   usesDefaultDistribution("to be triaged")
   it.onlyIf("snapshot build") { buildParams.snapshotBuild }

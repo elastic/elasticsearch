@@ -1,0 +1,2 @@
+FROM employees
+| STATS sum = SUM(languages.long)

@@ -6,6 +6,10 @@ stack: ga
 The `STATS` processing command groups rows according to a common value
 and calculates one or more aggregated values over the grouped rows.
 
+::::{note}
+For fast approximate results with confidence intervals, see [Approximate `STATS` queries](/reference/query-languages/esql/esql-query-approximation.md).
+::::
+
 ## Syntax
 
 ```esql

@@ -16,6 +16,9 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
+import java.util.HashSet;
+import java.util.Set;
+
 /**
  * Shared utilities for GCS fixture-based integration tests.
  * Provides fixture infrastructure for testing ESQL external data sources with Google Cloud Storage.
@@ -63,14 +66,14 @@ public final class GcsFixtureUtils {
                 byte[] serviceAccountBytes = TestUtils.createServiceAccount(Randomness.get());
                 gcsServiceAccountJson = new String(serviceAccountBytes, java.nio.charset.StandardCharsets.UTF_8);
 
-                int[] count = { 0 };
-                FixtureUtils.forEachFixtureEntry(getClass(), (relativePath, content) -> {
+                Set<String> loadedKeys = new HashSet<>();
+                FixtureUtils.forEachFixtureEntryMergingAllClasspathRoots(getClass().getClassLoader(), (relativePath, content) -> {
                     String key = S3FixtureUtils.WAREHOUSE + "/" + relativePath;
                     getHandler().putBlob(key, new BytesArray(content));
-                    count[0]++;
+                    loadedKeys.add(key);
                 });
 
-                logger.info("Loaded {} fixture files into GCS fixture", count[0]);
+                logger.info("Loaded {} fixture file(s) into GCS fixture: {}", loadedKeys.size(), String.join(", ", loadedKeys));
             } catch (Exception e) {
                 logger.error("Failed to load GCS fixtures", e);
                 throw new RuntimeException(e);

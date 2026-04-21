@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -467,7 +468,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         assertEquals(restoredShard.docStats().getCount(), shard.docStats().getCount());
         EngineException engineException = expectThrows(
             EngineException.class,
-            () -> restoredShard.get(new Engine.Get(false, false, Integer.toString(0)))
+            () -> restoredShard.get(new Engine.Get(false, false, Integer.toString(0)), SplitShardCountSummary.IRRELEVANT)
         );
         assertEquals(engineException.getCause().getMessage(), "_source only indices can't be searched or filtered");
         SeqNoStats seqNoStats = restoredShard.seqNoStats();
@@ -501,8 +502,8 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
 
         for (int i = 0; i < numInitialDocs; i++) {
             Engine.Get get = new Engine.Get(false, false, Integer.toString(i));
-            Engine.GetResult original = shard.get(get);
-            Engine.GetResult restored = targetShard.get(get);
+            Engine.GetResult original = shard.get(get, SplitShardCountSummary.IRRELEVANT);
+            Engine.GetResult restored = targetShard.get(get, SplitShardCountSummary.IRRELEVANT);
             assertEquals(original.exists(), restored.exists());
 
             if (original.exists()) {

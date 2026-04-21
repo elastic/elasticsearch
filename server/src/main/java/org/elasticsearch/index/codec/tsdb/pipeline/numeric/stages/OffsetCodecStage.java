@@ -94,4 +94,14 @@ public final class OffsetCodecStage implements NumericCodecStage {
             values[i] += min;
         }
     }
+
+    public static void encodeStatic(final OffsetCodecStage stage, final long[] values, int valueCount, final EncodingContext context)
+        throws IOException {
+        stage.encode(values, valueCount, context);
+    }
+
+    public static void decodeStatic(final OffsetCodecStage stage, final long[] values, int valueCount, final DecodingContext context)
+        throws IOException {
+        stage.decode(values, valueCount, context);
+    }
 }

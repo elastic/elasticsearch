@@ -68,6 +68,9 @@ public class CountApproximateAggregatorFunction implements AggregatorFunction {
             }
         } else {
             Block block = page.getBlock(blockIndex());
+            if (block.areAllValuesNull()) {
+                return;
+            }
             DoubleState state = this.state;
             int count;
             if (mask.isConstant()) {

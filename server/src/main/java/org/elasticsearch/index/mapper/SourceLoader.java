@@ -213,7 +213,7 @@ public interface SourceLoader {
                 this.ignoredSourceFormat = ignoredSourceFormat;
                 if (ignoredSourceFormat == IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE) {
                     this.ignoredSourcedocValues = Objects.requireNonNull(
-                        MultiValuedSortedBinaryDocValues.from(leafReader, IgnoredSourceFieldMapper.NAME)
+                        MultiValuedSortedBinaryDocValues.fromMultiValued(leafReader, IgnoredSourceFieldMapper.NAME)
                     );
                 } else {
                     this.ignoredSourcedocValues = null;

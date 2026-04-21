@@ -13,7 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 import org.elasticsearch.simdvec.internal.vectorization.BaseVectorizationTests;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
 
@@ -475,7 +475,7 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         for (int i = 0; i < dims; i++) {
             toPack[i] = randomInt(3);
         }
-        int length = ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY.getDocPackedLength(dims);
+        int length = ES940DiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY.getDocPackedLength(dims);
         ;
         byte[] packed = new byte[length];
         byte[] packedLegacy = new byte[length];
@@ -817,4 +817,70 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         }
     }
 
+    public void testLogSumExpNQT() {
+        // Choosing 19 dimensions so that it is a rugged number that does not align with any SIMD length
+        float[] x = new float[19];
+        for (int i = 0; i < x.length; i++) {
+            x[i] = randomFloat();
+        }
+
+        float referenceResult = defaultedProvider.getVectorUtilSupport().logSumExpNQT(x);
+        assertEquals(referenceResult, defOrPanamaProvider.getVectorUtilSupport().logSumExpNQT(x), 1e-2 * referenceResult);
+    }
+
+    public void testLinearCombination() {
+        float[] x = new float[19];
+        float[] y1 = new float[19];
+
+        for (int i = 0; i < x.length; i++) {
+            x[i] = randomFloat();
+            y1[i] = randomFloat();
+        }
+        float[] y2 = new float[19];
+        System.arraycopy(y1, 0, y2, 0, 19);
+
+        float scaleX = randomFloat();
+        float scaleY = randomFloat();
+
+        defaultedProvider.getVectorUtilSupport().linearCombination(scaleX, x, scaleY, y1);
+        defOrPanamaProvider.getVectorUtilSupport().linearCombination(scaleX, x, scaleY, y2);
+
+        assertArrayEquals(y1, y2, 0);
+    }
+
+    public void testLogSumExpDiff() {
+        // Choosing 19 dimensions so that it is a rugged number that does not align with any SIMD length
+        float[] x = new float[19];
+        float[] y = new float[19];
+        for (int i = 0; i < x.length; i++) {
+            x[i] = randomFloat();
+            y[i] = randomFloat();
+        }
+
+        float eps = randomFloat();
+
+        float referenceResult = defaultedProvider.getVectorUtilSupport().logSumExpNQTDiff(x, y, eps);
+        assertEquals(referenceResult, defOrPanamaProvider.getVectorUtilSupport().logSumExpNQTDiff(x, y, eps), 1.5e-2 * referenceResult);
+    }
+
+    public void testPow2DiffAndScale() {
+        // Choosing 19 dimensions so that it is a rugged number that does not align with any SIMD length
+        float[] x = new float[19];
+        float[] y = new float[19];
+        for (int i = 0; i < x.length; i++) {
+            x[i] = randomFloat();
+            y[i] = randomFloat();
+        }
+
+        float a = randomFloat();
+        float eps = randomFloat();
+
+        float[] result1 = new float[19];
+        float[] result2 = new float[19];
+
+        defaultedProvider.getVectorUtilSupport().pow2DiffAndScaleNQT(x, y, a, eps, result1);
+        defOrPanamaProvider.getVectorUtilSupport().pow2DiffAndScaleNQT(x, y, a, eps, result2);
+
+        assertArrayEqualsPercent(result1, result2, 0.1f);
+    }
 }

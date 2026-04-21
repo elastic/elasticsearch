@@ -36,6 +36,7 @@ import java.util.Set;
 import static org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat.SYNTHETIC_ID;
 import static org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat.TIMESTAMP;
 import static org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat.TS_ID;
+import static org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdSegmentDetailsLogger.maybeLogSegmentDetails;
 
 /**
  * Produces synthetic _id terms that are computed at runtime from the doc values of other fields like _tsid, @timestamp and
@@ -50,14 +51,11 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
     private final int maxDocs;
 
     public TSDBSyntheticIdFieldsProducer(SegmentReadState state, DocValuesProducer docValuesProducer) {
-        this(state.fieldInfos, docValuesProducer, state.segmentInfo.maxDoc());
-    }
-
-    private TSDBSyntheticIdFieldsProducer(FieldInfos fieldInfos, DocValuesProducer docValuesProducer, int maxDocs) {
-        assert assertFieldInfosExist(fieldInfos, SYNTHETIC_ID, TIMESTAMP, TS_ID);
+        assert assertFieldInfosExist(state.fieldInfos, SYNTHETIC_ID, TIMESTAMP, TS_ID);
         this.docValuesProducer = Objects.requireNonNull(docValuesProducer);
-        this.fieldInfos = fieldInfos;
-        this.maxDocs = maxDocs;
+        this.fieldInfos = state.fieldInfos;
+        this.maxDocs = state.segmentInfo.maxDoc();
+        maybeLogSegmentDetails(state, docValuesProducer);
     }
 
     @Override
@@ -104,7 +102,7 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
 
             @Override
             public long getSumDocFreq() {
-                return 0;
+                return maxDocs;
             }
 
             @Override
@@ -205,16 +203,18 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
 
         @Override
         public SeekStatus seekCeil(BytesRef id) throws IOException {
-
             assert id != null;
-            assert Long.BYTES + Integer.BYTES < id.length : id.length;
-            if (id == null || id.length <= Long.BYTES + Integer.BYTES) {
-                return SeekStatus.NOT_FOUND;
-            }
 
-            // Extract the _tsid
-            final BytesRef tsId = TsidExtractingIdFieldMapper.extractTimeSeriesIdFromSyntheticId(id);
-            int tsIdOrd = docValues.lookupTsIdTerm(tsId);
+            int tsIdOrd;
+            if (id != null && id.length > Long.BYTES + Integer.BYTES) {
+                // Extract and lookup the _tsid
+                tsIdOrd = docValues.lookupTsIdTerm(TsidExtractingIdFieldMapper.extractTimeSeriesIdFromSyntheticId(id));
+            } else if (id != null) {
+                // Lookup whatever term `id` has been provided
+                tsIdOrd = docValues.lookupTsIdTerm(id);
+            } else {
+                tsIdOrd = -1;
+            }
 
             // _tsid not found
             if (tsIdOrd < 0) {

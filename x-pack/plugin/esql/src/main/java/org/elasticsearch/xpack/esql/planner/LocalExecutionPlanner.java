@@ -88,6 +88,8 @@ import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.useragent.api.UserAgentParser;
+import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -106,14 +108,12 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.ExternalSliceQueue;
-import org.elasticsearch.xpack.esql.datasources.ExternalSourceOperatorFactory;
-import org.elasticsearch.xpack.esql.datasources.FileSet;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
@@ -122,6 +122,7 @@ import org.elasticsearch.xpack.esql.enrich.MatchConfig;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.CompoundOutputEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
+import org.elasticsearch.xpack.esql.evaluator.command.UserAgentFunctionBridge;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
@@ -157,6 +158,7 @@ import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.SparklineGenerateEmptyBucketsExec;
@@ -164,6 +166,8 @@ import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
+import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
+import org.elasticsearch.xpack.esql.plan.physical.UserAgentExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
@@ -194,6 +198,13 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToIn
  * drivers that are used to execute the given plan.
  */
 public class LocalExecutionPlanner {
+
+    /**
+     * Default rows per page for external file sources when {@link ExternalSourceExec#estimatedRowSize()} is unknown
+     * or non-positive. Used by {@link #planExternalSource} as the batch size passed to format readers (including NDJSON).
+     */
+    public static final int DEFAULT_EXTERNAL_SOURCE_PAGE_SIZE_ROWS = 1000;
+
     private static final Logger logger = LogManager.getLogger(LocalExecutionPlanner.class);
 
     private final String sessionId;
@@ -208,6 +219,7 @@ public class LocalExecutionPlanner {
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
     private final InferenceService inferenceService;
+    private final UserAgentParserRegistry userAgentParserRegistry;
     private final PhysicalOperationProviders physicalOperationProviders;
     private final OperatorFactoryRegistry operatorFactoryRegistry;
 
@@ -224,6 +236,7 @@ public class LocalExecutionPlanner {
         EnrichLookupService enrichLookupService,
         LookupFromIndexService lookupFromIndexService,
         InferenceService inferenceService,
+        UserAgentParserRegistry userAgentParserRegistry,
         PhysicalOperationProviders physicalOperationProviders,
         OperatorFactoryRegistry operatorFactoryRegistry
     ) {
@@ -240,6 +253,7 @@ public class LocalExecutionPlanner {
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
         this.inferenceService = inferenceService;
+        this.userAgentParserRegistry = userAgentParserRegistry;
         this.physicalOperationProviders = physicalOperationProviders;
         this.operatorFactoryRegistry = operatorFactoryRegistry;
     }
@@ -332,8 +346,12 @@ public class LocalExecutionPlanner {
             return planCompletion(completion, context);
         } else if (node instanceof SampleExec Sample) {
             return planSample(Sample, context);
-        } else if (node instanceof CompoundOutputEvalExec coe) {
-            return planCompoundOutputEval(coe, context);
+        } else if (node instanceof UserAgentExec userAgent) {
+            return planUserAgent(userAgent, context);
+        } else if (node instanceof UriPartsExec uriParts) {
+            return planUriParts(uriParts, context);
+        } else if (node instanceof RegisteredDomainExec rd) {
+            return planRegisteredDomain(rd, context);
         } else if (node instanceof MetricsInfoExec metricsInfo) {
             return planMetricsInfo(metricsInfo, context);
         } else if (node instanceof TsInfoExec tsInfo) {
@@ -393,7 +411,38 @@ public class LocalExecutionPlanner {
         return source.with(new MMROperator.Factory(diversifyField, diversifyFieldChannel, limit, queryVector, lambdaValue), source.layout);
     }
 
-    private PhysicalOperation planCompoundOutputEval(final CompoundOutputEvalExec coe, LocalExecutionPlannerContext context) {
+    private PhysicalOperation planUserAgent(UserAgentExec exec, LocalExecutionPlannerContext context) {
+        UserAgentParser parser = userAgentParserRegistry.getParser(exec.regexFile());
+        if (parser == null) {
+            throw new EsqlIllegalArgumentException("Unknown user-agent regex file [" + exec.regexFile() + "]");
+        }
+        CompoundOutputEvaluator.OutputFieldsCollectorProvider provider = new CompoundOutputEvaluator.OutputFieldsCollectorProvider() {
+            @Override
+            public CompoundOutputEvaluator.OutputFieldsCollector createOutputFieldsCollector() {
+                return new UserAgentFunctionBridge.UserAgentCollectorImpl(exec.outputFieldNames(), parser, exec.extractDeviceType());
+            }
+
+            @Override
+            public String collectorSimpleName() {
+                return UserAgentFunctionBridge.UserAgentCollectorImpl.class.getSimpleName();
+            }
+        };
+        return planCompoundOutputEval(exec, provider, context);
+    }
+
+    private PhysicalOperation planUriParts(UriPartsExec uriParts, LocalExecutionPlannerContext context) {
+        return planCompoundOutputEval(uriParts, uriParts, context);
+    }
+
+    private PhysicalOperation planRegisteredDomain(RegisteredDomainExec rd, LocalExecutionPlannerContext context) {
+        return planCompoundOutputEval(rd, rd, context);
+    }
+
+    private PhysicalOperation planCompoundOutputEval(
+        final CompoundOutputEvalExec coe,
+        CompoundOutputEvaluator.OutputFieldsCollectorProvider provider,
+        LocalExecutionPlannerContext context
+    ) {
         PhysicalOperation source = plan(coe.child(), context);
         Layout.Builder layoutBuilder = source.layout.builder();
         layoutBuilder.append(coe.outputFieldAttributes());
@@ -409,7 +458,7 @@ public class LocalExecutionPlanner {
             new ColumnExtractOperator.Factory(
                 types,
                 EvalMapper.toEvaluator(context.foldCtx(), coe.input(), layout),
-                new CompoundOutputEvaluator.Factory(coe.input().dataType(), coe.source(), coe)
+                new CompoundOutputEvaluator.Factory(coe.input().dataType(), coe.source(), provider)
             ),
             layout
         );
@@ -1269,13 +1318,6 @@ public class LocalExecutionPlanner {
      *       storage and format registries</li>
      * </ol>
      *
-     * <p>Example usage:
-     * <pre>
-     * // The OperatorFactoryRegistry is injected into LocalExecutionPlanner
-     * // It contains all registered storage providers, format readers, and plugin factories
-     * return planExternalSourceGeneric(externalSource, context);
-     * </pre>
-     *
      * @param externalSource the external source physical plan node
      * @param context the planner context
      * @return the physical operation
@@ -1287,7 +1329,7 @@ public class LocalExecutionPlanner {
         Integer estimatedRowSize = externalSource.estimatedRowSize();
         int pageSize = (estimatedRowSize != null && estimatedRowSize > 0)
             ? Math.max(SourceOperator.MIN_TARGET_PAGE_SIZE, SourceOperator.TARGET_PAGE_SIZE / estimatedRowSize)
-            : 1000;
+            : DEFAULT_EXTERNAL_SOURCE_PAGE_SIZE_ROWS;
 
         if (operatorFactoryRegistry == null) {
             throw new IllegalStateException("OperatorFactoryRegistry is required for external sources");
@@ -1307,18 +1349,18 @@ public class LocalExecutionPlanner {
             effectiveBufferSize = Math.min(10, (pushedLimit + pageSize - 1) / pageSize + 1);
         }
 
-        FileSet fileSet = externalSource.fileSet();
+        FileList fileList = externalSource.fileList();
         int splitCount = externalSource.splits().size();
         ExternalSliceQueue sliceQueue = null;
         int instanceCount = 1;
 
         /*
-         * Data nodes don't have a resolved FileSet (it isn't serialized), so they must rely on explicit splits.
+         * Data nodes don't have a resolved FileList (it isn't serialized), so they must rely on explicit splits.
          * If we received a single coalesced split, we still need to route execution through the slice queue so
          * the operator can expand it into its leaf FileSplits. Otherwise we'd fall back to opening the original
          * (potentially globbed) source path as a single object.
          */
-        boolean useSliceQueue = splitCount > 0 && (splitCount > 1 || fileSet == null || fileSet.isResolved() == false);
+        boolean useSliceQueue = splitCount > 0 && (splitCount > 1 || fileList == null || fileList.isResolved() == false);
         if (useSliceQueue) {
             sliceQueue = new ExternalSliceQueue(externalSource.splits());
         }
@@ -1334,8 +1376,8 @@ public class LocalExecutionPlanner {
             }
         }
         Set<String> partitionColumnNames = Set.of();
-        if (fileSet != null) {
-            PartitionMetadata pm = fileSet.partitionMetadata();
+        if (fileList != null) {
+            PartitionMetadata pm = fileList.partitionMetadata();
             if (pm != null && pm.isEmpty() == false) {
                 partitionColumnNames = pm.partitionColumns().keySet();
             }
@@ -1353,7 +1395,8 @@ public class LocalExecutionPlanner {
             .config(externalSource.config())
             .sourceMetadata(externalSource.sourceMetadata())
             .pushedFilter(externalSource.pushedFilter())
-            .fileSet(fileSet)
+            .pushedExpressions(externalSource.pushedExpressions())
+            .fileList(fileList)
             .partitionColumnNames(partitionColumnNames)
             .sliceQueue(sliceQueue)
             .parsingParallelism(context.queryPragmas().parsingParallelism())
@@ -1361,51 +1404,6 @@ public class LocalExecutionPlanner {
 
         SourceOperator.SourceOperatorFactory factory = operatorFactoryRegistry.factory(operatorContext);
         context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, instanceCount));
-        return PhysicalOperation.fromSource(factory, layout.build());
-    }
-
-    /**
-     * Plans a generic external source using explicit StorageProvider and FormatReader.
-     * This method is kept for backward compatibility and testing.
-     *
-     * @param externalSource the external source physical plan node
-     * @param storageProvider the storage provider for the source
-     * @param formatReader the format reader for the source
-     * @param context the planner context
-     * @return the physical operation
-     */
-    private PhysicalOperation planExternalSourceGeneric(
-        ExternalSourceExec externalSource,
-        StorageProvider storageProvider,
-        FormatReader formatReader,
-        LocalExecutionPlannerContext context
-    ) {
-        // Create layout with output attributes
-        Layout.Builder layout = new Layout.Builder();
-        layout.append(externalSource.output());
-
-        // Determine page size based on estimated row size
-        Integer estimatedRowSize = externalSource.estimatedRowSize();
-        int pageSize = (estimatedRowSize != null && estimatedRowSize > 0)
-            ? Math.max(SourceOperator.MIN_TARGET_PAGE_SIZE, SourceOperator.TARGET_PAGE_SIZE / estimatedRowSize)
-            : 1000;
-
-        // Parse the storage path
-        StoragePath path = StoragePath.of(externalSource.sourcePath());
-
-        SourceOperator.SourceOperatorFactory factory = new ExternalSourceOperatorFactory(
-            storageProvider,
-            formatReader,
-            path,
-            externalSource.output(),
-            pageSize,
-            externalSource.pushedLimit(),
-            null
-        );
-
-        // Set driver parallelism to 1 for now (can be optimized later with file splitting)
-        context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, 1));
-
         return PhysicalOperation.fromSource(factory, layout.build());
     }
 

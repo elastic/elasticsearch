@@ -100,7 +100,8 @@ A `requires` section defines requirements that have to be met in order for tests
 A `skip` section, on the other hand, defines certain conditions that, if met, will skip the test, such as:
 
 - `capabilities` to <<capabilities_check, skip if API capabilities are present>>.
-- `cluster_features` to <<cluster_features, skip if cluster features are present>>.
+- `cluster_features` to <<cluster_features, skip if cluster features are present in any node>>.
+- `all_nodes` to <<cluster_features, change semantic of cluster_features from any node to all nodes">>.
 - `known_issues` to <<skip_known_issues, skip on known issues (based on cluster features)>>.
 - `awaits_fix` to <<skip_awaits_fix, always skip / mute a test due to a pending fix>>.
 - `os` to <<skip_os, skip on operating systems>>.
@@ -188,6 +189,20 @@ to be either present (`requires`) or absent (`skip`), for instance:
 ....
 
 The `cluster_features` field can either be a string or an array of strings.
+
+The semantics of skip cluster_feature is such that if _any_ node in the cluster has the feature it will skip. This semantics
+can be switched to "all nodes" with `all_nodes: true` (section will be skipped only if all nodes in the cluster has the feature).
+
+....
+    "Parent":
+     - skip:
+          cluster_features: new_behavior_of_existing_feature
+          all_nodes: true
+          reason:           Change to feature X breaks this test
+
+     - do:
+       ... test definitions ...
+....
 
 [[synthetic_cluster_features]]
 Note: In order to smoothen the transition from version checks to cluster feature checks, a REST-test specific

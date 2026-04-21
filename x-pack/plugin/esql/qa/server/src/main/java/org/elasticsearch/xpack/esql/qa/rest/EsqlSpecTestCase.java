@@ -70,6 +70,7 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadViewsIntoEs;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.COMPLETION;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EMBEDDING_FUNCTION;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.KNN_FUNCTION_V5;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.RERANK;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SEMANTIC_TEXT_FIELD_CAPS;
@@ -177,9 +178,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         INGEST.protectedBlock(() -> {
             // Inference endpoints must be created before ingesting any datasets that rely on them (mapping of inference_id)
             // If multiple clusters are used, only create endpoints on the local cluster if it supports the inference test service.
-            if (supportsInferenceTestServiceOnLocalCluster()) {
-                createInferenceEndpoints(adminClient());
-            }
+            createInferenceEndpointsIfSupported();
             loadDataSetIntoEs(
                 client(),
                 supportsIndexModeLookup(),
@@ -329,6 +328,16 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         return true;
     }
 
+    /**
+     * Creates inference test endpoints when {@link #supportsInferenceTestServiceOnLocalCluster()} is true.
+     * Subclasses may override to register a subset of endpoints for clusters that do not support all task types.
+     */
+    protected void createInferenceEndpointsIfSupported() throws IOException {
+        if (supportsInferenceTestServiceOnLocalCluster()) {
+            createInferenceEndpoints(adminClient());
+        }
+    }
+
     protected boolean requiresSemanticTextInference() {
         return testCase.requiredCapabilities.contains(SEMANTIC_TEXT_FIELD_CAPS.capabilityName());
     }
@@ -338,7 +347,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             RERANK.capabilityName(),
             COMPLETION.capabilityName(),
             KNN_FUNCTION_V5.capabilityName(),
-            TEXT_EMBEDDING_FUNCTION.capabilityName()
+            TEXT_EMBEDDING_FUNCTION.capabilityName(),
+            EMBEDDING_FUNCTION.capabilityName()
         ).anyMatch(testCase.requiredCapabilities::contains);
     }
 
@@ -465,9 +475,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             && hasCapabilities(client(), List.of("auto_partition_docs_threshold"))
             && randomBoolean()) {
             pragma.put(PlannerSettings.DOC_THRESHOLD_AUTO_PARTITIONING.getKey(), between(1, 1000));
-        }
-        if (randomBoolean() && hasCapabilities(client(), List.of("fork_no_implicit_limit"))) {
-            pragma.put("fork_implicit_limit", false);
         }
     }
 

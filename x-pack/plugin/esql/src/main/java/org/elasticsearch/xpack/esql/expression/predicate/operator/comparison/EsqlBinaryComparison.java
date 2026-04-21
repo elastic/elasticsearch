@@ -324,7 +324,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
         return DataType.isNull(leftType)
             || DataType.isNull(rightType)
             || (rightType == UNSIGNED_LONG && leftType == UNSIGNED_LONG)
-            || (leftType.isNumeric() && rightType.isNumeric() && leftType != UNSIGNED_LONG && rightType != UNSIGNED_LONG)
+            || (leftType.isNumericOrAmd() && rightType.isNumericOrAmd() && leftType != UNSIGNED_LONG && rightType != UNSIGNED_LONG)
             || (DataType.isString(leftType) && DataType.isString(rightType))
             || (leftType.isDate() && rightType.isDate()) // Millis and Nanos
             || leftType.equals(rightType);

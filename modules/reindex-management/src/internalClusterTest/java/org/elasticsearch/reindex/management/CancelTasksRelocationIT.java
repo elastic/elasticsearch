@@ -82,13 +82,8 @@ public class CancelTasksRelocationIT extends ESIntegTestCase {
      * <p>
      * Which side wins depends on which CAS on {@code BulkByScrollTask.Lifecycle} runs first:
      * <ul>
-     *     <li><b>Cancel wins</b>: {@code ensureCancellable} transitions {@code ACTIVE -> CANCELLING} first, so
-     *         {@code tryInitiateHandoff} sees {@code CANCELLING} and aborts the relocation. The source task finishes
-     *         cancelled; no resumed task is created on the destination.</li>
-     *     <li><b>Relocation wins</b>: {@code tryInitiateHandoff} transitions {@code ACTIVE ->
-     *         RELOCATION_HANDOFF_INITIATED} first, so the concurrent cancel is rejected (either {@code 409 CONFLICT} if
-     *         it hits during the handoff window, or {@code 404 NOT_FOUND} if it arrives after the source task has been
-     *         unregistered). The resumed task runs on the destination.</li>
+     *     <li><b>Cancel wins</b>: The source task finishes cancelled; no resumed task is created on the destination.</li>
+     *     <li><b>Relocation wins</b>: The resumed task runs on the destination; the cancel is rejected.</li>
      * </ul>
      */
     public void testConcurrentCancelAndRelocationIsConsistent() throws Exception {
@@ -166,12 +161,8 @@ public class CancelTasksRelocationIT extends ESIntegTestCase {
         internalCluster().stopNode(shutdownNode);
     }
 
-    // -- classifiers --
-
     /**
      * Returns true iff the cancel API returned a response that includes the original task id with {@code cancelled=true}.
-     * Any exception (commonly {@code 404 NOT_FOUND} after the source task unregisters, or {@code 409 CONFLICT}
-     * during the handoff window) or any other response shape means the cancel did not commit.
      */
     private static boolean cancelCommittedOriginalTask(ActionFuture<ListTasksResponse> cancelFuture, TaskId originalTaskId) {
         try {
@@ -184,7 +175,7 @@ public class CancelTasksRelocationIT extends ESIntegTestCase {
 
     /**
      * Returns true iff the stored {@code .tasks} entry for the source task carries a {@code TaskRelocatedException}
-     * error, which is the canonical signal that relocation handoff committed.
+     * error, which means the task is relocated.
      */
     private static boolean isRelocatedResult(TaskResult sourceResult) {
         final Map<String, Object> errorMap = sourceResult.getErrorAsMap();

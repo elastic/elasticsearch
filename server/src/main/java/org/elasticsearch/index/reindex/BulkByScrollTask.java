@@ -195,9 +195,10 @@ public class BulkByScrollTask extends CancellableTask {
     }
 
     /**
-     * Claims cancellation via the task {@link Lifecycle}. Throws {@link ElasticsearchStatusException} with
-     * {@link RestStatus#CONFLICT} if the relocation handoff has already been initiated, because the continuation of
-     * this task is being resumed on the destination node and cancelling the source here would leave the resumed task
+     * Potentially blocks cancellation via the task {@link Lifecycle}. Throws {@link ElasticsearchStatusException} with
+     * {@link RestStatus#CONFLICT} so client can retry.
+     *
+     * If the relocation handoff has already been initiated, cancelling the source task here would leave the resumed task
      * running on the destination unaware. A concurrent cancel on the same side is treated as success for idempotency.
      */
     @Override

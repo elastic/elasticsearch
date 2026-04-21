@@ -376,8 +376,7 @@ public class Reindexer {
      * <p>
      * On <strong>failure</strong>: skips closing when the failure is {@link TaskRelocatedException}, or when the task
      * has transitioned into {@link BulkByScrollTask.Lifecycle.State#RELOCATION_HANDOFF_INITIATED} so the destination
-     * can still adopt the PIT. A task that merely has {@link BulkByScrollTask#isRelocationRequested()} set but whose
-     * handoff was aborted by a racing cancel is treated as a normal failure and does close the PIT locally.
+     * can still adopt the PIT.
      * <p>
      * The wrapped listener is notified only after {@code closePit} completes (including any async remote close and
      * {@link RestClient#close()} for remote reindex).

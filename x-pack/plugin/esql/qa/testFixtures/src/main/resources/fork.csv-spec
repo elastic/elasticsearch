@@ -1011,4 +1011,56 @@ FROM books METADATA _score
 author:text | _fork:keyword | total:long
 ;
 
+forkWithFinalStatsCount
+required_capability: fork_v9
+required_capability: fork_prune_all_columns_fix
 
+from employees
+| stats x = count(*), y = count(*) by emp_no
+| FORK (where emp_no > 10050)
+| stats y = count(*)
+;
+
+y:long
+50
+;
+
+forkWithEmptyBranchOutputs
+required_capability: fork_v9
+required_capability: fork_prune_all_columns_fix
+
+from employees
+| fork ( stats salary = count(*)::int, z = count(*) by gender
+        | where NOT starts_with(gender, "v")
+        | eval gender = gender::keyword )
+       ( stats gender = values(gender), z = count(*) by salary
+        | where salary > 100000 )
+       ( where emp_no > 10050
+        | eval gender = gender::keyword )
+| sort salary
+| stats y = count(*)
+;
+
+y:long
+52
+;
+
+forkWithEmptyBranchOutputsAndNoRows
+required_capability: fork_v9
+required_capability: fork_prune_all_columns_fix
+
+from employees
+| fork ( stats salary = count(*)::int, z = count(*) by gender
+        | where starts_with(gender, "zzz")
+        | eval gender = gender::keyword )
+       ( stats gender = values(gender), z = count(*) by salary
+        | where salary < 0 )
+       ( where emp_no < 0
+        | eval gender = gender::keyword )
+| sort salary
+| stats y = count(*)
+;
+
+y:long
+0
+;

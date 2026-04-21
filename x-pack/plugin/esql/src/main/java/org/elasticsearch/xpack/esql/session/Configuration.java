@@ -435,6 +435,33 @@ public class Configuration implements Writeable {
         );
     }
 
+    /**
+     * Returns a copy of this configuration with the supplied timezone.
+     */
+    public Configuration withZoneId(ZoneId zoneId) {
+        return new Configuration(
+            zoneId,
+            now,
+            locale,
+            username,
+            clusterName,
+            pragmas,
+            resultTruncationMaxSizeRegular,
+            resultTruncationDefaultSizeRegular,
+            query,
+            profile,
+            tables,
+            queryStartTimeNanos,
+            allowPartialResults,
+            resultTruncationMaxSizeTimeseries,
+            resultTruncationDefaultSizeTimeseries,
+            projectRouting,
+            approximationSettings,
+            viewQueries,
+            explainOnly
+        );
+    }
+
     private static void writeQuery(StreamOutput out, String query) throws IOException {
         if (query.length() > QUERY_COMPRESS_THRESHOLD_CHARS) { // compare on chars to avoid UTF-8 encoding unless actually required
             out.writeBoolean(true);

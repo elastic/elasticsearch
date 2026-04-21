@@ -132,4 +132,127 @@ public class BraceExpanderTests extends ESTestCase {
     public void testExpandCapExceededByOneReturnsNull() {
         assertNull(BraceExpander.expand("{a,b}/{c,d}/{e,f}", 7));
     }
+
+    // -- numeric range expansion --
+
+    public void testExpandNumericRangeSimple() {
+        List<String> result = BraceExpander.expand("file-{1..5}.parquet", 100);
+        assertNotNull(result);
+        assertEquals(List.of("file-1.parquet", "file-2.parquet", "file-3.parquet", "file-4.parquet", "file-5.parquet"), result);
+    }
+
+    public void testExpandNumericRangeZeroPadded() {
+        List<String> result = BraceExpander.expand("file-{000..003}.parquet", 100);
+        assertNotNull(result);
+        assertEquals(List.of("file-000.parquet", "file-001.parquet", "file-002.parquet", "file-003.parquet"), result);
+    }
+
+    public void testExpandNumericRangeZeroPaddedMixedWidths() {
+        List<String> result = BraceExpander.expand("file-{08..12}.parquet", 100);
+        assertNotNull(result);
+        assertEquals(List.of("file-08.parquet", "file-09.parquet", "file-10.parquet", "file-11.parquet", "file-12.parquet"), result);
+    }
+
+    public void testExpandNumericRangeDescending() {
+        List<String> result = BraceExpander.expand("file-{5..1}.parquet", 100);
+        assertNotNull(result);
+        assertEquals(List.of("file-5.parquet", "file-4.parquet", "file-3.parquet", "file-2.parquet", "file-1.parquet"), result);
+    }
+
+    public void testExpandNumericRangeSingleValue() {
+        List<String> result = BraceExpander.expand("file-{7..7}.parquet", 100);
+        assertNotNull(result);
+        assertEquals(List.of("file-7.parquet"), result);
+    }
+
+    public void testExpandNumericRangeExceedsCap() {
+        assertNull(BraceExpander.expand("file-{1..200}.parquet", 100));
+    }
+
+    public void testExpandNumericRangeCombinedWithCommaGroup() {
+        List<String> result = BraceExpander.expand("{a,b}/file-{1..3}.csv", 100);
+        assertNotNull(result);
+        assertEquals(6, result.size());
+        assertTrue(result.contains("a/file-1.csv"));
+        assertTrue(result.contains("a/file-2.csv"));
+        assertTrue(result.contains("a/file-3.csv"));
+        assertTrue(result.contains("b/file-1.csv"));
+        assertTrue(result.contains("b/file-2.csv"));
+        assertTrue(result.contains("b/file-3.csv"));
+    }
+
+    public void testExpandNumericRangeFromZero() {
+        List<String> result = BraceExpander.expand("part-{0..2}.parquet", 100);
+        assertNotNull(result);
+        assertEquals(List.of("part-0.parquet", "part-1.parquet", "part-2.parquet"), result);
+    }
+
+    public void testExpandNumericRangeNoPaddingWithoutLeadingZero() {
+        List<String> result = BraceExpander.expand("file-{9..11}.parquet", 100);
+        assertNotNull(result);
+        assertEquals(List.of("file-9.parquet", "file-10.parquet", "file-11.parquet"), result);
+    }
+
+    public void testExpandNumericRangePaddingWithLeadingZeroOnStart() {
+        List<String> result = BraceExpander.expand("file-{09..11}.parquet", 100);
+        assertNotNull(result);
+        assertEquals(List.of("file-09.parquet", "file-10.parquet", "file-11.parquet"), result);
+    }
+
+    public void testIsBraceOnlyWithNumericRange() {
+        assertTrue(BraceExpander.isBraceOnly("file-{0..9}.parquet"));
+    }
+
+    public void testIsBraceOnlyWithNumericRangeAndStar() {
+        assertFalse(BraceExpander.isBraceOnly("dir/*/file-{0..9}.parquet"));
+    }
+
+    public void testExpandNumericRangeNotNumeric() {
+        List<String> result = BraceExpander.expand("{a..b}.parquet", 100);
+        assertNotNull(result);
+        assertEquals(List.of("a..b.parquet"), result);
+    }
+
+    public void testExpandNumericRangeLargeZeroPadded() {
+        List<String> result = BraceExpander.expand("shard-{000..099}.parquet", 200);
+        assertNotNull(result);
+        assertEquals(100, result.size());
+        assertEquals("shard-000.parquet", result.get(0));
+        assertEquals("shard-050.parquet", result.get(50));
+        assertEquals("shard-099.parquet", result.get(99));
+    }
+
+    public void testExpandNumericRangeDescendingWithPadding() {
+        List<String> result = BraceExpander.expand("file-{003..001}.parquet", 100);
+        assertNotNull(result);
+        assertEquals(List.of("file-003.parquet", "file-002.parquet", "file-001.parquet"), result);
+    }
+
+    public void testExpandNumericRangeExactlyAtCap() {
+        List<String> result = BraceExpander.expand("file-{1..100}.parquet", 100);
+        assertNotNull(result);
+        assertEquals(100, result.size());
+        assertEquals("file-1.parquet", result.get(0));
+        assertEquals("file-100.parquet", result.get(99));
+    }
+
+    public void testExpandCommaWinsOverRange() {
+        List<String> result = BraceExpander.expand("{1,2..3}.parquet", 100);
+        assertNotNull(result);
+        assertEquals(2, result.size());
+        assertEquals("1.parquet", result.get(0));
+        assertEquals("2..3.parquet", result.get(1));
+    }
+
+    public void testExpandNumericRangeZeroToZero() {
+        List<String> result = BraceExpander.expand("file-{0..0}.parquet", 100);
+        assertNotNull(result);
+        assertEquals(List.of("file-0.parquet"), result);
+    }
+
+    public void testExpandNumericRangeDoubleZeroPadded() {
+        List<String> result = BraceExpander.expand("file-{00..00}.parquet", 100);
+        assertNotNull(result);
+        assertEquals(List.of("file-00.parquet"), result);
+    }
 }

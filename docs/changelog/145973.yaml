@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 145973
-summary: "Feat(ES|QL): add analyzer option in `TOP_SNIPPETS`"
+summary: "Add analyzer option in ES|QL `TOP_SNIPPETS` function"
 type: enhancement

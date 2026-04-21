@@ -16,7 +16,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -419,8 +418,7 @@ public class OsStats implements Writeable, ToXContentFragment {
          *
          * @return the period of time in microseconds
          */
-        @Nullable
-        public Long getCpuCfsPeriodMicros() {
+        public long getCpuCfsPeriodMicros() {
             return cpuCfsPeriodMicros;
         }
 
@@ -431,8 +429,7 @@ public class OsStats implements Writeable, ToXContentFragment {
          *
          * @return the total amount of time in microseconds
          */
-        @Nullable
-        public Long getCpuCfsQuotaMicros() {
+        public long getCpuCfsQuotaMicros() {
             return cpuCfsQuotaMicros;
         }
 

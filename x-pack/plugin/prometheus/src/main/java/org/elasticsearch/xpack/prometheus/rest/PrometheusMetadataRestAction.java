@@ -36,7 +36,7 @@ public class PrometheusMetadataRestAction extends BaseRestHandler {
     private static final String METRIC_PARAM = "metric";
     private static final String INDEX_PARAM = "index";
 
-    private static final int DEFAULT_LIMIT = 0;
+    private static final int DEFAULT_LIMIT = 0; // 0 = no explicit limit, matching Prometheus semantics
 
     @Override
     public String getName() {

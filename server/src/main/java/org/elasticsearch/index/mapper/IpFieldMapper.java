@@ -41,17 +41,15 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxBytesRefsFro
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinBytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinBytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermQuery;
+import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesRangeQuery;
 import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
-import org.elasticsearch.script.SortedBinaryDocValuesIpFieldScript;
 import org.elasticsearch.script.field.IpDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.runtime.IpScriptFieldRangeQuery;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentString;
 
@@ -415,18 +413,7 @@ public class IpFieldMapper extends FieldMapper {
             final BytesRef upper = new BytesRef(pointRangeQuery.getUpperPoint());
 
             if (usesBinaryDocValues) {
-                if (lower.bytesEquals(upper)) {
-                    return new SlowCustomBinaryDocValuesTermQuery(field, lower);
-                } else {
-                    // TODO: This is likely very slow
-                    return new IpScriptFieldRangeQuery(
-                        new Script(""),
-                        ctx -> new SortedBinaryDocValuesIpFieldScript(pointRangeQuery.getField(), context.lookup(), ctx),
-                        field,
-                        lower,
-                        upper
-                    );
-                }
+                return new SlowCustomBinaryDocValuesRangeQuery(field, lower, upper);
             } else {
                 return SortedSetDocValuesField.newSlowRangeQuery(field, lower, upper, true, true);
             }
@@ -820,7 +807,7 @@ public class IpFieldMapper extends FieldMapper {
                             new BinaryWithOffsetsDocValuesSyntheticFieldLoaderLayer(fullPath(), offsetsFieldName, IpFieldMapper::convert)
                         );
                     } else {
-                        layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fullPath()) {
+                        layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fullPath(), indexSettings.getIndexVersionCreated()) {
                             @Override
                             protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
                                 BytesRef converted = IpFieldMapper.convert(value);

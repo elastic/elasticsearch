@@ -14,7 +14,6 @@ import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.elasticsearch.simdvec.MemorySegmentAccessInputAccess;
@@ -24,18 +23,18 @@ import java.lang.foreign.MemorySegment;
 import java.util.Optional;
 
 import static org.elasticsearch.simdvec.internal.Similarities.dotProductF32;
-import static org.elasticsearch.simdvec.internal.Similarities.dotProductF32BulkWithOffsets;
+import static org.elasticsearch.simdvec.internal.Similarities.dotProductF32BulkSparse;
 import static org.elasticsearch.simdvec.internal.Similarities.squareDistanceF32;
-import static org.elasticsearch.simdvec.internal.Similarities.squareDistanceF32BulkWithOffsets;
+import static org.elasticsearch.simdvec.internal.Similarities.squareDistanceF32BulkSparse;
 import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 
 public abstract sealed class FloatVectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
 
     final int dimensions;
     final int vectorByteSize;
-    final MemorySegmentAccessInput input;
+    final IndexInput input;
     final MemorySegment query;
-    byte[] scratch;
+    final FixedSizeScratch scratch;
 
     public static Optional<RandomVectorScorer> create(VectorSimilarityFunction sim, FloatVectorValues values, float[] queryVector) {
         if (SUPPORTS_HEAP_SEGMENTS == false) {
@@ -48,39 +47,23 @@ public abstract sealed class FloatVectorScorer extends RandomVectorScorer.Abstra
         }
         input = FilterIndexInput.unwrapOnlyTest(input);
         input = MemorySegmentAccessInputAccess.unwrap(input);
-        if (input instanceof MemorySegmentAccessInput msInput) {
-            checkInvariants(values.size(), values.dimension(), input);
+        checkInvariants(values.size(), values.dimension(), input);
 
-            return switch (sim) {
-                case COSINE, DOT_PRODUCT -> Optional.of(new DotProductScorer(msInput, values, queryVector));
-                case EUCLIDEAN -> Optional.of(new EuclideanScorer(msInput, values, queryVector));
-                case MAXIMUM_INNER_PRODUCT -> Optional.of(new MaxInnerProductScorer(msInput, values, queryVector));
-            };
-        }
-        return Optional.empty();
+        return switch (sim) {
+            case COSINE, DOT_PRODUCT -> Optional.of(new DotProductScorer(input, values, queryVector));
+            case EUCLIDEAN -> Optional.of(new EuclideanScorer(input, values, queryVector));
+            case MAXIMUM_INNER_PRODUCT -> Optional.of(new MaxInnerProductScorer(input, values, queryVector));
+        };
     }
 
-    FloatVectorScorer(MemorySegmentAccessInput input, FloatVectorValues values, float[] queryVector) {
+    FloatVectorScorer(IndexInput input, FloatVectorValues values, float[] queryVector) {
         super(values);
         this.input = input;
         assert queryVector.length == values.dimension();
         this.dimensions = values.dimension();
         this.vectorByteSize = values.getVectorByteLength();
         this.query = MemorySegment.ofArray(queryVector);
-    }
-
-    final MemorySegment getSegment(int ord) throws IOException {
-        checkOrdinal(ord);
-        long byteOffset = (long) ord * vectorByteSize;
-        MemorySegment seg = input.segmentSliceOrNull(byteOffset, vectorByteSize);
-        if (seg == null) {
-            if (scratch == null) {
-                scratch = new byte[vectorByteSize];
-            }
-            input.readBytes(byteOffset, scratch, 0, vectorByteSize);
-            seg = MemorySegment.ofArray(scratch);
-        }
-        return seg;
+        this.scratch = new FixedSizeScratch(vectorByteSize);
     }
 
     static void checkInvariants(int maxOrd, int vectorByteLength, IndexInput input) {
@@ -96,14 +79,22 @@ public abstract sealed class FloatVectorScorer extends RandomVectorScorer.Abstra
     }
 
     public static final class DotProductScorer extends FloatVectorScorer {
-        public DotProductScorer(MemorySegmentAccessInput in, FloatVectorValues values, float[] query) {
+        public DotProductScorer(IndexInput in, FloatVectorValues values, float[] query) {
             super(in, values, query);
         }
 
         @Override
         public float score(int node) throws IOException {
             checkOrdinal(node);
-            float dotProduct = dotProductF32(query, getSegment(node), dimensions);
+            long byteOffset = (long) node * vectorByteSize;
+            input.seek(byteOffset);
+            float dotProduct = IndexInputUtils.withSlice(
+                input,
+                vectorByteSize,
+                scratch::getScratch,
+                memorySegment -> dotProductF32(query, memorySegment, dimensions)
+            );
+
             return VectorUtil.normalizeToUnitInterval(dotProduct);
         }
 
@@ -112,15 +103,19 @@ public abstract sealed class FloatVectorScorer extends RandomVectorScorer.Abstra
             if (numNodes == 0) {
                 return Float.NEGATIVE_INFINITY;
             }
-            MemorySegment vectorsSeg = input.segmentSliceOrNull(0, input.length());
-            if (vectorsSeg == null) {
-                return super.bulkScore(nodes, scores, numNodes);
-            } else {
-                var ordinalsSeg = MemorySegment.ofArray(nodes);
-                var scoresSeg = MemorySegment.ofArray(scores);
 
-                dotProductF32BulkWithOffsets(vectorsSeg, query, dimensions, vectorByteSize, ordinalsSeg, numNodes, scoresSeg);
-
+            long[] offsets = new long[numNodes];
+            for (int i = 0; i < numNodes; i++) {
+                offsets[i] = (long) nodes[i] * vectorByteSize;
+            }
+            boolean resolved = IndexInputUtils.withSliceAddresses(
+                input,
+                offsets,
+                vectorByteSize,
+                numNodes,
+                addrs -> dotProductF32BulkSparse(addrs, query, dimensions, numNodes, MemorySegment.ofArray(scores))
+            );
+            if (resolved) {
                 float max = Float.NEGATIVE_INFINITY;
                 for (int i = 0; i < numNodes; ++i) {
                     scores[i] = VectorUtil.normalizeToUnitInterval(scores[i]);
@@ -128,18 +123,26 @@ public abstract sealed class FloatVectorScorer extends RandomVectorScorer.Abstra
                 }
                 return max;
             }
+            return super.bulkScore(nodes, scores, numNodes);
         }
     }
 
     public static final class EuclideanScorer extends FloatVectorScorer {
-        public EuclideanScorer(MemorySegmentAccessInput in, FloatVectorValues values, float[] query) {
+        public EuclideanScorer(IndexInput in, FloatVectorValues values, float[] query) {
             super(in, values, query);
         }
 
         @Override
         public float score(int node) throws IOException {
             checkOrdinal(node);
-            float sqDist = squareDistanceF32(query, getSegment(node), dimensions);
+            long byteOffset = (long) node * vectorByteSize;
+            input.seek(byteOffset);
+            float sqDist = IndexInputUtils.withSlice(
+                input,
+                vectorByteSize,
+                scratch::getScratch,
+                memorySegment -> squareDistanceF32(query, memorySegment, dimensions)
+            );
             return VectorUtil.normalizeDistanceToUnitInterval(sqDist);
         }
 
@@ -148,15 +151,19 @@ public abstract sealed class FloatVectorScorer extends RandomVectorScorer.Abstra
             if (numNodes == 0) {
                 return Float.NEGATIVE_INFINITY;
             }
-            MemorySegment vectorsSeg = input.segmentSliceOrNull(0, input.length());
-            if (vectorsSeg == null) {
-                return super.bulkScore(nodes, scores, numNodes);
-            } else {
-                var ordinalsSeg = MemorySegment.ofArray(nodes);
-                var scoresSeg = MemorySegment.ofArray(scores);
 
-                squareDistanceF32BulkWithOffsets(vectorsSeg, query, dimensions, vectorByteSize, ordinalsSeg, numNodes, scoresSeg);
-
+            long[] offsets = new long[numNodes];
+            for (int i = 0; i < numNodes; i++) {
+                offsets[i] = (long) nodes[i] * vectorByteSize;
+            }
+            boolean resolved = IndexInputUtils.withSliceAddresses(
+                input,
+                offsets,
+                vectorByteSize,
+                numNodes,
+                addrs -> squareDistanceF32BulkSparse(addrs, query, dimensions, numNodes, MemorySegment.ofArray(scores))
+            );
+            if (resolved) {
                 float max = Float.NEGATIVE_INFINITY;
                 for (int i = 0; i < numNodes; ++i) {
                     scores[i] = VectorUtil.normalizeDistanceToUnitInterval(scores[i]);
@@ -164,18 +171,26 @@ public abstract sealed class FloatVectorScorer extends RandomVectorScorer.Abstra
                 }
                 return max;
             }
+            return super.bulkScore(nodes, scores, numNodes);
         }
     }
 
     public static final class MaxInnerProductScorer extends FloatVectorScorer {
-        public MaxInnerProductScorer(MemorySegmentAccessInput in, FloatVectorValues values, float[] query) {
+        public MaxInnerProductScorer(IndexInput in, FloatVectorValues values, float[] query) {
             super(in, values, query);
         }
 
         @Override
         public float score(int node) throws IOException {
             checkOrdinal(node);
-            float dotProduct = dotProductF32(query, getSegment(node), dimensions);
+            long byteOffset = (long) node * vectorByteSize;
+            input.seek(byteOffset);
+            float dotProduct = IndexInputUtils.withSlice(
+                input,
+                vectorByteSize,
+                scratch::getScratch,
+                memorySegment -> dotProductF32(query, memorySegment, dimensions)
+            );
             return VectorUtil.scaleMaxInnerProductScore(dotProduct);
         }
 
@@ -184,15 +199,19 @@ public abstract sealed class FloatVectorScorer extends RandomVectorScorer.Abstra
             if (numNodes == 0) {
                 return Float.NEGATIVE_INFINITY;
             }
-            MemorySegment vectorsSeg = input.segmentSliceOrNull(0, input.length());
-            if (vectorsSeg == null) {
-                return super.bulkScore(nodes, scores, numNodes);
-            } else {
-                var ordinalsSeg = MemorySegment.ofArray(nodes);
-                var scoresSeg = MemorySegment.ofArray(scores);
 
-                dotProductF32BulkWithOffsets(vectorsSeg, query, dimensions, vectorByteSize, ordinalsSeg, numNodes, scoresSeg);
-
+            long[] offsets = new long[numNodes];
+            for (int i = 0; i < numNodes; i++) {
+                offsets[i] = (long) nodes[i] * vectorByteSize;
+            }
+            boolean resolved = IndexInputUtils.withSliceAddresses(
+                input,
+                offsets,
+                vectorByteSize,
+                numNodes,
+                addrs -> dotProductF32BulkSparse(addrs, query, dimensions, numNodes, MemorySegment.ofArray(scores))
+            );
+            if (resolved) {
                 float max = Float.NEGATIVE_INFINITY;
                 for (int i = 0; i < numNodes; ++i) {
                     scores[i] = VectorUtil.scaleMaxInnerProductScore(scores[i]);
@@ -200,6 +219,7 @@ public abstract sealed class FloatVectorScorer extends RandomVectorScorer.Abstra
                 }
                 return max;
             }
+            return super.bulkScore(nodes, scores, numNodes);
         }
     }
 

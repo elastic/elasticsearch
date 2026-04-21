@@ -289,3 +289,40 @@
   - match: { values.2.1: "2024-08-01T00:00:00.000Z" }
   - match: { values.3.0: 1 }
   - match: { values.3.1: "2024-09-01T00:00:00.000Z" }
+
+---
+"BUCKET column metadata in REST response":
+  - requires:
+      test_runner_features: [allowed_warnings_regex, capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [bucket_column_metadata]
+      reason: "BUCKET exposes interval metadata on grouping columns"
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'ROW date=TO_DATETIME("1985-07-09T00:00:00.000Z") | STATS date=VALUES(date) BY bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")'
+
+  - match: { columns.0.name: date }
+  - match: { columns.1.name: bucket }
+  - match: { columns.1.type: date }
+  - match: { columns.1._meta.bucket.interval: 1 }
+  - match: { columns.1._meta.bucket.unit: month }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'ROW x = 1 | STATS c = COUNT(*) BY b = BUCKET(x, 10)'
+
+  - match: { columns.0.name: c }
+  - match: { columns.0.type: long }
+  - match: { columns.1.name: b }
+  - match: { columns.1.type: double }
+  - match: { columns.1._meta.bucket.interval: 10.0 }

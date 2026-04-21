@@ -10,6 +10,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -17,6 +18,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -36,6 +38,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.lang.Math.min;
 import static java.util.Collections.emptyList;
@@ -63,7 +66,11 @@ public class BulkByScrollTask extends CancellableTask {
     private volatile LeaderBulkByScrollTaskState leaderState;
     private volatile WorkerBulkByScrollTaskState workerState;
     private volatile boolean relocationRequested = false;
-    private volatile boolean relocationHandoffInitiated = false;
+    /**
+     * Coordinates relocation handoff with cancellation so the two operations are mutually exclusive.
+     * See {@link Lifecycle} for details of the state machine.
+     */
+    private final Lifecycle lifecycle = new Lifecycle();
 
     public BulkByScrollTask(
         TaskId taskId,
@@ -187,6 +194,22 @@ public class BulkByScrollTask extends CancellableTask {
         return workerState;
     }
 
+    /**
+     * Claims cancellation via the task {@link Lifecycle}. Throws {@link ElasticsearchStatusException} with
+     * {@link RestStatus#CONFLICT} if the relocation handoff has already been initiated, because the continuation of
+     * this task is being resumed on the destination node and cancelling the source here would leave the resumed task
+     * running on the destination unaware. A concurrent cancel on the same side is treated as success for idempotency.
+     */
+    @Override
+    public void ensureCancellable() {
+        if (lifecycle.tryPrepareCancellation() == false) {
+            throw new ElasticsearchStatusException(
+                "cannot cancel task [" + getId() + "] because it is being relocated",
+                RestStatus.CONFLICT
+            );
+        }
+    }
+
     @Override
     public void onCancelled() {
         /*
@@ -231,10 +254,17 @@ public class BulkByScrollTask extends CancellableTask {
     }
 
     /**
-     * Marks that this task has initiated a relocation handoff (the resume request has been sent to the destination).
+     * Claims handoff via the task {@link Lifecycle}. Returns {@code false} only if a concurrent cancellation has won
+     * the race; callers must then abort the handoff. Idempotent: a concurrent handoff on the same side is treated as
+     * success. See {@link Lifecycle#tryInitiateHandoff()}.
      */
-    public void setRelocationHandoffInitiated() {
-        this.relocationHandoffInitiated = true;
+    public boolean tryInitiateRelocationHandoff() {
+        return lifecycle.tryInitiateHandoff();
+    }
+
+    /** Visible for testing */
+    protected Lifecycle getLifecycle() {
+        return lifecycle;
     }
 
     /**
@@ -243,7 +273,11 @@ public class BulkByScrollTask extends CancellableTask {
      */
     @Override
     public boolean useCreateSemanticsForResultStorage() {
-        return relocationHandoffInitiated;
+        return isRelocationHandoffInitiated();
+    }
+
+    public boolean isRelocationHandoffInitiated() {
+        return lifecycle.current() == Lifecycle.State.RELOCATION_HANDOFF_INITIATED;
     }
 
     /** Returns the relocation origin if this task is a relocated continuation. */
@@ -262,6 +296,57 @@ public class BulkByScrollTask extends CancellableTask {
             return Optional.of(new OriginalTaskInfo(relocationOrigin.originalTaskId(), relocationOrigin.originalStartTimeMillis()));
         } else {
             return Optional.empty();
+        }
+    }
+
+    /**
+     * Life cycle of the task that coordinates relocation and operations such as task cancellation to prevent race conditions.
+     * Transitions for relocation and cancellation are mutually exclusive — once one side CASes out of {@link State#ACTIVE}, the
+     * other observes the new state and bails out rather than double-committing.
+     */
+    public static final class Lifecycle {
+
+        /**
+         * Lifecycle states. Transitions only go {@code ACTIVE} -> {@code RELOCATION_HANDOFF_INITIATED} or {@code ACTIVE} ->
+         * {@code CANCELLING}; non-{@code ACTIVE} states are terminal.
+         */
+        public enum State {
+            /** No relocation handoff has started and no cancellation is in progress. */
+            ACTIVE,
+            /** The relocation handoff has been initiated (the resume request has been sent to the destination). */
+            RELOCATION_HANDOFF_INITIATED,
+            /** Cancellation of this task has begun; relocation must not proceed from this point. */
+            CANCELLING
+        }
+
+        private final AtomicReference<State> state = new AtomicReference<>(State.ACTIVE);
+
+        public State current() {
+            return state.get();
+        }
+
+        /**
+         * Claims the relocation handoff. Returns {@code false} only if cancellation has committed
+         * ({@link State#CANCELLING}); any other non-{@code ACTIVE} state (including a concurrent handoff on the same
+         * side and any future lifecycle state) is treated as idempotent success.
+         */
+        public boolean tryInitiateHandoff() {
+            if (state.compareAndSet(State.ACTIVE, State.RELOCATION_HANDOFF_INITIATED)) {
+                return true;
+            }
+            return state.get() != State.CANCELLING;
+        }
+
+        /**
+         * Claims cancellation. Returns {@code false} only if the relocation handoff has committed
+         * ({@link State#RELOCATION_HANDOFF_INITIATED}); any other non-{@code ACTIVE} state (including a concurrent cancellation
+         * on the same side and any future lifecycle state) is treated as idempotent success.
+         */
+        public boolean tryPrepareCancellation() {
+            if (state.compareAndSet(State.ACTIVE, State.CANCELLING)) {
+                return true;
+            }
+            return state.get() != State.RELOCATION_HANDOFF_INITIATED;
         }
     }
 

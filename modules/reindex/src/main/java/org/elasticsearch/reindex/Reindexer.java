@@ -78,6 +78,7 @@ import org.elasticsearch.script.ReindexScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.tasks.TaskResult;
@@ -373,8 +374,10 @@ public class Reindexer {
      * (relocation handoff to another node) or {@code shouldNotCloseOnResponse} is true (e.g. a sliced worker whose leader
      * owns the shared PIT).
      * <p>
-     * On <strong>failure</strong>: skips closing when the failure is {@link TaskRelocatedException}, or when
-     * {@link BulkByScrollTask#isRelocationRequested()} is true so a relocated task can still adopt the PIT.
+     * On <strong>failure</strong>: skips closing when the failure is {@link TaskRelocatedException}, or when the task
+     * has transitioned into {@link BulkByScrollTask.Lifecycle.State#RELOCATION_HANDOFF_INITIATED} so the destination
+     * can still adopt the PIT. A task that merely has {@link BulkByScrollTask#isRelocationRequested()} set but whose
+     * handoff was aborted by a racing cancel is treated as a normal failure and does close the PIT locally.
      * <p>
      * The wrapped listener is notified only after {@code closePit} completes (including any async remote close and
      * {@link RestClient#close()} for remote reindex).
@@ -431,7 +434,7 @@ public class Reindexer {
 
             @Override
             public void onFailure(Exception e) {
-                boolean skipClose = e instanceof TaskRelocatedException || (task != null && task.isRelocationRequested());
+                boolean skipClose = e instanceof TaskRelocatedException || (task != null && task.isRelocationHandoffInitiated());
                 if (skipClose == false) {
                     closePit.accept(pitId, ActionListener.wrap(v -> listener.onFailure(e), listener::onFailure));
                 } else {
@@ -738,7 +741,17 @@ public class Reindexer {
                 onRelocationResponseListener.onFailure(e);
                 l.onFailure(e);
             });
-            task.setRelocationHandoffInitiated();
+            // Atomically claim the "handoff initiated" transition. If a cancel won this race the task's lifecycle is
+            // CANCELLING, and we must abort relocation so the task is not resumed on the destination node while the
+            // source is being cancelled.
+            if (task.tryInitiateRelocationHandoff() == false) {
+                final TaskCancelledException cancelled = new TaskCancelledException(
+                    "task cancelled before relocation handoff could begin [" + task.getReasonCancelled() + "]"
+                );
+                onRelocationResponseListener.onFailure(cancelled);
+                l.onFailure(cancelled);
+                return;
+            }
             transportService.sendRequest(
                 nodeToRelocateToNode,
                 ResumeReindexAction.NAME,

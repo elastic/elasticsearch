@@ -86,6 +86,13 @@ public class CancellableTask extends Task {
     }
 
     /**
+     * Called before a cancellation request is applied to this task. Subclasses may veto the cancellation by throwing;
+     * the thrown exception is propagated back to the caller of the cancel API as a per-task failure. The default
+     * implementation is a no-op.
+     */
+    public void ensureCancellable() {}
+
+    /**
      * Called after the task is cancelled so that it can take any actions that it has to take.
      */
     protected void onCancelled() {}

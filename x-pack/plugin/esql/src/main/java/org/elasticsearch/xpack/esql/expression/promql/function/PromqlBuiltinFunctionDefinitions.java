@@ -10,7 +10,11 @@ package org.elasticsearch.xpack.esql.expression.promql.function;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Scalar;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateExtract;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
+
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoField;
 
 /**
  * PromQL built-in function definitions that do not correspond to a dedicated ES|QL function class.
@@ -32,6 +36,18 @@ class PromqlBuiltinFunctionDefinitions {
             If the input vector does not have exactly one element, scalar returns NaN.""")
         .example("scalar(sum(http_requests_total))")
         .name("scalar");
+
+    static final PromqlFunctionDefinition YEAR = PromqlFunctionDefinition.def()
+        .dateTime(
+            (source, date, configuration) -> new ToDouble(
+                source,
+                new DateExtract(source, Literal.keyword(source, ChronoField.YEAR.name()), date, configuration.withZoneId(ZoneOffset.UTC))
+            )
+        )
+        .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
+        .description("returns the year of each of those timestamps (in UTC)")
+        .example("year()")
+        .name("year");
 
     static final PromqlFunctionDefinition TIME = PromqlFunctionDefinition.def()
         .scalarWithStep((source, step) -> new Div(source, new ToDouble(source, step), Literal.fromDouble(source, 1000.0)))

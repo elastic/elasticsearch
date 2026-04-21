@@ -136,7 +136,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         // change to be async, we'll have to unwrap the breaker if it's a LocalBreaker.
         var breaker = blockFactory.breaker();
         var allocator = new CircuitBreakerByteBufferAllocator(new HeapByteBufferAllocator(), breaker);
-        return ParquetReadOptions.builder(new PlainParquetConfiguration()).withAllocator(allocator);
+        return ParquetReadOptions.builder(new PlainParquetConfiguration())
+            .withAllocator(allocator)
+            .withCodecFactory(new PlainCompressionCodecFactory());
     }
 
     /**
@@ -195,12 +197,17 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         Map<String, long[]> nullCounts = new HashMap<>();
         Map<String, Comparable[]> mins = new HashMap<>();
         Map<String, Comparable[]> maxs = new HashMap<>();
+        Map<String, long[]> colSizes = new HashMap<>();
 
         for (BlockMetaData rowGroup : rowGroups) {
             totalRows += rowGroup.getRowCount();
             totalSize += rowGroup.getTotalByteSize();
             for (ColumnChunkMetaData col : rowGroup.getColumns()) {
                 String colName = col.getPath().toDotString();
+                colSizes.merge(colName, new long[] { col.getTotalUncompressedSize() }, (a, b) -> {
+                    a[0] += b[0];
+                    return a;
+                });
                 Statistics stats = col.getStatistics();
                 if (stats == null || stats.isEmpty()) {
                     continue;
@@ -210,13 +217,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
                     return a;
                 });
                 if (stats.hasNonNullValue()) {
-                    mins.merge(colName, new Comparable[] { stats.genericGetMin() }, (a, b) -> {
+                    mins.merge(colName, new Comparable[] { (Comparable) normalizeStatValue(stats.genericGetMin()) }, (a, b) -> {
                         @SuppressWarnings("unchecked")
                         int cmp = a[0].compareTo(b[0]);
                         if (cmp > 0) a[0] = b[0];
                         return a;
                     });
-                    maxs.merge(colName, new Comparable[] { stats.genericGetMax() }, (a, b) -> {
+                    maxs.merge(colName, new Comparable[] { (Comparable) normalizeStatValue(stats.genericGetMax()) }, (a, b) -> {
                         @SuppressWarnings("unchecked")
                         int cmp = a[0].compareTo(b[0]);
                         if (cmp < 0) a[0] = b[0];
@@ -234,10 +241,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             long[] nc = nullCounts.get(name);
             Comparable[] mn = mins.get(name);
             Comparable[] mx = maxs.get(name);
-            if (nc != null || mn != null || mx != null) {
+            long[] cs = colSizes.get(name);
+            if (nc != null || mn != null || mx != null || cs != null) {
                 final long nullCount = nc != null ? nc[0] : 0;
                 final Object minVal = mn != null ? mn[0] : null;
                 final Object maxVal = mx != null ? mx[0] : null;
+                final long colSize = cs != null ? cs[0] : -1;
                 columnStats.put(name, new SourceStatistics.ColumnStatistics() {
                     @Override
                     public OptionalLong nullCount() {
@@ -257,6 +266,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
                     @Override
                     public Optional<Object> maxValue() {
                         return Optional.ofNullable(maxVal);
+                    }
+
+                    @Override
+                    public OptionalLong sizeInBytes() {
+                        return colSize >= 0 ? OptionalLong.of(colSize) : OptionalLong.empty();
                     }
                 });
             }
@@ -399,17 +413,30 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         stats.put(SourceStatisticsSerializer.STATS_SIZE_BYTES, rowGroup.getTotalByteSize());
         for (ColumnChunkMetaData col : rowGroup.getColumns()) {
             String colName = col.getPath().toDotString();
+            stats.put(SourceStatisticsSerializer.columnSizeBytesKey(colName), col.getTotalUncompressedSize());
             Statistics colStats = col.getStatistics();
             if (colStats == null || colStats.isEmpty()) {
                 continue;
             }
             stats.put(SourceStatisticsSerializer.columnNullCountKey(colName), colStats.getNumNulls());
             if (colStats.hasNonNullValue()) {
-                stats.put(SourceStatisticsSerializer.columnMinKey(colName), colStats.genericGetMin());
-                stats.put(SourceStatisticsSerializer.columnMaxKey(colName), colStats.genericGetMax());
+                stats.put(SourceStatisticsSerializer.columnMinKey(colName), normalizeStatValue(colStats.genericGetMin()));
+                stats.put(SourceStatisticsSerializer.columnMaxKey(colName), normalizeStatValue(colStats.genericGetMax()));
             }
         }
         return Map.copyOf(stats);
+    }
+
+    /**
+     * Normalizes Parquet-specific stat values to types that Elasticsearch can serialize.
+     * Parquet {@link Binary} (used for BYTE_ARRAY / string columns) is converted to String;
+     * these must be converted to {@code String} before entering the metadata map.
+     */
+    private static Object normalizeStatValue(Object value) {
+        if (value instanceof Binary binary) {
+            return binary.toStringUsingUTF8();
+        }
+        return value;
     }
 
     static List<SplitRange> coalesceRowGroupRanges(List<SplitRange> rowGroupRanges, long targetBytes) {

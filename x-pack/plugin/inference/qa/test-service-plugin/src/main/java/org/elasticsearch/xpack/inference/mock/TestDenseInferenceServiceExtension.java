@@ -186,7 +186,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             ActionListener<List<ChunkedInference>> listener
         ) {
             switch (model.getConfigurations().getTaskType()) {
-                case ANY, TEXT_EMBEDDING, EMBEDDING -> {
+                case TEXT_EMBEDDING, EMBEDDING -> {
                     ServiceSettings modelServiceSettings = model.getServiceSettings();
                     listener.onResponse(makeChunkedResults(input, modelServiceSettings));
                 }

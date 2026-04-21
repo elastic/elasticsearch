@@ -337,16 +337,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected String minimalIsInvalidRoutingPathErrorMessage(Mapper mapper) {
-        if (useLegacyFormat) {
-            // Legacy format stores inference results in nested objects, which are incompatible with
-            // the index sort required by time_series mode, so validation fails before the routing_path check.
-            return "cannot have nested fields when index sort is activated";
-        }
-        return super.minimalIsInvalidRoutingPathErrorMessage(mapper);
-    }
-
-    @Override
     protected void metaMapping(XContentBuilder b) throws IOException {
         super.metaMapping(b);
         b.field(INFERENCE_ID_FIELD, DEFAULT_EIS_JINA_V5_INFERENCE_ID);

@@ -645,10 +645,21 @@ public class ViewResolver {
         plans.put(firstKey, merged);
     }
 
-    /** Merge the unresolved relation unless the index patterns contain matching index names */
+    /**
+     * Merge the unresolved relation unless the index patterns contain matching index names, or either side
+     * carries an exclusion. Exclusions are positional within a comma-separated index expression, so naively
+     * concatenating two patterns can change semantics: e.g. {@code FROM logs*} merged with {@code FROM -logs1}
+     * yields {@code logs*,-logs1}, which excludes {@code logs1} from a sibling branch's includes. When the
+     * two URs are kept independent (each in its own subquery), the union semantics are preserved.
+     */
     private static UnresolvedRelation mergeIfPossible(UnresolvedRelation main, UnresolvedRelation other) {
-        for (String mainPattern : main.indexPattern().indexPattern().split(",")) {
-            for (String otherPattern : other.indexPattern().indexPattern().split(",")) {
+        String[] mainPatterns = main.indexPattern().indexPattern().split(",");
+        String[] otherPatterns = other.indexPattern().indexPattern().split(",");
+        if (containsExclusion(mainPatterns) || containsExclusion(otherPatterns)) {
+            return null;
+        }
+        for (String mainPattern : mainPatterns) {
+            for (String otherPattern : otherPatterns) {
                 if (mainPattern.equals(otherPattern)) {
                     // A duplicate index name was found, fail this attempt to merge
                     // This will cause the UnresolvedRelation to remain inside a subquery
@@ -665,6 +676,15 @@ public class ViewResolver {
             main.indexMode(),
             main.unresolvedMessage()
         );
+    }
+
+    private static boolean containsExclusion(String[] patterns) {
+        for (String p : patterns) {
+            if (RemoteClusterAware.isIndexExclusion(p)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

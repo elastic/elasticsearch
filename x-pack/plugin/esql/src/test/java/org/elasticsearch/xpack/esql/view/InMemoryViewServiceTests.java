@@ -421,6 +421,34 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(as(rewritten, UnresolvedRelation.class).indexPattern().indexPattern(), equalTo("emp,index1"));
     }
 
+    public void testSiblingViewsWithExclusionAreNotMerged() {
+        addIndex("logs1");
+        addIndex("logs2");
+        addView("v1", "FROM logs*");
+        addView("v2", "FROM -logs1");
+        LogicalPlan plan = query("FROM v1, v2");
+        LogicalPlan rewritten = replaceViews(plan);
+        assertThat(rewritten, instanceOf(ViewUnionAll.class));
+        ViewUnionAll vua = as(rewritten, ViewUnionAll.class);
+        assertThat(vua.namedSubqueries().keySet(), containsInAnyOrder("v1", "v2"));
+        assertThat(
+            as(vua.namedSubqueries().get("v1"), UnresolvedRelation.class).indexPattern().indexPattern(),
+            equalTo("logs*")
+        );
+        assertThat(
+            as(vua.namedSubqueries().get("v2"), UnresolvedRelation.class).indexPattern().indexPattern(),
+            equalTo("-logs1")
+        );
+    }
+
+    public void testSiblingExclusionViewWithIndexIsNotMerged() {
+        addIndex("logs1");
+        addView("v_excl", "FROM -logs1");
+        LogicalPlan plan = query("FROM logs1, v_excl");
+        LogicalPlan rewritten = replaceViews(plan);
+        assertThat(rewritten, instanceOf(ViewUnionAll.class));
+    }
+
     public void testMissingIndexPreservedWhenMixedWithView() {
         addView("view1", "FROM emp");
         LogicalPlan plan = query("FROM view1, missing-index");

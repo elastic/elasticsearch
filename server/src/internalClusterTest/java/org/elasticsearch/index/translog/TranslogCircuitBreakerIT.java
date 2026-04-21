@@ -22,6 +22,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.After;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -60,13 +61,13 @@ public class TranslogCircuitBreakerIT extends ESIntegTestCase {
             Settings.builder()
                 .put(
                     HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(),
-                    ByteSizeValue.ofBytes(3L * PageCacheRecycler.BYTE_PAGE_SIZE).getStringRep()
+                    ByteSizeValue.ofBytes(2L * PageCacheRecycler.BYTE_PAGE_SIZE).getStringRep()
                 )
         );
 
         try {
             prepareIndex("test").setId("2").setSource("field", "x".repeat(2 * PageCacheRecycler.BYTE_PAGE_SIZE)).get();
-            fail("expected the index request to fail due to the circuit breaker trip in the translog write buffer");
+            fail("expected the index request to fail due to circuit breaker tripping");
         } catch (final Exception ignored) {
             // Expected
         }
@@ -82,25 +83,16 @@ public class TranslogCircuitBreakerIT extends ESIntegTestCase {
             // Expected
         }
 
-        // The on-disk translog is intact (the CB trip was in the in-memory write buffer, not yet
-        // flushed to disk). The primary term is incremented when the failed primary is re-allocated,
-        // and once re-allocated the cluster returns to GREEN.
+        // The primary term is incremented when the failed primary is re-allocated.
         assertBusy(() -> {
             assertThat(
-                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
-                    .get()
-                    .getState()
-                    .metadata()
-                    .getProject()
-                    .index("test")
-                    .primaryTerm(0),
+                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().getProject().index("test").primaryTerm(0),
                 greaterThan(primaryTermBefore)
             );
-            assertThat(
-                clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, "test").get().getStatus(),
-                equalTo(ClusterHealthStatus.GREEN)
-            );
+            assertThat(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, "test").get().getStatus(), equalTo(ClusterHealthStatus.GREEN));
         });
+
+        assertHitCount(prepareSearch("test"), 1);
     }
 
     private boolean circuitBreakerDisabled() {

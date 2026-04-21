@@ -59,6 +59,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_ST
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS_SUPPORTS_REMOTE;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_LOOKUP_V12;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_PLANNING_V1;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.LOAD_FLATTENED_FIELD;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METADATA_FIELDS_REMOTE_TEST;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_INFO_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.RERANK;
@@ -81,6 +82,7 @@ import static org.mockito.Mockito.when;
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class MultiClusterSpecIT extends EsqlSpecTestCase {
+    private static final Version FLATTENED_DATATYPE_MIN_VERSION = Version.fromString("9.5.0");
 
     private static final Path CSV_DATA_PATH = CsvTestUtils.createCsvDataDirectory();
 
@@ -195,6 +197,12 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         }
         Version oldVersion = Version.min(Clusters.localClusterVersion(), Clusters.remoteClusterVersion());
         assumeTrue("Test " + testName + " is skipped on " + oldVersion, isEnabled(testName, instructions, oldVersion));
+        if (testCase.requiredCapabilities.contains(LOAD_FLATTENED_FIELD.capabilityName())) {
+            assumeTrue(
+                "Flattened root fields in CCS require all clusters on/after " + FLATTENED_DATATYPE_MIN_VERSION,
+                oldVersion.onOrAfter(FLATTENED_DATATYPE_MIN_VERSION)
+            );
+        }
         if (testCase.requiredCapabilities.contains(INLINE_STATS.capabilityName())
             || testCase.requiredCapabilities.contains(JOIN_PLANNING_V1.capabilityName())) {
             assumeTrue(

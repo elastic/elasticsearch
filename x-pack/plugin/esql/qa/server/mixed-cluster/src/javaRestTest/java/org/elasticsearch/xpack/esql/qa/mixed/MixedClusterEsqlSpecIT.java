@@ -23,10 +23,12 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_LOOKUP_V12;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.LOAD_FLATTENED_FIELD;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 
 public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     private static final Path CSV_DATA_PATH = CsvTestUtils.createCsvDataDirectory();
+    private static final Version FLATTENED_DATATYPE_MIN_VERSION = Version.fromString("9.5.0");
 
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.mixedVersionCluster(CSV_DATA_PATH);
@@ -76,6 +78,12 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     protected void shouldSkipTest(String testName) throws IOException {
         super.shouldSkipTest(testName);
         assumeTrue("Test " + testName + " is skipped on " + bwcVersion, isEnabled(testName, instructions, bwcVersion));
+        if (testCase.requiredCapabilities.contains(LOAD_FLATTENED_FIELD.capabilityName())) {
+            assumeTrue(
+                "Flattened root fields are only supported when all nodes are on/after " + FLATTENED_DATATYPE_MIN_VERSION,
+                bwcVersion == null || bwcVersion.onOrAfter(FLATTENED_DATATYPE_MIN_VERSION)
+            );
+        }
     }
 
     @Override

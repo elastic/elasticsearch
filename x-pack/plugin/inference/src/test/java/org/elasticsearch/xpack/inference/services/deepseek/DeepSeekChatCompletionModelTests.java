@@ -131,16 +131,9 @@ public class DeepSeekChatCompletionModelTests extends ESTestCase {
                 serviceSettingsMap
             )
         );
-        assertThat(
-            validationException.validationErrors().getFirst(),
-            is(
-                Strings.format(
-                    "[service_settings] Invalid url [%s] received for field [url]. Error: unable to parse url [%s]. Reason: Illegal character in path",
-                    INVALID_TEST_URL,
-                    INVALID_TEST_URL
-                )
-            )
-        );
+        assertThat(validationException.validationErrors().getFirst(), is(Strings.format("""
+            [service_settings] Invalid url [%s] received for field [url]. Error: unable to parse url [%s]. \
+            Reason: Illegal character in path""", INVALID_TEST_URL, INVALID_TEST_URL)));
         assertThat(validationException.validationErrors().size(), is(1));
     }
 
@@ -225,16 +218,9 @@ public class DeepSeekChatCompletionModelTests extends ESTestCase {
             )
         );
 
-        assertThat(
-            validationException.validationErrors().getFirst(),
-            is(
-                Strings.format(
-                    "[service_settings] Invalid url [%s] received for field [url]. Error: unable to parse url [%s]. Reason: Illegal character in path",
-                    INVALID_TEST_URL,
-                    INVALID_TEST_URL
-                )
-            )
-        );
+        assertThat(validationException.validationErrors().getFirst(), is(Strings.format("""
+            [service_settings] Invalid url [%s] received for field [url]. Error: unable to parse url [%s]. \
+            Reason: Illegal character in path""", INVALID_TEST_URL, INVALID_TEST_URL)));
         assertThat(validationException.validationErrors().size(), is(1));
     }
 }

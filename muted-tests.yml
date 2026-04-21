@@ -349,21 +349,6 @@ tests:
 - class: org.elasticsearch.reindex.ReindexBasicTests
   method: testCopyManyWithAutoSlicing
   issue: https://github.com/elastic/elasticsearch/issues/146741
-- class: org.elasticsearch.synonyms.SynonymsManagementAPIServiceTests
-  method: testPutSynonymRuleUpgradeGuardRejectsOnOldCluster
-  issue: https://github.com/elastic/elasticsearch/issues/146743
-- class: org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests
-  method: testSparseVectorMappingUpdate {p0=true p1=ENTERPRISE}
-  issue: https://github.com/elastic/elasticsearch/issues/146772
-- class: org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests
-  method: testSparseVectorMappingUpdate {p0=true p1=BASIC}
-  issue: https://github.com/elastic/elasticsearch/issues/146773
-- class: org.elasticsearch.xpack.inference.queries.SemanticQueryBuilderTests
-  method: testToQuery {p0=false}
-  issue: https://github.com/elastic/elasticsearch/issues/146777
-- class: org.elasticsearch.xpack.inference.queries.SemanticQueryBuilderTests
-  method: testToQuery {p0=true}
-  issue: https://github.com/elastic/elasticsearch/issues/146778
 - class: org.elasticsearch.reindex.ReindexerTests
   issue: https://github.com/elastic/elasticsearch/issues/146047
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT

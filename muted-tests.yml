@@ -405,6 +405,27 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
   method: test {csv-spec:mv_expand.explosionStats}
   issue: https://github.com/elastic/elasticsearch/issues/146939
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:k8s-timeseries-promql.day_of_week_sunday}
+  issue: https://github.com/elastic/elasticsearch/issues/146947
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:k8s-timeseries-promql.hour_scalar}
+  issue: https://github.com/elastic/elasticsearch/issues/146948
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:k8s-timeseries-promql.hour_scalar}
+  issue: https://github.com/elastic/elasticsearch/issues/146949
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:k8s-timeseries-promql.minute_scalar}
+  issue: https://github.com/elastic/elasticsearch/issues/146951
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:k8s-timeseries-promql.day_of_week_sunday}
+  issue: https://github.com/elastic/elasticsearch/issues/146952
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:k8s-timeseries-promql.minute_scalar}
+  issue: https://github.com/elastic/elasticsearch/issues/146953
+- class: org.elasticsearch.xpack.ml.integration.DatafeedJobsIT
+  method: testStopLookback_forceTrue_closeJobFalse
+  issue: https://github.com/elastic/elasticsearch/issues/146955
 
 # Examples:
 #

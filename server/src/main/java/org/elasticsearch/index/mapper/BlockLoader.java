@@ -9,8 +9,8 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.DocValuesSkipper;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -269,8 +269,7 @@ public interface BlockLoader {
          * If {@code skipper} is non-null the implementation should use it to skip over blocks
          * whose min/max values exclude the range before doing fine-grained per-doc scanning.
          */
-        default DocIdSetIterator tryRangeIterator(long lowerValue, long upperValue, DocValuesSkipper skipper)
-            throws IOException {
+        default DocIdSetIterator tryRangeIterator(long lowerValue, long upperValue, DocValuesSkipper skipper) throws IOException {
             return null;
         }
 

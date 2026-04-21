@@ -10,7 +10,6 @@
 package org.elasticsearch.lucene.queries;
 
 import org.apache.lucene.index.DocValues;
-import org.elasticsearch.index.mapper.BlockLoader;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -28,10 +27,11 @@ import org.apache.lucene.search.NumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -127,11 +127,7 @@ public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRang
                 TwoPhaseIterator iterator;
                 if (singleton != null) {
                     if (skipper != null) {
-                        final DocIdSetIterator psIterator = getDocIdSetIteratorOrNullForPrimarySort(
-                            context.reader(),
-                            singleton,
-                            skipper
-                        );
+                        final DocIdSetIterator psIterator = getDocIdSetIteratorOrNullForPrimarySort(context.reader(), singleton, skipper);
                         if (psIterator != null) {
                             return ConstantScoreScorerSupplier.fromIterator(psIterator, score(), scoreMode, maxDoc);
                         }
@@ -177,12 +173,7 @@ public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRang
                 if (skipper != null) {
                     iterator = new DocValuesRangeIterator(iterator, skipper, lowerValue, upperValue, false);
                 }
-                return ConstantScoreScorerSupplier.fromIterator(
-                    TwoPhaseIterator.asDocIdSetIterator(iterator),
-                    score(),
-                    scoreMode,
-                    maxDoc
-                );
+                return ConstantScoreScorerSupplier.fromIterator(TwoPhaseIterator.asDocIdSetIterator(iterator), score(), scoreMode, maxDoc);
             }
 
             @Override
@@ -221,9 +212,7 @@ public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRang
             return null;
         }
         final Sort indexSort = reader.getMetaData().sort();
-        if (indexSort == null
-            || indexSort.getSort().length == 0
-            || indexSort.getSort()[0].getField().equals(field) == false) {
+        if (indexSort == null || indexSort.getSort().length == 0 || indexSort.getSort()[0].getField().equals(field) == false) {
             return null;
         }
 

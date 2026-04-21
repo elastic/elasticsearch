@@ -2342,8 +2342,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 }
 
                 @Override
-                public DocIdSetIterator tryRangeIterator(long lowerValue, long upperValue, DocValuesSkipper skipper)
-                    throws IOException {
+                public DocIdSetIterator tryRangeIterator(long lowerValue, long upperValue, DocValuesSkipper skipper) throws IOException {
                     final IndexInput rangeData = data.slice("range_values", entry.valuesOffset, entry.valuesLength);
                     final long[] rangeBlock = new long[numericBlockSize];
                     return new DocIdSetIterator() {

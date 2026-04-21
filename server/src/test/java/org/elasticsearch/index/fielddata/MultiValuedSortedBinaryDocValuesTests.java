@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.fielddata;
 
+import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.store.Directory;
@@ -24,8 +25,17 @@ import org.elasticsearch.test.index.IndexVersionUtils;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.TreeSet;
 
 public class MultiValuedSortedBinaryDocValuesTests extends ESTestCase {
+
+    private static List<BytesRef> randomSortedUniqueBytesRefs(int count) {
+        TreeSet<BytesRef> sorted = new TreeSet<>();
+        while (sorted.size() < count) {
+            sorted.add(new BytesRef(randomAlphanumericOfLength(10)));
+        }
+        return new ArrayList<>(sorted);
+    }
 
     /**
      * Verifies that {@link MultiValuedSortedBinaryDocValues} correctly reads multi-valued binary doc values written by
@@ -33,7 +43,7 @@ public class MultiValuedSortedBinaryDocValuesTests extends ESTestCase {
      */
     public void testReadValuesFromSeparateCount() throws IOException {
         // given
-        List<BytesRef> expected = List.of(new BytesRef("aaa"), new BytesRef("bbb"), new BytesRef("ccc"));
+        List<BytesRef> expected = randomSortedUniqueBytesRefs(3);
 
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
@@ -47,7 +57,7 @@ public class MultiValuedSortedBinaryDocValuesTests extends ESTestCase {
             // when
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 LeafReader leafReader = reader.leaves().get(0).reader();
-                MultiValuedSortedBinaryDocValues values = MultiValuedSortedBinaryDocValues.from(leafReader, "field");
+                MultiValuedSortedBinaryDocValues values = MultiValuedSortedBinaryDocValues.fromMultiValued(leafReader, "field");
 
                 // then
                 assertTrue(values.advanceExact(0));
@@ -67,7 +77,7 @@ public class MultiValuedSortedBinaryDocValuesTests extends ESTestCase {
      */
     public void testReadValuesFromSeparateCountWithPreviousIndexVersion() throws IOException {
         // given
-        List<BytesRef> expected = List.of(new BytesRef("aaa"), new BytesRef("bbb"), new BytesRef("ccc"));
+        List<BytesRef> expected = randomSortedUniqueBytesRefs(3);
 
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
@@ -90,7 +100,7 @@ public class MultiValuedSortedBinaryDocValuesTests extends ESTestCase {
             // when
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 LeafReader leafReader = reader.leaves().get(0).reader();
-                MultiValuedSortedBinaryDocValues values = MultiValuedSortedBinaryDocValues.from(leafReader, "field");
+                MultiValuedSortedBinaryDocValues values = MultiValuedSortedBinaryDocValues.fromMultiValued(leafReader, "field");
 
                 // then
                 assertTrue(values.advanceExact(0));
@@ -110,7 +120,7 @@ public class MultiValuedSortedBinaryDocValuesTests extends ESTestCase {
      */
     public void testReadSingleValueFromSeparateCount() throws IOException {
         // given
-        BytesRef expected = new BytesRef("single");
+        BytesRef expected = new BytesRef(randomAlphanumericOfLength(10));
 
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
@@ -122,7 +132,7 @@ public class MultiValuedSortedBinaryDocValuesTests extends ESTestCase {
             // when
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 LeafReader leafReader = reader.leaves().get(0).reader();
-                MultiValuedSortedBinaryDocValues values = MultiValuedSortedBinaryDocValues.from(leafReader, "field");
+                MultiValuedSortedBinaryDocValues values = MultiValuedSortedBinaryDocValues.fromMultiValued(leafReader, "field");
 
                 // then
                 assertTrue(values.advanceExact(0));
@@ -136,9 +146,9 @@ public class MultiValuedSortedBinaryDocValuesTests extends ESTestCase {
      * Verifies that {@link MultiValuedSortedBinaryDocValues} correctly reads a single value written by
      * {@link MultiValuedBinaryDocValuesField.IntegratedCount}.
      */
-    public void testReadSingleValueFromSeparateCountWothPreviousIndexVersion() throws IOException {
+    public void testReadSingleValueFromSeparateCountWithPreviousIndexVersion() throws IOException {
         // given
-        BytesRef expected = new BytesRef("single");
+        BytesRef expected = new BytesRef(randomAlphanumericOfLength(10));
 
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
@@ -159,9 +169,72 @@ public class MultiValuedSortedBinaryDocValuesTests extends ESTestCase {
             // when
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 LeafReader leafReader = reader.leaves().get(0).reader();
-                MultiValuedSortedBinaryDocValues values = MultiValuedSortedBinaryDocValues.from(leafReader, "field");
+                MultiValuedSortedBinaryDocValues values = MultiValuedSortedBinaryDocValues.fromMultiValued(leafReader, "field");
 
                 // then
+                assertTrue(values.advanceExact(0));
+                assertEquals(1, values.docValueCount());
+                assertEquals(expected, values.nextValue());
+            }
+        }
+    }
+
+    /**
+     * Verifies that the PlainBinary reader correctly reads single-valued binary doc values
+     * written as a plain {@link BinaryDocValuesField} via auto-detection.
+     */
+    public void testReadSingleValuedBinaryDocValues() throws IOException {
+        // given
+        BytesRef expected = new BytesRef(randomAlphanumericOfLength(10));
+
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+                LuceneDocument doc = new LuceneDocument();
+                doc.addWithKey("field", new BinaryDocValuesField("field", expected));
+                iw.addDocument(doc);
+            }
+
+            // when
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                LeafReader leafReader = reader.leaves().get(0).reader();
+                SortedBinaryDocValues values = MultiValuedSortedBinaryDocValues.from(leafReader, "field");
+
+                // then
+                assertNotNull(values);
+                assertTrue(values.advanceExact(0));
+                assertEquals(1, values.docValueCount());
+                assertEquals(expected, values.nextValue());
+                assertEquals(SortedBinaryDocValues.ValueMode.SINGLE_VALUED, values.getValueMode());
+            }
+        }
+    }
+
+    /**
+     * Verifies that fromMultiValued() falls back to IntegratedCounts when .counts is absent.
+     */
+    public void testFromMultiValuedFallsBackToIntegratedCounts() throws IOException {
+        IndexVersion oldVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES);
+
+        // Write an IntegratedCount value using the old index version
+        BytesRef expected = new BytesRef(randomAlphanumericOfLength(10));
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+                LuceneDocument doc = new LuceneDocument();
+                MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
+                    doc,
+                    "field",
+                    expected,
+                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE,
+                    oldVersion
+                );
+                iw.addDocument(doc);
+            }
+
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                LeafReader leafReader = reader.leaves().get(0).reader();
+                SortedBinaryDocValues values = MultiValuedSortedBinaryDocValues.fromMultiValued(leafReader, "field");
+
+                // IntegratedCounts reader should decode correctly
                 assertTrue(values.advanceExact(0));
                 assertEquals(1, values.docValueCount());
                 assertEquals(expected, values.nextValue());

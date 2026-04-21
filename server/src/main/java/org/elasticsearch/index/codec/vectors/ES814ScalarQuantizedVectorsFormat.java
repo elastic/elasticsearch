@@ -128,8 +128,10 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
     @Override
     public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
+        FlatVectorsReader rawDelegate = rawVectorFormat.fieldsReader(state);
         return new ES814ScalarQuantizedVectorsReader(
-            new Lucene99ScalarQuantizedVectorsReader(state, rawVectorFormat.fieldsReader(state), flatVectorScorer)
+            new Lucene99ScalarQuantizedVectorsReader(state, rawDelegate, flatVectorScorer),
+            rawDelegate
         );
     }
 
@@ -181,10 +183,12 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
     static final class ES814ScalarQuantizedVectorsReader extends FlatVectorsReader implements QuantizedVectorsReader {
 
         final Lucene99ScalarQuantizedVectorsReader delegate;
+        final FlatVectorsReader rawDelegate;
 
-        ES814ScalarQuantizedVectorsReader(Lucene99ScalarQuantizedVectorsReader delegate) {
+        ES814ScalarQuantizedVectorsReader(Lucene99ScalarQuantizedVectorsReader delegate, FlatVectorsReader rawDelegate) {
             super(delegate.getFlatVectorScorer());
             this.delegate = delegate;
+            this.rawDelegate = rawDelegate;
         }
 
         @Override
@@ -204,7 +208,13 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
         @Override
         public FloatVectorValues getFloatVectorValues(String field) throws IOException {
-            return delegate.getFloatVectorValues(field);
+            FloatVectorValues floatVectorValues = delegate.getFloatVectorValues(field);
+            if (floatVectorValues == null) {
+                return null;
+            }
+            // Its critical that we use this for later rescoring to ensure that the HasSlice, and byte size information relates to the
+            // raw vectors
+            return new QuantizedAndRawFloatVectorValues(floatVectorValues, rawDelegate.getFloatVectorValues(field));
         }
 
         @Override

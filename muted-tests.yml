@@ -142,18 +142,6 @@ tests:
 - class: org.elasticsearch.xpack.transform.transforms.ClientTransformIndexerTests
   method: testDisablePitWhenCrossProjectSearchIsEnabled
   issue: https://github.com/elastic/elasticsearch/issues/144822
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
-  method: testLookupMissingField
-  issue: https://github.com/elastic/elasticsearch/issues/144697
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
-  method: testLookupMatchTypeWrong
-  issue: https://github.com/elastic/elasticsearch/issues/144694
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
-  method: testLookup
-  issue: https://github.com/elastic/elasticsearch/issues/144696
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
-  method: testLookupMissingTable
-  issue: https://github.com/elastic/elasticsearch/issues/144695
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:external-basic.scoreFunction}
   issue: https://github.com/elastic/elasticsearch/issues/145352
@@ -202,12 +190,6 @@ tests:
 - class: org.elasticsearch.xpack.security.failurestore.FailureStoreSecurityRestIT
   method: testWatcher
   issue: https://github.com/elastic/elasticsearch/issues/145928
-- class: org.elasticsearch.reindex.management.ReindexGetRelocationIT
-  method: testGetWaitForCompletionDuringRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/145931
-- class: org.elasticsearch.reindex.management.ReindexGetRelocationIT
-  method: testGetReindexFollowsRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/144364
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcWarningsIT
   method: testSingleDeprecationWarning
   issue: https://github.com/elastic/elasticsearch/issues/145933
@@ -238,15 +220,6 @@ tests:
 - class: org.elasticsearch.xpack.entsearch.EnterpriseSearchRestIT
   method: test {p0=entsearch/rules/40_rule_query_search/Perform a rule query with an organic query that must be rewritten to another query type}
   issue: https://github.com/elastic/elasticsearch/issues/146106
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {csv-spec:embedding.embedding with multiple knn queries in fork}
-  issue: https://github.com/elastic/elasticsearch/issues/146130
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
-  method: test {csv-spec:embedding.embedding with multiple knn queries in fork}
-  issue: https://github.com/elastic/elasticsearch/issues/146130
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:embedding.embedding with multiple knn queries in fork}
-  issue: https://github.com/elastic/elasticsearch/issues/146137
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=tsdb/25_id_generation/*}
   issue: https://github.com/elastic/elasticsearch/issues/146177
@@ -256,6 +229,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeUnmappedLoadIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/145900
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativePromQLIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/146923
 - class: org.elasticsearch.xpack.eql.qa.ccs_rolling_upgrade.EqlCcsRollingUpgradeIT
   method: testSequences
   issue: https://github.com/elastic/elasticsearch/issues/146263
@@ -289,9 +265,6 @@ tests:
 - class: org.elasticsearch.index.reindex.ReindexClientYamlTestSuiteIT
   method: test {yaml=reindex/10_basic/Response format for version conflict with conflicts=proceed}
   issue: https://github.com/elastic/elasticsearch/issues/146419
-- class: org.elasticsearch.repositories.blobstore.testkit.analyze.AzureRepositoryAnalysisRestIT
-  method: testRepositoryAnalysis
-  issue: https://github.com/elastic/elasticsearch/issues/146430
 - class: org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SubstituteRoundToGoldenTests
   method: testDateTruncNotTransformToQueryAndTags
   issue: https://github.com/elastic/elasticsearch/issues/146458
@@ -334,18 +307,9 @@ tests:
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testReindexFailsWhenPitRelocationFails
   issue: https://github.com/elastic/elasticsearch/issues/146650
-- class: org.elasticsearch.simdvec.ESVectorUtilTests
-  method: testPow2DiffAndScale
-  issue: https://github.com/elastic/elasticsearch/issues/146690
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/146553
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testReindexTaskRelocatesOnNodeShutdown
   issue: https://github.com/elastic/elasticsearch/issues/146696
-- class: org.elasticsearch.simdvec.ESVectorUtilTests
-  method: testLogSumExpDiff
-  issue: https://github.com/elastic/elasticsearch/issues/146700
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {csv-spec:stats_sparkline.sparklineComplexWithGrouping}
   issue: https://github.com/elastic/elasticsearch/issues/146729
@@ -393,12 +357,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
   method: test {csv-spec:tdigest.Count of tdigest with no matching rows (time series mode)}
   issue: https://github.com/elastic/elasticsearch/issues/146800
-- class: org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests
-  method: testMinimalIsInvalidInRoutingPath {p0=true p1=BASIC}
-  issue: https://github.com/elastic/elasticsearch/issues/146824
-- class: org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests
-  method: testMinimalIsInvalidInRoutingPath {p0=true p1=ENTERPRISE}
-  issue: https://github.com/elastic/elasticsearch/issues/146825
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
   method: test {csv-spec:stats.filterSometimesMatches}
   issue: https://github.com/elastic/elasticsearch/issues/146834
@@ -420,6 +378,72 @@ tests:
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testWatcherWithApiKey {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/146874
+- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerBFloat16BulkBenchmarkTests
+  method: testRandom {p0=DOT_PRODUCT p1=1024}
+  issue: https://github.com/elastic/elasticsearch/issues/146889
+- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerBFloat16BulkBenchmarkTests
+  method: testSequential {p0=EUCLIDEAN p1=1024}
+  issue: https://github.com/elastic/elasticsearch/issues/146890
+- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerBFloat16BulkBenchmarkTests
+  method: testRandom {p0=EUCLIDEAN p1=1024}
+  issue: https://github.com/elastic/elasticsearch/issues/146891
+- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerBFloat16BulkBenchmarkTests
+  method: testSequential {p0=DOT_PRODUCT p1=1024}
+  issue: https://github.com/elastic/elasticsearch/issues/146892
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:qstr-function.testQstrInStatsWithGrouping}
+  issue: https://github.com/elastic/elasticsearch/issues/146934
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:stats.whereNullConjunctionBeforeStats}
+  issue: https://github.com/elastic/elasticsearch/issues/146935
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:union_types.multiIndexIpStatsNonPushableCountWithFilter}
+  issue: https://github.com/elastic/elasticsearch/issues/146936
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:qstr-function.testQstrInStatsWithOptions}
+  issue: https://github.com/elastic/elasticsearch/issues/146937
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:mv_expand.explosionStats}
+  issue: https://github.com/elastic/elasticsearch/issues/146939
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:k8s-timeseries-promql.day_of_week_sunday}
+  issue: https://github.com/elastic/elasticsearch/issues/146947
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:k8s-timeseries-promql.hour_scalar}
+  issue: https://github.com/elastic/elasticsearch/issues/146948
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:k8s-timeseries-promql.hour_scalar}
+  issue: https://github.com/elastic/elasticsearch/issues/146949
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:k8s-timeseries-promql.minute_scalar}
+  issue: https://github.com/elastic/elasticsearch/issues/146951
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:k8s-timeseries-promql.day_of_week_sunday}
+  issue: https://github.com/elastic/elasticsearch/issues/146952
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:k8s-timeseries-promql.minute_scalar}
+  issue: https://github.com/elastic/elasticsearch/issues/146953
+- class: org.elasticsearch.xpack.ml.integration.DatafeedJobsIT
+  method: testStopLookback_forceTrue_closeJobFalse
+  issue: https://github.com/elastic/elasticsearch/issues/146955
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  method: test {csv-spec:k8s-timeseries-promql.day_of_week_sunday}
+  issue: https://github.com/elastic/elasticsearch/issues/146947
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  method: test {csv-spec:k8s-timeseries-promql.hour_scalar}
+  issue: https://github.com/elastic/elasticsearch/issues/146948
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  method: test {csv-spec:k8s-timeseries-promql.minute_scalar}
+  issue: https://github.com/elastic/elasticsearch/issues/146951
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:k8s-timeseries-promql.minute_scalar}
+  issue: https://github.com/elastic/elasticsearch/issues/146956
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:k8s-timeseries-promql.hour_scalar}
+  issue: https://github.com/elastic/elasticsearch/issues/146957
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:k8s-timeseries-promql.day_of_week_sunday}
+  issue: https://github.com/elastic/elasticsearch/issues/146958
 
 # Examples:
 #

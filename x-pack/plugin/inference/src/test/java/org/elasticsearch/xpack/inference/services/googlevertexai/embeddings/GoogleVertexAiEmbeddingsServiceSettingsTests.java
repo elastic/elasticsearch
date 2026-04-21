@@ -221,7 +221,7 @@ public class GoogleVertexAiEmbeddingsServiceSettingsTests extends AbstractBWCWir
         );
         assertThat(thrownException.validationErrors().size(), is(1));
         assertThat(thrownException.validationErrors().getFirst(), is("""
-            [service_settings] Invalid value [invalid_similarity] received.
+            [service_settings] Invalid value [invalid_similarity] received. \
             [similarity] must be one of [cosine, dot_product, l2_norm]"""));
     }
 

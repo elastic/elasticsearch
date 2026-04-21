@@ -149,15 +149,11 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
 
         validationException.throwIfValidationErrorsExist();
 
+        // Only maxInputTokens, maxBatchSize and rateLimitSettings can be updated in the request, other fields remain unchanged.
         return new GoogleVertexAiEmbeddingsServiceSettings(
-            this.location,
-            this.projectId,
-            this.modelId,
-            this.dimensionsSetByUser,
+            this,
             extractedMaxInputTokens != null ? extractedMaxInputTokens : this.maxInputTokens,
-            this.dimensions,
             extractedMaxBatchSize != null ? extractedMaxBatchSize : this.maxBatchSize,
-            this.similarity,
             extractedRateLimitSettings
         );
     }
@@ -200,6 +196,31 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
         this.maxBatchSize = maxBatchSize;
         this.similarity = Objects.requireNonNullElse(similarity, SimilarityMeasure.DOT_PRODUCT);
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
+    }
+
+    /**
+     * Constructor used for creating updated settings instance
+     * with some fields updated and some remaining the same as the original settings.
+     * @param original the original settings instance to copy unchanged fields from
+     * @param maxInputTokens the new maxInputTokens value, or null to keep the original value
+     * @param maxBatchSize the new maxBatchSize value, or null to keep the original value
+     * @param rateLimitSettings the new rateLimitSettings value, or null to keep the original value
+     */
+    private GoogleVertexAiEmbeddingsServiceSettings(
+        GoogleVertexAiEmbeddingsServiceSettings original,
+        @Nullable Integer maxInputTokens,
+        @Nullable Integer maxBatchSize,
+        @Nullable RateLimitSettings rateLimitSettings
+    ) {
+        this.location = original.location;
+        this.projectId = original.projectId;
+        this.modelId = original.modelId;
+        this.dimensionsSetByUser = original.dimensionsSetByUser;
+        this.maxInputTokens = maxInputTokens;
+        this.dimensions = original.dimensions;
+        this.maxBatchSize = maxBatchSize;
+        this.similarity = original.similarity;
+        this.rateLimitSettings = rateLimitSettings;
     }
 
     public GoogleVertexAiEmbeddingsServiceSettings(StreamInput in) throws IOException {

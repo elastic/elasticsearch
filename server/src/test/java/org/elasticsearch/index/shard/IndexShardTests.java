@@ -66,8 +66,10 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.RunOnce;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
@@ -173,6 +175,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntSupplier;
 import java.util.function.LongFunction;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -203,6 +206,7 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
@@ -211,7 +215,9 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 /**
  * Simple unit-test IndexShard related operations.
@@ -3432,6 +3438,118 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat("all listeners should have been called", completedCount.get(), equalTo(listenerCount));
 
         closeShards(primary);
+    }
+
+    public void testSearchReadyGateRejectsWhenPendingCapExceeded() {
+        int maxPending = 4;
+        IndexShard.SearchReadyGate gate = new IndexShard.SearchReadyGate(() -> maxPending);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+
+        AtomicInteger parked = new AtomicInteger();
+        for (int i = 0; i < maxPending; i++) {
+            gate.addListener(ActionListener.running(parked::incrementAndGet), threadContext);
+        }
+        assertThat("no parked listener should have fired yet", parked.get(), equalTo(0));
+
+        AtomicReference<Exception> rejection = new AtomicReference<>();
+        gate.addListener(ActionListener.wrap(v -> fail("expected rejection"), rejection::set), threadContext);
+        assertThat("over-cap caller should be rejected", rejection.get(), instanceOf(EsRejectedExecutionException.class));
+
+        gate.onReady();
+        assertThat("all parked listeners should be released on ready", parked.get(), equalTo(maxPending));
+
+        // Once the gate fires, the pending counter drains and new callers succeed immediately regardless of cap.
+        AtomicBoolean postReadyCalled = new AtomicBoolean();
+        gate.addListener(ActionListener.running(() -> postReadyCalled.set(true)), threadContext);
+        assertThat("listener registered after ready should fire immediately", postReadyCalled.get(), equalTo(true));
+    }
+
+    public void testSearchReadyGateDynamicCap() {
+        AtomicInteger cap = new AtomicInteger(2);
+        IndexShard.SearchReadyGate gate = new IndexShard.SearchReadyGate(cap::get);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+
+        gate.addListener(ActionListener.noop(), threadContext);
+        gate.addListener(ActionListener.noop(), threadContext);
+
+        AtomicReference<Exception> rejection = new AtomicReference<>();
+        gate.addListener(ActionListener.wrap(v -> fail("expected rejection"), rejection::set), threadContext);
+        assertThat(rejection.get(), instanceOf(EsRejectedExecutionException.class));
+
+        // Raising the cap at runtime allows the next caller through without releasing the earlier parked ones.
+        cap.set(3);
+        AtomicBoolean accepted = new AtomicBoolean();
+        gate.addListener(ActionListener.running(() -> accepted.set(true)), threadContext);
+        assertThat("listener registered while cap allows should be parked, not rejected", accepted.get(), equalTo(false));
+    }
+
+    public void testDefaultMaxPendingSupplierFallsBackToFloorForUnboundedQueue() {
+        ThreadPool tp = mock(ThreadPool.class);
+        ThreadPool.Info info = mock(ThreadPool.Info.class);
+        when(tp.info(ThreadPool.Names.SEARCH)).thenReturn(info);
+
+        // null queue size (unbounded scaling pool): supplier should always return the floor.
+        when(info.getQueueSize()).thenReturn(null);
+        IntSupplier unboundedSupplier = IndexShard.SearchReadyGate.defaultMaxPendingSupplier(tp);
+        assertThat(unboundedSupplier.getAsInt(), equalTo(IndexShard.SearchReadyGate.MIN_PENDING_PER_SHARD));
+
+        // Zero queue size: treated the same as unbounded.
+        when(info.getQueueSize()).thenReturn(0L);
+        IntSupplier zeroSupplier = IndexShard.SearchReadyGate.defaultMaxPendingSupplier(tp);
+        assertThat(zeroSupplier.getAsInt(), equalTo(IndexShard.SearchReadyGate.MIN_PENDING_PER_SHARD));
+    }
+
+    /**
+     * Exercises {@code onShardStateChanged} idempotency and the full RECOVERING lifecycle by observing the
+     * node-global counter through {@link IndexShard.SearchReadyGate#defaultMaxPendingSupplier}: with a known queue
+     * size, the supplier's output is a pure function of the recovering-shard count, so relative changes to its
+     * output reflect counter changes without needing to read the counter directly.
+     * <p>
+     * Uses two gates so the counter crosses {@code >= 2}: the formula clamps divisor to 1, so a single
+     * increment from 0 to 1 leaves the cap unchanged — only the second concurrently-recovering shard drops it.
+     */
+    public void testOnShardStateChangedIdempotencyAndLifecycleViaSupplier() {
+        ThreadPool tp = mock(ThreadPool.class);
+        ThreadPool.Info info = mock(ThreadPool.Info.class);
+        when(tp.info(ThreadPool.Names.SEARCH)).thenReturn(info);
+        // Large queue size keeps us well above the floor across the full counter range exercised here.
+        when(info.getQueueSize()).thenReturn(100_000L);
+
+        IntSupplier supplier = IndexShard.SearchReadyGate.defaultMaxPendingSupplier(tp);
+        int baseline = supplier.getAsInt();
+
+        IndexShard.SearchReadyGate gateA = new IndexShard.SearchReadyGate(() -> Integer.MAX_VALUE);
+        IndexShard.SearchReadyGate gateB = new IndexShard.SearchReadyGate(() -> Integer.MAX_VALUE);
+
+        // The test directly manipulates the node-global counter via onShardStateChanged; the finally block
+        // guarantees we leave it where we found it even if an assertion fails mid-test, so we don't pollute
+        // other tests sharing this JVM.
+        try {
+            // Counter 0 -> 1: divisor clamped to 1, supplier unchanged.
+            gateA.onShardStateChanged(IndexShardState.RECOVERING);
+            assertThat(supplier.getAsInt(), equalTo(baseline));
+            // Idempotent: repeating RECOVERING on gateA must not increment again.
+            gateA.onShardStateChanged(IndexShardState.RECOVERING);
+            assertThat("repeated RECOVERING must not increment again", supplier.getAsInt(), equalTo(baseline));
+
+            // Counter 1 -> 2 via gateB: cap must drop.
+            gateB.onShardStateChanged(IndexShardState.RECOVERING);
+            int withTwoRecovering = supplier.getAsInt();
+            assertThat("cap should drop once a second shard is counted as recovering", withTwoRecovering, lessThan(baseline));
+
+            // Leaving RECOVERING on gateB: counter 2 -> 1, cap returns to baseline.
+            gateB.onShardStateChanged(IndexShardState.POST_RECOVERY);
+            assertThat(supplier.getAsInt(), equalTo(baseline));
+            // Repeating non-RECOVERING on gateB must not decrement again.
+            gateB.onShardStateChanged(IndexShardState.POST_RECOVERY);
+            assertThat("repeated non-RECOVERING must not decrement again", supplier.getAsInt(), equalTo(baseline));
+            gateB.onShardStateChanged(IndexShardState.CLOSED);
+            assertThat(supplier.getAsInt(), equalTo(baseline));
+        } finally {
+            // Both gates are idempotent on CLOSED, so this is safe regardless of where the try body stopped.
+            gateA.onShardStateChanged(IndexShardState.CLOSED);
+            gateB.onShardStateChanged(IndexShardState.CLOSED);
+        }
     }
 
     public void testWaitForPrimaryTermAndGenerationFailsForClosedShard() throws IOException {

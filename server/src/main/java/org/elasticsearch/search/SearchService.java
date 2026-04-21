@@ -2514,6 +2514,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             indicesService.getDataRewriteContext(request::nowInMillis),
             threadPool.executor(Names.SEARCH),
             request.readerId() == null ? listener.delegateFailureAndWrap((delegate, r) -> {
+                // If the shard is already search-ready, skip the gate and the task-cancellation listener
+                // wiring entirely.
+                if (shard.isReadAllowed()) {
+                    shard.ensureShardSearchActive(b -> delegate.onResponse(request));
+                    return;
+                }
                 // notifyOnce guards against double-completion: both the task cancellation listener
                 // and the waitForSearchReady callback can complete the listener, but only the first wins
                 var l = ActionListener.notifyOnce(delegate);

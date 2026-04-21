@@ -16,8 +16,6 @@ import org.elasticsearch.cluster.metadata.IndexAbstractionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 
 import java.util.List;
 
@@ -25,7 +23,6 @@ import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolut
 
 public class ViewResolutionService {
 
-    protected Logger log = LogManager.getLogger(getClass());
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     public ViewResolutionService(IndexNameExpressionResolver indexNameExpressionResolver) {
@@ -38,7 +35,6 @@ public class ViewResolutionService {
         IndicesOptions indicesOptions,
         ResolvedIndexExpressions resolvedIndexExpressions
     ) {
-        log.info("resolved expressions: {}", resolvedIndexExpressions);
         if (indexPatterns == null || indexPatterns.length == 0) {
             return new ViewResolutionResult(new View[0], resolvedIndexExpressions);
         }

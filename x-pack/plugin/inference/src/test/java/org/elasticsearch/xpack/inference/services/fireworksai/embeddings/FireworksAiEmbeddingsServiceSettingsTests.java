@@ -348,7 +348,9 @@ public class FireworksAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
             thrownException.validationErrors().getFirst(),
             is(
                 Strings.format(
-                    "[service_settings] Invalid url [%s] received for field [url]. Error: unable to parse url [%s]. Reason: Illegal character in authority",
+                    """
+                        [service_settings] Invalid url [%s] received for field [url]. \
+                        Error: unable to parse url [%s]. Reason: Illegal character in authority""",
                     url,
                     url
                 )

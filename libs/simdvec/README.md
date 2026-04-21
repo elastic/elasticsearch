@@ -1,0 +1,76 @@
+# simdvec — Native SIMD Vector Scoring for Elasticsearch
+
+`libs/simdvec` provides optimized vector distance and scoring kernels used by
+Elasticsearch's vector search (kNN, BBQ, scalar quantization). It contains both
+Java-side Panama SIMD code and a native C++ library (`libvec`) with hand-tuned
+SIMD kernels, loaded at runtime via FFI.
+
+## Layout
+
+```
+libs/simdvec/
+├── src/                    # Java module (org.elasticsearch.simdvec)
+│   ├── main/java/          #   Public API, scorer suppliers, and Panama SIMD paths
+│   ├── test/               #   Unit and scorer-level tests
+│   └── testFixtures/       #   Shared test utilities
+├── native/                 # Native C++ library (libvec)
+│   ├── src/vec/c/
+│   │   ├── aarch64/        #     ARM kernels (NEON baseline, SVE in *_2.cpp)
+│   │   └── amd64/          #     x64 kernels (AVX2 baseline, AVX-512 in *_2.cpp)
+│   ├── src/vec/headers/    #     Shared and platform-specific headers
+│   ├── Makefile            #     Cross-compilation build (all platforms)
+│   └── Dockerfile.cross-toolchain
+└── build.gradle            # Gradle build config (multi-release JAR, JDK 21 test task)
+```
+
+## Native code tiers
+
+Source files follow a naming convention based on the ISA tier they target:
+
+- **Tier 1** (e.g. `vec_1.cpp`) — baseline: AVX2 on x64, NEON + dotprod on ARM.
+- **Tier 2** (e.g. `vec_2.cpp`) — extended: AVX-512 (icelake) on x64, SVE on ARM.
+
+At runtime, `caps.cpp` probes for CPU and OS support and the Java side selects
+the appropriate tier.
+
+## Quantization formats
+
+The native kernels cover single-pair and bulk scoring for:
+
+- **int7 / int8** — scalar quantized vectors (dot product, squared Euclidean, cosine)
+- **int4** — packed-nibble 4-bit quantized vectors
+- **BBQ** — binary quantized vectors (1-bit and 4-bit to 1-bit dot products, with correction terms)
+- **BFloat16** — 16-bit floating point comparisons (AVX-512 only)
+- **float32** — full-precision dot product and squared L2 (AVX-512 only)
+
+## Building the native library
+
+The native library is built via the `Makefile` in `native/`. For cross-compilation
+of all three platform binaries (darwin-aarch64, linux-aarch64, linux-x64), use
+the Docker-based toolchain:
+
+```bash
+# Build the cross-compilation toolchain image
+./build_cross_toolchain_image.sh
+
+# Build and publish binaries
+./publish_vec_binaries.sh
+```
+
+For local development on the current platform:
+
+```bash
+cd native
+make local       # builds for the host platform
+make install     # copies the binary where Gradle tests expect it
+```
+
+## Testing
+
+```bash
+# Run simdvec tests (from repo root)
+./gradlew :libs:simdvec:test
+```
+
+The Gradle build also runs a `testJava21` task to verify runtime version guards
+when running/testing with a JDK newer than 21.

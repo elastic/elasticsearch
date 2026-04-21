@@ -9,11 +9,6 @@
 
 package org.elasticsearch.entitlement.config;
 
-import jdk.tools.jlink.internal.Jlink;
-import jdk.tools.jlink.internal.Main;
-
-import com.sun.tools.jdi.VirtualMachineManagerImpl;
-
 import org.elasticsearch.entitlement.rules.EntitlementRulesBuilder;
 import org.elasticsearch.entitlement.rules.Policies;
 import org.elasticsearch.entitlement.rules.TypeToken;
@@ -22,7 +17,6 @@ import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationReg
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
-import java.io.PrintWriter;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Properties;
@@ -62,20 +56,6 @@ public class SystemInstrumentation implements InstrumentationConfig {
             rule.callingStatic(ProcessBuilder::startPipeline, new TypeToken<List<ProcessBuilder>>() {})
                 .enforce(Policies::startProcess)
                 .elseThrow(IOException::new);
-        });
-
-        builder.on(Jlink.class, rule -> { rule.protectedCtor().enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled(); });
-
-        builder.on(Main.class, rule -> {
-            rule.callingStatic(Main::run, PrintWriter.class, PrintWriter.class, String[].class)
-                .enforce(Policies::changeJvmGlobalState)
-                .elseThrowNotEntitled();
-        });
-
-        builder.on(VirtualMachineManagerImpl.class, rule -> {
-            rule.callingStatic(VirtualMachineManagerImpl::virtualMachineManager)
-                .enforce(Policies::changeJvmGlobalState)
-                .elseThrowNotEntitled();
         });
     }
 }

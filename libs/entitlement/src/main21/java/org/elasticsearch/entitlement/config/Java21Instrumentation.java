@@ -9,31 +9,25 @@
 
 package org.elasticsearch.entitlement.config;
 
-import jdk.internal.foreign.AbstractMemorySegmentImpl;
-import jdk.internal.foreign.abi.AbstractLinker;
-import jdk.internal.foreign.layout.ValueLayouts;
-
-import org.elasticsearch.entitlement.instrumentation.MethodKey;
-import org.elasticsearch.entitlement.rules.DeniedEntitlementStrategy;
-import org.elasticsearch.entitlement.rules.EntitlementRule;
 import org.elasticsearch.entitlement.rules.EntitlementRulesBuilder;
 import org.elasticsearch.entitlement.rules.Policies;
 import org.elasticsearch.entitlement.rules.TypeToken;
 import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationRegistry;
 
 import java.io.IOException;
+import java.lang.foreign.AddressLayout;
 import java.lang.foreign.Arena;
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
 import java.lang.foreign.MemoryLayout;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.SymbolLookup;
 import java.lang.invoke.MethodHandle;
 import java.nio.file.FileSystems;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.spi.FileSystemProvider;
-import java.util.List;
 import java.util.concurrent.ForkJoinPool;
 import java.util.function.Consumer;
 
@@ -47,35 +41,14 @@ public class Java21Instrumentation implements InstrumentationConfig {
             .enforce(Policies::manageThreads)
             .elseThrowNotEntitled();
 
-        builder.on(AbstractLinker.class, rule -> {
-            rule.calling(AbstractLinker::downcallHandle, FunctionDescriptor.class, Linker.Option[].class)
+        builder.on(Linker.class, rule -> {
+            rule.calling(Linker::downcallHandle, MemorySegment.class, FunctionDescriptor.class, Linker.Option[].class)
                 .enforce(Policies::loadingNativeLibraries)
                 .elseThrowNotEntitled();
-            rule.calling(AbstractLinker::downcallHandle, MemorySegment.class, FunctionDescriptor.class, Linker.Option[].class)
+            rule.calling(Linker::downcallHandle, FunctionDescriptor.class, Linker.Option[].class)
                 .enforce(Policies::loadingNativeLibraries)
                 .elseThrowNotEntitled();
-            rule.calling(AbstractLinker::upcallStub, MethodHandle.class, FunctionDescriptor.class, Arena.class, Linker.Option[].class)
-                .enforce(Policies::loadingNativeLibraries)
-                .elseThrowNotEntitled();
-        });
-
-        builder.on(ValueLayouts.OfAddressImpl.class, rule -> {
-            rule.calling(ValueLayouts.OfAddressImpl::withTargetLayout, MemoryLayout.class)
-                .enforce(Policies::loadingNativeLibraries)
-                .elseThrowNotEntitled();
-        });
-
-        builder.on(AbstractMemorySegmentImpl.class, rule -> {
-            rule.calling(AbstractMemorySegmentImpl::reinterpret, Long.class)
-                .enforce(Policies::loadingNativeLibraries)
-                .elseThrowNotEntitled();
-            rule.calling(
-                AbstractMemorySegmentImpl::reinterpret,
-                TypeToken.of(Long.class),
-                TypeToken.of(Arena.class),
-                new TypeToken<Consumer<MemorySegment>>() {}
-            ).enforce(Policies::loadingNativeLibraries).elseThrowNotEntitled();
-            rule.calling(AbstractMemorySegmentImpl::reinterpret, TypeToken.of(Arena.class), new TypeToken<Consumer<MemorySegment>>() {})
+            rule.calling(Linker::upcallStub, MethodHandle.class, FunctionDescriptor.class, Arena.class, Linker.Option[].class)
                 .enforce(Policies::loadingNativeLibraries)
                 .elseThrowNotEntitled();
         });
@@ -93,24 +66,20 @@ public class Java21Instrumentation implements InstrumentationConfig {
             ).enforce(Policies::loadingNativeLibraries).elseThrowNotEntitled();
         });
 
-        registry.registerRule(
-            new EntitlementRule(
-                new MethodKey("java/lang/foreign/SymbolLookup", "libraryLookup", List.of("java.lang.String", "java.lang.foreign.Arena")),
-                args -> Policies.loadingNativeLibraries(),
-                new DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy()
-            )
-        );
+        builder.on(SymbolLookup.class, rule -> {
+            rule.callingStatic(SymbolLookup::libraryLookup, String.class, Arena.class)
+                .enforce(Policies::loadingNativeLibraries)
+                .elseThrowNotEntitled();
+            rule.callingStatic(SymbolLookup::libraryLookup, Path.class, Arena.class)
+                .enforce((path) -> Policies.fileRead(path).and(Policies.loadingNativeLibraries()))
+                .elseThrowNotEntitled();
+        });
 
-        registry.registerRule(
-            new EntitlementRule(
-                new MethodKey("java/lang/foreign/SymbolLookup", "libraryLookup", List.of("java.nio.file.Path", "java.lang.foreign.Arena")),
-                args -> {
-                    Path path = (Path) args[0];
-                    return Policies.fileRead(path).and(Policies.loadingNativeLibraries());
-                },
-                new DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy()
-            )
-        );
+        builder.on(AddressLayout.class, rule -> {
+            rule.calling(AddressLayout::withTargetLayout, MemoryLayout.class)
+                .enforce(Policies::loadingNativeLibraries)
+                .elseThrowNotEntitled();
+        });
 
         builder.on(ModuleLayer.Controller.class, rule -> {
             rule.callingVoid(ModuleLayer.Controller::enableNativeAccess, Module.class)

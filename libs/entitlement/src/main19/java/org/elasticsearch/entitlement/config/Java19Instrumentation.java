@@ -9,20 +9,20 @@
 
 package org.elasticsearch.entitlement.config;
 
-import jdk.internal.foreign.abi.AbstractLinker;
-
-import org.elasticsearch.entitlement.instrumentation.MethodKey;
-import org.elasticsearch.entitlement.rules.DeniedEntitlementStrategy;
-import org.elasticsearch.entitlement.rules.EntitlementRule;
 import org.elasticsearch.entitlement.rules.EntitlementRulesBuilder;
 import org.elasticsearch.entitlement.rules.Policies;
 import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationRegistry;
 
+import java.lang.foreign.Addressable;
 import java.lang.foreign.FunctionDescriptor;
+import java.lang.foreign.Linker;
+import java.lang.foreign.MemoryAddress;
+import java.lang.foreign.MemorySegment;
 import java.lang.foreign.MemorySession;
+import java.lang.foreign.SymbolLookup;
 import java.lang.invoke.MethodHandle;
 import java.net.spi.InetAddressResolverProvider;
-import java.util.List;
+import java.nio.file.Path;
 import java.util.concurrent.ForkJoinPool;
 
 public class Java19Instrumentation implements InstrumentationConfig {
@@ -35,65 +35,29 @@ public class Java19Instrumentation implements InstrumentationConfig {
             .enforce(Policies::manageThreads)
             .elseThrowNotEntitled();
 
-        builder.on(AbstractLinker.class, rule -> {
-            rule.calling(AbstractLinker::downcallHandle, FunctionDescriptor.class)
+        builder.on(Linker.class, rule -> {
+            rule.calling(Linker::downcallHandle, FunctionDescriptor.class).enforce(Policies::loadingNativeLibraries).elseThrowNotEntitled();
+            rule.calling(Linker::downcallHandle, Addressable.class, FunctionDescriptor.class)
                 .enforce(Policies::loadingNativeLibraries)
                 .elseThrowNotEntitled();
-            rule.calling(AbstractLinker::downcallHandle, FunctionDescriptor.class)
-                .enforce(Policies::loadingNativeLibraries)
-                .elseThrowNotEntitled();
-            rule.calling(AbstractLinker::upcallStub, MethodHandle.class, FunctionDescriptor.class, MemorySession.class)
+            rule.calling(Linker::upcallStub, MethodHandle.class, FunctionDescriptor.class, MemorySession.class)
                 .enforce(Policies::loadingNativeLibraries)
                 .elseThrowNotEntitled();
         });
 
-        registry.registerRule(
-            new EntitlementRule(
-                new MethodKey(
-                    "java/lang/foreign/Linker",
-                    "downcallHandle",
-                    List.of("java.lang.foreign.Addressable", "java.lang.foreign.FunctionDescriptor")
-                ),
-                args -> Policies.loadingNativeLibraries(),
-                new DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy()
-            )
-        );
+        builder.on(MemorySegment.class)
+            .callingStatic(MemorySegment::ofAddress, MemoryAddress.class, Long.class, MemorySession.class)
+            .enforce(Policies::loadingNativeLibraries)
+            .elseThrowNotEntitled();
 
-        registry.registerRule(
-            new EntitlementRule(
-                new MethodKey(
-                    "java/lang/foreign/MemorySegment",
-                    "ofAddress",
-                    List.of("java.lang.foreign.MemoryAddress", "java.lang.Long", "java.lang.foreign.MemorySession")
-                ),
-                args -> Policies.loadingNativeLibraries(),
-                new DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy()
-            )
-        );
-
-        registry.registerRule(
-            new EntitlementRule(
-                new MethodKey(
-                    "java/lang/foreign/SymbolLookup",
-                    "libraryLookup",
-                    List.of("java.lang.String", "java.lang.foreign.MemorySession")
-                ),
-                args -> Policies.loadingNativeLibraries(),
-                new DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy()
-            )
-        );
-
-        registry.registerRule(
-            new EntitlementRule(
-                new MethodKey(
-                    "java/lang/foreign/SymbolLookup",
-                    "libraryLookup",
-                    List.of("java.nio.file.Path", "java.lang.foreign.MemorySession")
-                ),
-                args -> Policies.loadingNativeLibraries(),
-                new DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy()
-            )
-        );
+        builder.on(SymbolLookup.class, rule -> {
+            rule.callingStatic(SymbolLookup::libraryLookup, String.class, MemorySession.class)
+                .enforce(Policies::loadingNativeLibraries)
+                .elseThrowNotEntitled();
+            rule.callingStatic(SymbolLookup::libraryLookup, Path.class, MemorySession.class)
+                .enforce(Policies::loadingNativeLibraries)
+                .elseThrowNotEntitled();
+        });
 
         builder.on(InetAddressResolverProvider.class, rule -> {
             rule.protectedCtor().enforce(Policies::changeNetworkHandling).elseThrowNotEntitled();

@@ -486,6 +486,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
   method: test {csv-spec:external-basic.topNSortBySalaryDesc [S3]}
   issue: https://github.com/elastic/elasticsearch/issues/147006
+- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
+  method: test {csv-spec:external-basic.aggregateSalaryStats [HTTP]}
+  issue: https://github.com/elastic/elasticsearch/issues/147007
 
 # Examples:
 #

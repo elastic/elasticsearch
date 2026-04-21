@@ -56,7 +56,6 @@ class PatienceCollectorManager implements KnnCollectorManager {
             }
         }
         return null;
-
     }
 
     @Override

@@ -408,6 +408,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:k8s-timeseries-promql.day_of_week_sunday}
   issue: https://github.com/elastic/elasticsearch/issues/146947
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:k8s-timeseries-promql.hour_scalar}
+  issue: https://github.com/elastic/elasticsearch/issues/146948
 
 # Examples:
 #

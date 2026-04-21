@@ -420,6 +420,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:k8s-timeseries-promql.day_of_week_sunday}
   issue: https://github.com/elastic/elasticsearch/issues/146952
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:k8s-timeseries-promql.minute_scalar}
+  issue: https://github.com/elastic/elasticsearch/issues/146953
 
 # Examples:
 #

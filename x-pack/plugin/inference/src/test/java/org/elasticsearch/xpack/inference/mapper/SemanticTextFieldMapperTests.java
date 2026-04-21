@@ -1274,7 +1274,12 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             );
 
             final ChunkingSettings chunkingSettings = generateRandomChunkingSettings(false);
-            IndexVersion indexVersion = SparseVectorFieldMapperTests.getIndexOptionsCompatibleIndexVersion();
+            IndexVersion indexVersion = useLegacyFormat
+                ? IndexVersionUtils.randomVersionBetween(
+                    IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT,
+                    IndexVersionUtils.getPreviousVersion(IndexVersions.SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN)
+                )
+                : SparseVectorFieldMapperTests.getIndexOptionsCompatibleIndexVersion();
             final SemanticTextIndexOptions indexOptions = randomSemanticTextIndexOptions(TaskType.SPARSE_EMBEDDING);
             String fieldName = "field";
 
@@ -2640,7 +2645,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         );
     }
 
-    private static SourceToParse semanticTextInferenceSource(boolean useLegacyFormat, CheckedConsumer<XContentBuilder, IOException> build)
+    private SourceToParse semanticTextInferenceSource(boolean useLegacyFormat, CheckedConsumer<XContentBuilder, IOException> build)
         throws IOException {
         return source(b -> {
             if (useLegacyFormat == false) {

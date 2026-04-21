@@ -21,7 +21,6 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
-import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
@@ -45,13 +44,13 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
  * <p>
  * The retry loop runs internally (up to {@link #MAX_ROUNDS} rounds). Each round:
  * 1. Executes the delegate's search via rewrite
- * 2. Applies the filter to raw results
+* 2. Applies the filter to raw results
  * 3. Accumulates filtered results
  * 4. If not enough results, creates a retry delegate and continues
  */
 public class PostFilterAwareKnnQuery extends Query implements QueryProfilerProvider {
 
-    public static final float POST_FILTERING_THRESHOLD = 0.1f;
+    public static final float POST_FILTERING_THRESHOLD = 0.7f;
 
     static final int MAX_ROUNDS = 5;
 
@@ -86,20 +85,14 @@ public class PostFilterAwareKnnQuery extends Query implements QueryProfilerProvi
         PostFilterableKnnQuery current = delegate;
 
         for (int round = 0; round < MAX_ROUNDS; round++) {
-            Query delegateQuery = (Query) current;
-            // The return value is intentionally discarded. The delegate's rewrite() executes the
-            // vector search as a side effect and populates capturedResults() on the same instance.
-            // We need the raw unfiltered TopDocs (via capturedResults()), not the rewritten query.
-            delegateQuery.rewrite(searcher);
-
-            TopDocs topDocs = current.capturedResults();
+            ScoreDoc[] rawResults = current.findCandidates(searcher);
             vectorOps += current.vectorOpsCount();
 
-            if (topDocs == null || topDocs.scoreDocs.length == 0) {
+            if (rawResults.length == 0) {
                 break;
             }
 
-            ScoreDoc[] filtered = applyFilter(topDocs.scoreDocs, filterWeight, searcher);
+            ScoreDoc[] filtered = applyFilter(rawResults, filterWeight, searcher);
             accumulated = mergeResults(accumulated, filtered);
 
             if (parentsFilter != null) {
@@ -109,7 +102,7 @@ public class PostFilterAwareKnnQuery extends Query implements QueryProfilerProvi
             if (accumulated.length >= k) {
                 break;
             }
-            current = current.createRetryQuery(searcher.getIndexReader());
+            current = current.createRetryQuery(searcher.getIndexReader(), rawResults);
         }
 
         // Propagate profiling info

@@ -20,7 +20,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
-import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.knn.KnnCollectorManager;
@@ -122,8 +121,7 @@ final class PostFilterHelper {
     ) throws IOException {
         int scaledK = (int) Math.ceil(kParam / selectivity);
         int scaledNumCands = (int) Math.min(Integer.MAX_VALUE, Math.ceil((double) numCands / selectivity));
-        KnnSearchStrategy seeded = new KnnSearchStrategy.Seeded(null, 0, searchStrategy);
-        PostFilterableKnnQuery delegate = delegateFactory.create(scaledK, scaledNumCands, seeded, earlyTermination);
+        PostFilterableKnnQuery delegate = delegateFactory.create(scaledK, scaledNumCands, searchStrategy, earlyTermination);
         IndexReader reader = searcher.getIndexReader();
         return new PostFilterAwareKnnQuery(delegate, filterWeight, kParam, reader, vectorOpsCallback, parentsFilter);
     }
@@ -132,14 +130,14 @@ final class PostFilterHelper {
      * Builds the cumulative seenDocs bitset from previous rounds' results, used by HNSW retry
      * to avoid re-visiting documents.
      */
-    static FixedBitSet buildRetrySeenDocs(FixedBitSet previousSeenDocs, TopDocs capturedResults, IndexReader reader) {
+    static FixedBitSet buildRetrySeenDocs(FixedBitSet previousSeenDocs, ScoreDoc[] previousResults, IndexReader reader) {
         int maxDoc = reader.maxDoc();
         FixedBitSet newSeenDocs = new FixedBitSet(Math.max(maxDoc, 1));
         if (previousSeenDocs != null) {
             newSeenDocs.or(previousSeenDocs);
         }
-        if (capturedResults != null) {
-            for (ScoreDoc sd : capturedResults.scoreDocs) {
+        if (previousResults != null) {
+            for (ScoreDoc sd : previousResults) {
                 if (sd.doc >= 0 && sd.doc < maxDoc) {
                     newSeenDocs.set(sd.doc);
                 }
@@ -151,8 +149,13 @@ final class PostFilterHelper {
     /**
      * Wraps the base collector manager with seeded retry and patience if appropriate.
      */
-    static KnnCollectorManager wrapCollectorManager(KnnCollectorManager base, TopDocs seedResults, String field, boolean earlyTermination) {
-        if (seedResults != null && seedResults.scoreDocs.length > 0) {
+    static KnnCollectorManager wrapCollectorManager(
+        KnnCollectorManager base,
+        ScoreDoc[] seedResults,
+        String field,
+        boolean earlyTermination
+    ) {
+        if (seedResults != null && seedResults.length > 0) {
             base = new SeededRetryCollectorManager(base, seedResults, field);
         }
         return earlyTermination ? PatienceCollectorManager.wrap(base) : base;

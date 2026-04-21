@@ -14,6 +14,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
@@ -27,10 +28,10 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
     private long vectorOpsCount;
     private final boolean earlyTermination;
     private final FixedBitSet seenDocs;
-    private final TopDocs seedResults;
+    private final ScoreDoc[] seedResults;
 
-    // Written in mergeLeafResults() during rewrite(); read by capturedResults() in the same rewrite chain
-    private TopDocs capturedMergedResults;
+    // Internal plumbing: written in mergeLeafResults() during rewrite, read by search() immediately after
+    private ScoreDoc[] lastSearchResults;
 
     public ESKnnFloatVectorQuery(String field, float[] target, int k, int numCands, Query filter, KnnSearchStrategy strategy) {
         this(field, target, k, numCands, filter, strategy, false);
@@ -57,7 +58,7 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
         KnnSearchStrategy strategy,
         boolean earlyTermination,
         FixedBitSet seenDocs,
-        TopDocs seedResults
+        ScoreDoc[] seedResults
     ) {
         super(field, target, numCands, filter, strategy);
         this.kParam = k;
@@ -94,7 +95,7 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
     @Override
     protected TopDocs mergeLeafResults(TopDocs[] perLeafResults) {
         TopDocs topK = TopDocs.merge(kParam, perLeafResults);
-        this.capturedMergedResults = topK;
+        this.lastSearchResults = topK.scoreDocs;
         vectorOpsCount = topK.totalHits.value();
         return topK;
     }
@@ -107,13 +108,14 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
     // --- PostFilterableKnnQuery ---
 
     @Override
-    public TopDocs capturedResults() {
-        return capturedMergedResults;
+    public ScoreDoc[] findCandidates(IndexSearcher searcher) throws IOException {
+        searcher.rewrite(this);
+        return lastSearchResults != null ? lastSearchResults : new ScoreDoc[0];
     }
 
     @Override
-    public PostFilterableKnnQuery createRetryQuery(IndexReader reader) {
-        FixedBitSet newSeenDocs = PostFilterHelper.buildRetrySeenDocs(seenDocs, capturedMergedResults, reader);
+    public PostFilterableKnnQuery createRetryQuery(IndexReader reader, ScoreDoc[] previousResults) {
+        FixedBitSet newSeenDocs = PostFilterHelper.buildRetrySeenDocs(seenDocs, previousResults, reader);
         return new ESKnnFloatVectorQuery(
             field,
             getTargetCopy(),
@@ -123,7 +125,7 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
             searchStrategy,
             earlyTermination,
             newSeenDocs,
-            capturedMergedResults
+            previousResults
         );
     }
 

@@ -17,6 +17,7 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
@@ -177,7 +178,7 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
     }
 
     @Override
-    public PostFilterableKnnQuery createRetryQuery(IndexReader reader) {
+    public PostFilterableKnnQuery createRetryQuery(IndexReader reader, ScoreDoc[] previousResults) {
         Map<Integer, FixedBitSet> mergedSkip = mergeSkipCentroids();
         var retryQuery = new IVFKnnFloatSlicedVectorQuery(
             field,

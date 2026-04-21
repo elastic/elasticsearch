@@ -621,18 +621,29 @@ public class PostFilterAwareKnnQueryTests extends ESTestCase {
 
         @Override
         public Query rewrite(IndexSearcher searcher) {
-            // No-op: results are pre-configured. This mimics the side-effect pattern
-            // where the delegate populates capturedResults during rewrite.
-            return this;
+            if (results == null || results.scoreDocs.length == 0) {
+                return new MatchNoDocsQuery();
+            }
+            return new KnnScoreDocQuery(results.scoreDocs, searcher.getIndexReader());
         }
 
         @Override
-        public TopDocs capturedResults() {
-            return results;
+        public ScoreDoc[] findCandidates(IndexSearcher searcher) throws IOException {
+            Query rewritten = searcher.rewrite(this);
+            if (rewritten instanceof KnnScoreDocQuery knnResult) {
+                int[] docs = knnResult.docs();
+                float[] scores = knnResult.scores();
+                ScoreDoc[] scoreDocs = new ScoreDoc[docs.length];
+                for (int i = 0; i < docs.length; i++) {
+                    scoreDocs[i] = new ScoreDoc(docs[i], scores[i]);
+                }
+                return scoreDocs;
+            }
+            return new ScoreDoc[0];
         }
 
         @Override
-        public PostFilterableKnnQuery createRetryQuery(IndexReader reader) {
+        public PostFilterableKnnQuery createRetryQuery(IndexReader reader, ScoreDoc[] previousResults) {
             return nextRetry;
         }
 

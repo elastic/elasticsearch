@@ -58,8 +58,6 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     protected long vectorOpsCount;
     protected boolean doPrecondition;
 
-    protected TopDocs capturedResults;
-
     protected AbstractIVFKnnVectorQuery(String field, float visitRatio, int k, int numCands, Query filter, boolean doPrecondition) {
         if (k < 1) {
             throw new IllegalArgumentException("k must be at least 1, got: " + k);
@@ -193,7 +191,6 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
         TopDocs topK = TopDocs.merge(k, perLeafResults);
         vectorOpsCount = topK.totalHits.value();
-        this.capturedResults = topK;
         if (topK.scoreDocs.length == 0) {
             return Queries.NO_DOCS_INSTANCE;
         }

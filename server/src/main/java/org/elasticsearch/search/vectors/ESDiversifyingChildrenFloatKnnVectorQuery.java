@@ -13,6 +13,7 @@ import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.DiversifyingChildrenFloatKnnVectorQuery;
@@ -34,10 +35,10 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
     private final boolean earlyTermination;
     private final BitSetProducer parentsFilter;
     private final FixedBitSet seenDocs;
-    private final TopDocs seedResults;
+    private final ScoreDoc[] seedResults;
 
-    // Written during rewrite() in the same thread; read by capturedResults() in the same rewrite chain
-    private TopDocs capturedMergedResults;
+    // Internal plumbing: written in mergeLeafResults() during rewrite, read by search() immediately after
+    private ScoreDoc[] lastSearchResults;
 
     public ESDiversifyingChildrenFloatKnnVectorQuery(
         String field,
@@ -74,7 +75,7 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
         KnnSearchStrategy strategy,
         boolean earlyTermination,
         FixedBitSet seenDocs,
-        TopDocs seedResults
+        ScoreDoc[] seedResults
     ) {
         super(field, query, childFilter, numCands, parentsFilter, strategy);
         this.kParam = k;
@@ -114,7 +115,7 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
     @Override
     protected TopDocs mergeLeafResults(TopDocs[] perLeafResults) {
         TopDocs topK = TopDocs.merge(kParam, perLeafResults);
-        this.capturedMergedResults = topK;
+        this.lastSearchResults = topK.scoreDocs;
         vectorOpsCount = topK.totalHits.value();
         return topK;
     }
@@ -127,13 +128,14 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
     // --- PostFilterableKnnQuery ---
 
     @Override
-    public TopDocs capturedResults() {
-        return capturedMergedResults;
+    public ScoreDoc[] findCandidates(IndexSearcher searcher) throws IOException {
+        searcher.rewrite(this);
+        return lastSearchResults != null ? lastSearchResults : new ScoreDoc[0];
     }
 
     @Override
-    public PostFilterableKnnQuery createRetryQuery(IndexReader reader) {
-        FixedBitSet newSeenDocs = PostFilterHelper.buildRetrySeenDocs(seenDocs, capturedMergedResults, reader);
+    public PostFilterableKnnQuery createRetryQuery(IndexReader reader, ScoreDoc[] previousResults) {
+        FixedBitSet newSeenDocs = PostFilterHelper.buildRetrySeenDocs(seenDocs, previousResults, reader);
         return new ESDiversifyingChildrenFloatKnnVectorQuery(
             field,
             getTargetCopy(),
@@ -144,7 +146,7 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
             searchStrategy,
             earlyTermination,
             newSeenDocs,
-            capturedMergedResults
+            previousResults
         );
     }
 

@@ -11,7 +11,8 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 
 import java.io.IOException;
@@ -27,16 +28,24 @@ import java.io.IOException;
 public interface PostFilterableKnnQuery {
 
     /**
-     * Returns the raw (unfiltered) results captured during the most recent search execution.
+     * Finds raw (unfiltered) candidate results by executing this query's vector search.
+     * Each implementation owns the full rewrite-and-extract lifecycle:
+     * HNSW calls {@code searcher.rewrite(this)} and returns internally captured results
+     * (Lucene's DocAndScoreQuery is package-private); IVF calls {@code searcher.rewrite(this)}
+     * and extracts docs/scores from the returned {@link KnnScoreDocQuery}.
      */
-    TopDocs capturedResults();
+    ScoreDoc[] findCandidates(IndexSearcher searcher) throws IOException;
 
     /**
      * Creates a new query for the next retry round, configured to avoid re-visiting
      * previously seen results. For HNSW, this excludes previously seen doc IDs via a
-     * FixedBitSet filter. For IVF, this skips previously visited centroid posting lists.
+     * FixedBitSet filter and seeds the next search with {@code previousResults}.
+     * For IVF, this skips previously visited centroid posting lists.
+     *
+     * @param previousResults the raw results from the current round, used by HNSW
+     *                        to build the seen-docs exclusion set and seed the next search
      */
-    PostFilterableKnnQuery createRetryQuery(IndexReader reader);
+    PostFilterableKnnQuery createRetryQuery(IndexReader reader, ScoreDoc[] previousResults);
 
     /**
      * Returns the number of vector operations performed during the most recent search.

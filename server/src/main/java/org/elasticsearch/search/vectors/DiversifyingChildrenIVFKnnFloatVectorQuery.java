@@ -12,7 +12,7 @@ package org.elasticsearch.search.vectors;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.FixedBitSet;
 
@@ -89,7 +89,7 @@ public class DiversifyingChildrenIVFKnnFloatVectorQuery extends IVFKnnFloatVecto
     }
 
     @Override
-    public PostFilterableKnnQuery createRetryQuery(IndexReader reader) {
+    public PostFilterableKnnQuery createRetryQuery(IndexReader reader, ScoreDoc[] previousResults) {
         Map<Integer, FixedBitSet> mergedSkip = mergeSkipCentroids();
         return new DiversifyingChildrenIVFKnnFloatVectorQuery(
             field,
@@ -102,11 +102,6 @@ public class DiversifyingChildrenIVFKnnFloatVectorQuery extends IVFKnnFloatVecto
             doPrecondition,
             mergedSkip
         );
-    }
-
-    @Override
-    public TopDocs capturedResults() {
-        return capturedResults;
     }
 
     @Override

@@ -17,7 +17,9 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.AcceptDocs;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.Lucene;
@@ -87,7 +89,9 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery implements
     }
 
     void storeVisitedCentroids(int leafOrd, FixedBitSet visited) {
-        visitedCentroidsPerLeaf.put(leafOrd, visited);
+        if (visited != null) {
+            visitedCentroidsPerLeaf.put(leafOrd, visited);
+        }
     }
 
     @Override
@@ -243,12 +247,22 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery implements
     }
 
     @Override
-    public TopDocs capturedResults() {
-        return capturedResults;
+    public ScoreDoc[] findCandidates(IndexSearcher searcher) throws IOException {
+        Query rewritten = searcher.rewrite(this);
+        if (rewritten instanceof KnnScoreDocQuery knnResult) {
+            int[] docs = knnResult.docs();
+            float[] scores = knnResult.scores();
+            ScoreDoc[] scoreDocs = new ScoreDoc[docs.length];
+            for (int i = 0; i < docs.length; i++) {
+                scoreDocs[i] = new ScoreDoc(docs[i], scores[i]);
+            }
+            return scoreDocs;
+        }
+        return new ScoreDoc[0];
     }
 
     @Override
-    public PostFilterableKnnQuery createRetryQuery(IndexReader reader) {
+    public PostFilterableKnnQuery createRetryQuery(IndexReader reader, ScoreDoc[] previousResults) {
         Map<Integer, FixedBitSet> mergedSkip = mergeSkipCentroids();
         return new IVFKnnFloatVectorQuery(field, originalQuery.clone(), k, numCands, null, providedVisitRatio, doPrecondition, mergedSkip);
     }

@@ -1,5 +1,6 @@
 import { parse, stringify } from "yaml";
 import { execSync } from "child_process";
+import { readFileSync } from "fs";
 import { resolve, dirname } from "path";
 
 const PROJECT_ROOT = resolve(`${import.meta.dir}/../..`);
@@ -215,6 +216,33 @@ export function dedupeTests(tests: ClassifiedTest[]): ClassifiedTest[] {
     result.push(t);
   }
   return result;
+}
+
+function detectUnmutedTests(mergeBase: string, projectRoot: string): UnmuteDetectionResult {
+  let oldYaml = "";
+  try {
+    oldYaml = execSync(`git show ${mergeBase}:muted-tests.yml`, {
+      cwd: projectRoot,
+      stdio: ["ignore", "pipe", "ignore"],
+    }).toString();
+  } catch {
+    // File didn't exist at merge base; treat as empty.
+  }
+
+  let newYaml = "";
+  try {
+    newYaml = readFileSync(resolve(projectRoot, "muted-tests.yml"), "utf8");
+  } catch {
+    // File was deleted in the PR; treat as empty.
+  }
+
+  const repoFilesOutput = execSync("git ls-files", { cwd: projectRoot }).toString();
+  const repoFiles = repoFilesOutput
+    .split("\n")
+    .map((f) => f.trim())
+    .filter((f) => f !== "");
+
+  return findUnmutedTests(oldYaml, newYaml, repoFiles);
 }
 
 export function classifyChangedFiles(files: string[]): ClassifiedTest[] {
@@ -485,15 +513,30 @@ function main() {
     .filter((f) => f);
   console.log(`Found ${changedFiles.length} changed files`);
 
-  let tests = classifyChangedFiles(changedFiles);
-  console.log(`Found ${tests.length} changed test files`);
+  const changedTests = classifyChangedFiles(changedFiles);
+  console.log(`Found ${changedTests.length} changed test files`);
+
+  console.log("Detecting unmuted tests...");
+  const unmuted = detectUnmutedTests(mergeBase, PROJECT_ROOT);
+  console.log(`Found ${unmuted.located.length} unmuted tests`);
+  if (unmuted.unlocated.length > 0) {
+    console.log(
+      `Skipping ${unmuted.unlocated.length} unmuted tests whose class files no longer exist:`
+    );
+    for (const e of unmuted.unlocated) {
+      console.log(`  - ${e.className}${e.method !== undefined ? "." + e.method : ""}`);
+    }
+  }
+
+  let tests = dedupeTests([...changedTests, ...unmuted.located]);
+  console.log(`Total tests to run: ${tests.length} (${changedTests.length} changed, ${unmuted.located.length} unmuted)`);
 
   if (tests.length === 0) {
-    console.log("No test changes detected");
+    console.log("No test changes or unmutes detected");
     if (process.env.CI) {
       try {
         execSync(
-          `buildkite-agent annotate "No test changes detected" --style "info" --context "repeat-changed-tests"`,
+          `buildkite-agent annotate "No test changes or unmutes detected" --style "info" --context "repeat-changed-tests"`,
           { cwd: PROJECT_ROOT, stdio: "inherit" }
         );
       } catch {
@@ -504,11 +547,11 @@ function main() {
   }
 
   if (tests.length > 30) {
-    console.log(`Warning: ${tests.length} changed test files detected`);
+    console.log(`Warning: ${tests.length} test files to re-run`);
     if (process.env.CI) {
       try {
         execSync(
-          `buildkite-agent annotate "Warning: ${tests.length} changed test files detected. This may take a while." --style "warning" --context "repeat-changed-tests"`,
+          `buildkite-agent annotate "Warning: ${tests.length} test files to re-run (${changedTests.length} changed, ${unmuted.located.length} unmuted). This may take a while." --style "warning" --context "repeat-changed-tests"`,
           { cwd: PROJECT_ROOT, stdio: "inherit" }
         );
       } catch {

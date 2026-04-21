@@ -3777,11 +3777,44 @@ public class VerifierTests extends ESTestCase {
         );
         fullText().error(
             "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_words\": -1})",
-            equalTo("1:29: 'num_words' option must be a positive integer, found [-1]")
+            equalTo("1:29: 'num_words' option must be a non-negative integer, found [-1]")
         );
         fullText().error(
-            "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_words\": 0})",
-            equalTo("1:29: 'num_words' option must be a positive integer, found [0]")
+            "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"encoder\": \"xml\"})",
+            equalTo("1:29: 'encoder' option must be 'default' or 'html', found [xml]")
+        );
+        fullText().error(
+            "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"pre_tag\": \"<b>\"})",
+            equalTo("1:29: 'pre_tag', 'post_tag', and 'encoder' options require 'highlight' to be true")
+        );
+        fullText().error(
+            "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"post_tag\": \"</b>\"})",
+            equalTo("1:29: 'pre_tag', 'post_tag', and 'encoder' options require 'highlight' to be true")
+        );
+        fullText().error(
+            "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"highlight\": false, \"encoder\": \"html\"})",
+            equalTo("1:29: 'pre_tag', 'post_tag', and 'encoder' options require 'highlight' to be true")
+        );
+        fullText().error(
+            "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"highlight\": 123})",
+            equalTo(
+                "1:29: Invalid option [highlight] in [TOP_SNIPPETS(body, \"query\", {\"highlight\": 123})], "
+                    + "cannot cast [123] to [boolean]"
+            )
+        );
+        fullText().error(
+            "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_snippets\": true})",
+            equalTo(
+                "1:29: Invalid option [num_snippets] in [TOP_SNIPPETS(body, \"query\", {\"num_snippets\": true})], "
+                    + "cannot cast [true] to [integer]"
+            )
+        );
+        fullText().error(
+            "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_words\": true})",
+            equalTo(
+                "1:29: Invalid option [num_words] in [TOP_SNIPPETS(body, \"query\", {\"num_words\": true})], "
+                    + "cannot cast [true] to [integer]"
+            )
         );
     }
 

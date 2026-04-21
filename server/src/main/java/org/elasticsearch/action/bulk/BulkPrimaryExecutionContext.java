@@ -332,10 +332,12 @@ class BulkPrimaryExecutionContext {
     /** builds the bulk shard response to return to the user */
     public BulkShardResponse buildShardResponse() {
         assert hasMoreOperationsToExecute() == false;
-        return new BulkShardResponse(
-            request.shardId(),
-            Arrays.stream(request.items()).map(BulkItemRequest::getPrimaryResponse).toArray(BulkItemResponse[]::new)
-        );
+        final BulkItemRequest[] requests = request.items();
+        final BulkItemResponse[] responses = new BulkItemResponse[requests.length];
+        for (int i = 0; i < responses.length; i++) {
+            responses[i] = requests[i].getPrimaryResponse();
+        }
+        return new BulkShardResponse(request.shardId(), responses);
     }
 
     private boolean assertInvariants(ItemProcessingState... expectedCurrentState) {

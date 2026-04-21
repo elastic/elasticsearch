@@ -1,0 +1,93 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings_regex, contains ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_fix_unmapped_load_convert_function ]
+      reason: 'requires SET unmapped_fields="load" and current error message for partially unmapped non-keyword fields'
+  #
+  # The table below represents the field mappings for the three indices created in this test.
+  # In `FROM index*`, all the fields except lambda are PUNKs: partially unmapped non-keyword fields.
+  #
+  # | Field      | index1  |   index2   | index3  |
+  # |------------|---------|------------|---------|
+  # | foo        | double  | long       | -       |
+  #
+  - do:
+      indices.create:
+        index: index1
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              foo:
+                type: long
+  - do:
+      indices.create:
+        index: index2
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              foo:
+                type: long
+  - do:
+      indices.create:
+        index: index3
+        body:
+          mappings:
+            dynamic: false
+  - do:
+      bulk:
+        index: "index3"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "foo": "1"}
+---
+convert-function-1:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM index1,index3 | EVAL x = TO_DEGREES(foo)'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Found 1 problem' }
+  - contains: { error.reason: 'line 1:70: Using partially unmapped non-KEYWORD field [foo] is not supported with unmapped_fields="load"' }
+---
+convert-function-2:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM index2,index3 | EVAL x = TO_RADIANS(foo)'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Found 1 problem' }
+  - contains: { error.reason: 'line 1:70: Using partially unmapped non-KEYWORD field [foo] is not supported with unmapped_fields="load"' }
+---
+convert-function-3:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM index2,index3 | EVAL x::aggregate_metric_double'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Found 1 problem' }
+  - contains: { error.reason: 'line 1:55: argument of [x::aggregate_metric_double] must be [numeric or aggregate_metric_double], found value [x] type [keyword]' }
+---
+convert-function-4:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM index* | EVAL x = foo::aggregate_metric_double'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Found 1 problem' }
+  - contains: { error.reason: 'line 1:52: Using partially unmapped non-KEYWORD field [foo] is not supported with unmapped_fields="load"' }

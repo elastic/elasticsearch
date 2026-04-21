@@ -142,18 +142,6 @@ tests:
 - class: org.elasticsearch.xpack.transform.transforms.ClientTransformIndexerTests
   method: testDisablePitWhenCrossProjectSearchIsEnabled
   issue: https://github.com/elastic/elasticsearch/issues/144822
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
-  method: testLookupMissingField
-  issue: https://github.com/elastic/elasticsearch/issues/144697
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
-  method: testLookupMatchTypeWrong
-  issue: https://github.com/elastic/elasticsearch/issues/144694
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
-  method: testLookup
-  issue: https://github.com/elastic/elasticsearch/issues/144696
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
-  method: testLookupMissingTable
-  issue: https://github.com/elastic/elasticsearch/issues/144695
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:external-basic.scoreFunction}
   issue: https://github.com/elastic/elasticsearch/issues/145352
@@ -232,15 +220,6 @@ tests:
 - class: org.elasticsearch.xpack.entsearch.EnterpriseSearchRestIT
   method: test {p0=entsearch/rules/40_rule_query_search/Perform a rule query with an organic query that must be rewritten to another query type}
   issue: https://github.com/elastic/elasticsearch/issues/146106
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {csv-spec:embedding.embedding with multiple knn queries in fork}
-  issue: https://github.com/elastic/elasticsearch/issues/146130
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
-  method: test {csv-spec:embedding.embedding with multiple knn queries in fork}
-  issue: https://github.com/elastic/elasticsearch/issues/146130
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:embedding.embedding with multiple knn queries in fork}
-  issue: https://github.com/elastic/elasticsearch/issues/146137
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=tsdb/25_id_generation/*}
   issue: https://github.com/elastic/elasticsearch/issues/146177

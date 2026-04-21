@@ -189,9 +189,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         IntObjectHashMap<ScoreDoc> dedupByDoc = new IntObjectHashMap<>(results.scoreDocs.length * 4 / 3);
         for (ScoreDoc scoreDoc : results.scoreDocs) {
             int globalDoc = scoreDoc.doc + ctx.docBase;
-            ScoreDoc existing = dedupByDoc.get(globalDoc);
-            if (existing == null) {
-                dedupByDoc.put(globalDoc, new ScoreDoc(globalDoc, scoreDoc.score));
+            if (dedupByDoc.containsKey(globalDoc) == false) {
+                scoreDoc.doc = globalDoc;
+                dedupByDoc.put(globalDoc, scoreDoc);
             }
         }
         ScoreDoc[] deduplicatedScoreDocs = new ScoreDoc[dedupByDoc.size()];

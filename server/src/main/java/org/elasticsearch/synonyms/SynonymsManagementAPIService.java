@@ -80,7 +80,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -542,9 +541,7 @@ public class SynonymsManagementAPIService {
         long existingCount,
         ActionListener<SynonymsReloadResult> listener
     ) {
-        UpdateSynonymsResultStatus status = existingCount == 0
-            ? UpdateSynonymsResultStatus.CREATED
-            : UpdateSynonymsResultStatus.UPDATED;
+        UpdateSynonymsResultStatus status = existingCount == 0 ? UpdateSynonymsResultStatus.CREATED : UpdateSynonymsResultStatus.UPDATED;
         if (checkSynonymRuleCount(existingCount + synonymsSet.length, listener) == false) {
             return;
         }

@@ -132,7 +132,7 @@ setup:
 
   - match: { error.type: verification_exception }
   - contains: { error.reason: 'Found 1 problem' }
-  - contains: { error.reason: 'line 1:56: Cannot use field [foo.bar] with unsupported type [flattened]' }
+  - contains: { error.reason: 'line 1:29: Loading subfield [foo.bar] when parent [foo] is of flattened field type is not supported with unmapped_fields="load"' }
 
 ---
 'loading from two indices with different mappings 3':
@@ -145,7 +145,8 @@ setup:
           query: 'SET unmapped_fields="load"; FROM index1,index4 | WHERE foo.bar.baz == "something else"'
   - match: { status: 400 }
   - match: { error.type: verification_exception }
-  - contains: { error.reason: 'Found 1 problem' }
+  - contains: { error.reason: 'Found 2 problems' }
+  - contains: { error.reason: 'line 1:29: Loading subfield [foo.bar] when parent [foo] is of flattened field type is not supported with unmapped_fields="load"' }
   - contains: { error.reason: 'line 1:56: Loading subfield [foo.bar.baz] when parent [foo] is of flattened field type is not supported with unmapped_fields="load"' }
 
 ---

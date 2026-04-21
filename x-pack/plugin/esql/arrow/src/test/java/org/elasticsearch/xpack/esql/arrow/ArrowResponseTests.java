@@ -193,6 +193,7 @@ public class ArrowResponseTests extends ESTestCase {
         Map.entry("date", DATE_VALUES),
         Map.entry("ip", IP_VALUES),
         Map.entry("version", VERSION_VALUES),
+        Map.entry("flattened", SOURCE_VALUES),
         Map.entry("_source", SOURCE_VALUES),
 
         Map.entry("null", NULL_VALUES),

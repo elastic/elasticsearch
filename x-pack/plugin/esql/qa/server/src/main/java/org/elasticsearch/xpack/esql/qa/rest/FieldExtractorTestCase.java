@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.qa.rest;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -329,7 +330,18 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
             {"flattened": {"a": "foo"}}""");
         Map<String, Object> result = runEsql("FROM test* | LIMIT 2");
 
-        assertResultMap(result, List.of(columnInfo("flattened", "flattened")), List.of(matchesList().item(matchesMap().entry("a", "foo"))));
+        Map<String, AllSupportedFieldsTestCase.NodeInfo> nodeToInfo = AllSupportedFieldsTestCase.fetchNodeToInfo(client(), null);
+        TransportVersion minimumVersion = AllSupportedFieldsTestCase.minVersion(nodeToInfo);
+        boolean minimumVersionIsSnapshot = nodeToInfo.values().stream().allMatch(AllSupportedFieldsTestCase.NodeInfo::snapshot);
+        if (DataType.FLATTENED.supportedVersion().supportedOn(minimumVersion, minimumVersionIsSnapshot)) {
+            assertResultMap(
+                result,
+                List.of(columnInfo("flattened", "flattened")),
+                List.of(matchesList().item(matchesMap().entry("a", "foo")))
+            );
+        } else {
+            assertResultMap(result, List.of(unsupportedColumnInfo("flattened", "flattened")), List.of(matchesList().item(null)));
+        }
     }
 
     public void testEmptyMapping() throws IOException {

@@ -178,7 +178,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         if (filterWeight == null) {
             return approximateSearch(
                 ctx,
-                liveDocs == null ? ESAcceptDocs.ESAcceptDocsAll.INSTANCE : new ESAcceptDocs.BitsAcceptDocs(liveDocs, maxDoc),
+                liveDocs == null ? new ESAcceptDocs.ESAcceptDocsAll() : new ESAcceptDocs.BitsAcceptDocs(liveDocs, maxDoc),
                 Integer.MAX_VALUE,
                 knnCollectorManager,
                 visitRatio

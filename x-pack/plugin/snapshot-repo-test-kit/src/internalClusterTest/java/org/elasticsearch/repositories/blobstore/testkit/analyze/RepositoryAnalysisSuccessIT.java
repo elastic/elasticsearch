@@ -348,7 +348,6 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         private final AtomicLong totalBytesWritten = new AtomicLong();
         private final Map<String, BytesRegister> registers = ConcurrentCollections.newConcurrentMap();
         private final AtomicBoolean firstRegisterRead = new AtomicBoolean(true);
-        private final AtomicLong blobExistsCallCount = new AtomicLong();
         private final AtomicLong prefixListCallCount = new AtomicLong();
 
         private final Object registerMutex = new Object();
@@ -381,7 +380,6 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         @Override
         public boolean blobExists(OperationPurpose purpose, String blobName) {
             assertPurpose(purpose);
-            blobExistsCallCount.incrementAndGet();
             return blobs.containsKey(blobName);
         }
 
@@ -525,11 +523,6 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
             assertThat(
                 "listBlobsByPrefix was never called by RepositoryAnalyzeAction, so verifyPrefixListing was never called",
                 prefixListCallCount.get(),
-                greaterThanOrEqualTo(1L)
-            );
-            assertThat(
-                "blobExists was never called by RepositoryAnalyzeAction, so doBlobExistenceCheck was never called",
-                blobExistsCallCount.get(),
                 greaterThanOrEqualTo(1L)
             );
             synchronized (registerMutex) {

@@ -351,6 +351,10 @@ public class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.
                 task::isCancelled,
                 onLastRead
             );
+            if (failIfExists) {
+                maybeFailIfBlobExists();
+            }
+
             final AtomicLong throttledNanos = new AtomicLong();
 
             if (logger.isTraceEnabled()) {
@@ -361,7 +365,6 @@ public class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.
             // TODO push some of this writing logic down into the blob container implementation.
             // E.g. for S3 blob containers we would like to choose somewhat more randomly between single-part and multi-part uploads,
             // rather than relying on the usual distinction based on the size of the blob.
-
             if (atomic || (request.targetLength <= MAX_ATOMIC_WRITE_SIZE && random.nextBoolean())) {
                 final RandomBlobContentBytesReference bytesReference = new RandomBlobContentBytesReference(
                     content,
@@ -519,12 +522,14 @@ public class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.
                 readOnNodes(readCopyNodes, request.copyBlobName, false);
             }
 
-            doBlobExistenceCheck();
+            maybeFailIfBlobDoesNotExist();
         }
 
-        private void doBlobExistenceCheck() {
-            // Verify blob existence via HeadObject: the just-written blob must exist, and a non-existent blob must not.
-            if (request.getAbortWrite() == false) {
+        private void maybeFailIfBlobDoesNotExist() {
+            // We don't want to do this every time because there's a risk that this existence check disturbs some other consistency property
+            boolean shouldPerformCheck = random.nextBoolean() && random.nextBoolean();
+            if (request.getAbortWrite() == false && shouldPerformCheck) {
+                // Verify blob existence via HeadObject: the just-written blob must exist, and a non-existent blob must not.
                 try {
                     if (blobContainer.blobExists(OperationPurpose.REPOSITORY_ANALYSIS, request.blobName) == false) {
                         readResponseListeners.acquire()
@@ -534,7 +539,6 @@ public class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.
                                     "blob [" + request.blobName + "] not found via HEAD after successful write"
                                 )
                             );
-                        return;
                     }
                 } catch (IOException e) {
                     readResponseListeners.acquire()
@@ -545,30 +549,31 @@ public class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.
                                 e
                             )
                         );
-                    return;
                 }
+            }
+        }
 
-                final String nonExistentBlobName = request.blobName + "-nonexistent";
-                try {
-                    if (blobContainer.blobExists(OperationPurpose.REPOSITORY_ANALYSIS, nonExistentBlobName)) {
-                        readResponseListeners.acquire()
-                            .onFailure(
-                                new RepositoryVerificationException(
-                                    request.getRepositoryName(),
-                                    "HEAD request for non-existent blob [" + nonExistentBlobName + "] incorrectly reported it exists"
-                                )
-                            );
-                    }
-                } catch (IOException e) {
+        private void maybeFailIfBlobExists() {
+            boolean shouldPerformCheck = random.nextBoolean() && random.nextBoolean();
+            try {
+                if (shouldPerformCheck && blobContainer.blobExists(OperationPurpose.REPOSITORY_ANALYSIS, request.blobName)) {
                     readResponseListeners.acquire()
                         .onFailure(
                             new RepositoryVerificationException(
                                 request.getRepositoryName(),
-                                "HEAD request failed for non-existent blob [" + nonExistentBlobName + "]",
-                                e
+                                "HEAD request for non-existent blob [" + request.blobName + "] incorrectly reported it exists"
                             )
                         );
                 }
+            } catch (IOException e) {
+                readResponseListeners.acquire()
+                    .onFailure(
+                        new RepositoryVerificationException(
+                            request.getRepositoryName(),
+                            "HEAD request failed for non-existent blob [" + request.blobName + "]",
+                            e
+                        )
+                    );
             }
         }
 

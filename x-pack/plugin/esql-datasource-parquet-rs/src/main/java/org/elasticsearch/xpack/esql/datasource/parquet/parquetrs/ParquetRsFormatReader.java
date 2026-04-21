@@ -13,6 +13,8 @@ import org.apache.arrow.c.Data;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.arrow.vector.types.pojo.Field;
+import org.apache.arrow.vector.types.pojo.Schema;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -27,6 +29,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.arrow.ArrowToEsql;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -125,8 +128,7 @@ public class ParquetRsFormatReader implements FormatReader {
     public SourceMetadata metadata(StorageObject object) throws IOException {
         NativeLibLoader.ensureLoaded();
         String path = resolveReadPath(object);
-        String[] rawSchema = ParquetRsBridge.getSchema(path, configJson);
-        List<Attribute> attributes = parseSchema(rawSchema);
+        List<Attribute> attributes = importSchema(path);
 
         long[] stats = ParquetRsBridge.getStatistics(path, configJson);
         SourceStatistics statistics = null;
@@ -261,32 +263,17 @@ public class ParquetRsFormatReader implements FormatReader {
         return uri;
     }
 
-    private static final int TYPE_LIST = 13;
-
-    private static List<Attribute> parseSchema(String[] rawSchema) {
-        List<Attribute> attributes = new ArrayList<>();
-        for (int i = 0; i + 2 < rawSchema.length; i += 3) {
-            String name = rawSchema[i];
-            int typeId = Integer.parseInt(rawSchema[i + 1]);
-            int elementTypeId = Integer.parseInt(rawSchema[i + 2]);
-            DataType esqlType = typeId == TYPE_LIST ? mapNativeTypeToEsql(elementTypeId) : mapNativeTypeToEsql(typeId);
-            attributes.add(new ReferenceAttribute(Source.EMPTY, name, esqlType));
+    private List<Attribute> importSchema(String path) {
+        BufferAllocator allocator = blockFactory.arrowAllocator();
+        try (ArrowSchema ffiSchema = ArrowSchema.allocateNew(allocator)) {
+            ParquetRsBridge.getSchemaFFI(path, configJson, ffiSchema.memoryAddress());
+            Schema arrowSchema = Data.importSchema(allocator, ffiSchema, null);
+            List<Attribute> attributes = new ArrayList<>(arrowSchema.getFields().size());
+            for (Field field : arrowSchema.getFields()) {
+                attributes.add(new ReferenceAttribute(Source.EMPTY, field.getName(), ArrowToEsql.dataTypeForField(field)));
+            }
+            return attributes;
         }
-        return attributes;
-    }
-
-    private static DataType mapNativeTypeToEsql(int typeId) {
-        return switch (typeId) {
-            case 1 -> DataType.BOOLEAN;
-            case 2 -> DataType.INTEGER;
-            case 3 -> DataType.LONG;
-            case 4, 5 -> DataType.DOUBLE;
-            case 6 -> DataType.KEYWORD;
-            case 7 -> DataType.KEYWORD;
-            case 8, 9, 10, 11 -> DataType.DATETIME;
-            case 12 -> DataType.DOUBLE;
-            default -> DataType.UNSUPPORTED;
-        };
     }
 
     /**

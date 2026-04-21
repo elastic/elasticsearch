@@ -54,7 +54,13 @@ final class ParquetRsBridge {
 
     // ---- Metadata ----
 
-    static native String[] getSchema(String filePath, String configJson);
+    /**
+     * Exports the Parquet file's Arrow schema via the C Data Interface.
+     * The caller must allocate an {@code ArrowSchema} and pass its memory address.
+     *
+     * @param schemaAddr memory address of a pre-allocated {@code ArrowSchema} FFI struct
+     */
+    static native void getSchemaFFI(String filePath, String configJson, long schemaAddr);
 
     static native long[] getStatistics(String filePath, String configJson);
 

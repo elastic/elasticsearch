@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
@@ -105,6 +106,44 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
         assertTrue(anyFilterContains(plan, Not.class));
         assertTrue(anyFilterContains(plan, In.class));
         assertTrue(anyFilterContains(plan, StartsWith.class));
+    }
+
+    /**
+     * {label=""} must match series where the label is absent (NULL), because PromQL treats absent labels as "".
+     * The generated filter must be: IS NULL OR field == "".
+     */
+    public void testEmptyStringLabelMatcherIncludesAbsentSeries() {
+        var plan = planPromql("PROMQL index=k8s step=1m avg(network.bytes_in{pod=\"\"})");
+        assertTrue(anyFilterContains(plan, IsNull.class));
+        assertTrue(anyFilterContains(plan, Equals.class));
+    }
+
+    /**
+     * {label!="foo"} must match series where the label is absent (NULL), because absent maps to ""
+     * and "" != "foo". The generated filter must be: IS NULL OR NOT(field == "foo").
+     */
+    public void testNotEqualLabelMatcherIncludesAbsentSeries() {
+        var plan = planPromql("PROMQL index=k8s step=1m avg(network.bytes_in{pod!=\"foo\"})");
+        assertTrue(anyFilterContains(plan, IsNull.class));
+        assertTrue(anyFilterContains(plan, Not.class));
+    }
+
+    /**
+     * {label="foo"} must NOT match absent series: absent maps to "" and "" != "foo".
+     * No IS NULL must appear in the generated filter.
+     */
+    public void testExactLabelMatcherExcludesAbsentSeries() {
+        var plan = planPromql("PROMQL index=k8s step=1m avg(network.bytes_in{pod=\"foo\"})");
+        assertFalse(anyFilterContains(plan, IsNull.class));
+    }
+
+    /**
+     * {label!=""} must NOT match absent series: absent maps to "" and "" does not satisfy != "".
+     * No IS NULL must appear in the generated filter.
+     */
+    public void testNotEqualsEmptyLabelMatcherExcludesAbsentSeries() {
+        var plan = planPromql("PROMQL index=k8s step=1m avg(network.bytes_in{pod!=\"\"})");
+        assertFalse(anyFilterContains(plan, IsNull.class));
     }
 
     public void testGroupByAllInstantSelector() {

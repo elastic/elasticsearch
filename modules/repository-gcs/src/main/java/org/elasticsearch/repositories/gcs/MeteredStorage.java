@@ -24,7 +24,6 @@ import com.google.cloud.storage.StorageBatch;
 import com.google.cloud.storage.StorageOptions;
 import com.google.cloud.storage.spi.v1.HttpStorageRpc;
 
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.core.SuppressForbidden;
 
@@ -52,7 +51,6 @@ public class MeteredStorage {
 
     public MeteredStorage(Storage storage, GcsRepositoryStatsCollector statsCollector) {
         this.storage = storage;
-        SpecialPermission.check();
         this.storageRpc = getStorageRpc(storage);
         this.statsCollector = statsCollector;
     }

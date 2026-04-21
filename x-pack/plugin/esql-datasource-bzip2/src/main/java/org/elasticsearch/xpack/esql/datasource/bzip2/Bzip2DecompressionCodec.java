@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasource.bzip2;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
@@ -14,8 +16,12 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
 
 import static org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2BlockScanner.BZIP2_HEADER_SIZE;
+import static org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2BlockScanner.mergeSortedUnique;
 import static org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2BlockScanner.scanBlockOffsets;
 
 /**
@@ -30,10 +36,40 @@ import static org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2BlockScanner.sc
  * position, decompresses one block at a time, and reports compressed byte positions
  * at block boundaries. A wrapper monitors these positions and signals EOF when the
  * decompressor passes the split boundary.
+ *
+ * <p>Parallel block-boundary scanning calls {@link StorageObject#newStream(long, long)} from
+ * multiple threads with disjoint byte ranges. Implementations used with this codec must
+ * support concurrent range opens (or callers must not trigger the parallel path).
  */
 public class Bzip2DecompressionCodec implements SplittableDecompressionCodec {
 
     private static final List<String> EXTENSIONS = List.of(".bz2", ".bz");
+
+    private final Executor scanExecutor;
+
+    /**
+     * @param scanExecutor Elasticsearch-managed executor (e.g. {@code generic} thread pool) used for
+     *                       parallel block-boundary scans; must not be {@code null}.
+     */
+    public Bzip2DecompressionCodec(Executor scanExecutor) {
+        Check.notNull(scanExecutor, "scanExecutor must not be null");
+        this.scanExecutor = scanExecutor;
+    }
+
+    /**
+     * Minimum compressed span to use parallel block scanning (overlapped chunks). Smaller
+     * ranges use a single sequential pass to avoid thread overhead.
+     */
+    static final long MIN_PARALLEL_SCAN_BYTES = ByteSizeValue.ofMb(10).getBytes();
+
+    /** Target bytes per chunk before capping by {@link Runtime#availableProcessors()}. */
+    private static final long TARGET_CHUNK_BYTES = ByteSizeValue.ofKb(512).getBytes();
+
+    /**
+     * Overlap between consecutive scan chunks so a 48-bit block magic cannot straddle a
+     * chunk boundary without appearing fully in at least one chunk scan.
+     */
+    static final int CHUNK_OVERLAP_BYTES = 8;
 
     @Override
     public String name() {
@@ -57,13 +93,75 @@ public class Bzip2DecompressionCodec implements SplittableDecompressionCodec {
         return new CBZip2InputStream(raw, CBZip2InputStream.ReadMode.CONTINUOUS);
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>When the compressed range is large enough, scans run in parallel on the injected executor.
+     * Each task opens its own stream via {@link StorageObject#newStream(long, long)} for a disjoint
+     * sub-range (plus small overlap between chunks); the {@code StorageObject} must permit that
+     * concurrently.
+     */
     @Override
     public long[] findBlockBoundaries(StorageObject object, long start, long end) throws IOException {
         if (start >= end) {
             return new long[0];
         }
-        try (InputStream stream = object.newStream(start, end - start)) {
-            long[] relativeOffsets = scanBlockOffsets(stream, end - start);
+        long rangeLen = end - start;
+        int processors = Runtime.getRuntime().availableProcessors();
+        if (rangeLen < MIN_PARALLEL_SCAN_BYTES || processors < 2) {
+            return findBlockBoundariesSequential(object, start, rangeLen);
+        }
+        long estChunksLong = (rangeLen + TARGET_CHUNK_BYTES - 1) / TARGET_CHUNK_BYTES;
+        int estChunks = estChunksLong > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) estChunksLong;
+        int numChunks = Math.min(processors, estChunks);
+        if (numChunks < 2) {
+            return findBlockBoundariesSequential(object, start, rangeLen);
+        }
+        long chunkLen = (rangeLen + numChunks - 1) / numChunks;
+        @SuppressWarnings("unchecked")
+        CompletableFuture<long[]>[] futures = new CompletableFuture[numChunks];
+        for (int k = 0; k < numChunks; k++) {
+            long segStart = k * chunkLen;
+            long readStart = Math.max(0L, segStart - CHUNK_OVERLAP_BYTES);
+            long readEnd = Math.min(rangeLen, (k + 1L) * chunkLen + CHUNK_OVERLAP_BYTES);
+            long readLen = readEnd - readStart;
+            final long rs = readStart;
+            final long rl = readLen;
+            futures[k] = CompletableFuture.supplyAsync(() -> {
+                try (InputStream stream = object.newStream(start + rs, rl)) {
+                    long[] offsets = scanBlockOffsets(stream, rl);
+                    for (int i = 0; i < offsets.length; i++) {
+                        offsets[i] += start + rs;
+                    }
+                    return offsets;
+                } catch (IOException e) {
+                    throw new CompletionException(e);
+                }
+            }, scanExecutor);
+        }
+        try {
+            CompletableFuture.allOf(futures).join();
+        } catch (CompletionException e) {
+            Throwable c = e.getCause();
+            if (c instanceof IOException ioe) {
+                throw ioe;
+            }
+            if (c instanceof Error err) {
+                throw err;
+            }
+            throw new IOException("Failed parallel bzip2 block scan", c);
+        }
+        long[][] parts = new long[numChunks][];
+        for (int i = 0; i < numChunks; i++) {
+            // After allOf().join() every future is done successfully; getNow avoids redundant blocking joins.
+            parts[i] = futures[i].getNow(null);
+        }
+        return mergeSortedUnique(parts);
+    }
+
+    private static long[] findBlockBoundariesSequential(StorageObject object, long start, long rangeLen) throws IOException {
+        try (InputStream stream = object.newStream(start, rangeLen)) {
+            long[] relativeOffsets = scanBlockOffsets(stream, rangeLen);
             for (int i = 0; i < relativeOffsets.length; i++) {
                 relativeOffsets[i] += start;
             }
@@ -90,15 +188,17 @@ public class Bzip2DecompressionCodec implements SplittableDecompressionCodec {
         // For mid-file blocks, we position at blockStart. The BYBLOCK constructor
         // scans forward to find the next block magic from that byte position.
         long streamStart;
-        int positionOffset;
+        long initialCompressedPosition;
         if (blockStart <= BZIP2_HEADER_SIZE) {
             streamStart = 0;
             // The 'BZ' prefix (2 bytes) is skipped before passing to CBZip2InputStream,
             // so the decompressor's internal byte counter starts 2 bytes behind the file position
-            positionOffset = 2;
+            initialCompressedPosition = 2;
         } else {
             streamStart = blockStart;
-            positionOffset = (int) blockStart;
+            // Must remain a long: compressed offsets exceed 2^31-1 for multi-GB files; casting to int corrupts the
+            // BlockBoundedDecompressStream limit check and terminates splits far too early.
+            initialCompressedPosition = blockStart;
         }
 
         InputStream rawStream = object.newStream(streamStart, fileLength - streamStart);
@@ -107,7 +207,7 @@ public class Bzip2DecompressionCodec implements SplittableDecompressionCodec {
         }
 
         CBZip2InputStream decompressor = new CBZip2InputStream(rawStream, CBZip2InputStream.ReadMode.BYBLOCK);
-        decompressor.updateReportedByteCount(positionOffset);
+        decompressor.updateReportedByteCount(initialCompressedPosition);
         return new BlockBoundedDecompressStream(decompressor, nextBlockStart);
     }
 

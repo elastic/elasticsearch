@@ -444,6 +444,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
   method: test {csv-spec:k8s-timeseries-promql.day_of_week_sunday}
   issue: https://github.com/elastic/elasticsearch/issues/146958
+- class: org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests
+  method: testMinimalToMaximal {p0=true p1=ENTERPRISE}
+  issue: https://github.com/elastic/elasticsearch/issues/146966
 
 # Examples:
 #

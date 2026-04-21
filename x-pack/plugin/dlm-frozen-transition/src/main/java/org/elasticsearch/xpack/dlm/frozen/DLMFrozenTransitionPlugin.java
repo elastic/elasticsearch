@@ -52,7 +52,7 @@ public class DLMFrozenTransitionPlugin extends Plugin {
                 DLMFrozenTransitionService.MAX_CONCURRENCY_SETTING,
                 DLMFrozenTransitionService.MAX_QUEUE_SIZE,
                 DLMFrozenCleanupService.POLL_INTERVAL_SETTING,
-                DLMConvertToFrozen.DLM_MANAGED_SETTING
+                DLMConvertToFrozen.DLM_CREATED_SETTING
             );
         } else {
             return List.of();

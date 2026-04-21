@@ -52,7 +52,11 @@ class DLMFrozenCleanupService extends AbstractDLMPeriodicMasterOnlyService {
     private final Client client;
 
     DLMFrozenCleanupService(ClusterService clusterService, Client client) {
-        this(clusterService, client, TimeValue.timeValueMinutes(5).millis());
+        this(
+            clusterService,
+            client,
+            Math.min(TimeValue.timeValueMinutes(5).millis(), POLL_INTERVAL_SETTING.get(clusterService.getSettings()).millis())
+        );
     }
 
     // visible for testing
@@ -129,7 +133,7 @@ class DLMFrozenCleanupService extends AbstractDLMPeriodicMasterOnlyService {
         return projectMetadata.indices()
             .values()
             .stream()
-            .filter(indexMetadata -> DLMConvertToFrozen.DLM_MANAGED_SETTING.get(indexMetadata.getSettings()))
+            .filter(indexMetadata -> DLMConvertToFrozen.DLM_CREATED_SETTING.get(indexMetadata.getSettings()))
             .map(IndexMetadata::getIndex)
             .map(Index::getName)
             .filter(indexName -> isIndexOrphaned(indexName, projectMetadata))
@@ -143,14 +147,15 @@ class DLMFrozenCleanupService extends AbstractDLMPeriodicMasterOnlyService {
         PlainActionFuture<GetSnapshotsResponse> future = new PlainActionFuture<>();
 
         ProjectId projectId = projectMetadata.id();
-        client.projectClient(projectId).admin().cluster().getSnapshots(getSnapshotsRequest, future);
 
         try {
+            client.projectClient(projectId).admin().cluster().getSnapshots(getSnapshotsRequest, future);
+
             GetSnapshotsResponse getSnapshotsResponse = future.get();
 
             return getSnapshotsResponse.getSnapshots().stream().filter(snapshotInfo -> {
                 Map<String, Object> metadata = snapshotInfo.userMetadata();
-                if (metadata == null || Boolean.TRUE.equals(metadata.get(DLMConvertToFrozen.DLM_MANAGED_METADATA_KEY)) == false) {
+                if (metadata == null || Boolean.TRUE.equals(metadata.get(DLMConvertToFrozen.DLM_CREATED_METADATA_KEY)) == false) {
                     return false;
                 }
 

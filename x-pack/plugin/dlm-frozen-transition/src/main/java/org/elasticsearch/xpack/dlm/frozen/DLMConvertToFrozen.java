@@ -99,9 +99,9 @@ import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapsho
  */
 public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
 
-    public static final String DLM_MANAGED_SETTING_KEY = IndexMetadata.INDEX_SETTING_PREFIX + "dlm.frozen.managed";
-    public static final Setting<Boolean> DLM_MANAGED_SETTING = Setting.boolSetting(
-        DLM_MANAGED_SETTING_KEY,
+    public static final String DLM_CREATED_SETTING_KEY = IndexMetadata.INDEX_SETTING_PREFIX + "dlm.frozen.created";
+    public static final Setting<Boolean> DLM_CREATED_SETTING = Setting.boolSetting(
+        DLM_CREATED_SETTING_KEY,
         false,
         Setting.Property.IndexScope,
         Setting.Property.PrivateIndex
@@ -110,7 +110,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
     public static final String CLONE_INDEX_PREFIX = "dlm-clone-";
     static final String SNAPSHOT_NAME_PREFIX = "dlm-frozen-";
     static final IndicesOptions IGNORE_MISSING_OPTIONS = IndicesOptions.fromOptions(true, true, false, false);
-    static final String DLM_MANAGED_METADATA_KEY = "dlm-managed";
+    static final String DLM_CREATED_METADATA_KEY = "dlm-created";
     private static final Logger logger = LogManager.getLogger(DLMConvertToFrozen.class);
     private static final TimeValue SNAPSHOT_TIMEOUT = TimeValue.timeValueHours(12);
 
@@ -437,7 +437,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             getRepositoryForFrozen(projectMetadata, indexName),
             snapshotName,
             forceMergeIndex,
-            Settings.builder().put(DLM_MANAGED_SETTING_KEY, true).build(),
+            Settings.builder().put(DLM_CREATED_SETTING_KEY, true).build(),
             ignoredIndexSettings,
             true,
             MountSearchableSnapshotRequest.Storage.SHARED_CACHE
@@ -577,7 +577,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .putNull(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS)
-                .put(DLM_MANAGED_SETTING_KEY, true)
+                .put(DLM_CREATED_SETTING_KEY, true)
         );
         return resizeReq;
     }
@@ -1040,7 +1040,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         request.indices(indexName);
         request.waitForCompletion(true);
         request.includeGlobalState(false);
-        request.userMetadata(Map.of(DLM_MANAGED_METADATA_KEY, true));
+        request.userMetadata(Map.of(DLM_CREATED_METADATA_KEY, true));
         return request;
     }
 

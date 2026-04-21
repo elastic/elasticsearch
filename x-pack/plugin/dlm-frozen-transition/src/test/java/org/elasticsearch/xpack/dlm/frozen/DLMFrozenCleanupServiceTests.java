@@ -148,7 +148,7 @@ public class DLMFrozenCleanupServiceTests extends ESTestCase {
 
     private IndexMetadata createDlmManagedIndex(String name) {
         return IndexMetadata.builder(name)
-            .settings(settings(IndexVersion.current()).put(DLMConvertToFrozen.DLM_MANAGED_SETTING_KEY, true).build())
+            .settings(settings(IndexVersion.current()).put(DLMConvertToFrozen.DLM_CREATED_SETTING_KEY, true).build())
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
@@ -157,7 +157,7 @@ public class DLMFrozenCleanupServiceTests extends ESTestCase {
     private IndexMetadata createDlmManagedMountedIndex(String name, String sourceIndexName) {
         return IndexMetadata.builder(name)
             .settings(
-                settings(IndexVersion.current()).put(DLMConvertToFrozen.DLM_MANAGED_SETTING_KEY, true)
+                settings(IndexVersion.current()).put(DLMConvertToFrozen.DLM_CREATED_SETTING_KEY, true)
                     .put(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_INDEX_NAME_SETTING_KEY, sourceIndexName)
                     .build()
             )
@@ -169,7 +169,7 @@ public class DLMFrozenCleanupServiceTests extends ESTestCase {
     private IndexMetadata createDlmManagedClonedIndex(String name, String sourceIndexName, String sourceIndexUuid) {
         return IndexMetadata.builder(name)
             .settings(
-                settings(IndexVersion.current()).put(DLMConvertToFrozen.DLM_MANAGED_SETTING_KEY, true)
+                settings(IndexVersion.current()).put(DLMConvertToFrozen.DLM_CREATED_SETTING_KEY, true)
                     .put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY, sourceIndexName)
                     .put(IndexMetadata.INDEX_RESIZE_SOURCE_UUID_KEY, sourceIndexUuid)
                     .build()
@@ -214,7 +214,7 @@ public class DLMFrozenCleanupServiceTests extends ESTestCase {
     }
 
     private SnapshotInfo createSnapshotInfo(String snapshotName, List<String> snapshotIndices) {
-        return createSnapshotInfo(snapshotName, snapshotIndices, Map.of(DLMConvertToFrozen.DLM_MANAGED_METADATA_KEY, true));
+        return createSnapshotInfo(snapshotName, snapshotIndices, Map.of(DLMConvertToFrozen.DLM_CREATED_METADATA_KEY, true));
     }
 
     private SnapshotInfo createSnapshotInfo(String snapshotName, List<String> snapshotIndices, Map<String, Object> userMetadata) {
@@ -333,7 +333,7 @@ public class DLMFrozenCleanupServiceTests extends ESTestCase {
 
         IndexMetadata frozenMeta = IndexMetadata.builder(frozenIndex)
             .settings(
-                settings(IndexVersion.current()).put(DLMConvertToFrozen.DLM_MANAGED_SETTING_KEY, true)
+                settings(IndexVersion.current()).put(DLMConvertToFrozen.DLM_CREATED_SETTING_KEY, true)
                     .put(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_INDEX_NAME_SETTING_KEY, cloneIndex)
                     .put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY, sourceIndex)
                     .put(IndexMetadata.INDEX_RESIZE_SOURCE_UUID_KEY, randomAlphaOfLength(10))

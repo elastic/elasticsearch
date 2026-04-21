@@ -21,16 +21,15 @@ import org.junit.ClassRule;
 import java.util.List;
 
 /**
- * Parameterized integration tests for standalone Parquet files.
- * Each csv-spec test is run against every configured storage backend (S3, HTTP, LOCAL).
+ * Runs the same Parquet format spec tests as ParquetFormatSpecIT but using the parquet-rs native reader.
  */
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
-public class ParquetFormatSpecIT extends AbstractExternalSourceSpecTestCase {
+public class ParquetRsFormatSpecIT extends AbstractExternalSourceSpecTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster(() -> s3Fixture.getAddress());
 
-    public ParquetFormatSpecIT(
+    public ParquetRsFormatSpecIT(
         String fileName,
         String groupName,
         String testName,
@@ -44,7 +43,7 @@ public class ParquetFormatSpecIT extends AbstractExternalSourceSpecTestCase {
 
     @Override
     protected String readerName() {
-        return EsqlPlugin.READER_JAVA;
+        return EsqlPlugin.READER_PARQUET_RS;
     }
 
     @Override

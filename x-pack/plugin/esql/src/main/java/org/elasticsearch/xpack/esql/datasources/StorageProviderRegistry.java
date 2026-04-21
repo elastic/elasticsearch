@@ -17,9 +17,11 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -95,10 +97,17 @@ public class StorageProviderRegistry implements Closeable {
         return factories.containsKey(normalized) || providers.containsKey(normalized);
     }
 
+    /**
+     * Framework-level WITH keys that are consumed by {@link FileSourceFactory} / format readers
+     * and must not be forwarded to storage provider configurations.
+     */
+    private static final Set<String> FRAMEWORK_KEYS = Set.of("format", "reader", "max_errors", "max_error_ratio", "error_mode");
+
     public StorageProvider createProvider(String scheme, Settings settings, Map<String, Object> config) {
         String normalizedScheme = scheme.toLowerCase(Locale.ROOT);
 
-        if (config == null || config.isEmpty()) {
+        Map<String, Object> storageConfig = stripFrameworkKeys(config);
+        if (storageConfig == null || storageConfig.isEmpty()) {
             StorageProvider provider = providers.get(normalizedScheme);
             if (provider == null) {
                 provider = createDefaultProvider(normalizedScheme);
@@ -110,7 +119,20 @@ public class StorageProviderRegistry implements Closeable {
         if (factory == null) {
             throw new IllegalArgumentException("No SPI storage factory registered for scheme: " + scheme);
         }
-        return wrapProvider(factory.create(settings, config), normalizedScheme);
+        return wrapProvider(factory.create(settings, storageConfig), normalizedScheme);
+    }
+
+    private static Map<String, Object> stripFrameworkKeys(Map<String, Object> config) {
+        if (config == null || config.isEmpty()) {
+            return config;
+        }
+        boolean hasFrameworkKeys = config.keySet().stream().anyMatch(FRAMEWORK_KEYS::contains);
+        if (hasFrameworkKeys == false) {
+            return config;
+        }
+        Map<String, Object> filtered = new HashMap<>(config);
+        FRAMEWORK_KEYS.forEach(filtered::remove);
+        return filtered;
     }
 
     private synchronized StorageProvider createDefaultProvider(String normalizedScheme) {

@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.io.IOException;
 import java.util.List;
@@ -172,18 +171,10 @@ final class FileSourceFactory implements ExternalSourceFactory {
         };
     }
 
-    static final String CONFIG_FORMAT = "format";
-    static final String CONFIG_READER = "reader";
     static final String CONFIG_MAX_ERRORS = "max_errors";
     static final String CONFIG_MAX_ERROR_RATIO = "max_error_ratio";
     static final String CONFIG_ERROR_MODE = "error_mode";
 
-    private static final Map<String, String> PARQUET_READER_ALIASES = Map.of(
-        EsqlPlugin.READER_PARQUET_RS,
-        EsqlPlugin.FORMAT_PARQUET,
-        EsqlPlugin.READER_JAVA,
-        EsqlPlugin.FORMAT_PARQUET_JAVA
-    );
 
     static ErrorPolicy resolveErrorPolicy(Map<String, Object> config, FormatReader format) {
         if (config == null) {
@@ -255,22 +246,21 @@ final class FileSourceFactory implements ExternalSourceFactory {
 
     private FormatReader resolveFormatReader(String objectName, Map<String, Object> config) {
         if (config != null) {
-            Object readerOverride = config.get(CONFIG_READER);
+            Object readerOverride = config.get(FormatNameResolver.CONFIG_READER);
             if (readerOverride != null) {
                 String alias = readerOverride.toString().toLowerCase(Locale.ROOT);
-                String formatName = PARQUET_READER_ALIASES.get(alias);
-                if (formatName != null) {
-                    return formatRegistry.byName(formatName);
+                String formatName = FormatNameResolver.readerAliasToFormat(alias);
+                if (formatName == null) {
+                    throw new IllegalArgumentException(
+                        "Unknown reader [" + alias + "]; supported values: " + FormatNameResolver.supportedReaderAliases()
+                    );
                 }
-                throw new IllegalArgumentException("Unknown reader [" + alias + "]; supported values: " + PARQUET_READER_ALIASES.keySet());
+                return formatRegistry.byName(formatName);
             }
-            Object formatOverride = config.get(CONFIG_FORMAT);
-            if (formatOverride != null) {
-                String formatName = formatOverride.toString();
-                if (formatName.isEmpty() == false) {
-                    return formatRegistry.byName(formatName);
-                }
-            }
+        }
+        String formatName = FormatNameResolver.resolve(config, objectName);
+        if (formatName != null) {
+            return formatRegistry.byName(formatName);
         }
         return formatRegistry.byExtension(objectName);
     }

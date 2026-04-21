@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.datasources.FilterEvaluationOrderEstimator;
+import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
@@ -42,7 +43,6 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import static java.util.Arrays.asList;
@@ -283,44 +283,8 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         return filterExec;
     }
 
-    /**
-     * Resolves the format name for file-based external sources, used for format-aware
-     * pushdown dispatch. Checks the config map first (explicit format override from WITH clause),
-     * then falls back to extracting the extension from the source path.
-     *
-     * @return the format name (e.g., "orc", "parquet", "csv"), or null if undetermined
-     */
     static String resolveFormatName(Map<String, Object> config, String sourcePath) {
-        // Priority 1: explicit format override from config (WITH clause)
-        if (config != null) {
-            Object formatOverride = config.get("format");
-            if (formatOverride != null) {
-                String name = formatOverride.toString().toLowerCase(Locale.ROOT);
-                if (name.isEmpty() == false) {
-                    return name;
-                }
-            }
-        }
-        // Priority 2: extract from file extension
-        if (sourcePath != null) {
-            int lastDot = sourcePath.lastIndexOf('.');
-            if (lastDot >= 0 && lastDot < sourcePath.length() - 1) {
-                String ext = sourcePath.substring(lastDot + 1);
-                // Strip query string or fragment if present (e.g., s3://bucket/file.orc?versionId=... or #frag)
-                int queryStart = ext.indexOf('?');
-                if (queryStart >= 0) {
-                    ext = ext.substring(0, queryStart);
-                }
-                int fragmentStart = ext.indexOf('#');
-                if (fragmentStart >= 0) {
-                    ext = ext.substring(0, fragmentStart);
-                }
-                if (ext.isEmpty() == false) {
-                    return ext.toLowerCase(Locale.ROOT);
-                }
-            }
-        }
-        return null;
+        return FormatNameResolver.resolve(config, sourcePath);
     }
 
     /**

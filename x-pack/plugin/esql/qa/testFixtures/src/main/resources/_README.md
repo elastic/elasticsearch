@@ -10,10 +10,8 @@ As such, most of ESQL's integration tests are CSV-SPEC tests.
 ## Running
 
 CSV-SPEC tests run in lots of different ways. The simplest way to run a
-CSV-SPEC test is to open ESQL's CsvTests.java and run it right in IntelliJ using
-the unit runner. As of this writing that runs 1,350 tests in about 35 seconds.
-It's fast because it doesn't stand up an Elasticsearch node at all. It runs
-like a big unit test
+CSV-SPEC test is to open ESQL's `CsvIT.java` and run it right in IntelliJ using
+the unit runner. As of this writing that runs 6,123 tests in less than 2 minutes.
 
 The second-simplest way to run the CSV-SPEC tests is to run `EsqlSpecIT` in
 `:x-pack:plugin:esql:qa:server:single-node` via the Gradle runner in IntelliJ
@@ -222,6 +220,25 @@ warningRegex:Line \d+:\d+: java.lang.ArithmeticException: long overflow
 
 sum:long
 null
+;
+```
+
+### Non-deterministic results: ranges and wildcards
+
+When a result is not exactly predictable (approximate aggregations, similarity
+scores, sampling, etc.) two matchers are available in place of a literal value:
+
+* **Numeric range** `lower..upper` — matches any value in the closed interval
+  `[lower, upper]`. Works for any numeric column type, including `double` and
+  `float`; scientific notation is accepted (`1.0E-4..2.0E-4`). Bounds must be
+  finite — `NaN` and `Infinity` are not supported as bounds.
+* **`{any}`** — matches any value of the column's declared type.
+
+Both can be used inside multi-value cells. Example:
+
+```csv-spec
+similarityScore:double | topIds:long
+0.9..1.0               | [100..200, {any}]
 ;
 ```
 

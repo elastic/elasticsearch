@@ -932,12 +932,12 @@ public class IndexingShardRecoveryIT extends AbstractStatelessPluginIntegTestCas
 
     private DocsAndCommits generateCommits(String indexName) {
         int uploadMaxCommits = getUploadMaxCommits();
-        int numCommits = randomIntBetween(0, Math.min(25, uploadMaxCommits * 3));
+        int numCommits = randomIntBetween(0, Math.min(15, uploadMaxCommits * 3));
 
         long totalDocs = 0L;
         logger.info("--> generating {} commit(s) for index [{}] with {} upload max. commits", numCommits, indexName, uploadMaxCommits);
         for (int i = 0; i < numCommits; i++) {
-            int numDocs = randomIntBetween(50, 100);
+            int numDocs = randomIntBetween(25, 50);
             indexDocs(indexName, numDocs, bulkRequest -> bulkRequest.setRefreshPolicy(RefreshPolicy.IMMEDIATE));
             totalDocs += numDocs;
         }

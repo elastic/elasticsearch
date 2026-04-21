@@ -463,9 +463,6 @@ tests:
   method: test {p0=search/395_binary_doc_values_search/*}
   issue: https://github.com/elastic/elasticsearch/issues/147064
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=mget/90_synthetic_source/keyword with non-lowercase normalizer}
-  issue: https://github.com/elastic/elasticsearch/issues/147064
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=mapping/20_synthetic_source/synthetic_source text with ignored multi-field and multiple values in the same doc}
   issue: https://github.com/elastic/elasticsearch/issues/147064
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT

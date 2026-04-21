@@ -105,7 +105,7 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
                     + query
                     + ", "
                     + "chunkingSettings={\"strategy\":\"sentence\",\"max_chunk_size\":300,\"sentence_overlap\":0}, "
-                    + "scorer=MemoryIndexChunkScorer, numSnippets=5, noOrder=false]",
+                    + "scorer=MemoryIndexChunkScorer, numSnippets=5, docOrder=false]",
                 DataType.KEYWORD,
                 equalTo(expectedResult)
             );
@@ -155,7 +155,7 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
                         + query
                         + ", "
                         + "chunkingSettings={\"strategy\":\"sentence\",\"max_chunk_size\":25,\"sentence_overlap\":0}, "
-                        + "scorer=MemoryIndexChunkScorer, numSnippets=3, noOrder=false]",
+                        + "scorer=MemoryIndexChunkScorer, numSnippets=3, docOrder=false]",
                     DataType.KEYWORD,
                     equalTo(expectedResult)
                 );

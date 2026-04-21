@@ -107,7 +107,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
     private static final String ENCODER = "encoder";
     private static final String HTML_ENCODER = "html";
     private static final String ORDER = "order";
-    private static final String NONE_ORDER = "none";
+    private static final String DOC_ORDER = "none";
 
     static final String DEFAULT_PRE_TAG = "<em>";
     static final String DEFAULT_POST_TAG = "</em>";
@@ -396,7 +396,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
         @Fixed ChunkingSettings chunkingSettings,
         @Fixed MemoryIndexChunkScorer scorer,
         @Fixed int numSnippets,
-        @Fixed boolean noOrder,
+        @Fixed boolean docOrder,
         @Fixed(includeInToString = false) PassageFormatter highlightFormatter
     ) {
         if (queryString == null) {
@@ -425,7 +425,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
 
         Query luceneQuery = scorer.buildQuery(queryString);
         List<ScoredChunk> topChunks = scorer.scoreChunks(allChunks, luceneQuery, numSnippets, false);
-        if (noOrder) {
+        if (docOrder) {
             topChunks = topChunks.stream().sorted(Comparator.comparingInt(ScoredChunk::originalIndex)).toList();
         }
         if (topChunks.isEmpty()) {
@@ -501,14 +501,14 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         int numSnippets;
         int numWords;
-        boolean noOrder;
+        boolean docOrder;
         PassageFormatter highlightFormatter = null;
         if (options != null) {
             Map<String, Object> opts = new HashMap<>();
             Options.populateMap((MapExpression) options, opts, source(), THIRD, ALLOWED_OPTIONS);
             numSnippets = numSnippets(opts);
             numWords = numWords(opts);
-            noOrder = NONE_ORDER.equals(opts.get(ORDER));
+            docOrder = DOC_ORDER.equals(opts.get(ORDER));
             if (Boolean.TRUE.equals(opts.get(HIGHLIGHT))) {
                 String preTag = (String) opts.getOrDefault(PRE_TAG, DEFAULT_PRE_TAG);
                 String postTag = (String) opts.getOrDefault(POST_TAG, DEFAULT_POST_TAG);
@@ -519,7 +519,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
         } else {
             numSnippets = DEFAULT_NUM_SNIPPETS;
             numWords = DEFAULT_WORD_SIZE;
-            noOrder = false;
+            docOrder = false;
         }
 
         ChunkingSettings chunkingSettings = numWords > 0 ? new SentenceBoundaryChunkingSettings(numWords, 0) : null;
@@ -537,7 +537,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
             chunkingSettings,
             scorer,
             numSnippets,
-            noOrder,
+            docOrder,
             highlightFormatter
         );
     }

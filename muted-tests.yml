@@ -250,6 +250,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeUnmappedLoadIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/145900
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativePromQLIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/146923
 - class: org.elasticsearch.xpack.eql.qa.ccs_rolling_upgrade.EqlCcsRollingUpgradeIT
   method: testSequences
   issue: https://github.com/elastic/elasticsearch/issues/146263
@@ -325,9 +328,6 @@ tests:
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testReindexFailsWhenPitRelocationFails
   issue: https://github.com/elastic/elasticsearch/issues/146650
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/146553
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testReindexTaskRelocatesOnNodeShutdown
   issue: https://github.com/elastic/elasticsearch/issues/146696
@@ -411,6 +411,21 @@ tests:
 - class: org.elasticsearch.benchmark.vector.scorer.VectorScorerBFloat16BulkBenchmarkTests
   method: testSequential {p0=DOT_PRODUCT p1=1024}
   issue: https://github.com/elastic/elasticsearch/issues/146892
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:qstr-function.testQstrInStatsWithGrouping}
+  issue: https://github.com/elastic/elasticsearch/issues/146934
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:stats.whereNullConjunctionBeforeStats}
+  issue: https://github.com/elastic/elasticsearch/issues/146935
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:union_types.multiIndexIpStatsNonPushableCountWithFilter}
+  issue: https://github.com/elastic/elasticsearch/issues/146936
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:qstr-function.testQstrInStatsWithOptions}
+  issue: https://github.com/elastic/elasticsearch/issues/146937
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:mv_expand.explosionStats}
+  issue: https://github.com/elastic/elasticsearch/issues/146939
 
 # Examples:
 #

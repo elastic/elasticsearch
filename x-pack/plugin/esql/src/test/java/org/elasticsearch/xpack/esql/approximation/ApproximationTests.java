@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.approximation;
 
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproximate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
@@ -31,7 +32,7 @@ public class ApproximationTests extends ApproximationTestCase {
         return withDefaultLimitWarning(super.filteredWarnings());
     }
 
-    public void testVerify_validQuery() throws Exception {
+    public void testVerify_validQuery() {
         verify("FROM test | WHERE emp_no<99 | SORT last_name | MV_EXPAND salary | STATS COUNT() BY gender");
         verify("FROM test | EVAL x=1 | DROP emp_no | STATS sum=SUM(salary) BY x | CHANGE_POINT sum ON x");
         verify("FROM test | KEEP gender, emp_no | RENAME gender AS whatever | STATS MEDIAN(emp_no) | LIMIT 1000");
@@ -39,7 +40,32 @@ public class ApproximationTests extends ApproximationTestCase {
         verify("ROW i=[1,2,3] | EVAL x=TO_STRING(i) | DISSECT x \"%{x}\" | STATS i=10*POW(PERCENTILE(i, 0.5), 2) | LIMIT 10");
         verify("FROM test | URI_PARTS parts = last_name | STATS scheme_count = COUNT() BY parts.scheme | LIMIT 10");
         verify("FROM test | REGISTERED_DOMAIN rd = last_name | STATS c = COUNT() BY rd.registered_domain | LIMIT 10");
+    }
+
+    public void testVerify_inlineStats() {
+        assumeTrue("needs approximation inline stats", EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS.isEnabled());
         verify("FROM test | INLINE STATS COUNT() BY last_name | LIMIT 10");
+    }
+
+    public void testVerify_inlineStats_disabled() {
+        assumeTrue("needs approximation inline stats disabled", EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS.isEnabled() == false);
+        assertError(
+            "FROM test | INLINE STATS COUNT() BY last_name | LIMIT 10",
+            equalTo("line 1:13: approximation not supported: query with [INLINE STATS COUNT() BY last_name] cannot be approximated")
+        );
+    }
+
+    public void testVerify_lookupJoin() {
+        assumeTrue("needs approximation lookup join", EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN.isEnabled());
+        verify("FROM test | LOOKUP JOIN test_lookup ON emp_no | STATS COUNT()");
+    }
+
+    public void testVerify_lookupJoin_disabled() {
+        assumeTrue("needs approximation lookup join disabled", EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN.isEnabled() == false);
+        assertError(
+            "FROM test | LOOKUP JOIN test_lookup ON emp_no | STATS COUNT()",
+            equalTo("line 1:13: approximation not supported: query with [LOOKUP JOIN test_lookup ON emp_no] cannot be approximated")
+        );
     }
 
     public void testVerify_validQuery_queryProperties() throws Exception {
@@ -67,6 +93,10 @@ public class ApproximationTests extends ApproximationTestCase {
             verify("FROM test | MV_EXPAND gender | WHERE emp_no < 3 | STATS COUNT()"),
             equalTo(new Approximation.QueryProperties(false, true, true))
         );
+    }
+
+    public void testVerify_validQuery_queryProperties_inlineStats() throws Exception {
+        assumeTrue("needs approximation inline stats", EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS.isEnabled());
         assertThat(
             verify("FROM test | WHERE emp_no < 3 | INLINE STATS COUNT()"),
             equalTo(new Approximation.QueryProperties(false, true, false))
@@ -82,6 +112,10 @@ public class ApproximationTests extends ApproximationTestCase {
             "FROM test | STATS COUNT() BY emp_no | STATS COUNT()",
             equalTo("line 1:39: approximation not supported: query with multiple [STATS] cannot be approximated")
         );
+    }
+
+    public void testVerify_exactlyOneStats_inlineStats() {
+        assumeTrue("needs approximation inline stats", EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS.isEnabled());
         assertError(
             "FROM test | INLINE STATS count=COUNT() BY emp_no | STATS AVG(count)",
             equalTo("line 1:52: approximation not supported: query with multiple [STATS] cannot be approximated")

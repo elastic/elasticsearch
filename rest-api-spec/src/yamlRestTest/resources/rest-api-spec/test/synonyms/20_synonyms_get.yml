@@ -211,3 +211,46 @@ setup:
   - match: { count: 3 }
   - length: { synonyms_set: 0 }
   - not_exists: next_search_after
+
+---
+"No next_search_after when all results fit on one page":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_synonyms/{synonymsSet}
+          capabilities: [ synonyms_get_search_after ]
+      reason: "synonyms_get_search_after capability needed"
+
+  - do:
+      synonyms.get_synonym:
+        id: test-get-synonyms
+        size: 10
+
+  - match: { count: 3 }
+  - length: { synonyms_set: 3 }
+  - not_exists: next_search_after
+
+---
+"from and search_after cannot be combined":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_synonyms/{synonymsSet}
+          capabilities: [ synonyms_get_search_after ]
+      reason: "synonyms_get_search_after capability needed"
+
+  - do:
+      catch: bad_request
+      synonyms.get_synonym:
+        id: test-get-synonyms
+        from: 1
+        search_after: "test-id-1"
+
+  - do:
+      catch: bad_request
+      synonyms.get_synonym:
+        id: test-get-synonyms
+        from: 0
+        search_after: "test-id-1"

@@ -44,7 +44,11 @@ public class RestGetSynonymsAction extends BaseRestHandler {
         String synonymsSet = restRequest.param("synonymsSet");
         int size = restRequest.paramAsInt("size", DEFAULT_SIZE_PARAM);
         int from = restRequest.paramAsInt("from", DEFAULT_FROM_PARAM);
-        String searchAfter = restRequest.param("search_after");
+        String searchAfterRaw = restRequest.param("search_after");
+        String searchAfter = (searchAfterRaw == null || searchAfterRaw.isBlank()) ? null : searchAfterRaw;
+        if (restRequest.hasParam("from") && searchAfter != null) {
+            throw new IllegalArgumentException("[from] and [search_after] cannot be used together");
+        }
         GetSynonymsAction.Request request;
         if (from != 0) {
             // Legacy offset-based pagination (also catches negative from, which validation will reject)

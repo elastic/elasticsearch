@@ -11,6 +11,7 @@ package org.elasticsearch.synonyms;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -28,11 +29,13 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -43,6 +46,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.action.synonyms.SynonymsTestUtils.randomSynonymsSet;
@@ -282,6 +286,201 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
                 } else {
                     ((ActionListener<BulkResponse>) listener).onResponse(new BulkResponse(new BulkItemResponse[0], 0L));
                 }
+                return;
+            }
+            super.doExecute(action, request, listener);
+        }
+    }
+
+    // ----- getSynonymSetRulesPage tests -----
+
+    /**
+     * A full page (hits.length == size) returns a cursor pointing to the last rule's ID.
+     */
+    public void testGetSynonymRulesPageFullPageReturnsCursor() throws Exception {
+        SearchHit rule1 = ruleHit(0, "rule-1", "foo, bar");
+        SearchHit rule2 = ruleHit(1, "rule-2", "baz, qux");
+        int size = 2;
+        long totalHits = 5L;
+
+        var service = buildService(
+            new SingleSearchResponseClient(threadPool, new SearchHit[] { rule1, rule2 }, totalHits),
+            clusterService,
+            10_000,
+            SynonymsManagementAPIService.BULK_CHUNK_SIZE
+        );
+
+        var future = new PlainActionFuture<SynonymsManagementAPIService.SynonymRulesPage>();
+        service.getSynonymSetRulesPage("my-set", size, null, future);
+        SynonymsManagementAPIService.SynonymRulesPage page = safeGet(future);
+
+        assertThat(page.result().totalResults(), equalTo(totalHits));
+        assertThat(page.result().pageResults().length, equalTo(2));
+        assertThat(page.nextSearchAfter(), equalTo("rule-2"));
+    }
+
+    /**
+     * A partial page (hits.length &lt; size) returns no cursor — it is the last page.
+     */
+    public void testGetSynonymRulesPagePartialPageNoCursor() throws Exception {
+        SearchHit rule1 = ruleHit(0, "rule-1", "foo, bar");
+        long totalHits = 1L;
+
+        var service = buildService(
+            new SingleSearchResponseClient(threadPool, new SearchHit[] { rule1 }, totalHits),
+            clusterService,
+            10_000,
+            SynonymsManagementAPIService.BULK_CHUNK_SIZE
+        );
+
+        var future = new PlainActionFuture<SynonymsManagementAPIService.SynonymRulesPage>();
+        service.getSynonymSetRulesPage("my-set", 10, null, future);
+        SynonymsManagementAPIService.SynonymRulesPage page = safeGet(future);
+
+        assertThat(page.result().totalResults(), equalTo(totalHits));
+        assertThat(page.result().pageResults().length, equalTo(1));
+        assertNull(page.nextSearchAfter());
+    }
+
+    /**
+     * Zero hits with totalHits > 0 means the caller went past the last page; returns empty page, no cursor.
+     */
+    public void testGetSynonymRulesPagePastLastPageNoCursor() throws Exception {
+        long totalHits = 5L;
+
+        var service = buildService(
+            new SingleSearchResponseClient(threadPool, new SearchHit[0], totalHits),
+            clusterService,
+            10_000,
+            SynonymsManagementAPIService.BULK_CHUNK_SIZE
+        );
+
+        var future = new PlainActionFuture<SynonymsManagementAPIService.SynonymRulesPage>();
+        service.getSynonymSetRulesPage("my-set", 2, "some-cursor", future);
+        SynonymsManagementAPIService.SynonymRulesPage page = safeGet(future);
+
+        assertThat(page.result().totalResults(), equalTo(totalHits));
+        assertThat(page.result().pageResults().length, equalTo(0));
+        assertNull(page.nextSearchAfter());
+    }
+
+    /**
+     * Zero hits with totalHits == 0 and the set exists returns an empty page with no cursor.
+     */
+    public void testGetSynonymRulesPageEmptyExistingSetNoCursor() throws Exception {
+        var service = buildService(
+            new SearchWithExistsCheckClient(threadPool, new SearchHit[0], 0L, true),
+            clusterService,
+            10_000,
+            SynonymsManagementAPIService.BULK_CHUNK_SIZE
+        );
+
+        var future = new PlainActionFuture<SynonymsManagementAPIService.SynonymRulesPage>();
+        service.getSynonymSetRulesPage("my-set", 10, null, future);
+        SynonymsManagementAPIService.SynonymRulesPage page = safeGet(future);
+
+        assertThat(page.result().totalResults(), equalTo(0L));
+        assertThat(page.result().pageResults().length, equalTo(0));
+        assertNull(page.nextSearchAfter());
+    }
+
+    /**
+     * Zero hits with totalHits == 0 and the set does not exist throws ResourceNotFoundException.
+     */
+    public void testGetSynonymRulesPageMissingSetThrows() {
+        var service = buildService(
+            new SearchWithExistsCheckClient(threadPool, new SearchHit[0], 0L, false),
+            clusterService,
+            10_000,
+            SynonymsManagementAPIService.BULK_CHUNK_SIZE
+        );
+
+        var future = new PlainActionFuture<SynonymsManagementAPIService.SynonymRulesPage>();
+        service.getSynonymSetRulesPage("missing-set", 10, null, future);
+        expectThrows(ResourceNotFoundException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
+    }
+
+    private static SearchHit ruleHit(int docId, String ruleId, String synonyms) {
+        SearchHit hit = new SearchHit(docId);
+        hit.setDocumentField(new DocumentField(SynonymRule.ID_FIELD.getPreferredName(), List.of(ruleId)));
+        hit.setDocumentField(new DocumentField(SynonymRule.SYNONYMS_FIELD.getPreferredName(), List.of(synonyms)));
+        return hit;
+    }
+
+    /**
+     * Returns a fixed SearchResponse for all SearchRequests. Does not handle GetRequests.
+     */
+    private static class SingleSearchResponseClient extends NoOpClient {
+        private final SearchHit[] hits;
+        private final long totalHits;
+
+        SingleSearchResponseClient(ThreadPool threadPool, SearchHit[] hits, long totalHits) {
+            super(threadPool);
+            this.hits = hits;
+            this.totalHits = totalHits;
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+            ActionType<Response> action,
+            Request request,
+            ActionListener<Response> listener
+        ) {
+            if (request instanceof SearchRequest) {
+                SearchHits searchHits = new SearchHits(hits, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), Float.NaN);
+                SearchResponse response = SearchResponseUtils.successfulResponse(searchHits);
+                searchHits.decRef();
+                ActionListener.respondAndRelease((ActionListener<SearchResponse>) listener, response);
+                return;
+            }
+            super.doExecute(action, request, listener);
+        }
+    }
+
+    /**
+     * Returns a fixed SearchResponse for SearchRequests and a configurable GetResponse for the
+     * synonym-set-exists check triggered when totalHits == 0.
+     */
+    private static class SearchWithExistsCheckClient extends NoOpClient {
+        private final SearchHit[] hits;
+        private final long totalHits;
+        private final boolean setExists;
+
+        SearchWithExistsCheckClient(ThreadPool threadPool, SearchHit[] hits, long totalHits, boolean setExists) {
+            super(threadPool);
+            this.hits = hits;
+            this.totalHits = totalHits;
+            this.setExists = setExists;
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+            ActionType<Response> action,
+            Request request,
+            ActionListener<Response> listener
+        ) {
+            if (request instanceof SearchRequest) {
+                SearchHits searchHits = new SearchHits(hits, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), Float.NaN);
+                SearchResponse response = SearchResponseUtils.successfulResponse(searchHits);
+                searchHits.decRef();
+                ActionListener.respondAndRelease((ActionListener<SearchResponse>) listener, response);
+                return;
+            }
+            if (request instanceof GetRequest getRequest) {
+                GetResult result = new GetResult(
+                    getRequest.index(),
+                    getRequest.id(),
+                    SequenceNumbers.UNASSIGNED_SEQ_NO,
+                    SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
+                    1,
+                    setExists,
+                    null,
+                    null,
+                    null
+                );
+                ((ActionListener<GetResponse>) listener).onResponse(new GetResponse(result));
                 return;
             }
             super.doExecute(action, request, listener);

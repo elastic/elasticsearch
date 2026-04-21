@@ -12,6 +12,7 @@ package org.elasticsearch.action.synonyms;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.synonyms.PagedResult;
 import org.elasticsearch.synonyms.SynonymRule;
+import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
@@ -27,16 +28,32 @@ public class GetSynonymsActionResponseSerializingTests extends AbstractWireSeria
 
     @Override
     protected GetSynonymsAction.Response createTestInstance() {
-        return new GetSynonymsAction.Response(new PagedResult<>(randomLongBetween(0, Long.MAX_VALUE), randomSynonymsSet()));
+        SynonymRule[] rules = randomSynonymsSet();
+        long total = randomLongBetween(0, Long.MAX_VALUE);
+        if (randomBoolean()) {
+            // legacy response: no cursor
+            return new GetSynonymsAction.Response(new PagedResult<>(total, rules));
+        } else {
+            // cursor-based response: nextSearchAfter may be null (last page) or a rule ID
+            String nextSearchAfter = randomBoolean() ? null : randomIdentifier();
+            return new GetSynonymsAction.Response(
+                new SynonymsManagementAPIService.SynonymRulesPage(new PagedResult<>(total, rules), nextSearchAfter)
+            );
+        }
     }
 
     @Override
     protected GetSynonymsAction.Response mutateInstance(GetSynonymsAction.Response instance) throws IOException {
-        PagedResult<SynonymRule> originalResults = instance.getResults();
-        PagedResult<SynonymRule> mutatedResults = randomValueOtherThan(
-            originalResults,
-            () -> new PagedResult<>(randomLongBetween(0, Long.MAX_VALUE), randomSynonymsSet())
-        );
-        return new GetSynonymsAction.Response(mutatedResults);
+        PagedResult<SynonymRule> results = instance.getResults();
+        String nextSearchAfter = instance.nextSearchAfter();
+        switch (between(0, 1)) {
+            case 0 -> results = randomValueOtherThan(
+                results,
+                () -> new PagedResult<>(randomLongBetween(0, Long.MAX_VALUE), randomSynonymsSet())
+            );
+            case 1 -> nextSearchAfter = randomValueOtherThan(nextSearchAfter, () -> randomBoolean() ? null : randomIdentifier());
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new GetSynonymsAction.Response(new SynonymsManagementAPIService.SynonymRulesPage(results, nextSearchAfter));
     }
 }

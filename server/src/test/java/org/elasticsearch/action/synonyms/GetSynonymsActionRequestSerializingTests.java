@@ -23,11 +23,15 @@ public class GetSynonymsActionRequestSerializingTests extends AbstractWireSerial
 
     @Override
     protected GetSynonymsAction.Request createTestInstance() {
-        return new GetSynonymsAction.Request(
-            randomIdentifier(),
-            randomIntBetween(0, Integer.MAX_VALUE),
-            randomIntBetween(0, Integer.MAX_VALUE)
-        );
+        String synonymsSetId = randomIdentifier();
+        int size = randomIntBetween(0, Integer.MAX_VALUE);
+        if (randomBoolean()) {
+            // legacy offset-based: from is always > 0 so the two paths are distinguishable
+            return new GetSynonymsAction.Request(synonymsSetId, randomIntBetween(1, Integer.MAX_VALUE), size);
+        } else {
+            // cursor-based: from is always 0, searchAfter may be null (first page) or a rule ID
+            return new GetSynonymsAction.Request(synonymsSetId, size, randomBoolean() ? null : randomIdentifier());
+        }
     }
 
     @Override
@@ -35,12 +39,42 @@ public class GetSynonymsActionRequestSerializingTests extends AbstractWireSerial
         String synonymsSetId = instance.synonymsSetId();
         int from = instance.from();
         int size = instance.size();
-        switch (between(0, 2)) {
-            case 0 -> synonymsSetId = randomValueOtherThan(synonymsSetId, () -> randomIdentifier());
-            case 1 -> from = randomValueOtherThan(from, () -> randomIntBetween(0, Integer.MAX_VALUE));
-            case 2 -> size = randomValueOtherThan(size, () -> randomIntBetween(0, Integer.MAX_VALUE));
-            default -> throw new AssertionError("Illegal randomisation branch");
+        String searchAfter = instance.searchAfter();
+        if (from > 0) {
+            // legacy instance — mutate one of the three legacy fields
+            switch (between(0, 2)) {
+                case 0 -> synonymsSetId = randomValueOtherThan(synonymsSetId, () -> randomIdentifier());
+                case 1 -> from = randomValueOtherThan(from, () -> randomIntBetween(1, Integer.MAX_VALUE));
+                case 2 -> size = randomValueOtherThan(size, () -> randomIntBetween(0, Integer.MAX_VALUE));
+                default -> throw new AssertionError("Illegal randomisation branch");
+            }
+            return new GetSynonymsAction.Request(synonymsSetId, from, size);
+        } else {
+            // cursor instance — mutate one of the three cursor fields
+            switch (between(0, 2)) {
+                case 0 -> synonymsSetId = randomValueOtherThan(synonymsSetId, () -> randomIdentifier());
+                case 1 -> size = randomValueOtherThan(size, () -> randomIntBetween(0, Integer.MAX_VALUE));
+                case 2 -> searchAfter = randomValueOtherThan(searchAfter, () -> randomBoolean() ? null : randomIdentifier());
+                default -> throw new AssertionError("Illegal randomisation branch");
+            }
+            return new GetSynonymsAction.Request(synonymsSetId, size, searchAfter);
         }
-        return new GetSynonymsAction.Request(synonymsSetId, from, size);
+    }
+
+    public void testValidationRejectsOversizedPage() {
+        int overLimit = randomIntBetween(10_001, Integer.MAX_VALUE);
+
+        // cursor-based request with size over the limit
+        var cursorRequest = new GetSynonymsAction.Request("my-set", overLimit, (String) null);
+        assertNotNull("expected validation error for size=" + overLimit, cursorRequest.validate());
+
+        // legacy offset-based request with size over the limit
+        var legacyRequest = new GetSynonymsAction.Request("my-set", 0, overLimit);
+        assertNotNull("expected validation error for size=" + overLimit, legacyRequest.validate());
+    }
+
+    public void testValidationRejectsNegativeFrom() {
+        var request = new GetSynonymsAction.Request("my-set", randomIntBetween(-1000, -1), randomIntBetween(0, 10));
+        assertNotNull(request.validate());
     }
 }

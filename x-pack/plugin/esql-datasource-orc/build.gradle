@@ -39,6 +39,9 @@ dependencies {
     // lz4-java is provided by the server (libs/lz4); exclude to prevent jar hell
     exclude group: 'at.yawk.lz4', module: 'lz4-java'
     exclude group: 'com.aayushatharva.brotli4j', module: 'brotli4j'
+    // Replaced by hadoop-common (non-transitive) + woodstox + hadoop-shaded-guava
+    exclude group: 'org.apache.hadoop', module: 'hadoop-client-api'
+    exclude group: 'org.apache.hadoop', module: 'hadoop-client-runtime'
   }
 
   // Hive storage API - provides VectorizedRowBatch and ColumnVector classes used by ORC's
@@ -50,16 +53,19 @@ dependencies {
   // com.google.protobuf.MessageOrBuilder at runtime
   implementation('com.google.protobuf:protobuf-java:3.25.8')
 
-  // Hadoop dependencies — required because ORC's Reader API uses Configuration,
-  // Path, and FileSystem in its public interfaces. Unlike Parquet/Iceberg,
-  // hadoop-client-runtime is also needed at runtime: FileSystem's static
-  // initializer references shaded Woodstox classes from the runtime jar.
-  implementation("org.apache.hadoop:hadoop-client-api:${versions.hadoop}") {
-    exclude group: 'org.slf4j', module: 'slf4j-api'
+  // Hadoop — ORC's Reader API uses Configuration, FileSystem, Path.
+  // Instead of the massive hadoop-client-api (19 MB) + hadoop-client-runtime (29 MB)
+  // which bundle shaded Jetty, ZooKeeper, Curator, Avro, etc. (and attract CVE flags),
+  // we use hadoop-common (4.5 MB, non-transitive) plus only the jars it actually needs
+  // at runtime: Woodstox for Configuration's XML parsing and hadoop-shaded-guava for
+  // Configuration.get() which calls Strings.isNullOrEmpty().
+  implementation("org.apache.hadoop:hadoop-common:${versions.hadoop}") {
+    transitive = false
   }
-  implementation("org.apache.hadoop:hadoop-client-runtime:${versions.hadoop}") {
-    exclude group: 'org.slf4j', module: 'slf4j-api'
-  }
+  implementation("com.fasterxml.woodstox:woodstox-core:5.4.0")
+  implementation("org.codehaus.woodstox:stax2-api:4.2.1")
+  implementation("org.apache.hadoop.thirdparty:hadoop-shaded-guava:1.5.0")
+  implementation("org.apache.commons:commons-collections4:4.4")
 
   // Re-add slf4j-api at the platform version to avoid jar hell with x-pack-core
   runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}"
@@ -72,6 +78,12 @@ dependencies {
   testImplementation "io.airlift:aircompressor:${versions.aircompressor}"
   testImplementation "com.github.luben:zstd-jni:${versions.zstdJni}"
   testImplementation "org.xerial.snappy:snappy-java:${versions.snappyJava}"
+  // ORC's writer path loads HadoopShimsCurrent which references HdfsDataOutputStream.
+  // Only needed for tests that create ORC files; not needed at production runtime
+  // since we only read ORC. Non-transitive to avoid pulling the Hadoop ecosystem.
+  testImplementation("org.apache.hadoop:hadoop-hdfs-client:${versions.hadoop}") {
+    transitive = false
+  }
 }
 
 // Compression libraries (aircompressor, zstd-jni, snappy-java) are provided by
@@ -86,6 +98,9 @@ tasks.withType(org.elasticsearch.gradle.internal.AbstractDependenciesTask).confi
   mapping from: /lucene-.*/, to: 'lucene'
   mapping from: /orc-.*/, to: 'orc'
   mapping from: /hadoop-.*/, to: 'hadoop'
+  mapping from: /woodstox-.*/, to: 'woodstox'
+  mapping from: /stax2-.*/, to: 'stax2'
+  mapping from: /commons-collections4-.*/, to: 'commons-collections4'
   mapping from: /hive-.*/, to: 'orc'
   mapping from: /threeten-extra-.*/, to: 'orc'
   mapping from: /protobuf-.*/, to: 'orc'
@@ -96,65 +111,12 @@ tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses()
   ignoreViolations(
     // Hadoop internal uses sun.misc.Unsafe
-    'org.apache.hadoop.hdfs.shortcircuit.ShortCircuitShm',
-    'org.apache.hadoop.hdfs.shortcircuit.ShortCircuitShm$Slot',
     'org.apache.hadoop.io.FastByteComparisons$LexicographicalComparerHolder$UnsafeComparer',
     'org.apache.hadoop.io.FastByteComparisons$LexicographicalComparerHolder$UnsafeComparer$1',
     'org.apache.hadoop.io.nativeio.NativeIO',
     'org.apache.hadoop.service.launcher.InterruptEscalator',
     'org.apache.hadoop.service.launcher.IrqHandler',
     'org.apache.hadoop.util.SignalLogger$Handler',
-    // Hadoop shaded Guava uses sun.misc.Unsafe
-    'org.apache.hadoop.shaded.com.google.common.cache.Striped64',
-    'org.apache.hadoop.shaded.com.google.common.cache.Striped64$1',
-    'org.apache.hadoop.shaded.com.google.common.cache.Striped64$Cell',
-    'org.apache.hadoop.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
-    'org.apache.hadoop.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
-    'org.apache.hadoop.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-    'org.apache.hadoop.shaded.com.google.common.hash.Striped64',
-    'org.apache.hadoop.shaded.com.google.common.hash.Striped64$1',
-    'org.apache.hadoop.shaded.com.google.common.hash.Striped64$Cell',
-    'org.apache.hadoop.shaded.com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-    'org.apache.hadoop.shaded.com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
-    'org.apache.hadoop.shaded.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
-    'org.apache.hadoop.shaded.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
-    // Hadoop shaded Avro uses sun.misc.Unsafe
-    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe',
-    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeBooleanField',
-    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeByteField',
-    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeCachedField',
-    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeCharField',
-    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeCustomEncodedField',
-    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeDoubleField',
-    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeFloatField',
-    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeIntField',
-    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeLongField',
-    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeObjectField',
-    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeShortField',
-    // Hadoop shaded Curator Guava uses sun.misc.Unsafe
-    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.cache.Striped64',
-    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.cache.Striped64$1',
-    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.cache.Striped64$Cell',
-    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
-    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
-    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$3',
-    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.hash.Striped64',
-    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.hash.Striped64$1',
-    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.hash.Striped64$Cell',
-    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
-    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
-    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
-    'org.apache.hadoop.shaded.org.xbill.DNS.spi.DNSJavaNameServiceDescriptor',
-    // Hadoop thirdparty Protobuf uses sun.misc.Unsafe
-    'org.apache.hadoop.thirdparty.protobuf.MessageSchema',
-    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil',
-    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$1',
-    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$Android32MemoryAccessor',
-    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$Android64MemoryAccessor',
-    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$JvmMemoryAccessor',
-    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$MemoryAccessor',
     // Hadoop thirdparty Guava uses sun.misc.Unsafe
     'org.apache.hadoop.thirdparty.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
     'org.apache.hadoop.thirdparty.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',

@@ -162,27 +162,29 @@ public class CrossClusterSearchIndexBoostIT extends AbstractCrossClusterSearchTe
         client(REMOTE_CLUSTER).admin().indices().prepareRefresh(REMOTE_ONLY).get();
     }
 
+    private SearchRequest makeSearchRequest(int size, Map<String, Float> indexBoosts, String... indices) {
+        SearchRequest request = new SearchRequest(indices);
+        request.allowPartialSearchResults(false);
+        request.setCcsMinimizeRoundtrips(randomBoolean());
+        var sb = new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(size).trackScores(true).sort("_score", SortOrder.DESC);
+        indexBoosts.forEach(sb::indexBoost);
+        request.source(sb);
+        return request;
+    }
+
     /**
      * Remote-only: search executes on the remote cluster; compare baseline score to boosted score.
      */
     public void testRemoteOnly_Unqualified() throws Exception {
         setupRemoteOnlyIndex();
-        SearchRequest baseline = new SearchRequest(REMOTE_CLUSTER + ":" + REMOTE_ONLY);
-        baseline.allowPartialSearchResults(false);
-        baseline.setCcsMinimizeRoundtrips(randomBoolean());
-        baseline.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(1).trackScores(true));
+        SearchRequest baseline = makeSearchRequest(1, Map.of(), REMOTE_CLUSTER + ":" + REMOTE_ONLY);
         final float[] baseScoreHolder = new float[1];
         assertResponse(client(LOCAL_CLUSTER).search(baseline), r -> {
             assertHitCount(r, 1);
             baseScoreHolder[0] = r.getHits().getAt(0).getScore();
         });
 
-        SearchRequest boosted = new SearchRequest(REMOTE_CLUSTER + ":" + REMOTE_ONLY);
-        boosted.allowPartialSearchResults(false);
-        boosted.setCcsMinimizeRoundtrips(true);
-        boosted.source(
-            new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(1).trackScores(true).indexBoost(REMOTE_ONLY, 22.0f)
-        );
+        SearchRequest boosted = makeSearchRequest(1, Map.of(REMOTE_ONLY, 22.0f), REMOTE_CLUSTER + ":" + REMOTE_ONLY);
         assertResponse(client(LOCAL_CLUSTER).search(boosted), response -> {
             assertHitCount(response, 1);
             assertThat((double) (response.getHits().getAt(0).getScore() / baseScoreHolder[0]), closeTo(22.0, 0.3));
@@ -194,25 +196,17 @@ public class CrossClusterSearchIndexBoostIT extends AbstractCrossClusterSearchTe
      */
     public void testRemoteOnly_MissingQualified() throws Exception {
         setupRemoteOnlyIndex();
-        SearchRequest baseline = new SearchRequest(REMOTE_CLUSTER + ":" + REMOTE_ONLY);
-        baseline.allowPartialSearchResults(false);
-        baseline.setCcsMinimizeRoundtrips(randomBoolean());
-        baseline.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(1).trackScores(true));
+        SearchRequest baseline = makeSearchRequest(1, Map.of(), REMOTE_CLUSTER + ":" + REMOTE_ONLY);
         final float[] baseScoreHolder = new float[1];
         assertResponse(client(LOCAL_CLUSTER).search(baseline), r -> {
             assertHitCount(r, 1);
             baseScoreHolder[0] = r.getHits().getAt(0).getScore();
         });
 
-        SearchRequest boosted = new SearchRequest(REMOTE_CLUSTER + ":" + REMOTE_ONLY);
-        boosted.allowPartialSearchResults(false);
-        boosted.setCcsMinimizeRoundtrips(true);
-        boosted.source(
-            new SearchSourceBuilder().query(new MatchAllQueryBuilder())
-                .size(1)
-                .trackScores(true)
-                .indexBoost("cluster_z:" + REMOTE_ONLY, 900.0f)
-                .indexBoost(REMOTE_CLUSTER + ":" + REMOTE_ONLY, 6.0f)
+        SearchRequest boosted = makeSearchRequest(
+            1,
+            Map.of("cluster_z:" + REMOTE_ONLY, 900.0f, REMOTE_CLUSTER + ":" + REMOTE_ONLY, 6.0f),
+            REMOTE_CLUSTER + ":" + REMOTE_ONLY
         );
         assertResponse(client(LOCAL_CLUSTER).search(boosted), response -> {
             assertHitCount(response, 1);
@@ -225,25 +219,17 @@ public class CrossClusterSearchIndexBoostIT extends AbstractCrossClusterSearchTe
      */
     public void testRemoteOnly_IgnoresOrigin() throws Exception {
         setupRemoteOnlyIndex();
-        SearchRequest baseline = new SearchRequest(REMOTE_CLUSTER + ":" + REMOTE_ONLY);
-        baseline.allowPartialSearchResults(false);
-        baseline.setCcsMinimizeRoundtrips(randomBoolean());
-        baseline.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(1).trackScores(true));
+        SearchRequest baseline = makeSearchRequest(1, Map.of(), REMOTE_CLUSTER + ":" + REMOTE_ONLY);
         final float[] baseScoreHolder = new float[1];
         assertResponse(client(LOCAL_CLUSTER).search(baseline), r -> {
             assertHitCount(r, 1);
             baseScoreHolder[0] = r.getHits().getAt(0).getScore();
         });
 
-        SearchRequest boosted = new SearchRequest(REMOTE_CLUSTER + ":" + REMOTE_ONLY);
-        boosted.allowPartialSearchResults(false);
-        boosted.setCcsMinimizeRoundtrips(randomBoolean());
-        boosted.source(
-            new SearchSourceBuilder().query(new MatchAllQueryBuilder())
-                .size(1)
-                .trackScores(true)
-                .indexBoost("_origin:" + REMOTE_ONLY, 900.0f)
-                .indexBoost(REMOTE_ONLY, 8.0f)
+        SearchRequest boosted = makeSearchRequest(
+            1,
+            Map.of("_origin:" + REMOTE_ONLY, 900.0f, REMOTE_ONLY, 8.0f),
+            REMOTE_CLUSTER + ":" + REMOTE_ONLY
         );
         assertResponse(client(LOCAL_CLUSTER).search(boosted), response -> {
             assertHitCount(response, 1);
@@ -258,16 +244,11 @@ public class CrossClusterSearchIndexBoostIT extends AbstractCrossClusterSearchTe
         setupDistinctIndices();
         final float localBoost = 1.0f;
         final float remoteBoost = 34.0f;
-        SearchRequest request = new SearchRequest(LOCAL_ONLY, REMOTE_CLUSTER + ":" + REMOTE_ONLY);
-        request.allowPartialSearchResults(false);
-        request.setCcsMinimizeRoundtrips(randomBoolean());
-        request.source(
-            new SearchSourceBuilder().query(new MatchAllQueryBuilder())
-                .size(10)
-                .trackScores(true)
-                .sort("_score", SortOrder.DESC)
-                .indexBoost(LOCAL_ONLY, localBoost)
-                .indexBoost(REMOTE_CLUSTER + ":" + REMOTE_ONLY, remoteBoost)
+        SearchRequest request = makeSearchRequest(
+            10,
+            Map.of(LOCAL_ONLY, localBoost, REMOTE_CLUSTER + ":" + REMOTE_ONLY, remoteBoost),
+            LOCAL_ONLY,
+            REMOTE_CLUSTER + ":" + REMOTE_ONLY
         );
         assertResponse(client(LOCAL_CLUSTER).search(request), response -> assertLocalRemoteScores(response, localBoost, remoteBoost));
     }
@@ -279,16 +260,11 @@ public class CrossClusterSearchIndexBoostIT extends AbstractCrossClusterSearchTe
         setupDistinctIndices();
         final float localBoost = 30.0f;
         final float remoteBoost = 1.0f;
-        SearchRequest request = new SearchRequest(LOCAL_ONLY, REMOTE_CLUSTER + ":" + REMOTE_ONLY);
-        request.allowPartialSearchResults(false);
-        request.setCcsMinimizeRoundtrips(randomBoolean());
-        request.source(
-            new SearchSourceBuilder().query(new MatchAllQueryBuilder())
-                .size(10)
-                .trackScores(true)
-                .sort("_score", SortOrder.DESC)
-                .indexBoost("_origin:" + LOCAL_ONLY, localBoost)
-                .indexBoost(REMOTE_CLUSTER + ":" + REMOTE_ONLY, remoteBoost)
+        SearchRequest request = makeSearchRequest(
+            10,
+            Map.of("_origin:" + LOCAL_ONLY, localBoost, REMOTE_CLUSTER + ":" + REMOTE_ONLY, remoteBoost),
+            LOCAL_ONLY,
+            REMOTE_CLUSTER + ":" + REMOTE_ONLY
         );
         assertResponse(client(LOCAL_CLUSTER).search(request), response -> assertLocalRemoteScores(response, localBoost, remoteBoost));
     }
@@ -297,16 +273,11 @@ public class CrossClusterSearchIndexBoostIT extends AbstractCrossClusterSearchTe
         setupDistinctIndices();
         final float localBoost = 30.0f;
         final float remoteBoost = 1.0f;
-        SearchRequest request = new SearchRequest(LOCAL_ONLY, REMOTE_CLUSTER + ":" + REMOTE_ONLY);
-        request.allowPartialSearchResults(false);
-        request.setCcsMinimizeRoundtrips(randomBoolean());
-        request.source(
-            new SearchSourceBuilder().query(new MatchAllQueryBuilder())
-                .size(10)
-                .trackScores(true)
-                .sort("_score", SortOrder.DESC)
-                .indexBoost(LOCAL_ONLY, localBoost)
-                .indexBoost(REMOTE_CLUSTER + ":" + REMOTE_ONLY, remoteBoost)
+        SearchRequest request = makeSearchRequest(
+            10,
+            Map.of(LOCAL_ONLY, localBoost, REMOTE_CLUSTER + ":" + REMOTE_ONLY, remoteBoost),
+            LOCAL_ONLY,
+            REMOTE_CLUSTER + ":" + REMOTE_ONLY
         );
         assertResponse(client(LOCAL_CLUSTER).search(request), response -> assertLocalRemoteScores(response, localBoost, remoteBoost));
     }
@@ -318,18 +289,20 @@ public class CrossClusterSearchIndexBoostIT extends AbstractCrossClusterSearchTe
         setupDistinctIndices();
         final float localBoost = 1.0f;
         final float remoteBoost = 7.0f;
-        SearchRequest request = new SearchRequest(LOCAL_ONLY, REMOTE_CLUSTER + ":" + REMOTE_ONLY);
-        request.allowPartialSearchResults(false);
-        request.setCcsMinimizeRoundtrips(randomBoolean());
-        request.source(
-            new SearchSourceBuilder().query(new MatchAllQueryBuilder())
-                .size(10)
-                .trackScores(true)
-                .sort("_score", SortOrder.DESC)
-                .indexBoost(LOCAL_ONLY, localBoost)
-                .indexBoost("cluster_z:" + REMOTE_ONLY, 800.0f)
-                .indexBoost(REMOTE_CLUSTER + ":missing", 800.0f)
-                .indexBoost(REMOTE_CLUSTER + ":" + REMOTE_ONLY, remoteBoost)
+        SearchRequest request = makeSearchRequest(
+            10,
+            Map.of(
+                LOCAL_ONLY,
+                localBoost,
+                "cluster_z:" + REMOTE_ONLY,
+                800.0f,
+                REMOTE_CLUSTER + ":missing",
+                800.0f,
+                REMOTE_CLUSTER + ":" + REMOTE_ONLY,
+                remoteBoost
+            ),
+            LOCAL_ONLY,
+            REMOTE_CLUSTER + ":" + REMOTE_ONLY
         );
         assertResponse(client(LOCAL_CLUSTER).search(request), response -> assertLocalRemoteScores(response, localBoost, remoteBoost));
     }
@@ -340,16 +313,7 @@ public class CrossClusterSearchIndexBoostIT extends AbstractCrossClusterSearchTe
     public void testSharedIndexName_UnqualifiedBoostEqualScores() throws Exception {
         setupSharedNameIndices();
         final float boost = 13.0f;
-        SearchRequest request = new SearchRequest(SHARED_NAME, REMOTE_CLUSTER + ":" + SHARED_NAME);
-        request.allowPartialSearchResults(false);
-        request.setCcsMinimizeRoundtrips(randomBoolean());
-        request.source(
-            new SearchSourceBuilder().query(new MatchAllQueryBuilder())
-                .size(10)
-                .trackScores(true)
-                .sort("_score", SortOrder.DESC)
-                .indexBoost(SHARED_NAME, boost)
-        );
+        SearchRequest request = makeSearchRequest(10, Map.of(SHARED_NAME, boost), SHARED_NAME, REMOTE_CLUSTER + ":" + SHARED_NAME);
         assertResponse(client(LOCAL_CLUSTER).search(request), response -> {
             assertHitCount(response, 2);
             SearchHit localHit = null;
@@ -380,16 +344,11 @@ public class CrossClusterSearchIndexBoostIT extends AbstractCrossClusterSearchTe
     public void testSharedIndexName_OriginAndQualifiedRemoteBoostEqualScores() throws Exception {
         setupSharedNameIndices();
         final float boost = 11.0f;
-        SearchRequest request = new SearchRequest(SHARED_NAME, REMOTE_CLUSTER + ":" + SHARED_NAME);
-        request.allowPartialSearchResults(false);
-        request.setCcsMinimizeRoundtrips(randomBoolean());
-        request.source(
-            new SearchSourceBuilder().query(new MatchAllQueryBuilder())
-                .size(10)
-                .trackScores(true)
-                .sort("_score", SortOrder.DESC)
-                .indexBoost("_origin:" + SHARED_NAME, boost)
-                .indexBoost(REMOTE_CLUSTER + ":" + SHARED_NAME, boost)
+        SearchRequest request = makeSearchRequest(
+            10,
+            Map.of("_origin:" + SHARED_NAME, boost, REMOTE_CLUSTER + ":" + SHARED_NAME, boost),
+            SHARED_NAME,
+            REMOTE_CLUSTER + ":" + SHARED_NAME
         );
         assertResponse(client(LOCAL_CLUSTER).search(request), response -> {
             assertHitCount(response, 2);

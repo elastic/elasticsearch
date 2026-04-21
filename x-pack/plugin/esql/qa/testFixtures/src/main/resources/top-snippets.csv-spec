@@ -370,6 +370,7 @@ ROW content = CONCAT(
 snippets:keyword  
 \## Policy Changes\nGovernment regulations can accelerate the transition to <em>clean</em> <em>energy</em> through carbon pricing and renewable <em>energy</em> mandates.
 // end::top-snippets-num-words-zero-highlight-preceding-chunk-result[]
+;
 
 topSnippetsAnalyzerWhitespaceCase
 required_capability: top_snippets_analyzer

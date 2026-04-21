@@ -260,6 +260,32 @@ public class IndexResolver {
         );
     }
 
+    /**
+     * Issues a single lenient field-caps call (LENIENT_FLAT_OPTIONS, CPS-enabled). Used for per-scope dirty
+     * lenient groups whose only purpose is to act as a remote-view trip-wire and to apply positional exclusion
+     * semantics on the remote — the response is intentionally not merged into mappings, since that already
+     * happens via the required + clean-combined optional path. The listener receives the response on success
+     * (or the failure on error, which propagates RemoteViewNotSupportedException as expected).
+     */
+    public void resolveLenientOnly(
+        String optionalIndexPattern,
+        @Nullable String projectRouting,
+        Set<String> fieldNames,
+        QueryBuilder requestFilter,
+        ActionListener<EsqlResolveFieldsResponse> listener
+    ) {
+        FieldCapabilitiesRequest request = createFieldCapsRequest(
+            LENIENT_FLAT_OPTIONS,
+            optionalIndexPattern,
+            projectRouting,
+            fieldNames,
+            requestFilter,
+            false,
+            true
+        );
+        maybeResolveIndices(optionalIndexPattern, request, listener);
+    }
+
     private void maybeResolveIndices(String pattern, FieldCapabilitiesRequest request, ActionListener<EsqlResolveFieldsResponse> listener) {
         if (pattern.isEmpty()) {
             listener.onResponse(null);

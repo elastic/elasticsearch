@@ -107,8 +107,33 @@ public class ViewResolver {
 
     /**
      * Result of view resolution containing both the rewritten plan and the view queries.
+     * <p>
+     * {@code lenientGroups} contains one {@link LenientPatternGroup} per scope encountered during view resolution,
+     * preserving per-scope independence so that exclusions defined inside one view body cannot affect another scope's
+     * lenient field-caps pattern. Scopes without exclusions can be safely combined into a single lenient FC call;
+     * scopes with exclusions must be sent as their own call to preserve positional exclusion semantics.
      */
-    public record ViewResolutionResult(LogicalPlan plan, Map<String, String> viewQueries, List<String> optionalFieldCapsPatterns) {}
+    public record ViewResolutionResult(LogicalPlan plan, Map<String, String> viewQueries, List<LenientPatternGroup> lenientGroups) {}
+
+    /**
+     * Patterns produced by a single view-resolution scope (the user-typed outer scope or one view body).
+     * The {@link #hasExclusions()} flag determines whether the group's positional exclusion semantics
+     * matter and the group must be sent as its own lenient FC call rather than unioned with peers.
+     */
+    public record LenientPatternGroup(List<String> patterns) {
+        public LenientPatternGroup {
+            patterns = List.copyOf(patterns);
+        }
+
+        public boolean hasExclusions() {
+            for (String p : patterns) {
+                if (isExclusion(p)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
 
     /**
      * Replaces views in the logical plan with their subqueries recursively.
@@ -136,9 +161,9 @@ public class ViewResolver {
         ActionListener<ViewResolutionResult> listener
     ) {
         Map<String, String> viewQueries = new HashMap<>();
-        List<String> optionalFieldCapsPatterns = new ArrayList<>();
+        List<LenientPatternGroup> lenientGroups = new ArrayList<>();
         if (viewsFeatureEnabled() == false || getMetadata().views().isEmpty()) {
-            listener.onResponse(new ViewResolutionResult(plan, viewQueries, optionalFieldCapsPatterns));
+            listener.onResponse(new ViewResolutionResult(plan, viewQueries, lenientGroups));
             return;
         }
         replaceViews(
@@ -146,13 +171,13 @@ public class ViewResolver {
             parser,
             new LinkedHashSet<>(),
             viewQueries,
-            optionalFieldCapsPatterns,
+            lenientGroups,
             0,
             listener.delegateFailureAndWrap((l, rewritten) -> {
                 LogicalPlan postProcessed = rewriteUnionAllsWithNamedSubqueries(rewritten);
                 postProcessed = compactNestedViewUnionAlls(postProcessed);
                 postProcessed = postProcessed.transformDown(NamedSubquery.class, UnaryPlan::child);
-                listener.onResponse(new ViewResolutionResult(postProcessed, viewQueries, optionalFieldCapsPatterns));
+                listener.onResponse(new ViewResolutionResult(postProcessed, viewQueries, lenientGroups));
             })
         );
     }
@@ -162,7 +187,7 @@ public class ViewResolver {
         BiFunction<String, String, LogicalPlan> parser,
         LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
-        List<String> optionalFieldCapsPatterns,
+        List<LenientPatternGroup> lenientGroups,
         int depth,
         ActionListener<LogicalPlan> listener
     ) {
@@ -190,7 +215,7 @@ public class ViewResolver {
                     return;
                 }
                 case Fork fork -> {
-                    replaceViewsFork(fork, parser, seenInner, viewQueries, optionalFieldCapsPatterns, depth, planListener.delegateFailureAndWrap((l, result) -> {
+                    replaceViewsFork(fork, parser, seenInner, viewQueries, lenientGroups, depth, planListener.delegateFailureAndWrap((l, result) -> {
                         plan.forEachDown(resolvedPlans::add);
                         l.onResponse(result);
                     }));
@@ -203,7 +228,7 @@ public class ViewResolver {
                         seenInner,
                         seenWildcards,
                         viewQueries,
-                        optionalFieldCapsPatterns,
+                        lenientGroups,
                         depth,
                         planListener.delegateFailureAndWrap((l, result) -> {
                             plan.forEachDown(resolvedPlans::add);
@@ -224,7 +249,7 @@ public class ViewResolver {
         BiFunction<String, String, LogicalPlan> parser,
         LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
-        List<String> optionalFieldCapsPatterns,
+        List<LenientPatternGroup> lenientGroups,
         int depth,
         ActionListener<LogicalPlan> listener
     ) {
@@ -239,7 +264,7 @@ public class ViewResolver {
                     parser,
                     seenViews,
                     viewQueries,
-                    optionalFieldCapsPatterns,
+                    lenientGroups,
                     depth + 1,
                     l.delegateFailureAndWrap((subListener, newPlan) -> {
                         if (newPlan instanceof Subquery sq && sq.child() instanceof NamedSubquery named) {
@@ -273,7 +298,7 @@ public class ViewResolver {
         LinkedHashSet<String> seenViews,
         HashSet<String> seenWildcards,
         Map<String, String> viewQueries,
-        List<String> optionalFieldCapsPatterns,
+        List<LenientPatternGroup> lenientGroups,
         int depth,
         ActionListener<LogicalPlan> listener
     ) {
@@ -309,7 +334,7 @@ public class ViewResolver {
                         parser,
                         branchSeenViews,
                         viewQueries,
-                        optionalFieldCapsPatterns,
+                        lenientGroups,
                         depth + 1,
                         l2.delegateFailureAndWrap((l3, fullyResolved) -> {
                             ViewPlan viewPlan = new ViewPlan(view.name(), fullyResolved);
@@ -320,7 +345,7 @@ public class ViewResolver {
                 });
             }
             chain.andThenApply(ignored -> {
-                List<ViewPlan> subqueries = buildOrderedSubqueries(unresolvedRelation, response, resolvedViews, patterns, optionalFieldCapsPatterns);
+                List<ViewPlan> subqueries = buildOrderedSubqueries(unresolvedRelation, response, resolvedViews, patterns, lenientGroups);
                 if (subqueries.size() == 1) {
                     return subqueries.getFirst().plan();
                 }
@@ -339,22 +364,46 @@ public class ViewResolver {
         EsqlResolveViewAction.Response response,
         HashMap<String, ViewPlan> resolvedViews,
         String[] originalPatterns,
-        List<String> optionalFieldCapsPatterns
+        List<LenientPatternGroup> lenientGroups
     ) {
         List<ViewPlan> result = new ArrayList<>();
         List<String> unresolvedPatterns = new ArrayList<>();
         HashSet<String> addedViews = new HashSet<>();
         int unresolvedInsertPos = -1;
 
+        // Per-scope lenient pattern accumulator. Patterns are added in the order they appear in this
+        // scope's expressions so that positional exclusion semantics are preserved when this group
+        // is sent as its own lenient field-caps call (see LenientPatternGroup.hasExclusions()).
+        List<String> scopeLenient = new ArrayList<>();
+
+        var viewNames = getMetadata().views();
         for (var expr : response.getResolvedIndexExpressions().expressions()) {
-            // CPS-qualified patterns (e.g. my_project:-index) are not locally resolvable —
-            // the view resolution step misclassifies them. Pass through to field caps directly.
-            if (crossProjectModeDecider.crossProjectEnabled() && RemoteClusterAware.isRemoteIndexName(expr.original())) {
+            String original = expr.original();
+
+            // Exclusions (CPS-qualified or flat) bypass view resolution entirely. They flow through
+            // to field caps in both the required call (so the exclusion takes effect against any
+            // resolved indices) and the optional call (so view detection on remotes also accounts
+            // for the exclusion's positional semantics). Concrete local view exclusions are skipped
+            // since the view system handles them and we don't want them to reach the index resolver.
+            if (isExclusion(original)) {
+                if (isConcreteViewExclusion(original, viewNames::containsKey) == false) {
+                    if (unresolvedInsertPos < 0) {
+                        unresolvedInsertPos = result.size();
+                    }
+                    unresolvedPatterns.add(original);
+                    addUnique(scopeLenient, original);
+                }
+                continue;
+            }
+
+            // Positive CPS-qualified patterns (e.g. my_project:foo, *:foo) are not locally
+            // resolvable — pass through to field caps as-is via the required call. They don't
+            // participate in view detection (views are local to each cluster).
+            if (crossProjectModeDecider.crossProjectEnabled() && RemoteClusterAware.isRemoteIndexName(original)) {
                 if (unresolvedInsertPos < 0) {
                     unresolvedInsertPos = result.size();
                 }
-                unresolvedPatterns.add(expr.original());
-                addOptionalFieldCapsPattern(optionalFieldCapsPatterns, expr.original());
+                unresolvedPatterns.add(original);
                 continue;
             }
 
@@ -366,7 +415,7 @@ public class ViewResolver {
                 if (unresolvedInsertPos < 0) {
                     unresolvedInsertPos = result.size();
                 }
-                unresolvedPatterns.add(expr.original());
+                unresolvedPatterns.add(original);
                 continue;
             }
 
@@ -378,7 +427,7 @@ public class ViewResolver {
                 if (vp != null) {
                     if (addedViews.add(index)) {
                         exprViews.add(vp);
-                        addOptionalFieldCapsPattern(optionalFieldCapsPatterns, index);
+                        addUnique(scopeLenient, index);
                     }
                 } else {
                     hasNonView = true;
@@ -397,25 +446,34 @@ public class ViewResolver {
             result.addAll(exprViews);
 
             // Non-view indices or CPS wildcards pass through as unresolved
-            if (hasNonView || (crossProjectModeDecider.crossProjectEnabled() && Regex.isSimpleMatchPattern(expr.original()))) {
+            if (hasNonView || (crossProjectModeDecider.crossProjectEnabled() && Regex.isSimpleMatchPattern(original))) {
                 if (unresolvedInsertPos < 0) {
                     unresolvedInsertPos = result.size();
                 }
-                unresolvedPatterns.add(expr.original());
+                unresolvedPatterns.add(original);
             }
         }
 
-        // Preserve local exclusion patterns targeting non-view resources. These do not appear
-        // in ResolvedIndexExpressions (the local resolver applies them and drops them), so we
-        // recover them from the original FROM patterns and append them to the unresolved relation
-        // so field caps still sees the exclusion.
-        var viewNames = getMetadata().views();
+        // Recover local exclusions from the original FROM patterns. The view-resolution action runs index
+        // resolution locally regardless of resolver-level CPS, so flat exclusions are stripped from
+        // ResolvedIndexExpressions. CPS-qualified exclusions are preserved and already handled above.
         for (String pattern : originalPatterns) {
-            if (patternIsExclusion(pattern)
-                && RemoteClusterAware.isRemoteIndexName(pattern) == false
-                && isConcreteViewExclusion(pattern, viewNames::containsKey) == false) {
+            if (isExclusion(pattern) == false || isConcreteViewExclusion(pattern, viewNames::containsKey)) {
+                continue;
+            }
+            // CPS-qualified exclusions go through the main loop already; skip them here to avoid duplicates
+            // and to leave the non-CPS unresolved-patterns recovery untouched.
+            if (RemoteClusterAware.isRemoteIndexName(pattern)) {
+                continue;
+            }
+            // Only recover into unresolvedPatterns in non-CPS mode (CPS field caps consumes the original
+            // IndexPattern string directly, which already contains the exclusion).
+            if (crossProjectModeDecider.crossProjectEnabled() == false) {
                 unresolvedPatterns.add(pattern);
             }
+            // Always add the recovered exclusion to the lenient scope so its positional semantics propagate
+            // to the lenient field-caps call (CPS) used for remote-view detection.
+            addUnique(scopeLenient, pattern);
         }
 
         if (unresolvedPatterns.isEmpty() == false && hasPositivePattern(unresolvedPatterns)) {
@@ -425,12 +483,26 @@ public class ViewResolver {
             result.add(unresolvedInsertPos, createUnresolvedRelationPlan(unresolvedRelation, unresolvedPatterns));
         }
 
+        // Only emit a group if it contains at least one view name. Pure-exclusion or pure-non-view groups
+        // serve no purpose for the lenient FC call: the required call already applies exclusions, and
+        // remote-view detection requires a name that might shadow a view on the remote.
+        boolean hasViewName = false;
+        for (String p : scopeLenient) {
+            if (isExclusion(p) == false) {
+                hasViewName = true;
+                break;
+            }
+        }
+        if (hasViewName) {
+            lenientGroups.add(new LenientPatternGroup(scopeLenient));
+        }
+
         return result;
     }
 
-    private static void addOptionalFieldCapsPattern(List<String> optionalFieldCapsPatterns, String pattern) {
-        if (optionalFieldCapsPatterns.contains(pattern) == false) {
-            optionalFieldCapsPatterns.add(pattern);
+    private static void addUnique(List<String> list, String value) {
+        if (list.contains(value) == false) {
+            list.add(value);
         }
     }
 
@@ -446,23 +518,41 @@ public class ViewResolver {
     }
 
     /**
-     * Checks whether a pattern is an exclusion targeting a concrete (non-wildcard) view name.
+     * Checks whether a pattern is an exclusion in any of the three supported forms:
+     * <ul>
+     *   <li>{@code -foo} — flat local exclusion</li>
+     *   <li>{@code linked:-foo} — CPS-qualified local-name exclusion</li>
+     *   <li>{@code -linked:*} — whole-cluster exclusion (cluster prefix starts with {@code -})</li>
+     * </ul>
+     * Mirrors the canonical detection in {@link org.elasticsearch.transport.RemoteClusterAware#groupClusterIndices}
+     * and {@link org.elasticsearch.cluster.metadata.IndexAbstractionResolver}.
+     */
+    static boolean isExclusion(String pattern) {
+        String[] split = RemoteClusterAware.splitIndexName(pattern);
+        String cluster = split[0];
+        if (cluster != null && cluster.isEmpty() == false && cluster.charAt(0) == '-') {
+            return true;
+        }
+        String localPart = split[1];
+        return localPart.isEmpty() == false && localPart.charAt(0) == '-';
+    }
+
+    /**
+     * Checks whether a pattern is a flat (non-CPS-qualified) exclusion targeting a concrete
+     * (non-wildcard) view name. Views are local resources, so CPS-qualified exclusions are not
+     * concrete view exclusions even if their local part matches a view name.
      */
     private static boolean isConcreteViewExclusion(String pattern, Predicate<String> viewExistsPredicate) {
-        if (patternIsExclusion(pattern) == false) {
+        if (isExclusion(pattern) == false || RemoteClusterAware.isRemoteIndexName(pattern)) {
             return false;
         }
         String target = pattern.substring(1);
         return Regex.isSimpleMatchPattern(target) == false && viewExistsPredicate.test(target);
     }
 
-    private static boolean patternIsExclusion(String pattern) {
-        return pattern.startsWith("-");
-    }
-
     private static boolean hasPositivePattern(List<String> patterns) {
         for (String p : patterns) {
-            if (patternIsExclusion(p) == false) {
+            if (isExclusion(p) == false) {
                 return true;
             }
         }

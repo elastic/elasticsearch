@@ -75,6 +75,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
@@ -1656,6 +1657,130 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
                 }
             }
         }
+    }
+
+    // ---------------------------------------------------------------------
+    // LenientPatternGroup tests
+    //
+    // These tests assert the per-scope structure of ViewResolutionResult.lenientGroups(),
+    // which drives field-caps lenient/optional fan-out in EsqlSession. Each group corresponds
+    // to one view-resolution scope (the user-typed outer scope or one view body). Groups with
+    // exclusions are sent as their own lenient call; groups without exclusions are unioned.
+    // ---------------------------------------------------------------------
+
+    public void testLenientGroupsSingleViewNoExclusions() {
+        addView("view1", "FROM emp1");
+        var result = resolveResult("FROM view1");
+        assertThat(toLenientList(result), equalTo(List.of(List.of("view1"))));
+        assertThat(hasAnyExclusions(result), equalTo(false));
+    }
+
+    public void testLenientGroupsTwoViewsSameScope() {
+        addView("view1", "FROM emp1");
+        addView("view2", "FROM emp2");
+        var result = resolveResult("FROM view1, view2");
+        assertThat(toLenientList(result), equalTo(List.of(List.of("view1", "view2"))));
+        assertThat(hasAnyExclusions(result), equalTo(false));
+    }
+
+    public void testLenientGroupsNestedViewProducesSeparateScopes() {
+        addView("inner", "FROM emp1");
+        addView("outer", "FROM inner");
+        var result = resolveResult("FROM outer");
+        // Inner scope ran first (recursion order), outer scope second
+        assertThat(toLenientList(result), equalTo(List.of(List.of("inner"), List.of("outer"))));
+        assertThat(hasAnyExclusions(result), equalTo(false));
+    }
+
+    public void testLenientGroupsChainedViews() {
+        addView("innerInner", "FROM emp1");
+        addView("inner", "FROM innerInner");
+        addView("outer", "FROM inner");
+        var result = resolveResult("FROM outer");
+        assertThat(toLenientList(result), equalTo(List.of(List.of("innerInner"), List.of("inner"), List.of("outer"))));
+    }
+
+    public void testLenientGroupsOuterScopeHasExclusion() {
+        addView("view1", "FROM emp1");
+        var result = resolveResultWithCPS("FROM view1, -emp9");
+        assertThat(toLenientList(result), equalTo(List.of(List.of("view1", "-emp9"))));
+        assertThat(hasAnyExclusions(result), equalTo(true));
+    }
+
+    public void testLenientGroupsExclusionInViewBodyDoesNotLeakToOuter() {
+        addIndex("emp9");
+        addView("inner", "FROM emp1, -emp9");
+        addView("outer", "FROM inner");
+        var result = resolveResultWithCPS("FROM outer");
+        // The inner body scope contains a view-less exclusion ([-emp9] alone) and is dropped — pure exclusions don't
+        // need a lenient FC call. The remaining groups are clean and per-scope.
+        assertThat(toLenientList(result), equalTo(List.of(List.of("inner"), List.of("outer"))));
+        assertThat(hasAnyExclusions(result), equalTo(false));
+    }
+
+    public void testLenientGroupsExclusionInOuterDoesNotLeakIntoViewBody() {
+        addIndex("emp9");
+        addView("inner", "FROM emp1");
+        addView("outer", "FROM inner");
+        var result = resolveResultWithCPS("FROM outer, -emp9");
+        // Inner scope is clean; outer scope is dirty (has -emp9 alongside the view name "outer").
+        assertThat(toLenientList(result).get(0), equalTo(List.of("inner")));
+        assertThat(toLenientList(result).get(1), equalTo(List.of("outer", "-emp9")));
+        var groups = result.lenientGroups();
+        assertThat(groups.get(0).hasExclusions(), equalTo(false));
+        assertThat(groups.get(1).hasExclusions(), equalTo(true));
+    }
+
+    public void testLenientGroupsConcreteViewExclusionStrippedFromGroup() {
+        addView("view1", "FROM emp1");
+        addView("view2", "FROM emp2");
+        // -view2 is a concrete-view exclusion; the view system strips it and it must NOT contribute to the group.
+        var result = resolveResult("FROM view1, -view2");
+        assertThat(toLenientList(result), equalTo(List.of(List.of("view1"))));
+        assertThat(hasAnyExclusions(result), equalTo(false));
+    }
+
+    public void testLenientGroupsCpsQualifiedExclusionsDetected() {
+        addView("view1", "FROM emp1");
+        // Each form of CPS-qualified exclusion should mark the group as dirty.
+        var qualified = resolveResultWithCPS("FROM view1, linked:-emp9");
+        var groups = qualified.lenientGroups();
+        assertThat(groups, hasSize(1));
+        assertThat(groups.get(0).hasExclusions(), equalTo(true));
+        assertThat(groups.get(0).patterns(), equalTo(List.of("view1", "linked:-emp9")));
+    }
+
+    public void testIsExclusionRecognizesAllForms() {
+        // Sanity check that ViewResolver.isExclusion catches every form RemoteClusterAware accepts.
+        assertTrue(ViewResolver.isExclusion("-foo"));
+        assertTrue(ViewResolver.isExclusion("linked:-foo"));
+        assertTrue(ViewResolver.isExclusion("-linked:*"));
+        assertTrue(ViewResolver.isExclusion("-rem*:*"));
+        assertFalse(ViewResolver.isExclusion("foo"));
+        assertFalse(ViewResolver.isExclusion("linked:foo"));
+        assertFalse(ViewResolver.isExclusion("*:foo"));
+    }
+
+    private ViewResolver.ViewResolutionResult resolveResult(String esql) {
+        PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
+        viewResolver.replaceViews(query(esql), this::parse, future);
+        return future.actionGet();
+    }
+
+    private ViewResolver.ViewResolutionResult resolveResultWithCPS(String esql) {
+        var cpsDecider = new CrossProjectModeDecider(Settings.builder().put("serverless.cross_project.enabled", true).build());
+        InMemoryViewResolver cpsResolver = viewService.getViewResolver(cpsDecider);
+        PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
+        cpsResolver.replaceViews(query(esql), this::parse, future);
+        return future.actionGet();
+    }
+
+    private static List<List<String>> toLenientList(ViewResolver.ViewResolutionResult result) {
+        return result.lenientGroups().stream().map(ViewResolver.LenientPatternGroup::patterns).toList();
+    }
+
+    private static boolean hasAnyExclusions(ViewResolver.ViewResolutionResult result) {
+        return result.lenientGroups().stream().anyMatch(ViewResolver.LenientPatternGroup::hasExclusions);
     }
 
     /**

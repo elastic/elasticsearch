@@ -447,6 +447,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests
   method: testMinimalToMaximal {p0=true p1=ENTERPRISE}
   issue: https://github.com/elastic/elasticsearch/issues/146966
+- class: org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests
+  method: testMinimalToMaximal {p0=true p1=BASIC}
+  issue: https://github.com/elastic/elasticsearch/issues/146967
 
 # Examples:
 #

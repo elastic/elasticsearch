@@ -210,6 +210,9 @@ toc:
                   - file: esql/functions-operators/date-time-functions/day_name.md
                   - file: esql/functions-operators/date-time-functions/month_name.md
                   - file: esql/functions-operators/date-time-functions/now.md
+                  - hidden: esql/functions-operators/date-time-functions/range_max.md
+                  - hidden: esql/functions-operators/date-time-functions/range_min.md
+                  - hidden: esql/functions-operators/date-time-functions/range_within.md
                   - file: esql/functions-operators/date-time-functions/trange.md
               - file: esql/functions-operators/ip-functions.md
                 children:

@@ -400,11 +400,6 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
         assertThat("exactly 2 fields survive", result.size(), equalTo(2));
     }
 
-    /**
-     * Verifies that when many wildcard-containing source paths are combined with vector field exclusion,
-     * the resulting automaton determinization triggers a TooComplexToDeterminizeException that is wrapped
-     * as an IllegalArgumentException by {@code buildSourceFilter}.
-     */
     public void testBuildSourceFilterWithTooComplexPatternsThrowsIllegalArgument() throws IOException {
         var indexSettings = Settings.builder().put("index.mapping.exclude_source_vectors", true).build();
         var mapperService = createMapperService(indexSettings, mapping(b -> {

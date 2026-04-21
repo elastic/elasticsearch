@@ -44,7 +44,7 @@ public class DocValuesFieldFactory {
      * Otherwise, creates a {@link SortedNumericDocValuesField} (multi-valued).
      */
     public void addNumericField(LuceneDocument doc, String name, long value) {
-        if (multiValue == MultiValue.NO) {
+        if (multiValue.isSingleValued()) {
             doc.add(hasSkipper ? NumericDocValuesField.indexedField(name, value) : new NumericDocValuesField(name, value));
         } else {
             doc.add(hasSkipper ? SortedNumericDocValuesField.indexedField(name, value) : new SortedNumericDocValuesField(name, value));
@@ -56,7 +56,7 @@ public class DocValuesFieldFactory {
      * Otherwise, creates a {@link SortedSetDocValuesField} (multi-valued).
      */
     public void addSortedField(LuceneDocument doc, String name, BytesRef value) {
-        if (multiValue == MultiValue.NO) {
+        if (multiValue.isSingleValued()) {
             doc.add(hasSkipper ? SortedDocValuesField.indexedField(name, value) : new SortedDocValuesField(name, value));
         } else {
             doc.add(hasSkipper ? SortedSetDocValuesField.indexedField(name, value) : new SortedSetDocValuesField(name, value));
@@ -69,7 +69,7 @@ public class DocValuesFieldFactory {
      * which handles the multi-valued encoding.
      */
     public void addBinaryField(LuceneDocument doc, String name, BytesRef value, ValueOrdering ordering) {
-        if (multiValue == MultiValue.NO) {
+        if (multiValue.isSingleValued()) {
             doc.add(new BinaryDocValuesField(name, value));
         } else {
             MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(doc, name, value, ordering, indexVersion);

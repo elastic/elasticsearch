@@ -1289,7 +1289,7 @@ public final class TextFieldMapper extends FieldMapper {
             // Check if we can load from doc values
             if (hasDocValues()) {
                 if (usesBinaryDocValues()) {
-                    if (docValuesParams != null && docValuesParams.multiValue() == DocValuesParameter.Values.MultiValue.NO) {
+                    if (docValuesParams != null && docValuesParams.multiValue().isSingleValued()) {
                         return new BytesRefsFromBinaryBlockLoader(name());
                     }
                     return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(name());

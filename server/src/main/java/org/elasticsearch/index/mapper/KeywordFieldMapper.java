@@ -511,9 +511,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
             DocValuesParameter.Values docValuesParameters = this.docValuesParameters.get();
             if (docValuesParameters.enabled() && docValuesParameters.cardinality() == DocValuesParameter.Values.Cardinality.LOW) {
-                DocValuesType dvType = docValuesParameters.multiValue() == DocValuesParameter.Values.MultiValue.NO
-                    ? DocValuesType.SORTED
-                    : DocValuesType.SORTED_SET;
+                DocValuesType dvType = docValuesParameters.multiValue().isSingleValued() ? DocValuesType.SORTED : DocValuesType.SORTED_SET;
                 fieldtype.setDocValuesType(dvType);
             } else {
                 // NOTE: we still set DocValuesType.NONE on the fieldtype even when using binary doc values (cardinality == HIGH).
@@ -695,7 +693,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         private boolean usesSingleValuedDocValues() {
-            return docValuesParams != null && docValuesParams.multiValue() == DocValuesParameter.Values.MultiValue.NO;
+            return docValuesParams != null && docValuesParams.multiValue().isSingleValued();
         }
 
         @Override
@@ -921,7 +919,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 BlockLoaderFunctionConfig cfg = blContext.blockLoaderFunctionConfig();
                 if (cfg == null) {
                     if (usesBinaryDocValues) {
-                        if (docValuesParams != null && docValuesParams.multiValue() == DocValuesParameter.Values.MultiValue.NO) {
+                        if (docValuesParams != null && docValuesParams.multiValue().isSingleValued()) {
                             return new BytesRefsFromBinaryBlockLoader(name());
                         } else {
                             return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(name());

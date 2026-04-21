@@ -376,7 +376,7 @@ public class MultiValuedBinaryDocValuesFieldTests extends ESTestCase {
     public void testMultiValueNoUsesBinaryDocValuesFieldWithRawBytes() {
         // given
         LuceneDocument doc = new LuceneDocument();
-        BytesRef value = new BytesRef("potato");
+        BytesRef value = new BytesRef(randomAlphanumericOfLength(10));
 
         // when — use DocValuesFieldFactory which handles multi_value=no branching
         DocValuesFieldFactory factory = new DocValuesFieldFactory(MultiValue.NO, false, IndexVersion.current());

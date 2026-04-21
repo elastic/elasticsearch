@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
-import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Replaces {@code AggregateExec → ExternalSourceExec} with {@code LocalSourceExec}
@@ -53,7 +52,7 @@ import java.util.Map;
  * and a FINAL aggregate's child is always another aggregate or exchange, never an external source.
  * <p>
  * Statistics come from {@code ExternalSourceExec.sourceMetadata()} for single-split queries, or
- * from merged per-split statistics in {@code FileSplit.statistics()} for multi-split queries.
+ * from merged per-split statistics in {@code FileSplit.splitStats()} for multi-split queries.
  * Falls back to normal execution when any split lacks statistics.
  */
 public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
@@ -76,7 +75,6 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
             return aggregateExec;
         }
 
-        // Check format supports aggregate pushdown
         FormatReaderRegistry formatReaderRegistry = ctx != null ? ctx.formatReaderRegistry() : null;
         if (formatReaderRegistry == null) {
             return aggregateExec;
@@ -86,7 +84,6 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
             return aggregateExec;
         }
 
-        // Extract aggregate functions and check pushability
         List<Expression> aggFunctions = extractAggregateFunctions(aggregateExec.aggregates());
         if (aggFunctions.isEmpty()) {
             return aggregateExec;
@@ -96,16 +93,13 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
             return aggregateExec;
         }
 
-        Map<String, Object> sourceMetadata = SourceStatisticsSerializer.resolveEffectiveMetadata(
-            externalExec.splits(),
-            externalExec.sourceMetadata()
-        );
-        if (sourceMetadata == null) {
+        SplitStats stats = SplitStats.resolveEffectiveStats(externalExec.splits(), externalExec.sourceMetadata());
+        if (stats == null) {
             return aggregateExec;
         }
         List<Object> values = new ArrayList<>(aggregateExec.aggregates().size());
         List<DataType> dataTypes = new ArrayList<>(aggregateExec.aggregates().size());
-        if (resolveAggregateValues(aggregateExec.aggregates(), sourceMetadata, values, dataTypes) == false) {
+        if (resolveAggregateValues(aggregateExec.aggregates(), stats, values, dataTypes) == false) {
             return aggregateExec;
         }
 
@@ -125,13 +119,9 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
         return new LocalSourceExec(aggregateExec.source(), outputAttrs, LocalSupplier.of(new Page(blocks)));
     }
 
-    /**
-     * Resolve aggregate values and their expected data types from sourceMetadata.
-     * Returns false if any value can't be resolved.
-     */
     private boolean resolveAggregateValues(
         List<? extends NamedExpression> aggregates,
-        Map<String, Object> sourceMetadata,
+        SplitStats stats,
         List<Object> values,
         List<DataType> dataTypes
     ) {
@@ -141,7 +131,7 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
                 return false;
             }
             Expression child = ((Alias) agg).child();
-            Object value = resolveFromMetadata(child, sourceMetadata);
+            Object value = resolveFromStats(child, stats);
             if (value == null) {
                 return false;
             }
@@ -151,20 +141,19 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
         return true;
     }
 
-    private Object resolveFromMetadata(Expression aggFunction, Map<String, Object> sourceMetadata) {
+    private Object resolveFromStats(Expression aggFunction, SplitStats stats) {
         if (aggFunction instanceof Count count) {
             if (count.hasFilter()) {
                 return null;
             }
             Expression target = count.field();
             if (target.foldable()) {
-                return SourceStatisticsSerializer.extractRowCount(sourceMetadata);
+                return stats.rowCount();
             }
             if (target instanceof Attribute ref) {
-                Long rc = SourceStatisticsSerializer.extractRowCount(sourceMetadata);
-                Long nc = SourceStatisticsSerializer.extractColumnNullCount(sourceMetadata, ref.name());
-                if (rc != null && nc != null) {
-                    return rc - nc;
+                long nc = stats.columnNullCount(ref.name());
+                if (nc >= 0) {
+                    return stats.rowCount() - nc;
                 }
             }
             return null;
@@ -173,7 +162,7 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
                 return null;
             }
             if (min.field() instanceof Attribute ref) {
-                return SourceStatisticsSerializer.extractColumnMin(sourceMetadata, ref.name());
+                return stats.columnMin(ref.name());
             }
             return null;
         } else if (aggFunction instanceof Max max) {
@@ -181,7 +170,7 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
                 return null;
             }
             if (max.field() instanceof Attribute ref) {
-                return SourceStatisticsSerializer.extractColumnMax(sourceMetadata, ref.name());
+                return stats.columnMax(ref.name());
             }
             return null;
         }

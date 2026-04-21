@@ -338,11 +338,8 @@ public class VerifierMetricsTests extends ESTestCase {
     }
 
     /**
-     * Asserts that every {@link FeatureMetric} counter equals the value in {@code expectedFeatures},
-     * defaulting to {@code 0} for any metric not present in the map — this keeps tests focused on
-     * the counters that are supposed to move for a given query. {@code expectedFunctions} is looser:
-     * only the functions it names are checked, to avoid each test having to enumerate the hundreds
-     * of registered functions.
+     * Asserts that every {@link FeatureMetric} counter equals the value in {@code expectedFeatures}, defaulting to 0 if not present.
+     * For {@code expectedFunctions}, only the provided functions are checked.
      */
     private void assertMetrics(Counters c, Map<FeatureMetric, Long> expectedFeatures, Map<String, Long> expectedFunctions) {
         for (FeatureMetric metric : FeatureMetric.values()) {

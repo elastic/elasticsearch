@@ -260,14 +260,13 @@ sum_over_time_with_tstep_window
 required_capability: ts_command_v0
 required_capability: time_series_window_v1
 required_capability: tstep
+request_time_filter: 2024-05-10T00:00:00.000Z,2024-05-10T00:25:00.000Z
 
 TS k8s
 | WHERE pod == "one"
 | STATS tx = sum(sum_over_time(network.bytes_in, 10m)) BY cluster, time_bucket = TSTEP(5minute)
 | SORT time_bucket, cluster
 | LIMIT 20;
-
-timestamp_bounds: 2024-05-10T00:00:00.000Z,2024-05-10T00:25:00.000Z
 
 tx:long | cluster:keyword | time_bucket:datetime
 2637    | prod            | 2024-05-10T00:05:00.000Z

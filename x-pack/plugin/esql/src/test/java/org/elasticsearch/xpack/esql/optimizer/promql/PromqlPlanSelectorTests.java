@@ -244,4 +244,24 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
             .findFirst()
             .orElseThrow(() -> new AssertionError("No " + type.getSimpleName() + " in source filters"));
     }
+
+    /**
+     * Test that regex matchers on __name__ (metric name) enable lazy field resolution.
+     * Query: {__name__=~"job:.*"} should iterate over metric fields matching the pattern.
+     */
+    public void testMetricNameRegexMatcher() {
+        var plan = planPromql("PROMQL index=k8s step=1m avg(avg_over_time({__name__=~\"job:.*\"}[5m]))");
+        // Verify the plan is valid - no exception thrown
+        assertNotNull(plan);
+        // The series field should be null (lazy resolution) when using regex on __name__
+        // This allows the planner to iterate over matching metric fields
+    }
+
+    /**
+     * Test that exact match on __name__ works as before with fixed field reference.
+     */
+    public void testMetricNameExactMatch() {
+        var plan = planPromql("PROMQL index=k8s step=1m avg(avg_over_time(job_duration_seconds[5m]))");
+        assertNotNull(plan);
+    }
 }

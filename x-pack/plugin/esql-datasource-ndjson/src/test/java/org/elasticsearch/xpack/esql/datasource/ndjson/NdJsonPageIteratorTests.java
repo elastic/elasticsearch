@@ -40,8 +40,8 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.hamcrest.Matchers;
 
 import java.io.ByteArrayInputStream;
-import java.io.InputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -219,9 +219,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
      */
     public void testTrimLastPartialLineAcrossSmallChunks() throws IOException {
         byte[] payload = "aa\nbb\nPART".getBytes(StandardCharsets.UTF_8);
-        try (
-            InputStream trimmed = new TrimLastPartialLineInputStream(new ByteArrayInputStream(payload), 4, ErrorPolicy.STRICT)
-        ) {
+        try (InputStream trimmed = new TrimLastPartialLineInputStream(new ByteArrayInputStream(payload), 4, ErrorPolicy.STRICT)) {
             assertEquals("aa\nbb\n", new String(trimmed.readAllBytes(), StandardCharsets.UTF_8));
         }
     }
@@ -246,9 +244,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         terminal[3000] = '\n';
         parts.add(terminal);
 
-        try (
-            InputStream trimmed = new TrimLastPartialLineInputStream(new ChainedByteChunksStream(parts), trimChunk, ErrorPolicy.STRICT)
-        ) {
+        try (InputStream trimmed = new TrimLastPartialLineInputStream(new ChainedByteChunksStream(parts), trimChunk, ErrorPolicy.STRICT)) {
             assertEquals(2000, trimmed.readNBytes(2000).length);
             byte[] tail = trimmed.readAllBytes();
             assertEquals(5001 - 2000 + (4L * trimChunk) + 3001, tail.length);
@@ -316,17 +312,10 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         int chunk = 8192;
         long streamLen = TrimLastPartialLineInputStream.MAX_CARRY_BYTES + chunk;
         try (
-            InputStream trimmed = new TrimLastPartialLineInputStream(
-                new FiniteBytesWithoutNewline(streamLen),
-                chunk,
-                ErrorPolicy.STRICT
-            )
+            InputStream trimmed = new TrimLastPartialLineInputStream(new FiniteBytesWithoutNewline(streamLen), chunk, ErrorPolicy.STRICT)
         ) {
             IOException ex = expectThrows(IOException.class, trimmed::readAllBytes);
-            assertThat(
-                ex.getMessage(),
-                Matchers.containsString(TrimLastPartialLineInputStream.MAX_CARRY.toString())
-            );
+            assertThat(ex.getMessage(), Matchers.containsString(TrimLastPartialLineInputStream.MAX_CARRY.toString()));
         }
     }
 
@@ -338,11 +327,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         int chunk = 8192;
         long streamLen = TrimLastPartialLineInputStream.MAX_CARRY_BYTES + chunk;
         try (
-            InputStream trimmed = new TrimLastPartialLineInputStream(
-                new FiniteBytesWithoutNewline(streamLen),
-                chunk,
-                ErrorPolicy.LENIENT
-            )
+            InputStream trimmed = new TrimLastPartialLineInputStream(new FiniteBytesWithoutNewline(streamLen), chunk, ErrorPolicy.LENIENT)
         ) {
             assertEquals(0, trimmed.readAllBytes().length);
         }

@@ -87,6 +87,9 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Sparkline.class)
         .quinary(Sparkline::new, 0)
+        .capabilities(
+            "complex" // Fix for complex queries inside the agg inside the SPARKLINE
+        )
         .name("sparkline");
 
     @FunctionInfo(
@@ -100,16 +103,12 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
     public Sparkline(
         Source source,
         @Param(
-            name = "field",
+            name = "aggregation",
             type = { "integer", "long", "double" },
-            description = "Expression that calculates the y-axis value of the sparkline graph for each datapoint."
+            description = "Aggregation that calculates the y-axis value of the sparkline graph for each datapoint."
         ) Expression field,
         @Param(name = "key", type = { "date" }, description = "Date expression from which to derive buckets.") Expression key,
-        @Param(
-            name = "buckets",
-            type = { "integer" },
-            description = "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
-        ) Expression buckets,
+        @Param(name = "buckets", type = { "integer" }, description = "Target number of buckets.") Expression buckets,
         @Param(
             name = "from",
             type = { "date", "keyword", "text" },

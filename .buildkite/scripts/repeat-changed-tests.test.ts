@@ -14,6 +14,7 @@ import {
   parseMutedEntries,
   MutedEntry,
   diffMutedEntries,
+  locateUnmutedTest,
 } from "./repeat-changed-tests";
 
 describe("toGradleProject", () => {
@@ -736,5 +737,100 @@ describe("diffMutedEntries", () => {
       { className: "org.elasticsearch.A", method: "testX" },
     ];
     expect(diffMutedEntries(before, after)).toEqual([]);
+  });
+});
+
+describe("locateUnmutedTest", () => {
+  const repoFiles = [
+    "server/src/test/java/org/elasticsearch/index/IndexTests.java",
+    "server/src/internalClusterTest/java/org/elasticsearch/cluster/ClusterIT.java",
+    "modules/transport-netty4/src/javaRestTest/java/org/elasticsearch/rest/RestIT.java",
+    "x-pack/plugin/ml/src/yamlRestTest/java/org/elasticsearch/xpack/ml/MlYamlIT.java",
+  ];
+
+  test("locates unit test by fqcn", () => {
+    const entry: MutedEntry = {
+      className: "org.elasticsearch.index.IndexTests",
+      method: "testFoo",
+    };
+    expect(locateUnmutedTest(entry, repoFiles)).toEqual({
+      gradleProject: ":server",
+      kind: "test",
+      sourceSet: "test",
+      fqcn: "org.elasticsearch.index.IndexTests",
+    });
+  });
+
+  test("locates internal cluster test by fqcn", () => {
+    const entry: MutedEntry = {
+      className: "org.elasticsearch.cluster.ClusterIT",
+    };
+    expect(locateUnmutedTest(entry, repoFiles)).toEqual({
+      gradleProject: ":server",
+      kind: "internalClusterTest",
+      sourceSet: "internalClusterTest",
+      fqcn: "org.elasticsearch.cluster.ClusterIT",
+    });
+  });
+
+  test("locates java rest test by fqcn", () => {
+    const entry: MutedEntry = { className: "org.elasticsearch.rest.RestIT" };
+    expect(locateUnmutedTest(entry, repoFiles)).toEqual({
+      gradleProject: ":modules:transport-netty4",
+      kind: "javaRestTest",
+      sourceSet: "javaRestTest",
+      fqcn: "org.elasticsearch.rest.RestIT",
+    });
+  });
+
+  test("classifies yaml runner class as yamlRestTestRunner without a yaml method", () => {
+    const entry: MutedEntry = {
+      className: "org.elasticsearch.xpack.ml.MlYamlIT",
+    };
+    expect(locateUnmutedTest(entry, repoFiles)).toEqual({
+      gradleProject: ":x-pack:plugin:ml",
+      kind: "yamlRestTestRunner",
+      sourceSet: "yamlRestTest",
+    });
+  });
+
+  test("extracts yamlRestTestSuite from test {yaml=...} method", () => {
+    const entry: MutedEntry = {
+      className: "org.elasticsearch.xpack.ml.MlYamlIT",
+      method: "test {yaml=/10_apm/Test template reinstallation}",
+    };
+    expect(locateUnmutedTest(entry, repoFiles)).toEqual({
+      gradleProject: ":x-pack:plugin:ml",
+      kind: "yamlRestTestSuite",
+      sourceSet: "yamlRestTest",
+      suitePath: "10_apm/Test template reinstallation",
+    });
+  });
+
+  test("extracts yamlRestTestSuite when yaml path has no leading slash", () => {
+    const entry: MutedEntry = {
+      className: "org.elasticsearch.xpack.ml.MlYamlIT",
+      method: "test {yaml=ml/anomaly_detectors_get/basic}",
+    };
+    expect(locateUnmutedTest(entry, repoFiles)).toEqual({
+      gradleProject: ":x-pack:plugin:ml",
+      kind: "yamlRestTestSuite",
+      sourceSet: "yamlRestTest",
+      suitePath: "ml/anomaly_detectors_get/basic",
+    });
+  });
+
+  test("returns null when class file no longer exists", () => {
+    const entry: MutedEntry = {
+      className: "org.elasticsearch.deleted.GoneTests",
+    };
+    expect(locateUnmutedTest(entry, repoFiles)).toBeNull();
+  });
+
+  test("returns null when file path doesn't match any source set pattern", () => {
+    const entry: MutedEntry = { className: "org.elasticsearch.NotATest" };
+    expect(
+      locateUnmutedTest(entry, ["server/src/main/java/org/elasticsearch/NotATest.java"])
+    ).toBeNull();
   });
 });

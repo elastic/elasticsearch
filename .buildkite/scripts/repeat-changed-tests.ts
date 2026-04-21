@@ -136,6 +136,48 @@ export function diffMutedEntries(before: MutedEntry[], after: MutedEntry[]): Mut
   return before.filter((e) => afterKeys.has(mutedEntryKey(e)) === false);
 }
 
+const YAML_METHOD_REGEX = /^test \{yaml=\/?(.+)\}$/;
+
+export function locateUnmutedTest(entry: MutedEntry, repoFiles: string[]): ClassifiedTest | null {
+  const pathSuffix = entry.className.replace(/\./g, "/") + ".java";
+  const candidate = repoFiles.find((f) => f === pathSuffix || f.endsWith("/" + pathSuffix));
+  if (candidate === undefined) return null;
+
+  for (const pattern of SOURCE_SET_PATTERNS) {
+    const match = candidate.match(pattern.regex);
+    if (match === null) continue;
+
+    const gradleProject = toGradleProject(match[1]);
+
+    if (pattern.kind === "yamlRestTestRunner") {
+      const yamlMatch = entry.method?.match(YAML_METHOD_REGEX);
+      if (yamlMatch) {
+        return {
+          gradleProject,
+          kind: "yamlRestTestSuite",
+          sourceSet: "yamlRestTest",
+          suitePath: yamlMatch[1],
+        };
+      }
+      return {
+        gradleProject,
+        kind: "yamlRestTestRunner",
+        sourceSet: "yamlRestTest",
+      };
+    }
+
+    // yamlRestTestSuite is only produced from .yml resources, never from a muted-tests entry
+    // (muted entries reference a Java class, so we never reach that branch here).
+    return {
+      gradleProject,
+      kind: pattern.kind,
+      sourceSet: pattern.sourceSet,
+      fqcn: toFqcn(match[2]),
+    };
+  }
+  return null;
+}
+
 export function classifyChangedFiles(files: string[]): ClassifiedTest[] {
   const tests: ClassifiedTest[] = [];
 

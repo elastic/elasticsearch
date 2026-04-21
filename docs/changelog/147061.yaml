@@ -1,0 +1,5 @@
+area: Snapshot/Restore
+issues: []
+pr: 147061
+summary: Verifying that S3BlobContainer.children() behaves correctly in `RepositoryAnalyzeAction`
+type: enhancement

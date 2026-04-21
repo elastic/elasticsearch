@@ -13,13 +13,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
-
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
@@ -49,7 +44,6 @@ import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.SUBQUERY;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.TS;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.WHERE;
 import static org.elasticsearch.xpack.esql.telemetry.Metrics.FEATURES_PREFIX;
-import static org.elasticsearch.xpack.esql.telemetry.Metrics.FUNC_PREFIX;
 
 public class VerifierMetricsTests extends ESTestCase {
 
@@ -120,15 +114,11 @@ public class VerifierMetricsTests extends ESTestCase {
               | stats y = min(x) by x
             """, verifier);
         Counters c = metrics.stats();
-        assertMetrics(c, Map.of(DISSECT, 1L, EVAL, 1L, GROK, 1L, LIMIT, 1L, SORT, 2L, STATS, 1L, WHERE, 2L, FROM, 2L));
-
-        assertEquals(1, function("length", c));
-        assertEquals(1, function("concat", c));
-        assertEquals(1, function("max", c));
-        assertEquals(1, function("min", c));
-
-        assertEquals(0, function("sin", c));
-        assertEquals(0, function("cos", c));
+        assertMetrics(
+            c,
+            Map.of(DISSECT, 1L, EVAL, 1L, GROK, 1L, LIMIT, 1L, SORT, 2L, STATS, 1L, WHERE, 2L, FROM, 2L),
+            Map.of("length", 1L, "concat", 1L, "max", 1L, "min", 1L)
+        );
     }
 
     public void testMultipleFunctions() {
@@ -144,8 +134,7 @@ public class VerifierMetricsTests extends ESTestCase {
             """, verifier);
 
         Counters c = metrics.stats();
-        assertEquals(1, function("length", c));
-        assertEquals(0, function("concat", c));
+        assertMetrics(c, Map.of(EVAL, 1L, LIMIT, 1L, SORT, 1L, WHERE, 1L, FROM, 1L), Map.of("length", 1L));
 
         esqlWithVerifier("""
               from employees
@@ -160,25 +149,11 @@ public class VerifierMetricsTests extends ESTestCase {
             """, verifier);
         c = metrics.stats();
 
-        assertEquals(2, function("length", c));
-        assertEquals(1, function("concat", c));
-        assertEquals(1, function("max", c));
-        assertEquals(1, function("min", c));
-
-        EsqlFunctionRegistry fr = TEST_FUNCTION_REGISTRY.snapshotRegistry();
-        Map<Class<?>, String> functions = new HashMap<>();
-        for (FunctionDefinition func : fr.listFunctions()) {
-            if (functions.containsKey(func.clazz()) == false) {
-                functions.put(func.clazz(), func.name());
-            }
-        }
-        for (String value : functions.values()) {
-            if (Set.of("length", "concat", "max", "min").contains(value) == false) {
-                assertEquals(0, function(value, c));
-            }
-        }
-        Map<?, ?> map = (Map<?, ?>) c.toNestedMap().get("functions");
-        assertEquals(functions.size(), map.size());
+        assertMetrics(
+            c,
+            Map.of(DISSECT, 1L, EVAL, 2L, GROK, 1L, LIMIT, 1L, SORT, 2L, STATS, 1L, WHERE, 2L, FROM, 2L),
+            Map.of("length", 2L, "concat", 1L, "max", 1L, "min", 1L)
+        );
     }
 
     public void testEnrich() {
@@ -331,21 +306,23 @@ public class VerifierMetricsTests extends ESTestCase {
     }
 
     /**
-     * Asserts that every {@link FeatureMetric} counter equals the value in {@code expectedFeatures}, defaulting to 0 if not present.
-     * For {@code expectedFunctions}, only the provided functions are checked.
+     * Asserts that every counter in {@code c} equals the value declared in {@code expectedFeatures} or
+     * {@code expectedFunctions}, defaulting to {@code 0} for anything absent from the maps.
      */
     private void assertMetrics(Counters c, Map<FeatureMetric, Long> expectedFeatures, Map<String, Long> expectedFunctions) {
         for (FeatureMetric metric : FeatureMetric.values()) {
             long expectedValue = expectedFeatures.getOrDefault(metric, 0L);
             assertEquals("Counter [" + metric + "]", expectedValue, c.get(FEATURES_PREFIX + metric));
         }
-        for (var entry : expectedFunctions.entrySet()) {
-            assertEquals("Function [" + entry.getKey() + "]", entry.getValue().longValue(), c.get(FUNC_PREFIX + entry.getKey()));
+        Map<?, ?> functionCounters = (Map<?, ?>) c.toNestedMap().get("functions");
+        for (var entry : functionCounters.entrySet()) {
+            String name = (String) entry.getKey();
+            long expectedValue = expectedFunctions.getOrDefault(name, 0L);
+            assertEquals("Function [" + name + "]", expectedValue, ((Number) entry.getValue()).longValue());
         }
-    }
-
-    private long function(String function, Counters c) {
-        return c.get(FUNC_PREFIX + function);
+        for (String name : expectedFunctions.keySet()) {
+            assertNotNull("Expected function [" + name + "] is not a registered function", functionCounters.get(name));
+        }
     }
 
     private Counters esql(String esql) {

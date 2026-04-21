@@ -431,14 +431,8 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(rewritten, instanceOf(ViewUnionAll.class));
         ViewUnionAll vua = as(rewritten, ViewUnionAll.class);
         assertThat(vua.namedSubqueries().keySet(), containsInAnyOrder("v1", "v2"));
-        assertThat(
-            as(vua.namedSubqueries().get("v1"), UnresolvedRelation.class).indexPattern().indexPattern(),
-            equalTo("logs*")
-        );
-        assertThat(
-            as(vua.namedSubqueries().get("v2"), UnresolvedRelation.class).indexPattern().indexPattern(),
-            equalTo("-logs1")
-        );
+        assertThat(as(vua.namedSubqueries().get("v1"), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo("logs*"));
+        assertThat(as(vua.namedSubqueries().get("v2"), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo("-logs1"));
     }
 
     public void testSiblingExclusionViewWithIndexIsNotMerged() {

@@ -154,6 +154,10 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
      * Returns the number of vectors for the given field and slice ordinal.
      * When sliceOrd is -1 (non-sliced), returns the total vector count.
      * When sliceOrd >= 0, returns the vector count for that specific slice.
+     * <p>
+     * Note: the returned count is based on stored metadata and does not account for deleted docs.
+     * This is consistent with the non-sliced path ({@code FloatVectorValues.size()}) and is
+     * used for selectivity approximation, not for exact counts.
      */
     public int getVectorCount(String field, int sliceOrd) throws IOException {
         final FieldInfo fi = fieldInfos.fieldInfo(field);

@@ -59,7 +59,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery implements
         float visitRatio,
         boolean doPrecondition
     ) {
-        this(field, query, k, numCands, filter, visitRatio, doPrecondition, false, null);
+        this(field, query, k, numCands, filter, visitRatio, doPrecondition, true, null);
     }
 
     IVFKnnFloatVectorQuery(
@@ -140,7 +140,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery implements
     }
 
     @Override
-    protected synchronized void preconditionQuery(LeafReaderContext context) throws IOException {
+    protected void preconditionQuery(LeafReaderContext context) throws IOException {
         if (isQueryPreconditioned) {
             // already preconditioned
             return;
@@ -273,8 +273,4 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery implements
         return vectorOpsCount;
     }
 
-    protected void skipCentroids(Map<Integer, FixedBitSet> mergedSkip) {
-        this.skipCentroidsPerLeaf.clear();
-        this.skipCentroidsPerLeaf.putAll(mergedSkip);
-    }
 }

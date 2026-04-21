@@ -45,7 +45,7 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryPro
         KnnSearchStrategy strategy,
         boolean earlyTermination
     ) {
-        this(field, target, k, numCands, filter, strategy, earlyTermination, false, null, null);
+        this(field, target, k, numCands, filter, strategy, earlyTermination, true, null, null);
     }
 
     ESKnnByteVectorQuery(

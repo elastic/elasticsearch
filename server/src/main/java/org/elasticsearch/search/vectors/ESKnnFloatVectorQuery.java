@@ -45,7 +45,7 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
         KnnSearchStrategy strategy,
         boolean earlyTermination
     ) {
-        this(field, target, k, numCands, filter, strategy, earlyTermination, false, null, null);
+        this(field, target, k, numCands, filter, strategy, earlyTermination, true, null, null);
     }
 
     ESKnnFloatVectorQuery(

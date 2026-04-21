@@ -31,11 +31,13 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
     private final int kParam;
     private final int numCands;
     private long vectorOpsCount;
+    private final boolean earlyTermination;
     private final BitSetProducer parentsFilter;
     private final boolean shouldPostFilter;
     private final FixedBitSet seenDocs;
     private final TopDocs seedResults;
 
+    // Written during rewrite() in the same thread; read by capturedResults() in the same rewrite chain
     private TopDocs capturedMergedResults;
 
     public ESDiversifyingChildrenFloatKnnVectorQuery(
@@ -47,7 +49,20 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
         BitSetProducer parentsFilter,
         KnnSearchStrategy strategy
     ) {
-        this(field, query, childFilter, k, numCands, parentsFilter, strategy, false, null, null);
+        this(field, query, childFilter, k, numCands, parentsFilter, strategy, false, true, null, null);
+    }
+
+    public ESDiversifyingChildrenFloatKnnVectorQuery(
+        String field,
+        float[] query,
+        Query childFilter,
+        int k,
+        int numCands,
+        BitSetProducer parentsFilter,
+        KnnSearchStrategy strategy,
+        boolean earlyTermination
+    ) {
+        this(field, query, childFilter, k, numCands, parentsFilter, strategy, earlyTermination, true, null, null);
     }
 
     ESDiversifyingChildrenFloatKnnVectorQuery(
@@ -58,6 +73,7 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
         int numCands,
         BitSetProducer parentsFilter,
         KnnSearchStrategy strategy,
+        boolean earlyTermination,
         boolean shouldPostFilter,
         FixedBitSet seenDocs,
         TopDocs seedResults
@@ -65,6 +81,7 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
         super(field, query, childFilter, numCands, parentsFilter, strategy);
         this.kParam = k;
         this.numCands = numCands;
+        this.earlyTermination = earlyTermination;
         this.parentsFilter = parentsFilter;
         this.shouldPostFilter = shouldPostFilter;
         this.seenDocs = seenDocs;
@@ -86,13 +103,14 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
                     scaledNumCands,
                     parentsFilter,
                     strategy,
+                    et,
                     true,
                     null,
                     null
                 ),
                 kParam,
                 searchStrategy,
-                false,
+                earlyTermination,
                 ops -> this.vectorOpsCount = ops,
                 parentsFilter
             );
@@ -133,6 +151,7 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
             numCands,
             parentsFilter,
             searchStrategy,
+            earlyTermination,
             true,
             newSeenDocs,
             capturedMergedResults
@@ -152,6 +171,6 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
 
     @Override
     protected KnnCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
-        return PostFilterHelper.wrapCollectorManager(super.getKnnCollectorManager(k, searcher), seedResults, field, false);
+        return PostFilterHelper.wrapCollectorManager(super.getKnnCollectorManager(k, searcher), seedResults, field, earlyTermination);
     }
 }

@@ -48,7 +48,7 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
         BitSetProducer parentsFilter,
         KnnSearchStrategy strategy
     ) {
-        this(field, query, childFilter, k, numCands, parentsFilter, strategy, false, false, null, null);
+        this(field, query, childFilter, k, numCands, parentsFilter, strategy, false, true, null, null);
     }
 
     public ESDiversifyingChildrenByteKnnVectorQuery(
@@ -61,7 +61,7 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
         KnnSearchStrategy strategy,
         boolean earlyTermination
     ) {
-        this(field, query, childFilter, k, numCands, parentsFilter, strategy, earlyTermination, false, null, null);
+        this(field, query, childFilter, k, numCands, parentsFilter, strategy, earlyTermination, true, null, null);
     }
 
     ESDiversifyingChildrenByteKnnVectorQuery(

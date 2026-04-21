@@ -3218,7 +3218,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         adjustedK,
                         numCands,
                         parentFilter,
-                        knnSearchStrategy
+                        knnSearchStrategy,
+                        hnswEarlyTermination
                     )
                     : new ESKnnFloatVectorQuery(name(), queryVector, adjustedK, numCands, filter, knnSearchStrategy, hnswEarlyTermination);
             }

@@ -191,7 +191,6 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
             sliceId,
             mergedSkip
         );
-        retryQuery.skipCentroids(mergedSkip);
         return retryQuery;
     }
 

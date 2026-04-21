@@ -62,7 +62,7 @@ public class PushCountQueryAndTagsToSource extends PhysicalOptimizerRules.Optimi
         // - exactly one grouping key
         // - exactly one aggregate (the COUNT itself)
         // This rejects multi-grouping queries and multi-aggregate queries (e.g. COUNT + MAX).
-        // The COUNT must be Count(*) or CountApproximate(*), without a filter on the count itself.
+        // The COUNT must be Count(*), without a filter on the count itself.
         if (aggregateExec.groupings().size() == 1
             && (aggregateExec.aggregates().size() == 1
                 // The second "aggregate" must be the grouping itself.

@@ -142,7 +142,7 @@ public class ReleasableBytesReferenceTests extends AbstractBytesReferenceTestCas
         assertEquals(0, releaseCount.get());
         assertEquals(composite.length(), adopted.length());
         assertArrayEquals(BytesReference.toBytes(composite), BytesReference.toBytes(adopted));
-        adopted.close();
+        adopted.decRef();
         assertEquals(0, releaseCount.get());
         assertTrue(p1.hasReferences());
         assertTrue(p2.hasReferences());

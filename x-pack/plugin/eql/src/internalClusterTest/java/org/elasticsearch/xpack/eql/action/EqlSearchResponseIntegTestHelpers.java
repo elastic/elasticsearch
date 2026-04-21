@@ -23,13 +23,13 @@ import java.util.concurrent.ExecutionException;
  * {@link Client#execute} returns a future whose {@code onResponse} uses {@code RefCountedFuture} for
  * {@link org.elasticsearch.core.RefCounted} results: the future {@code mustIncRef}s the response, and the caller of
  * {@link java.util.concurrent.Future#get()} must {@link EqlSearchResponse#decRef()} when finished (see
- * {@code AbstractClient.RefCountedFuture}). Use {@code try/finally} with {@link #decRefEql} after {@code .get()}.
+ * {@code AbstractClient.RefCountedFuture}). Use {@code try/finally} with {@link #decRef} after {@code .get()}.
  */
 final class EqlSearchResponseIntegTestHelpers {
 
     private EqlSearchResponseIntegTestHelpers() {}
 
-    static void decRefEql(EqlSearchResponse response) {
+    static void decRef(EqlSearchResponse response) {
         if (response != null) {
             response.decRef();
         }

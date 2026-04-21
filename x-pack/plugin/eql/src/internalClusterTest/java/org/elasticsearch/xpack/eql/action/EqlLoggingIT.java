@@ -47,7 +47,7 @@ import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageSuccess;
 import static org.elasticsearch.test.ActivityLoggingUtils.getMessageData;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.eql.action.EqlSearchResponseIntegTestHelpers.decRefEql;
+import static org.elasticsearch.xpack.eql.action.EqlSearchResponseIntegTestHelpers.decRef;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
@@ -103,7 +103,7 @@ public class EqlLoggingIT extends AbstractEqlBlockingIntegTestCase {
             assertThat(message.get(QUERY_FIELD_INDICES), equalTo("test"));
             assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo(success ? "1" : "0"));
         } finally {
-            decRefEql(response);
+            decRef(response);
         }
     }
 
@@ -157,7 +157,7 @@ public class EqlLoggingIT extends AbstractEqlBlockingIntegTestCase {
             assertThat(message.get(QUERY_FIELD_INDICES), equalTo("test"));
             assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "failed")), greaterThanOrEqualTo(1));
         } finally {
-            decRefEql(response);
+            decRef(response);
         }
     }
 
@@ -210,10 +210,10 @@ public class EqlLoggingIT extends AbstractEqlBlockingIntegTestCase {
                 ).actionGet();
                 assertThat(deleteResponse.isAcknowledged(), equalTo(true));
             } finally {
-                decRefEql(response);
+                decRef(response);
             }
         } finally {
-            decRefEql(initialResponse);
+            decRef(initialResponse);
         }
     }
 

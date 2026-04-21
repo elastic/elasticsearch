@@ -121,7 +121,7 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
                 }
                 assertThat(response.shardFailures().length, is(0));
             } finally {
-                EqlSearchResponseIntegTestHelpers.decRefEql(response);
+                EqlSearchResponseIntegTestHelpers.decRef(response);
             }
         }
 
@@ -139,7 +139,7 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
                 assertThat(sequence.events().get(1).toString(), containsString("\"value\" : 2"));
                 assertThat(response.shardFailures().length, is(0));
             } finally {
-                EqlSearchResponseIntegTestHelpers.decRefEql(response);
+                EqlSearchResponseIntegTestHelpers.decRef(response);
             }
         }
 
@@ -157,7 +157,7 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
                 assertThat(sequence.events().get(1).toString(), containsString("\"value\" : 3"));
                 assertThat(response.shardFailures().length, is(0));
             } finally {
-                EqlSearchResponseIntegTestHelpers.decRefEql(response);
+                EqlSearchResponseIntegTestHelpers.decRef(response);
             }
         }
 
@@ -175,7 +175,7 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
                 assertThat(sequence.events().get(1).toString(), containsString("\"value\" : 2"));
                 assertThat(response.shardFailures().length, is(0));
             } finally {
-                EqlSearchResponseIntegTestHelpers.decRefEql(response);
+                EqlSearchResponseIntegTestHelpers.decRef(response);
             }
         }
 
@@ -190,7 +190,7 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
                 assertThat(response.hits().sequences().size(), equalTo(0));
                 assertThat(response.shardFailures().length, is(0));
             } finally {
-                EqlSearchResponseIntegTestHelpers.decRefEql(response);
+                EqlSearchResponseIntegTestHelpers.decRef(response);
             }
         }
 
@@ -208,7 +208,7 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
                 assertThat(sample.events().get(1).toString(), containsString("\"value\" : 1"));
                 assertThat(response.shardFailures().length, is(0));
             } finally {
-                EqlSearchResponseIntegTestHelpers.decRefEql(response);
+                EqlSearchResponseIntegTestHelpers.decRef(response);
             }
         }
 
@@ -226,7 +226,7 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
                 assertThat(sample.events().get(1).toString(), containsString("\"value\" : 1"));
                 assertThat(response.shardFailures().length, is(0));
             } finally {
-                EqlSearchResponseIntegTestHelpers.decRefEql(response);
+                EqlSearchResponseIntegTestHelpers.decRef(response);
             }
         }
 
@@ -244,7 +244,7 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
                 assertThat(sample.events().get(1).toString(), containsString("\"value\" : 0"));
                 assertThat(response.shardFailures().length, is(0));
             } finally {
-                EqlSearchResponseIntegTestHelpers.decRefEql(response);
+                EqlSearchResponseIntegTestHelpers.decRef(response);
             }
         }
 
@@ -335,7 +335,7 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
                 }
                 assertThat(response.shardFailures().length, is(1));
             } finally {
-                EqlSearchResponseIntegTestHelpers.decRefEql(response);
+                EqlSearchResponseIntegTestHelpers.decRef(response);
             }
         }
 
@@ -365,7 +365,7 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
                 assertThat(response.shardFailures()[0].index(), is("test-1"));
                 assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
             } finally {
-                EqlSearchResponseIntegTestHelpers.decRefEql(response);
+                EqlSearchResponseIntegTestHelpers.decRef(response);
             }
         }
 
@@ -387,7 +387,7 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
                 assertThat(response.shardFailures()[0].index(), is("test-1"));
                 assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
             } finally {
-                EqlSearchResponseIntegTestHelpers.decRefEql(response);
+                EqlSearchResponseIntegTestHelpers.decRef(response);
             }
         }
 
@@ -406,7 +406,7 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
                 assertThat(response.shardFailures()[0].index(), is("test-1"));
                 assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
             } finally {
-                EqlSearchResponseIntegTestHelpers.decRefEql(response);
+                EqlSearchResponseIntegTestHelpers.decRef(response);
             }
         }
 
@@ -428,7 +428,7 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
                 assertThat(response.shardFailures()[0].index(), is("test-1"));
                 assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
             } finally {
-                EqlSearchResponseIntegTestHelpers.decRefEql(response);
+                EqlSearchResponseIntegTestHelpers.decRef(response);
             }
         }
 
@@ -457,7 +457,7 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
                 assertThat(response.shardFailures()[0].index(), is("test-1"));
                 assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
             } finally {
-                EqlSearchResponseIntegTestHelpers.decRefEql(response);
+                EqlSearchResponseIntegTestHelpers.decRef(response);
             }
         }
 
@@ -479,7 +479,7 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
                 assertThat(response.shardFailures()[0].index(), is("test-1"));
                 assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
             } finally {
-                EqlSearchResponseIntegTestHelpers.decRefEql(response);
+                EqlSearchResponseIntegTestHelpers.decRef(response);
             }
         }
 
@@ -498,7 +498,7 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
                 assertThat(response.shardFailures()[0].index(), is("test-1"));
                 assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
             } finally {
-                EqlSearchResponseIntegTestHelpers.decRefEql(response);
+                EqlSearchResponseIntegTestHelpers.decRef(response);
             }
         }
 
@@ -531,7 +531,7 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
                 }
                 assertThat(response.shardFailures().length, is(1));
             } finally {
-                EqlSearchResponseIntegTestHelpers.decRefEql(response);
+                EqlSearchResponseIntegTestHelpers.decRef(response);
             }
         }
 
@@ -558,7 +558,7 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
                 assertThat(response.shardFailures()[0].index(), is("test-1"));
                 assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
             } finally {
-                EqlSearchResponseIntegTestHelpers.decRefEql(response);
+                EqlSearchResponseIntegTestHelpers.decRef(response);
             }
         }
 
@@ -575,7 +575,7 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
                 assertThat(response.shardFailures()[0].index(), is("test-1"));
                 assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
             } finally {
-                EqlSearchResponseIntegTestHelpers.decRefEql(response);
+                EqlSearchResponseIntegTestHelpers.decRef(response);
             }
         }
 
@@ -592,7 +592,7 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
                 assertThat(response.shardFailures()[0].index(), is("test-1"));
                 assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
             } finally {
-                EqlSearchResponseIntegTestHelpers.decRefEql(response);
+                EqlSearchResponseIntegTestHelpers.decRef(response);
             }
         }
 
@@ -610,7 +610,7 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
                 assertThat(response.shardFailures()[0].index(), is("test-1"));
                 assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
             } finally {
-                EqlSearchResponseIntegTestHelpers.decRefEql(response);
+                EqlSearchResponseIntegTestHelpers.decRef(response);
             }
         }
 
@@ -637,7 +637,7 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
                 assertThat(response.shardFailures()[0].index(), is("test-1"));
                 assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
             } finally {
-                EqlSearchResponseIntegTestHelpers.decRefEql(response);
+                EqlSearchResponseIntegTestHelpers.decRef(response);
             }
         }
 
@@ -657,7 +657,7 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
                 assertThat(response.shardFailures()[0].index(), is("test-1"));
                 assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
             } finally {
-                EqlSearchResponseIntegTestHelpers.decRefEql(response);
+                EqlSearchResponseIntegTestHelpers.decRef(response);
             }
         }
 
@@ -674,7 +674,7 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
                 assertThat(response.shardFailures()[0].index(), is("test-1"));
                 assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
             } finally {
-                EqlSearchResponseIntegTestHelpers.decRefEql(response);
+                EqlSearchResponseIntegTestHelpers.decRef(response);
             }
         }
 

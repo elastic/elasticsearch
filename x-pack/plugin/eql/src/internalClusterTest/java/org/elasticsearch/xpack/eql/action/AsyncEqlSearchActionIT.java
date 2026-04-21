@@ -58,7 +58,7 @@ import java.util.function.Function;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.eql.action.EqlSearchResponseIntegTestHelpers.decRefEql;
+import static org.elasticsearch.xpack.eql.action.EqlSearchResponseIntegTestHelpers.decRef;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -146,7 +146,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
                     assertThat(responseWithTimeout.isPartial(), is(true));
                     assertThat(responseWithTimeout.id(), equalTo(response.id()));
                 } finally {
-                    decRefEql(responseWithTimeout);
+                    decRef(responseWithTimeout);
                 }
             }
 
@@ -161,7 +161,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
                     assertThat(completed, notNullValue());
                     assertThat(completed.hits().events().size(), equalTo(1));
                 } finally {
-                    decRefEql(completed);
+                    decRef(completed);
                 }
             } else {
                 Exception ex = expectThrows(Exception.class, future);
@@ -173,7 +173,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
             ).actionGet();
             assertThat(deleteResponse.isAcknowledged(), equalTo(true));
         } finally {
-            decRefEql(response);
+            decRef(response);
         }
     }
 
@@ -233,7 +233,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
                 try {
                     assertThat(storedFromIndex.hits().events().size(), equalTo(1));
                 } finally {
-                    decRefEql(storedFromIndex);
+                    decRef(storedFromIndex);
                 }
             } else {
                 assertThat(doc.getException(), notNullValue());
@@ -241,7 +241,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
                 assertThat(doc.getException().getCause().getMessage(), containsString("by zero"));
             }
         } finally {
-            decRefEql(response);
+            decRef(response);
         }
     }
 
@@ -289,7 +289,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
             deleteResponse = client().execute(TransportDeleteAsyncResultAction.TYPE, new DeleteAsyncResultRequest(response.id()));
             assertFutureThrows(deleteResponse, ResourceNotFoundException.class);
         } finally {
-            decRefEql(response);
+            decRef(response);
         }
     }
 
@@ -324,7 +324,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
                     try {
                         assertThat(docResponse.hits().events().size(), equalTo(1));
                     } finally {
-                        decRefEql(docResponse);
+                        decRef(docResponse);
                     }
                     EqlSearchResponse storedResponse = client().execute(
                         EqlAsyncGetResultAction.INSTANCE,
@@ -333,7 +333,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
                     try {
                         assertThat(storedResponse, equalTo(response));
                     } finally {
-                        decRefEql(storedResponse);
+                        decRef(storedResponse);
                     }
 
                     AcknowledgedResponse deleteResponse = client().execute(
@@ -343,7 +343,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
                     assertThat(deleteResponse.isAcknowledged(), equalTo(true));
                 }
             } finally {
-                decRefEql(response);
+                decRef(response);
             }
         } else {
             Exception ex = expectThrows(Exception.class, () -> client().execute(EqlSearchAction.INSTANCE, request).get());

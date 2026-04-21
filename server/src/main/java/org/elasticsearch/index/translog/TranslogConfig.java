@@ -135,7 +135,7 @@ public final class TranslogConfig {
     }
 
     /**
-     * The translog buffer size. Default is {@code 8kb}
+     * The translog buffer size. Default is {@code 1mb}
      */
     public ByteSizeValue getBufferSize() {
         return bufferSize;
@@ -161,7 +161,7 @@ public final class TranslogConfig {
     }
 
     /**
-     * @return the circuit breaker used to track translog buffer memory, or `null` if CB tracking is disabled.
+     * @return the circuit breaker used to track translog buffer memory, or `null` if circuit breaker tracking is disabled.
      */
     @Nullable
     public CircuitBreaker getCircuitBreaker() {

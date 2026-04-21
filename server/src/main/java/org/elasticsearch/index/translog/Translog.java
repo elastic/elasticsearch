@@ -125,6 +125,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     // the list of translog readers is guaranteed to be in order of translog generation
     private final List<TranslogReader> readers = new ArrayList<>();
     private final BigArrays bigArrays;
+    @Nullable
     private final CircuitBreaker circuitBreaker;
     private final DiskIoBufferPool diskIoBufferPool;
     protected final Lock readLock;

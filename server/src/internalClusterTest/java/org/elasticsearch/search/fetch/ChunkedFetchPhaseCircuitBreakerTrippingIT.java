@@ -91,6 +91,7 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
         }
         indexRandom(true, builders);
         refresh(INDEX_NAME);
+        flush(INDEX_NAME);
         ensureGreen(INDEX_NAME);
         updateClusterSettings(Settings.builder().put("indices.breaker.request.limit", "5mb"));
 
@@ -164,6 +165,7 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
         }
         indexRandom(true, builders);
         refresh(INDEX_NAME);
+        flush(INDEX_NAME);
         ensureGreen(INDEX_NAME);
         updateClusterSettings(Settings.builder().put("indices.breaker.request.limit", "5mb"));
 
@@ -314,6 +316,7 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
         }
         indexRandom(true, builders);
         refresh(INDEX_NAME);
+        flush(INDEX_NAME);
         ensureGreen(INDEX_NAME);
         updateClusterSettings(Settings.builder().put("indices.breaker.request.limit", "5mb"));
 

@@ -32,6 +32,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.DiskIoBufferPool;
@@ -45,6 +46,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -4164,5 +4166,40 @@ public class TranslogTests extends ESTestCase {
         }
         // Translog.close() syncs before closing
         assertThat(circuitBreaker.getUsed(), equalTo(0L));
+    }
+
+    public void testTranslogWriterCircuitBreakerTrip() throws IOException {
+        // // Set a limit of two pages (RecyclerBytesStreamOutput constructor preallocates 1 page)
+        final int pageSize = PageCacheRecycler.BYTE_PAGE_SIZE;
+        final var bigArraysBreakerService = LimitedBreaker.service(CircuitBreaker.REQUEST, ByteSizeValue.ofGb(1));
+        final var smallBreaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(2L * pageSize));
+        final var bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), bigArraysBreakerService);
+        final var tempDir = createTempDir();
+        final var indexSettings = IndexSettingsModule.newIndexSettings(
+            shardId.getIndex(),
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
+        );
+        final var config = new TranslogConfig(
+            shardId,
+            tempDir,
+            indexSettings,
+            bigArrays,
+            smallBreaker,
+            TranslogConfig.DEFAULT_BUFFER_SIZE,
+            DiskIoBufferPool.INSTANCE,
+            TranslogConfig.NOOP_OPERATION_LISTENER,
+            true
+        );
+
+        final String largeSource = "x".repeat(pageSize);
+        try (var tl = createTranslog(config)) {
+            final var ex = expectThrows(TranslogException.class, () -> tl.add(indexOp("0", 0, primaryTerm.get(), largeSource)));
+            assertThat(ex.getCause(), instanceOf(CircuitBreakingException.class));
+
+            // Writer is now in tragic state. Subsequent adds should fail.
+            expectThrows(AlreadyClosedException.class, () -> tl.add(indexOp("1", 1, primaryTerm.get())));
+        }
+        // All circuit breaker memory released on close.
+        assertThat(smallBreaker.getUsed(), equalTo(0L));
     }
 }

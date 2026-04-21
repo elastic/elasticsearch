@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
@@ -374,7 +375,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
 
     @Override
     public String formatName() {
-        return "parquet-java";
+        return EsqlPlugin.FORMAT_PARQUET;
     }
 
     @Override

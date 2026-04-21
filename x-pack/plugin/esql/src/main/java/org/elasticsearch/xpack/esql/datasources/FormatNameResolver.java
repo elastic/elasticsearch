@@ -33,8 +33,10 @@ public final class FormatNameResolver {
     static final String CONFIG_READER = "reader";
 
     private static final Map<String, String> READER_ALIAS_TO_FORMAT = Map.of(
-        EsqlPlugin.READER_PARQUET_RS, EsqlPlugin.FORMAT_PARQUET,
-        EsqlPlugin.READER_JAVA, EsqlPlugin.FORMAT_PARQUET_JAVA
+        EsqlPlugin.READER_PARQUET_RS,
+        EsqlPlugin.FORMAT_PARQUET_RS,
+        EsqlPlugin.READER_JAVA,
+        EsqlPlugin.FORMAT_PARQUET
     );
 
     private FormatNameResolver() {}
@@ -42,7 +44,7 @@ public final class FormatNameResolver {
     /**
      * Resolves the format name from the WITH config map and/or the source path.
      *
-     * @return the format name (e.g. "parquet-java", "parquet", "orc"), or null if undetermined
+     * @return the format name (e.g. "parquet", "parquet-rs", "orc"), or null if undetermined
      */
     public static String resolve(Map<String, Object> config, String sourcePath) {
         if (config != null) {

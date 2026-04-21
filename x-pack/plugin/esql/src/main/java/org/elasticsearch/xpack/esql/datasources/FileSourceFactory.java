@@ -175,7 +175,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
     static final String CONFIG_MAX_ERROR_RATIO = "max_error_ratio";
     static final String CONFIG_ERROR_MODE = "error_mode";
 
-
     static ErrorPolicy resolveErrorPolicy(Map<String, Object> config, FormatReader format) {
         if (config == null) {
             return format.defaultErrorPolicy();

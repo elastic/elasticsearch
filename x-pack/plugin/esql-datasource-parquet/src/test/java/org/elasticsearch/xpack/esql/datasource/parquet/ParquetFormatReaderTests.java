@@ -78,7 +78,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
     public void testFormatName() {
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        assertEquals("parquet-java", reader.formatName());
+        assertEquals("parquet", reader.formatName());
     }
 
     public void testFileExtensions() {
@@ -1280,7 +1280,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
 
         SourceMetadata metadata = reader.metadata(storageObject);
-        assertEquals("parquet-java", metadata.sourceType());
+        assertEquals("parquet", metadata.sourceType());
     }
 
     public void testStatisticsSurviveEmbedding() throws Exception {

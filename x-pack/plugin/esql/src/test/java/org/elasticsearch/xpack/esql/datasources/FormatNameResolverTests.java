@@ -15,17 +15,17 @@ import java.util.Map;
 public class FormatNameResolverTests extends ESTestCase {
 
     public void testReaderJavaOverridesExtension() {
-        assertEquals(EsqlPlugin.FORMAT_PARQUET_JAVA, FormatNameResolver.resolve(Map.of("reader", "java"), "file.parquet"));
+        assertEquals(EsqlPlugin.FORMAT_PARQUET, FormatNameResolver.resolve(Map.of("reader", "java"), "file.parquet"));
     }
 
     public void testReaderParquetRsOverridesExtension() {
-        assertEquals(EsqlPlugin.FORMAT_PARQUET, FormatNameResolver.resolve(Map.of("reader", "parquet-rs"), "file.parquet"));
+        assertEquals(EsqlPlugin.FORMAT_PARQUET_RS, FormatNameResolver.resolve(Map.of("reader", "parquet-rs"), "file.parquet"));
     }
 
     public void testReaderOverridesFormat() {
         assertEquals(
-            EsqlPlugin.FORMAT_PARQUET_JAVA,
-            FormatNameResolver.resolve(Map.of("reader", "java", "format", "parquet"), "file.parquet")
+            EsqlPlugin.FORMAT_PARQUET,
+            FormatNameResolver.resolve(Map.of("reader", "java", "format", "parquet-rs"), "file.parquet")
         );
     }
 
@@ -70,8 +70,8 @@ public class FormatNameResolverTests extends ESTestCase {
     }
 
     public void testReaderAliasToFormat() {
-        assertEquals(EsqlPlugin.FORMAT_PARQUET_JAVA, FormatNameResolver.readerAliasToFormat(EsqlPlugin.READER_JAVA));
-        assertEquals(EsqlPlugin.FORMAT_PARQUET, FormatNameResolver.readerAliasToFormat(EsqlPlugin.READER_PARQUET_RS));
+        assertEquals(EsqlPlugin.FORMAT_PARQUET, FormatNameResolver.readerAliasToFormat(EsqlPlugin.READER_JAVA));
+        assertEquals(EsqlPlugin.FORMAT_PARQUET_RS, FormatNameResolver.readerAliasToFormat(EsqlPlugin.READER_PARQUET_RS));
         assertNull(FormatNameResolver.readerAliasToFormat("unknown"));
     }
 }

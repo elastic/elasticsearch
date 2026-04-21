@@ -211,8 +211,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     public static final String READER_PARQUET_RS = "parquet-rs";
     public static final String READER_JAVA = "java";
     public static final String FORMAT_PARQUET = "parquet";
-    public static final String FORMAT_PARQUET_JAVA = "parquet-java";
-    static final String DEFAULT_PARQUET_READER = READER_PARQUET_RS;
+    public static final String FORMAT_PARQUET_RS = "parquet-rs";
+    static final String DEFAULT_PARQUET_READER = READER_JAVA;
 
     private final List<PlanCheckerProvider> extraCheckerProviders = new ArrayList<>();
     private final List<DataSourcePlugin> dataSourcePlugins = new ArrayList<>();
@@ -265,10 +265,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         );
 
         if (dataSourceModule.formatReaderRegistry().hasFormat(FORMAT_PARQUET)
-            && dataSourceModule.formatReaderRegistry().hasFormat(FORMAT_PARQUET_JAVA)) {
+            && dataSourceModule.formatReaderRegistry().hasFormat(FORMAT_PARQUET_RS)) {
             boolean useParquetRs = READER_PARQUET_RS.equals(DEFAULT_PARQUET_READER);
             dataSourceModule.formatReaderRegistry()
-                .registerDynamicAlias(".parquet", FORMAT_PARQUET, FORMAT_PARQUET, FORMAT_PARQUET_JAVA, () -> useParquetRs);
+                .registerDynamicAlias(".parquet", FORMAT_PARQUET, FORMAT_PARQUET_RS, FORMAT_PARQUET, () -> useParquetRs);
         }
 
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();

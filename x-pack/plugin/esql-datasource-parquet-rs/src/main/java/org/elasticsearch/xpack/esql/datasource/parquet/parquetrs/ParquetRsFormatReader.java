@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -235,12 +236,12 @@ public class ParquetRsFormatReader implements FormatReader {
 
     @Override
     public String formatName() {
-        return "parquet";
+        return EsqlPlugin.FORMAT_PARQUET_RS;
     }
 
     @Override
     public List<String> fileExtensions() {
-        return List.of(".parquet", ".parq");
+        return List.of();
     }
 
     @Override

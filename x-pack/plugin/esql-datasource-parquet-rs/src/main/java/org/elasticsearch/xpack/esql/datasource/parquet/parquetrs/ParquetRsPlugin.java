@@ -12,6 +12,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.util.Map;
 import java.util.Set;
@@ -23,12 +24,12 @@ public class ParquetRsPlugin extends Plugin implements DataSourcePlugin {
 
     @Override
     public Set<FormatSpec> formatSpecs() {
-        return Set.of(FormatSpec.of("parquet", ".parquet"));
+        return Set.of(new FormatSpec(EsqlPlugin.FORMAT_PARQUET_RS, Set.of()));
     }
 
     @Override
     public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
         FormatReaderFactory factory = (s, blockFactory) -> new ParquetRsFormatReader(blockFactory);
-        return Map.of("parquet", factory);
+        return Map.of(EsqlPlugin.FORMAT_PARQUET_RS, factory);
     }
 }

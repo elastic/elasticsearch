@@ -432,6 +432,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
   method: test {csv-spec:external-basic.topSnippetsFunction [HTTP]}
   issue: https://github.com/elastic/elasticsearch/issues/147049
+- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
+  method: test {csv-spec:external-basic.convertToLong [S3]}
+  issue: https://github.com/elastic/elasticsearch/issues/147050
 
 # Examples:
 #

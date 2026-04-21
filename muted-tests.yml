@@ -447,6 +447,9 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=mget/90_synthetic_source/keyword with normalizer and skip store original value}
   issue: https://github.com/elastic/elasticsearch/issues/147056
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=indices.simulate_index_template/10_basic/Simulate index template with data stream with mapping and setting overrides}
+  issue: https://github.com/elastic/elasticsearch/issues/147057
 
 # Examples:
 #

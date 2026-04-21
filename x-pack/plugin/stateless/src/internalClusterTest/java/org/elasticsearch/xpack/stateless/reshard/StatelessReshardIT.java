@@ -110,6 +110,7 @@ import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.disruption.BlockMasterServiceOnMaster;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportChannel;
@@ -4259,7 +4260,12 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         waitForReshardCompletion(indexName);
     }
 
-    public void testTermVectorsApiRealtimeGet() throws IOException, InterruptedException, ExecutionException {
+    @TestIssueLogging(
+        value = "org.elasticsearch.xpack.stateless.action.TransportEnsureDocsSearchableAction:TRACE,"
+            + "org.elasticsearch.action.termvectors.TransportTermVectorsAction:TRACE",
+        issueUrl = "https://github.com/elastic/elasticsearch-serverless/issues/6372"
+    )
+    public void testTermVectorsApiRealtimeGet() throws Exception {
         String masterNode = startMasterOnlyNode();
         var indexNode = startIndexNode();
         startSearchNode();
@@ -4313,14 +4319,19 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         // Simulate a request arriving at a stale coordinator by blocking shard level requests with current old summary.
         var readInitiated = new CountDownLatch(1);
         var readBlocked = new CountDownLatch(1);
+        var termVectorShardRequests = new AtomicInteger(0);
         var coordinatorTransportService = MockTransportService.getInstance(coordinator);
         coordinatorTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
             if (action.equals(TermVectorsAction.NAME + "[s]")) {
-                try {
-                    readInitiated.countDown();
-                    readBlocked.await();
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
+                int count = termVectorShardRequests.incrementAndGet();
+                logger.info("TermVectors [s] request #{} to [{}]", count, connection.getNode().getName());
+                if (count == 1) {
+                    try {
+                        readInitiated.countDown();
+                        readBlocked.await();
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
                 }
             }
             connection.sendRequest(requestId, action, request, options);
@@ -4348,7 +4359,16 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
 
             // It should still be successful.
             var response = readFuture.get();
-            assertTrue(response.isExists());
+            if (response.isExists() == false) {
+                var index = resolveIndex(indexName);
+                var reshardMeta = indexMetadata(clusterService().state(), index).getReshardingMetadata();
+                fail(
+                    "term vectors returned exists=false after "
+                        + termVectorShardRequests.get()
+                        + " [s] requests. Reshard metadata: "
+                        + reshardMeta
+                );
+            }
             assertEquals(1, response.getFields().size());
             assertEquals("field", response.getFields().iterator().next());
 

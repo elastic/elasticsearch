@@ -67,7 +67,7 @@ public final class DataSourceModule implements Closeable {
 
         DecompressionCodecRegistry codecRegistry = new DecompressionCodecRegistry();
         for (DataSourcePlugin plugin : dataSourcePlugins) {
-            for (DecompressionCodec codec : plugin.decompressionCodecs(settings)) {
+            for (DecompressionCodec codec : plugin.decompressionCodecs(settings, executor)) {
                 codecRegistry.register(codec);
             }
         }

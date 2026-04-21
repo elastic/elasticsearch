@@ -322,7 +322,8 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
             assertThat(request.getInferenceEntityId(), equalTo(useSearchInferenceId ? SEARCH_INFERENCE_ID : INFERENCE_ID));
 
             TaskType taskType = switch (inferenceResultType) {
-                case NONE, SPARSE_EMBEDDING -> TaskType.SPARSE_EMBEDDING;
+                case NONE -> randomBoolean() ? TaskType.SPARSE_EMBEDDING : TaskType.TEXT_EMBEDDING;
+                case SPARSE_EMBEDDING -> TaskType.SPARSE_EMBEDDING;
                 case TEXT_EMBEDDING -> TaskType.TEXT_EMBEDDING;
                 case EMBEDDING -> TaskType.EMBEDDING;
             };

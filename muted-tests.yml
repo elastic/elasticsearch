@@ -289,9 +289,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeUnmappedLoadIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/145900
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=aggregations/sig_terms/Test background filter count}
-  issue: https://github.com/elastic/elasticsearch/issues/146599
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=reindex/10_basic/Response format for updated}
   issue: https://github.com/elastic/elasticsearch/issues/146607

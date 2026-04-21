@@ -120,6 +120,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DayName;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.MonthName;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.Now;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeMax;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeMin;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeWithin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.IpPrefix;
@@ -609,6 +612,10 @@ public class EsqlFunctionRegistry {
                 Delay.DEFINITION,
                 // dense vector functions
                 Magnitude.DEFINITION,
+                // date_range functions
+                RangeMax.DEFINITION,
+                RangeMin.DEFINITION,
+                RangeWithin.DEFINITION,
                 ToDateRange.DEFINITION,
                 Sparkline.DEFINITION } };
     }

@@ -8,13 +8,13 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -150,43 +150,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.parsingParallelism = Math.max(1, parsingParallelism);
         this.pushedExpressions = pushedExpressions != null ? pushedExpressions : List.of();
         this.pushdownSupport = pushdownSupport;
-    }
-
-    public AsyncExternalSourceOperatorFactory(
-        StorageProvider storageProvider,
-        FormatReader formatReader,
-        StoragePath path,
-        List<Attribute> attributes,
-        int batchSize,
-        int maxBufferSize,
-        int rowLimit,
-        Executor executor,
-        FileList fileList,
-        Set<String> partitionColumnNames,
-        Map<String, Object> partitionValues,
-        ExternalSliceQueue sliceQueue,
-        ErrorPolicy errorPolicy,
-        int parsingParallelism,
-        TimeValue drainTimeout
-    ) {
-        this(
-            storageProvider,
-            formatReader,
-            path,
-            attributes,
-            batchSize,
-            maxBufferSize,
-            rowLimit,
-            executor,
-            fileList,
-            partitionColumnNames,
-            partitionValues,
-            sliceQueue,
-            errorPolicy,
-            parsingParallelism,
-            null,
-            null
-        );
     }
 
     public AsyncExternalSourceOperatorFactory(
@@ -529,14 +492,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     }
 
     private void startSliceQueueRead(AsyncExternalSourceBuffer buffer, DriverContext driverContext) {
-        executor.execute(() -> {
-            try {
-                processNextSplit(sliceQueue, buffer, driverContext, rowLimit);
-            } catch (Exception e) {
-                buffer.onFailure(e);
-                driverContext.removeAsyncAction();
-            }
-        });
+        ActionListener<Void> failureListener = failureListener(buffer, driverContext);
+        executor.execute(ActionRunnable.run(failureListener, () -> processNextSplit(sliceQueue, buffer, driverContext, rowLimit)));
     }
 
     private void processNextSplit(
@@ -556,18 +513,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             driverContext.removeAsyncAction();
             return;
         }
+        ActionListener<Void> failureListener = failureListener(buffer, driverContext);
         List<ExternalSplit> leaves = flattenToLeaves(split);
         processNextLeaf(leaves, 0, queue, buffer, driverContext, rowsRemaining, ActionListener.wrap(remaining -> {
-            try {
-                executor.execute(() -> processNextSplit(queue, buffer, driverContext, remaining));
-            } catch (Exception e) {
-                buffer.onFailure(e);
-                driverContext.removeAsyncAction();
-            }
-        }, e -> {
-            buffer.onFailure(e);
-            driverContext.removeAsyncAction();
-        }));
+            executor.execute(ActionRunnable.run(failureListener, () -> processNextSplit(queue, buffer, driverContext, remaining)));
+        }, failureListener::onFailure));
     }
 
     private void processNextLeaf(
@@ -641,22 +591,20 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             return;
         }
 
-        // INV-3: close the current iterator before advancing to the next leaf.
-        // Using runBefore (close, then advance) ensures the previous file descriptor
-        // is released even when the next leaf drains entirely on the hot path.
         drainPagesWithBudgetAsync(
             wrappedPages,
             buffer,
             rowsRemaining,
             executor,
             ActionListener.runAfter(ActionListener.<Integer>wrap(consumed -> {
-                closeQuietly(wrappedPages);
                 int remaining = rowLimit != FormatReader.NO_LIMIT ? rowsRemaining - consumed : rowsRemaining;
-                processNextLeaf(leaves, leafIndex + 1, queue, buffer, driverContext, remaining, splitDoneListener);
-            }, e -> {
-                closeQuietly(wrappedPages);
-                splitDoneListener.onFailure(e);
-            }), () -> closeQuietly(wrappedPages))
+                executor.execute(
+                    ActionRunnable.wrap(
+                        splitDoneListener,
+                        l -> processNextLeaf(leaves, leafIndex + 1, queue, buffer, driverContext, remaining, l)
+                    )
+                );
+            }, splitDoneListener::onFailure), () -> closeQuietly(wrappedPages))
         );
     }
 
@@ -673,14 +621,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     ) {
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = fileList != null ? fileList.fileSchemaInfo() : null;
 
-        executor.execute(() -> {
-            try {
-                processNextFile(0, projectedColumns, buffer, driverContext, injector, schemaInfo, rowLimit);
-            } catch (Exception e) {
-                buffer.onFailure(e);
-                driverContext.removeAsyncAction();
-            }
-        });
+        ActionListener<Void> failureListener = failureListener(buffer, driverContext);
+        executor.execute(
+            ActionRunnable.run(
+                failureListener,
+                () -> processNextFile(0, projectedColumns, buffer, driverContext, injector, schemaInfo, rowLimit)
+            )
+        );
     }
 
     private void processNextFile(
@@ -747,6 +694,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             return;
         }
 
+        ActionListener<Void> failureListener = failureListener(buffer, driverContext);
         drainPagesWithBudgetAsync(
             wrappedPages,
             buffer,
@@ -754,18 +702,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             executor,
             ActionListener.runAfter(ActionListener.<Integer>wrap(consumed -> {
                 int remaining = rowLimit != FormatReader.NO_LIMIT ? rowsRemaining - consumed : rowsRemaining;
-                try {
-                    executor.execute(
+                executor.execute(
+                    ActionRunnable.run(
+                        failureListener,
                         () -> processNextFile(fileIndex + 1, projectedColumns, buffer, driverContext, injector, schemaInfo, remaining)
-                    );
-                } catch (Exception e) {
-                    buffer.onFailure(e);
-                    driverContext.removeAsyncAction();
-                }
-            }, e -> {
-                buffer.onFailure(e);
-                driverContext.removeAsyncAction();
-            }), () -> closeQuietly(wrappedPages))
+                    )
+                );
+            }, failureListener::onFailure), () -> closeQuietly(wrappedPages))
         );
     }
 
@@ -797,43 +740,45 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         DriverContext driverContext,
         VirtualColumnInjector injector
     ) {
-        executor.execute(() -> {
-            try {
-                CloseableIterator<Page> pages;
-                if (rowLimit == FormatReader.NO_LIMIT && formatReader instanceof SegmentableFormatReader segmentable) {
-                    pages = ParallelParsingCoordinator.parallelRead(
-                        segmentable,
-                        storageObject,
-                        projectedColumns,
-                        batchSize,
-                        parsingParallelism,
-                        executor,
-                        errorPolicy
-                    );
-                } else {
-                    FormatReadContext ctx = FormatReadContext.builder()
-                        .projectedColumns(projectedColumns)
-                        .batchSize(batchSize)
-                        .rowLimit(rowLimit)
-                        .errorPolicy(errorPolicy)
-                        .build();
-                    pages = formatReader.read(storageObject, ctx);
-                }
-                CloseableIterator<Page> wrapped = wrapWithInjector(pages, injector);
-                drainPagesAsync(
-                    wrapped,
-                    buffer,
+        ActionListener<Void> failureListener = failureListener(buffer, driverContext);
+        executor.execute(ActionRunnable.run(failureListener, () -> {
+            CloseableIterator<Page> pages;
+            if (rowLimit == FormatReader.NO_LIMIT && formatReader instanceof SegmentableFormatReader segmentable) {
+                pages = ParallelParsingCoordinator.parallelRead(
+                    segmentable,
+                    storageObject,
+                    projectedColumns,
+                    batchSize,
+                    parsingParallelism,
                     executor,
-                    ActionListener.runAfter(ActionListener.wrap(v -> buffer.finish(false), e -> buffer.onFailure(e)), () -> {
-                        closeQuietly(wrapped);
-                        driverContext.removeAsyncAction();
-                    })
+                    errorPolicy
                 );
-            } catch (Exception e) {
-                buffer.onFailure(e);
-                driverContext.removeAsyncAction();
+            } else {
+                FormatReadContext ctx = FormatReadContext.builder()
+                    .projectedColumns(projectedColumns)
+                    .batchSize(batchSize)
+                    .rowLimit(rowLimit)
+                    .errorPolicy(errorPolicy)
+                    .build();
+                pages = formatReader.read(storageObject, ctx);
             }
-        });
+            CloseableIterator<Page> wrapped;
+            try {
+                wrapped = wrapWithInjector(pages, injector);
+            } catch (Exception e) {
+                closeQuietly(pages);
+                throw e;
+            }
+            drainPagesAsync(
+                wrapped,
+                buffer,
+                executor,
+                ActionListener.runAfter(ActionListener.wrap(v -> buffer.finish(false), e -> buffer.onFailure(e)), () -> {
+                    closeQuietly(wrapped);
+                    driverContext.removeAsyncAction();
+                })
+            );
+        }));
     }
 
     private void consumePagesInBackground(
@@ -842,24 +787,23 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         DriverContext driverContext,
         VirtualColumnInjector injector
     ) {
-        try {
-            executor.execute(() -> {
-                CloseableIterator<Page> wrapped = wrapWithInjector(pages, injector);
-                drainPagesAsync(
-                    wrapped,
-                    buffer,
-                    executor,
-                    ActionListener.runAfter(ActionListener.wrap(v -> buffer.finish(false), e -> buffer.onFailure(e)), () -> {
-                        closeQuietly(wrapped);
-                        driverContext.removeAsyncAction();
-                    })
-                );
-            });
-        } catch (Exception e) {
+        ActionListener<Void> failureListener = ActionListener.wrap(v -> {}, e -> {
             closeQuietly(pages);
             buffer.onFailure(e);
             driverContext.removeAsyncAction();
-        }
+        });
+        executor.execute(ActionRunnable.run(failureListener, () -> {
+            CloseableIterator<Page> wrapped = wrapWithInjector(pages, injector);
+            drainPagesAsync(
+                wrapped,
+                buffer,
+                executor,
+                ActionListener.runAfter(ActionListener.wrap(v -> buffer.finish(false), e -> buffer.onFailure(e)), () -> {
+                    closeQuietly(wrapped);
+                    driverContext.removeAsyncAction();
+                })
+            );
+        }));
     }
 
     private static CloseableIterator<Page> wrapWithInjector(CloseableIterator<Page> pages, VirtualColumnInjector injector) {
@@ -913,6 +857,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             }
         }
         return leaves;
+    }
+
+    private static ActionListener<Void> failureListener(AsyncExternalSourceBuffer buffer, DriverContext driverContext) {
+        return ActionListener.wrap(v -> {}, e -> {
+            buffer.onFailure(e);
+            driverContext.removeAsyncAction();
+        });
     }
 
     private static void closeQuietly(CloseableIterator<?> iterator) {

@@ -356,7 +356,8 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
 
             String query = request.getInput().get(0);
             InferenceAction.Response response = switch (inferenceResultType) {
-                case NONE, SPARSE_EMBEDDING -> generateSparseEmbeddingInferenceResponse(query);
+                case NONE -> randomBoolean() ? generateSparseEmbeddingInferenceResponse(query) : generateTextEmbeddingInferenceResponse();
+                case SPARSE_EMBEDDING -> generateSparseEmbeddingInferenceResponse(query);
                 case TEXT_EMBEDDING -> generateTextEmbeddingInferenceResponse();
                 case EMBEDDING -> throw new AssertionError("EMBEDDING type should route to EmbeddingAction, not InferenceAction");
             };

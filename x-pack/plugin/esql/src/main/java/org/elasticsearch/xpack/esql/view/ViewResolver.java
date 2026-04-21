@@ -266,6 +266,14 @@ public class ViewResolver {
         var patterns = Arrays.stream(unresolvedRelation.indexPattern().indexPattern().split(","))
             .filter(pattern -> Regex.isSimpleMatchPattern(pattern) == false || seenWildcards.contains(pattern) == false)
             .toArray(String[]::new);
+        if (patterns.length == 0) {
+            // All patterns are wildcards already resolved in this scope. Returning without a
+            // request is a no-op AND avoids the security layer's empty-indices → "_all"
+            // normalization, which would otherwise re-expand to the full cluster lookup and
+            // leak "_all" as a literal pattern into downstream merge/concat code.
+            listener.onResponse(unresolvedRelation);
+            return;
+        }
         for (String pattern : patterns) {
             if (Regex.isSimpleMatchPattern(pattern)) {
                 seenWildcards.add(pattern);

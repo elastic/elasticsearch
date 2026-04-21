@@ -41,6 +41,9 @@ public class InMemoryViewResolver extends ViewResolver {
      */
     public boolean simulateSecurityEnabled = false;
 
+    /** Counts how many times the {@link #simulateSecurityEnabled} empty-→-wildcard substitution fired. */
+    public int emptyIndicesInterceptCount = 0;
+
     public InMemoryViewResolver(
         ClusterService clusterService,
         Supplier<ViewMetadata> metadata,
@@ -75,6 +78,7 @@ public class InMemoryViewResolver extends ViewResolver {
             // security layer would produce. This reproduces bugs where transformDown re-visits
             // an already-resolved UR whose wildcards are all in seenWildcards, yielding empty
             // patterns that would otherwise produce an empty resolution and hide the bug.
+            emptyIndicesInterceptCount++;
             request.indices("*");
         }
         var action = new EsqlResolveViewAction(

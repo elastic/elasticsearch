@@ -281,8 +281,7 @@ public final class RandomMappingGenerator {
                 boolean indexed = Boolean.FALSE.equals(s.get("index")) == false;
                 Object indexOpts = s.get("index_options");
                 // omitted index_options defaults to "positions" (see TextParams.textIndexOptions)
-                boolean positionsEnabled = indexed
-                    && (indexOpts == null || "positions".equals(indexOpts) || "offsets".equals(indexOpts));
+                boolean positionsEnabled = indexed && (indexOpts == null || "positions".equals(indexOpts) || "offsets".equals(indexOpts));
                 if (positionsEnabled) {
                     optionalSet(s, 1, "index_phrases", true);
                     optionalSet(s, 1, "position_increment_gap", randomFrom(100, 0, 50, 200));

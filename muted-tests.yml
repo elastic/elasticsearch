@@ -417,6 +417,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
   method: test {csv-spec:stats.whereNullConjunctionBeforeStats}
   issue: https://github.com/elastic/elasticsearch/issues/146935
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:union_types.multiIndexIpStatsNonPushableCountWithFilter}
+  issue: https://github.com/elastic/elasticsearch/issues/146936
 
 # Examples:
 #

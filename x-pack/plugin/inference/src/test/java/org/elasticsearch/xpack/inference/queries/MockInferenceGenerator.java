@@ -13,6 +13,9 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.WeightedToken;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 
@@ -39,14 +42,36 @@ public class MockInferenceGenerator {
             inferenceResults = generateTextExpansionResults(input);
         } else if (inferenceEndpointSettings.taskType() == TaskType.TEXT_EMBEDDING
             || inferenceEndpointSettings.taskType() == TaskType.EMBEDDING) {
-                inferenceResults = generateRawTextEmbeddingResults(inferenceEndpointSettings);
+                inferenceResults = generateTextEmbeddingResults(inferenceEndpointSettings);
+            } else {
+                throw new IllegalArgumentException(
+                    "Invalid task type [" + inferenceEndpointSettings.taskType() + "] for inference endpoint [" + inferenceId + "]"
+                );
+            }
+
+        return inferenceResults;
+    }
+
+    public InferenceServiceResults generateServiceResults(String inferenceId, String input) {
+        MinimalServiceSettings inferenceEndpointSettings = inferenceEndpoints.get(inferenceId);
+
+        InferenceServiceResults inferenceServiceResults;
+        InferenceResults results = generate(inferenceId, input);
+        if (inferenceEndpointSettings == null) {
+            throw new IllegalArgumentException("Inference endpoint [" + inferenceId + "] does not exist");
+        } else if (inferenceEndpointSettings.taskType() == TaskType.SPARSE_EMBEDDING) {
+            inferenceServiceResults = SparseEmbeddingResults.of(List.of(results));
+        } else if (inferenceEndpointSettings.taskType() == TaskType.TEXT_EMBEDDING) {
+            inferenceServiceResults = DenseEmbeddingFloatResults.of(List.of(results));
+        } else if (inferenceEndpointSettings.taskType() == TaskType.EMBEDDING) {
+            inferenceServiceResults = GenericDenseEmbeddingFloatResults.of(List.of(results));
         } else {
             throw new IllegalArgumentException(
                 "Invalid task type [" + inferenceEndpointSettings.taskType() + "] for inference endpoint [" + inferenceId + "]"
             );
         }
 
-        return inferenceResults;
+        return inferenceServiceResults;
     }
 
     /**
@@ -60,7 +85,7 @@ public class MockInferenceGenerator {
     /**
      * Generate text embedding results. Use static embedding values so that the results are deterministic for the same dimension count.
      */
-    private static MlDenseEmbeddingResults generateRawTextEmbeddingResults(MinimalServiceSettings settings) {
+    private static InferenceResults generateTextEmbeddingResults(MinimalServiceSettings settings) {
         assert settings.dimensions() != null && settings.elementType() != null;
 
         int embeddingSize = settings.dimensions();

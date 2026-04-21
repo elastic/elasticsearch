@@ -13,10 +13,8 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.inference.InferenceResults;
-import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
@@ -24,13 +22,8 @@ import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
-import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
-import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.inference.model.TestModel;
 
 import java.util.HashMap;
@@ -123,21 +116,7 @@ public class MockInferenceClient extends NoOpClient {
 
     private void executeInferenceAction(String inferenceId, String input, ActionListener<InferenceAction.Response> listener) {
         try {
-            InferenceResults inferenceResults = inferenceGenerator.generate(inferenceId, input);
-            MinimalServiceSettings settings = inferenceEndpoints.get(inferenceId);
-            InferenceServiceResults inferenceServiceResults = switch (inferenceResults) {
-                case TextExpansionResults textExpansionResults -> SparseEmbeddingResults.of(List.of(textExpansionResults));
-                case MlDenseEmbeddingResults mlDenseEmbeddingResults when settings != null
-                    && settings.taskType() == TaskType.EMBEDDING -> GenericDenseEmbeddingFloatResults.of(
-                        List.of(mlDenseEmbeddingResults)
-                    );
-                case MlDenseEmbeddingResults mlDenseEmbeddingResults -> DenseEmbeddingFloatResults.of(
-                    List.of(mlDenseEmbeddingResults)
-                );
-                default ->
-                    throw new IllegalStateException("Unexpected inference results type [" + inferenceResults.getWriteableName() + "]");
-            };
-            listener.onResponse(new InferenceAction.Response(inferenceServiceResults));
+            listener.onResponse(new InferenceAction.Response(inferenceGenerator.generateServiceResults(inferenceId, input)));
         } catch (Exception e) {
             listener.onFailure(e);
         }

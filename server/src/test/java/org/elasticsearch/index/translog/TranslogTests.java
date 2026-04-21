@@ -4169,7 +4169,7 @@ public class TranslogTests extends ESTestCase {
     }
 
     public void testTranslogWriterCircuitBreakerTrip() throws IOException {
-        // // Set a limit of two pages (RecyclerBytesStreamOutput constructor preallocates 1 page)
+        // Set a limit of two pages (RecyclerBytesStreamOutput constructor preallocates 1 page)
         final int pageSize = PageCacheRecycler.BYTE_PAGE_SIZE;
         final var bigArraysBreakerService = LimitedBreaker.service(CircuitBreaker.REQUEST, ByteSizeValue.ofGb(1));
         final var smallBreaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(2L * pageSize));

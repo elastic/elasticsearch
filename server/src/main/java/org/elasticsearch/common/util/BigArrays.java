@@ -568,6 +568,7 @@ public class BigArrays {
         return new BigArrays(recycler, breakerService, breakerName, checkBreaker);
     }
 
+    // visible for testing
     public CircuitBreakerService breakerService() {   // TODO this feels like it is for tests but it has escaped
         return this.circuitBreakingInstance.breakerService;
     }
@@ -599,7 +600,7 @@ public class BigArrays {
         return array;
     }
 
-    // TODO: decouple BytesRefRecycler from BigArrays construction.
+    // TODO: decouple BytesRefRecycler construction from BigArrays. See #146843.
     public BytesRefRecycler bytesRefRecycler() {
         return bytesRefRecycler;
     }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -24,6 +25,9 @@ import java.util.concurrent.Executor;
 /**
  * Single-split source operator factory that executes a connector query on a background thread
  * and feeds pages into an {@link AsyncExternalSourceBuffer} for the driver to consume.
+ * <p>
+ * Uses non-blocking async drain: the producer thread is released when the buffer is full and
+ * resumes via the executor when space is freed, with no timeout.
  */
 public class AsyncConnectorSourceOperatorFactory implements SourceOperator.SourceOperatorFactory {
 
@@ -74,47 +78,109 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
         if (sliceQueue != null) {
             executor.execute(() -> {
                 try {
-                    int rowsRemaining = rowLimit;
-                    ExternalSplit split;
-                    while ((split = sliceQueue.nextSplit()) != null) {
-                        if (buffer.noMoreInputs() || (rowLimit != FormatReader.NO_LIMIT && rowsRemaining <= 0)) {
-                            break;
-                        }
-                        try (ResultCursor cursor = connector.execute(request, split)) {
-                            int consumed = ExternalSourceDrainUtils.drainPagesWithBudget(cursor, buffer);
-                            if (rowLimit != FormatReader.NO_LIMIT) {
-                                rowsRemaining -= consumed;
-                            }
-                        }
-                    }
-                    buffer.finish(false);
+                    processNextSplit(request, sliceQueue, buffer, driverContext, rowLimit);
                 } catch (Exception e) {
                     buffer.onFailure(e);
-                } finally {
-                    try {
-                        connector.close();
-                    } catch (IOException ignored) {} finally {
-                        driverContext.removeAsyncAction();
-                    }
+                    closeConnectorQuietly();
+                    driverContext.removeAsyncAction();
                 }
             });
         } else {
             executor.execute(() -> {
-                try (ResultCursor cursor = connector.execute(request, Split.SINGLE)) {
-                    ExternalSourceDrainUtils.drainPagesWithBudget(cursor, buffer, rowLimit);
-                    buffer.finish(false);
+                ResultCursor cursor;
+                try {
+                    cursor = connector.execute(request, Split.SINGLE);
                 } catch (Exception e) {
                     buffer.onFailure(e);
-                } finally {
-                    try {
-                        connector.close();
-                    } catch (IOException ignored) {} finally {
-                        driverContext.removeAsyncAction();
-                    }
+                    closeConnectorQuietly();
+                    driverContext.removeAsyncAction();
+                    return;
                 }
+                ExternalSourceDrainUtils.drainPagesWithBudgetAsync(
+                    cursor,
+                    buffer,
+                    rowLimit,
+                    executor,
+                    ActionListener.runAfter(
+                        ActionListener.<Integer>wrap(consumed -> buffer.finish(false), e -> buffer.onFailure(e)),
+                        () -> {
+                            closeQuietly(cursor);
+                            closeConnectorQuietly();
+                            driverContext.removeAsyncAction();
+                        }
+                    )
+                );
             });
         }
         return new AsyncExternalSourceOperator(buffer);
+    }
+
+    private void processNextSplit(
+        QueryRequest request,
+        ExternalSliceQueue queue,
+        AsyncExternalSourceBuffer buffer,
+        DriverContext driverContext,
+        int rowsRemaining
+    ) {
+        int rowLimit = baseRequest.rowLimit();
+        if (buffer.noMoreInputs() || (rowLimit != FormatReader.NO_LIMIT && rowsRemaining <= 0)) {
+            buffer.finish(false);
+            closeConnectorQuietly();
+            driverContext.removeAsyncAction();
+            return;
+        }
+        ExternalSplit split = queue.nextSplit();
+        if (split == null) {
+            buffer.finish(false);
+            closeConnectorQuietly();
+            driverContext.removeAsyncAction();
+            return;
+        }
+
+        ResultCursor cursor;
+        try {
+            cursor = connector.execute(request, split);
+        } catch (Exception e) {
+            buffer.onFailure(e);
+            closeConnectorQuietly();
+            driverContext.removeAsyncAction();
+            return;
+        }
+
+        ExternalSourceDrainUtils.drainPagesWithBudgetAsync(
+            cursor,
+            buffer,
+            rowsRemaining,
+            executor,
+            ActionListener.runAfter(ActionListener.<Integer>wrap(consumed -> {
+                int remaining = rowLimit != FormatReader.NO_LIMIT ? rowsRemaining - consumed : rowsRemaining;
+                try {
+                    executor.execute(() -> processNextSplit(request, queue, buffer, driverContext, remaining));
+                } catch (Exception e) {
+                    buffer.onFailure(e);
+                    closeConnectorQuietly();
+                    driverContext.removeAsyncAction();
+                }
+            }, e -> {
+                buffer.onFailure(e);
+                closeConnectorQuietly();
+                driverContext.removeAsyncAction();
+            }), () -> closeQuietly(cursor))
+        );
+    }
+
+    private void closeConnectorQuietly() {
+        try {
+            connector.close();
+        } catch (IOException ignored) {}
+    }
+
+    private static void closeQuietly(ResultCursor cursor) {
+        if (cursor != null) {
+            try {
+                cursor.close();
+            } catch (Exception ignored) {}
+        }
     }
 
     @Override

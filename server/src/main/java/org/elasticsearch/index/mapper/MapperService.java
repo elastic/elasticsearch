@@ -365,7 +365,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             }
         }
     }
-    
+
     public void merge(IndexMetadata indexMetadata, MergeReason reason) {
         assert reason != MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT;
         MappingMetadata mappingMetadata = indexMetadata.mapping();

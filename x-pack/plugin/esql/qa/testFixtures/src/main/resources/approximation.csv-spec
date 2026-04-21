@@ -616,6 +616,7 @@ c:long  |           b:date        | _approximation_confidence_interval(c):long |
 
 Lookup join before stats
 required_capability: approximation_v7
+required_capability: approximation_lookup_join
 request_stored: skip
 
 SET approximation={"rows":10000}\;
@@ -633,6 +634,7 @@ AVG(length):double | _approximation_confidence_interval(AVG(length)):double | _a
 
 Lookup join after stats by
 required_capability: approximation_v7
+required_capability: approximation_lookup_join
 request_stored: skip
 
 SET approximation={"rows":10000}\;
@@ -654,6 +656,7 @@ count:long   | language_code:integer | language_name:keyword | _approximation_co
 
 Lookup join before and after stats by
 required_capability: approximation_v7
+required_capability: approximation_lookup_join
 request_stored: skip
 
 SET approximation={"rows":10000}\;
@@ -679,6 +682,7 @@ avg:double | original_language_name:keyword | language_name:keyword | _approxima
 
 Inline stats
 required_capability: approximation_v7
+required_capability: approximation_inline_stats
 request_stored: skip
 
 SET approximation={"rows":10000}\;
@@ -700,6 +704,7 @@ sv:integer | AVG(sv):double | _approximation_confidence_interval(AVG(sv)):double
 
 Inline stats and where
 required_capability: approximation_v7
+required_capability: approximation_inline_stats
 request_stored: skip
 
 SET approximation={"rows":10000}\;
@@ -722,6 +727,7 @@ sv:integer | SUM(sv):long        | _approximation_confidence_interval(SUM(sv)):l
 
 Inline stats by
 required_capability: approximation_v7
+required_capability: approximation_inline_stats
 request_stored: skip
 
 SET approximation={"rows":10000}\;
@@ -741,6 +747,8 @@ COUNT():long | AVG(sv):double         | sv:integer |_approximation_confidence_in
 
 Inline stats by and lookup join
 required_capability: approximation_v7
+required_capability: approximation_inline_stats
+required_capability: approximation_lookup_join
 request_stored: skip
 
 SET approximation={"rows":10000}\;

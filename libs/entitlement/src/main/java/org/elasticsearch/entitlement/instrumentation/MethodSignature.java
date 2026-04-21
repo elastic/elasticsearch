@@ -9,13 +9,14 @@
 
 package org.elasticsearch.entitlement.instrumentation;
 
-import org.elasticsearch.entitlement.runtime.registry.InstrumentationInfo;
-
-import java.util.Map;
+import java.util.List;
 
 /**
- * The SPI service entry point for instrumentation.
+ * A method signature without class information, used for hierarchy-aware rule lookups.
+ * Unlike {@link MethodKey}, this does not include the class name, allowing rules defined
+ * on a supertype to be inherited by subtypes.
+ *
+ * @param methodName     the method name
+ * @param parameterTypes a list of "internal names" for the parameter types
  */
-public interface InstrumentationService {
-    Instrumenter newInstrumenter(Class<?> clazz, Map<String, Map<MethodSignature, InstrumentationInfo>> rulesByClass);
-}
+public record MethodSignature(String methodName, List<String> parameterTypes) {}

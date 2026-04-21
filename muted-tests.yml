@@ -295,18 +295,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SubstituteRoundToGoldenTests
   method: testDateTruncNotTransformToQueryAndTags
   issue: https://github.com/elastic/elasticsearch/issues/146458
-- class: org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SubstituteRoundToTests
-  method: testBlockLoaderFallbackForDate {default}
-  issue: https://github.com/elastic/elasticsearch/issues/146459
-- class: org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SubstituteRoundToTests
-  method: testBlockLoaderFallbackForLong {default}
-  issue: https://github.com/elastic/elasticsearch/issues/146460
-- class: org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SubstituteRoundToTests
-  method: testBlockLoaderFallbackForDateNanos {default}
-  issue: https://github.com/elastic/elasticsearch/issues/146461
-- class: org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SubstituteRoundToTests
-  method: testDateTruncNotTransformToQueryAndTags {default}
-  issue: https://github.com/elastic/elasticsearch/issues/146462
 - class: org.elasticsearch.reindex.ReindexBasicTests
   method: testReindexFailsWhenSourceIndexIsClosed
   issue: https://github.com/elastic/elasticsearch/issues/146466
@@ -322,12 +310,6 @@ tests:
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=reindex/10_basic/Response format for updated}
   issue: https://github.com/elastic/elasticsearch/issues/146607
-- class: org.elasticsearch.xpack.esql.qa.single_node.PushExpressionToLoadIT
-  method: testRoundToLong
-  issue: https://github.com/elastic/elasticsearch/issues/146614
-- class: org.elasticsearch.xpack.esql.qa.single_node.PushExpressionToLoadIT
-  method: testRoundToLongExactMatch
-  issue: https://github.com/elastic/elasticsearch/issues/146615
 - class: org.elasticsearch.xpack.esql.optimizer.ApproximationGoldenTests
   method: testApproximationDisabled
   issue: https://github.com/elastic/elasticsearch/issues/146564

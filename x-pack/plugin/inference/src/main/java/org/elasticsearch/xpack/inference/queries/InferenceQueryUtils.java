@@ -34,6 +34,7 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
@@ -57,6 +58,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
 import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction.GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV;
 
 public final class InferenceQueryUtils {
@@ -589,7 +591,7 @@ public final class InferenceQueryUtils {
                         List.of(query),
                         Map.of(),
                         InputType.INTERNAL_SEARCH,
-                        null,
+                        TIMEOUT_NOT_DETERMINED,
                         false
                     ),
                     responseListener
@@ -602,7 +604,7 @@ public final class InferenceQueryUtils {
                         inferenceId,
                         taskType,
                         new EmbeddingRequest(List.of(new InferenceStringGroup(query)), InputType.INTERNAL_SEARCH, Map.of()),
-                        null
+                        TIMEOUT_NOT_DETERMINED
                     ),
                     responseListener
                 );

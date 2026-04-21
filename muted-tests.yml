@@ -456,6 +456,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
   method: test {csv-spec:external-basic.selectSpecificColumns [HTTP]}
   issue: https://github.com/elastic/elasticsearch/issues/146985
+- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
+  method: test {csv-spec:external-basic.sampleWithStats [HTTP]}
+  issue: https://github.com/elastic/elasticsearch/issues/146990
 
 # Examples:
 #

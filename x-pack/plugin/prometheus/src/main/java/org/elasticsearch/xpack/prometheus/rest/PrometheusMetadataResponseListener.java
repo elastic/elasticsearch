@@ -23,7 +23,6 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Converts an {@link EsqlQueryResponse} into the Prometheus {@code /api/v1/metadata} JSON response format.
@@ -110,38 +109,38 @@ public class PrometheusMetadataResponseListener {
      * Package-private for testing.
      */
     static RestResponse buildSuccessResponse(LinkedHashMap<String, List<MetadataEntry>> entries, int limit) throws IOException {
-   
-    
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        builder.field("status", "success");
+        builder.startObject("data");
 
-    XContentBuilder builder = JsonXContent.contentBuilder();
-    builder.startObject();
-    builder.field("status", "success");
-    builder.startObject("data");
-
-    var iterator = entries.entrySet().iterator();
-    int total = limit > 0 ? Math.min(limit, entries.size()) : entries.size();
-    for (int written = 0; written < total; written++) {
-        var entry = iterator.next();
-        builder.startArray(entry.getKey());
-        for (MetadataEntry metadata : entry.getValue()) {
-            builder.startObject();
-            builder.field("type", metadata.type());
-            builder.field("help", "");
-            builder.field("unit", metadata.unit());
-            builder.endObject();
+        var iterator = entries.entrySet().iterator();
+        int total = limit > 0 ? Math.min(limit, entries.size()) : entries.size();
+        for (int written = 0; written < total; written++) {
+            var entry = iterator.next();
+            builder.startArray(entry.getKey());
+            for (MetadataEntry metadata : entry.getValue()) {
+                builder.startObject();
+                builder.field("type", metadata.type());
+                builder.field("help", "");
+                builder.field("unit", metadata.unit());
+                builder.endObject();
+            }
+            builder.endArray();
         }
-        builder.endArray();
+
+        builder.endObject();
+
+        boolean truncated = limit > 0 && entries.size() > limit;
+        if (truncated) {
+            builder.startArray("warnings");
+            builder.value("results truncated due to limit");
+            builder.endArray();
+        }
+
+        builder.endObject();
+        return new RestResponse(RestStatus.OK, CONTENT_TYPE, Strings.toString(builder));
     }
 
-    builder.endObject();
-
-    boolean truncated = limit > 0 && entries.size() > limit;
-    if (truncated) {
-        builder.startArray("warnings");
-        builder.value("results truncated due to limit");
-        builder.endArray();
-    }
-
-    builder.endObject();
-    return new RestResponse(RestStatus.OK, CONTENT_TYPE, Strings.toString(builder));
+    record MetadataEntry(String type, String unit) {}
 }

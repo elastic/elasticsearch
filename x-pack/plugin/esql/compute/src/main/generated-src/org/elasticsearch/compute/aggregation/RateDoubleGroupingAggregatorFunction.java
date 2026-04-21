@@ -26,6 +26,8 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.WarningSourceLocation;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 
 import java.util.List;
@@ -34,13 +36,14 @@ import java.util.List;
 public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGroupingFunction implements GroupingAggregatorFunction {
 
     public static final class FunctionSupplier implements AggregatorFunctionSupplier {
-        // Overriding constructor to support isRateOverTime flag
         private final boolean isRateOverTime;
         private final boolean isDateNanos;
+        private final WarningSourceLocation source;
 
-        public FunctionSupplier(boolean isRateOverTime, boolean isDateNanos) {
+        public FunctionSupplier(boolean isRateOverTime, boolean isDateNanos, WarningSourceLocation source) {
             this.isRateOverTime = isRateOverTime;
             this.isDateNanos = isDateNanos;
+            this.source = source;
         }
 
         @Override
@@ -60,7 +63,8 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
 
         @Override
         public RateDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
-            return new RateDoubleGroupingAggregatorFunction(channels, driverContext, isRateOverTime, isDateNanos);
+            var warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+            return new RateDoubleGroupingAggregatorFunction(channels, driverContext, isRateOverTime, isDateNanos, warnings);
         }
 
         @Override
@@ -83,6 +87,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
     private ObjectArray<ReducedState> reducedStates;
     private final boolean isRateOverTime;
     private final double dateFactor;
+    private final Warnings warnings;
 
     // track lastSliceIndex to allow flushing the raw buffer when the slice index changed
     private int lastSliceIndex = -1;
@@ -91,13 +96,15 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
         List<Integer> channels,
         DriverContext driverContext,
         boolean isRateOverTime,
-        boolean isDateNanos
+        boolean isDateNanos,
+        Warnings warnings
     ) {
         this.channels = channels;
         this.driverContext = driverContext;
         this.isRateOverTime = isRateOverTime;
         this.bigArrays = driverContext.bigArrays();
         this.dateFactor = isDateNanos ? 1_000_000_000.0 : 1000.0;
+        this.warnings = warnings;
         DoubleRawBuffer buffer = null;
         try {
             buffer = new DoubleRawBuffer(driverContext.breaker());
@@ -146,13 +153,8 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
             assert false : "expected timestamp vector in time-series aggregation";
             throw new IllegalStateException("expected timestamp vector in time-series aggregation");
         }
-        BytesRefBlock temporalityBlock = ((BytesRefBlock) page.getBlock(channels.get(2)));
-        // TODO: add warnings for invalid temporality values and ignore those data points
-        TemporalityAccessor temporalityAccessor = TemporalityAccessor.create(
-            temporalityBlock,
-            Temporality.CUMULATIVE,
-            v -> Temporality.CUMULATIVE
-        );
+        BytesRefBlock temporalityBlock = page.getBlock(channels.get(2));
+        TemporalityAccessor temporalityAccessor = TemporalityAccessor.create(temporalityBlock, Temporality.CUMULATIVE);
         IntVector sliceIndices = ((IntBlock) page.getBlock(channels.get(3))).asVector();
         assert sliceIndices != null : "expected slice indices vector in time-series aggregation";
         LongVector futureMaxTimestamps = ((LongBlock) page.getBlock(channels.get(4))).asVector();
@@ -218,11 +220,17 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
                 final int groupId = groups.getInt(g);
                 final var value = valueBlock.getDouble(valueBlock.getFirstValueIndex(valuePosition));
                 if (lastGroup != groupId) {
-                    temporality = temporalityAccessor.get(valuePosition);
+                    try {
+                        temporality = temporalityAccessor.get(valuePosition);
+                    } catch (InvalidTemporalityException e) {
+                        warnings.registerException(e);
+                        // Set temporality to null to skip all data points in the current group
+                        temporality = null;
+                    }
                     if (temporality == Temporality.CUMULATIVE) {
                         rawBuffer.prepareForAppend(groupId, 1, timestamp);
                         rawBuffer.appendWithoutResize(timestamp, value);
-                    } else {
+                    } else if (temporality == Temporality.DELTA) {
                         currentDeltaState = getOrInitializeReducedState(groupId);
                         currentDeltaState.appendDeltaValue(timestamp, value);
                     }
@@ -230,7 +238,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
                 } else {
                     if (temporality == Temporality.CUMULATIVE) {
                         rawBuffer.maybeResizeAndAppend(timestamp, value);
-                    } else {
+                    } else if (temporality == Temporality.DELTA) {
                         currentDeltaState.appendDeltaValue(timestamp, value);
                     }
                 }
@@ -326,7 +334,14 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
         LongVector timestampVector,
         TemporalityAccessor temporalityAccessor
     ) {
-        if (temporalityAccessor.get(from) == Temporality.CUMULATIVE) {
+        final Temporality temporality;
+        try {
+            temporality = temporalityAccessor.get(from);
+        } catch (InvalidTemporalityException e) {
+            warnings.registerException(e);
+            return;
+        }
+        if (temporality == Temporality.CUMULATIVE) {
             rawBuffer.prepareForAppend(group, to - from, timestampVector.getLong(from));
             rawBuffer.appendRange(from, to, valueVector, timestampVector);
         } else {
@@ -345,7 +360,14 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
         LongVector timestampVector,
         TemporalityAccessor temporalityAccessor
     ) {
-        if (temporalityAccessor.get(from) == Temporality.CUMULATIVE) {
+        final Temporality temporality;
+        try {
+            temporality = temporalityAccessor.get(from);
+        } catch (InvalidTemporalityException e) {
+            warnings.registerException(e);
+            return;
+        }
+        if (temporality == Temporality.CUMULATIVE) {
             rawBuffer.prepareForAppend(group, to - from, timestampVector.getLong(from));
             rawBuffer.appendRange(from, to, valueBlock, timestampVector);
         } else {

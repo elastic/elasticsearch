@@ -55,7 +55,7 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
             skipToNextLine(inputStream);
         }
         if (trimLastPartialLine) {
-            inputStream = trimLastPartialLine(inputStream);
+            inputStream = trimLastPartialLine(inputStream, errorPolicy);
         }
         this.rowLimit = rowLimit;
         this.pageDecoder = new NdJsonPageDecoder(inputStream, resolvedAttributes, projectedColumns, batchSize, blockFactory, errorPolicy);
@@ -128,14 +128,13 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
         }
     }
 
-    private static final int TRIM_CHUNK_SIZE = 8192;
-
     /**
      * Returns a stream that exposes the same bytes as fully reading {@code in} and truncating after
      * the last {@code '\n'}, without materializing the whole stream in memory. The delegate is closed
-     * when the returned stream is closed.
+     * when the returned stream is closed. Oversized partial lines follow {@code errorPolicy}.
      */
-    static InputStream trimLastPartialLine(InputStream in) {
-        return new TrimLastPartialLineInputStream(in, TRIM_CHUNK_SIZE);
+    static InputStream trimLastPartialLine(InputStream in, ErrorPolicy errorPolicy) {
+        // TODO: thread in a centralized error counter?
+        return new TrimLastPartialLineInputStream(in, errorPolicy);
     }
 }

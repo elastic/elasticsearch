@@ -8,9 +8,14 @@
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.logging.Level;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -20,9 +25,17 @@ import java.util.Arrays;
  * Wraps an NDJSON byte stream and exposes only bytes through the last {@code '\n'} in the stream,
  * dropping a trailing partial line (split boundary). Reads the delegate lazily and keeps at most a
  * small read buffer plus any uncommitted tail after the last newline seen so far.
+ *
+ * <p>If a line without a delimiter exceeds {@link #MAX_CARRY_BYTES}, {@link ErrorPolicy#isStrict()}
+ * causes an {@link IOException}; otherwise the buffered partial line is discarded as bogus and
+ * reading continues. Discards are logged like {@link NdJsonPageDecoder} parse skips:
+ * {@link Level#INFO} when {@link ErrorPolicy#logErrors()} is true, otherwise {@link Level#DEBUG}.
  */
 final class TrimLastPartialLineInputStream extends InputStream {
 
+    private static final Logger logger = LogManager.getLogger(TrimLastPartialLineInputStream.class);
+
+    private static final int DEFAULT_TRIM_CHUNK_SIZE = 8192;
     private static final char SPLIT_BOUNDARY = '\n';
 
     static final ByteSizeValue MAX_CARRY = ByteSizeValue.ofMb(32);
@@ -31,20 +44,26 @@ final class TrimLastPartialLineInputStream extends InputStream {
 
     private final InputStream delegate;
     private final byte[] chunk;
+    private final ErrorPolicy errorPolicy;
 
     /** Bytes after the last {@code '\n'} observed across all chunks read so far; discarded at EOF. */
     private byte[] carry;
 
-    private byte[] buffer = new byte[8192];
+    private byte[] buffer = new byte[DEFAULT_TRIM_CHUNK_SIZE];
     private int readIdx;
     private int writeIdx;
     private boolean eof;
     private final byte[] single = new byte[1];
 
-    TrimLastPartialLineInputStream(InputStream delegate, int chunkSize) {
+    TrimLastPartialLineInputStream(InputStream delegate, ErrorPolicy errorPolicy) {
+        this(delegate, DEFAULT_TRIM_CHUNK_SIZE, errorPolicy);
+    }
+
+    TrimLastPartialLineInputStream(InputStream delegate, int chunkSize, ErrorPolicy errorPolicy) {
         this.delegate = delegate;
         Check.isTrue(chunkSize > 0, "chunkSize must strictly positive");
         this.chunk = new byte[chunkSize];
+        this.errorPolicy = errorPolicy != null ? errorPolicy : ErrorPolicy.STRICT;
     }
 
     @Override
@@ -108,9 +127,14 @@ final class TrimLastPartialLineInputStream extends InputStream {
                 if (lastNl + 1 < n) {
                     int tailLen = n - (lastNl + 1);
                     if (tailLen > MAX_CARRY_BYTES) {
-                        throw carryLimitExceeded();
+                        if (errorPolicy.isStrict()) {
+                            throw carryLimitExceeded();
+                        }
+                        logDiscardedOversizedPartial(tailLen, "trailing_fragment_after_delimiter");
+                        carry = null;
+                    } else {
+                        carry = Arrays.copyOfRange(chunk, lastNl + 1, n);
                     }
-                    carry = Arrays.copyOfRange(chunk, lastNl + 1, n);
                 }
                 return true;
             }
@@ -123,13 +147,32 @@ final class TrimLastPartialLineInputStream extends InputStream {
         return new IOException("NDJSON lines longer than [" + MAX_CARRY + "] are not supported");
     }
 
-    private static byte[] append(byte[] prefix, byte[] data, int n) throws IOException {
+    /** Same level choice as {@link NdJsonPageDecoder#onNdjsonLineParseError}. */
+    private void logDiscardedOversizedPartial(long discardedBytes, String kind) {
+        logger.log(
+            errorPolicy.logErrors() ? Level.INFO : Level.DEBUG,
+            LoggerMessageFormat.format(
+                "Skipping NDJSON [{}] of approximately [{}] bytes while trimming split suffix; limit is [{}]",
+                kind,
+                discardedBytes,
+                MAX_CARRY
+            )
+        );
+    }
+
+    private byte[] append(byte[] prefix, byte[] data, int n) throws IOException {
         if (n <= 0) {
             return prefix;
         }
         long newLen = (prefix == null || prefix.length == 0) ? n : (long) prefix.length + n;
         if (newLen > MAX_CARRY_BYTES) {
-            throw carryLimitExceeded();
+            if (errorPolicy.isStrict()) {
+                throw carryLimitExceeded();
+            }
+            long dropped = prefix == null ? 0 : (long) prefix.length;
+            logDiscardedOversizedPartial(dropped + n, "partial_line_without_delimiter");
+            // Bogus line: drop the partial tail buffered so far; continue with this chunk only.
+            return Arrays.copyOfRange(data, 0, n);
         }
         if (prefix == null || prefix.length == 0) {
             return Arrays.copyOfRange(data, 0, n);

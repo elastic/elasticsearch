@@ -194,7 +194,8 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         String data = "{\"id\":1}\n{\"id\":2}\n{\"incomplete\":";
         try (
             InputStream trimmed = NdJsonPageIterator.trimLastPartialLine(
-                new ByteArrayInputStream(data.getBytes(StandardCharsets.UTF_8))
+                new ByteArrayInputStream(data.getBytes(StandardCharsets.UTF_8)),
+                ErrorPolicy.STRICT
             )
         ) {
             assertEquals("{\"id\":1}\n{\"id\":2}\n", new String(trimmed.readAllBytes(), StandardCharsets.UTF_8));
@@ -204,7 +205,8 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     public void testTrimLastPartialLineEmptyWhenNoNewline() throws IOException {
         try (
             InputStream trimmed = NdJsonPageIterator.trimLastPartialLine(
-                new ByteArrayInputStream("partial-only".getBytes(StandardCharsets.UTF_8))
+                new ByteArrayInputStream("partial-only".getBytes(StandardCharsets.UTF_8)),
+                ErrorPolicy.STRICT
             )
         ) {
             assertEquals(0, trimmed.readAllBytes().length);
@@ -217,7 +219,9 @@ public class NdJsonPageIteratorTests extends ESTestCase {
      */
     public void testTrimLastPartialLineAcrossSmallChunks() throws IOException {
         byte[] payload = "aa\nbb\nPART".getBytes(StandardCharsets.UTF_8);
-        try (InputStream trimmed = new TrimLastPartialLineInputStream(new ByteArrayInputStream(payload), 4)) {
+        try (
+            InputStream trimmed = new TrimLastPartialLineInputStream(new ByteArrayInputStream(payload), 4, ErrorPolicy.STRICT)
+        ) {
             assertEquals("aa\nbb\n", new String(trimmed.readAllBytes(), StandardCharsets.UTF_8));
         }
     }
@@ -242,7 +246,9 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         terminal[3000] = '\n';
         parts.add(terminal);
 
-        try (InputStream trimmed = new TrimLastPartialLineInputStream(new ChainedByteChunksStream(parts), trimChunk)) {
+        try (
+            InputStream trimmed = new TrimLastPartialLineInputStream(new ChainedByteChunksStream(parts), trimChunk, ErrorPolicy.STRICT)
+        ) {
             assertEquals(2000, trimmed.readNBytes(2000).length);
             byte[] tail = trimmed.readAllBytes();
             assertEquals(5001 - 2000 + (4L * trimChunk) + 3001, tail.length);
@@ -309,12 +315,36 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     public void testTrimLastPartialLineCarryExceedsMaxThrows() throws IOException {
         int chunk = 8192;
         long streamLen = TrimLastPartialLineInputStream.MAX_CARRY_BYTES + chunk;
-        try (InputStream trimmed = new TrimLastPartialLineInputStream(new FiniteBytesWithoutNewline(streamLen), chunk)) {
+        try (
+            InputStream trimmed = new TrimLastPartialLineInputStream(
+                new FiniteBytesWithoutNewline(streamLen),
+                chunk,
+                ErrorPolicy.STRICT
+            )
+        ) {
             IOException ex = expectThrows(IOException.class, trimmed::readAllBytes);
             assertThat(
                 ex.getMessage(),
                 Matchers.containsString(TrimLastPartialLineInputStream.MAX_CARRY.toString())
             );
+        }
+    }
+
+    /**
+     * When {@link ErrorPolicy#isStrict()} is false, an oversized partial line is dropped instead of
+     * failing the whole read (same stream shape as {@link #testTrimLastPartialLineCarryExceedsMaxThrows}).
+     */
+    public void testTrimLastPartialLineCarryOverLimitLenientSkipsBogusLine() throws IOException {
+        int chunk = 8192;
+        long streamLen = TrimLastPartialLineInputStream.MAX_CARRY_BYTES + chunk;
+        try (
+            InputStream trimmed = new TrimLastPartialLineInputStream(
+                new FiniteBytesWithoutNewline(streamLen),
+                chunk,
+                ErrorPolicy.LENIENT
+            )
+        ) {
+            assertEquals(0, trimmed.readAllBytes().length);
         }
     }
 

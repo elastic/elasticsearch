@@ -386,7 +386,7 @@ Query vector builders let you generate vectors directly from inputs such as text
 {{es}} provides three query vector builders. Each builder generates a query vector from a different type of input or source.
 
 - [`text_embedding`](#knn-query-builder-text-embedding): Generates a query vector from text input. This is useful when your application sends raw text, such as a search query, and you want {{es}} to convert it into an embedding automatically instead of generating the vector in advance.
-- [`embedding`](#knn-query-builder-embedding): {applies_to}`stack: preview` Generates a query vector from multimodal input, such as text or base64-encoded images. Use this when you want to generate embeddings dynamically from different types of input without creating them in advance.
+- [`embedding`](#knn-query-builder-embedding): {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview` Generates a query vector from multimodal input, such as text or base64-encoded images. Use this when you want to generate embeddings dynamically from different types of input without creating them in advance.
 - [`lookup`](#knn-query-builder-lookup): {applies_to}`stack: ga 9.4` Retrieves an existing vector from a stored document to use as the query vector. This is useful when you want to find documents similar to an existing document, without generating a new embedding at search time.
 
 Refer to [Query vector builder types](#query-vector-builders-parameters) for parameter details and [Query vector builder examples](#query-vector-builders-overview) for usage examples.
@@ -429,7 +429,7 @@ For [`dense_vector`](/reference/elasticsearch/mapping-reference/dense-vector.md)
 
       For an example request, refer to [`text_embedding`](#text-embedding-builder). For a broader overview of semantic kNN search, refer to [Perform semantic search](docs-content://solutions/search/vector/knn.md#knn-semantic-search).
 
-$$$knn-query-builder-embedding$$$ `embedding` {applies_to}`stack: preview` {applies_to}`serverless: preview`
+$$$knn-query-builder-embedding$$$ `embedding` {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
 :   Build the query vector by generating an embedding from text or a base64-encoded image. This enables multimodal search, where different types of input can be used to generate a vector and retrieve similar documents. For an example, refer to [`embedding`](#embedding-builder).
 
       **Parameters for `embedding`**:
@@ -520,7 +520,8 @@ POST my-index/_search
 #### `embedding` [embedding-builder]
 
 ```{applies_to}
-stack: preview
+stack: preview 9.4
+serverless: preview
 ```
 
 Use the `embedding` query vector builder to generate a query vector from multimodal input.

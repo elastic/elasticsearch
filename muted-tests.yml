@@ -453,6 +453,18 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
   method: test {csv-spec:external-basic.selectSpecificColumns [HTTP]}
   issue: https://github.com/elastic/elasticsearch/issues/146985
+- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
+  method: test {csv-spec:external-basic.sampleWithStats [HTTP]}
+  issue: https://github.com/elastic/elasticsearch/issues/146990
+- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
+  method: test {csv-spec:external-basic.mvCountFromSplit [S3]}
+  issue: https://github.com/elastic/elasticsearch/issues/146991
+- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
+  method: test {csv-spec:external-basic.selectAdditionalColumns [GCS]}
+  issue: https://github.com/elastic/elasticsearch/issues/146993
+- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
+  method: test {csv-spec:external-basic.convertToDouble [HTTP]}
+  issue: https://github.com/elastic/elasticsearch/issues/146997
 
 # Examples:
 #

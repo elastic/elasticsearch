@@ -12,11 +12,14 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.core.inference.InferenceContext;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
 
 import java.util.List;
 import java.util.NoSuchElementException;
+
+import static org.elasticsearch.xpack.esql.inference.InferenceRunner.COMPLETION_PRODUCT_USE_CASE;
 
 /**
  *  This iterator reads prompts from a {@link BytesRefBlock} and converts them into individual {@link InferenceAction.Request} instances
@@ -62,7 +65,10 @@ public class CompletionOperatorRequestIterator implements BulkInferenceRequestIt
             return null;
         }
 
-        return InferenceAction.Request.builder(inferenceId, TaskType.COMPLETION).setInput(List.of(prompt)).build();
+        return InferenceAction.Request.builder(inferenceId, TaskType.COMPLETION)
+            .setInput(List.of(prompt))
+            .setContext(new InferenceContext(COMPLETION_PRODUCT_USE_CASE))
+            .build();
     }
 
     @Override

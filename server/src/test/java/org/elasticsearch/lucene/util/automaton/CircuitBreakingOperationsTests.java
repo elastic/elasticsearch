@@ -126,9 +126,11 @@ public class CircuitBreakingOperationsTests extends ESTestCase {
     }
 
     private static void assertAcceptSameStrings(Automaton expected, Automaton actual) {
+        Automaton normalizedExpected = Operations.removeDeadStates(expected);
+        Automaton normalizedActual = Operations.removeDeadStates(actual);
         assertTrue(
             "Circuit-breaking determinize should produce the same language as Lucene's determinize",
-            Operations.subsetOf(expected, actual) && Operations.subsetOf(actual, expected)
+            Operations.subsetOf(normalizedExpected, normalizedActual) && Operations.subsetOf(normalizedActual, normalizedExpected)
         );
     }
 }

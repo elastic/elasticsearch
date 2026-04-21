@@ -292,7 +292,8 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
             }
         }
         AutomatonQuery query;
-        Term term = new Term(fieldName, BytesRefs.toBytesRef(value));
+        String safeValue = AutomatonQueries.collapseConsecutiveQuantifiers(value);
+        Term term = new Term(fieldName, BytesRefs.toBytesRef(safeValue));
         if (context.getCircuitBreaker() != null) {
             Automaton dfa = AutomatonQueries.toRegexpAutomaton(
                 term,

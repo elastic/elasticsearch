@@ -58,7 +58,6 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinIntsFromDocV
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinLongsFromDocValuesBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.queries.SortedNumericDocValuesRangeQuery;
-import org.elasticsearch.lucene.queries.SortedNumericDocValuesTermQuery;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
@@ -1257,7 +1256,7 @@ public class NumberFieldMapper extends FieldMapper {
                 } else if (indexType.hasPoints()) {
                     return IntPoint.newExactQuery(field, v);
                 } else {
-                    return new SortedNumericDocValuesTermQuery(field, v);
+                    return new SortedNumericDocValuesRangeQuery(field, v, v);
                 }
             }
 
@@ -1460,7 +1459,7 @@ public class NumberFieldMapper extends FieldMapper {
                 } else if (indexType.hasPoints()) {
                     return LongPoint.newExactQuery(field, v);
                 } else {
-                    return new SortedNumericDocValuesTermQuery(field, v);
+                    return new SortedNumericDocValuesRangeQuery(field, v, v);
                 }
             }
 

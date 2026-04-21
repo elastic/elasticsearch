@@ -39,7 +39,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.lucene.queries.SortedNumericDocValuesRangeQuery;
-import org.elasticsearch.lucene.queries.SortedNumericDocValuesTermQuery;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
@@ -181,7 +180,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         Query[] expectedIntegerQueries = new Query[] {
             IntField.newExactQuery("field", 42),
             IntPoint.newExactQuery("field", 42),
-            new SortedNumericDocValuesTermQuery("field", 42) };
+            new SortedNumericDocValuesRangeQuery("field", 42, 42) };
         List<TermQueryTestCase> testCases = List.of(
             new TermQueryTestCase(NumberType.BYTE, expectedIntegerQueries),
             new TermQueryTestCase(NumberType.SHORT, expectedIntegerQueries),
@@ -191,7 +190,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 new Query[] {
                     LongField.newExactQuery("field", 42),
                     LongPoint.newExactQuery("field", 42),
-                    new SortedNumericDocValuesTermQuery("field", 42) }
+                    new SortedNumericDocValuesRangeQuery("field", 42, 42) }
             ),
             new TermQueryTestCase(
                 NumberType.FLOAT,

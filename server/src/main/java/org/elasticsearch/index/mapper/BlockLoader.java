@@ -274,16 +274,6 @@ public interface BlockLoader {
             return null;
         }
 
-        /**
-         * Returns a {@link DocIdSetIterator} that matches documents whose numeric value equals
-         * {@code value}, or {@code null} if not supported.
-         * <p>
-         * If {@code skipper} is non-null the implementation should use it to skip over blocks
-         * whose min/max values exclude the target value before doing fine-grained per-doc scanning.
-         */
-        default DocIdSetIterator tryTermIterator(long value, DocValuesSkipper skipper) throws IOException {
-            return null;
-        }
     }
 
     /**

@@ -1,0 +1,5 @@
+area: "Machine Learning, Search"
+issues: []
+pr: 144796
+summary: Allow semantic text use with embedding models
+type: enhancement

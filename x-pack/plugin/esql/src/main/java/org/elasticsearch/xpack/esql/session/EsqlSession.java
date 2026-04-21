@@ -15,7 +15,6 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -118,7 +117,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -1331,17 +1329,20 @@ public class EsqlSession {
                 listener
             );
         } else {
-            // First, fan out the per-required-pattern calls. Each entry gets one required + one combined-clean
-            // optional FC call (the latter unioning all exclusion-free lenient groups). Then, once those are
-            // done, fire the per-scope "dirty" lenient calls (one per group with exclusions) as a single
-            // independent fan-out. The dirty calls' purpose is the remote-view trip-wire and bookkeeping;
-            // their responses do not contribute to mappings.
+            // Fan out the per-required-pattern calls (no optional pattern is combined here). Once those
+            // complete, fire one lenient field-caps call per lenient group as an independent fan-out.
+            // The lenient calls' purpose is the remote-view trip-wire and bookkeeping; their responses
+            // do not contribute to mappings.
+            //
+            // TODO: Optimization: groups without exclusions could be unioned into a single lenient call
+            // (saving N-1 round-trips). Groups with exclusions must remain isolated to preserve
+            // per-scope positional exclusion semantics.
             forAll(
                 preAnalysis.indexes().entrySet().iterator(),
                 result,
                 (e, r, l) -> preAnalyzeFlatMainIndices(
                     e.getKey(),
-                    combinedCleanLenientPattern(result),
+                    "",
                     e.getValue(),
                     configuration.projectRouting(),
                     preAnalysis,
@@ -1352,64 +1353,33 @@ public class EsqlSession {
                     l
                 ),
                 listener.delegateFailureAndWrap(
-                    (l, r) -> fanOutDirtyLenientCalls(r, configuration.projectRouting(), requestFilter, executionInfo, l)
+                    (l, r) -> fanOutLenientCalls(r, configuration.projectRouting(), requestFilter, executionInfo, l)
                 )
             );
         }
     }
 
-    private void fanOutDirtyLenientCalls(
+    private void fanOutLenientCalls(
         PreAnalysisResult result,
         String projectRouting,
         QueryBuilder requestFilter,
         EsqlExecutionInfo executionInfo,
         ActionListener<PreAnalysisResult> listener
     ) {
-        List<String> dirty = dirtyLenientPatterns(result);
-        if (dirty.isEmpty()) {
+        if (result.lenientGroups().isEmpty()) {
             listener.onResponse(result);
             return;
         }
-        forAll(dirty.iterator(), result, (pattern, r, l) -> {
+        forAll(result.lenientGroups().iterator(), result, (group, r, l) -> {
             executionInfo.queryProfile().incFieldCapsCalls();
             indexResolver.resolveLenientOnly(
-                pattern,
+                String.join(",", group.patterns()),
                 projectRouting,
                 r.fieldNames,
                 createQueryFilter(IndexMode.STANDARD, requestFilter),
                 l.delegateFailureAndWrap((inner, ignored) -> inner.onResponse(r))
             );
         }, listener);
-    }
-
-    /**
-     * Combines all "clean" lenient pattern groups (those without exclusions) into a single comma-delimited
-     * pattern that can safely be sent as one lenient field-caps call. Patterns from groups that contain
-     * exclusions are deliberately excluded — they must be sent as their own calls (see {@link #dirtyLenientPatterns})
-     * so that positional exclusion semantics are not corrupted by unioning across scopes.
-     */
-    private static String combinedCleanLenientPattern(PreAnalysisResult result) {
-        LinkedHashSet<String> patterns = new LinkedHashSet<>();
-        for (var group : result.lenientGroups()) {
-            if (group.hasExclusions() == false) {
-                patterns.addAll(group.patterns());
-            }
-        }
-        return Strings.collectionToCommaDelimitedString(patterns);
-    }
-
-    /**
-     * One comma-delimited pattern per lenient group that contains exclusions. Each must be sent as its
-     * own lenient field-caps call to preserve the per-scope positional semantics of exclusions.
-     */
-    private static List<String> dirtyLenientPatterns(PreAnalysisResult result) {
-        List<String> dirty = new ArrayList<>();
-        for (var group : result.lenientGroups()) {
-            if (group.hasExclusions()) {
-                dirty.add(String.join(",", group.patterns()));
-            }
-        }
-        return dirty;
     }
 
     private void preAnalyzeMainIndices(

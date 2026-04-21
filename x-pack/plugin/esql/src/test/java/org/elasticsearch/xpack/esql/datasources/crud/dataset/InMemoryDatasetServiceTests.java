@@ -68,7 +68,7 @@ public class InMemoryDatasetServiceTests extends ESTestCase {
 
     public void testPutGet() {
         putDataset("access_logs", "my_s3", "s3://bucket/logs/*.parquet", "access log archive", Map.of());
-        Dataset stored = datasetService.get(projectId, "access_logs");
+        Dataset stored = datasetService.datasetFor(projectId, "access_logs");
         assertNotNull(stored);
         assertEquals("access_logs", stored.name());
         assertEquals("my_s3", stored.dataSource().getName());
@@ -79,10 +79,10 @@ public class InMemoryDatasetServiceTests extends ESTestCase {
     public void testReplace() {
         putDataset("access_logs", "my_s3", "s3://bucket/logs/", null, Map.of());
         putDataset("access_logs", "my_s3", "s3://bucket/logs-v2/", "updated", Map.of());
-        Dataset stored = datasetService.get(projectId, "access_logs");
+        Dataset stored = datasetService.datasetFor(projectId, "access_logs");
         assertEquals("s3://bucket/logs-v2/", stored.resource());
         assertEquals("updated", stored.description());
-        assertEquals(Set.of("access_logs"), datasetService.list(projectId));
+        assertEquals(Set.of("access_logs"), datasetService.datasetNames(projectId));
     }
 
     public void testParentMissing() {
@@ -126,24 +126,22 @@ public class InMemoryDatasetServiceTests extends ESTestCase {
 
     public void testDelete() {
         putDataset("ds", "my_s3", "s3://x/", null, Map.of());
-        assertNotNull(datasetService.get(projectId, "ds"));
+        assertNotNull(datasetService.datasetFor(projectId, "ds"));
         PlainActionFuture<AcknowledgedResponse> future = new PlainActionFuture<>();
-        datasetService.deleteDataset(projectId, TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "ds", future);
+        datasetService.deleteDatasets(projectId, TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, java.util.List.of("ds"), future);
         assertTrue(future.actionGet().isAcknowledged());
-        assertNull(datasetService.get(projectId, "ds"));
+        assertNull(datasetService.datasetFor(projectId, "ds"));
     }
 
     public void testDeleteNonExistent() {
         PlainActionFuture<AcknowledgedResponse> future = new PlainActionFuture<>();
-        datasetService.deleteDataset(projectId, TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "ghost", future);
+        datasetService.deleteDatasets(projectId, TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, java.util.List.of("ghost"), future);
         ResourceNotFoundException ex = expectThrows(ResourceNotFoundException.class, future::actionGet);
         assertThat(ex.getMessage(), containsString("dataset [ghost] not found"));
     }
 
     public void testGetMissing() {
-        assertNull("missing name must return null, not throw", datasetService.get(projectId, "ghost"));
-        IllegalArgumentException blank = expectThrows(IllegalArgumentException.class, () -> datasetService.get(projectId, ""));
-        assertThat(blank.getMessage(), containsString("name is missing or empty"));
+        assertNull("missing name must return null, not throw", datasetService.datasetFor(projectId, "ghost"));
     }
 
     /**
@@ -176,12 +174,12 @@ public class InMemoryDatasetServiceTests extends ESTestCase {
     public void testDeleteDataSourceWithDependents() {
         putDataset("ds", "my_s3", "s3://x/", null, Map.of());
         PlainActionFuture<AcknowledgedResponse> future = new PlainActionFuture<>();
-        dataSourceService.deleteDataSource(projectId, TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "my_s3", future);
+        dataSourceService.deleteDataSources(projectId, TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, java.util.List.of("my_s3"), future);
         ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class, future::actionGet);
         assertEquals(RestStatus.CONFLICT, ex.status());
         assertThat(ex.getMessage(), containsString("referenced by datasets [ds]"));
         // The data source must still be there.
-        assertNotNull(dataSourceService.get(projectId, "my_s3"));
+        assertNotNull(dataSourceService.dataSourceFor("my_s3"));
     }
 
     // ----- helpers -----

@@ -53,7 +53,13 @@ public class TransportDeleteDatasetAction extends AcknowledgedTransportMasterNod
         ProjectState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        datasetService.deleteDataset(state.projectId(), request.masterNodeTimeout(), request.ackTimeout(), request.name(), listener);
+        datasetService.deleteDatasets(
+            state.projectId(),
+            request.masterNodeTimeout(),
+            request.ackTimeout(),
+            java.util.Arrays.asList(request.names()),
+            listener
+        );
     }
 
     @Override

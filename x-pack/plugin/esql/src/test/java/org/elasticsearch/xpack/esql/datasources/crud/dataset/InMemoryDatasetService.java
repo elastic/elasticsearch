@@ -79,6 +79,16 @@ public class InMemoryDatasetService extends DatasetService implements Closeable 
         return clusterService;
     }
 
+    /** Test helper — direct in-memory lookup via the cluster state. */
+    public Dataset datasetFor(ProjectId projectId, String name) {
+        return DatasetMetadata.get(clusterService.state().metadata().getProject(projectId)).get(name);
+    }
+
+    /** Test helper — direct in-memory listing via the cluster state. */
+    public Set<String> datasetNames(ProjectId projectId) {
+        return DatasetMetadata.get(clusterService.state().metadata().getProject(projectId)).datasets().keySet();
+    }
+
     @Override
     public void putDataset(ProjectId projectId, PutDatasetAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         try {
@@ -109,14 +119,8 @@ public class InMemoryDatasetService extends DatasetService implements Closeable 
                 request.description(),
                 validatedSettings
             );
-            // 3. No-op fast path.
             DatasetMetadata datasetMetadata = DatasetMetadata.get(projectMetadata);
             final Dataset existing = datasetMetadata.get(dataset.name());
-            if (dataset.equals(existing)) {
-                listener.onResponse(AcknowledgedResponse.TRUE);
-                return;
-            }
-            // 4. Max-count check.
             int max = clusterService.getClusterSettings().get(MAX_DATASETS_COUNT_SETTING);
             if (existing == null && datasetMetadata.datasets().size() >= max) {
                 listener.onFailure(new IllegalArgumentException("cannot add dataset, the maximum number of datasets is reached: " + max));
@@ -134,22 +138,26 @@ public class InMemoryDatasetService extends DatasetService implements Closeable 
     }
 
     @Override
-    public void deleteDataset(
+    public void deleteDatasets(
         ProjectId projectId,
         TimeValue masterNodeTimeout,
         TimeValue ackTimeout,
-        String name,
+        java.util.Collection<String> names,
         ActionListener<AcknowledgedResponse> listener
     ) {
         try {
             final ProjectMetadata projectMetadata = clusterService.state().metadata().getProject(projectId);
             final DatasetMetadata datasetMetadata = DatasetMetadata.get(projectMetadata);
-            if (datasetMetadata.get(name) == null) {
-                listener.onFailure(new ResourceNotFoundException("dataset [{}] not found", name));
-                return;
+            for (String name : names) {
+                if (datasetMetadata.get(name) == null) {
+                    listener.onFailure(new ResourceNotFoundException("dataset [{}] not found", name));
+                    return;
+                }
             }
             Map<String, Dataset> updated = new HashMap<>(datasetMetadata.datasets());
-            updated.remove(name);
+            for (String name : names) {
+                updated.remove(name);
+            }
             ProjectMetadata.Builder builder = ProjectMetadata.builder(projectMetadata).datasets(updated);
             ClusterServiceUtils.setState(clusterService, ClusterState.builder(clusterService.state()).putProjectMetadata(builder).build());
             listener.onResponse(AcknowledgedResponse.TRUE);

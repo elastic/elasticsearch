@@ -23,7 +23,12 @@ public class DeleteDataSourceActionRequestTests extends AbstractWireSerializingT
 
     @Override
     protected Request createTestInstance() {
-        return new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, randomAlphaOfLengthBetween(1, 20).toLowerCase(Locale.ROOT));
+        int count = between(1, 3);
+        String[] names = new String[count];
+        for (int i = 0; i < count; i++) {
+            names[i] = randomAlphaOfLengthBetween(1, 20).toLowerCase(Locale.ROOT);
+        }
+        return new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, names);
     }
 
     @Override
@@ -33,18 +38,18 @@ public class DeleteDataSourceActionRequestTests extends AbstractWireSerializingT
 
     @Override
     protected Request mutateInstance(Request instance) {
-        return new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, instance.name() + "_mutated");
+        String[] names = instance.names().clone();
+        names[0] = names[0] + "_mutated";
+        return new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, names);
     }
-
-    // -- validate() ------------------------------------------------------------------------------
 
     public void testValidateAcceptsCleanRequest() {
-        assertThat(new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "my_ds").validate(), nullValue());
+        assertThat(new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { "my_ds" }).validate(), nullValue());
     }
 
-    public void testValidateRejectsEmptyName() {
-        ActionRequestValidationException v = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "").validate();
+    public void testValidateRejectsEmptyNames() {
+        ActionRequestValidationException v = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[0]).validate();
         assertThat(v, notNullValue());
-        assertThat(v.getMessage(), containsString("data source name is missing"));
+        assertThat(v.getMessage(), containsString("data source names cannot be empty"));
     }
 }

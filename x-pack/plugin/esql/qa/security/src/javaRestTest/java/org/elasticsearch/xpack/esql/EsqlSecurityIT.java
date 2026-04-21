@@ -1542,10 +1542,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(viewNames, containsInAnyOrder("view-user1", "view"));
     }
 
-    // Data source + dataset CRUD — authorization coverage.
-    // Under the current TP model, cluster:admin/esql/data_source/{put,get,delete} is picked up by the
-    // umbrella cluster "manage"/"all" privilege; indices:admin/esql/dataset/{put,get,delete} is picked
-    // up by the umbrella index "manage"/"all" privilege. Named privileges are deferred.
+    // TODO: use named privileges when available — https://github.com/elastic/elasticsearch/issues/147017
     public void testDataSourceCrudForbiddenWithoutClusterManage() {
         // user2 has cluster: []. All three data source actions are cluster-level → 403.
         for (String path : List.of("/_query/data_source/ds_x", "/_query/data_source")) {

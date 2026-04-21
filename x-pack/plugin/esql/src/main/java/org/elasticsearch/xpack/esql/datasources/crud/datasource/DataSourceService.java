@@ -23,19 +23,18 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.Optional;
 
 /** Orchestrates create / replace / delete of data sources in cluster state. */
 public class DataSourceService {
@@ -77,7 +76,6 @@ public class DataSourceService {
      * failure synchronously via {@code listener}; cluster-state mutation is deferred to the task queue.
      */
     public void putDataSource(ProjectId projectId, PutDataSourceAction.Request request, ActionListener<AcknowledgedResponse> listener) {
-        // 1. Validator dispatch — unknown type or validation error returns cleanly without touching cluster state.
         DataSourceValidator validator = validatorsByType.get(request.type());
         if (validator == null) {
             logger.warn("rejected put for data source [{}]: unknown type [{}]", request.name(), request.type());
@@ -94,16 +92,6 @@ public class DataSourceService {
         }
         final DataSource dataSource = new DataSource(request.name(), request.type(), request.description(), validated);
 
-        // 2. No-op fast path — best-effort optimization. Reads local node state, which may lag the master.
-        // A false miss triggers the task (which rechecks); a false hit returns TRUE on a stale match (safe).
-        final ProjectMetadata projectMetadata = clusterService.state().metadata().getProject(projectId);
-        final DataSource existing = getMetadata(projectMetadata).get(dataSource.name());
-        if (dataSource.equals(existing)) {
-            listener.onResponse(AcknowledgedResponse.TRUE);
-            return;
-        }
-
-        // 3. Cluster-state update — re-validate under CAS for count limit.
         logger.debug("submitting put data source [{}] of type [{}]", dataSource.name(), dataSource.type());
         final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(request, listener) {
             @Override
@@ -111,9 +99,6 @@ public class DataSourceService {
                 final ProjectMetadata project = currentState.metadata().getProject(projectId);
                 final DataSourceMetadata metadata = getMetadata(project);
                 final DataSource current = metadata.get(dataSource.name());
-                if (dataSource.equals(current)) {
-                    return currentState; // another writer got here first with the same value
-                }
                 if (current == null && metadata.dataSources().size() >= maxDataSourcesCount) {
                     logger.warn("rejected put for data source [{}]: maximum count [{}] reached", dataSource.name(), maxDataSourcesCount);
                     throw new IllegalArgumentException(
@@ -132,51 +117,48 @@ public class DataSourceService {
         taskQueue.submitTask("update-esql-data-source-metadata-[" + dataSource.name() + "]", task, task.timeout());
     }
 
-    /**
-     * Delete a data source by name. Referential integrity is enforced inside the task: the delete
-     * fails with 409 if any dataset references this data source. A 404 is surfaced if the data source
-     * doesn't exist at task-execution time.
-     *
-     * <p>The delete-vs-dataset-put race is serialized by {@code MasterService}, not by shared task
-     * queuing — the data source queue and the dataset queue are distinct. {@code MasterService}
-     * applies cluster-state updates one at a time, so whichever task runs second sees the other's
-     * effect: a dataset-put task racing a data-source-delete will either create the dataset before
-     * the delete observes it (409 on delete) or find the parent gone when it executes
-     * ({@code ResourceNotFoundException} in {@code DatasetService.putDataset}).
-     */
-    public void deleteDataSource(
+    /** Delete data sources by name. Fails with 409 if any dataset references one; 404 if a name doesn't exist. */
+    public void deleteDataSources(
         ProjectId projectId,
         TimeValue masterNodeTimeout,
         TimeValue ackTimeout,
-        String name,
+        Collection<String> names,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        logger.debug("submitting delete data source [{}]", name);
+        final ProjectMetadata projectMetadata = clusterService.state().metadata().getProject(projectId);
+        final DataSourceMetadata metadata = getMetadata(projectMetadata);
+        final Optional<String> notFound = names.stream().filter(n -> metadata.get(n) == null).findAny();
+        if (notFound.isPresent()) {
+            listener.onFailure(new ResourceNotFoundException("data source [{}] not found", notFound.get()));
+            return;
+        }
+        logger.debug("submitting delete data sources {}", names);
         final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(masterNodeTimeout, ackTimeout, listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 final ProjectMetadata project = currentState.metadata().getProject(projectId);
-                final DataSourceMetadata metadata = getMetadata(project);
-                if (metadata.get(name) == null) {
-                    throw new ResourceNotFoundException("data source [{}] not found", name);
+                final DataSourceMetadata current = getMetadata(project);
+                final Map<String, DataSource> updated = new HashMap<>(current.dataSources());
+                for (String name : names) {
+                    if (updated.containsKey(name) == false) {
+                        throw new ResourceNotFoundException("data source [{}] not found", name);
+                    }
+                    final DatasetMetadata datasets = DatasetMetadata.get(project);
+                    final List<String> dependents = datasets.datasets()
+                        .values()
+                        .stream()
+                        .filter(ds -> name.equals(ds.dataSource().getName()))
+                        .map(Dataset::name)
+                        .toList();
+                    if (dependents.isEmpty() == false) {
+                        logger.warn("rejected delete for data source [{}]: referenced by datasets {}", name, dependents);
+                        throw new ElasticsearchStatusException(
+                            "cannot delete data source [" + name + "]: referenced by datasets " + dependents,
+                            RestStatus.CONFLICT
+                        );
+                    }
+                    updated.remove(name);
                 }
-                // Referential integrity: reject if any dataset references this data source.
-                final DatasetMetadata datasets = DatasetMetadata.get(project);
-                final List<String> dependents = datasets.datasets()
-                    .values()
-                    .stream()
-                    .filter(ds -> name.equals(ds.dataSource().getName()))
-                    .map(Dataset::name)
-                    .toList();
-                if (dependents.isEmpty() == false) {
-                    logger.warn("rejected delete for data source [{}]: referenced by datasets {}", name, dependents);
-                    throw new ElasticsearchStatusException(
-                        "cannot delete data source [" + name + "]: referenced by datasets " + dependents,
-                        RestStatus.CONFLICT
-                    );
-                }
-                final Map<String, DataSource> updated = new HashMap<>(metadata.dataSources());
-                updated.remove(name);
                 return ClusterState.builder(currentState)
                     .putProjectMetadata(
                         ProjectMetadata.builder(project).putCustom(DataSourceMetadata.TYPE, new DataSourceMetadata(updated))
@@ -184,20 +166,7 @@ public class DataSourceService {
                     .build();
             }
         };
-        taskQueue.submitTask("delete-esql-data-source-metadata-[" + name + "]", task, task.timeout());
+        taskQueue.submitTask("delete-esql-data-source-metadata-" + names, task, task.timeout());
     }
 
-    /** Single-name lookup against the current cluster state. */
-    @Nullable
-    public DataSource get(ProjectId projectId, String name) {
-        if (Strings.hasText(name) == false) {
-            throw new IllegalArgumentException("name is missing or empty");
-        }
-        return getMetadata(clusterService.state().metadata().getProject(projectId)).get(name);
-    }
-
-    /** List all data source names in the project. */
-    public Set<String> list(ProjectId projectId) {
-        return getMetadata(clusterService.state().metadata().getProject(projectId)).dataSources().keySet();
-    }
 }

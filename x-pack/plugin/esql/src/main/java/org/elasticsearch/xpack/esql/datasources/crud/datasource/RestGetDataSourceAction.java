@@ -17,7 +17,7 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.esql.EsqlDataSourcesCapabilities;
+import org.elasticsearch.xpack.esql.datasources.crud.EsqlDataSourcesCapabilities;
 
 import java.util.List;
 import java.util.Set;

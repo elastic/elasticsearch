@@ -23,11 +23,12 @@ public class DeleteDatasetActionRequestTests extends AbstractWireSerializingTest
 
     @Override
     protected Request createTestInstance() {
-        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, randomAlphaOfLengthBetween(1, 20).toLowerCase(Locale.ROOT));
-        // Request implements IndicesRequest.Replaceable. indices() is set from the name on
-        // the HTTP/serialization boundary; pre-seed it here so equals() is stable after round-trip.
-        r.indices(r.name());
-        return r;
+        int count = between(1, 3);
+        String[] names = new String[count];
+        for (int i = 0; i < count; i++) {
+            names[i] = randomAlphaOfLengthBetween(1, 20).toLowerCase(Locale.ROOT);
+        }
+        return new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, names);
     }
 
     @Override
@@ -37,20 +38,18 @@ public class DeleteDatasetActionRequestTests extends AbstractWireSerializingTest
 
     @Override
     protected Request mutateInstance(Request instance) {
-        Request mutated = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, instance.name() + "_mutated");
-        mutated.indices(mutated.name());
-        return mutated;
+        String[] names = instance.names().clone();
+        names[0] = names[0] + "_mutated";
+        return new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, names);
     }
-
-    // -- validate() ------------------------------------------------------------------------------
 
     public void testValidateAcceptsCleanRequest() {
-        assertThat(new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "my_ds").validate(), nullValue());
+        assertThat(new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { "my_ds" }).validate(), nullValue());
     }
 
-    public void testValidateRejectsEmptyName() {
-        ActionRequestValidationException v = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "").validate();
+    public void testValidateRejectsEmptyNames() {
+        ActionRequestValidationException v = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[0]).validate();
         assertThat(v, notNullValue());
-        assertThat(v.getMessage(), containsString("dataset name is missing"));
+        assertThat(v.getMessage(), containsString("dataset names cannot be empty"));
     }
 }

@@ -30,13 +30,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
-/**
- * End-to-end REST coverage for the ES|QL data source + dataset CRUD API against a running
- * cluster with the {@code esql-datasource-s3} plugin loaded. Exercises lifecycle, secret
- * masking in responses, and validator rejection — scenarios that the in-JVM
- * DataSourceCrudIT cannot express over HTTP and that the plugin-free YAML tests cannot
- * exercise because they lack a loaded validator.
- */
+/** End-to-end REST coverage for the CRUD API against a cluster with {@code esql-datasource-s3} loaded. */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class DataSourceCrudRestIT extends ESRestTestCase {
 

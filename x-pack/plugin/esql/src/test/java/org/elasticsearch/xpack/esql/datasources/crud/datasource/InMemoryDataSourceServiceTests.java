@@ -49,7 +49,7 @@ public class InMemoryDataSourceServiceTests extends ESTestCase {
 
     public void testPutGet() {
         put("my_s3", "s3", "prod bucket", Map.of("region", "us-east-1", "secret_access_key", "AKIA123"));
-        DataSource stored = service.get(projectId, "my_s3");
+        DataSource stored = service.dataSourceFor("my_s3");
         assertNotNull(stored);
         assertEquals("my_s3", stored.name());
         assertEquals("s3", stored.type());
@@ -61,11 +61,11 @@ public class InMemoryDataSourceServiceTests extends ESTestCase {
     public void testReplace() {
         put("my_s3", "s3", null, Map.of("region", "us-east-1"));
         put("my_s3", "s3", "updated", Map.of("region", "eu-west-1"));
-        DataSource stored = service.get(projectId, "my_s3");
+        DataSource stored = service.dataSourceFor("my_s3");
         assertEquals("updated", stored.description());
         assertEquals("eu-west-1", stored.settings().get("region").nonSecretValue());
         // list size stays 1 after replace
-        assertEquals(Set.of("my_s3"), service.list(projectId));
+        assertEquals(Set.of("my_s3"), service.dataSourceNames());
     }
 
     public void testReplaceEqualIsNoOp() {
@@ -103,37 +103,35 @@ public class InMemoryDataSourceServiceTests extends ESTestCase {
         service.putDataSource(projectId, putRequest("c", "s3", null, Map.of()), future);
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, future::actionGet);
         assertThat(ex.getMessage(), containsString("maximum number of data sources is reached: 2"));
-        assertEquals(Set.of("a", "b"), service.list(projectId));
+        assertEquals(Set.of("a", "b"), service.dataSourceNames());
     }
 
     public void testDelete() {
         put("my_s3", "s3", null, Map.of("region", "us-east-1"));
-        assertNotNull(service.get(projectId, "my_s3"));
+        assertNotNull(service.dataSourceFor("my_s3"));
 
         PlainActionFuture<AcknowledgedResponse> future = new PlainActionFuture<>();
-        service.deleteDataSource(projectId, TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "my_s3", future);
+        service.deleteDataSources(projectId, TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, java.util.List.of("my_s3"), future);
         assertTrue(future.actionGet().isAcknowledged());
-        assertNull(service.get(projectId, "my_s3"));
+        assertNull(service.dataSourceFor("my_s3"));
     }
 
     public void testDeleteNonExistent() {
         PlainActionFuture<AcknowledgedResponse> future = new PlainActionFuture<>();
-        service.deleteDataSource(projectId, TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "ghost", future);
+        service.deleteDataSources(projectId, TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, java.util.List.of("ghost"), future);
         ResourceNotFoundException ex = expectThrows(ResourceNotFoundException.class, future::actionGet);
         assertThat(ex.getMessage(), containsString("data source [ghost] not found"));
     }
 
     public void testGetMissing() {
-        assertNull("missing name must return null, not throw", service.get(projectId, "ghost"));
-        IllegalArgumentException blank = expectThrows(IllegalArgumentException.class, () -> service.get(projectId, ""));
-        assertThat(blank.getMessage(), containsString("name is missing or empty"));
+        assertNull("missing name must return null, not throw", service.dataSourceFor("ghost"));
     }
 
     public void testList() {
         put("a", "s3", null, Map.of());
         put("b", "s3", null, Map.of());
         put("c", "gcs", null, Map.of());
-        assertEquals(Set.of("a", "b", "c"), service.list(projectId));
+        assertEquals(Set.of("a", "b", "c"), service.dataSourceNames());
     }
 
     // ----- helpers -----

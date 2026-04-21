@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.esql;
+package org.elasticsearch.xpack.esql.datasources.crud;
 
 /** REST-handler capability constants for the ES|QL data source + dataset CRUD API. */
 public final class EsqlDataSourcesCapabilities {

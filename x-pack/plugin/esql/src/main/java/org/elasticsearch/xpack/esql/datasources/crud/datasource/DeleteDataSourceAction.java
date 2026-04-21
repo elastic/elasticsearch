@@ -8,58 +8,80 @@ package org.elasticsearch.xpack.esql.datasources.crud.datasource;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.esql.EsqlDataSourceActionNames;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-/** Delete a single data source by name. */
 public class DeleteDataSourceAction extends ActionType<AcknowledgedResponse> {
 
     public static final DeleteDataSourceAction INSTANCE = new DeleteDataSourceAction();
     public static final String NAME = EsqlDataSourceActionNames.ESQL_DELETE_DATA_SOURCE_ACTION_NAME;
 
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.builder()
+        .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+        .build();
+
     private DeleteDataSourceAction() {
         super(NAME);
     }
 
-    public static class Request extends AcknowledgedRequest<Request> {
-        private final String name;
+    public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest.Replaceable {
+        private String[] names;
 
-        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String name) {
+        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String[] names) {
             super(masterNodeTimeout, ackTimeout);
-            this.name = name;
+            this.names = Objects.requireNonNull(names, "names cannot be null");
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.name = in.readString();
+            this.names = in.readStringArray();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(name);
+            out.writeStringArray(names);
         }
 
         @Override
         public ActionRequestValidationException validate() {
-            if (Strings.hasText(name) == false) {
-                return addValidationError("data source name is missing", null);
+            if (CollectionUtils.isEmpty(names)) {
+                return addValidationError("data source names cannot be empty", null);
             }
             return null;
         }
 
-        public String name() {
-            return name;
+        public String[] names() {
+            return names;
+        }
+
+        @Override
+        public String[] indices() {
+            return names;
+        }
+
+        @Override
+        public IndicesRequest indices(String... indices) {
+            this.names = indices;
+            return this;
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return DEFAULT_INDICES_OPTIONS;
         }
 
         @Override
@@ -67,12 +89,12 @@ public class DeleteDataSourceAction extends ActionType<AcknowledgedResponse> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(name, request.name);
+            return Arrays.equals(names, request.names);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(name);
+            return Arrays.hashCode(names);
         }
     }
 }

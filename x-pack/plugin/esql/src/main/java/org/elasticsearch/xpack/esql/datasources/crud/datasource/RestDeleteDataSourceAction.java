@@ -8,13 +8,14 @@
 package org.elasticsearch.xpack.esql.datasources.crud.datasource;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.esql.EsqlDataSourcesCapabilities;
+import org.elasticsearch.xpack.esql.datasources.crud.EsqlDataSourcesCapabilities;
 
 import java.util.List;
 import java.util.Set;
@@ -39,7 +40,7 @@ public class RestDeleteDataSourceAction extends BaseRestHandler {
         final DeleteDataSourceAction.Request req = new DeleteDataSourceAction.Request(
             RestUtils.getMasterNodeTimeout(request),
             RestUtils.getAckTimeout(request),
-            request.param("name")
+            Strings.splitStringByCommaToArray(request.param("name"))
         );
         return channel -> client.execute(DeleteDataSourceAction.INSTANCE, req, new RestToXContentListener<>(channel));
     }

@@ -53,7 +53,13 @@ public class TransportDeleteDataSourceAction extends AcknowledgedTransportMaster
         ProjectState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        dataSourceService.deleteDataSource(state.projectId(), request.masterNodeTimeout(), request.ackTimeout(), request.name(), listener);
+        dataSourceService.deleteDataSources(
+            state.projectId(),
+            request.masterNodeTimeout(),
+            request.ackTimeout(),
+            java.util.Arrays.asList(request.names()),
+            listener
+        );
     }
 
     @Override

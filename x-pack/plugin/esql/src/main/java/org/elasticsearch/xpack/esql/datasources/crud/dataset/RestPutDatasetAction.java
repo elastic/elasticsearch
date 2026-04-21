@@ -15,7 +15,7 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.esql.EsqlDataSourcesCapabilities;
+import org.elasticsearch.xpack.esql.datasources.crud.EsqlDataSourcesCapabilities;
 
 import java.io.IOException;
 import java.util.List;

@@ -23,17 +23,16 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
+import java.util.Optional;
 
 /** Orchestrates create / replace / delete of datasets in cluster state. */
 public class DatasetService {
@@ -99,19 +98,6 @@ public class DatasetService {
             return;
         }
 
-        final Dataset probeDataset = new Dataset(
-            request.name(),
-            new DataSourceReference(request.dataSource()),
-            request.resource(),
-            request.description(),
-            validatedSettings
-        );
-        final Dataset existing = getMetadata(projectMetadata).get(probeDataset.name());
-        if (probeDataset.equals(existing)) {
-            listener.onResponse(AcknowledgedResponse.TRUE);
-            return;
-        }
-
         logger.debug("submitting put dataset [{}] with parent [{}]", request.name(), request.dataSource());
         final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(request, listener) {
             @Override
@@ -122,7 +108,7 @@ public class DatasetService {
         taskQueue.submitTask("update-esql-dataset-metadata-[" + request.name() + "]", task, task.timeout());
     }
 
-    // Extracted so unit tests can drive the task body directly against fabricated cluster-state snapshots.
+    // Runs inside the CAS task (see execute() above); package-private for test visibility.
     ClusterState executePutDatasetTaskBody(ClusterState currentState, ProjectId projectId, PutDatasetAction.Request request) {
         final ProjectMetadata project = currentState.metadata().getProject(projectId);
         final DataSource currentParent = DataSourceMetadata.get(project).get(request.dataSource());
@@ -134,7 +120,7 @@ public class DatasetService {
         if (currentValidator == null) {
             throw new IllegalStateException("no validator registered for data source type [" + currentParent.type() + "]");
         }
-        final Map<String, Object> freshSettings = currentValidator.validateDataset(
+        final Map<String, Object> validatedSettings = currentValidator.validateDataset(
             currentParent.settings(),
             request.resource(),
             request.rawSettings()
@@ -144,13 +130,10 @@ public class DatasetService {
             new DataSourceReference(request.dataSource()),
             request.resource(),
             request.description(),
-            freshSettings
+            validatedSettings
         );
         final DatasetMetadata metadata = getMetadata(project);
         final Dataset current = metadata.get(dataset.name());
-        if (dataset.equals(current)) {
-            return currentState; // another writer got here first with the same value
-        }
         if (current == null && metadata.datasets().size() >= maxDatasetsCount) {
             logger.warn("rejected put for dataset [{}]: maximum count [{}] reached", dataset.name(), maxDatasetsCount);
             throw new IllegalArgumentException("cannot add dataset, the maximum number of datasets is reached: " + maxDatasetsCount);
@@ -160,42 +143,38 @@ public class DatasetService {
         return ClusterState.builder(currentState).putProjectMetadata(ProjectMetadata.builder(project).datasets(updated)).build();
     }
 
-    /** Delete a dataset by name. Surfaces 404 if the dataset doesn't exist at task-execution time. */
-    public void deleteDataset(
+    /** Delete datasets by name. Fails with 404 if any name doesn't exist. */
+    public void deleteDatasets(
         ProjectId projectId,
         TimeValue masterNodeTimeout,
         TimeValue ackTimeout,
-        String name,
+        Collection<String> names,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        logger.debug("submitting delete dataset [{}]", name);
+        final ProjectMetadata projectMetadata = clusterService.state().metadata().getProject(projectId);
+        final DatasetMetadata metadata = getMetadata(projectMetadata);
+        final Optional<String> notFound = names.stream().filter(n -> metadata.get(n) == null).findAny();
+        if (notFound.isPresent()) {
+            listener.onFailure(new ResourceNotFoundException("dataset [{}] not found", notFound.get()));
+            return;
+        }
+        logger.debug("submitting delete datasets {}", names);
         final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(masterNodeTimeout, ackTimeout, listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 final ProjectMetadata project = currentState.metadata().getProject(projectId);
-                final DatasetMetadata metadata = getMetadata(project);
-                if (metadata.get(name) == null) {
-                    throw new ResourceNotFoundException("dataset [{}] not found", name);
+                final DatasetMetadata current = getMetadata(project);
+                final Map<String, Dataset> updated = new HashMap<>(current.datasets());
+                for (String name : names) {
+                    if (updated.containsKey(name) == false) {
+                        throw new ResourceNotFoundException("dataset [{}] not found", name);
+                    }
+                    updated.remove(name);
                 }
-                final Map<String, Dataset> updated = new HashMap<>(metadata.datasets());
-                updated.remove(name);
                 return ClusterState.builder(currentState).putProjectMetadata(ProjectMetadata.builder(project).datasets(updated)).build();
             }
         };
-        taskQueue.submitTask("delete-esql-dataset-metadata-[" + name + "]", task, task.timeout());
+        taskQueue.submitTask("delete-esql-dataset-metadata-" + names, task, task.timeout());
     }
 
-    /** Single-name lookup against the current cluster state. */
-    @Nullable
-    public Dataset get(ProjectId projectId, String name) {
-        if (Strings.hasText(name) == false) {
-            throw new IllegalArgumentException("name is missing or empty");
-        }
-        return getMetadata(clusterService.state().metadata().getProject(projectId)).get(name);
-    }
-
-    /** List all dataset names in the project. */
-    public Set<String> list(ProjectId projectId) {
-        return getMetadata(clusterService.state().metadata().getProject(projectId)).datasets().keySet();
-    }
 }

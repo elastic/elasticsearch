@@ -57,10 +57,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-/** Integration coverage for the ES|QL data-source + dataset CRUD API: full lifecycle, secret round-trip,
- *  gateway persistence, concurrent-writer races, dispatch-vs-task-execute windows, index/dataset name
- *  collision, and validator rejection. Single-node; the feature flag is enabled via a
- *  {@code systemProperty} on the {@code internalClusterTest} Gradle task. */
 @ESIntegTestCase.ClusterScope(scope = SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false, minNumDataNodes = 1)
 public class DataSourceCrudIT extends ESIntegTestCase {
 
@@ -70,8 +66,6 @@ public class DataSourceCrudIT extends ESIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(LocalStateDataSource.class);
     }
-
-    // Scenario 1 — full lifecycle
 
     public void testFullLifecycle() throws Exception {
         final String dsName = "prod_test";
@@ -111,8 +105,6 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         expectDatasetMissing(datasetName);
     }
 
-    // Scenario 1b — secret classification round-trips through the wire + cluster state
-
     public void testSecretClassificationRoundTrip() throws Exception {
         final String dsName = "secret_rt";
         assertAcked(
@@ -138,8 +130,6 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
     }
 
-    // Scenario 2 — gateway persistence across full restart
-
     public void testGatewayPersistence() throws Exception {
         final String dsName = "persists_across_restart";
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest(dsName, Map.of("region", "us-west-2"))));
@@ -157,8 +147,6 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         // Cleanup so subsequent tests start from a clean slate in a SUITE-scoped cluster.
         assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
     }
-
-    // Scenario 4 — concurrent PUT same data source, two clients
 
     public void testConcurrentPutSameDataSource() throws Exception {
         final String dsName = "concurrent_same";
@@ -206,8 +194,6 @@ public class DataSourceCrudIT extends ESIntegTestCase {
 
         assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
     }
-
-    // Scenario 5 — DELETE data source racing dataset PUT
 
     public void testDeleteDataSourceRacingDatasetPut() throws Exception {
         final String dsName = "racing_parent";
@@ -284,8 +270,6 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         }
     }
 
-    // Scenario 6 — dispatch-vs-task-execute race for dataset PUT vs parent data source DELETE
-
     public void testDispatchVsTaskExecuteRace() throws Exception {
         final String dsName = "dispatch_race_parent";
         final String datasetName = "dispatch_race_child";
@@ -345,8 +329,6 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         assertThat(putErr, notNullValue());
     }
 
-    // Scenario 7 — index creation collides with existing dataset
-
     public void testIndexCreationCollidesWithDataset() throws Exception {
         final String dsName = "collision_parent";
         final String collidingName = "my_collision";
@@ -366,8 +348,6 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         assertAcked(client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest(collidingName)));
         assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
     }
-
-    // Scenario 8 — validator-level rejection surfaces cleanly through REST + transport + service
 
     public void testValidatorRejectionSurfacesCleanly() throws Exception {
         final String dsName = "rejected_ds";
@@ -427,11 +407,11 @@ public class DataSourceCrudIT extends ESIntegTestCase {
     }
 
     private static DeleteDataSourceAction.Request deleteDataSourceRequest(String name) {
-        return new DeleteDataSourceAction.Request(TEST_TIMEOUT, TEST_TIMEOUT, name);
+        return new DeleteDataSourceAction.Request(TEST_TIMEOUT, TEST_TIMEOUT, new String[] { name });
     }
 
     private static DeleteDatasetAction.Request deleteDatasetRequest(String name) {
-        return new DeleteDatasetAction.Request(TEST_TIMEOUT, TEST_TIMEOUT, name);
+        return new DeleteDatasetAction.Request(TEST_TIMEOUT, TEST_TIMEOUT, new String[] { name });
     }
 
     private void expectDataSourceMissing(String name) {

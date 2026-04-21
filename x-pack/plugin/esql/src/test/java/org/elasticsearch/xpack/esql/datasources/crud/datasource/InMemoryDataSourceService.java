@@ -91,6 +91,16 @@ public class InMemoryDataSourceService extends DataSourceService implements Clos
         return dataSourceMetadata;
     }
 
+    /** Test helper — direct in-memory lookup. */
+    public DataSource dataSourceFor(String name) {
+        return dataSourceMetadata.get(name);
+    }
+
+    /** Test helper — direct in-memory listing. */
+    public Set<String> dataSourceNames() {
+        return dataSourceMetadata.dataSources().keySet();
+    }
+
     @Override
     public void putDataSource(ProjectId projectId, PutDataSourceAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         try {
@@ -109,10 +119,6 @@ public class InMemoryDataSourceService extends DataSourceService implements Clos
             DataSource dataSource = new DataSource(request.name(), request.type(), request.description(), validated);
 
             DataSource existing = dataSourceMetadata.get(dataSource.name());
-            if (dataSource.equals(existing)) {
-                listener.onResponse(AcknowledgedResponse.TRUE);
-                return;
-            }
             int max = clusterService.getClusterSettings().get(MAX_DATA_SOURCES_COUNT_SETTING);
             if (existing == null && dataSourceMetadata.dataSources().size() >= max) {
                 listener.onFailure(
@@ -131,38 +137,41 @@ public class InMemoryDataSourceService extends DataSourceService implements Clos
     }
 
     @Override
-    public void deleteDataSource(
+    public void deleteDataSources(
         ProjectId projectId,
         TimeValue masterNodeTimeout,
         TimeValue ackTimeout,
-        String name,
+        java.util.Collection<String> names,
         ActionListener<AcknowledgedResponse> listener
     ) {
         try {
-            if (dataSourceMetadata.get(name) == null) {
-                listener.onFailure(new ResourceNotFoundException("data source [{}] not found", name));
-                return;
+            for (String name : names) {
+                if (dataSourceMetadata.get(name) == null) {
+                    listener.onFailure(new ResourceNotFoundException("data source [{}] not found", name));
+                    return;
+                }
             }
-            // Referential integrity — look at the companion service's state via cluster state.
             ProjectMetadata project = clusterService.state().metadata().getProject(projectId);
             DatasetMetadata datasets = DatasetMetadata.get(project);
-            List<String> dependents = datasets.datasets()
-                .values()
-                .stream()
-                .filter(ds -> name.equals(ds.dataSource().getName()))
-                .map(Dataset::name)
-                .toList();
-            if (dependents.isEmpty() == false) {
-                listener.onFailure(
-                    new ElasticsearchStatusException(
-                        "cannot delete data source [" + name + "]: referenced by datasets " + dependents,
-                        RestStatus.CONFLICT
-                    )
-                );
-                return;
-            }
             Map<String, DataSource> updated = new HashMap<>(dataSourceMetadata.dataSources());
-            updated.remove(name);
+            for (String name : names) {
+                List<String> dependents = datasets.datasets()
+                    .values()
+                    .stream()
+                    .filter(ds -> name.equals(ds.dataSource().getName()))
+                    .map(Dataset::name)
+                    .toList();
+                if (dependents.isEmpty() == false) {
+                    listener.onFailure(
+                        new ElasticsearchStatusException(
+                            "cannot delete data source [" + name + "]: referenced by datasets " + dependents,
+                            RestStatus.CONFLICT
+                        )
+                    );
+                    return;
+                }
+                updated.remove(name);
+            }
             dataSourceMetadata = new DataSourceMetadata(updated);
             pushProjectCustom(projectId);
             listener.onResponse(AcknowledgedResponse.TRUE);

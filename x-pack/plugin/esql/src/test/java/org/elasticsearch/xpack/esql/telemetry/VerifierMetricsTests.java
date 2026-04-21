@@ -120,10 +120,7 @@ public class VerifierMetricsTests extends ESTestCase {
               | stats y = min(x) by x
             """, verifier);
         Counters c = metrics.stats();
-        assertMetrics(
-            c,
-            Map.of(DISSECT, 1L, EVAL, 1L, GROK, 1L, LIMIT, 1L, SORT, 2L, STATS, 1L, WHERE, 2L, FROM, 2L)
-        );
+        assertMetrics(c, Map.of(DISSECT, 1L, EVAL, 1L, GROK, 1L, LIMIT, 1L, SORT, 2L, STATS, 1L, WHERE, 2L, FROM, 2L));
 
         assertEquals(1, function("length", c));
         assertEquals(1, function("concat", c));
@@ -320,11 +317,7 @@ public class VerifierMetricsTests extends ESTestCase {
                       , (from employees | stats min = min(salary) by languages)
             | where min > 0 and max < 100000
             """);
-        assertMetrics(
-            c,
-            Map.of(EVAL, 1L, STATS, 1L, WHERE, 1L, FROM, 1L, SUBQUERY, 1L, FORK, 1L),
-            Map.of("max", 1L, "min", 1L)
-        );
+        assertMetrics(c, Map.of(EVAL, 1L, STATS, 1L, WHERE, 1L, FROM, 1L, SUBQUERY, 1L, FORK, 1L), Map.of("max", 1L, "min", 1L));
     }
 
     public void testPromql() {

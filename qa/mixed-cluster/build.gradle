@@ -10,11 +10,13 @@
 
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.internal.test.ClusterFeaturesMetadataPlugin
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 import org.elasticsearch.gradle.testclusters.TestClusterValueSource
 import org.elasticsearch.gradle.testclusters.TestClustersRegistry
 import org.elasticsearch.gradle.util.GradleUtils
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
+import org.gradle.api.artifacts.type.ArtifactTypeDefinition
 
 apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
@@ -30,6 +32,18 @@ restResources {
   restTests {
     includeCore '*'
   }
+}
+
+// Resolve feature metadata from the full default distribution so that cluster_features-based
+// skip conditions in YAML tests honour test features (e.g. index.time_series_synthetic_id).
+// The :distribution project aggregates feature metadata from :server and all bundled modules.
+def featuresMetadataConfig = configurations.create('featuresMetadataDeps') {
+  canBeConsumed = false
+  canBeResolved = true
+  attributes {
+    attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ClusterFeaturesMetadataPlugin.FEATURES_METADATA_TYPE)
+  }
+  dependencies.add(project.dependencies.project(path: ':distribution', configuration: ClusterFeaturesMetadataPlugin.FEATURES_METADATA_CONFIGURATION))
 }
 
 def excludeList = []
@@ -89,6 +103,9 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
         setting 'health.master_history.no_master_transitions_threshold', '10'
       }
       requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
+      // Enable test features on all ES nodes so that cluster_features-based skip conditions
+      // in YAML tests correctly reflect features declared in getTestFeatures().
+      systemProperty 'tests.testfeatures.enabled', 'true'
       if (bwcVersion.before(Version.fromString("8.18.0"))) {
         jvmArgs '-da:org.elasticsearch.index.mapper.DocumentMapper'
         jvmArgs '-da:org.elasticsearch.index.mapper.MapperService'
@@ -98,6 +115,9 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     tasks.register("${baseName}#mixedClusterTest", StandaloneRestIntegTestTask) {
       useCluster baseCluster
       mustRunAfter("precommit")
+      // Pass feature metadata so that YAML test cluster_features skip conditions work correctly.
+      inputs.files(featuresMetadataConfig).withPathSensitivity(PathSensitivity.NONE)
+      nonInputProperties.systemProperty('tests.features.metadata.path', { -> featuresMetadataConfig.asPath })
       def baseInfo = getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") }
       def baseInfoAfterOneNodeUpdate = getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") }
       def baseInfoAfterTwoNodesUpdate = getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") }

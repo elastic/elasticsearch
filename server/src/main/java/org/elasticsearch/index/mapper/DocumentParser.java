@@ -81,7 +81,7 @@ public final class DocumentParser {
      * @throws DocumentParsingException whenever there's a problem parsing the document
      */
     public ParsedDocument parseDocument(SourceToParse source, MappingLookup mappingLookup) throws DocumentParsingException {
-        if (source.source() != null && source.source().length() == 0) {
+        if (source.getEirfParser() == null && source.source() != null && source.source().length() == 0) {
             throw new DocumentParsingException(new XContentLocation(0, 0), "failed to parse, document is empty");
         }
         final RootDocumentParserContext context;
@@ -93,11 +93,13 @@ public final class DocumentParser {
                 mappingLookup,
                 mappingParserContext,
                 source,
-                XContentHelper.createParser(
-                    parserConfiguration.withIncludeSourceOnError(source.getIncludeSourceOnError()),
-                    source.source(),
-                    source.getXContentType()
-                )
+                source.getEirfParser() != null
+                    ? source.getEirfParser()
+                    : XContentHelper.createParser(
+                        parserConfiguration.withIncludeSourceOnError(source.getIncludeSourceOnError()),
+                        source.source(),
+                        source.getXContentType()
+                    )
             )
         ) {
             context = ctx;

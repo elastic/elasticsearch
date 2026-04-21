@@ -464,9 +464,7 @@ public class SynonymsManagementAPIService {
                     return;
                 }
 
-                SynonymRule[] rules = Arrays.stream(hits)
-                    .map(SynonymsManagementAPIService::hitToSynonymRule)
-                    .toArray(SynonymRule[]::new);
+                SynonymRule[] rules = Arrays.stream(hits).map(SynonymsManagementAPIService::hitToSynonymRule).toArray(SynonymRule[]::new);
                 l.onResponse(new PagedResult<>(totalHits, rules));
             })
         );

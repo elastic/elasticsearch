@@ -477,6 +477,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
   method: test {csv-spec:keep.whereWithCount}
   issue: https://github.com/elastic/elasticsearch/issues/147022
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:unmapped-type-conflicts.noTypeConflictKeepTriggersLoadInlineStatsWithFilter}
+  issue: https://github.com/elastic/elasticsearch/issues/147023
 
 # Examples:
 #

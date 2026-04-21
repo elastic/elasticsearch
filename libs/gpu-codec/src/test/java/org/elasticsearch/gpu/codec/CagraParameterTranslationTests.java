@@ -105,6 +105,13 @@ public class CagraParameterTranslationTests extends ESTestCase {
         assertEquals(CagraIndexParams.CagraGraphBuildAlgo.IVF_PQ, largeParams.getCagraGraphBuildAlgo());
     }
 
+    public void testIvfPqGraphDegreeIsSet() {
+        var params = translateAndBuild(24, 200, 4_000_000, 1024, L4_GPU_MEMORY);
+        assertEquals(CagraIndexParams.CagraGraphBuildAlgo.IVF_PQ, params.getCagraGraphBuildAlgo());
+        assertEquals(18, params.getGraphDegree());
+        assertEquals(42, params.getIntermediateGraphDegree());
+    }
+
     public void testRtxPro6000AlgorithmSelection() {
         var params = translateAndBuild(24, 200, 4_000_000, 1024, RTX_PRO_6000_GPU_MEMORY);
         assertEquals(CagraIndexParams.CagraGraphBuildAlgo.NN_DESCENT, params.getCagraGraphBuildAlgo());

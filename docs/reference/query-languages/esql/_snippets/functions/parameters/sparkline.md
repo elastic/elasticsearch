@@ -2,14 +2,14 @@
 
 ## Parameters
 
-`field`
-:   Expression that calculates the y-axis value of the sparkline graph for each datapoint.
+`aggregation`
+:   Aggregation that calculates the y-axis value of the sparkline graph for each datapoint.
 
 `key`
 :   Date expression from which to derive buckets.
 
 `buckets`
-:   Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.
+:   Target number of buckets.
 
 `from`
 :   Start of the range. Can be a date or a date expressed as a string.

@@ -147,7 +147,7 @@ unsupported:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [dense_vector_agg_metric_double_if_version, date_range_field_type, histogram_release_version]
+          capabilities: [dense_vector_agg_metric_double_if_version, date_range_field_type_v2, histogram_release_version]
       reason: "fetches dense_vector, histogram field support, date_range field type"
 
   - do:
@@ -225,7 +225,7 @@ unsupported:
   - match: { values.0.1: null }
   - match: { values.0.2: null }
   - match: { values.0.3: "2015-01-01T12:10:30.123456789Z" }
-  - match: { values.0.4: "2015-10-31T12:00:00.000Z..2050-12-31T12:00:00.999Z" }
+  - match: { values.0.4: "2015-10-31T12:00:00.000Z..2050-12-31T12:00:01.000Z" }
   - match: { values.0.5.0: 0.5 }
   - match: { values.0.5.1: 10.0 }
   - match: { values.0.5.2: 6.0 }
@@ -344,7 +344,7 @@ unsupported with sort:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ dense_vector_agg_metric_double_if_version, date_range_field_type, histogram_release_version]
+          capabilities: [ dense_vector_agg_metric_double_if_version, date_range_field_type_v2, histogram_release_version]
       reason: "support for sorting when dense_vector_field_type present, histogram field support, date_range field type"
 
   - do:
@@ -419,7 +419,7 @@ unsupported with sort:
   - match: { values.0.1: null }
   - match: { values.0.2: null }
   - match: { values.0.3: "2015-01-01T12:10:30.123456789Z" }
-  - match: { values.0.4: "2015-10-31T12:00:00.000Z..2050-12-31T12:00:00.999Z" }
+  - match: { values.0.4: "2015-10-31T12:00:00.000Z..2050-12-31T12:00:01.000Z" }
   - match: { values.0.5.0: 0.5 }
   - match: { values.0.5.1: 10.0 }
   - match: { values.0.5.2: 6.0 }

@@ -25,7 +25,7 @@ final class OsProbeMock extends OsProbe {
     private int availableCgroupsVersion = 0;
     private List<String> procSelfCgroupLines = List.of();
     private List<String> procMeminfoLines = List.of();
-    private String cgroupCpuMax = "50000 100000";
+    private List<String> cgroupCpuMax = List.of("50000 100000");
 
     /**
      * Creates a new instance of a mock {@link OsProbe}.
@@ -77,7 +77,7 @@ final class OsProbeMock extends OsProbe {
      *                    the {@link #OsProbeMock(String)} constructor.
      * @return {@code this}.
      */
-    OsProbeMock setCgroupCpuMax(String cgroupCpuMax) {
+    OsProbeMock setCgroupCpuMax(List<String> cgroupCpuMax) {
         this.cgroupCpuMax = cgroupCpuMax;
         return this;
     }
@@ -166,7 +166,7 @@ final class OsProbeMock extends OsProbe {
     }
 
     @Override
-    String readCgroupV2CpuLimit(String controlGroup) {
+    List<String> readCgroupV2CpuLimit(String controlGroup) {
         assertThat(controlGroup, equalTo("/" + hierarchy));
         return cgroupCpuMax;
     }

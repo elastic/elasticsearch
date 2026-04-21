@@ -328,11 +328,22 @@ public class OsProbe {
      * @param path path to the file to read
      * @return the single line
      * @throws IOException if an I/O exception occurs reading the file
+     * @throws IllegalStateException if the file contains zero or more than one lines
      */
-    private static String readSingleLine(final Path path) throws IOException {
+    // visible for tests
+    static String readSingleLine(final Path path) throws IOException {
         final List<String> lines = Files.readAllLines(path);
-        assert lines.size() == 1 : String.join("\n", lines);
-        return lines.get(0);
+        return switch (lines.size()) {
+            case 1 -> lines.getFirst();
+            case 0 -> throw new IllegalStateException("File %s is empty, exactly one line was expected".formatted(path));
+            default -> throw new IllegalStateException(
+                "File %s is invalid, it contains more than one line and one was expected".formatted(path)
+            );
+        };
+    }
+
+    private static Optional<String> maybeSingleLine(final List<String> lines) {
+        return lines.size() == 1 ? Optional.of(lines.getFirst()) : Optional.empty();
     }
 
     // this property is to support a hack to workaround an issue with Docker containers mounting the cgroups hierarchy inconsistently with
@@ -424,22 +435,20 @@ public class OsProbe {
 
     @Nullable
     private long[] getCgroupV2CpuLimit(String controlGroup) throws IOException {
-        String entry = readCgroupV2CpuLimit(controlGroup);
-        String[] parts = entry.split("\\s+");
-        if (parts.length != 2) {
-            return null;
-        }
-
-        long[] values = new long[2];
-
-        values[0] = "max".equals(parts[0]) ? -1L : Long.parseLong(parts[0]);
-        values[1] = Long.parseLong(parts[1]);
-        return values;
+        return maybeSingleLine(readCgroupV2CpuLimit(controlGroup)).flatMap(entry -> {
+            String[] parts = entry.split("\\s+");
+            return parts.length != 2 ? Optional.empty() : Optional.of(parts);
+        }).map(parts -> {
+            long[] values = new long[2];
+            values[0] = "max".equals(parts[0]) ? -1L : Long.parseLong(parts[0]);
+            values[1] = Long.parseLong(parts[1]);
+            return values;
+        }).orElse(null);
     }
 
     @SuppressForbidden(reason = "access /sys/fs/cgroup/cpu.max")
-    String readCgroupV2CpuLimit(String controlGroup) throws IOException {
-        return readSingleLine(PathUtils.get("/sys/fs/cgroup/", controlGroup, "cpu.max"));
+    List<String> readCgroupV2CpuLimit(String controlGroup) throws IOException {
+        return Files.readAllLines(PathUtils.get("/sys/fs/cgroup/", controlGroup, "cpu.max"));
     }
 
     /**

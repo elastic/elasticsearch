@@ -13,9 +13,12 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Rule;
+import org.junit.rules.TemporaryFolder;
 
 import java.io.IOException;
 import java.math.BigInteger;
+import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -31,6 +34,9 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class OsProbeTests extends ESTestCase {
+
+    @Rule
+    public TemporaryFolder tempDir = new TemporaryFolder();
 
     public void testOsInfo() throws IOException {
         final int allocatedProcessors = randomIntBetween(1, Runtime.getRuntime().availableProcessors());
@@ -225,7 +231,22 @@ public class OsProbeTests extends ESTestCase {
 
         final var probe = new OsProbeMock(hierarchy).setAvailableCgroupsVersion(cgroupsVersion)
             .setProcSelfCgroupLines(getProcSelfGroupLines(cgroupsVersion, hierarchy))
-            .setCgroupCpuMax("");
+            .setCgroupCpuMax(List.of());
+
+        final var cgroup = probe.osStats().getCgroup();
+
+        assertNotNull(cgroup);
+        assertNull(cgroup.getCpuCfsPeriodMicros());
+        assertNull(cgroup.getCpuCfsQuotaMicros());
+    }
+
+    public void testCgroupProbeWithInvalidCpuMax() {
+        final int cgroupsVersion = 2;
+        final var hierarchy = randomAlphaOfLength(16);
+
+        final var probe = new OsProbeMock(hierarchy).setAvailableCgroupsVersion(cgroupsVersion)
+            .setProcSelfCgroupLines(getProcSelfGroupLines(cgroupsVersion, hierarchy))
+            .setCgroupCpuMax(List.of("42"));
 
         final var cgroup = probe.osStats().getCgroup();
 
@@ -374,6 +395,32 @@ public class OsProbeTests extends ESTestCase {
         final OsProbe osProbe = new OsProbe();
         assumeTrue("runs only on Debian 8", osProbe.isDebian8());
         assertThat(osProbe.getTotalPhysicalMemorySize(), greaterThan(0L));
+    }
+
+    public void testReadSingleLine() throws Exception {
+        var file = tempDir.newFile("single-line.txt").toPath();
+        Files.writeString(file, "test");
+
+        var line = OsProbe.readSingleLine(file);
+
+        assertEquals("test", line);
+    }
+
+    public void testReadSingleLineEmptyFile() throws Exception {
+        var file = tempDir.newFile("single-line.txt").toPath();
+
+        assertThrows(IllegalStateException.class, () -> OsProbe.readSingleLine(file));
+    }
+
+    public void testReadSingleLineFileWithMultipleLines() throws Exception {
+        var file = tempDir.newFile("single-line.txt").toPath();
+        Files.writeString(file, """
+            first
+            second
+            third
+            """);
+
+        assertThrows(IllegalStateException.class, () -> OsProbe.readSingleLine(file));
     }
 
     private static List<String> getProcSelfGroupLines(int cgroupsVersion, String hierarchy) {

@@ -1,0 +1,6 @@
+area: "ES|QL"
+issues:
+ - 142554
+pr: 144720
+summary: Avoid throwing `TooComplexToDeterminizeException` on `SourceFilter` - use `IllegalArgumentException` instead
+type: bug

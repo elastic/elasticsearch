@@ -575,7 +575,7 @@ POST my-index/_search
           {
             "type": "image",
             "format": "base64", <2>
-            "value": "iVBORw0KGgoAAAANSUhEUgAAAAUA\nAAAAFCAIAAAACDbGyAAAAHElEQVQI12P4\n//8/w38GIAXDIBKE0DHxgljNBAAO\n9TXL0Y4OHwAAAABJRU5ErkJggg==" <3>
+            "value": "data:image/jpeg;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA\nAAAAFCAIAAAACDbGyAAAAHElEQVQI12P4\n//8/w38GIAXDIBKE0DHxgljNBAAO\n9TXL0Y4OHwAAAABJRU5ErkJggg==" <3>
           }
         ]
       }

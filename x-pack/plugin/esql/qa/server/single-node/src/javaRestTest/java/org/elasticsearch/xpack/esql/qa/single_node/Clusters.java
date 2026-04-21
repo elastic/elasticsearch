@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.qa.single_node;
 
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
@@ -39,7 +40,7 @@ public class Clusters {
     }
 
     public static ElasticsearchCluster testCluster(Path csvDataPath, LocalClusterConfigProvider configProvider) {
-        boolean securityEnabled = Boolean.parseBoolean(System.getProperty(SECURITY_ENABLED_PROPERTY, "false"));
+        boolean securityEnabled = Booleans.parseBoolean(System.getProperty(SECURITY_ENABLED_PROPERTY, "false"));
         var builder = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
             .setting("xpack.security.enabled", Boolean.toString(securityEnabled))

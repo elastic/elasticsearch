@@ -257,8 +257,8 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         // is enabled. Even when it is enabled, the shard snapshot is still aborted when:
         // (1) The node is closing without going through proper shutdown waits. Any still running shard snapshots should abort.
         // (2) The index is deleted and the snapshotting node and primary node are the same one.
-        // (3) This node disconnects, master reassigns the shard to a different node, and this node re-joins. In this case, the master
-        // already fails the shard snapshot. This node should abort the shard snapshot locally.
+        // (3) This node disconnects, master unassigns or reassigns the shard to a different node, and this node re-joins.
+        // In this case, the master already fails the shard snapshot. This node should abort the shard snapshot locally.
         if (snapshotShardContextFactory.supportsRelocationDuringSnapshot()
             && indicesService.lifecycleState() == Lifecycle.State.STARTED
             && indexShard != null

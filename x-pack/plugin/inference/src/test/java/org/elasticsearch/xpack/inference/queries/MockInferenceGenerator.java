@@ -56,20 +56,15 @@ public class MockInferenceGenerator {
         MinimalServiceSettings inferenceEndpointSettings = inferenceEndpoints.get(inferenceId);
 
         InferenceServiceResults inferenceServiceResults;
-        InferenceResults results = generate(inferenceId, input);
-        if (inferenceEndpointSettings == null) {
-            throw new IllegalArgumentException("Inference endpoint [" + inferenceId + "] does not exist");
-        } else if (inferenceEndpointSettings.taskType() == TaskType.SPARSE_EMBEDDING) {
-            inferenceServiceResults = SparseEmbeddingResults.of(List.of(results));
-        } else if (inferenceEndpointSettings.taskType() == TaskType.TEXT_EMBEDDING) {
-            inferenceServiceResults = DenseEmbeddingFloatResults.of(List.of(results));
-        } else if (inferenceEndpointSettings.taskType() == TaskType.EMBEDDING) {
-            inferenceServiceResults = GenericDenseEmbeddingFloatResults.of(List.of(results));
-        } else {
-            throw new IllegalArgumentException(
+        final List<InferenceResults> results = List.of(generate(inferenceId, input));
+        inferenceServiceResults = switch (inferenceEndpointSettings.taskType()) {
+            case SPARSE_EMBEDDING -> SparseEmbeddingResults.of(results);
+            case TEXT_EMBEDDING -> DenseEmbeddingFloatResults.of(results);
+            case EMBEDDING -> GenericDenseEmbeddingFloatResults.of(results);
+            case null, default -> throw new IllegalArgumentException(
                 "Invalid task type [" + inferenceEndpointSettings.taskType() + "] for inference endpoint [" + inferenceId + "]"
             );
-        }
+        };
 
         return inferenceServiceResults;
     }

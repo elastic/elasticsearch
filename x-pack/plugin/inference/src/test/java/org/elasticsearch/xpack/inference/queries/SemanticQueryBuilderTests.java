@@ -322,6 +322,8 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
             assertThat(request.getInferenceEntityId(), equalTo(useSearchInferenceId ? SEARCH_INFERENCE_ID : INFERENCE_ID));
 
             TaskType taskType = switch (inferenceResultType) {
+                // NONE means that the semantic_text field doesn't have model settings yet - we just generate results and let the query
+                // rewrite to MatchNoDocs as there are no model settings
                 case NONE -> randomBoolean() ? TaskType.SPARSE_EMBEDDING : TaskType.TEXT_EMBEDDING;
                 case SPARSE_EMBEDDING -> TaskType.SPARSE_EMBEDDING;
                 case TEXT_EMBEDDING -> TaskType.TEXT_EMBEDDING;

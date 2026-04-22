@@ -35,6 +35,7 @@ The settings are grouped by feature or purpose, for example:
 - [Index management](/reference/elasticsearch/configuration-reference/index-management-settings.md)
 - [Index recovery](/reference/elasticsearch/configuration-reference/index-recovery-settings.md)
 - [Index buffer](/reference/elasticsearch/configuration-reference/indexing-buffer-settings.md)
+- [Indexing pressure](/reference/elasticsearch/configuration-reference/indexing-pressure-settings.md)
 - [Inference](/reference/elasticsearch/configuration-reference/inference-settings.md)
 - [License](/reference/elasticsearch/configuration-reference/license-settings.md)
 - [Local gateway](/reference/elasticsearch/configuration-reference/local-gateway.md)

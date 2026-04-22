@@ -323,9 +323,8 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
                 int call = searchCallCount.getAndIncrement();
                 SearchHit[] hits = call == 0 ? firstPageHits : new SearchHit[0];
                 long total = call == 0 ? totalHits : 0L;
-                SearchHits searchHits = new SearchHits(hits, new TotalHits(total, TotalHits.Relation.EQUAL_TO), Float.NaN);
+                SearchHits searchHits = SearchHits.unpooled(hits, new TotalHits(total, TotalHits.Relation.EQUAL_TO), Float.NaN);
                 SearchResponse response = SearchResponseUtils.response(searchHits).pointInTimeId(FAKE_PIT_ID).build();
-                searchHits.decRef();
                 ActionListener.respondAndRelease((ActionListener<SearchResponse>) listener, response);
             } else if (request instanceof ClosePointInTimeRequest) {
                 ((ActionListener<ClosePointInTimeResponse>) listener).onResponse(new ClosePointInTimeResponse(true, 1));

@@ -305,13 +305,6 @@ public class BundleChangelogsTask extends DefaultTask {
     private static final Set<String> KNOWN_REMOTE_PREFIXES = Set.of("upstream/", "origin/");
 
     /**
-     * Normalizes a branch reference for use with external repos. Strips known
-     * remote prefixes ({@code upstream/}, {@code origin/}) which are ES-repo-specific,
-     * and rejects raw commit SHAs since they are meaningless for external repositories.
-     * All other refs (including branch names with slashes like {@code feature/foo})
-     * are passed through unchanged.
-     */
-    /**
      * Orders bundled changelog entries by PR number, then by {@code source_repo} so entries from
      * different repositories that share a PR number sort deterministically.
      */
@@ -326,6 +319,13 @@ public class BundleChangelogsTask extends DefaultTask {
         return ref.matches("(?i)^[0-9a-f]{7,40}$");
     }
 
+    /**
+     * Normalizes a branch reference for use with external repos. Strips known
+     * remote prefixes ({@code upstream/}, {@code origin/}) which are ES-repo-specific,
+     * and rejects raw commit SHAs since they are meaningless for external repositories.
+     * All other refs (including branch names with slashes like {@code feature/foo})
+     * are passed through unchanged.
+     */
     static String normalizeBranchForExternalFetch(String branchRef) {
         if (isShaRef(branchRef)) {
             throw new IllegalArgumentException(

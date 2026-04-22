@@ -36,7 +36,7 @@ import java.util.function.Function;
  * pipes the serialized ServerArgs bytes to the server's stdin, pumps stderr for the ready marker,
  * and waits for the server to exit.
  *
- * <p> This program depends only on the shared launcher-common and cli-terminal libraries.
+ * <p> This program has zero Elasticsearch dependencies beyond the shared launcher-common and cli-terminal libraries.
  *
  * <p> Subclasses (e.g. {@code ServerlessServerLauncher}) can override lifecycle hooks to customize
  * behavior without duplicating shared logic.

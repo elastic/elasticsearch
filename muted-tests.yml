@@ -351,9 +351,6 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.RcsCcsSearchYamlTestSuiteIT
   method: test {p0=search.vectors/41_knn_search_half_byte_quantized/Test create, merge, and search cosine}
   issue: https://github.com/elastic/elasticsearch/issues/146781
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
-  method: testPromqlQueryWithConflictingTsTypesMarksFieldUnsupported
-  issue: https://github.com/elastic/elasticsearch/issues/147088
 
 # Examples:
 #

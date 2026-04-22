@@ -20,7 +20,14 @@ public class KibanaPluginTests extends ESTestCase {
     public void testKibanaIndexNames() {
         assertThat(
             new KibanaPlugin().getSystemIndexDescriptors(Settings.EMPTY).stream().map(SystemIndexDescriptor::getIndexPattern).toList(),
-            contains(".kibana_*", ".reporting-*", ".chat-*", ".workflows-*", ".apm-agent-configuration*", ".apm-custom-link*")
+            contains(
+                ".kibana_*",
+                ".reporting-*",
+                ".chat-*",
+                KibanaPlugin.WORKFLOWS_SYSTEM_INDEX_PATTERN,
+                ".apm-agent-configuration*",
+                ".apm-custom-link*"
+            )
         );
     }
 }

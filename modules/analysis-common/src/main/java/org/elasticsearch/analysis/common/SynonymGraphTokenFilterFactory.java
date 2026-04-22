@@ -25,6 +25,7 @@ import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 
 public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
@@ -93,7 +94,13 @@ public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
 
             @Override
             public String getResourceName() {
-                return rulesReader.resource();
+                List<String> names = rulesReader.resources();
+                return names.size() == 1 ? names.get(0) : null;
+            }
+
+            @Override
+            public Set<String> getResourceNames() {
+                return Set.copyOf(rulesReader.resources());
             }
         };
     }

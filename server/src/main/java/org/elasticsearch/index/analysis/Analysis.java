@@ -368,13 +368,62 @@ public class Analysis {
         SynonymsManagementAPIService synonymsManagementAPIService,
         boolean ignoreMissing
     ) {
-        final PlainActionFuture<PagedResult<SynonymRule>> synonymsLoadingFuture = new PlainActionFuture<>();
-        synonymsManagementAPIService.getSynonymSetRules(synonymsSet, synonymsLoadingFuture);
+        return getReaderFromIndex(List.of(synonymsSet), synonymsManagementAPIService, ignoreMissing);
+    }
 
-        PagedResult<SynonymRule> results;
+    public static Reader getReaderFromIndex(
+        List<String> synonymsSets,
+        SynonymsManagementAPIService synonymsManagementAPIService,
+        boolean ignoreMissing
+    ) {
+        List<PlainActionFuture<PagedResult<SynonymRule>>> futures = new ArrayList<>(synonymsSets.size());
+        for (String synonymsSet : synonymsSets) {
+            PlainActionFuture<PagedResult<SynonymRule>> future = new PlainActionFuture<>();
+            synonymsManagementAPIService.getSynonymSetRules(synonymsSet, future);
+            futures.add(future);
+        }
 
+        List<PagedResult<SynonymRule>> results = new ArrayList<>(synonymsSets.size());
+        for (int i = 0; i < futures.size(); i++) {
+            results.add(fetchSynonymRules(synonymsSets.get(i), futures.get(i), ignoreMissing));
+        }
+
+        int maxRules = synonymsManagementAPIService.getMaxSynonymRules();
+        int totalRules = 0;
+        for (PagedResult<SynonymRule> result : results) {
+            totalRules += result.pageResults().length;
+        }
+        if (totalRules > maxRules) {
+            logger.warn(
+                "The total number of synonym rules across synonym sets [{}] is [{}], which exceeds the maximum allowed [{}]."
+                    + " Inconsistent synonym results may occur",
+                String.join(", ", synonymsSets),
+                totalRules,
+                maxRules
+            );
+        }
+
+        StringBuilder sb = new StringBuilder();
+        int appended = 0;
+        outer: for (PagedResult<SynonymRule> result : results) {
+            for (SynonymRule synonymRule : result.pageResults()) {
+                if (appended >= maxRules) {
+                    break outer;
+                }
+                sb.append(synonymRule.synonyms()).append(System.lineSeparator());
+                appended++;
+            }
+        }
+        return new StringReader(sb.toString());
+    }
+
+    private static PagedResult<SynonymRule> fetchSynonymRules(
+        String synonymsSet,
+        PlainActionFuture<PagedResult<SynonymRule>> future,
+        boolean ignoreMissing
+    ) {
         try {
-            results = synonymsLoadingFuture.actionGet();
+            return future.actionGet();
         } catch (Exception e) {
             if (ignoreMissing == false) {
                 throw e;
@@ -394,15 +443,8 @@ public class Analysis {
                 logger.error(message, e);
             }
 
-            results = new PagedResult<>(0, new SynonymRule[0]);
+            return new PagedResult<>(0, new SynonymRule[0]);
         }
-
-        SynonymRule[] synonymRules = results.pageResults();
-        StringBuilder sb = new StringBuilder();
-        for (SynonymRule synonymRule : synonymRules) {
-            sb.append(synonymRule.synonyms()).append(System.lineSeparator());
-        }
-        return new StringReader(sb.toString());
     }
 
     private static boolean isNotEntitled(IOException ioe) {

@@ -36,12 +36,15 @@ import java.io.Reader;
 import java.io.StringReader;
 import java.io.UncheckedIOException;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 
 public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
     private static final Logger LOGGER = LogManager.getLogger(SynonymTokenFilterFactory.class);
 
     private static final SynonymMap EMPTY_SYNONYM_MAP = buildEmptySynonymMap();
+
+    static final int MAX_SYNONYM_SETS_PER_FILTER = 100;
 
     protected enum SynonymsSource {
         INLINE("synonyms") {
@@ -69,24 +72,42 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
                             + "]! Loading synonyms from index is supported only for search time synonyms!"
                     );
                 }
-                String synonymsSet = factory.settings.get(SynonymsSource.INDEX.getSettingName(), null);
+                List<String> synonymsSets = factory.settings.getAsList(SynonymsSource.INDEX.getSettingName());
+                if (synonymsSets.size() > 1 && factory.multipleSynonymSetsSupported == false) {
+                    throw new IllegalArgumentException(
+                        "Multiple synonym sets in ["
+                            + SynonymsSource.INDEX.getSettingName()
+                            + "] are not supported for indices created before version ["
+                            + IndexVersions.MULTIPLE_SYNONYM_SETS_PER_FILTER.toReleaseVersion()
+                            + "]"
+                    );
+                }
+                if (synonymsSets.size() > MAX_SYNONYM_SETS_PER_FILTER) {
+                    throw new IllegalArgumentException(
+                        "At most "
+                            + MAX_SYNONYM_SETS_PER_FILTER
+                            + " synonym sets may be specified in ["
+                            + SynonymsSource.INDEX.getSettingName()
+                            + "]"
+                    );
+                }
                 // provide empty synonyms on index creation and index metadata checks to ensure that we
                 // don't block a master thread
+                String setsDescription = String.join(", ", synonymsSets);
                 ReaderWithOrigin reader;
                 if (context != IndexCreationContext.RELOAD_ANALYZERS) {
                     reader = new ReaderWithOrigin(
                         new StringReader(""),
-                        "fake empty [" + synonymsSet + "] synonyms_set in .synonyms index",
-                        synonymsSet
+                        "fake empty [" + setsDescription + "] synonyms_set in .synonyms index",
+                        synonymsSets
                     );
                 } else {
                     reader = new ReaderWithOrigin(
-                        Analysis.getReaderFromIndex(synonymsSet, factory.synonymsManagementAPIService, factory.lenient),
-                        "[" + synonymsSet + "] synonyms_set in .synonyms index",
-                        synonymsSet
+                        Analysis.getReaderFromIndex(synonymsSets, factory.synonymsManagementAPIService, factory.lenient),
+                        "[" + setsDescription + "] synonyms_sets in .synonyms index",
+                        synonymsSets
                     );
                 }
-
                 return reader;
             }
         },
@@ -147,6 +168,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
     private final SynonymsManagementAPIService synonymsManagementAPIService;
     protected final SynonymsSource synonymsSource;
     protected final CircuitBreaker circuitBreaker;
+    private final boolean multipleSynonymSetsSupported;
 
     SynonymTokenFilterFactory(
         IndexSettings indexSettings,
@@ -171,6 +193,8 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         this.environment = env;
         this.synonymsManagementAPIService = synonymsManagementAPIService;
         this.circuitBreaker = circuitBreaker;
+        this.multipleSynonymSetsSupported = indexSettings.getIndexVersionCreated()
+            .onOrAfter(IndexVersions.MULTIPLE_SYNONYM_SETS_PER_FILTER);
     }
 
     @Override
@@ -221,7 +245,13 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
             @Override
             public String getResourceName() {
-                return rulesReader.resource();
+                List<String> names = rulesReader.resources();
+                return names.size() == 1 ? names.get(0) : null;
+            }
+
+            @Override
+            public Set<String> getResourceNames() {
+                return Set.copyOf(rulesReader.resources());
             }
         };
     }
@@ -260,9 +290,9 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         }
     }
 
-    record ReaderWithOrigin(Reader reader, String origin, String resource) {
+    record ReaderWithOrigin(Reader reader, String origin, List<String> resources) {
         ReaderWithOrigin(Reader reader, String origin) {
-            this(reader, origin, null);
+            this(reader, origin, List.of());
         }
     }
 

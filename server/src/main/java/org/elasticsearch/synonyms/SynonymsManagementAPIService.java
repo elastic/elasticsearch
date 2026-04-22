@@ -172,6 +172,10 @@ public class SynonymsManagementAPIService {
         this.bulkChunkSize = bulkChunkSize;
     }
 
+    public int getMaxSynonymRules() {
+        return maxSynonymRules;
+    }
+
     /* The synonym index stores two object types:
     - Synonym rules:
         - SYNONYM_RULE_ID_FIELD contains the synonym rule ID

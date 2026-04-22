@@ -573,6 +573,64 @@ public class SynonymsAnalysisTests extends ESTestCase {
         }
     }
 
+    public void testMultipleSynonymSetsRejectedOnOldIndexVersion() {
+        IndexVersion oldVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.MULTIPLE_SYNONYM_SETS_PER_FILTER);
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, oldVersion)
+            .put("path.home", createTempDir().toString())
+            .put("index.analysis.filter.my_synonyms.type", "synonym_graph")
+            .putList("index.analysis.filter.my_synonyms.synonyms_set", "set-a", "set-b")
+            .put("index.analysis.filter.my_synonyms.updateable", "true")
+            .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")
+            .putList("index.analysis.analyzer.my_analyzer.filter", "lowercase", "my_synonyms")
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> createTestAnalysis(idxSettings, settings, commonAnalysisPlugin)
+        );
+        assertThat(e.getMessage(), containsString("Multiple synonym sets in [synonyms_set] are not supported for indices created before"));
+    }
+
+    public void testSingleSynonymSetAllowedOnOldIndexVersion() throws IOException {
+        IndexVersion oldVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.MULTIPLE_SYNONYM_SETS_PER_FILTER);
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, oldVersion)
+            .put("path.home", createTempDir().toString())
+            .put("index.analysis.filter.my_synonyms.type", "synonym_graph")
+            .put("index.analysis.filter.my_synonyms.synonyms_set", "set-a")
+            .put("index.analysis.filter.my_synonyms.updateable", "true")
+            .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")
+            .putList("index.analysis.analyzer.my_analyzer.filter", "lowercase", "my_synonyms")
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        // Should not throw - single set is always allowed
+        indexAnalyzers = createTestAnalysis(idxSettings, settings, commonAnalysisPlugin).indexAnalyzers;
+        assertNotNull(indexAnalyzers.get("my_analyzer"));
+    }
+
+    public void testTooManySynonymSetsRejected() {
+        Settings.Builder settingsBuilder = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put("path.home", createTempDir().toString())
+            .put("index.analysis.filter.my_synonyms.type", "synonym_graph")
+            .put("index.analysis.filter.my_synonyms.updateable", "true")
+            .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")
+            .putList("index.analysis.analyzer.my_analyzer.filter", "lowercase", "my_synonyms");
+        List<String> manySets = new ArrayList<>();
+        for (int i = 0; i <= SynonymTokenFilterFactory.MAX_SYNONYM_SETS_PER_FILTER; i++) {
+            manySets.add("set-" + i);
+        }
+        settingsBuilder.putList("index.analysis.filter.my_synonyms.synonyms_set", manySets);
+        Settings settings = settingsBuilder.build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> createTestAnalysis(idxSettings, settings, commonAnalysisPlugin)
+        );
+        assertThat(e.getMessage(), containsString("At most " + SynonymTokenFilterFactory.MAX_SYNONYM_SETS_PER_FILTER));
+    }
+
     private void match(String analyzerName, String source, String target) throws IOException {
         Analyzer analyzer = indexAnalyzers.get(analyzerName).analyzer();
 

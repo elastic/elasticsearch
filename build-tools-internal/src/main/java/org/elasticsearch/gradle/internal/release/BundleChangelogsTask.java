@@ -52,6 +52,12 @@ public class BundleChangelogsTask extends DefaultTask {
     private static final Logger LOGGER = Logging.getLogger(BundleChangelogsTask.class);
 
     /**
+     * When a build-candidate ref is used, external repos are fetched with enough history for
+     * {@code git log FETCH_HEAD --grep} to see PR merges; shallow depth 1 is not enough for that.
+     */
+    private static final int EXTERNAL_FETCH_DEPTH_WITH_BC = 2048;
+
+    /**
      * Configuration for an external repository whose changelog entries should be
      * merged into the Elasticsearch release notes bundle.
      *
@@ -199,7 +205,11 @@ public class BundleChangelogsTask extends DefaultTask {
 
             // Fetch changelog entries from external repositories
             for (ExternalChangelogSource source : externalSources) {
-                List<ChangelogEntry> externalEntries = fetchExternalChangelogs(source, branch);
+                List<ChangelogEntry> externalEntries = fetchExternalChangelogs(
+                    source,
+                    branch,
+                    usingBcRef ? bcRef : null
+                );
                 if (externalEntries.isEmpty() == false) {
                     LOGGER.info("Adding {} entries from {}", externalEntries.size(), source.sourceRepo());
                     entries.addAll(externalEntries);
@@ -255,8 +265,18 @@ public class BundleChangelogsTask extends DefaultTask {
      * Fetches directly from the repo URL into FETCH_HEAD (no persistent remote),
      * reads each YAML file via {@code git show}, and sets {@code sourceRepo} on
      * the parsed entries.
+     * <p>
+     * When {@code bcRefForFilter} is non-null (Elasticsearch {@code --bc-ref} is in use),
+     * entries are filtered like local post-BC YAML files: an entry is kept only if
+     * {@code git log} on {@code bcRefForFilter} in this repository finds the PR, or
+     * {@code git log} on the fetched external commit finds it (so ml-cpp-only PRs can
+     * still match when they never appear in the ES commit subject lines).
      */
-    private List<ChangelogEntry> fetchExternalChangelogs(ExternalChangelogSource source, String branchRef) {
+    private List<ChangelogEntry> fetchExternalChangelogs(
+        ExternalChangelogSource source,
+        String branchRef,
+        @Nullable String bcRefForFilter
+    ) {
         if (isShaRef(branchRef)) {
             LOGGER.info("Skipping external changelog fetch from {} for SHA ref {}", source.sourceRepo(), branchRef);
             return List.of();
@@ -264,11 +284,23 @@ public class BundleChangelogsTask extends DefaultTask {
         String normalizedBranch = normalizeBranchForExternalFetch(branchRef);
 
         try {
-            gitWrapper.runCommand("git", "fetch", "--depth=1", source.repoUrl(), normalizedBranch);
+            if (bcRefForFilter != null && bcRefForFilter.isBlank() == false) {
+                gitWrapper.runCommand(
+                    "git",
+                    "fetch",
+                    "--depth=" + EXTERNAL_FETCH_DEPTH_WITH_BC,
+                    source.repoUrl(),
+                    normalizedBranch
+                );
+            } else {
+                gitWrapper.runCommand("git", "fetch", "--depth=1", source.repoUrl(), normalizedBranch);
+            }
         } catch (Exception e) {
             LOGGER.warn("Failed to fetch branch {} from {}: {}", normalizedBranch, source.sourceRepo(), e.getMessage());
             return List.of();
         }
+
+        String externalHead = gitWrapper.runCommand("git", "rev-parse", "FETCH_HEAD").trim();
 
         String treePath = source.changelogPath();
 
@@ -299,7 +331,44 @@ public class BundleChangelogsTask extends DefaultTask {
             }
         }
 
+        if (bcRefForFilter != null && bcRefForFilter.isBlank() == false) {
+            int before = entries.size();
+            entries = entries.stream()
+                .filter(e -> includeExternalChangelogForBuildCandidate(e, bcRefForFilter, externalHead))
+                .collect(Collectors.toCollection(ArrayList::new));
+            if (before != entries.size()) {
+                LOGGER.info(
+                    "Filtered {} external changelog(s) from {} for BC ref {} ({} remaining)",
+                    before - entries.size(),
+                    source.sourceRepo(),
+                    bcRefForFilter,
+                    entries.size()
+                );
+            }
+        }
+
         return entries;
+    }
+
+    /**
+     * Mirrors {@code git log bcRef --grep "(#pr)"} used for local changelog YAML files that
+     * were added after the BC: keep the entry if the PR shows up in ES history at the BC ref,
+     * or in the fetched external repository history (tip {@code externalCommit}).
+     */
+    private boolean includeExternalChangelogForBuildCandidate(ChangelogEntry entry, String bcRef, String externalCommit) {
+        Integer pr = entry.getPr();
+        if (pr == null) {
+            return true;
+        }
+        String grep = "(#" + pr + ")";
+        if (gitLogHasGrep(bcRef, grep)) {
+            return true;
+        }
+        return gitLogHasGrep(externalCommit, grep);
+    }
+
+    private boolean gitLogHasGrep(String ref, String grep) {
+        return gitWrapper.runCommand("git", "log", ref, "--grep", grep).trim().isEmpty() == false;
     }
 
     private static final Set<String> KNOWN_REMOTE_PREFIXES = Set.of("upstream/", "origin/");

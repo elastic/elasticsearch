@@ -17,6 +17,10 @@ import org.elasticsearch.compute.data.DoubleBlock;
 /**
  * Converts Arrow FLOAT4 vectors to ESQL DoubleBlocks by copying and widening each float value.
  * Handles both flat vectors and {@link ListVector} (multi-valued) inputs.
+ *
+ * See {@link ArrowListSupport} for the Arrow list -> ESQL multi-value mapping rules
+ * (null lists, empty lists, and null children are all collapsed to an ESQL null
+ * position; mixed lists drop their null elements).
  */
 public final class FloatToDoubleArrowBlock {
 
@@ -46,18 +50,28 @@ public final class FloatToDoubleArrowBlock {
             for (int i = 0; i < rowCount; i++) {
                 if (listVector.isNull(i)) {
                     builder.appendNull();
+                    continue;
+                }
+                int start = listVector.getElementStartIndex(i);
+                int end = listVector.getElementEndIndex(i);
+                int nonNullCount = ArrowListSupport.countNonNull(child, start, end);
+                if (nonNullCount == 0) {
+                    builder.appendNull();
+                } else if (nonNullCount == 1) {
+                    for (int j = start; j < end; j++) {
+                        if (child.isNull(j) == false) {
+                            builder.appendDouble(((Number) child.getObject(j)).doubleValue());
+                            break;
+                        }
+                    }
                 } else {
-                    int start = listVector.getElementStartIndex(i);
-                    int end = listVector.getElementEndIndex(i);
-                    if (start == end) {
-                        builder.appendNull();
-                    } else {
-                        builder.beginPositionEntry();
-                        for (int j = start; j < end; j++) {
+                    builder.beginPositionEntry();
+                    for (int j = start; j < end; j++) {
+                        if (child.isNull(j) == false) {
                             builder.appendDouble(((Number) child.getObject(j)).doubleValue());
                         }
-                        builder.endPositionEntry();
                     }
+                    builder.endPositionEntry();
                 }
             }
             return builder.build();

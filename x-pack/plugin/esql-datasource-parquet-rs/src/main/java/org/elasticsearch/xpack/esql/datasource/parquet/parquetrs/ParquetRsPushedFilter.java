@@ -7,24 +7,37 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet.parquetrs;
 
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+
+import java.util.List;
+import java.util.Objects;
+
 /**
- * Opaque wrapper around a native parquet-rs {@code FilterExpr} handle representing a pushed filter.
+ * Plain Java description of the filters that {@link ParquetRsFilterPushdownSupport} accepted
+ * for pushdown. The native {@code FilterExpr} tree is built lazily inside
+ * {@link ParquetRsFormatReader#read} and freed in the same call, so this record never
+ * carries a JNI handle.
  * <p>
- * The handle is a pointer to a heap-allocated {@code Box<FilterExpr>} on the Rust side.
- * The native side clones the FilterExpr on each {@link ParquetRsBridge#openReader} call so
- * the handle remains valid across multiple files. The caller must free the handle via
- * {@link ParquetRsBridge#freeExpr} when the reader is closed.
+ * Two consequences of carrying Expressions instead of a native handle:
+ * <ul>
+ *   <li>No native memory escapes a single {@code read()} call, so there is no per-query or
+ *       per-file leak even if the {@link ParquetRsFormatReader} is never closed.</li>
+ *   <li>Equality is structural and {@link Object#hashCode()} is meaningful, which matches
+ *       {@code ExternalSourceExec.equals} expectations.</li>
+ * </ul>
  */
-record ParquetRsPushedFilter(long exprHandle) {
-    private static String describe(long handle) {
-        if (handle == 0) {
-            return "none";
-        }
-        return ParquetRsBridge.describeExpr(handle);
+record ParquetRsPushedFilter(List<Expression> pushedExpressions) {
+
+    ParquetRsPushedFilter {
+        Objects.requireNonNull(pushedExpressions, "pushedExpressions");
+        pushedExpressions = List.copyOf(pushedExpressions);
     }
 
     @Override
     public String toString() {
-        return describe(exprHandle);
+        if (pushedExpressions.isEmpty()) {
+            return "none";
+        }
+        return pushedExpressions.toString();
     }
 }

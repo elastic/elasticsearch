@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.parquet.parquetrs;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -73,13 +74,12 @@ public class ParquetRsFilterPushdownSupport implements FilterPushdownSupport {
             return PushdownResult.none(filters);
         }
 
-        long filterHandle = translateExpressions(pushed);
-        if (filterHandle == 0) {
-            return PushdownResult.none(filters);
-        }
-
-        logger.debug("parquet-rs filter pushdown: translated {} of {} expressions", pushed.size(), filters.size());
-        return new PushdownResult(new ParquetRsPushedFilter(filterHandle), pushed, remainder);
+        // Translation to native FilterExpr is deferred to ParquetRsFormatReader.read(): the handle
+        // is allocated and freed inside that single call. Doing it here would create a native handle
+        // that has no defined owner across the optimizer / per-query / per-file lifecycle and would
+        // leak on every query. See ParquetRsPushedFilter for details.
+        logger.debug("parquet-rs filter pushdown: accepted {} of {} expressions", pushed.size(), filters.size());
+        return new PushdownResult(new ParquetRsPushedFilter(pushed), pushed, remainder);
     }
 
     @Override
@@ -119,7 +119,13 @@ public class ParquetRsFilterPushdownSupport implements FilterPushdownSupport {
             return PushdownPredicates.isRange(range, TYPE_SUPPORTED);
         }
         if (expr instanceof And and) {
-            return canConvert(and.left()) || canConvert(and.right());
+            // Both sides must be convertible: PushFiltersToSource removes the FilterExec when the
+            // remainder is empty, so the source becomes solely responsible for the predicate.
+            // Allowing a partially-convertible And here would force the And translation branch to
+            // either drop the non-convertible side (returning too many rows) or fail at execution.
+            // Top-level conjuncts are pre-split by Predicates.splitAnd, so this only restricts ANDs
+            // nested under Or/Not, where partial pushdown is unsound.
+            return canConvert(and.left()) && canConvert(and.right());
         }
         if (expr instanceof Or or) {
             return canConvert(or.left()) && canConvert(or.right());
@@ -138,27 +144,52 @@ public class ParquetRsFilterPushdownSupport implements FilterPushdownSupport {
         return false;
     }
 
-    private static long translateExpressions(List<Expression> expressions) {
-        long combined = 0;
+    /**
+     * Translates a list of ESQL filter expressions into a single native {@code FilterExpr} handle
+     * (logically AND-ed together). Returns {@code 0} when nothing translatable remained.
+     * <p>
+     * The returned handle is owned by the caller and must be freed via
+     * {@link ParquetRsBridge#freeExpr} (or consumed by another {@code create*} bridge call) — it
+     * will typically be passed to {@link ParquetRsBridge#openReader} and freed in a {@code finally}
+     * block. Intended to be called from {@link ParquetRsFormatReader#read} so the native handle's
+     * lifetime is bounded by a single read; see {@link ParquetRsPushedFilter}.
+     */
+    static long translateExpressions(List<Expression> expressions) {
+        ExprHandle combined = null;
         try {
             for (Expression expr : expressions) {
-                long handle = translateExpression(expr);
-                if (handle == 0) {
-                    continue;
-                }
-                if (combined == 0) {
-                    combined = handle;
+                ExprHandle next = ExprHandle.of(translateExpressionRequired(expr));
+                if (combined == null) {
+                    combined = next;
                 } else {
-                    combined = ParquetRsBridge.createAnd(combined, handle);
+                    // createAnd consumes both inputs (success or failure), so release
+                    // both wrappers before the call. If createAnd throws, the wrappers
+                    // are already zeroed, so the catch block will not double-free them.
+                    long left = combined.release();
+                    long right = next.release();
+                    combined = ExprHandle.of(ParquetRsBridge.createAnd(left, right));
                 }
             }
-            return combined;
-        } catch (Exception e) {
-            if (combined != 0) {
-                ParquetRsBridge.freeExpr(combined);
-            }
-            throw e;
+            return combined != null ? combined.release() : 0;
+        } catch (Throwable t) {
+            Releasables.close(combined);
+            throw t;
         }
+    }
+
+    /**
+     * Wraps {@link #translateExpression} with a contract assertion: every expression passed in
+     * here must already have been accepted by {@link #canConvert}. A {@code 0} return signals
+     * a drift between {@code canConvert} and {@code translateExpression} — pushing on regardless
+     * would silently drop a filter the optimizer promised the source would apply, producing
+     * wrong query results. Failing loudly surfaces the bug in tests instead.
+     */
+    private static long translateExpressionRequired(Expression expr) {
+        long handle = translateExpression(expr);
+        if (handle == 0) {
+            throw new IllegalStateException("translateExpression returned 0 for expression accepted by canConvert: [" + expr + "]");
+        }
+        return handle;
     }
 
     private static long translateExpression(Expression expr) {
@@ -167,60 +198,61 @@ public class ParquetRsFilterPushdownSupport implements FilterPushdownSupport {
             if (value == null) {
                 return 0;
             }
-            long colHandle = ParquetRsBridge.createColumn(ne.name());
-            long litHandle = createLiteral(ne.dataType(), value);
-            if (litHandle == 0) {
-                ParquetRsBridge.freeExpr(colHandle);
-                return 0;
+            try (
+                ExprHandle col = ExprHandle.of(ParquetRsBridge.createColumn(ne.name()));
+                ExprHandle litH = ExprHandle.of(createLiteral(ne.dataType(), value))
+            ) {
+                if (litH.get() == 0) {
+                    return 0;
+                }
+                return createComparison(bc, col.release(), litH.release());
             }
-            return createComparison(bc, colHandle, litHandle);
         }
         if (expr instanceof In inExpr && inExpr.value() instanceof NamedExpression ne) {
             return translateIn(ne, inExpr.list());
         }
         if (expr instanceof IsNull isNull && isNull.field() instanceof NamedExpression ne) {
-            long colHandle = ParquetRsBridge.createColumn(ne.name());
-            return ParquetRsBridge.createIsNull(colHandle);
+            try (ExprHandle col = ExprHandle.of(ParquetRsBridge.createColumn(ne.name()))) {
+                return ParquetRsBridge.createIsNull(col.release());
+            }
         }
         if (expr instanceof IsNotNull isNotNull && isNotNull.field() instanceof NamedExpression ne) {
-            long colHandle = ParquetRsBridge.createColumn(ne.name());
-            return ParquetRsBridge.createIsNotNull(colHandle);
+            try (ExprHandle col = ExprHandle.of(ParquetRsBridge.createColumn(ne.name()))) {
+                return ParquetRsBridge.createIsNotNull(col.release());
+            }
         }
         if (expr instanceof Range range && range.value() instanceof NamedExpression ne) {
             return translateRange(ne, range);
         }
         if (expr instanceof And and) {
-            return translateAnd(and);
+            // canConvert(And) requires both sides convertible, so both inner translations must succeed.
+            try (
+                ExprHandle left = ExprHandle.of(translateExpressionRequired(and.left()));
+                ExprHandle right = ExprHandle.of(translateExpressionRequired(and.right()))
+            ) {
+                return ParquetRsBridge.createAnd(left.release(), right.release());
+            }
         }
         if (expr instanceof Or or) {
-            long leftHandle = translateExpression(or.left());
-            long rightHandle;
-            try {
-                rightHandle = translateExpression(or.right());
-            } catch (Exception e) {
-                if (leftHandle != 0) {
-                    ParquetRsBridge.freeExpr(leftHandle);
-                }
-                throw e;
+            // canConvert(Or) requires both sides convertible, so both inner translations must succeed.
+            try (
+                ExprHandle left = ExprHandle.of(translateExpressionRequired(or.left()));
+                ExprHandle right = ExprHandle.of(translateExpressionRequired(or.right()))
+            ) {
+                return ParquetRsBridge.createOr(left.release(), right.release());
             }
-            if (leftHandle != 0 && rightHandle != 0) {
-                return ParquetRsBridge.createOr(leftHandle, rightHandle);
-            }
-            if (leftHandle != 0) ParquetRsBridge.freeExpr(leftHandle);
-            if (rightHandle != 0) ParquetRsBridge.freeExpr(rightHandle);
-            return 0;
         }
         if (expr instanceof Not not) {
-            long innerHandle = translateExpression(not.field());
-            if (innerHandle != 0) {
-                return ParquetRsBridge.createNot(innerHandle);
+            // canConvert(Not) requires the inner field convertible, so translation must succeed.
+            try (ExprHandle inner = ExprHandle.of(translateExpressionRequired(not.field()))) {
+                return ParquetRsBridge.createNot(inner.release());
             }
-            return 0;
         }
         if (expr instanceof WildcardLike wl && wl.field() instanceof NamedExpression ne) {
-            long colHandle = ParquetRsBridge.createColumn(ne.name());
-            String sqlPattern = esqlWildcardToSqlLike(wl.pattern().pattern());
-            return ParquetRsBridge.createLike(colHandle, sqlPattern);
+            try (ExprHandle col = ExprHandle.of(ParquetRsBridge.createColumn(ne.name()))) {
+                String sqlPattern = esqlWildcardToSqlLike(wl.pattern().pattern());
+                return ParquetRsBridge.createLike(col.release(), sqlPattern);
+            }
         }
         if (expr instanceof StartsWith sw
             && sw.singleValueField() instanceof NamedExpression ne
@@ -229,60 +261,36 @@ public class ParquetRsFilterPushdownSupport implements FilterPushdownSupport {
                 return 0;
             }
             BytesRef prefix = (BytesRef) prefixLit.value();
-            long colHandle = ParquetRsBridge.createColumn(ne.name());
-            BytesRef upper = StringPrefixUtils.nextPrefixUpperBound(prefix);
-            return ParquetRsBridge.createStartsWith(colHandle, prefix.utf8ToString(), upper != null ? upper.utf8ToString() : null);
+            try (ExprHandle col = ExprHandle.of(ParquetRsBridge.createColumn(ne.name()))) {
+                BytesRef upper = StringPrefixUtils.nextPrefixUpperBound(prefix);
+                return ParquetRsBridge.createStartsWith(col.release(), prefix.utf8ToString(), upper != null ? upper.utf8ToString() : null);
+            }
         }
         return 0;
     }
 
-    private static long translateAnd(And and) {
-        boolean leftConvertible = canConvert(and.left());
-        boolean rightConvertible = canConvert(and.right());
-        if (leftConvertible && rightConvertible) {
-            long leftHandle = translateExpression(and.left());
-            long rightHandle;
-            try {
-                rightHandle = translateExpression(and.right());
-            } catch (Exception e) {
-                if (leftHandle != 0) {
-                    ParquetRsBridge.freeExpr(leftHandle);
-                }
-                throw e;
-            }
-            if (leftHandle != 0 && rightHandle != 0) {
-                return ParquetRsBridge.createAnd(leftHandle, rightHandle);
-            }
-            return leftHandle != 0 ? leftHandle : rightHandle;
-        } else if (leftConvertible) {
-            return translateExpression(and.left());
-        } else {
-            return translateExpression(and.right());
-        }
-    }
-
     private static long translateIn(NamedExpression ne, List<Expression> items) {
-        List<Long> litHandles = new ArrayList<>();
+        List<ExprHandle> litHandles = new ArrayList<>();
+        ExprHandle col = null;
         try {
             for (Expression item : items) {
                 if (item instanceof Literal lit && lit.value() != null) {
                     long h = createLiteral(ne.dataType(), lit.value());
                     if (h != 0) {
-                        litHandles.add(h);
+                        litHandles.add(ExprHandle.of(h));
                     }
                 }
             }
             if (litHandles.isEmpty()) {
                 return 0;
             }
-            long colHandle = ParquetRsBridge.createColumn(ne.name());
-            long[] handles = litHandles.stream().mapToLong(Long::longValue).toArray();
-            return ParquetRsBridge.createInList(colHandle, handles);
-        } catch (Exception e) {
-            for (long h : litHandles) {
-                ParquetRsBridge.freeExpr(h);
-            }
-            throw e;
+            col = ExprHandle.of(ParquetRsBridge.createColumn(ne.name()));
+            long[] raw = ExprHandle.releaseAll(litHandles);
+            return ParquetRsBridge.createInList(col.release(), raw);
+        } catch (Throwable t) {
+            Releasables.close(litHandles);
+            Releasables.close(col);
+            throw t;
         }
     }
 
@@ -297,32 +305,37 @@ public class ParquetRsFilterPushdownSupport implements FilterPushdownSupport {
     }
 
     private static long translateRangeBounds(NamedExpression ne, Range range, Object lower, Object upper) {
-        long colLower = ParquetRsBridge.createColumn(ne.name());
-        long litLower = createLiteral(ne.dataType(), lower);
-        if (litLower == 0) {
-            ParquetRsBridge.freeExpr(colLower);
-            return 0;
-        }
-        long lowerBound = range.includeLower()
-            ? ParquetRsBridge.createGreaterThanOrEqual(colLower, litLower)
-            : ParquetRsBridge.createGreaterThan(colLower, litLower);
-
-        try {
-            long colUpper = ParquetRsBridge.createColumn(ne.name());
-            long litUpper = createLiteral(ne.dataType(), upper);
-            if (litUpper == 0) {
-                ParquetRsBridge.freeExpr(colUpper);
-                ParquetRsBridge.freeExpr(lowerBound);
+        try (ExprHandle lowerBound = ExprHandle.of(buildBound(ne, lower, range.includeLower(), true))) {
+            if (lowerBound.get() == 0) {
                 return 0;
             }
-            long upperBound = range.includeUpper()
-                ? ParquetRsBridge.createLessThanOrEqual(colUpper, litUpper)
-                : ParquetRsBridge.createLessThan(colUpper, litUpper);
+            try (ExprHandle upperBound = ExprHandle.of(buildBound(ne, upper, range.includeUpper(), false))) {
+                if (upperBound.get() == 0) {
+                    return 0;
+                }
+                return ParquetRsBridge.createAnd(lowerBound.release(), upperBound.release());
+            }
+        }
+    }
 
-            return ParquetRsBridge.createAnd(lowerBound, upperBound);
-        } catch (Exception e) {
-            ParquetRsBridge.freeExpr(lowerBound);
-            throw e;
+    /**
+     * Builds one half of a range: {@code col >[=] lit} when {@code isLower}, otherwise {@code col <[=] lit}.
+     * Returns 0 if the literal could not be created; never leaks intermediate handles.
+     */
+    private static long buildBound(NamedExpression ne, Object value, boolean inclusive, boolean isLower) {
+        try (
+            ExprHandle col = ExprHandle.of(ParquetRsBridge.createColumn(ne.name()));
+            ExprHandle lit = ExprHandle.of(createLiteral(ne.dataType(), value))
+        ) {
+            if (lit.get() == 0) {
+                return 0;
+            }
+            long c = col.release();
+            long l = lit.release();
+            if (isLower) {
+                return inclusive ? ParquetRsBridge.createGreaterThanOrEqual(c, l) : ParquetRsBridge.createGreaterThan(c, l);
+            }
+            return inclusive ? ParquetRsBridge.createLessThanOrEqual(c, l) : ParquetRsBridge.createLessThan(c, l);
         }
     }
 
@@ -342,6 +355,23 @@ public class ParquetRsFilterPushdownSupport implements FilterPushdownSupport {
         };
     }
 
+    /**
+     * Translates an ESQL {@code LIKE} pattern into a SQL {@code LIKE} pattern accepted
+     * by parquet-rs, mapping wildcards and re-escaping the SQL special characters that
+     * ESQL treats as literals:
+     * <ul>
+     *   <li>{@code *} -> {@code %} (any sequence)</li>
+     *   <li>{@code ?} -> {@code _} (any single char)</li>
+     *   <li>{@code %} -> {@code \%}, {@code _} -> {@code \_} (literal in ESQL, wildcard in SQL)</li>
+     *   <li>{@code \X} (any escaped char) -> {@code \X} verbatim, so the next char is left as-is</li>
+     * </ul>
+     *
+     * <p>Trailing-backslash edge case: an ESQL pattern ending in a single unmatched {@code \}
+     * is emitted as {@code \\} (escape an escape) rather than dropping it. This keeps the SQL
+     * pattern syntactically valid — a lone trailing {@code \} would otherwise be an incomplete
+     * escape sequence in SQL {@code LIKE} — and treats the input symmetrically with how the
+     * loop preserves any other escaped sequence.
+     */
     static String esqlWildcardToSqlLike(String esqlPattern) {
         StringBuilder sb = new StringBuilder(esqlPattern.length());
         boolean escaped = false;
@@ -366,6 +396,8 @@ public class ParquetRsFilterPushdownSupport implements FilterPushdownSupport {
             }
         }
         if (escaped) {
+            // See class-level note on trailing-backslash handling: emit "\\" so the SQL pattern
+            // never ends with an incomplete escape sequence.
             sb.append('\\');
         }
         return sb.toString();

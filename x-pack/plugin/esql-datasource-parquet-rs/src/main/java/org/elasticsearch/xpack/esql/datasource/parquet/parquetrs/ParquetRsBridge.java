@@ -68,6 +68,23 @@ final class ParquetRsBridge {
     static native String[] getColumnStatistics(String filePath, String configJson);
 
     // ---- Filter expression building ----
+    //
+    // Native handle ownership contract for every {@code create*} method below:
+    // * On success the method returns a fresh native handle (a {@code jlong}). The
+    // Java caller owns it and must eventually pass it to {@link #freeExpr} or to
+    // another {@code create*} method as an input.
+    // * On failure the method throws a Java exception (typically RuntimeException)
+    // and returns 0.
+    // * Every input handle passed in is consumed by the call regardless of whether
+    // it succeeds or throws. Java callers MUST NOT call {@link #freeExpr} on an
+    // input handle after passing it to a {@code create*} method, even on failure.
+    // * Each handle is single-use: pass it to exactly one downstream call (a
+    // {@code create*} or {@link #freeExpr}).
+    //
+    // The recommended Java-side pattern is to wrap fresh handles in {@link ExprHandle}
+    // and call {@link ExprHandle#release} immediately before passing them to a
+    // {@code create*} method, so try-with-resources cleanup is a no-op on the success
+    // path and a no-op (rather than a double-free) if the {@code create*} call throws.
 
     static native long createColumn(String name);
 

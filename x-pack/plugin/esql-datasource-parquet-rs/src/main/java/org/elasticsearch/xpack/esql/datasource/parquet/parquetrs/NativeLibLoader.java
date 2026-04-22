@@ -31,6 +31,7 @@ final class NativeLibLoader {
 
     private static volatile boolean loaded = false;
     private static volatile String loadError = null;
+    private static volatile Throwable loadFailure = null;
 
     private NativeLibLoader() {}
 
@@ -44,7 +45,7 @@ final class NativeLibLoader {
             load();
         }
         if (loadError != null) {
-            throw new IllegalStateException("Native parquet-rs library is not available: " + loadError);
+            throw new IllegalStateException("Native parquet-rs library is not available: " + loadError, loadFailure);
         }
     }
 
@@ -56,7 +57,8 @@ final class NativeLibLoader {
             doLoad();
         } catch (Throwable t) {
             loadError = t.getMessage() != null ? t.getMessage() : t.getClass().getName();
-            logger.warn("Failed to load native parquet-rs library: [{}]", loadError);
+            loadFailure = t;
+            logger.warn("Failed to load native parquet-rs library", t);
         }
     }
 
@@ -96,7 +98,9 @@ final class NativeLibLoader {
             loaded = true;
             logger.info("Loaded native parquet-rs library from [{}]", resourcePath);
         } catch (IOException e) {
-            throw new UnsatisfiedLinkError("Failed to extract native library: " + e.getMessage());
+            UnsatisfiedLinkError ule = new UnsatisfiedLinkError("Failed to extract native library: " + e.getMessage());
+            ule.initCause(e);
+            throw ule;
         }
     }
 

@@ -99,9 +99,16 @@ public class StorageProviderRegistry implements Closeable {
 
     /**
      * Framework-level WITH keys that are consumed by {@link FileSourceFactory} / format readers
-     * and must not be forwarded to storage provider configurations.
+     * and must not be forwarded to storage provider configurations. References the canonical
+     * constants so adding/renaming a framework option in one place updates the filter here too.
      */
-    private static final Set<String> FRAMEWORK_KEYS = Set.of("format", "reader", "max_errors", "max_error_ratio", "error_mode");
+    private static final Set<String> FRAMEWORK_KEYS = Set.of(
+        FormatNameResolver.CONFIG_FORMAT,
+        FormatNameResolver.CONFIG_READER,
+        FileSourceFactory.CONFIG_MAX_ERRORS,
+        FileSourceFactory.CONFIG_MAX_ERROR_RATIO,
+        FileSourceFactory.CONFIG_ERROR_MODE
+    );
 
     public StorageProvider createProvider(String scheme, Settings settings, Map<String, Object> config) {
         String normalizedScheme = scheme.toLowerCase(Locale.ROOT);

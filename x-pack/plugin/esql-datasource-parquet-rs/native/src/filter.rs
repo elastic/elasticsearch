@@ -595,6 +595,45 @@ fn eval_starts_with(
 // ---------------------------------------------------------------------------
 // JNI entry points for building FilterExpr trees
 // ---------------------------------------------------------------------------
+//
+// # Handle ownership contract
+//
+// Every `create*` JNI method below either:
+//
+// 1. Returns a fresh handle (jlong) that the Java caller owns and must
+//    eventually pass to `freeExpr` (or to another `create*` call as an input).
+// 2. Throws a Java exception (RuntimeException via the `ThrowRuntimeExAndDefault`
+//    policy) and returns 0.
+//
+// All input handles passed to a `create*` call MUST come from a previous
+// `create*` call and must not have been freed or passed to any other `create*`
+// call yet (handles are linear / single-use).
+//
+// **Consumption semantics on failure** are the source of subtle bugs, so the
+// implementations below follow a strict pattern:
+//
+//   1. Validate all input handles (non-zero) and extract any fallible JNI
+//      arguments (string conversions, array reads) BEFORE calling
+//      `unbox_expr` on any input handle.
+//   2. After all fallible operations have succeeded, call `unbox_expr` on
+//      every input handle in sequence (no `?` between them, no panic-prone
+//      intermediates other than `Box::new` allocation).
+//   3. Construct the result via `box_expr`.
+//
+// Combined with the `catch_unwind` that `EnvUnowned::with_env` performs, this
+// gives the Java caller a single, simple rule:
+//
+//   **After passing a handle to a `create*` call, the caller MUST NOT free
+//   it, regardless of whether the call returned successfully or threw a
+//   Java exception.** Either the native side consumed it (success, or
+//   failure after the commit point) or the input was never owned by the
+//   native side (validation failed before the commit point — but the only
+//   validation that can fail is `handle == 0`, in which case `freeExpr(0)`
+//   is a no-op anyway).
+//
+// If/when this layer migrates from JNI to a different FFI mechanism (Project
+// Panama, plain `extern "C"` with out-pointers, etc.), this contract is
+// FFI-agnostic and should be preserved on the new boundary.
 
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parquetrs_ParquetRsBridge_createColumn(
@@ -667,6 +706,11 @@ macro_rules! binary_filter_op {
             mut env: EnvUnowned, _class: JClass, left: jlong, right: jlong,
         ) -> jlong {
             env.with_env(|_env| -> JniResult<jlong> {
+                if left == 0 || right == 0 {
+                    return Err(jni_err("null input handle to binary filter op"));
+                }
+                // Commit point: from here both inputs are consumed (success
+                // or panic-unwind drop). See the contract comment above.
                 let l = unsafe { *unbox_expr(left) };
                 let r = unsafe { *unbox_expr(right) };
                 Ok(box_expr(FilterExpr::$variant(Box::new(l), Box::new(r))))
@@ -690,6 +734,9 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parq
     mut env: EnvUnowned, _class: JClass, child: jlong,
 ) -> jlong {
     env.with_env(|_env| -> JniResult<jlong> {
+        if child == 0 {
+            return Err(jni_err("null child handle to createNot"));
+        }
         let c = unsafe { *unbox_expr(child) };
         Ok(box_expr(FilterExpr::Not(Box::new(c))))
     })
@@ -701,6 +748,9 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parq
     mut env: EnvUnowned, _class: JClass, child: jlong,
 ) -> jlong {
     env.with_env(|_env| -> JniResult<jlong> {
+        if child == 0 {
+            return Err(jni_err("null child handle to createIsNull"));
+        }
         let c = unsafe { *unbox_expr(child) };
         Ok(box_expr(FilterExpr::IsNull(Box::new(c))))
     })
@@ -712,6 +762,9 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parq
     mut env: EnvUnowned, _class: JClass, child: jlong,
 ) -> jlong {
     env.with_env(|_env| -> JniResult<jlong> {
+        if child == 0 {
+            return Err(jni_err("null child handle to createIsNotNull"));
+        }
         let c = unsafe { *unbox_expr(child) };
         Ok(box_expr(FilterExpr::IsNotNull(Box::new(c))))
     })
@@ -723,10 +776,21 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parq
     mut env: EnvUnowned, _class: JClass, expr_handle: jlong, list_handles: JLongArray,
 ) -> jlong {
     env.with_env(|env| -> JniResult<jlong> {
-        let e = unsafe { *unbox_expr(expr_handle) };
+        // Validate and extract everything fallible BEFORE consuming any handle,
+        // so that on failure neither expr_handle nor list_handles are consumed.
+        if expr_handle == 0 {
+            return Err(jni_err("null expr_handle to createInList"));
+        }
         let len = list_handles.len(env)?;
         let mut handles = vec![0i64; len];
         list_handles.get_region(env, 0, &mut handles)?;
+        for &h in &handles {
+            if h == 0 {
+                return Err(jni_err("null handle in createInList list"));
+            }
+        }
+        // Commit point: from here every input handle is consumed.
+        let e = unsafe { *unbox_expr(expr_handle) };
         let mut items = Vec::with_capacity(len);
         for h in handles {
             items.push(unsafe { *unbox_expr(h) });
@@ -741,9 +805,13 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parq
     mut env: EnvUnowned, _class: JClass, col_handle: jlong, prefix: JString, upper_bound: JString,
 ) -> jlong {
     env.with_env(|env| -> JniResult<jlong> {
-        let c = unsafe { *unbox_expr(col_handle) };
+        if col_handle == 0 {
+            return Err(jni_err("null col_handle to createStartsWith"));
+        }
+        // Resolve all fallible JNI conversions BEFORE consuming col_handle.
         let prefix_str = prefix.try_to_string(env)?;
         let upper_opt = jstring_to_opt_string(&upper_bound, env)?;
+        let c = unsafe { *unbox_expr(col_handle) };
         Ok(box_expr(FilterExpr::StartsWith(Box::new(c), prefix_str, upper_opt)))
     })
     .resolve::<ThrowRuntimeExAndDefault>()
@@ -754,8 +822,11 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parq
     mut env: EnvUnowned, _class: JClass, col_handle: jlong, pattern: JString,
 ) -> jlong {
     env.with_env(|env| -> JniResult<jlong> {
-        let c = unsafe { *unbox_expr(col_handle) };
+        if col_handle == 0 {
+            return Err(jni_err("null col_handle to createLike"));
+        }
         let pat = pattern.try_to_string(env)?;
+        let c = unsafe { *unbox_expr(col_handle) };
         Ok(box_expr(FilterExpr::Like(Box::new(c), pat)))
     })
     .resolve::<ThrowRuntimeExAndDefault>()
@@ -766,8 +837,11 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parq
     mut env: EnvUnowned, _class: JClass, col_handle: jlong, pattern: JString,
 ) -> jlong {
     env.with_env(|env| -> JniResult<jlong> {
-        let c = unsafe { *unbox_expr(col_handle) };
+        if col_handle == 0 {
+            return Err(jni_err("null col_handle to createNotLike"));
+        }
         let pat = pattern.try_to_string(env)?;
+        let c = unsafe { *unbox_expr(col_handle) };
         Ok(box_expr(FilterExpr::NotLike(Box::new(c), pat)))
     })
     .resolve::<ThrowRuntimeExAndDefault>()

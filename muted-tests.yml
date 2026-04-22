@@ -492,6 +492,8 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search.vectors/260_knn_lookup_query_builder/Test error when document not found}
   issue: https://github.com/elastic/elasticsearch/issues/147081
+- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetRsFormatSpecIT
+  issue: https://github.com/elastic/elasticsearch/issues/146282
 
 # Examples:
 #

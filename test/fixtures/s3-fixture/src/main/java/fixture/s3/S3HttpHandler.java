@@ -398,16 +398,21 @@ public class S3HttpHandler implements HttpHandler {
                 if (range == null) {
                     throw new AssertionError("Bytes range does not match expected pattern: " + rangeHeader);
                 }
+                // RFC 7233 §2.1: a byte-range-spec with last-byte-pos < first-byte-pos is invalid and
+                // MUST be ignored; real S3 mirrors this by returning the full object with 200 OK.
+                // This check has to run before resolveAgainst, otherwise an invalid range whose start
+                // is also beyond EOF (e.g. "bytes=300-50" against a 200-byte object) would be reported
+                // as 416 instead of being ignored.
+                if (range.end() != null && range.end() < range.start()) {
+                    exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), blob.length());
+                    blob.writeTo(exchange.getResponseBody());
+                    return;
+                }
                 final HttpHeaderParser.ResolvedRange resolved = range.resolveAgainst(blob.length());
                 if (resolved == null) {
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                     exchange.sendResponseHeaders(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus(), -1);
-                    return;
-                }
-                if (resolved.end() < resolved.start()) {
-                    exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), blob.length());
-                    blob.writeTo(exchange.getResponseBody());
                     return;
                 }
                 var responseBlob = blob.slice(Math.toIntExact(resolved.start()), Math.toIntExact(resolved.length()));

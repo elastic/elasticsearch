@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -30,7 +29,6 @@ public class FormatReaderRegistry {
 
     private final Map<String, Supplier<FormatReader>> byName = new ConcurrentHashMap<>();
     private final Map<String, Supplier<FormatReader>> byExtension = new ConcurrentHashMap<>();
-    private final Map<String, DynamicAlias> dynamicAliases = new ConcurrentHashMap<>();
     private final DecompressionCodecRegistry codecRegistry;
 
     public FormatReaderRegistry(DecompressionCodecRegistry codecRegistry) {
@@ -85,8 +83,7 @@ public class FormatReaderRegistry {
             throw new IllegalArgumentException("Format name cannot be null or empty");
         }
 
-        String resolved = resolveDynamicName(formatName.toLowerCase(Locale.ROOT));
-        Supplier<FormatReader> supplier = byName.get(resolved);
+        Supplier<FormatReader> supplier = byName.get(formatName.toLowerCase(Locale.ROOT));
         Check.notNull(supplier, "No format reader registered for format: " + formatName);
         return supplier.get();
     }
@@ -99,8 +96,7 @@ public class FormatReaderRegistry {
         if (Strings.isNullOrEmpty(formatName)) {
             return null;
         }
-        String resolved = resolveDynamicName(formatName.toLowerCase(Locale.ROOT));
-        Supplier<FormatReader> supplier = byName.get(resolved);
+        Supplier<FormatReader> supplier = byName.get(formatName.toLowerCase(Locale.ROOT));
         return supplier != null ? supplier.get() : null;
     }
 
@@ -138,14 +134,6 @@ public class FormatReaderRegistry {
             }
         }
 
-        DynamicAlias alias = dynamicAliases.get(extension);
-        if (alias != null) {
-            String formatName = alias.condition().getAsBoolean() ? alias.primaryFormat() : alias.fallbackFormat();
-            Supplier<FormatReader> s = byName.get(formatName.toLowerCase(Locale.ROOT));
-            Check.notNull(s, "Dynamic alias resolved to unregistered format: " + formatName);
-            return s.get();
-        }
-
         Supplier<FormatReader> supplier = byExtension.get(extension);
         Check.notNull(supplier, "No format reader registered for extension: {}. Supported: {}", extension, byExtension.keySet());
         return supplier.get();
@@ -175,8 +163,7 @@ public class FormatReaderRegistry {
         if (Strings.isNullOrEmpty(formatName)) {
             return false;
         }
-        String resolved = resolveDynamicName(formatName.toLowerCase(Locale.ROOT));
-        return byName.containsKey(resolved);
+        return byName.containsKey(formatName.toLowerCase(Locale.ROOT));
     }
 
     public boolean hasExtension(String extension) {
@@ -187,43 +174,6 @@ public class FormatReaderRegistry {
         if (normalizedExt.startsWith(".") == false) {
             normalizedExt = "." + normalizedExt;
         }
-        return dynamicAliases.containsKey(normalizedExt) || byExtension.containsKey(normalizedExt);
+        return byExtension.containsKey(normalizedExt);
     }
-
-    /**
-     * Registers a dynamic alias that selects between two format names at lookup time.
-     * When the condition returns true, lookups resolve to {@code primaryFormat};
-     * otherwise they resolve to {@code fallbackFormat}.
-     * This applies to both extension-based and name-based lookups for the given keys.
-     *
-     * @param extension the file extension (e.g. ".parquet") to alias
-     * @param aliasName the format name (e.g. "parquet") to alias
-     * @param primaryFormat format name when condition is true
-     * @param fallbackFormat format name when condition is false
-     */
-    public void registerDynamicAlias(
-        String extension,
-        String aliasName,
-        String primaryFormat,
-        String fallbackFormat,
-        BooleanSupplier condition
-    ) {
-        DynamicAlias alias = new DynamicAlias(primaryFormat, fallbackFormat, condition);
-        String normalizedExt = extension.toLowerCase(Locale.ROOT);
-        if (normalizedExt.startsWith(".") == false) {
-            normalizedExt = "." + normalizedExt;
-        }
-        dynamicAliases.put(normalizedExt, alias);
-        dynamicAliases.put(aliasName.toLowerCase(Locale.ROOT), alias);
-    }
-
-    private String resolveDynamicName(String name) {
-        DynamicAlias alias = dynamicAliases.get(name);
-        if (alias != null) {
-            return (alias.condition().getAsBoolean() ? alias.primaryFormat() : alias.fallbackFormat()).toLowerCase(Locale.ROOT);
-        }
-        return name;
-    }
-
-    private record DynamicAlias(String primaryFormat, String fallbackFormat, BooleanSupplier condition) {}
 }

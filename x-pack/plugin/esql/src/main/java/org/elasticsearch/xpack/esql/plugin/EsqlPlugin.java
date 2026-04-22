@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.DataSourceMetadata;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -213,7 +212,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     public static final String READER_JAVA = "java";
     public static final String FORMAT_PARQUET = "parquet";
     public static final String FORMAT_PARQUET_RS = "parquet-rs";
-    static final String DEFAULT_PARQUET_READER = READER_JAVA;
 
     private final List<PlanCheckerProvider> extraCheckerProviders = new ArrayList<>();
     private final List<DataSourcePlugin> dataSourcePlugins = new ArrayList<>();
@@ -264,14 +262,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             blockFactoryProvider.blockFactory(),
             services.threadPool().executor(ThreadPool.Names.GENERIC)
         );
-
-        if (Build.current().isSnapshot()
-            && dataSourceModule.formatReaderRegistry().hasFormat(FORMAT_PARQUET)
-            && dataSourceModule.formatReaderRegistry().hasFormat(FORMAT_PARQUET_RS)) {
-            boolean useParquetRs = READER_PARQUET_RS.equals(DEFAULT_PARQUET_READER);
-            dataSourceModule.formatReaderRegistry()
-                .registerDynamicAlias(".parquet", FORMAT_PARQUET, FORMAT_PARQUET_RS, FORMAT_PARQUET, () -> useParquetRs);
-        }
 
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
         EsqlParser parser = new EsqlParser(new EsqlConfig(functionRegistry));

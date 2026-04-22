@@ -27,6 +27,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import org.elasticsearch.xpack.esql.arrow.ArrowToBlockConverter;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -42,7 +43,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -62,16 +62,21 @@ public class ParquetRsFormatReader implements FormatReader {
     private static final Logger logger = LogManager.getLogger(ParquetRsFormatReader.class);
 
     private final BlockFactory blockFactory;
-    private final long filterHandle;
+    /**
+     * Filter expressions accepted for pushdown by {@link ParquetRsFilterPushdownSupport}. Translated
+     * to a native {@code FilterExpr} on every {@link #read} call and freed in the same call, so the
+     * reader itself never owns a JNI handle (and therefore cannot leak one).
+     */
+    private final List<Expression> pushedExpressions;
     private final String configJson;
 
     public ParquetRsFormatReader(BlockFactory blockFactory) {
-        this(blockFactory, 0, null);
+        this(blockFactory, List.of(), null);
     }
 
-    private ParquetRsFormatReader(BlockFactory blockFactory, long filterHandle, String configJson) {
+    private ParquetRsFormatReader(BlockFactory blockFactory, List<Expression> pushedExpressions, String configJson) {
         this.blockFactory = blockFactory;
-        this.filterHandle = filterHandle;
+        this.pushedExpressions = pushedExpressions;
         this.configJson = configJson;
     }
 
@@ -88,7 +93,10 @@ public class ParquetRsFormatReader implements FormatReader {
     @Override
     public FormatReader withPushedFilter(Object pushedFilter) {
         if (pushedFilter instanceof ParquetRsPushedFilter pf) {
-            return new ParquetRsFormatReader(blockFactory, pf.exprHandle(), configJson);
+            return new ParquetRsFormatReader(blockFactory, pf.pushedExpressions(), configJson);
+        }
+        if (pushedFilter == null) {
+            return pushedExpressions.isEmpty() ? this : new ParquetRsFormatReader(blockFactory, List.of(), configJson);
         }
         return this;
     }
@@ -98,10 +106,11 @@ public class ParquetRsFormatReader implements FormatReader {
         if (config == null || config.isEmpty()) {
             return this;
         }
-        return new ParquetRsFormatReader(blockFactory, filterHandle, serializeConfig(config));
+        return new ParquetRsFormatReader(blockFactory, pushedExpressions, serializeConfig(config));
     }
 
     private static String serializeConfig(Map<String, Object> config) {
+        JsonStringEncoder encoder = JsonStringEncoder.getInstance();
         StringBuilder sb = new StringBuilder("{");
         boolean first = true;
         for (Map.Entry<String, Object> entry : config.entrySet()) {
@@ -111,19 +120,15 @@ public class ParquetRsFormatReader implements FormatReader {
             if (first == false) {
                 sb.append(',');
             }
-            sb.append('"')
-                .append(escapeJson(entry.getKey()))
-                .append("\":\"")
-                .append(escapeJson(String.valueOf(entry.getValue())))
-                .append('"');
+            sb.append('"');
+            encoder.quoteAsString(entry.getKey(), sb);
+            sb.append("\":\"");
+            encoder.quoteAsString(String.valueOf(entry.getValue()), sb);
+            sb.append('"');
             first = false;
         }
         sb.append('}');
         return sb.toString();
-    }
-
-    private static String escapeJson(String s) {
-        return new String(JsonStringEncoder.getInstance().quoteAsUTF8(s), StandardCharsets.UTF_8);
     }
 
     @Override
@@ -236,8 +241,29 @@ public class ParquetRsFormatReader implements FormatReader {
         String[] columns = projectedColumns != null && projectedColumns.isEmpty() == false ? projectedColumns.toArray(new String[0]) : null;
         long limit = rowLimit == FormatReader.NO_LIMIT ? -1 : rowLimit;
 
-        long handle = ParquetRsBridge.openReader(path, columns, batchSize, limit, filterHandle, configJson);
-        return new ParquetRsBatchIterator(handle, blockFactory);
+        // Native FilterExpr ownership is bounded by this method: build it here, hand it to
+        // openReader which clones it internally, then free our copy in the finally. This keeps
+        // the reader stateless w.r.t. native memory so it cannot leak across queries / files.
+        long filterHandle = 0;
+        long readerHandle = 0;
+        try {
+            if (pushedExpressions.isEmpty() == false) {
+                filterHandle = ParquetRsFilterPushdownSupport.translateExpressions(pushedExpressions);
+            }
+            readerHandle = ParquetRsBridge.openReader(path, columns, batchSize, limit, filterHandle, configJson);
+            ParquetRsBatchIterator iterator = new ParquetRsBatchIterator(readerHandle, blockFactory);
+            // Ownership of readerHandle has transferred to the iterator's close(); zero our copy
+            // so the finally below doesn't double-free it.
+            readerHandle = 0;
+            return iterator;
+        } finally {
+            if (filterHandle != 0) {
+                ParquetRsBridge.freeExpr(filterHandle);
+            }
+            if (readerHandle != 0) {
+                ParquetRsBridge.closeReader(readerHandle);
+            }
+        }
     }
 
     @Override
@@ -251,10 +277,10 @@ public class ParquetRsFormatReader implements FormatReader {
     }
 
     @Override
-    public void close() throws IOException {
-        if (filterHandle != 0) {
-            ParquetRsBridge.freeExpr(filterHandle);
-        }
+    public void close() {
+        // No long-lived native resources at the reader level: the native FilterExpr is allocated
+        // and freed inside read(), and the per-batch iterator owns its own openReader handle.
+        // Matches ParquetFormatReader#close / OrcFormatReader#close.
     }
 
     private static String resolveReadPath(StorageObject object) {

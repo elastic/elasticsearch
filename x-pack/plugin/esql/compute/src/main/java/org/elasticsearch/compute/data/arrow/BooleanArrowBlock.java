@@ -19,6 +19,10 @@ import org.elasticsearch.compute.data.BooleanBlock;
  * Converts Arrow BIT vectors to ESQL BooleanBlocks.
  * Flat vectors delegate to zero-copy {@link BooleanArrowBufBlock}.
  * {@link ListVector} (multi-valued) inputs are converted by copying values into block builders.
+ *
+ * See {@link ArrowListSupport} for the Arrow list -> ESQL multi-value mapping rules
+ * (null lists, empty lists, and null children are all collapsed to an ESQL null
+ * position; mixed lists drop their null elements).
  */
 public final class BooleanArrowBlock {
 
@@ -38,18 +42,28 @@ public final class BooleanArrowBlock {
             for (int i = 0; i < rowCount; i++) {
                 if (listVector.isNull(i)) {
                     builder.appendNull();
+                    continue;
+                }
+                int start = listVector.getElementStartIndex(i);
+                int end = listVector.getElementEndIndex(i);
+                int nonNullCount = ArrowListSupport.countNonNull(child, start, end);
+                if (nonNullCount == 0) {
+                    builder.appendNull();
+                } else if (nonNullCount == 1) {
+                    for (int j = start; j < end; j++) {
+                        if (child.isNull(j) == false) {
+                            builder.appendBoolean((Boolean) child.getObject(j));
+                            break;
+                        }
+                    }
                 } else {
-                    int start = listVector.getElementStartIndex(i);
-                    int end = listVector.getElementEndIndex(i);
-                    if (start == end) {
-                        builder.appendNull();
-                    } else {
-                        builder.beginPositionEntry();
-                        for (int j = start; j < end; j++) {
+                    builder.beginPositionEntry();
+                    for (int j = start; j < end; j++) {
+                        if (child.isNull(j) == false) {
                             builder.appendBoolean((Boolean) child.getObject(j));
                         }
-                        builder.endPositionEntry();
                     }
+                    builder.endPositionEntry();
                 }
             }
             return builder.build();

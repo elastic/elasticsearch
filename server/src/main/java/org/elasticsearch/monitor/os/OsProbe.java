@@ -275,12 +275,12 @@ public class OsProbe {
             throw new IllegalStateException(Strings.format("File %s is empty, exactly one line was expected", path));
         }
         assert lines.size() == 1 : String.join("\n", lines);
-        return lines.getFirst();
+        return lines.get(0);
     }
 
     @Nullable
     private static String maybeSingleLine(final List<String> lines) {
-        return lines.size() == 1 ? lines.getFirst() : null;
+        return lines.size() == 1 ? lines.get(0) : null;
     }
 
     // this property is to support a hack to workaround an issue with Docker containers mounting the cgroups hierarchy inconsistently with

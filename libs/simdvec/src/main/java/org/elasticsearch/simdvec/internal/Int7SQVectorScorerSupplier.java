@@ -57,7 +57,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
         long queryByteOffset = (long) firstOrd * vectorTotalBytes;
         input.seek(queryByteOffset);
         return IndexInputUtils.withSlice(input, vectorTotalBytes, firstScratch::getScratch, query -> {
-            float queryOffsetValue = Float.intBitsToFloat(query.get(ValueLayout.JAVA_INT_UNALIGNED, dims));
+            float queryOffsetValue = query.get(ValueLayout.JAVA_FLOAT_UNALIGNED, dims);
 
             long[] offsets = new long[numNodes];
             for (int i = 0; i < numNodes; i++) {
@@ -77,7 +77,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
                 for (int i = 0; i < numNodes; i++) {
                     input.seek(offsets[i]);
                     scores[i] = IndexInputUtils.withSlice(input, vectorTotalBytes, secondScratch::getScratch, vector -> {
-                        float vectorOffsetValue = Float.intBitsToFloat(vector.get(ValueLayout.JAVA_INT_UNALIGNED, dims));
+                        float vectorOffsetValue = vector.get(ValueLayout.JAVA_FLOAT_UNALIGNED, dims);
                         var score = scoreFromSegments(query, queryOffsetValue, vector, vectorOffsetValue);
                         maxScore[0] = Math.max(maxScore[0], score);
                         return score;
@@ -94,10 +94,10 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
 
         input.seek(firstByteOffset);
         return IndexInputUtils.withSlice(input, vectorTotalBytes, firstScratch::getScratch, firstSeg -> {
-            float firstOffsetValue = Float.intBitsToFloat(firstSeg.get(ValueLayout.JAVA_INT_UNALIGNED, dims));
+            float firstOffsetValue = firstSeg.get(ValueLayout.JAVA_FLOAT_UNALIGNED, dims);
             input.seek(secondByteOffset);
             return IndexInputUtils.withSlice(input, vectorTotalBytes, secondScratch::getScratch, secondSeg -> {
-                float secondOffsetValue = Float.intBitsToFloat(secondSeg.get(ValueLayout.JAVA_INT_UNALIGNED, dims));
+                float secondOffsetValue = secondSeg.get(ValueLayout.JAVA_FLOAT_UNALIGNED, dims);
                 return scoreFromSegments(firstSeg, firstOffsetValue, secondSeg, secondOffsetValue);
             });
         });
@@ -211,7 +211,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
             for (int i = 0; i < numNodes; ++i) {
                 var dotProduct = scores.getAtIndex(ValueLayout.JAVA_FLOAT, i);
                 MemorySegment vectorAddress = addresses.getAtIndex(ValueLayout.ADDRESS, i).reinterpret(vectorTotalBytes);
-                var vectorOffsetValue = Float.intBitsToFloat(vectorAddress.get(ValueLayout.JAVA_INT_UNALIGNED, dims));
+                var vectorOffsetValue = vectorAddress.get(ValueLayout.JAVA_FLOAT_UNALIGNED, dims);
                 float adjustedDistance = dotProduct * scoreCorrectionConstant + queryOffsetValue + vectorOffsetValue;
                 float adjustedScore = Math.max((1 + adjustedDistance) / 2, 0f);
                 scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, adjustedScore);
@@ -258,7 +258,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
             for (int i = 0; i < numNodes; ++i) {
                 var dotProduct = scores.getAtIndex(ValueLayout.JAVA_FLOAT, i);
                 MemorySegment vectorAddress = addresses.getAtIndex(ValueLayout.ADDRESS, i).reinterpret(vectorTotalBytes);
-                var vectorOffsetValue = Float.intBitsToFloat(vectorAddress.get(ValueLayout.JAVA_INT_UNALIGNED, dims));
+                var vectorOffsetValue = vectorAddress.get(ValueLayout.JAVA_FLOAT_UNALIGNED, dims);
                 float adjustedDistance = dotProduct * scoreCorrectionConstant + queryOffsetValue + vectorOffsetValue;
                 adjustedDistance = adjustedDistance < 0 ? 1 / (1 + -1 * adjustedDistance) : adjustedDistance + 1;
                 scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, adjustedDistance);

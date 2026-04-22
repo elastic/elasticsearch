@@ -11,17 +11,11 @@ import java.util.List;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunctionSupplier} implementation for {@link IrateFloatAggregator}.
+ * {@link AggregatorFunctionSupplier} implementation for {@link IdeltaDoubleAggregator}.
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
-public final class IrateFloatAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final boolean isDelta;
-
-  private final boolean isDateNanos;
-
-  public IrateFloatAggregatorFunctionSupplier(boolean isDelta, boolean isDateNanos) {
-    this.isDelta = isDelta;
-    this.isDateNanos = isDateNanos;
+public final class IdeltaDoubleAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+  public IdeltaDoubleAggregatorFunctionSupplier() {
   }
 
   @Override
@@ -31,7 +25,7 @@ public final class IrateFloatAggregatorFunctionSupplier implements AggregatorFun
 
   @Override
   public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
-    return IrateFloatGroupingAggregatorFunction.intermediateStateDesc();
+    return IdeltaDoubleGroupingAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
@@ -40,13 +34,13 @@ public final class IrateFloatAggregatorFunctionSupplier implements AggregatorFun
   }
 
   @Override
-  public IrateFloatGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+  public IdeltaDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return new IrateFloatGroupingAggregatorFunction(channels, driverContext, isDelta, isDateNanos);
+    return new IdeltaDoubleGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override
   public String describe() {
-    return IrateFloatAggregator.describe();
+    return IdeltaDoubleAggregator.describe();
   }
 }

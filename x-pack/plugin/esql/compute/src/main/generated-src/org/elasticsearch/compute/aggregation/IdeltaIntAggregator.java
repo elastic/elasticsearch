@@ -29,50 +29,49 @@ import org.elasticsearch.core.Releasables;
 // end generated imports
 
 /**
- * A rate grouping aggregation definition for float. This implementation supports the `irate` and `idelta` functions.
- * This class is generated. Edit `X-IrateAggregator.java.st` instead.
+ * An idelta grouping aggregation definition for int.
+ * This class is generated. Edit `X-IdeltaAggregator.java.st` instead.
  */
 @GroupingAggregator(
-    value = { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "FLOAT_BLOCK") }
+    value = { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "INT_BLOCK") }
 )
-public class IrateFloatAggregator {
-    public static FloatIrateGroupingState initGrouping(DriverContext driverContext, boolean isDelta, boolean isDateNanos) {
-        final int dateFactor = isDateNanos ? 1_000_000_000 : 1000;
-        return new FloatIrateGroupingState(driverContext.bigArrays(), driverContext.breaker(), isDelta, dateFactor);
+public class IdeltaIntAggregator {
+    public static IntIdeltaGroupingState initGrouping(DriverContext driverContext) {
+        return new IntIdeltaGroupingState(driverContext.bigArrays(), driverContext.breaker());
     }
 
-    public static void combine(FloatIrateGroupingState current, int groupId, float value, long timestamp) {
+    public static void combine(IntIdeltaGroupingState current, int groupId, int value, long timestamp) {
         current.ensureCapacity(groupId);
         current.append(groupId, timestamp, value);
     }
 
     public static String describe() {
-        return "instant change of floats";
+        return "instant delta of ints";
     }
 
     public static void combineIntermediate(
-        FloatIrateGroupingState current,
+        IntIdeltaGroupingState current,
         int groupId,
         LongBlock timestamps,
-        FloatBlock values,
+        IntBlock values,
         int otherPosition
     ) {
         current.combine(groupId, timestamps, values, otherPosition);
     }
 
-    public static Block evaluateFinal(FloatIrateGroupingState state, IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
+    public static Block evaluateFinal(IntIdeltaGroupingState state, IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
         return state.evaluateFinal(selected, evalContext);
     }
 
-    private static class FloatIrateState {
-        static final long BASE_RAM_USAGE = RamUsageEstimator.sizeOfObject(FloatIrateState.class);
+    private static class IntIdeltaState {
+        static final long BASE_RAM_USAGE = RamUsageEstimator.sizeOfObject(IntIdeltaState.class);
         long lastTimestamp;
         long secondLastTimestamp = -1;
-        float lastValue;
-        float secondLastValue;
+        int lastValue;
+        int secondLastValue;
         boolean hasSecond;
 
-        FloatIrateState(long lastTimestamp, float lastValue) {
+        IntIdeltaState(long lastTimestamp, int lastValue) {
             this.lastTimestamp = lastTimestamp;
             this.lastValue = lastValue;
             this.hasSecond = false;
@@ -83,20 +82,16 @@ public class IrateFloatAggregator {
         }
     }
 
-    public static final class FloatIrateGroupingState implements Releasable, Accountable, GroupingAggregatorState {
-        private ObjectArray<FloatIrateState> states;
+    public static final class IntIdeltaGroupingState implements Releasable, Accountable, GroupingAggregatorState {
+        private ObjectArray<IntIdeltaState> states;
         private final BigArrays bigArrays;
         private final CircuitBreaker breaker;
         private long stateBytes; // for individual states
-        private final boolean isDelta;
-        private final int dateFactor;
 
-        FloatIrateGroupingState(BigArrays bigArrays, CircuitBreaker breaker, boolean isDelta, int dateFactor) {
+        IntIdeltaGroupingState(BigArrays bigArrays, CircuitBreaker breaker) {
             this.bigArrays = bigArrays;
             this.breaker = breaker;
             this.states = bigArrays.newObjectArray(1);
-            this.isDelta = isDelta;
-            this.dateFactor = dateFactor;
         }
 
         void ensureCapacity(int groupId) {
@@ -104,15 +99,15 @@ public class IrateFloatAggregator {
         }
 
         void adjustBreaker(long bytes) {
-            breaker.addEstimateBytesAndMaybeBreak(bytes, "<<rate aggregation>>");
+            breaker.addEstimateBytesAndMaybeBreak(bytes, "<<idelta aggregation>>");
             stateBytes += bytes;
             assert stateBytes >= 0 : stateBytes;
         }
 
-        void append(int groupId, long timestamp, float value) {
+        void append(int groupId, long timestamp, int value) {
             var state = states.get(groupId);
             if (state == null) {
-                state = new FloatIrateState(timestamp, value);
+                state = new IntIdeltaState(timestamp, value);
                 states.set(groupId, state);
                 adjustBreaker(state.bytesUsed());
             } else {
@@ -133,7 +128,7 @@ public class IrateFloatAggregator {
             }
         }
 
-        void combine(int groupId, LongBlock timestamps, FloatBlock values, int otherPosition) {
+        void combine(int groupId, LongBlock timestamps, IntBlock values, int otherPosition) {
             final int valueCount = timestamps.getValueCount(otherPosition);
             if (valueCount == 0) {
                 return;
@@ -141,10 +136,10 @@ public class IrateFloatAggregator {
             final int firstTs = timestamps.getFirstValueIndex(otherPosition);
             final int firstIndex = values.getFirstValueIndex(otherPosition);
             ensureCapacity(groupId);
-            append(groupId, timestamps.getLong(firstTs), values.getFloat(firstIndex));
+            append(groupId, timestamps.getLong(firstTs), values.getInt(firstIndex));
             if (valueCount > 1) {
                 ensureCapacity(groupId);
-                append(groupId, timestamps.getLong(firstTs + 1), values.getFloat(firstIndex + 1));
+                append(groupId, timestamps.getLong(firstTs + 1), values.getInt(firstIndex + 1));
             }
         }
 
@@ -164,7 +159,7 @@ public class IrateFloatAggregator {
             final int positionCount = selected.getPositionCount();
             try (
                 LongBlock.Builder timestamps = blockFactory.newLongBlockBuilder(positionCount * 2);
-                FloatBlock.Builder values = blockFactory.newFloatBlockBuilder(positionCount * 2);
+                IntBlock.Builder values = blockFactory.newIntBlockBuilder(positionCount * 2);
             ) {
                 for (int i = 0; i < positionCount; i++) {
                     final var groupId = selected.getInt(i);
@@ -178,9 +173,9 @@ public class IrateFloatAggregator {
                         timestamps.endPositionEntry();
 
                         values.beginPositionEntry();
-                        values.appendFloat(state.lastValue);
+                        values.appendInt(state.lastValue);
                         if (state.hasSecond) {
-                            values.appendFloat(state.secondLastValue);
+                            values.appendInt(state.secondLastValue);
                         }
                         values.endPositionEntry();
                     } else {
@@ -203,18 +198,7 @@ public class IrateFloatAggregator {
                         rates.appendNull();
                         continue;
                     }
-                    if (isDelta) {
-                        // delta: just return the difference
-                        rates.appendDouble(state.lastValue - state.secondLastValue);
-                    } else {
-                        // When the last value is less than the previous one, we assume a reset
-                        // and use the last value directly.
-                        final double ydiff = state.lastValue >= state.secondLastValue
-                            ? state.lastValue - state.secondLastValue
-                            : state.lastValue;
-                        final long xdiff = state.lastTimestamp - state.secondLastTimestamp;
-                        rates.appendDouble(ydiff / xdiff * dateFactor);
-                    }
+                    rates.appendDouble(state.lastValue - state.secondLastValue);
                 }
                 return rates.build();
             }

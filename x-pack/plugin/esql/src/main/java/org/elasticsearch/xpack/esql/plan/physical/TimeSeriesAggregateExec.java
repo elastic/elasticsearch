@@ -254,4 +254,5 @@ public class TimeSeriesAggregateExec extends AggregateExec {
         }
         return rounding;
     }
+
 }

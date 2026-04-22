@@ -1,0 +1,5 @@
+area: Inference
+issues: []
+pr: 146885
+summary: Make similarity required for `SageMaker` `ElasticTextEmbeddingPayload`
+type: bug

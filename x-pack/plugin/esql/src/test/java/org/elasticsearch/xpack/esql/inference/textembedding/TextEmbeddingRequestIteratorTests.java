@@ -33,7 +33,9 @@ public class TextEmbeddingRequestIteratorTests extends ComputeTestCase {
         final String inferenceId = randomIdentifier();
         final BytesRefBlock inputBlock = randomInputBlock(0);
 
-        try (TextEmbeddingRequestIterator requestIterator = new TextEmbeddingRequestIterator(inferenceId, inputBlock, randomTimeoutOrNull())) {
+        try (
+            TextEmbeddingRequestIterator requestIterator = new TextEmbeddingRequestIterator(inferenceId, inputBlock, randomTimeoutOrNull())
+        ) {
             // Empty page should have no iterations
             assertFalse(requestIterator.hasNext());
 
@@ -119,7 +121,10 @@ public class TextEmbeddingRequestIteratorTests extends ComputeTestCase {
                 assertThat(requestItem1.positionValueCounts()[1], equalTo(0)); // null
                 assertThat(requestItem1.positionValueCounts()[2], equalTo(1)); // "text1"
                 assertThat(((InferenceAction.Request) requestItem1.inferenceRequest()).getInput().getFirst(), equalTo("text1"));
-                assertThat(((InferenceAction.Request) requestItem1.inferenceRequest()).getInferenceTimeout(), equalTo(expectedTimeout(timeout)));
+                assertThat(
+                    ((InferenceAction.Request) requestItem1.inferenceRequest()).getInferenceTimeout(),
+                    equalTo(expectedTimeout(timeout))
+                );
 
                 // Second batch: processes second non-null
                 assertTrue(requestIterator.hasNext());
@@ -129,7 +134,10 @@ public class TextEmbeddingRequestIteratorTests extends ComputeTestCase {
                 assertThat(requestItem2.positionValueCounts().length, equalTo(1));
                 assertThat(requestItem2.positionValueCounts()[0], equalTo(1)); // "text2"
                 assertThat(((InferenceAction.Request) requestItem2.inferenceRequest()).getInput().getFirst(), equalTo("text2"));
-                assertThat(((InferenceAction.Request) requestItem2.inferenceRequest()).getInferenceTimeout(), equalTo(expectedTimeout(timeout)));
+                assertThat(
+                    ((InferenceAction.Request) requestItem2.inferenceRequest()).getInferenceTimeout(),
+                    equalTo(expectedTimeout(timeout))
+                );
 
                 assertFalse(requestIterator.hasNext());
             }
@@ -161,7 +169,10 @@ public class TextEmbeddingRequestIteratorTests extends ComputeTestCase {
                 assertThat(requestItem.positionValueCounts()[1], equalTo(0)); // null
                 assertThat(requestItem.positionValueCounts()[2], equalTo(0)); // null
                 assertThat(((InferenceAction.Request) requestItem.inferenceRequest()).getInput().getFirst(), equalTo("text1"));
-                assertThat(((InferenceAction.Request) requestItem.inferenceRequest()).getInferenceTimeout(), equalTo(expectedTimeout(timeout)));
+                assertThat(
+                    ((InferenceAction.Request) requestItem.inferenceRequest()).getInferenceTimeout(),
+                    equalTo(expectedTimeout(timeout))
+                );
 
                 assertFalse(requestIterator.hasNext());
             }
@@ -182,7 +193,13 @@ public class TextEmbeddingRequestIteratorTests extends ComputeTestCase {
 
             BytesRefBlock inputBlock = blockBuilder.build();
 
-            try (TextEmbeddingRequestIterator requestIterator = new TextEmbeddingRequestIterator(inferenceId, inputBlock, randomTimeoutOrNull())) {
+            try (
+                TextEmbeddingRequestIterator requestIterator = new TextEmbeddingRequestIterator(
+                    inferenceId,
+                    inputBlock,
+                    randomTimeoutOrNull()
+                )
+            ) {
                 // Should produce one batch with all nulls
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem requestItem = requestIterator.next();
@@ -226,7 +243,10 @@ public class TextEmbeddingRequestIteratorTests extends ComputeTestCase {
                 assertThat(requestItem1.positionValueCounts()[0], equalTo(1)); // "text1"
                 assertThat(requestItem1.positionValueCounts()[1], equalTo(0)); // null
                 assertThat(((InferenceAction.Request) requestItem1.inferenceRequest()).getInput().getFirst(), equalTo("text1"));
-                assertThat(((InferenceAction.Request) requestItem1.inferenceRequest()).getInferenceTimeout(), equalTo(expectedTimeout(timeout)));
+                assertThat(
+                    ((InferenceAction.Request) requestItem1.inferenceRequest()).getInferenceTimeout(),
+                    equalTo(expectedTimeout(timeout))
+                );
 
                 // Second batch: "text2" with trailing nulls
                 assertTrue(requestIterator.hasNext());
@@ -236,7 +256,10 @@ public class TextEmbeddingRequestIteratorTests extends ComputeTestCase {
                 assertThat(requestItem2.positionValueCounts()[1], equalTo(0)); // null
                 assertThat(requestItem2.positionValueCounts()[2], equalTo(0)); // null
                 assertThat(((InferenceAction.Request) requestItem2.inferenceRequest()).getInput().getFirst(), equalTo("text2"));
-                assertThat(((InferenceAction.Request) requestItem2.inferenceRequest()).getInferenceTimeout(), equalTo(expectedTimeout(timeout)));
+                assertThat(
+                    ((InferenceAction.Request) requestItem2.inferenceRequest()).getInferenceTimeout(),
+                    equalTo(expectedTimeout(timeout))
+                );
 
                 // Third batch: "text3" alone
                 assertTrue(requestIterator.hasNext());
@@ -244,7 +267,10 @@ public class TextEmbeddingRequestIteratorTests extends ComputeTestCase {
                 assertThat(requestItem3.positionValueCounts().length, equalTo(1));
                 assertThat(requestItem3.positionValueCounts()[0], equalTo(1)); // "text3"
                 assertThat(((InferenceAction.Request) requestItem3.inferenceRequest()).getInput().getFirst(), equalTo("text3"));
-                assertThat(((InferenceAction.Request) requestItem3.inferenceRequest()).getInferenceTimeout(), equalTo(expectedTimeout(timeout)));
+                assertThat(
+                    ((InferenceAction.Request) requestItem3.inferenceRequest()).getInferenceTimeout(),
+                    equalTo(expectedTimeout(timeout))
+                );
 
                 assertFalse(requestIterator.hasNext());
             }
@@ -258,7 +284,9 @@ public class TextEmbeddingRequestIteratorTests extends ComputeTestCase {
         final int size = between(10, 1000);
         final BytesRefBlock inputBlock = randomInputBlock(size);
 
-        try (TextEmbeddingRequestIterator requestIterator = new TextEmbeddingRequestIterator(inferenceId, inputBlock, randomTimeoutOrNull())) {
+        try (
+            TextEmbeddingRequestIterator requestIterator = new TextEmbeddingRequestIterator(inferenceId, inputBlock, randomTimeoutOrNull())
+        ) {
             assertThat(requestIterator.estimatedSize(), equalTo(size));
         }
 
@@ -326,7 +354,10 @@ public class TextEmbeddingRequestIteratorTests extends ComputeTestCase {
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem requestItem = requestIterator.next();
                 assertThat(requestItem.inferenceRequest().getTaskType(), equalTo(TaskType.TEXT_EMBEDDING));
-                assertThat(((InferenceAction.Request) requestItem.inferenceRequest()).getInferenceTimeout(), equalTo(expectedTimeout(timeout)));
+                assertThat(
+                    ((InferenceAction.Request) requestItem.inferenceRequest()).getInferenceTimeout(),
+                    equalTo(expectedTimeout(timeout))
+                );
             }
         }
 

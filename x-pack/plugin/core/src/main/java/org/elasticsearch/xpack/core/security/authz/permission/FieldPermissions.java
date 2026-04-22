@@ -73,6 +73,8 @@ public final class FieldPermissions implements Accountable, CacheKey {
 
     private final long ramBytesUsed;
 
+    private Integer hashMemo = null;
+
     /** Constructor that does not enable field-level security: all fields are accepted. */
     private FieldPermissions() {
         this(new FieldPermissionsDefinition(null, null), Automatons.MATCH_ALL);
@@ -120,6 +122,8 @@ public final class FieldPermissions implements Accountable, CacheKey {
         ramBytesUsed += permittedFieldsAutomaton.ramBytesUsed();
         ramBytesUsed += runAutomatonRamBytesUsed(permittedFieldsAutomaton);
         ramBytesUsed += fieldPredicate.ramBytesUsed();
+        ramBytesUsed += RamUsageEstimator.sizeOf(hashMemo);
+        ramBytesUsed += Long.BYTES; // for ramBytesUsed itself
         this.ramBytesUsed = ramBytesUsed;
     }
 
@@ -274,6 +278,13 @@ public final class FieldPermissions implements Accountable, CacheKey {
 
     @Override
     public int hashCode() {
+        if (hashMemo == null) {
+            hashMemo = computeHashCode();
+        }
+        return hashMemo;
+    }
+
+    private int computeHashCode() {
         return Objects.hash(fieldPermissionsDefinitions, permittedFieldsAutomatonIsTotal);
     }
 

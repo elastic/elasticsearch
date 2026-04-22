@@ -1,0 +1,6 @@
+area: Authorization
+issues:
+ - 2372
+pr: 143530
+summary: Deduplicate `IndexAccessControl`
+type: bug

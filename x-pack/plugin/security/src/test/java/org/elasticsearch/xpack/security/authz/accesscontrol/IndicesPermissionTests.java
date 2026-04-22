@@ -46,6 +46,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -1094,6 +1095,229 @@ public class IndicesPermissionTests extends ESTestCase {
         );
         assertThat(ex.getMessage(), containsString("index pattern [****a*b?c**d**e*f??*g**h???i??*j*k*l*m*n???o*]"));
         assertThat(ex.getCause(), instanceOf(TooComplexToDeterminizeException.class));
+    }
+
+    public void testIndexAccessControlDeduplicationWithDefaultPermissions() {
+        final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
+        int numIndices = randomIntBetween(3, 10);
+        Metadata.Builder mdBuilder = new Metadata.Builder();
+        Set<String> indexNames = new HashSet<>();
+        for (int i = 0; i < numIndices; i++) {
+            String name = "index-" + i;
+            indexNames.add(name);
+            mdBuilder.put(new IndexMetadata.Builder(name).settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true);
+        }
+        ProjectMetadata pmd = mdBuilder.build().getProject();
+        FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
+
+        IndicesPermission indicesPermission = new IndicesPermission.Builder(RESTRICTED_INDICES).addGroup(
+            IndexPrivilege.ALL,
+            FieldPermissions.DEFAULT,
+            null,
+            randomBoolean(),
+            "*"
+        ).build();
+        IndicesAccessControl iac = indicesPermission.authorize(TransportSearchAction.TYPE.name(), indexNames, pmd, fieldPermissionsCache);
+
+        assertThat(iac.isGranted(), is(true));
+        IndicesAccessControl.IndexAccessControl firstControl = iac.getIndexPermissions("index-0");
+        assertThat(firstControl, notNullValue());
+        for (int i = 1; i < numIndices; i++) {
+            assertSame(
+                "IndexAccessControl should be the same instance for indices with identical default permissions",
+                firstControl,
+                iac.getIndexPermissions("index-" + i)
+            );
+        }
+    }
+
+    public void testIndexAccessControlDeduplicationViaAlias() {
+        final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
+        AliasMetadata aliasMetadata = AliasMetadata.builder("_alias").build();
+        int numIndices = randomIntBetween(2, 6);
+        Metadata.Builder mdBuilder = new Metadata.Builder();
+        for (int i = 0; i < numIndices; i++) {
+            mdBuilder.put(
+                new IndexMetadata.Builder("index-" + i).settings(indexSettings)
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .putAlias(aliasMetadata)
+                    .build(),
+                true
+            );
+        }
+        ProjectMetadata pmd = mdBuilder.build().getProject();
+        FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
+
+        Set<BytesReference> query = Collections.singleton(new BytesArray("{\"match_all\":{}}"));
+        String[] fields = new String[] { "allowed_*" };
+        IndicesPermission indicesPermission = new IndicesPermission.Builder(RESTRICTED_INDICES).addGroup(
+            IndexPrivilege.ALL,
+            new FieldPermissions(fieldPermissionDef(fields, null)),
+            query,
+            randomBoolean(),
+            "_alias"
+        ).build();
+        IndicesAccessControl iac = indicesPermission.authorize(
+            TransportSearchAction.TYPE.name(),
+            Sets.newHashSet("_alias"),
+            pmd,
+            fieldPermissionsCache
+        );
+
+        assertThat(iac.isGranted(), is(true));
+        IndicesAccessControl.IndexAccessControl aliasControl = iac.getIndexPermissions("_alias");
+        assertThat(aliasControl, notNullValue());
+        for (int i = 0; i < numIndices; i++) {
+            assertSame(
+                "All backing indices of an alias should share the same IndexAccessControl instance",
+                aliasControl,
+                iac.getIndexPermissions("index-" + i)
+            );
+        }
+    }
+
+    public void testIndexAccessControlDeduplicationWithDifferentPermissionGroups() {
+        final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
+        Metadata.Builder mdBuilder = new Metadata.Builder();
+        for (String name : List.of("a1", "a2", "a3", "b1", "b2", "b3")) {
+            mdBuilder.put(new IndexMetadata.Builder(name).settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true);
+        }
+        ProjectMetadata pmd = mdBuilder.build().getProject();
+        FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
+
+        Set<BytesReference> queryA = Collections.singleton(new BytesArray("{\"term\":{\"group\":\"a\"}}"));
+        Set<BytesReference> queryB = Collections.singleton(new BytesArray("{\"term\":{\"group\":\"b\"}}"));
+        IndicesPermission indicesPermission = new IndicesPermission.Builder(RESTRICTED_INDICES).addGroup(
+            IndexPrivilege.ALL,
+            new FieldPermissions(fieldPermissionDef(new String[] { "field_a" }, null)),
+            queryA,
+            randomBoolean(),
+            "a*"
+        )
+            .addGroup(
+                IndexPrivilege.ALL,
+                new FieldPermissions(fieldPermissionDef(new String[] { "field_b" }, null)),
+                queryB,
+                randomBoolean(),
+                "b*"
+            )
+            .build();
+        IndicesAccessControl iac = indicesPermission.authorize(
+            TransportSearchAction.TYPE.name(),
+            Sets.newHashSet("a1", "a2", "a3", "b1", "b2", "b3"),
+            pmd,
+            fieldPermissionsCache
+        );
+
+        assertThat(iac.isGranted(), is(true));
+
+        IndicesAccessControl.IndexAccessControl a1Control = iac.getIndexPermissions("a1");
+        IndicesAccessControl.IndexAccessControl b1Control = iac.getIndexPermissions("b1");
+        assertThat(a1Control, notNullValue());
+        assertThat(b1Control, notNullValue());
+
+        // Indices within the same group should share the same IndexAccessControl
+        assertSame(a1Control, iac.getIndexPermissions("a2"));
+        assertSame(a1Control, iac.getIndexPermissions("a3"));
+        assertSame(b1Control, iac.getIndexPermissions("b2"));
+        assertSame(b1Control, iac.getIndexPermissions("b3"));
+
+        // Indices in different groups should have different IndexAccessControl
+        assertNotSame(a1Control, b1Control);
+
+        // Verify they have different FLS
+        assertTrue(a1Control.getFieldPermissions().grantsAccessTo("field_a"));
+        assertFalse(a1Control.getFieldPermissions().grantsAccessTo("field_b"));
+        assertTrue(b1Control.getFieldPermissions().grantsAccessTo("field_b"));
+        assertFalse(b1Control.getFieldPermissions().grantsAccessTo("field_a"));
+    }
+
+    public void testIndexAccessControlDeduplicationWithMultipleGroupsSameIndex() {
+        final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
+        Metadata.Builder mdBuilder = new Metadata.Builder();
+        for (String name : List.of("index-1", "index-2", "index-3")) {
+            mdBuilder.put(new IndexMetadata.Builder(name).settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true);
+        }
+        ProjectMetadata pmd = mdBuilder.build().getProject();
+        FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
+
+        Set<BytesReference> query1 = Collections.singleton(new BytesArray("{\"term\":{\"status\":\"published\"}}"));
+        Set<BytesReference> query2 = Collections.singleton(new BytesArray("{\"term\":{\"status\":\"draft\"}}"));
+        FieldPermissions fp1 = new FieldPermissions(fieldPermissionDef(new String[] { "title" }, null));
+        FieldPermissions fp2 = new FieldPermissions(fieldPermissionDef(new String[] { "body" }, null));
+
+        // Two groups both match all indices - each index accumulates the same combined FLS and DLS
+        IndicesPermission indicesPermission = new IndicesPermission.Builder(RESTRICTED_INDICES).addGroup(
+            IndexPrivilege.ALL,
+            fp1,
+            query1,
+            randomBoolean(),
+            "index-*"
+        ).addGroup(IndexPrivilege.ALL, fp2, query2, randomBoolean(), "index-*").build();
+        IndicesAccessControl iac = indicesPermission.authorize(
+            TransportSearchAction.TYPE.name(),
+            Sets.newHashSet("index-1", "index-2", "index-3"),
+            pmd,
+            fieldPermissionsCache
+        );
+
+        assertThat(iac.isGranted(), is(true));
+
+        IndicesAccessControl.IndexAccessControl control1 = iac.getIndexPermissions("index-1");
+        assertThat(control1, notNullValue());
+
+        // All indices should share the same IndexAccessControl since they accumulate the same FLS+DLS
+        assertSame(control1, iac.getIndexPermissions("index-2"));
+        assertSame(control1, iac.getIndexPermissions("index-3"));
+
+        // Verify combined DLS contains both queries
+        assertThat(control1.getDocumentPermissions().hasDocumentLevelPermissions(), is(true));
+        assertThat(control1.getDocumentPermissions().getSingleSetOfQueries(), hasSize(2));
+
+        // Verify combined FLS allows both field groups
+        assertTrue(control1.getFieldPermissions().grantsAccessTo("title"));
+        assertTrue(control1.getFieldPermissions().grantsAccessTo("body"));
+    }
+
+    public void testIndexAccessControlDeduplicationWithIdenticalQueryContent() {
+        final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
+        Metadata.Builder mdBuilder = new Metadata.Builder();
+        for (String name : List.of("idx-a", "idx-b")) {
+            mdBuilder.put(new IndexMetadata.Builder(name).settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true);
+        }
+        ProjectMetadata pmd = mdBuilder.build().getProject();
+        FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
+
+        // Two separate BytesArray instances with identical content
+        Set<BytesReference> queryForA = Collections.singleton(new BytesArray("{\"match_all\":{}}"));
+        Set<BytesReference> queryForB = Collections.singleton(new BytesArray("{\"match_all\":{}}"));
+        assertNotSame("precondition: query sets are distinct objects", queryForA, queryForB);
+
+        IndicesPermission indicesPermission = new IndicesPermission.Builder(RESTRICTED_INDICES).addGroup(
+            IndexPrivilege.ALL,
+            FieldPermissions.DEFAULT,
+            queryForA,
+            randomBoolean(),
+            "idx-a"
+        ).addGroup(IndexPrivilege.ALL, FieldPermissions.DEFAULT, queryForB, randomBoolean(), "idx-b").build();
+        IndicesAccessControl iac = indicesPermission.authorize(
+            TransportSearchAction.TYPE.name(),
+            Sets.newHashSet("idx-a", "idx-b"),
+            pmd,
+            fieldPermissionsCache
+        );
+
+        assertThat(iac.isGranted(), is(true));
+        IndicesAccessControl.IndexAccessControl controlA = iac.getIndexPermissions("idx-a");
+        IndicesAccessControl.IndexAccessControl controlB = iac.getIndexPermissions("idx-b");
+        assertThat(controlA, notNullValue());
+        assertThat(controlB, notNullValue());
+        assertSame(
+            "IndexAccessControl should be interned when DLS queries have equal content even if they are separate objects",
+            controlA,
+            controlB
+        );
     }
 
     private static IndexAbstraction concreteIndexAbstraction(String name) {

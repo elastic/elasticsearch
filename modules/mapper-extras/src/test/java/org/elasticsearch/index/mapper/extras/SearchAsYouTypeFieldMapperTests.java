@@ -8,10 +8,13 @@
  */
 package org.elasticsearch.index.mapper.extras;
 
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.SimpleAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
@@ -34,9 +37,14 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
+import org.elasticsearch.index.analysis.AnalysisMode;
+import org.elasticsearch.index.analysis.AnalyzerComponents;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.analysis.ReloadableCustomAnalyzer;
+import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -886,5 +894,55 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
     @Override
     protected boolean supportsDocValuesSkippers() {
         return false;
+    }
+
+    /**
+     * Regression test for https://github.com/elastic/elasticsearch/issues/146914.
+     * When the delegate of a {@code SearchAsYouTypeAnalyzer} is a {@link ReloadableCustomAnalyzer}, calling
+     * {@code tokenStream()} must not throw a {@code ClassCastException} caused by the delegate's
+     * {@code UPDATE_STRATEGY} trying to cast the outer wrapper to {@code ReloadableCustomAnalyzer}.
+     */
+    public void testSearchAsYouTypeAnalyzerWithReloadableDelegate() throws Exception {
+        TokenizerFactory tokenizerFactory = TokenizerFactory.newFactory("standard", StandardTokenizer::new);
+
+        AbstractTokenFilterFactory noOpSearchTimeFilter = new AbstractTokenFilterFactory("no_op_search_time") {
+            @Override
+            public AnalysisMode getAnalysisMode() {
+                return AnalysisMode.SEARCH_TIME;
+            }
+
+            @Override
+            public TokenStream create(TokenStream tokenStream) {
+                return tokenStream;
+            }
+        };
+
+        AnalyzerComponents components = new AnalyzerComponents(
+            tokenizerFactory,
+            new org.elasticsearch.index.analysis.CharFilterFactory[0],
+            new org.elasticsearch.index.analysis.TokenFilterFactory[] { noOpSearchTimeFilter }
+        );
+
+        try (
+            ReloadableCustomAnalyzer reloadableAnalyzer = new ReloadableCustomAnalyzer(components, 0, -1);
+            SearchAsYouTypeAnalyzer wrapper = SearchAsYouTypeAnalyzer.withShingle(reloadableAnalyzer, 2)
+        ) {
+            // Prime the ReloadableCustomAnalyzer's storedComponents thread-local by calling tokenStream
+            // on it directly first. This triggers UPDATE_STRATEGY.getReusableComponents() on the inner
+            // analyzer, which is required before initReader/createComponents can be called on it safely.
+            // When SearchAsYouTypeAnalyzer uses PER_FIELD_REUSE_STRATEGY, it bypasses this initialization,
+            // so we replicate the setup that would normally occur in production (where NamedAnalyzer
+            // calls tokenStream on the reloadable analyzer before the wrapper does).
+            try (TokenStream ts = reloadableAnalyzer.tokenStream("field", "hello world")) {
+                ts.reset();
+                ts.end();
+            }
+            // Before the fix, this threw ClassCastException because SearchAsYouTypeAnalyzer inherited
+            // UPDATE_STRATEGY from ReloadableCustomAnalyzer, which hardcodes a cast to ReloadableCustomAnalyzer.
+            try (TokenStream ts = wrapper.tokenStream("field", "hello world")) {
+                ts.reset();
+                ts.end();
+            }
+        }
     }
 }

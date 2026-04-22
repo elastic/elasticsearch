@@ -60,7 +60,7 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
         }
     };
 
-    ReloadableCustomAnalyzer(AnalyzerComponents components, int positionIncrementGap, int offsetGap) {
+    public ReloadableCustomAnalyzer(AnalyzerComponents components, int positionIncrementGap, int offsetGap) {
         super(UPDATE_STRATEGY);
         if (components.analysisMode().equals(AnalysisMode.SEARCH_TIME) == false) {
             throw new IllegalArgumentException(

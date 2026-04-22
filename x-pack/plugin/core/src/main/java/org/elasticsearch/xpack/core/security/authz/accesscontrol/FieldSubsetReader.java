@@ -372,7 +372,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
             this.ignoredSourceFormat = ignoredSourceFormat;
             this.filter = filter;
             // convert incoming binary doc values to reuse the code provided by MultiValuedSortedBinaryDocValues
-            this.multiValues = MultiValuedSortedBinaryDocValues.from(reader, IgnoredSourceFieldMapper.NAME, dv);
+            this.multiValues = MultiValuedSortedBinaryDocValues.fromMultiValued(reader, IgnoredSourceFieldMapper.NAME, dv);
         }
 
         @Override

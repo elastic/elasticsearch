@@ -17,14 +17,17 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -39,6 +42,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
+import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.IndexOptions;
@@ -67,6 +71,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.inference.TaskType.EMBEDDING;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
@@ -85,6 +90,10 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
 
     public static final String CONTENT_TYPE = "semantic";
 
+    public static final FeatureFlag SEMANTIC_FIELD_FEATURE_FLAG = new FeatureFlag("semantic_field");
+
+    public static final NodeFeature SEMANTIC_FIELD_MAPPER = new NodeFeature("semantic_field.semantic_field_mapper");
+
     static final String INDEX_OPTIONS_FIELD = "index_options";
 
     private static final DenseVectorMapperConfigurator DENSE_VECTOR_MAPPER_CONFIGURATOR = new DenseVectorMapperConfigurator(
@@ -94,6 +103,13 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         (indexVersion, modelSimilarity) -> modelSimilarity != null ? modelSimilarity.vectorSimilarity() : null,
         (indexVersion, modelSettings) -> null
     );
+
+    public static TypeParser parser(Supplier<ModelRegistry> modelRegistry) {
+        return new TypeParser(
+            (n, c) -> new Builder(n, c::bitSetProducer, c.getIndexSettings(), modelRegistry.get(), c.getVectorsFormatProviders()),
+            List.of(notFromDynamicTemplates(CONTENT_TYPE))
+        );
+    }
 
     public static class Builder extends FieldMapper.Builder {
         protected final Function<Query, BitSetProducer> bitSetProducer;
@@ -865,14 +881,40 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            // TODO: Implement
-            throw new UnsupportedOperationException("Unimplemented");
+            if (format != null && "chunks".equals(format) == false) {
+                throw new IllegalArgumentException(
+                    "Unknown format [" + format + "] for field [" + name() + "], only [chunks] is supported."
+                );
+            }
+            if (format != null) {
+                return new SemanticFieldValueFetcher(
+                    this,
+                    getChunksField().bitsetProducer(),
+                    context.searcher(),
+                    SemanticFieldValueFetcher.Mode.TEXT
+                );
+            }
+
+            return originalValueFetcher(context);
         }
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            // TODO: Implement
-            throw new UnsupportedOperationException("Unimplemented");
+            return new BlockSourceReader.BytesRefsBlockLoader(allValuesFetcher(blContext), BlockSourceReader.lookupMatchingAll());
+        }
+
+        /**
+         * Get a {@link ValueFetcher} for the original value(s) directly written to this field.
+         */
+        protected ValueFetcher originalValueFetcher(SearchExecutionContext context) {
+            return SourceValueFetcher.toString(name(), context, null);
+        }
+
+        /**
+         * Get a {@link ValueFetcher} for all values written to this field, both directly and via {@code copy_to}.
+         */
+        protected ValueFetcher allValuesFetcher(MappedFieldType.BlockLoaderContext blContext) {
+            return SourceValueFetcher.toString(blContext.sourcePaths(name()), blContext.indexSettings());
         }
     }
 

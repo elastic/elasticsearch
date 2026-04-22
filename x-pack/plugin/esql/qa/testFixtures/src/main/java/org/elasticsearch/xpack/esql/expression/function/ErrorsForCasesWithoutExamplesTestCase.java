@@ -96,8 +96,7 @@ public abstract class ErrorsForCasesWithoutExamplesTestCase extends ESTestCase {
             }
 
             // When a dense vector function receives a NULL argument, it will return NULL.
-            if (expression instanceof VectorSimilarityFunction vf
-                && vf.children().stream().anyMatch(e -> e.dataType() == DataType.NULL)) {
+            if (expression instanceof VectorSimilarityFunction vf && vf.children().stream().anyMatch(e -> e.dataType() == DataType.NULL)) {
                 continue;
             }
 

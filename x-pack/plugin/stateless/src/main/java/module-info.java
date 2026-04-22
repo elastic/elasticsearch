@@ -15,6 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
+import org.elasticsearch.action.search.OnlinePrewarmingServiceProvider;
 import org.elasticsearch.cluster.EstimatedHeapUsageCollector;
 import org.elasticsearch.cluster.metadata.TemplateDecoratorProvider;
 import org.elasticsearch.repositories.SnapshotShardContextFactory;
@@ -25,18 +26,14 @@ import org.elasticsearch.xpack.stateless.templates.StatelessTemplateSettingsDeco
 module org.elasticsearch.xpack.stateless {
     requires org.elasticsearch.base;
     requires org.elasticsearch.blobcache;
-    requires org.elasticsearch.nativeaccess;
     requires org.elasticsearch.logging;
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcore;
     requires org.elasticsearch.xcontent;
 
     requires org.apache.logging.log4j;
-
     requires org.apache.lucene.core;
-    requires org.apache.log4j;
 
-    // TODO: remove unnecessary "to" clauses ES-13786
     exports org.elasticsearch.xpack.stateless
         to
             org.elasticsearch.server,
@@ -60,9 +57,7 @@ module org.elasticsearch.xpack.stateless {
     exports org.elasticsearch.xpack.stateless.snapshots to org.elasticsearch.server; // for stateless snapshots
     exports org.elasticsearch.xpack.stateless.templates to org.elasticsearch.server;
 
-    provides org.elasticsearch.action.search.OnlinePrewarmingServiceProvider
-        with
-            org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingServiceProvider;
+    provides OnlinePrewarmingServiceProvider with org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingServiceProvider;
     provides SnapshotShardContextFactory with StatelessSnapshotShardContextFactory;
     provides TemplateDecoratorProvider with StatelessTemplateSettingsDecoratorProvider;
     provides EstimatedHeapUsageCollector with StatelessHeapUsageCollector;

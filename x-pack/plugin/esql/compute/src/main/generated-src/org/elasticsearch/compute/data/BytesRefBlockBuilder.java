@@ -28,8 +28,12 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
     private BytesRefArray values;
 
     BytesRefBlockBuilder(int estimatedSize, BigArrays bigArrays, BlockFactory blockFactory) {
+        this(estimatedSize, bigArrays, blockFactory, 0L);
+    }
+
+    BytesRefBlockBuilder(int estimatedSize, BigArrays bigArrays, BlockFactory blockFactory, long byteHint) {
         super(blockFactory);
-        values = new BytesRefArray(Math.max(estimatedSize, 2), bigArrays);
+        values = new BytesRefArray(Math.max(estimatedSize, 2), bigArrays, byteHint);
     }
 
     @Override

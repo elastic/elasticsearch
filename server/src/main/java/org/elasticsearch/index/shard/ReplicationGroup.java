@@ -29,6 +29,7 @@ public class ReplicationGroup {
     private final Set<String> unavailableInSyncShards; // derived from the other fields
     private final List<ShardRouting> replicationTargets; // derived from the other fields
     private final List<ShardRouting> skippedShards; // derived from the other fields
+    private final boolean containsPeerReplicationTargets; // derived from the other fields
 
     public ReplicationGroup(
         IndexShardRoutingTable routingTable,
@@ -72,6 +73,11 @@ public class ReplicationGroup {
                 }
             }
         }
+        this.containsPeerReplicationTargets = replicationTargets.stream().anyMatch(shard -> shard.primary() == false);
+    }
+
+    public boolean containsPeerReplicationTargets() {
+        return this.containsPeerReplicationTargets;
     }
 
     public long getVersion() {

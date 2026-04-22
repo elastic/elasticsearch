@@ -163,7 +163,9 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addIndex("logs-public");
         addIndex("logs-secret");
         LogicalPlan plan = query("FROM safe-logs,logs-secret");
-        assertThat(replaceViews(plan), matchesPlan(query("FROM logs*,-logs-secret,logs-secret")));
+        // The view body's -logs-secret exclusion stays scoped to the view — it must not widen
+        // onto the sibling outer pattern "logs-secret", which explicitly asks to include it.
+        assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM logs*,-logs-secret),(FROM logs-secret)")));
     }
 
     public void testExclusionWithNoRemainingIndexMatch() {
@@ -178,6 +180,50 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addIndex("logs3");
         LogicalPlan plan = query("FROM logs*,-logs3");
         assertThat(replaceViews(plan), matchesPlan(query("FROM logs2,logs*,-logs3")));
+    }
+
+    /**
+     * Exclusion patterns must be preserved at their original position in the unresolved-pattern
+     * list, not appended after positive patterns. Pattern order matters because
+     * {@code IndexAbstractionResolver} processes exclusions against prior accumulated state —
+     * reordering {@code -*-view-*} from before {@code data-view-*} to after it changes the
+     * semantics (the exclusion would now strip {@code data-view-*} matches from the result).
+     * <p>
+     * {@code match-nothing-*} is dropped here because its expansion is empty+SUCCESS in the
+     * null-fallback path. In the security-enabled path it would be NOT_VISIBLE and preserved,
+     * but the exclusion-order bug exists on either path.
+     */
+    public void testExclusionPreservesOriginalOrder() {
+        addIndex("data-index-origin");
+        addIndex("data-view-extra");
+        addView("data-view-origin", "FROM data-index-origin");
+        LogicalPlan plan = query("FROM match-nothing-*,-*-view-*,data-view-*");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM data-index-origin,-*-view-*,data-view-*")));
+    }
+
+    /**
+     * A view body's exclusion must stay scoped to its own body. When the body is a simple
+     * {@link UnresolvedRelation} containing an exclusion, it must not be merged with sibling or
+     * outer URs, because the merge concatenates patterns into one UR and widens the scope of
+     * the exclusion to everything in the combined pattern list.
+     * <p>
+     * Real-world failure (ServerlessCrossProjectEsqlIT):
+     * <pre>
+     *   indices: index-a1, index-a2, index-b1, index-b2
+     *   view data-view = FROM index-b*,-*2        (scopes to index-b*, excludes index-b2)
+     *   query: FROM index-a*,data-view            (expects index-a1, index-a2, index-b1)
+     * </pre>
+     * Before the fix the resolver merged into {@code UR(index-a*,index-b*,-*2)} so the view
+     * body's {@code -*2} excluded {@code index-a2} as well, producing only {@code a1, b1}.
+     */
+    public void testViewBodyExclusionNotLeakedToOuter() {
+        addIndex("index-a1");
+        addIndex("index-a2");
+        addIndex("index-b1");
+        addIndex("index-b2");
+        addView("data-view", "FROM index-b*,-*2");
+        LogicalPlan plan = query("FROM index-a*,data-view");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM index-a*),(FROM index-b*,-*2)")));
     }
 
     public void testExclusionMultipleViews() {
@@ -755,6 +801,84 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
             () -> replaceViews(query("FROM view_a | FORK (WHERE emp.age > 30) (WHERE emp.age < 50)"))
         );
         assertThat(e.getMessage(), containsString("circular view reference 'view_a'"));
+    }
+
+    /**
+     * Reproduces https://github.com/elastic/elasticsearch/issues/146665
+     * FORK queries that reference no views should succeed even when circular views exist on the cluster.
+     */
+    public void testForkWithCircularViewsOnClusterButNotReferenced() {
+        assumeTrue("Requires FORK support", EsqlCapabilities.Cap.FORK_V9.isEnabled());
+        addView("view_x", "FROM view_y");
+        addView("view_y", "FROM view_x");
+        addIndex("logs-001");
+        // FORK query with wildcard that matches only the index, not the circular views
+        LogicalPlan plan = query("FROM logs-* | FORK (STATS c = COUNT(*)) (LIMIT 5)");
+        LogicalPlan result = replaceViews(plan);
+        assertNotNull("FORK query should resolve without circular view errors", result);
+        assertThat("Plan did not change, no views matched", result, matchesPlan(plan));
+    }
+
+    /**
+     * Reproduces https://github.com/elastic/elasticsearch/issues/146665
+     * FORK query with FROM * but excluding the circular views should succeed.
+     */
+    public void testForkWithStarWildcardExcludingCircularViews() {
+        assumeTrue("Requires FORK support", EsqlCapabilities.Cap.FORK_V9.isEnabled());
+        addView("view_x", "FROM view_y");
+        addView("view_y", "FROM view_x");
+        addIndex("logs");
+        // FROM *,-view_* excludes the circular views — should succeed
+        LogicalPlan plan = query("FROM *,-view_* | FORK (STATS c = COUNT(*)) (LIMIT 5)");
+        LogicalPlan result = replaceViews(plan);
+        assertNotNull("FORK query excluding circular views should resolve without errors", result);
+        assertThat("Plan did not change, no views matched", result, matchesPlan(plan));
+    }
+
+    /**
+     * Reproduces <a href="https://github.com/elastic/elasticsearch/issues/146208">#146208</a>.
+     * FROM *,-employees* against a cluster populated with the csv-spec views (several simple
+     * views whose bodies share underlying wildcard patterns, plus employee views that are
+     * excluded by the outer pattern) should not trigger a false circular view reference.
+     * <p>
+     * This mirrors the manual-server reproduction: the bug only fires when a recursive
+     * re-visit of an already-resolved UnresolvedRelation issues a view-resolve request with
+     * empty indices, which the security layer expands to "_all". The fix short-circuits that
+     * re-entry in {@link ViewResolver#replaceViewsUnresolvedRelation} when all patterns have
+     * already been consumed by seenWildcards.
+     */
+    public void testFromStarExcludingEmployeesWithCsvSpecViews_Issue146208() {
+        assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        // Indices referenced by the csv-spec view bodies (plus "logs" from default setup)
+        addIndex("addresses");
+        addIndex("airports");
+        addIndex("airports_mp");
+        addIndex("languages_lookup_non_unique_key");
+        addIndex("employees");
+
+        // Non-employee views from views.csv-spec — none reference each other, but their bodies
+        // share underlying index patterns (airports, addresses) that the outer FROM * expands to.
+        addView("country_addresses", "FROM addresses | STATS count=COUNT() BY country");
+        addView("country_languages", "FROM languages_lookup_non_unique_key | STATS count=COUNT() BY country");
+        addView("airports_mp_filtered", "FROM airports | LOOKUP JOIN airports_mp ON abbrev == abbrev");
+        addView("country_airports", "FROM airports | STATS count=COUNT() BY country");
+
+        // Employee views — all excluded by the outer -employees* pattern
+        addView("employees_all", "FROM employees");
+        addView("employees_extra", "FROM employees, employees_all");
+        addView("employees_rehired", "FROM employees | WHERE is_rehired == true");
+        addView("employees_not_rehired", "FROM employees | WHERE is_rehired == false");
+
+        // Must not throw a circular view reference error.
+        LogicalPlan result = replaceViews(query("FROM *,-employees* | LIMIT 1"));
+        assertNotNull("FROM *,-employees* should resolve without false circular reference errors", result);
+        assertThat("Should match four views and one index pattern", result, matchesPlan(query("""
+            FROM *,-employees*,
+            (FROM addresses | STATS count=COUNT() BY country),
+            (FROM languages_lookup_non_unique_key | STATS count=COUNT() BY country),
+            (FROM airports | LOOKUP JOIN airports_mp ON abbrev == abbrev),
+            (FROM airports | STATS count=COUNT() BY country)
+            | LIMIT 1""")));
     }
 
     public void testCircularViewExcludedByWildcard() {

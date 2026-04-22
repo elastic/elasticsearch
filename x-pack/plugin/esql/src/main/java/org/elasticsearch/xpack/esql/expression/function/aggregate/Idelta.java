@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.IrateDoubleAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.IrateIntAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.IrateLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.IdeltaDoubleAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.IdeltaIntAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.IdeltaLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -134,12 +134,10 @@ public class Idelta extends TimeSeriesAggregateFunction implements OptionalArgum
     @Override
     public AggregatorFunctionSupplier supplier() {
         final DataType type = field().dataType();
-        final DataType tsType = timestamp().dataType();
-        final boolean isDateNanos = tsType == DataType.DATE_NANOS;
         return switch (type) {
-            case LONG -> new IrateLongAggregatorFunctionSupplier(true, isDateNanos);
-            case INTEGER -> new IrateIntAggregatorFunctionSupplier(true, isDateNanos);
-            case DOUBLE -> new IrateDoubleAggregatorFunctionSupplier(true, isDateNanos);
+            case LONG -> new IdeltaLongAggregatorFunctionSupplier();
+            case INTEGER -> new IdeltaIntAggregatorFunctionSupplier();
+            case DOUBLE -> new IdeltaDoubleAggregatorFunctionSupplier();
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

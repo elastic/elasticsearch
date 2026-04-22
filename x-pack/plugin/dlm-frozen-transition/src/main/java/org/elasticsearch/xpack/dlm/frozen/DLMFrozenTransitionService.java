@@ -78,6 +78,7 @@ class DLMFrozenTransitionService implements ClusterStateListener, Closeable {
     private final int maxConcurrency;
     private final int maxQueueSize;
     private final long initialDelayMillis;
+    private final DLMFrozenTransitionSettings transitionSettings;
     private final DataStreamLifecycleErrorStore errorStore;
 
     private final BiFunction<String, ProjectId, DLMFrozenTransitionRunnable> transitionRunnableFactory;
@@ -86,12 +87,14 @@ class DLMFrozenTransitionService implements ClusterStateListener, Closeable {
         ClusterService clusterService,
         Client client,
         XPackLicenseState licenseState,
+        DLMFrozenTransitionSettings transitionSettings,
         DataStreamLifecycleErrorStore errorStore
     ) {
         this(
             clusterService,
             (index, pid) -> new DLMConvertToFrozen(index, pid, client, clusterService, licenseState, Clock.systemUTC()),
             POLL_INTERVAL_SETTING.get(clusterService.getSettings()).millis(),
+            transitionSettings,
             errorStore
         );
     }
@@ -101,13 +104,20 @@ class DLMFrozenTransitionService implements ClusterStateListener, Closeable {
         ClusterService clusterService,
         BiFunction<String, ProjectId, DLMFrozenTransitionRunnable> transitionRunnableFactory
     ) {
-        this(clusterService, transitionRunnableFactory, 0, new DataStreamLifecycleErrorStore(System::currentTimeMillis));
+        this(
+            clusterService,
+            transitionRunnableFactory,
+            0,
+            DLMFrozenTransitionSettings.create(clusterService),
+            new DataStreamLifecycleErrorStore(System::currentTimeMillis)
+        );
     }
 
     private DLMFrozenTransitionService(
         ClusterService clusterService,
         BiFunction<String, ProjectId, DLMFrozenTransitionRunnable> transitionRunnableFactory,
         long initialDelayMillis,
+        DLMFrozenTransitionSettings transitionSettings,
         DataStreamLifecycleErrorStore errorStore
     ) {
         this.clusterService = clusterService;
@@ -116,6 +126,7 @@ class DLMFrozenTransitionService implements ClusterStateListener, Closeable {
         this.maxQueueSize = MAX_QUEUE_SIZE.get(clusterService.getSettings());
         this.transitionRunnableFactory = transitionRunnableFactory;
         this.initialDelayMillis = initialDelayMillis;
+        this.transitionSettings = transitionSettings;
         this.errorStore = errorStore;
     }
 
@@ -151,9 +162,9 @@ class DLMFrozenTransitionService implements ClusterStateListener, Closeable {
                     maxConcurrency,
                     maxQueueSize,
                     clusterService.getSettings(),
+                    transitionSettings,
                     errorStore
                 );
-                transitionExecutor.init();
                 schedulerThreadExecutor = Executors.newSingleThreadScheduledExecutor(
                     EsExecutors.daemonThreadFactory(clusterService.getSettings(), "dlm-frozen-transition-scheduler")
                 );

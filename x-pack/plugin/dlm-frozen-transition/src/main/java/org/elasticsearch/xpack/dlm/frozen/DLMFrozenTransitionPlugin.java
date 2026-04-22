@@ -28,10 +28,15 @@ public class DLMFrozenTransitionPlugin extends Plugin {
         Set<Object> components = new HashSet<>(super.createComponents(services));
         if (DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled()) {
             XPackLicenseState licenseState = XPackPlugin.getSharedLicenseState();
+            var transitionSettings = new DLMFrozenTransitionSettings(services.clusterService().getSettings());
+            transitionSettings.init(services.clusterService());
+            components.add(transitionSettings);
+
             var transitionService = new DLMFrozenTransitionService(
                 services.clusterService(),
                 services.client(),
                 licenseState,
+                transitionSettings,
                 services.dlmErrorStore()
             );
             transitionService.init();

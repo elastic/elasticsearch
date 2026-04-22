@@ -1392,6 +1392,7 @@ public class LocalExecutionPlanner {
             .maxBufferSize(effectiveBufferSize)
             .rowLimit(pushedLimit)
             .executor(operatorFactoryRegistry.executor())
+            .fileReadExecutor(operatorFactoryRegistry.fileReadExecutor())
             .config(externalSource.config())
             .sourceMetadata(externalSource.sourceMetadata())
             .pushedFilter(externalSource.pushedFilter())

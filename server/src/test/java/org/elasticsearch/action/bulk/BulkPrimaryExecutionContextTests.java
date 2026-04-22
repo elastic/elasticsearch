@@ -47,8 +47,12 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
             }
         }
 
+        final IndexShard primary = mock(IndexShard.class);
+        when(primary.shardId()).thenReturn(shardRequest.shardId());
+        when(primary.hasPeerReplicationTargets()).thenReturn(true);
+
         ArrayList<DocWriteRequest<?>> visitedRequests = new ArrayList<>();
-        for (BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(shardRequest, null); context
+        for (BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(shardRequest, primary); context
             .hasMoreOperationsToExecute();) {
             visitedRequests.add(context.getCurrent());
             context.setRequestToExecute(context.getCurrent());
@@ -89,6 +93,7 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
             .numberOfReplicas(0)
             .build();
         when(primary.indexSettings()).thenReturn(new IndexSettings(indexMetadata, Settings.EMPTY));
+        when(primary.hasPeerReplicationTargets()).thenReturn(true);
 
         long translogGen = 0;
         long translogOffset = 0;

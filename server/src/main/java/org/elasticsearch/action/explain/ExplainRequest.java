@@ -11,7 +11,7 @@ package org.elasticsearch.action.explain;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.SplitAwareRequest;
+import org.elasticsearch.action.RetryableSplitAwareRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -34,7 +34,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Explain request encapsulating the explain query and document identifier to get an explanation for.
  */
-public class ExplainRequest extends SingleShardRequest<ExplainRequest> implements ToXContentObject, SplitAwareRequest {
+public class ExplainRequest extends SingleShardRequest<ExplainRequest> implements ToXContentObject, RetryableSplitAwareRequest {
     private static final TransportVersion SPLIT_SHARD_COUNT_SUMMARY = TransportVersion.fromName("explain_split_shard_count_summary");
 
     private static final ParseField QUERY_FIELD = new ParseField("query");

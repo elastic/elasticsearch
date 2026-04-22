@@ -27,7 +27,6 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -36,6 +35,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -71,6 +71,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.inference.FakeMlPlugin;
 import org.elasticsearch.xpack.inference.InferencePlugin;
+import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapperTests;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.junit.AfterClass;
@@ -173,10 +174,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
 
     @Override
     protected Settings createTestIndexSettings() {
-        return Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
-            .build();
+        return SemanticInferenceMetadataFieldsMapperTests.randomIndexSettings(useLegacyFormat);
     }
 
     @Override
@@ -266,9 +264,10 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         var sparseQuery = (SparseVectorQueryWrapper) innerQuery;
         assertThat(sparseQuery.getTermsQuery(), instanceOf(BooleanQuery.class));
 
+        // If token pruning is enabled, tokens are pruned because they don't exist in the index
+        final int expectedClauseCount = tokenPruningEnabledByDefault(indexSettings().getIndexVersionCreated()) ? 0 : queryTokenCount;
         BooleanQuery innerBooleanQuery = (BooleanQuery) sparseQuery.getTermsQuery();
-        // no clauses as tokens would be pruned
-        assertThat(innerBooleanQuery.clauses().size(), equalTo(0));
+        assertThat(innerBooleanQuery.clauses().size(), equalTo(expectedClauseCount));
     }
 
     private void assertTextEmbeddingLuceneQuery(Query query) {
@@ -590,6 +589,14 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
                 denseVectorElementType
             );
         };
+    }
+
+    private static boolean tokenPruningEnabledByDefault(IndexVersion indexVersion) {
+        return indexVersion.onOrAfter(IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT)
+            || indexVersion.between(
+                IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X,
+                IndexVersions.UPGRADE_TO_LUCENE_10_0_0
+            );
     }
 
     private static TestThreadPool threadPool;

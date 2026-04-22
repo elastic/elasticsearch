@@ -41,5 +41,5 @@
     "ROW b64_input=\"This is an image\"\n| EVAL embedding = EMBEDDING(\"data:image/jpeg;base64,VGhpcyBpcyBhbiBpbWFnZQ==\", \"test_embedding_inference\", {\"type\": \"image\"})"
   ],
   "preview" : false,
-  "snapshot_only" : true
+  "snapshot_only" : false
 }

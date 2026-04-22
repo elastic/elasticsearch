@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 
 import java.io.IOException;
 import java.util.List;
@@ -28,6 +29,11 @@ import java.util.List;
 public class Asin extends AbstractTrigonometricFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Asin", Asin::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Asin.class).unary(Asin::new).name("asin");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .unaryValueTransformation(Asin::new)
+        .description("Calculates the arcsine of all elements in the input vector.")
+        .example("asin(some_metric)")
+        .name("asin");
 
     @FunctionInfo(
         returnType = "double",

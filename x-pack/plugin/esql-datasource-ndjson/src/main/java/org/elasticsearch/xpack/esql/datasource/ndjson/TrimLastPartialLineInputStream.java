@@ -78,7 +78,7 @@ final class TrimLastPartialLineInputStream extends InputStream {
     }
 
     @Override
-    public int read(byte [] b, int off, int len) throws IOException {
+    public int read(byte[] b, int off, int len) throws IOException {
         int total = 0;
         while (len > 0) {
             if (readIdx < writeIdx) {

@@ -283,9 +283,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.PushExpressionToLoadIT
   method: testRoundToLongExactMatch
   issue: https://github.com/elastic/elasticsearch/issues/146615
-- class: org.elasticsearch.xpack.esql.optimizer.ApproximationGoldenTests
-  method: testApproximationDisabled
-  issue: https://github.com/elastic/elasticsearch/issues/146564
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testReindexFailsWhenPitRelocationFails
   issue: https://github.com/elastic/elasticsearch/issues/146650
@@ -490,6 +487,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
   method: testBulkOperations {useLegacyFormat=false useSyntheticSource=false}
   issue: https://github.com/elastic/elasticsearch/issues/147130
+- class: org.elasticsearch.xpack.ccr.CcrSeqNoPruningIT
+  method: testSeqNoPrunedOnLeaderAfterFollowerCatchesUp
+  issue: https://github.com/elastic/elasticsearch/issues/147133
 
 # Examples:
 #

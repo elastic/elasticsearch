@@ -60,7 +60,19 @@ public final class EirfRowXContentParser extends AbstractXContentParser {
             return new SchemaNode(name, -1, children);
         }
 
-        boolean isLeaf() {
+        public String name() {
+            return name;
+        }
+
+        public int leafColumnIndex() {
+            return leafColumnIndex;
+        }
+
+        public SchemaNode[] children() {
+            return children;
+        }
+
+        public boolean isLeaf() {
             return children == null;
         }
     }

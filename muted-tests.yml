@@ -211,9 +211,6 @@ tests:
 - class: org.elasticsearch.cluster.remote.test.RemoteClustersIT
   method: testHAProxyModeConnectionWorks
   issue: https://github.com/elastic/elasticsearch/issues/139171
-- class: org.elasticsearch.search.fetch.FetchPhaseDocsIteratorTests
-  method: testIterateAsyncVisitsLeavesInDocIdOrder
-  issue: https://github.com/elastic/elasticsearch/issues/146078
 - class: org.elasticsearch.xpack.security.transport.filter.IpFilteringIntegrationTests
   method: testThatIpFilteringIsIntegratedIntoNettyPipelineViaHttp
   issue: https://github.com/elastic/elasticsearch/issues/146102
@@ -351,9 +348,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
   method: test {csv-spec:stats.filterSometimesMatches}
   issue: https://github.com/elastic/elasticsearch/issues/146834
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/145901
 - class: org.elasticsearch.lucene.FullClusterRestartSystemIndexCompatibilityIT
   method: testAsyncSearchIndexMigration {p0=9.5.0}
   issue: https://github.com/elastic/elasticsearch/issues/146848
@@ -369,18 +363,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testWatcherWithApiKey {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/146874
-- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerBFloat16BulkBenchmarkTests
-  method: testRandom {p0=DOT_PRODUCT p1=1024}
-  issue: https://github.com/elastic/elasticsearch/issues/146889
-- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerBFloat16BulkBenchmarkTests
-  method: testSequential {p0=EUCLIDEAN p1=1024}
-  issue: https://github.com/elastic/elasticsearch/issues/146890
-- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerBFloat16BulkBenchmarkTests
-  method: testRandom {p0=EUCLIDEAN p1=1024}
-  issue: https://github.com/elastic/elasticsearch/issues/146891
-- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerBFloat16BulkBenchmarkTests
-  method: testSequential {p0=DOT_PRODUCT p1=1024}
-  issue: https://github.com/elastic/elasticsearch/issues/146892
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
   method: test {csv-spec:qstr-function.testQstrInStatsWithGrouping}
   issue: https://github.com/elastic/elasticsearch/issues/146934

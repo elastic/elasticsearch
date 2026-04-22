@@ -47,6 +47,7 @@ import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageSuccess;
 import static org.elasticsearch.test.ActivityLoggingUtils.getMessageData;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.eql.action.EqlSearchResponseIntegTestHelpers.decRef;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
@@ -94,12 +95,16 @@ public class EqlLoggingIT extends AbstractEqlBlockingIntegTestCase {
             .waitForCompletionTimeout(TimeValue.THIRTY_SECONDS);
 
         EqlSearchResponse response = client().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.isRunning(), is(false));
-        assertThat(response.isPartial(), is(false));
-        var message = getMessageData(appender.getLastEventAndReset());
-        assertMessageSuccess(message, EqlLogContext.TYPE, query);
-        assertThat(message.get(QUERY_FIELD_INDICES), equalTo("test"));
-        assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo(success ? "1" : "0"));
+        try {
+            assertThat(response.isRunning(), is(false));
+            assertThat(response.isPartial(), is(false));
+            var message = getMessageData(appender.getLastEventAndReset());
+            assertMessageSuccess(message, EqlLogContext.TYPE, query);
+            assertThat(message.get(QUERY_FIELD_INDICES), equalTo("test"));
+            assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo(success ? "1" : "0"));
+        } finally {
+            decRef(response);
+        }
     }
 
     public void testEqlFailureLogging() throws Exception {
@@ -141,15 +146,19 @@ public class EqlLoggingIT extends AbstractEqlBlockingIntegTestCase {
             .allowPartialSearchResults(true)
             .waitForCompletionTimeout(TimeValue.THIRTY_SECONDS);
         EqlSearchResponse response = client().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.isRunning(), is(false));
-        assertThat(response.shardFailures().length, greaterThanOrEqualTo(1));
+        try {
+            assertThat(response.isRunning(), is(false));
+            assertThat(response.shardFailures().length, greaterThanOrEqualTo(1));
 
-        var event = appender.getLastEventAndReset();
-        assertNotNull(event);
-        var message = getMessageData(event);
-        assertMessageSuccess(message, "eql", "my_event where i >= 0");
-        assertThat(message.get(QUERY_FIELD_INDICES), equalTo("test"));
-        assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "failed")), greaterThanOrEqualTo(1));
+            var event = appender.getLastEventAndReset();
+            assertNotNull(event);
+            var message = getMessageData(event);
+            assertMessageSuccess(message, "eql", "my_event where i >= 0");
+            assertThat(message.get(QUERY_FIELD_INDICES), equalTo("test"));
+            assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "failed")), greaterThanOrEqualTo(1));
+        } finally {
+            decRef(response);
+        }
     }
 
     /**
@@ -168,36 +177,44 @@ public class EqlLoggingIT extends AbstractEqlBlockingIntegTestCase {
         List<SearchBlockPlugin> plugins = initBlockFactory(true, false);
 
         EqlSearchResponse initialResponse = client().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(initialResponse.isRunning(), is(true));
-        assertThat(initialResponse.isPartial(), is(true));
+        try {
+            assertThat(initialResponse.isRunning(), is(true));
+            assertThat(initialResponse.isPartial(), is(true));
 
-        awaitForBlockedSearches(plugins, "test");
+            awaitForBlockedSearches(plugins, "test");
 
-        GetAsyncResultRequest getResultsRequest = new GetAsyncResultRequest(initialResponse.id()).setKeepAlive(
-            TimeValue.timeValueMinutes(10)
-        ).setWaitForCompletionTimeout(TimeValue.THIRTY_SECONDS);
-        ActionFuture<EqlSearchResponse> future = client().execute(EqlAsyncGetResultAction.INSTANCE, getResultsRequest);
-        disableBlocks(plugins);
+            GetAsyncResultRequest getResultsRequest = new GetAsyncResultRequest(initialResponse.id()).setKeepAlive(
+                TimeValue.timeValueMinutes(10)
+            ).setWaitForCompletionTimeout(TimeValue.THIRTY_SECONDS);
+            ActionFuture<EqlSearchResponse> future = client().execute(EqlAsyncGetResultAction.INSTANCE, getResultsRequest);
+            disableBlocks(plugins);
 
-        EqlSearchResponse response = future.get();
-        assertThat(response.isRunning(), is(false));
-        assertThat(response.isPartial(), is(false));
-        assertThat(response.hits().events().size(), equalTo(1));
+            EqlSearchResponse response = future.get();
+            try {
+                assertThat(response.isRunning(), is(false));
+                assertThat(response.isPartial(), is(false));
+                assertThat(response.hits().events().size(), equalTo(1));
 
-        var message = appender.events.stream()
-            .map(ActivityLoggingUtils::getMessageData)
-            .filter(m -> EqlLogContext.TYPE.equals(m.get(ES_QUERY_FIELDS_PREFIX + "type")))
-            .findFirst()
-            .orElseThrow(() -> new AssertionError("expected EQL log event not found"));
-        assertMessageSuccess(message, EqlLogContext.TYPE, query);
-        assertThat(message.get(QUERY_FIELD_INDICES), equalTo("test"));
-        assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo("1"));
+                var message = appender.events.stream()
+                    .map(ActivityLoggingUtils::getMessageData)
+                    .filter(m -> EqlLogContext.TYPE.equals(m.get(ES_QUERY_FIELDS_PREFIX + "type")))
+                    .findFirst()
+                    .orElseThrow(() -> new AssertionError("expected EQL log event not found"));
+                assertMessageSuccess(message, EqlLogContext.TYPE, query);
+                assertThat(message.get(QUERY_FIELD_INDICES), equalTo("test"));
+                assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo("1"));
 
-        AcknowledgedResponse deleteResponse = client().execute(
-            TransportDeleteAsyncResultAction.TYPE,
-            new DeleteAsyncResultRequest(response.id())
-        ).actionGet();
-        assertThat(deleteResponse.isAcknowledged(), equalTo(true));
+                AcknowledgedResponse deleteResponse = client().execute(
+                    TransportDeleteAsyncResultAction.TYPE,
+                    new DeleteAsyncResultRequest(response.id())
+                ).actionGet();
+                assertThat(deleteResponse.isAcknowledged(), equalTo(true));
+            } finally {
+                decRef(response);
+            }
+        } finally {
+            decRef(initialResponse);
+        }
     }
 
     private void prepareIndex() throws Exception {

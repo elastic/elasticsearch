@@ -522,9 +522,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
         assertThat(info.originalStartTimeMillis(), equalTo(task.getStartTime()));
     }
 
-    /**
-     * A freshly created task is in the ACTIVE state and neither the handoff flag nor cancelled-pending flag is set.
-     */
+    /** A freshly created task's relocation progress is in the NOT_STARTED state. */
     public void testRelocationProgressStartsNotStarted() {
         BulkByScrollTask task = createTask(true);
         assertEquals(BulkByScrollTask.RelocationProgress.State.NOT_STARTED, task.getRelocationProgress().current());
@@ -532,8 +530,8 @@ public class BulkByScrollTaskTests extends ESTestCase {
     }
 
     /**
-     * {@link BulkByScrollTask#tryInitiateRelocationHandoff()} transitions ACTIVE -> HANDOFF_INITIATED on first call,
-     * is idempotent on subsequent calls, and flips {@link BulkByScrollTask#useCreateSemanticsForResultStorage()}.
+     * {@link BulkByScrollTask#tryInitiateRelocationHandoff()} transitions NOT_STARTED -> HANDOFF_INITIATED on first
+     * call, is idempotent on subsequent calls, and flips {@link BulkByScrollTask#useCreateSemanticsForResultStorage()}.
      */
     public void testTryInitiateRelocationHandoff() {
         BulkByScrollTask task = createTask(true);

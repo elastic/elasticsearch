@@ -1307,7 +1307,9 @@ class NodeConstruction {
             circuitBreakerService,
             systemIndices.getExecutorSelector(),
             telemetryProvider.getTracer(),
-            onlinePrewarmingService
+            onlinePrewarmingService,
+            transportService.getTaskManager(),
+            telemetryProvider.getMeterRegistry()
         );
         searchTransportService.setSearchService(searchService);
 

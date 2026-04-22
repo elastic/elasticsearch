@@ -43,6 +43,7 @@ import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ClusterConnectionManager;
@@ -174,7 +175,9 @@ class NodeServiceProvider {
         CircuitBreakerService circuitBreakerService,
         ExecutorSelector executorSelector,
         Tracer tracer,
-        OnlinePrewarmingService onlinePrewarmingService
+        OnlinePrewarmingService onlinePrewarmingService,
+        TaskManager taskManager,
+        MeterRegistry meterRegistry
     ) {
         return new SearchService(
             clusterService,
@@ -186,7 +189,9 @@ class NodeServiceProvider {
             circuitBreakerService,
             executorSelector,
             tracer,
-            onlinePrewarmingService
+            onlinePrewarmingService,
+            taskManager,
+            meterRegistry
         );
     }
 

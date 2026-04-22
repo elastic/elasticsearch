@@ -57,6 +57,8 @@ public class ReaderContext implements Releasable {
     private Map<String, Object> context;
     private boolean isRelocating = false;
 
+    private final boolean openedUnderReindexingTask;
+
     @SuppressWarnings("this-escape")
     public ReaderContext(
         ShardSearchContextId id,
@@ -66,11 +68,25 @@ public class ReaderContext implements Releasable {
         long keepAliveInMillis,
         boolean singleSession
     ) {
+        this(id, indexService, indexShard, searcherSupplier, keepAliveInMillis, singleSession, false);
+    }
+
+    @SuppressWarnings("this-escape")
+    public ReaderContext(
+        ShardSearchContextId id,
+        IndexService indexService,
+        IndexShard indexShard,
+        Engine.SearcherSupplier searcherSupplier,
+        long keepAliveInMillis,
+        boolean singleSession,
+        boolean openedUnderReindexingTask
+    ) {
         this.id = id;
         this.indexService = indexService;
         this.indexShard = indexShard;
         this.searcherSupplier = searcherSupplier;
         this.singleSession = singleSession;
+        this.openedUnderReindexingTask = openedUnderReindexingTask;
         this.keepAlive = new AtomicLong(keepAliveInMillis);
         this.lastAccessTime = new AtomicLong(nowInMillis());
         this.refCounted = AbstractRefCounted.of(this::doClose);
@@ -153,6 +169,21 @@ public class ReaderContext implements Releasable {
         return elapsed > keepAlive.get();
     }
 
+    /**
+     * {@code true} when this context should be closed because its keep-alive elapsed since last access.
+     * Relocation grace expiry ({@link #isRelocating()}) is excluded.
+     */
+    public boolean expiredDueToKeepAlive() {
+        if (refCounted.refCount() > 1) {
+            return false;
+        }
+        if (isRelocating()) {
+            return false;
+        }
+        final long elapsed = nowInMillis() - lastAccessTime.get();
+        return elapsed > keepAlive.get();
+    }
+
     public boolean isRelocating() {
         return isRelocating;
     }
@@ -200,6 +231,14 @@ public class ReaderContext implements Releasable {
      */
     public boolean singleSession() {
         return singleSession;
+    }
+
+    /**
+     * {@code true} if this context was created for a shard search that belongs (via parent tasks) to a reindex or resume-reindex task
+     * on this node. Used for reindex-specific diagnostics when the keep-alive reaper closes the context.
+     */
+    public boolean openedUnderReindexingTask() {
+        return openedUnderReindexingTask;
     }
 
     /**

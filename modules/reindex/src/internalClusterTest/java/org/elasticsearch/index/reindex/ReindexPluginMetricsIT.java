@@ -22,6 +22,7 @@ import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.reindex.Reindexer;
 import org.elasticsearch.reindex.TransportReindexAction;
 import org.elasticsearch.rest.root.MainRestPlugin;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.telemetry.Measurement;
@@ -421,6 +422,147 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
             assertThat(completions.size(), equalTo(1));
             assertThat(completions.getFirst().attributes().get(ATTRIBUTE_NAME_ERROR_TYPE), notNullValue());
             assertThat(completions.getFirst().attributes().get(ATTRIBUTE_NAME_SOURCE), equalTo(ATTRIBUTE_VALUE_SOURCE_LOCAL));
+        });
+    }
+
+    /**
+     * End-to-end: on the scroll path, throttling delays the next scroll longer than the scroll keep-alive, so the keep-alive reaper
+     * closes the reindex-owned scroll context and increments {@link SearchService#REINDEX_SCROLL_CONTEXT_CLOSED_KEEPALIVE_TOTAL}.
+     * The reindex request then fails (missing search context). Skipped when {@link ReindexPlugin#REINDEX_PIT_SEARCH_ENABLED} is true.
+     */
+    public void testReindexScrollKeepAliveReaperMetricWhenThrottledPastScrollTimeout() throws Exception {
+        assumeFalse("scroll path only", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
+
+        final String dataNodeName = internalCluster().startNode(
+            Settings.builder()
+                .put(SearchService.DEFAULT_KEEPALIVE_SETTING.getKey(), "1ms")
+                .put(SearchService.MAX_KEEPALIVE_SETTING.getKey(), "10m")
+                .put(SearchService.KEEPALIVE_INTERVAL_SETTING.getKey(), "10ms")
+                .build()
+        );
+
+        indexRandom(
+            true,
+            prepareIndex("source").setId("1").setSource("foo", "a"),
+            prepareIndex("source").setId("2").setSource("foo", "b"),
+            prepareIndex("source").setId("3").setSource("foo", "c")
+        );
+        assertHitCount(prepareSearch("source").setSize(0), 3);
+
+        final TestTelemetryPlugin testTelemetryPlugin = internalCluster().getInstance(PluginsService.class, dataNodeName)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+        testTelemetryPlugin.resetMeter();
+
+        final ReindexRequestBuilder reindex = reindex().source("source").destination("dest");
+        reindex.source().setScroll(TimeValue.timeValueMillis(1));
+        reindex.source().setSize(1);
+        reindex.setRequestsPerSecond(1.0f);
+
+        expectThrows(Exception.class, reindex::get);
+
+        assertBusy(() -> {
+            testTelemetryPlugin.collect();
+            final long keepAliveClosures = testTelemetryPlugin.getLongCounterMeasurement(
+                SearchService.REINDEX_SCROLL_CONTEXT_CLOSED_KEEPALIVE_TOTAL
+            ).stream().mapToLong(Measurement::getLong).sum();
+            assertThat(keepAliveClosures, greaterThanOrEqualTo(1L));
+        });
+    }
+
+    /**
+     * Like {@link #testReindexScrollKeepAliveReaperMetricWhenThrottledPastScrollTimeout}, but for delete-by-query: scroll expires while
+     * throttled, yet {@link SearchService}'s reindex keep-alive counters must stay zero (task is not reindex-derived).
+     */
+    public void testDeleteByQueryDoesNotIncrementReindexSearchKeepAliveMetricsWhenThrottledPastScrollTimeout() throws Exception {
+        assumeFalse("scroll path only", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
+
+        final String dataNodeName = internalCluster().startNode(
+            Settings.builder()
+                .put(SearchService.DEFAULT_KEEPALIVE_SETTING.getKey(), "1ms")
+                .put(SearchService.MAX_KEEPALIVE_SETTING.getKey(), "10m")
+                .put(SearchService.KEEPALIVE_INTERVAL_SETTING.getKey(), "10ms")
+                .build()
+        );
+
+        indexRandom(
+            true,
+            prepareIndex("test").setId("1").setSource("foo", "a"),
+            prepareIndex("test").setId("2").setSource("foo", "b"),
+            prepareIndex("test").setId("3").setSource("foo", "c")
+        );
+        assertHitCount(prepareSearch("test").setSize(0), 3);
+
+        final TestTelemetryPlugin testTelemetryPlugin = internalCluster().getInstance(PluginsService.class, dataNodeName)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+        testTelemetryPlugin.resetMeter();
+
+        final DeleteByQueryRequestBuilder deleteByQuery = deleteByQuery().source("test")
+            .filter(QueryBuilders.matchAllQuery())
+            .refresh(true);
+        deleteByQuery.source().setScroll(TimeValue.timeValueMillis(1));
+        deleteByQuery.source().setSize(1);
+        deleteByQuery.setRequestsPerSecond(1.0f);
+
+        expectThrows(Exception.class, deleteByQuery::get);
+
+        assertReindexSearchKeepAliveCountersStayZero(testTelemetryPlugin);
+    }
+
+    /**
+     * Same negative check as {@link #testDeleteByQueryDoesNotIncrementReindexSearchKeepAliveMetricsWhenThrottledPastScrollTimeout} for
+     * update-by-query.
+     */
+    public void testUpdateByQueryDoesNotIncrementReindexSearchKeepAliveMetricsWhenThrottledPastScrollTimeout() throws Exception {
+        assumeFalse("scroll path only", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
+
+        final String dataNodeName = internalCluster().startNode(
+            Settings.builder()
+                .put(SearchService.DEFAULT_KEEPALIVE_SETTING.getKey(), "1ms")
+                .put(SearchService.MAX_KEEPALIVE_SETTING.getKey(), "10m")
+                .put(SearchService.KEEPALIVE_INTERVAL_SETTING.getKey(), "10ms")
+                .build()
+        );
+
+        indexRandom(
+            true,
+            prepareIndex("test").setId("1").setSource("foo", "a"),
+            prepareIndex("test").setId("2").setSource("foo", "b"),
+            prepareIndex("test").setId("3").setSource("foo", "c")
+        );
+        assertHitCount(prepareSearch("test").setSize(0), 3);
+
+        final TestTelemetryPlugin testTelemetryPlugin = internalCluster().getInstance(PluginsService.class, dataNodeName)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+        testTelemetryPlugin.resetMeter();
+
+        final UpdateByQueryRequestBuilder updateByQuery = updateByQuery().source("test").refresh(true);
+        updateByQuery.source().setScroll(TimeValue.timeValueMillis(1));
+        updateByQuery.source().setSize(1);
+        updateByQuery.setRequestsPerSecond(1.0f);
+
+        expectThrows(Exception.class, updateByQuery::get);
+
+        assertReindexSearchKeepAliveCountersStayZero(testTelemetryPlugin);
+    }
+
+    private void assertReindexSearchKeepAliveCountersStayZero(TestTelemetryPlugin testTelemetryPlugin) throws Exception {
+        assertBusy(() -> {
+            testTelemetryPlugin.collect();
+            final long scrollClosures = testTelemetryPlugin.getLongCounterMeasurement(
+                SearchService.REINDEX_SCROLL_CONTEXT_CLOSED_KEEPALIVE_TOTAL
+            ).stream().mapToLong(Measurement::getLong).sum();
+            final long pitClosures = testTelemetryPlugin.getLongCounterMeasurement(SearchService.REINDEX_PIT_CONTEXT_CLOSED_KEEPALIVE_TOTAL)
+                .stream()
+                .mapToLong(Measurement::getLong)
+                .sum();
+            assertThat(scrollClosures, equalTo(0L));
+            assertThat(pitClosures, equalTo(0L));
         });
     }
 

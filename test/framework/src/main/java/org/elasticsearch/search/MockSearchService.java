@@ -27,6 +27,8 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -92,7 +94,9 @@ public class MockSearchService extends SearchService {
         CircuitBreakerService circuitBreakerService,
         ExecutorSelector executorSelector,
         Tracer tracer,
-        OnlinePrewarmingService onlinePrewarmingService
+        OnlinePrewarmingService onlinePrewarmingService,
+        TaskManager taskManager,
+        MeterRegistry meterRegistry
     ) {
         super(
             clusterService,
@@ -104,7 +108,9 @@ public class MockSearchService extends SearchService {
             circuitBreakerService,
             executorSelector,
             tracer,
-            onlinePrewarmingService
+            onlinePrewarmingService,
+            taskManager,
+            meterRegistry
         );
     }
 

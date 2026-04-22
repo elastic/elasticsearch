@@ -73,6 +73,8 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.reindex.ReindexAction;
+import org.elasticsearch.index.reindex.ResumeReindexAction;
 import org.elasticsearch.index.shard.GlobalCheckpointListeners;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -134,7 +136,12 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.metric.LongCounter;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
@@ -177,6 +184,16 @@ import static org.elasticsearch.search.rank.feature.RankFeatureShardPhase.EMPTY_
 
 public class SearchService extends AbstractLifecycleComponent implements IndexEventListener {
     private static final Logger logger = LogManager.getLogger(SearchService.class);
+
+    /**
+     * Total reindex-derived scroll contexts closed by the keep-alive reaper after keep-alive elapsed.
+     */
+    public static final String REINDEX_SCROLL_CONTEXT_CLOSED_KEEPALIVE_TOTAL = "es.search.reindex.scroll_context.closed_keepalive.total";
+
+    /**
+     * Total reindex-derived point-in-time contexts closed by the keep-alive reaper after keep-alive elapsed.
+     */
+    public static final String REINDEX_PIT_CONTEXT_CLOSED_KEEPALIVE_TOTAL = "es.search.reindex.pit_context.closed_keepalive.total";
 
     // we can have 5 minutes here, since we make sure to clean with search requests and when shard/index closes
     public static final Setting<TimeValue> DEFAULT_KEEPALIVE_SETTING = Setting.positiveTimeSetting(
@@ -408,6 +425,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final Tracer tracer;
 
+    private final TaskManager taskManager;
+
+    private final LongCounter reindexScrollContextClosedKeepaliveCounter;
+
+    private final LongCounter reindexPitContextClosedKeepaliveCounter;
+
     public SearchService(
         ClusterService clusterService,
         IndicesService indicesService,
@@ -418,7 +441,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         CircuitBreakerService circuitBreakerService,
         ExecutorSelector executorSelector,
         Tracer tracer,
-        OnlinePrewarmingService onlinePrewarmingService
+        OnlinePrewarmingService onlinePrewarmingService,
+        TaskManager taskManager,
+        MeterRegistry meterRegistry
     ) {
         Settings settings = clusterService.getSettings();
         this.sessionId = UUIDs.randomBase64UUID();
@@ -434,6 +459,17 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.executorSelector = executorSelector;
         this.tracer = tracer;
         this.onlinePrewarmingService = onlinePrewarmingService;
+        this.taskManager = taskManager;
+        this.reindexScrollContextClosedKeepaliveCounter = meterRegistry.registerLongCounter(
+            REINDEX_SCROLL_CONTEXT_CLOSED_KEEPALIVE_TOTAL,
+            "Reindex-derived scroll search contexts closed after keep-alive expired",
+            "unit"
+        );
+        this.reindexPitContextClosedKeepaliveCounter = meterRegistry.registerLongCounter(
+            REINDEX_PIT_CONTEXT_CLOSED_KEEPALIVE_TOTAL,
+            "Reindex-derived point-in-time search contexts closed after keep-alive expired",
+            "unit"
+        );
         TimeValue keepAliveInterval = KEEPALIVE_INTERVAL_SETTING.get(settings);
         setKeepAlives(DEFAULT_KEEPALIVE_SETTING.get(settings), MAX_KEEPALIVE_SETTING.get(settings));
 
@@ -721,7 +757,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private DfsSearchResult executeDfsPhase(ShardSearchRequest request, SearchShardTask task) throws IOException {
-        ReaderContext readerContext = createOrGetReaderContext(request);
+        ReaderContext readerContext = createOrGetReaderContext(request, task);
         try (@SuppressWarnings("unused") // withScope call is necessary to instrument search execution
         Releasable scope = tracer.withScope(task);
             Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
@@ -818,7 +854,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         // the ActionListener.wrap callbacks will invoke the one that handles readerContext cleanup on failure.
         final var completionListenerRef = new AtomicReference<>(listener);
         ensureAfterSeqNoRefreshed(shard, request, () -> {
-            final ReaderContext readerContext = createOrGetReaderContext(request);
+            final ReaderContext readerContext = createOrGetReaderContext(request, task);
             final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(request));
             completionListenerRef.set(wrapFailureListener(listener, readerContext, markAsUsed));
             return executeQueryPhase(request, task, readerContext);
@@ -1449,7 +1485,33 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return reader;
     }
 
-    final ReaderContext createOrGetReaderContext(ShardSearchRequest request) {
+    /**
+     * {@code true} if {@code searchShardTask} is part of a reindex or resume-reindex task on this node (ancestor in the local task tree).
+     */
+    private boolean isReindexingDerivedSearch(@Nullable CancellableTask searchShardTask) {
+        if (searchShardTask == null) {
+            return false;
+        }
+        final String localNodeId = clusterService.localNode().getId();
+        TaskId parentTaskId = searchShardTask.getParentTaskId();
+        while (parentTaskId.isSet()) {
+            if (localNodeId.equals(parentTaskId.getNodeId()) == false) {
+                return false;
+            }
+            Task parent = taskManager.getTask(parentTaskId.getId());
+            if (parent == null) {
+                return false;
+            }
+            String action = parent.getAction();
+            if (ReindexAction.NAME.equals(action) || ResumeReindexAction.NAME.equals(action)) {
+                return true;
+            }
+            parentTaskId = parent.getParentTaskId();
+        }
+        return false;
+    }
+
+    final ReaderContext createOrGetReaderContext(ShardSearchRequest request, @Nullable CancellableTask searchShardTask) {
         ShardSearchContextId contextId = request.readerId();
         final long keepAliveInMillis = getKeepAlive(request);
         if (contextId != null) {
@@ -1482,7 +1544,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     );
                     logger.debug("Recreated reader context [{}]", readerContext.id());
                 } else {
-                    readerContext = createAndPutReaderContext(request, indexService, shard, searcherSupplier, defaultKeepAlive);
+                    readerContext = createAndPutReaderContext(request, indexService, shard, searcherSupplier, defaultKeepAlive, null);
                 }
                 return readerContext;
             }
@@ -1494,7 +1556,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             indexService,
             shard,
             shard.acquireExternalSearcherSupplier(request.getSplitShardCountSummary()),
-            keepAliveInMillis
+            keepAliveInMillis,
+            searchShardTask
         );
     }
 
@@ -1503,8 +1566,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         IndexService indexService,
         IndexShard shard,
         Engine.SearcherSupplier reader,
-        long keepAliveInMillis
+        long keepAliveInMillis,
+        @Nullable CancellableTask searchShardTask
     ) {
+        final boolean openedUnderReindexingTask = isReindexingDerivedSearch(searchShardTask);
         ReaderContext readerContext = null;
         Releasable decreaseScrollContexts = null;
         try {
@@ -1514,12 +1579,20 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 if (openScrollContexts.incrementAndGet() > maxOpenScrollContext) {
                     throw new TooManyScrollContextsException(maxOpenScrollContext, MAX_OPEN_SCROLL_CONTEXT.getKey());
                 }
-                readerContext = new LegacyReaderContext(id, indexService, shard, reader, request, keepAliveInMillis);
+                readerContext = new LegacyReaderContext(
+                    id,
+                    indexService,
+                    shard,
+                    reader,
+                    request,
+                    keepAliveInMillis,
+                    openedUnderReindexingTask
+                );
                 readerContext.addOnClose(decreaseScrollContexts);
                 decreaseScrollContexts = null;
             } else {
                 final ShardSearchContextId id = new ShardSearchContextId(sessionId, idGenerator.incrementAndGet(), reader.getSearcherId());
-                readerContext = new ReaderContext(id, indexService, shard, reader, keepAliveInMillis, true);
+                readerContext = new ReaderContext(id, indexService, shard, reader, keepAliveInMillis, true, openedUnderReindexingTask);
             }
             reader = null;
             final ReaderContext finalReaderContext = readerContext;
@@ -2232,6 +2305,21 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 && ThreadPool.assertNotScheduleThread("closing contexts may do IO, e.g. deleting dangling files");
             for (ReaderContext context : activeReaders.values()) {
                 if (context.isExpired()) {
+                    if (context.expiredDueToKeepAlive() && context.openedUnderReindexingTask()) {
+                        final String contextKind = context.scrollContext() != null ? "scroll" : "point_in_time";
+                        logger.info(
+                            "Closed expired reindex {} search context [{}] on shard [{}]; keep_alive [{}]",
+                            contextKind,
+                            context.id(),
+                            context.indexShard().shardId(),
+                            TimeValue.timeValueMillis(context.keepAlive())
+                        );
+                        if (context.scrollContext() != null) {
+                            reindexScrollContextClosedKeepaliveCounter.increment();
+                        } else {
+                            reindexPitContextClosedKeepaliveCounter.increment();
+                        }
+                    }
                     logger.debug("freeing search context [{}]", context.id());
                     freeReaderContext(context.id());
                 }
@@ -2258,6 +2346,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             // mustn't reject this task even if the queue is full
             return true;
         }
+    }
+
+    /**
+     * Runs a single keep-alive reaper pass (same work as the scheduled reaper). For tests only.
+     */
+    void runKeepAliveReaperOnceForTesting() {
+        new Reaper().doRun();
     }
 
     public AliasFilter buildAliasFilter(ProjectState state, String index, Set<ResolvedExpression> resolvedExpressions) {

@@ -48,6 +48,7 @@ import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockHttpTransport;
@@ -129,7 +130,9 @@ public class MockNode extends Node {
             CircuitBreakerService circuitBreakerService,
             ExecutorSelector executorSelector,
             Tracer tracer,
-            OnlinePrewarmingService onlinePrewarmingService
+            OnlinePrewarmingService onlinePrewarmingService,
+            TaskManager taskManager,
+            MeterRegistry meterRegistry
         ) {
             if (pluginsService.filterPlugins(MockSearchService.TestPlugin.class).findAny().isEmpty()) {
                 return super.newSearchService(
@@ -143,7 +146,9 @@ public class MockNode extends Node {
                     circuitBreakerService,
                     executorSelector,
                     tracer,
-                    onlinePrewarmingService
+                    onlinePrewarmingService,
+                    taskManager,
+                    meterRegistry
                 );
             }
 
@@ -157,7 +162,9 @@ public class MockNode extends Node {
                 circuitBreakerService,
                 executorSelector,
                 tracer,
-                onlinePrewarmingService
+                onlinePrewarmingService,
+                taskManager,
+                meterRegistry
             );
         }
 

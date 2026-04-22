@@ -1582,7 +1582,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                 indexService,
                 indexShard,
                 indexShard.acquireSearcherSupplier(),
-                SearchService.KEEPALIVE_INTERVAL_SETTING.get(Settings.EMPTY).millis()
+                SearchService.KEEPALIVE_INTERVAL_SETTING.get(Settings.EMPTY).millis(),
+                null
             )
         );
         assertEquals(
@@ -1621,7 +1622,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                                 indexService,
                                 indexShard,
                                 reader,
-                                SearchService.KEEPALIVE_INTERVAL_SETTING.get(Settings.EMPTY).millis()
+                                SearchService.KEEPALIVE_INTERVAL_SETTING.get(Settings.EMPTY).millis(),
+                                null
                             );
                         } catch (ElasticsearchException e) {
                             assertThat(
@@ -2229,7 +2231,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                         indexService,
                         indexShard,
                         indexShard.acquireSearcherSupplier(),
-                        SearchService.KEEPALIVE_INTERVAL_SETTING.get(Settings.EMPTY).millis()
+                        SearchService.KEEPALIVE_INTERVAL_SETTING.get(Settings.EMPTY).millis(),
+                        null
                     );
                     assertThat(context.id().getId(), equalTo((long) (i + 1)));
                     contextIds.add(context.id());
@@ -2649,7 +2652,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             indexService,
             indexShard,
             reader,
-            SearchService.KEEPALIVE_INTERVAL_SETTING.get(Settings.EMPTY).millis()
+            SearchService.KEEPALIVE_INTERVAL_SETTING.get(Settings.EMPTY).millis(),
+            null
         );
         PlainActionFuture<QuerySearchResult> plainActionFuture = new PlainActionFuture<>();
         service.executeQueryPhase(

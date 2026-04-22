@@ -22,8 +22,8 @@ import java.util.function.BiFunction;
 /**
  * Iteratively resolves views and {@code InSubquery} expressions until a fixed point is reached.
  * <p>
- * Views and {@code IN} subqueries form a mutually recursive expansion problem: a view definition may
- * contain an {@code IN} subquery, and an {@code IN} subquery may reference a view. Each iteration:
+ * Views and IN subqueries form a mutually recursive expansion problem: a view definition may
+ * contain an IN subquery, and an IN subquery may reference a view. Each iteration:
  * <ol>
  *   <li>{@link ViewResolver} expands view references, which may introduce new {@code InSubquery} expressions</li>
  *   <li>{@link InSubqueryResolver} converts {@code InSubquery} to {@code SemiJoin}/{@code AntiJoin}, which may expose
@@ -35,7 +35,7 @@ import java.util.function.BiFunction;
 public final class ViewAndInSubqueryResolver {
 
     /**
-     * Maximum zero-based iteration index allowed for the view / {@code IN} subquery resolution loop
+     * Maximum zero-based iteration index allowed for the view / IN subquery resolution loop
      * before failing. The loop may run with {@code iteration ==} this value; the next pass fails.
      * <p>
      * This setting is registered as OperatorDynamic so it is not exposed to end users yet.
@@ -64,7 +64,7 @@ public final class ViewAndInSubqueryResolver {
     }
 
     /**
-     * Resolves views and {@code IN} subqueries to a fixed point. View query text is accumulated for
+     * Resolves views and IN subqueries to a fixed point. View query text is accumulated for
      * {@link Configuration} on the returned {@link ViewResolver.ViewResolutionResult}.
      */
     public void resolve(

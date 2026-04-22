@@ -41,17 +41,15 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxBytesRefsFro
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinBytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinBytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermQuery;
+import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesRangeQuery;
 import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
-import org.elasticsearch.script.SortedBinaryDocValuesIpFieldScript;
 import org.elasticsearch.script.field.IpDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.runtime.IpScriptFieldRangeQuery;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentString;
 
@@ -415,18 +413,7 @@ public class IpFieldMapper extends FieldMapper {
             final BytesRef upper = new BytesRef(pointRangeQuery.getUpperPoint());
 
             if (usesBinaryDocValues) {
-                if (lower.bytesEquals(upper)) {
-                    return new SlowCustomBinaryDocValuesTermQuery(field, lower);
-                } else {
-                    // TODO: This is likely very slow
-                    return new IpScriptFieldRangeQuery(
-                        new Script(""),
-                        ctx -> new SortedBinaryDocValuesIpFieldScript(pointRangeQuery.getField(), context.lookup(), ctx),
-                        field,
-                        lower,
-                        upper
-                    );
-                }
+                return new SlowCustomBinaryDocValuesRangeQuery(field, lower, upper);
             } else {
                 return SortedSetDocValuesField.newSlowRangeQuery(field, lower, upper, true, true);
             }
@@ -645,6 +632,7 @@ public class IpFieldMapper extends FieldMapper {
 
     private final boolean indexed;
     private final DocValuesParameter.Values docValuesParameters;
+    private final DocValuesFieldFactory dvFactory;
     private final boolean stored;
     private final boolean ignoreMalformed;
     private final boolean storeIgnored;
@@ -671,6 +659,11 @@ public class IpFieldMapper extends FieldMapper {
         super(simpleName, mappedFieldType, builderParams);
         this.indexed = builder.indexed.getValue();
         this.docValuesParameters = builder.docValuesParameters.getValue();
+        this.dvFactory = new DocValuesFieldFactory(
+            docValuesParameters.multiValue(),
+            fieldType().indexType.hasDocValuesSkipper(),
+            builder.indexSettings.getIndexVersionCreated()
+        );
         this.stored = builder.stored.getValue();
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.nullValue = builder.parseNullValue();
@@ -747,11 +740,14 @@ public class IpFieldMapper extends FieldMapper {
         if (fieldType().indexType.hasDocValues()) {
             if (fieldType().usesBinaryDocValues()) {
                 assert fieldType().indexType.hasDocValuesSkipper() == false : "skippers are not supported for binary doc values";
-                MultiValuedBinaryDocValuesField.SeparateCount.addToBinaryFieldInDoc(doc, fieldType().name(), address.binaryValue());
-            } else if (fieldType().indexType.hasDocValuesSkipper()) {
-                doc.add(SortedSetDocValuesField.indexedField(fieldType().name(), address.binaryValue()));
+                dvFactory.addBinaryField(
+                    doc,
+                    fieldType().name(),
+                    address.binaryValue(),
+                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+                );
             } else {
-                doc.add(new SortedSetDocValuesField(fieldType().name(), address.binaryValue()));
+                dvFactory.addSortedField(doc, fieldType().name(), address.binaryValue());
             }
         } else if (stored || indexed) {
             context.addToFieldNames(fieldType().name());
@@ -820,7 +816,7 @@ public class IpFieldMapper extends FieldMapper {
                             new BinaryWithOffsetsDocValuesSyntheticFieldLoaderLayer(fullPath(), offsetsFieldName, IpFieldMapper::convert)
                         );
                     } else {
-                        layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fullPath()) {
+                        layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fullPath(), indexSettings.getIndexVersionCreated()) {
                             @Override
                             protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
                                 BytesRef converted = IpFieldMapper.convert(value);

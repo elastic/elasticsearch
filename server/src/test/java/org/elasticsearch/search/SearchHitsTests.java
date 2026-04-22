@@ -240,11 +240,7 @@ public class SearchHitsTests extends AbstractChunkedSerializingTestCase<SearchHi
         SearchHits searchHits = SearchResponseUtils.parseSearchHits(parser);
         assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
         assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
-        try {
-            return searchHits.asUnpooled();
-        } finally {
-            searchHits.decRef();
-        }
+        return searchHits;
     }
 
     public void testToXContent() throws IOException {
@@ -308,26 +304,30 @@ public class SearchHitsTests extends AbstractChunkedSerializingTestCase<SearchHi
                         .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, bytes.streamInput())
                 ) {
                     SearchHits newSearchHits = doParseInstance(parser);
-                    assertEquals(3, newSearchHits.getHits().length);
-                    assertEquals("id1", newSearchHits.getAt(0).getId());
-                    for (int i = 0; i < hits.length; i++) {
-                        assertEquals(hits[i].getExplanation(), newSearchHits.getAt(i).getExplanation());
-                        if (withExplanation) {
-                            assertEquals(hits[i].getShard().getIndex(), newSearchHits.getAt(i).getShard().getIndex());
-                            assertEquals(hits[i].getShard().getShardId().getId(), newSearchHits.getAt(i).getShard().getShardId().getId());
-                            assertEquals(
-                                hits[i].getShard().getShardId().getIndexName(),
-                                newSearchHits.getAt(i).getShard().getShardId().getIndexName()
-                            );
-                            assertEquals(hits[i].getShard().getNodeId(), newSearchHits.getAt(i).getShard().getNodeId());
-                            // The index uuid is not serialized in the rest layer
-                            assertNotEquals(
-                                hits[i].getShard().getShardId().getIndex().getUUID(),
-                                newSearchHits.getAt(i).getShard().getShardId().getIndex().getUUID()
-                            );
-                        } else {
-                            assertNull(newSearchHits.getAt(i).getShard());
+                    try {
+                        assertEquals(3, newSearchHits.getHits().length);
+                        assertEquals("id1", newSearchHits.getAt(0).getId());
+                        for (int i = 0; i < hits.length; i++) {
+                            assertEquals(hits[i].getExplanation(), newSearchHits.getAt(i).getExplanation());
+                            if (withExplanation) {
+                                assertEquals(hits[i].getShard().getIndex(), newSearchHits.getAt(i).getShard().getIndex());
+                                assertEquals(hits[i].getShard().getShardId().getId(), newSearchHits.getAt(i).getShard().getShardId().getId());
+                                assertEquals(
+                                    hits[i].getShard().getShardId().getIndexName(),
+                                    newSearchHits.getAt(i).getShard().getShardId().getIndexName()
+                                );
+                                assertEquals(hits[i].getShard().getNodeId(), newSearchHits.getAt(i).getShard().getNodeId());
+                                // The index uuid is not serialized in the rest layer
+                                assertNotEquals(
+                                    hits[i].getShard().getShardId().getIndex().getUUID(),
+                                    newSearchHits.getAt(i).getShard().getShardId().getIndex().getUUID()
+                                );
+                            } else {
+                                assertNull(newSearchHits.getAt(i).getShard());
+                            }
                         }
+                    } finally {
+                        newSearchHits.decRef();
                     }
                 }
             } finally {

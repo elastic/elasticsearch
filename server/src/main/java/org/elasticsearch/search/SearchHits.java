@@ -279,18 +279,6 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
         return refCounted.hasReferences();
     }
 
-    public SearchHits asUnpooled() {
-        assert hasReferences();
-        if (refCounted == ALWAYS_REFERENCED) {
-            return this;
-        }
-        final SearchHit[] unpooledHits = new SearchHit[hits.length];
-        for (int i = 0; i < hits.length; i++) {
-            unpooledHits[i] = hits[i].asUnpooled();
-        }
-        return unpooled(unpooledHits, totalHits, maxScore, sortFields, collapseField, collapseValues);
-    }
-
     public static final class Fields {
         public static final String HITS = "hits";
         public static final String TOTAL = "total";

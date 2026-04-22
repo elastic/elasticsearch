@@ -292,6 +292,7 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
 
     // DateTrunc is transformed to RoundTo first but cannot be transformed to QueryAndTags, when the TopN is pushed down to EsQueryExec
     public void testDateTruncNotTransformToQueryAndTags() {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
         for (String dateHistogram : dateHistograms) {
             if (dateHistogram.contains("bucket")) { // bucket cannot be used outside of stats
                 continue;

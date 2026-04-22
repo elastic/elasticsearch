@@ -1,7 +1,7 @@
 ---
 navigation_title: "Define virtual indices using ES|QL views"
 applies_to:
-  serverless: preview
+  serverless: unavailable
   stack: preview 9.4.0
 products:
   - id: elasticsearch
@@ -79,7 +79,7 @@ So, for example, a single index pattern could reference four views and four subq
 but adding just one more view or subquery would exceed the allowed limit and the query will fail.
 
 Branching and nested are allowed in combination as long as there is never more than one branch point.
-This means that nested branching is not allowed:
+This means that nested branching is not allowed under some circumstance:
 * A view can contain subqueries, but then that view cannot be used together with other views, and all subqueries can only reference nested views that contain no further branching.
 * A subquery can contain views, but then those views must themselves contain no branches (no subqueries or `FORK`)
 
@@ -88,20 +88,22 @@ This means that nested branching is not allowed:
 Views have certain limitations:
 * Commands that also generate branched query plans are usually not allowed within views, unless the branch points can be merged:
   * `FORK`
-  * [subqueries](/reference/query-languages/esql/esql-subquery.md]
+  * [subqueries](/reference/query-languages/esql/esql-subquery.md)
 * Cross-cluster search:
   * Remote views in CCS are not allowed (ie. `FROM cluster:view` will only match remote indexes with the name `view`. If a remote view is found, the query will fail).
   * If a remote index matches a local view name, the query will fail.
 * Serverless and Cross-project search
-  * Remote views in CPS are not allowed (ie. `FROM view` will only match origin project views, and if linked project views with that name are found, the query will fail).
-  * If a linked project contains a view with the same name as a local view or index, the query will fail.
+  * Views are currently disabled in serverless
+  * The plan to enable views in serverless will include limitations:
+    * Remote views in CPS will not be allowed (ie. `FROM view` will only match origin project views, and if linked project views with that name are found, the query will fail).
+    * If a linked project contains a view with the same name as a local view or index, the query will fail.
 * Query parameters are not allowed in the view definition, and therefor query parameters in the main query will never impact the view results.
 
 Views are in tech-preview and there are a number of known issues, or behavior that is likely to change in the future:
 * Query DSL filtering on the main query will currently affect the source indices in the view definition, and this will change in later releases.
   * The future design will have the query filtering impact the output of the view, not the source indices
 * METADATA directives inside and outside a view definition behave the same as they do for
-  [`METADATA` in subqueries](/reference/query-languages/esql/esql-subquery.md#subqueries-with-metadata).
+  [`METADATA` in subqueries](/reference/query-languages/esql/esql-subquery.md#subqueries-with-metadata). This will change for views.
 
 ## Examples
 

@@ -404,15 +404,6 @@ tests:
   method: test {p0=mapping/20_synthetic_source/synthetic_source text with normalized keyword with store original value}
   issue: https://github.com/elastic/elasticsearch/issues/147064
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=logsdb/10_settings/override sort mode settings}
-  issue: https://github.com/elastic/elasticsearch/issues/147064
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=logsdb/10_settings/override sort order settings}
-  issue: https://github.com/elastic/elasticsearch/issues/147064
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=logsdb/10_settings/override sort missing settings}
-  issue: https://github.com/elastic/elasticsearch/issues/147064
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=indices.simulate_index_template/10_basic/Simulate index template with data stream with mapping and setting overrides}
   issue: https://github.com/elastic/elasticsearch/issues/147064
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT

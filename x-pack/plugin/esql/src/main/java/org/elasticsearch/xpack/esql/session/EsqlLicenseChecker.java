@@ -15,9 +15,15 @@ import org.elasticsearch.rest.RestStatus;
 
 public class EsqlLicenseChecker {
 
-    public static final LicensedFeature.Momentary CCS_FEATURE = LicensedFeature.momentary(
+    private static final LicensedFeature.Momentary CCS_FEATURE = LicensedFeature.momentary(
         null,
         "esql-ccs",
+        License.OperationMode.ENTERPRISE
+    );
+
+    private static final LicensedFeature.Momentary QUERY_APPROXIMATION_FEATURE = LicensedFeature.momentary(
+        null,
+        "esql-approximation",
         License.OperationMode.ENTERPRISE
     );
 
@@ -47,5 +53,22 @@ public class EsqlLicenseChecker {
             message += licenseState.statusDescription();
         }
         return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST);
+    }
+
+    /**
+     * @param licenseState existing license state. Need to extract info on the current installed license.
+     * Throws an error informing the caller what license is needed to use ES|QL query approximation
+     * and what license (if any) was found.
+     */
+    public static void checkQueryApproximation(XPackLicenseState licenseState) {
+        if (licenseState == null || QUERY_APPROXIMATION_FEATURE.check(licenseState) == false) {
+            String message = "A valid Enterprise license is required to use ES|QL query approximation. License found: ";
+            if (licenseState == null) {
+                message += "none";
+            } else {
+                message += licenseState.statusDescription();
+            }
+            throw new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST);
+        }
     }
 }

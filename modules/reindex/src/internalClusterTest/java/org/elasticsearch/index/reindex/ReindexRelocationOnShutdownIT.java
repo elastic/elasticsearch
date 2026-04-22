@@ -169,8 +169,17 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         final Throwable error = failure.get();
         final BulkByScrollResponse response = success.get();
         assertThat(ExceptionsHelper.unwrapCause(error), instanceOf(TaskRelocatedException.class));
-        assertTrue(((TaskRelocatedException) ExceptionsHelper.unwrapCause(error)).getRelocatedTaskId().isPresent());
+        final TaskRelocatedException relocated = (TaskRelocatedException) ExceptionsHelper.unwrapCause(error);
+        final String relocatedTaskIdString = relocated.getRelocatedTaskId().orElseThrow();
         assertNull(response);
+
+        // Wait until the relocated task finishes (including persisting to `.tasks` when shouldStoreResult is true)
+        // so tear-down does not race with async task-result indexing.
+        final GetTaskResponse relocatedTaskFinished = clusterAdmin().prepareGetTask(new TaskId(relocatedTaskIdString))
+            .setWaitForCompletion(true)
+            .setTimeout(TimeValue.timeValueSeconds(60))
+            .get();
+        assertTrue("relocated reindex should complete", relocatedTaskFinished.getTask().isCompleted());
 
         // Asserts that the reindexing task is relocated to another node and succeeds
         assertBusy(() -> {

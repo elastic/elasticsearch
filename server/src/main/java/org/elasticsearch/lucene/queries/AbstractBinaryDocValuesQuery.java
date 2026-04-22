@@ -24,6 +24,7 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.mapper.blockloader.docvalues.CustomBinaryDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueSeparateCountBinaryDocValuesReader;
 
 import java.io.IOException;
@@ -82,6 +83,16 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
         Predicate<BytesRef> predicate,
         float cost
     ) {
+        // When the count field is missing, the format is IntegratedCounts
+        return counts == null ? integratedCountIterator(values, predicate, cost) : separateCountIterator(values, counts, predicate, cost);
+    }
+
+    private static DocIdSetIterator separateCountIterator(
+        BinaryDocValues values,
+        NumericDocValues counts,
+        Predicate<BytesRef> predicate,
+        float cost
+    ) {
         return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(counts) {
             final MultiValueSeparateCountBinaryDocValuesReader reader = new MultiValueSeparateCountBinaryDocValuesReader();
 
@@ -89,6 +100,22 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
             public boolean matches() throws IOException {
                 values.advance(counts.docID());
                 return reader.match(values.binaryValue(), counts.longValue(), predicate);
+            }
+
+            @Override
+            public float matchCost() {
+                return cost;
+            }
+        });
+    }
+
+    private static DocIdSetIterator integratedCountIterator(BinaryDocValues values, Predicate<BytesRef> predicate, float cost) {
+        return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(values) {
+            final CustomBinaryDocValuesReader reader = new CustomBinaryDocValuesReader();
+
+            @Override
+            public boolean matches() throws IOException {
+                return reader.match(values.binaryValue(), predicate);
             }
 
             @Override

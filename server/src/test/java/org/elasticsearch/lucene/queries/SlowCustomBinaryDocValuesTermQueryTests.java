@@ -69,6 +69,44 @@ public class SlowCustomBinaryDocValuesTermQueryTests extends ESTestCase {
         }
     }
 
+    public void testIntegratedCountFormat() throws Exception {
+        String fieldName = "field";
+        try (Directory dir = newDirectory()) {
+            Map<String, Long> expectedCounts = new HashMap<>();
+            expectedCounts.put("a", 2L);
+            expectedCounts.put("b", 5L);
+            expectedCounts.put("c", 1L);
+            expectedCounts.put("d", 3L);
+            expectedCounts.put("e", 10L);
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+                for (var entry : expectedCounts.entrySet()) {
+                    for (int i = 0; i < entry.getValue(); i++) {
+                        Document document = new Document();
+
+                        var field = new MultiValuedBinaryDocValuesField.IntegratedCount(
+                            "field",
+                            MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+                        );
+                        field.add(new BytesRef(entry.getKey().getBytes(StandardCharsets.UTF_8)));
+                        if (randomBoolean()) {
+                            field.add(new BytesRef("z".getBytes(StandardCharsets.UTF_8)));
+                        }
+                        document.add(field);
+                        writer.addDocument(document);
+                    }
+                }
+
+                try (IndexReader reader = writer.getReader()) {
+                    IndexSearcher searcher = newSearcher(reader);
+                    for (var entry : expectedCounts.entrySet()) {
+                        long count = searcher.count(new SlowCustomBinaryDocValuesTermQuery(fieldName, new BytesRef(entry.getKey())));
+                        assertEquals(entry.getValue().longValue(), count);
+                    }
+                }
+            }
+        }
+    }
+
     public void testNoField() throws IOException {
         String fieldName = "field";
 

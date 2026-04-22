@@ -58,9 +58,12 @@ final class BinaryDocValuesLengthQuery extends Query {
                 String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
                 final NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
                 DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
-                assert countsSkipper != null : "no skipper for counts field [" + countsFieldName + "]";
+
                 final DocIdSetIterator iterator;
-                if (countsSkipper.maxValue() == 1 && values instanceof BlockLoader.OptionalLengthReader direct) {
+                if (counts != null
+                    && countsSkipper != null
+                    && countsSkipper.maxValue() == 1
+                    && values instanceof BlockLoader.OptionalLengthReader direct) {
                     iterator = direct.tryLengthIterator(length);
                 } else {
                     Predicate<BytesRef> lengthPredicate = bytes -> bytes.length == length;

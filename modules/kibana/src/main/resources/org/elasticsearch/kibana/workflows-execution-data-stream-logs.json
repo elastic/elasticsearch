@@ -1,14 +1,17 @@
 {
   "index_patterns": [
-    ".workflows-execution-data-stream-logs"
+    ".workflows-execution-data-stream-logs*"
   ],
-  "data_stream": {},
+  "data_stream": {
+    "allow_custom_routing": false
+  },
   "template": {
     "lifecycle": {
       "data_retention": "90d"
     },
     "settings": {
-      "index.auto_expand_replicas": "0-1"
+      "index.auto_expand_replicas": "0-1",
+      "index.hidden": true
     },
     "mappings": {
       "_meta": {
@@ -25,5 +28,5 @@
   },
   "composed_of": [],
   "priority": 200,
-  "version": 1
+  "version": 2
 }

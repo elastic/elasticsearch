@@ -33,12 +33,12 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.IntConsumer;
 import java.util.function.Supplier;
 
 import static java.util.stream.Collectors.joining;
@@ -481,19 +481,17 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
             }
 
             @Override
-            public List<Integer> groupIdsFromWindow(int startingGroupId, Duration window) {
+            public void forEachGroupInWindow(int startingGroupId, Duration window, IntConsumer action) {
                 int tsid = tsBlockHash.tsidForGroup(startingGroupId);
                 long bucket = tsBlockHash.timestampForGroup(startingGroupId);
-                List<Integer> results = new ArrayList<>();
-                results.add(startingGroupId);
+                action.accept(startingGroupId);
                 long endTimestamp = bucket + timeResolution.convert(window.toMillis());
                 while ((bucket = optimizedTimeBucket.nextRoundingValue(bucket)) < endTimestamp) {
                     long nextGroupId = tsBlockHash.getGroupId(tsid, bucket);
                     if (nextGroupId != -1) {
-                        results.add(Math.toIntExact(nextGroupId));
+                        action.accept(Math.toIntExact(nextGroupId));
                     }
                 }
-                return results;
             }
 
             @Override

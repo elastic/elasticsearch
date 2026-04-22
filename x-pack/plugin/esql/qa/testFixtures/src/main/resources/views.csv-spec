@@ -611,3 +611,41 @@ FROM employees_extra, employees_extra
 count:long
 200
 ;
+
+wildcardExcludeEmployeeViewsNoFalseCircularReference
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_false_circular_reference_fix
+
+// Reproduces https://github.com/elastic/elasticsearch/issues/146208
+// FROM *,-employees* should not trigger a false circular view reference error.
+FROM *,-employees*
+| STATS total = COUNT(*)
+| EVAL at_least_one = total > 0
+| KEEP at_least_one
+;
+
+at_least_one:boolean
+true
+;
+
+wildcardExcludeNestedEmployeeViewsNoFalseCircularReference
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_false_circular_reference_fix
+
+// Reproduces https://github.com/elastic/elasticsearch/issues/146208
+// FROM *,-employees_extra,-employees_all should not trigger a false circular view reference error.
+FROM *,-employees_extra,-employees_all
+| STATS total = COUNT(*)
+| EVAL at_least_one = total > 0
+| KEEP at_least_one
+;
+warningRegex: \(in view \[employees_not_rehired\]\): evaluation of \[is_rehired == false\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_not_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+at_least_one:boolean
+true
+;

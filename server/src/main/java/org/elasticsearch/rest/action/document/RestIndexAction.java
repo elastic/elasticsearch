@@ -131,8 +131,8 @@ public class RestIndexAction extends BaseRestHandler {
 
         IndexRequest indexRequest = new IndexRequest(index);
         indexRequest.id(request.param("id"));
-
-        indexRequest.routing(SliceIndexing.parseRoutingOrSlice(request));
+        final SliceIndexing.ParsedRouting parsedRouting = SliceIndexing.parseRoutingOrSliceWithProvenance(request);
+        indexRequest.routing(parsedRouting.routing()).setRoutingFromSlice(parsedRouting.fromSlice());
 
         indexRequest.setPipeline(request.param("pipeline"));
         indexRequest.indexSource().source(source, request.getXContentType());

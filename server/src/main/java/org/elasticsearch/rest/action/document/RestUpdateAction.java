@@ -34,6 +34,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestUpdateAction extends BaseRestHandler {
+    public RestUpdateAction() {}
+
     @Override
     public List<Route> routes() {
         return List.of(new Route(POST, "/{index}/_update/{id}"));
@@ -47,8 +49,9 @@ public class RestUpdateAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         UpdateRequest updateRequest = new UpdateRequest(request.param("index"), request.param("id"));
-        final String resolvedRouting = SliceIndexing.parseRoutingOrSlice(request);
-        updateRequest.routing(resolvedRouting);
+        final SliceIndexing.ParsedRouting parsedRouting = SliceIndexing.parseRoutingOrSliceWithProvenance(request);
+        final String resolvedRouting = parsedRouting.routing();
+        updateRequest.routing(resolvedRouting).setRoutingFromSlice(parsedRouting.fromSlice());
         updateRequest.timeout(request.paramAsTime("timeout", updateRequest.timeout()));
         updateRequest.setRefreshPolicy(request.param("refresh"));
         String waitForActiveShards = request.param("wait_for_active_shards");
@@ -79,13 +82,13 @@ public class RestUpdateAction extends BaseRestHandler {
             updateRequest.fromXContent(parser);
             IndexRequest upsertRequest = updateRequest.upsertRequest();
             if (upsertRequest != null) {
-                upsertRequest.routing(resolvedRouting);
+                upsertRequest.routing(resolvedRouting).setRoutingFromSlice(parsedRouting.fromSlice());
                 upsertRequest.version(RestActions.parseVersion(request));
                 upsertRequest.versionType(VersionType.fromString(request.param("version_type"), upsertRequest.versionType()));
             }
             IndexRequest doc = updateRequest.doc();
             if (doc != null) {
-                doc.routing(resolvedRouting);
+                doc.routing(resolvedRouting).setRoutingFromSlice(parsedRouting.fromSlice());
                 doc.version(RestActions.parseVersion(request));
                 doc.versionType(VersionType.fromString(request.param("version_type"), doc.versionType()));
             }

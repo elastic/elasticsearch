@@ -43,9 +43,9 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.SliceIndexing;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.InferenceFieldMapper;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
@@ -145,6 +145,11 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
             .map(state.metadata()::index)
             .map(metadata -> IndexSettings.SLICE_ENABLED.get(metadata.getSettings()))
             .orElse(false);
+        if (sliceEnabled == false && request.isRoutingFromSlice()) {
+            throw new IllegalArgumentException(
+                "[_slice] is not allowed when [index.slice.enabled] is false for request targeting [" + request.index() + "]"
+            );
+        }
         if (sliceEnabled && request.routing() == null) {
             throw new IllegalArgumentException(
                 "[_slice] is required when [index.slice.enabled] is true for request targeting [" + request.index() + "]"

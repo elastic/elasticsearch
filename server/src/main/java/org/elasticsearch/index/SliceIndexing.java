@@ -9,9 +9,12 @@
 
 package org.elasticsearch.index;
 
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.rest.RestRequest;
 
+import java.util.Optional;
 import java.util.regex.Pattern;
 
 /**
@@ -38,6 +41,11 @@ public final class SliceIndexing {
      * This value is not realistically sendable as an HTTP query param.
      */
     public static final String SLICE_ALL_ROUTING_MARKER = "\u0000_slice_all";
+
+    /**
+     * Parsed routing result with provenance indicating if the value came from {@code _slice}.
+     */
+    public record ParsedRouting(String routing, boolean fromSlice) {}
 
     /**
      * Validates user-supplied {@code _slice} values accepted by REST write APIs.
@@ -70,6 +78,14 @@ public final class SliceIndexing {
      * Returns the effective routing value after enforcing mutual exclusion and feature-gate checks.
      */
     public static String parseRoutingOrSlice(RestRequest request) {
+        return parseRoutingOrSliceWithProvenance(request).routing();
+    }
+
+    /**
+     * Parses and validates the REST-level {@code routing} and {@code _slice} parameters for write APIs.
+     * Returns the effective routing value and whether it was provided via {@code _slice}.
+     */
+    public static ParsedRouting parseRoutingOrSliceWithProvenance(RestRequest request) {
         final String routing = request.param("routing");
         final String slice = request.param("_slice");
         if (slice != null && SLICE_FEATURE_FLAG.isEnabled() == false) {
@@ -81,6 +97,20 @@ public final class SliceIndexing {
         if (slice != null && routing != null) {
             throw new IllegalArgumentException("[routing] is not allowed together with [_slice]");
         }
-        return slice != null ? slice : routing;
+        return new ParsedRouting(slice != null ? slice : routing, slice != null);
+    }
+
+    /**
+     * Validates that using {@code _slice} is allowed for the resolved write index, if the target can be resolved from metadata.
+     */
+    public static void validateSliceAllowedForWriteTarget(ProjectMetadata projectMetadata, String indexExpression) {
+        boolean sliceEnabled = Optional.ofNullable(projectMetadata.getIndicesLookup().get(indexExpression))
+            .map(IndexAbstraction::getWriteIndex)
+            .map(projectMetadata::index)
+            .map(indexMetadata -> IndexSettings.SLICE_ENABLED.get(indexMetadata.getSettings()))
+            .orElse(true);
+        if (sliceEnabled == false) {
+            throw new IllegalArgumentException("[_slice] is not allowed when [index.slice.enabled] is false");
+        }
     }
 }

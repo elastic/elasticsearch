@@ -82,7 +82,9 @@ public class RestUpdateActionIT extends ESIntegTestCase {
               }
             }""");
         ResponseException missingSliceException = expectThrows(ResponseException.class, () -> getRestClient().performRequest(missingSlice));
-        String missingSliceBody = Streams.copyToString(new InputStreamReader(missingSliceException.getResponse().getEntity().getContent(), UTF_8));
+        String missingSliceBody = Streams.copyToString(
+            new InputStreamReader(missingSliceException.getResponse().getEntity().getContent(), UTF_8)
+        );
         assertThat(missingSliceBody, containsString("[_slice] is required when [index.slice.enabled] is true"));
 
         Request invalidSlice = new Request("POST", "/slice-update-it/_update/1");
@@ -94,7 +96,9 @@ public class RestUpdateActionIT extends ESIntegTestCase {
               }
             }""");
         ResponseException invalidSliceException = expectThrows(ResponseException.class, () -> getRestClient().performRequest(invalidSlice));
-        String invalidSliceBody = Streams.copyToString(new InputStreamReader(invalidSliceException.getResponse().getEntity().getContent(), UTF_8));
+        String invalidSliceBody = Streams.copyToString(
+            new InputStreamReader(invalidSliceException.getResponse().getEntity().getContent(), UTF_8)
+        );
         assertThat(invalidSliceBody, containsString("invalid [_slice] value"));
 
         Request validSlice = new Request("POST", "/slice-update-it/_update/1");
@@ -108,6 +112,37 @@ public class RestUpdateActionIT extends ESIntegTestCase {
         Response response = getRestClient().performRequest(validSlice);
         ObjectPath objectPath = ObjectPath.createFromResponse(response);
         assertThat(objectPath.evaluate("result"), equalTo("updated"));
+    }
+
+    public void testUpdateSliceRejectedWhenSettingDisabled() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        Request create = new Request("PUT", "/slice-update-disabled");
+        create.setJsonEntity("""
+            {
+              "settings": {
+                "index.slice.enabled": false
+              }
+            }""");
+        getRestClient().performRequest(create);
+
+        Request seedDoc = new Request("POST", "/slice-update-disabled/_doc/1");
+        seedDoc.setJsonEntity("""
+            {
+              "field": "value"
+            }""");
+        getRestClient().performRequest(seedDoc);
+
+        Request request = new Request("POST", "/slice-update-disabled/_update/1");
+        request.addParameter("_slice", "s1");
+        request.setJsonEntity("""
+            {
+              "doc": {
+                "field": "updated"
+              }
+            }""");
+        ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
+        String response = Streams.copyToString(new InputStreamReader(exception.getResponse().getEntity().getContent(), UTF_8));
+        assertThat(response, containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
     }
 
     public void testUpdateSliceParamRejectedWhenFeatureFlagDisabled() throws Exception {

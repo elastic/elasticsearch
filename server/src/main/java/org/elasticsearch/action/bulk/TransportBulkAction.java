@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ProjectState;
@@ -605,16 +606,35 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         IndexAbstraction indexAbstraction,
         Function<Index, IndexMetadata> indexMetadataProvider
     ) {
+        if (indexAbstraction == null) {
+            // The target may be auto-created; perform authoritative validation after concrete index resolution.
+            return;
+        }
         boolean sliceEnabled = Optional.ofNullable(indexAbstraction)
             .map(IndexAbstraction::getWriteIndex)
             .map(indexMetadataProvider)
             .map(metadata -> IndexSettings.SLICE_ENABLED.get(metadata.getSettings()))
             .orElse(false);
+        if (sliceEnabled == false && isRoutingFromSlice(writeRequest)) {
+            throw new IllegalArgumentException(
+                "[_slice] is not allowed when [index.slice.enabled] is false for bulk item targeting [" + writeRequest.index() + "]"
+            );
+        }
         if (sliceEnabled && writeRequest.routing() == null) {
             throw new IllegalArgumentException(
                 "[_slice] is required when [index.slice.enabled] is true for bulk item targeting [" + writeRequest.index() + "]"
             );
         }
+    }
+
+    static boolean isRoutingFromSlice(DocWriteRequest<?> writeRequest) {
+        if (writeRequest instanceof IndexRequest indexRequest) {
+            return indexRequest.isRoutingFromSlice();
+        }
+        if (writeRequest instanceof UpdateRequest updateRequest) {
+            return updateRequest.isRoutingFromSlice();
+        }
+        return false;
     }
 
     static boolean isOnlySystem(BulkRequest request, SortedMap<String, IndexAbstraction> indicesLookup, SystemIndices systemIndices) {

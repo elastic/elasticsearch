@@ -101,7 +101,8 @@ public class RestBulkAction extends BaseRestHandler {
         if (request.isStreamedContent() == false) {
             BulkRequest bulkRequest = new BulkRequest();
             String defaultIndex = request.param("index");
-            String defaultRouting = SliceIndexing.parseRoutingOrSlice(request);
+            final SliceIndexing.ParsedRouting parsedRouting = SliceIndexing.parseRoutingOrSliceWithProvenance(request);
+            String defaultRouting = parsedRouting.routing();
             FetchSourceContext defaultFetchSourceContext = FetchSourceContext.parseFromRestRequest(request);
             String defaultPipeline = request.param("pipeline");
             boolean defaultListExecutedPipelines = request.paramAsBoolean("list_executed_pipelines", false);
@@ -122,6 +123,7 @@ public class RestBulkAction extends BaseRestHandler {
                     content,
                     defaultIndex,
                     defaultRouting,
+                    parsedRouting.fromSlice(),
                     defaultFetchSourceContext,
                     defaultPipeline,
                     defaultRequireAlias,
@@ -179,11 +181,13 @@ public class RestBulkAction extends BaseRestHandler {
         ChunkHandler(boolean allowExplicitIndex, RestRequest request, Supplier<IncrementalBulkService.Handler> handlerSupplier) {
             this.request = request;
             this.handlerSupplier = handlerSupplier;
-            String defaultRouting = SliceIndexing.parseRoutingOrSlice(request);
+            final SliceIndexing.ParsedRouting parsedRouting = SliceIndexing.parseRoutingOrSliceWithProvenance(request);
+            String defaultRouting = parsedRouting.routing();
             this.parser = new BulkRequestParser(true, RestUtils.getIncludeSourceOnError(request), request.getRestApiVersion())
                 .incrementalParser(
                     request.param("index"),
                     defaultRouting,
+                    parsedRouting.fromSlice(),
                     FetchSourceContext.parseFromRestRequest(request),
                     request.param("pipeline"),
                     request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, false),

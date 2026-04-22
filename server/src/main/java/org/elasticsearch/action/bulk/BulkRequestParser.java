@@ -145,9 +145,44 @@ public final class BulkRequestParser {
         Consumer<UpdateRequest> updateRequestConsumer,
         Consumer<DeleteRequest> deleteRequestConsumer
     ) throws IOException {
+        parse(
+            data,
+            defaultIndex,
+            defaultRouting,
+            false,
+            defaultFetchSourceContext,
+            defaultPipeline,
+            defaultRequireAlias,
+            defaultRequireDataStream,
+            defaultListExecutedPipelines,
+            allowExplicitIndex,
+            xContentType,
+            indexRequestConsumer,
+            updateRequestConsumer,
+            deleteRequestConsumer
+        );
+    }
+
+    public void parse(
+        BytesReference data,
+        @Nullable String defaultIndex,
+        @Nullable String defaultRouting,
+        boolean defaultRoutingFromSlice,
+        @Nullable FetchSourceContext defaultFetchSourceContext,
+        @Nullable String defaultPipeline,
+        @Nullable Boolean defaultRequireAlias,
+        @Nullable Boolean defaultRequireDataStream,
+        @Nullable Boolean defaultListExecutedPipelines,
+        boolean allowExplicitIndex,
+        XContentType xContentType,
+        BiConsumer<IndexRequest, String> indexRequestConsumer,
+        Consumer<UpdateRequest> updateRequestConsumer,
+        Consumer<DeleteRequest> deleteRequestConsumer
+    ) throws IOException {
         IncrementalParser incrementalParser = new IncrementalParser(
             defaultIndex,
             defaultRouting,
+            defaultRoutingFromSlice,
             defaultFetchSourceContext,
             defaultPipeline,
             defaultRequireAlias,
@@ -177,9 +212,42 @@ public final class BulkRequestParser {
         Consumer<UpdateRequest> updateRequestConsumer,
         Consumer<DeleteRequest> deleteRequestConsumer
     ) {
+        return incrementalParser(
+            defaultIndex,
+            defaultRouting,
+            false,
+            defaultFetchSourceContext,
+            defaultPipeline,
+            defaultRequireAlias,
+            defaultRequireDataStream,
+            defaultListExecutedPipelines,
+            allowExplicitIndex,
+            xContentType,
+            indexRequestConsumer,
+            updateRequestConsumer,
+            deleteRequestConsumer
+        );
+    }
+
+    public IncrementalParser incrementalParser(
+        @Nullable String defaultIndex,
+        @Nullable String defaultRouting,
+        boolean defaultRoutingFromSlice,
+        @Nullable FetchSourceContext defaultFetchSourceContext,
+        @Nullable String defaultPipeline,
+        @Nullable Boolean defaultRequireAlias,
+        @Nullable Boolean defaultRequireDataStream,
+        @Nullable Boolean defaultListExecutedPipelines,
+        boolean allowExplicitIndex,
+        XContentType xContentType,
+        BiConsumer<IndexRequest, String> indexRequestConsumer,
+        Consumer<UpdateRequest> updateRequestConsumer,
+        Consumer<DeleteRequest> deleteRequestConsumer
+    ) {
         return new IncrementalParser(
             defaultIndex,
             defaultRouting,
+            defaultRoutingFromSlice,
             defaultFetchSourceContext,
             defaultPipeline,
             defaultRequireAlias,
@@ -202,6 +270,7 @@ public final class BulkRequestParser {
 
         private final String defaultIndex;
         private final String defaultRouting;
+        private final boolean defaultRoutingFromSlice;
         private final FetchSourceContext defaultFetchSourceContext;
         private final String defaultPipeline;
         private final Boolean defaultRequireAlias;
@@ -228,6 +297,7 @@ public final class BulkRequestParser {
         private IncrementalParser(
             @Nullable String defaultIndex,
             @Nullable String defaultRouting,
+            boolean defaultRoutingFromSlice,
             @Nullable FetchSourceContext defaultFetchSourceContext,
             @Nullable String defaultPipeline,
             @Nullable Boolean defaultRequireAlias,
@@ -241,6 +311,7 @@ public final class BulkRequestParser {
         ) {
             this.defaultIndex = defaultIndex;
             this.defaultRouting = defaultRouting;
+            this.defaultRoutingFromSlice = defaultRoutingFromSlice;
             this.defaultFetchSourceContext = defaultFetchSourceContext;
             this.defaultPipeline = defaultPipeline;
             this.defaultRequireAlias = defaultRequireAlias;
@@ -507,6 +578,7 @@ public final class BulkRequestParser {
                     if ("index".equals(action) || "create".equals(action)) {
                         var indexRequest = new IndexRequest(index).id(id)
                             .routing(routing)
+                            .setRoutingFromSlice(sliceProvided || (defaultRoutingFromSlice && routingProvided == false))
                             .version(version)
                             .versionType(versionType)
                             .setPipeline(currentPipeline)
@@ -550,6 +622,7 @@ public final class BulkRequestParser {
                         UpdateRequest updateRequest = new UpdateRequest().index(index)
                             .id(id)
                             .routing(routing)
+                            .setRoutingFromSlice(sliceProvided || (defaultRoutingFromSlice && routingProvided == false))
                             .retryOnConflict(retryOnConflict)
                             .setIfSeqNo(ifSeqNo)
                             .setIfPrimaryTerm(ifPrimaryTerm)

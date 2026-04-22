@@ -98,6 +98,15 @@ public class RestBulkActionIT extends ESIntegTestCase {
         ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(bulk));
         String response = Streams.copyToString(new InputStreamReader(exception.getResponse().getEntity().getContent(), UTF_8));
         assertThat(response, containsString("[_slice] is required when [index.slice.enabled] is true"));
+
+        Request bulkWithSlice = new Request("POST", "/" + index + "/_bulk");
+        bulkWithSlice.addParameter("_slice", "s1");
+        bulkWithSlice.setJsonEntity("""
+            {"index":{"_id":"2"}}
+            {"field":"value2"}
+            """);
+        ObjectPath objectPath = ObjectPath.createFromResponse(getRestClient().performRequest(bulkWithSlice));
+        assertThat(objectPath.evaluate("errors"), equalTo(false));
     }
 
     public void testBulkSliceRequiredWhenWritingViaAlias() throws Exception {
@@ -158,5 +167,28 @@ public class RestBulkActionIT extends ESIntegTestCase {
         ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(bulk));
         String response = Streams.copyToString(new InputStreamReader(exception.getResponse().getEntity().getContent(), UTF_8));
         assertThat(response, containsString("request does not support [_slice]"));
+    }
+
+    public void testBulkSliceRejectedWhenSettingDisabled() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        final String index = "bulk-slice-disabled";
+        Request create = new Request("PUT", "/" + index);
+        create.setJsonEntity("""
+            {
+              "settings": {
+                "index.slice.enabled": false
+              }
+            }""");
+        getRestClient().performRequest(create);
+
+        Request bulk = new Request("POST", "/" + index + "/_bulk");
+        bulk.addParameter("_slice", "s1");
+        bulk.setJsonEntity("""
+            {"index":{"_id":"1"}}
+            {"field":"value1"}
+            """);
+        ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(bulk));
+        String response = Streams.copyToString(new InputStreamReader(exception.getResponse().getEntity().getContent(), UTF_8));
+        assertThat(response, containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
     }
 }

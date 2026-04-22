@@ -239,6 +239,7 @@ public class RestBulkActionTests extends ESTestCase {
                     assertThat(request.requests(), hasSize(1));
                     IndexRequest indexRequest = (IndexRequest) request.requests().get(0);
                     assertThat(indexRequest.routing(), equalTo("s1"));
+                    assertThat(indexRequest.isRoutingFromSlice(), equalTo(true));
                 }
             };
             new RestBulkAction(
@@ -274,6 +275,36 @@ public class RestBulkActionTests extends ESTestCase {
                     IndexRequest second = (IndexRequest) request.requests().get(1);
                     assertThat(first.routing(), equalTo("s1"));
                     assertThat(second.routing(), equalTo("s2"));
+                    assertThat(first.isRoutingFromSlice(), equalTo(true));
+                    assertThat(second.isRoutingFromSlice(), equalTo(true));
+                }
+            };
+            new RestBulkAction(
+                settings(IndexVersion.current()).build(),
+                ClusterSettings.createBuiltInClusterSettings(),
+                new IncrementalBulkService(mock(Client.class), mock(IndexingPressure.class), MeterRegistry.NOOP)
+            ).handleRequest(new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk").withContent(new BytesArray("""
+                {"index":{"_id":"1","_slice":"s1"}}
+                {"field1":"val1"}
+                {"index":{"_id":"2","_slice":"s2"}}
+                {"field1":"val2"}
+                """), XContentType.JSON).withMethod(RestRequest.Method.POST).build(), mock(RestChannel.class), verifyingClient);
+            assertThat(bulkCalled.get(), equalTo(true));
+        }
+    }
+
+    public void testBulkTopLevelSliceProvenanceNotSetWhenItemRoutingOverrides() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        AtomicBoolean bulkCalled = new AtomicBoolean(false);
+        try (var threadPool = createThreadPool()) {
+            final var verifyingClient = new NoOpNodeClient(threadPool) {
+                @Override
+                public void bulk(BulkRequest request, ActionListener<BulkResponse> listener) {
+                    bulkCalled.set(true);
+                    assertThat(request.requests(), hasSize(1));
+                    IndexRequest first = (IndexRequest) request.requests().get(0);
+                    assertThat(first.routing(), equalTo("r1"));
+                    assertThat(first.isRoutingFromSlice(), equalTo(false));
                 }
             };
             new RestBulkAction(
@@ -282,11 +313,10 @@ public class RestBulkActionTests extends ESTestCase {
                 new IncrementalBulkService(mock(Client.class), mock(IndexingPressure.class), MeterRegistry.NOOP)
             ).handleRequest(
                 new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
+                    .withParams(Map.of("_slice", "s1"))
                     .withContent(new BytesArray("""
-                        {"index":{"_id":"1","_slice":"s1"}}
+                        {"index":{"_id":"1","routing":"r1"}}
                         {"field1":"val1"}
-                        {"index":{"_id":"2","_slice":"s2"}}
-                        {"field1":"val2"}
                         """), XContentType.JSON)
                     .withMethod(RestRequest.Method.POST)
                     .build(),

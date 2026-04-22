@@ -364,6 +364,65 @@ public class BulkRequestParserTests extends ESTestCase {
         );
         assertThat(indexRequests.size(), equalTo(1));
         assertThat(indexRequests.get(0).routing(), equalTo("s1"));
+        assertThat(indexRequests.get(0).isRoutingFromSlice(), equalTo(true));
+    }
+
+    public void testIndexRequestMarksTopLevelSliceProvenance() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        BytesArray request = new BytesArray("""
+            { "index":{ "_id": "bar" } }
+            {}
+            """);
+        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), true, RestApiVersion.current());
+        final List<IndexRequest> indexRequests = new ArrayList<>();
+        parser.parse(
+            request,
+            "foo",
+            "s1",
+            true,
+            null,
+            null,
+            null,
+            null,
+            null,
+            true,
+            XContentType.JSON,
+            (indexRequest, type) -> indexRequests.add(indexRequest),
+            req -> fail(),
+            req -> fail()
+        );
+        assertThat(indexRequests.size(), equalTo(1));
+        assertThat(indexRequests.get(0).routing(), equalTo("s1"));
+        assertThat(indexRequests.get(0).isRoutingFromSlice(), equalTo(true));
+    }
+
+    public void testIndexRequestTopLevelSliceProvenanceClearedByItemRouting() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        BytesArray request = new BytesArray("""
+            { "index":{ "_id": "bar", "routing": "r1" } }
+            {}
+            """);
+        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), true, RestApiVersion.current());
+        final List<IndexRequest> indexRequests = new ArrayList<>();
+        parser.parse(
+            request,
+            "foo",
+            "s1",
+            true,
+            null,
+            null,
+            null,
+            null,
+            null,
+            true,
+            XContentType.JSON,
+            (indexRequest, type) -> indexRequests.add(indexRequest),
+            req -> fail(),
+            req -> fail()
+        );
+        assertThat(indexRequests.size(), equalTo(1));
+        assertThat(indexRequests.get(0).routing(), equalTo("r1"));
+        assertThat(indexRequests.get(0).isRoutingFromSlice(), equalTo(false));
     }
 
     public void testIndexRequestRejectsRoutingAndSliceMetadataTogether() {

@@ -94,6 +94,7 @@ public final class RestIndexActionTests extends RestActionTestCase {
         verifyingClient.setExecuteVerifier((actionType, request) -> {
             assertThat(request, instanceOf(IndexRequest.class));
             assertThat(((IndexRequest) request).routing(), equalTo(sliceValue));
+            assertThat(((IndexRequest) request).isRoutingFromSlice(), equalTo(true));
             executeCalled.set(true);
             return new IndexResponse(new ShardId("test", "test", 0), "id", 0, 0, 0, true);
         });

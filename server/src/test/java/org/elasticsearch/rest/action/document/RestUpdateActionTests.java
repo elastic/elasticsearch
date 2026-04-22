@@ -83,8 +83,11 @@ public final class RestUpdateActionTests extends RestActionTestCase {
             assertThat(request, instanceOf(UpdateRequest.class));
             UpdateRequest updateRequest = (UpdateRequest) request;
             assertThat(updateRequest.routing(), equalTo(sliceValue));
+            assertThat(updateRequest.isRoutingFromSlice(), equalTo(true));
             assertThat(updateRequest.doc().routing(), equalTo(sliceValue));
+            assertThat(updateRequest.doc().isRoutingFromSlice(), equalTo(true));
             assertThat(updateRequest.upsertRequest().routing(), equalTo(sliceValue));
+            assertThat(updateRequest.upsertRequest().isRoutingFromSlice(), equalTo(true));
             return Mockito.mock(UpdateResponse.class);
         });
         String content = """
@@ -117,7 +120,10 @@ public final class RestUpdateActionTests extends RestActionTestCase {
             .withParams(Map.of("_slice", "s1", "routing", "r1"))
             .withContent(new BytesArray(content), XContentType.JSON)
             .build();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(updateRequest, mock(NodeClient.class)));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> action.prepareRequest(updateRequest, mock(NodeClient.class))
+        );
         assertThat(e.getMessage(), containsString("[routing] is not allowed together with [_slice]"));
     }
 
@@ -134,7 +140,10 @@ public final class RestUpdateActionTests extends RestActionTestCase {
             .withParams(Map.of("_slice", "s1"))
             .withContent(new BytesArray(content), XContentType.JSON)
             .build();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(updateRequest, mock(NodeClient.class)));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> action.prepareRequest(updateRequest, mock(NodeClient.class))
+        );
         assertThat(e.getMessage(), containsString("request does not support [_slice]"));
     }
 
@@ -151,7 +160,10 @@ public final class RestUpdateActionTests extends RestActionTestCase {
             .withParams(Map.of("_slice", "_all"))
             .withContent(new BytesArray(content), XContentType.JSON)
             .build();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(updateRequest, mock(NodeClient.class)));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> action.prepareRequest(updateRequest, mock(NodeClient.class))
+        );
         assertThat(e.getMessage(), containsString("invalid [_slice] value"));
     }
 }

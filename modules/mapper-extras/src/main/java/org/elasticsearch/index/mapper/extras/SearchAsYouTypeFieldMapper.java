@@ -41,6 +41,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.analysis.ReloadableCustomAnalyzer;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
@@ -779,7 +780,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         private SearchAsYouTypeAnalyzer(Analyzer delegate, int shingleSize, boolean indexPrefixes) {
 
-            super(delegate.getReuseStrategy());
+            super(delegate instanceof ReloadableCustomAnalyzer ? PER_FIELD_REUSE_STRATEGY : delegate.getReuseStrategy());
             this.delegate = Objects.requireNonNull(delegate);
             this.shingleSize = shingleSize;
             this.indexPrefixes = indexPrefixes;

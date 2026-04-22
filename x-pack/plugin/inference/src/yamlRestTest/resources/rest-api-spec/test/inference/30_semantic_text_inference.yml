@@ -1444,6 +1444,7 @@ setup:
         _source_includes: _inference_fields
 
   - match: { _id: doc_1 }
+  - exists: _source._inference_fields
 
 ---
 "Calculates embedding results for new documents":

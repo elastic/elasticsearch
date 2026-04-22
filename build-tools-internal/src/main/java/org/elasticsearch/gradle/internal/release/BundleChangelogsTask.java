@@ -205,11 +205,7 @@ public class BundleChangelogsTask extends DefaultTask {
 
             // Fetch changelog entries from external repositories
             for (ExternalChangelogSource source : externalSources) {
-                List<ChangelogEntry> externalEntries = fetchExternalChangelogs(
-                    source,
-                    branch,
-                    usingBcRef ? bcRef : null
-                );
+                List<ChangelogEntry> externalEntries = fetchExternalChangelogs(source, branch, usingBcRef ? bcRef : null);
                 if (externalEntries.isEmpty() == false) {
                     LOGGER.info("Adding {} entries from {}", externalEntries.size(), source.sourceRepo());
                     entries.addAll(externalEntries);
@@ -281,13 +277,7 @@ public class BundleChangelogsTask extends DefaultTask {
 
         try {
             if (bcRefForFilter != null && bcRefForFilter.isBlank() == false) {
-                gitWrapper.runCommand(
-                    "git",
-                    "fetch",
-                    "--depth=" + EXTERNAL_FETCH_DEPTH_WITH_BC,
-                    source.repoUrl(),
-                    normalizedBranch
-                );
+                gitWrapper.runCommand("git", "fetch", "--depth=" + EXTERNAL_FETCH_DEPTH_WITH_BC, source.repoUrl(), normalizedBranch);
             } else {
                 gitWrapper.runCommand("git", "fetch", "--depth=1", source.repoUrl(), normalizedBranch);
             }
@@ -374,10 +364,8 @@ public class BundleChangelogsTask extends DefaultTask {
      * different repositories that share a PR number sort deterministically.
      */
     static Comparator<ChangelogEntry> changelogEntryComparator() {
-        return Comparator.comparing(ChangelogEntry::getPr, Comparator.nullsLast(Comparator.naturalOrder())).thenComparing(
-            ChangelogEntry::getSourceRepo,
-            Comparator.nullsFirst(Comparator.naturalOrder())
-        );
+        return Comparator.comparing(ChangelogEntry::getPr, Comparator.nullsLast(Comparator.naturalOrder()))
+            .thenComparing(ChangelogEntry::getSourceRepo, Comparator.nullsFirst(Comparator.naturalOrder()));
     }
 
     static boolean isShaRef(String ref) {

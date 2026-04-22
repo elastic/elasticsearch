@@ -30,6 +30,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.LoadFromPageEvaluator;
 import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
@@ -112,10 +113,10 @@ public class ValuesAggregatorBenchmark {
 
     private static Operator operator(DriverContext driverContext, int groups, String dataType, AggregatorMode mode) {
         if (groups == 1) {
-            return new AggregationOperator(
-                List.of(supplier(dataType).aggregatorFactory(mode, List.of(0)).apply(driverContext)),
-                driverContext
-            );
+            return new AggregationOperator.Factory(
+                List.of(supplier(dataType).aggregatorFactory(mode, List.of(new LoadFromPageEvaluator.Factory(0)))),
+                mode
+            ).get(driverContext);
         }
         List<BlockHash.GroupSpec> groupSpec = List.of(new BlockHash.GroupSpec(0, ElementType.LONG));
         return new HashAggregationOperator.Builder().mode(mode)

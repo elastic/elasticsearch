@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.RefCounted;
@@ -43,7 +44,7 @@ public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggre
         }
 
         @Override
-        public AggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
+        public AggregatorFunction aggregator(DriverContext driverContext, List<ExpressionEvaluator> inputs) {
             throw new UnsupportedOperationException("non-grouping aggregator is not supported");
         }
 

@@ -118,6 +118,7 @@ public class Types {
 
     public static final ClassName EXPRESSION_EVALUATOR = ClassName.get(EXPRESSION_PACKAGE, "ExpressionEvaluator");
     public static final ClassName EXPRESSION_EVALUATOR_FACTORY = ClassName.get(EXPRESSION_PACKAGE, "ExpressionEvaluator", "Factory");
+    public static final TypeName LIST_EXPRESSION_EVALUATOR = ParameterizedTypeName.get(ClassName.get(List.class), EXPRESSION_EVALUATOR);
     public static final ClassName ABSTRACT_MULTIVALUE_FUNCTION_EVALUATOR = ClassName.get(
         "org.elasticsearch.xpack.esql.expression.function.scalar.multivalue",
         "AbstractMultivalueFunction",

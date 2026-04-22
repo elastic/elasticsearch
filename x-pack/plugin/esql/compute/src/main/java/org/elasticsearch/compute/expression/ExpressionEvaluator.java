@@ -18,6 +18,8 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasable;
 
+import java.util.List;
+
 /**
  * Evaluates an expression like {@code a + b} or {@code log(c)} one {@link Page} at a time.
  * <h2>Eval</h2>
@@ -109,4 +111,15 @@ public interface ExpressionEvaluator extends Releasable {
      * like the {@link BreakingBytesRefBuilder} used for string concat.
      */
     long baseRamBytesUsed();
+
+    /**
+     * The total {@link #baseRamBytesUsed} for many evaluators.
+     */
+    static long totalRamBytesUsed(List<ExpressionEvaluator> evaluators) {
+        long total = 0;
+        for (ExpressionEvaluator e : evaluators) {
+            total += e.baseRamBytesUsed();
+        }
+        return total;
+    }
 }

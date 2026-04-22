@@ -12,7 +12,9 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.core.Releasables;
 
 import java.util.List;
 
@@ -30,8 +32,8 @@ public class PresentAggregatorFunction implements AggregatorFunction {
             }
 
             @Override
-            public AggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
-                return new PresentAggregatorFunction(channels);
+            public AggregatorFunction aggregator(DriverContext driverContext, List<ExpressionEvaluator> inputs) {
+                return new PresentAggregatorFunction(driverContext, inputs);
             }
 
             @Override
@@ -54,22 +56,21 @@ public class PresentAggregatorFunction implements AggregatorFunction {
         return INTERMEDIATE_STATE_DESC;
     }
 
-    private final List<Integer> channels;
+    private final DriverContext driverContext;
+    private final List<ExpressionEvaluator> inputs;
 
     private boolean state;
 
-    PresentAggregatorFunction(List<Integer> channels) {
-        this.channels = channels;
+    PresentAggregatorFunction(DriverContext driverContext, List<ExpressionEvaluator> inputs) {
+        this.driverContext = driverContext;
+        this.inputs = inputs;
         this.state = false;
+        driverContext.breaker().addEstimateBytesAndMaybeBreak(ExpressionEvaluator.totalRamBytesUsed(inputs), "ESQL");
     }
 
     @Override
     public int intermediateBlockCount() {
         return intermediateStateDesc().size();
-    }
-
-    private int blockIndex() {
-        return channels.get(0);
     }
 
     @Override
@@ -78,8 +79,9 @@ public class PresentAggregatorFunction implements AggregatorFunction {
         if (state) return;
         if (mask.isConstant() && mask.getBoolean(0) == false) return;
 
-        Block block = page.getBlock(blockIndex());
-        this.state = mask.isConstant() ? block.getTotalValueCount() > 0 : presentMasked(block, mask);
+        try (Block block = inputs.getFirst().eval(page)) {
+            this.state = mask.isConstant() ? block.getTotalValueCount() > 0 : presentMasked(block, mask);
+        }
     }
 
     private boolean presentMasked(Block block, BooleanVector mask) {
@@ -93,17 +95,15 @@ public class PresentAggregatorFunction implements AggregatorFunction {
 
     @Override
     public void addIntermediateInput(Page page) {
-        assert channels.size() == intermediateBlockCount();
-        var blockIndex = blockIndex();
-        assert page.getBlockCount() >= blockIndex + intermediateStateDesc().size();
-        Block uncastBlock = page.getBlock(channels.get(0));
-        if (uncastBlock.areAllValuesNull()) {
-            return;
-        }
-        BooleanVector present = page.<BooleanBlock>getBlock(channels.get(0)).asVector();
-        assert present.getPositionCount() == 1;
-        if (present.getBoolean(0)) {
-            this.state = true;
+        assert inputs.size() == intermediateBlockCount();
+        try (BooleanBlock present = (BooleanBlock) inputs.getFirst().eval(page)) {
+            if (present.areAllValuesNull()) {
+                return;
+            }
+            assert present.getPositionCount() == 1;
+            if (present.getBoolean(0)) {
+                this.state = true;
+            }
         }
     }
 
@@ -121,11 +121,16 @@ public class PresentAggregatorFunction implements AggregatorFunction {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(this.getClass().getSimpleName()).append("[");
-        sb.append("channels=").append(channels);
+        sb.append("inputs=").append(inputs);
         sb.append("]");
         return sb.toString();
     }
 
     @Override
-    public void close() {}
+    public void close() {
+        Releasables.closeExpectNoException(
+            Releasables.wrap(inputs),
+            () -> driverContext.breaker().addWithoutBreaking(-ExpressionEvaluator.totalRamBytesUsed(inputs))
+        );
+    }
 }

@@ -8,6 +8,7 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -30,8 +31,8 @@ public final class FirstBytesRefByTimestampAggregatorFunctionSupplier implements
 
   @Override
   public FirstBytesRefByTimestampAggregatorFunction aggregator(DriverContext driverContext,
-      List<Integer> channels) {
-    return new FirstBytesRefByTimestampAggregatorFunction(driverContext, channels);
+      List<ExpressionEvaluator> inputs) {
+    return new FirstBytesRefByTimestampAggregatorFunction(driverContext, inputs);
   }
 
   @Override

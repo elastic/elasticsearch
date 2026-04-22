@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -14,7 +13,9 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link AggregatorFunction} implementation for {@link MinBooleanAggregator}.
@@ -29,12 +30,21 @@ public final class MinBooleanAggregatorFunction implements AggregatorFunction {
 
   private final BooleanState state;
 
-  private final List<Integer> channels;
+  private final List<ExpressionEvaluator> inputs;
 
-  MinBooleanAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
+  MinBooleanAggregatorFunction(DriverContext driverContext, List<ExpressionEvaluator> inputs) {
     this.driverContext = driverContext;
-    this.channels = channels;
+    this.inputs = inputs;
     this.state = new BooleanState(MinBooleanAggregator.init());
+    boolean success = false;
+    try {
+      driverContext.breaker().addEstimateBytesAndMaybeBreak(ExpressionEvaluator.totalRamBytesUsed(inputs), "ESQL");
+      success = true;
+    } finally {
+      if (success == false) {
+        this.state.close();
+      }
+    }
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -58,47 +68,51 @@ public final class MinBooleanAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
-    BooleanBlock vBlock = page.getBlock(channels.get(0));
-    BooleanVector vVector = vBlock.asVector();
-    if (vVector == null) {
-      if (vBlock.areAllValuesNull()) {
-        /*
-         * All values are null so we can skip processing this block.
-         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
-         *       being fast without this. Likely the branch predictor is kicking
-         *       in there. But we do this anyway, just so we don't have to trust
-         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
-         *       always have long sequences of ConstantNullBlock. And this code
-         *       shows readers we've thought about this.
-         */
+    try (Block vUncast = inputs.get(0).eval(page)) {
+      BooleanBlock vBlock = (BooleanBlock) vUncast;
+      BooleanVector vVector = vBlock.asVector();
+      if (vVector == null) {
+        if (vBlock.areAllValuesNull()) {
+          /*
+           * All values are null so we can skip processing this block.
+           * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+           *       being fast without this. Likely the branch predictor is kicking
+           *       in there. But we do this anyway, just so we don't have to trust
+           *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+           *       always have long sequences of ConstantNullBlock. And this code
+           *       shows readers we've thought about this.
+           */
+          return;
+        }
+        addRawBlock(vBlock, mask);
         return;
       }
-      addRawBlock(vBlock, mask);
-      return;
+      addRawVector(vVector, mask);
     }
-    addRawVector(vVector, mask);
   }
 
   private void addRawInputNotMasked(Page page) {
-    BooleanBlock vBlock = page.getBlock(channels.get(0));
-    BooleanVector vVector = vBlock.asVector();
-    if (vVector == null) {
-      if (vBlock.areAllValuesNull()) {
-        /*
-         * All values are null so we can skip processing this block.
-         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
-         *       being fast without this. Likely the branch predictor is kicking
-         *       in there. But we do this anyway, just so we don't have to trust
-         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
-         *       always have long sequences of ConstantNullBlock. And this code
-         *       shows readers we've thought about this.
-         */
+    try (Block vUncast = inputs.get(0).eval(page)) {
+      BooleanBlock vBlock = (BooleanBlock) vUncast;
+      BooleanVector vVector = vBlock.asVector();
+      if (vVector == null) {
+        if (vBlock.areAllValuesNull()) {
+          /*
+           * All values are null so we can skip processing this block.
+           * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+           *       being fast without this. Likely the branch predictor is kicking
+           *       in there. But we do this anyway, just so we don't have to trust
+           *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+           *       always have long sequences of ConstantNullBlock. And this code
+           *       shows readers we've thought about this.
+           */
+          return;
+        }
+        addRawBlock(vBlock);
         return;
       }
-      addRawBlock(vBlock);
-      return;
+      addRawVector(vVector);
     }
-    addRawVector(vVector);
   }
 
   private void addRawVector(BooleanVector vVector) {
@@ -157,41 +171,25 @@ public final class MinBooleanAggregatorFunction implements AggregatorFunction {
 
   @Override
   public void addIntermediateInput(Page page) {
-    assert channels.size() == intermediateBlockCount();
-    assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    Block minUncast = page.getBlock(channels.get(0));
-    if (minUncast.areAllValuesNull()) {
-      /*
-       * All values are null so we can skip processing this block.
-       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
-       *       being fast without this. Likely the branch predictor is kicking
-       *       in there. But we do this anyway, just so we don't have to trust
-       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
-       *       always have long sequences of ConstantNullBlock. And this code
-       *       shows readers we've thought about this.
-       */
-      return;
-    }
-    BooleanVector min = ((BooleanBlock) minUncast).asVector();
-    assert min.getPositionCount() == 1;
-    Block seenUncast = page.getBlock(channels.get(1));
-    if (seenUncast.areAllValuesNull()) {
-      /*
-       * All values are null so we can skip processing this block.
-       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
-       *       being fast without this. Likely the branch predictor is kicking
-       *       in there. But we do this anyway, just so we don't have to trust
-       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
-       *       always have long sequences of ConstantNullBlock. And this code
-       *       shows readers we've thought about this.
-       */
-      return;
-    }
-    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
-    assert seen.getPositionCount() == 1;
-    if (seen.getBoolean(0)) {
-      state.booleanValue(MinBooleanAggregator.combine(state.booleanValue(), min.getBoolean(0)));
-      state.seen(true);
+    assert inputs.size() == intermediateBlockCount();
+    try (
+      Block minUncast = inputs.get(0).eval(page);
+      Block seenUncast = inputs.get(1).eval(page);
+    ) {
+      if (minUncast.areAllValuesNull()) {
+        return;
+      }
+      BooleanVector min = ((BooleanBlock) minUncast).asVector();
+      assert min.getPositionCount() == 1;
+      if (seenUncast.areAllValuesNull()) {
+        return;
+      }
+      BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
+      assert seen.getPositionCount() == 1;
+      if (seen.getBoolean(0)) {
+        state.booleanValue(MinBooleanAggregator.combine(state.booleanValue(), min.getBoolean(0)));
+        state.seen(true);
+      }
     }
   }
 
@@ -213,13 +211,17 @@ public final class MinBooleanAggregatorFunction implements AggregatorFunction {
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName()).append("[");
-    sb.append("channels=").append(channels);
+    sb.append("inputs=").append(inputs);
     sb.append("]");
     return sb.toString();
   }
 
   @Override
   public void close() {
-    state.close();
+    Releasables.closeExpectNoException(
+          state,
+          Releasables.wrap(inputs),
+          () -> driverContext.breaker().addWithoutBreaking(-ExpressionEvaluator.totalRamBytesUsed(inputs))
+        );
   }
 }

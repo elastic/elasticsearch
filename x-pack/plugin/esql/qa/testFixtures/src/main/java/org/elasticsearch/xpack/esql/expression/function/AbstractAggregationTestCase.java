@@ -23,6 +23,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.LoadFromPageEvaluator;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -488,9 +489,6 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
      */
     private void assertAggregatorToString(Expression originalExpression, boolean grouping) {
         Expression expression = resolveExpression(originalExpression);
-        if (expression == null) {
-            return;
-        }
 
         assumeTrue(
             "Surrogate expression with non-trivial children cannot be evaluated",
@@ -638,8 +636,8 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
 
     private Aggregator aggregator(Expression expression, List<Integer> inputChannels, AggregatorMode mode) {
         AggregatorFunctionSupplier aggregatorFunctionSupplier = ((ToAggregator) expression).supplier();
-
-        return new Aggregator(aggregatorFunctionSupplier.aggregator(driverContext(), inputChannels), mode);
+        List<ExpressionEvaluator> inputs = inputChannels.stream().map(i -> (ExpressionEvaluator) new LoadFromPageEvaluator(i)).toList();
+        return new Aggregator(aggregatorFunctionSupplier.aggregator(driverContext(), inputs), mode);
     }
 
     private GroupingAggregator groupingAggregator(Expression expression, List<Integer> inputChannels, AggregatorMode mode) {
@@ -721,10 +719,13 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             case GroupingAggregator a -> "GroupingAggregator[aggregatorFunction=";
             default -> throw new UnsupportedOperationException("can't check toString for [" + aggregator.getClass() + "]");
         };
-        String channels = initialInputChannels().stream().map(Object::toString).collect(Collectors.joining(", "));
         String expectedEnd = switch (aggregator) {
-            case Aggregator a -> "AggregatorFunction[channels=[" + channels + "]], mode=SINGLE]";
-            case GroupingAggregator a -> "GroupingAggregatorFunction[channels=[" + channels + "]], mode=SINGLE]";
+            case Aggregator a -> "AggregatorFunction[inputs=["
+                + initialInputChannels().stream().map(c -> "Attribute[channel=" + c + "]").collect(Collectors.joining(", "))
+                + "]], mode=SINGLE]";
+            case GroupingAggregator a -> "GroupingAggregatorFunction[channels=["
+                + initialInputChannels().stream().map(Object::toString).collect(Collectors.joining(", "))
+                + "]], mode=SINGLE]";
             default -> throw new UnsupportedOperationException("can't check toString for [" + aggregator.getClass() + "]");
         };
 

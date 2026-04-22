@@ -8,6 +8,7 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -30,8 +31,8 @@ public final class ValuesBooleanAggregatorFunctionSupplier implements Aggregator
 
   @Override
   public ValuesBooleanAggregatorFunction aggregator(DriverContext driverContext,
-      List<Integer> channels) {
-    return new ValuesBooleanAggregatorFunction(driverContext, channels);
+      List<ExpressionEvaluator> inputs) {
+    return new ValuesBooleanAggregatorFunction(driverContext, inputs);
   }
 
   @Override

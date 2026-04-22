@@ -24,6 +24,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 
@@ -53,7 +54,7 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
         }
 
         @Override
-        public AggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
+        public AggregatorFunction aggregator(DriverContext driverContext, List<ExpressionEvaluator> inputs) {
             throw new UnsupportedOperationException("non-grouping aggregator is not supported");
         }
 

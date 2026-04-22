@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 
 import java.util.List;
@@ -24,8 +25,8 @@ public class DenseVectorCountApproximateAggregatorFunction extends CountApproxim
         return new DenseVectorCountApproximateAggregatorFunctionSupplier();
     }
 
-    DenseVectorCountApproximateAggregatorFunction(List<Integer> channels) {
-        super(channels);
+    DenseVectorCountApproximateAggregatorFunction(DriverContext driverContext, List<ExpressionEvaluator> inputs, DoubleState state) {
+        super(driverContext, inputs, state);
     }
 
     @Override
@@ -49,8 +50,8 @@ public class DenseVectorCountApproximateAggregatorFunction extends CountApproxim
 
     private static class DenseVectorCountApproximateAggregatorFunctionSupplier extends CountApproximateAggregatorFunctionSupplier {
         @Override
-        public AggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
-            return new DenseVectorCountApproximateAggregatorFunction(channels);
+        public AggregatorFunction aggregator(DriverContext driverContext, List<ExpressionEvaluator> inputs) {
+            return new DenseVectorCountApproximateAggregatorFunction(driverContext, inputs, new DoubleState(0));
         }
 
         @Override

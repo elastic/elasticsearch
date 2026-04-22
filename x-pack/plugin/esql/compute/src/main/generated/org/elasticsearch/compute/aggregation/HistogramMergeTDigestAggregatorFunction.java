@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -16,7 +15,9 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TDigestBlock;
 import org.elasticsearch.compute.data.TDigestHolder;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link AggregatorFunction} implementation for {@link HistogramMergeTDigestAggregator}.
@@ -31,12 +32,22 @@ public final class HistogramMergeTDigestAggregatorFunction implements Aggregator
 
   private final TDigestStates.SingleState state;
 
-  private final List<Integer> channels;
+  private final List<ExpressionEvaluator> inputs;
 
-  HistogramMergeTDigestAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
+  HistogramMergeTDigestAggregatorFunction(DriverContext driverContext,
+      List<ExpressionEvaluator> inputs) {
     this.driverContext = driverContext;
-    this.channels = channels;
+    this.inputs = inputs;
     this.state = HistogramMergeTDigestAggregator.initSingle(driverContext);
+    boolean success = false;
+    try {
+      driverContext.breaker().addEstimateBytesAndMaybeBreak(ExpressionEvaluator.totalRamBytesUsed(inputs), "ESQL");
+      success = true;
+    } finally {
+      if (success == false) {
+        this.state.close();
+      }
+    }
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -60,37 +71,41 @@ public final class HistogramMergeTDigestAggregatorFunction implements Aggregator
   }
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
-    TDigestBlock valueBlock = page.getBlock(channels.get(0));
-    if (valueBlock.areAllValuesNull()) {
-      /*
-       * All values are null so we can skip processing this block.
-       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
-       *       being fast without this. Likely the branch predictor is kicking
-       *       in there. But we do this anyway, just so we don't have to trust
-       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
-       *       always have long sequences of ConstantNullBlock. And this code
-       *       shows readers we've thought about this.
-       */
-      return;
+    try (Block valueUncast = inputs.get(0).eval(page)) {
+      TDigestBlock valueBlock = (TDigestBlock) valueUncast;
+      if (valueBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
+      addRawBlock(valueBlock, mask);
     }
-    addRawBlock(valueBlock, mask);
   }
 
   private void addRawInputNotMasked(Page page) {
-    TDigestBlock valueBlock = page.getBlock(channels.get(0));
-    if (valueBlock.areAllValuesNull()) {
-      /*
-       * All values are null so we can skip processing this block.
-       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
-       *       being fast without this. Likely the branch predictor is kicking
-       *       in there. But we do this anyway, just so we don't have to trust
-       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
-       *       always have long sequences of ConstantNullBlock. And this code
-       *       shows readers we've thought about this.
-       */
-      return;
+    try (Block valueUncast = inputs.get(0).eval(page)) {
+      TDigestBlock valueBlock = (TDigestBlock) valueUncast;
+      if (valueBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
+      addRawBlock(valueBlock);
     }
-    addRawBlock(valueBlock);
   }
 
   private void addRawBlock(TDigestBlock valueBlock) {
@@ -130,40 +145,24 @@ public final class HistogramMergeTDigestAggregatorFunction implements Aggregator
 
   @Override
   public void addIntermediateInput(Page page) {
-    assert channels.size() == intermediateBlockCount();
-    assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    Block valueUncast = page.getBlock(channels.get(0));
-    if (valueUncast.areAllValuesNull()) {
-      /*
-       * All values are null so we can skip processing this block.
-       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
-       *       being fast without this. Likely the branch predictor is kicking
-       *       in there. But we do this anyway, just so we don't have to trust
-       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
-       *       always have long sequences of ConstantNullBlock. And this code
-       *       shows readers we've thought about this.
-       */
-      return;
+    assert inputs.size() == intermediateBlockCount();
+    try (
+      Block valueUncast = inputs.get(0).eval(page);
+      Block seenUncast = inputs.get(1).eval(page);
+    ) {
+      if (valueUncast.areAllValuesNull()) {
+        return;
+      }
+      TDigestBlock value = (TDigestBlock) valueUncast;
+      assert value.getPositionCount() == 1;
+      if (seenUncast.areAllValuesNull()) {
+        return;
+      }
+      BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
+      assert seen.getPositionCount() == 1;
+      TDigestHolder valueScratch = new TDigestHolder();
+      HistogramMergeTDigestAggregator.combineIntermediate(state, value.getTDigestHolder(value.getFirstValueIndex(0), valueScratch), seen.getBoolean(0));
     }
-    TDigestBlock value = (TDigestBlock) valueUncast;
-    assert value.getPositionCount() == 1;
-    Block seenUncast = page.getBlock(channels.get(1));
-    if (seenUncast.areAllValuesNull()) {
-      /*
-       * All values are null so we can skip processing this block.
-       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
-       *       being fast without this. Likely the branch predictor is kicking
-       *       in there. But we do this anyway, just so we don't have to trust
-       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
-       *       always have long sequences of ConstantNullBlock. And this code
-       *       shows readers we've thought about this.
-       */
-      return;
-    }
-    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
-    assert seen.getPositionCount() == 1;
-    TDigestHolder valueScratch = new TDigestHolder();
-    HistogramMergeTDigestAggregator.combineIntermediate(state, value.getTDigestHolder(value.getFirstValueIndex(0), valueScratch), seen.getBoolean(0));
   }
 
   @Override
@@ -180,13 +179,17 @@ public final class HistogramMergeTDigestAggregatorFunction implements Aggregator
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName()).append("[");
-    sb.append("channels=").append(channels);
+    sb.append("inputs=").append(inputs);
     sb.append("]");
     return sb.toString();
   }
 
   @Override
   public void close() {
-    state.close();
+    Releasables.closeExpectNoException(
+          state,
+          Releasables.wrap(inputs),
+          () -> driverContext.breaker().addWithoutBreaking(-ExpressionEvaluator.totalRamBytesUsed(inputs))
+        );
   }
 }

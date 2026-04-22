@@ -16,6 +16,9 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 
+/**
+ * {@link ExpressionEvaluator} that returns constants.
+ */
 public record LiteralsEvaluator(BlockFactory blockFactory, Literal lit) implements ExpressionEvaluator {
     public record Factory(Literal lit) implements ExpressionEvaluator.Factory {
         @Override

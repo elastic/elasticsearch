@@ -8,6 +8,7 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -30,8 +31,8 @@ public final class SumOverflowingLongAggregatorFunctionSupplier implements Aggre
 
   @Override
   public SumOverflowingLongAggregatorFunction aggregator(DriverContext driverContext,
-      List<Integer> channels) {
-    return new SumOverflowingLongAggregatorFunction(driverContext, channels);
+      List<ExpressionEvaluator> inputs) {
+    return new SumOverflowingLongAggregatorFunction(driverContext, inputs);
   }
 
   @Override

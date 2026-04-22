@@ -10,6 +10,7 @@ import java.lang.String;
 import java.util.List;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -32,8 +33,8 @@ public final class SpatialExtentCartesianPointSourceValuesAggregatorFunctionSupp
 
   @Override
   public SpatialExtentCartesianPointSourceValuesAggregatorFunction aggregator(
-      DriverContext driverContext, List<Integer> channels) {
-    return new SpatialExtentCartesianPointSourceValuesAggregatorFunction(driverContext, channels);
+      DriverContext driverContext, List<ExpressionEvaluator> inputs) {
+    return new SpatialExtentCartesianPointSourceValuesAggregatorFunction(driverContext, inputs);
   }
 
   @Override

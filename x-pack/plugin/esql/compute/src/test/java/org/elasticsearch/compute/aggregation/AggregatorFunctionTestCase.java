@@ -20,6 +20,9 @@ import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.AllocatingEvaluator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.LoadFromPageEvaluator;
 import org.elasticsearch.compute.operator.AddGarbageRowsSourceOperator;
 import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.Driver;
@@ -76,12 +79,12 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
         AggregatorMode mode,
         Function<AggregatorFunctionSupplier, AggregatorFunctionSupplier> wrap
     ) {
-        List<Integer> channels = mode.isInputPartial()
-            ? range(0, aggregatorIntermediateBlockCount()).boxed().toList()
-            : IntStream.range(0, inputCount()).boxed().toList();
+        List<ExpressionEvaluator.Factory> inputs = (mode.isInputPartial()
+            ? range(0, aggregatorIntermediateBlockCount())
+            : IntStream.range(0, inputCount())).<ExpressionEvaluator.Factory>mapToObj(LoadFromPageEvaluator.Factory::new).toList();
         AggregatorFunctionSupplier supplier = aggregatorFunction();
-        Aggregator.Factory factory = wrap.apply(supplier).aggregatorFactory(mode, channels);
-        return new AggregationOperator.AggregationOperatorFactory(List.of(factory), mode);
+        Aggregator.Factory factory = wrap.apply(supplier).aggregatorFactory(mode, inputs);
+        return new AggregationOperator.Factory(List.of(factory), mode);
     }
 
     protected int inputCount() {
@@ -102,7 +105,7 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
 
     protected String expectedToStringOfSimpleAggregator() {
         String type = getClass().getSimpleName().replace("Tests", "");
-        return type + "[channels=" + IntStream.range(0, inputCount()).boxed().toList() + "]";
+        return type + "[inputs=" + IntStream.range(0, inputCount()).mapToObj(i -> "Attribute[channel=" + i + "]").toList() + "]";
     }
 
     @Override
@@ -243,6 +246,46 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
             );
         assertThat(results, hasSize(1));
         assertSimpleOutput(origInput, results);
+    }
+
+    /**
+     * Tests that the aggregator closes the evaluators it uses to build/fetch
+     * its inputs.
+     */
+    public void testEvaluatorClosed() {
+        var runner = new TestDriverRunner().builder(driverContext()).collectDeepCopy();
+        runner.input(simpleInput(runner.blockFactory(), 10));
+        List<Page> results = runner.run(simpleWithMode(AggregatorMode.SINGLE, agg -> new AggregatorFunctionSupplier() {
+            @Override
+            public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+                return agg.nonGroupingIntermediateStateDesc();
+            }
+
+            @Override
+            public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+                return agg.groupingIntermediateStateDesc();
+            }
+
+            @Override
+            public AggregatorFunction aggregator(DriverContext driverContext, List<ExpressionEvaluator> inputs) {
+                return agg.aggregator(
+                    driverContext,
+                    inputs.stream().map(e -> (ExpressionEvaluator) new AllocatingEvaluator(driverContext.breaker(), e)).toList()
+                );
+            }
+
+            @Override
+            public GroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
+                return agg.groupingAggregator(driverContext, channels);
+            }
+
+            @Override
+            public String describe() {
+                return agg.describe();
+            }
+        }));
+        assertThat(results, hasSize(1));
+        assertSimpleOutput(runner.deepCopy(), results);
     }
 
     // Returns an intermediate state that is equivalent to what the local execution planner will emit

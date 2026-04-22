@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.LoadFromPageEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 
 import java.util.List;
@@ -69,7 +70,10 @@ public class LuceneMaxLongOperatorTests extends LuceneMaxOperatorTestCase {
 
             @Override
             public AggregatorFunction newAggregatorFunction(DriverContext context) {
-                return new MaxLongAggregatorFunctionSupplier().aggregator(context, List.of(0, 1));
+                return new MaxLongAggregatorFunctionSupplier().aggregator(
+                    context,
+                    List.of(new LoadFromPageEvaluator(0), new LoadFromPageEvaluator(1))
+                );
             }
 
             @Override

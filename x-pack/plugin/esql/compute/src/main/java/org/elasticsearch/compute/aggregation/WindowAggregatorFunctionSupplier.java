@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 
 import java.time.Duration;
@@ -28,8 +29,8 @@ public record WindowAggregatorFunctionSupplier(AggregatorFunctionSupplier suppli
     }
 
     @Override
-    public AggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
-        return supplier.aggregator(driverContext, channels);
+    public AggregatorFunction aggregator(DriverContext driverContext, List<ExpressionEvaluator> inputs) {
+        return supplier.aggregator(driverContext, inputs);
     }
 
     @Override

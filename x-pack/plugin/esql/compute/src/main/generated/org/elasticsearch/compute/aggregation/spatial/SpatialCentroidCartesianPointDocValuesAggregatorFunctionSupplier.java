@@ -10,6 +10,7 @@ import java.lang.String;
 import java.util.List;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 
@@ -37,8 +38,8 @@ public final class SpatialCentroidCartesianPointDocValuesAggregatorFunctionSuppl
 
   @Override
   public SpatialCentroidCartesianPointDocValuesAggregatorFunction aggregator(
-      DriverContext driverContext, List<Integer> channels) {
-    return new SpatialCentroidCartesianPointDocValuesAggregatorFunction(driverContext, channels, encoder);
+      DriverContext driverContext, List<ExpressionEvaluator> inputs) {
+    return new SpatialCentroidCartesianPointDocValuesAggregatorFunction(driverContext, inputs, encoder);
   }
 
   @Override

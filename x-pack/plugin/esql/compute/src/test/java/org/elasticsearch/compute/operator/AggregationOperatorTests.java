@@ -17,6 +17,8 @@ import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.LoadFromPageEvaluator;
 import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.compute.test.operator.blocksource.SequenceLongBlockSourceOperator;
 import org.hamcrest.Matcher;
@@ -47,11 +49,16 @@ public class AggregationOperatorTests extends ForkingOperatorTestCase {
             sumChannels = maxChannels = List.of(0);
         }
 
-        return new AggregationOperator.AggregationOperatorFactory(
-            List.of(
-                new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).aggregatorFactory(mode, sumChannels),
-                new MaxLongAggregatorFunctionSupplier().aggregatorFactory(mode, maxChannels)
-            ),
+        List<ExpressionEvaluator.Factory> sumInputs = sumChannels.stream().<ExpressionEvaluator.Factory>map(
+            LoadFromPageEvaluator.Factory::new
+        ).toList();
+        List<ExpressionEvaluator.Factory> maxInputs = maxChannels.stream().<ExpressionEvaluator.Factory>map(
+            LoadFromPageEvaluator.Factory::new
+        ).toList();
+        var sumSupplier = new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE);
+        var maxSupplier = new MaxLongAggregatorFunctionSupplier();
+        return new AggregationOperator.Factory(
+            List.of(sumSupplier.aggregatorFactory(mode, sumInputs), maxSupplier.aggregatorFactory(mode, maxInputs)),
             mode
         );
     }
@@ -65,8 +72,8 @@ public class AggregationOperatorTests extends ForkingOperatorTestCase {
     protected Matcher<String> expectedToStringOfSimple() {
         return equalTo(
             "AggregationOperator[aggregators=["
-                + "Aggregator[aggregatorFunction=SumLongAggregatorFunction[channels=[0]], mode=SINGLE], "
-                + "Aggregator[aggregatorFunction=MaxLongAggregatorFunction[channels=[0]], mode=SINGLE]]]"
+                + "Aggregator[aggregatorFunction=SumLongAggregatorFunction[inputs=[Attribute[channel=0]]], mode=SINGLE], "
+                + "Aggregator[aggregatorFunction=MaxLongAggregatorFunction[inputs=[Attribute[channel=0]]], mode=SINGLE]]]"
         );
     }
 

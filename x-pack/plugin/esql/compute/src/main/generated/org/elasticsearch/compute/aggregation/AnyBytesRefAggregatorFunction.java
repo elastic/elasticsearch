@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -16,7 +15,9 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link AggregatorFunction} implementation for {@link AnyBytesRefAggregator}.
@@ -31,12 +32,21 @@ public final class AnyBytesRefAggregatorFunction implements AggregatorFunction {
 
   private final AnyBytesRefAggregator.SingleState state;
 
-  private final List<Integer> channels;
+  private final List<ExpressionEvaluator> inputs;
 
-  AnyBytesRefAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
+  AnyBytesRefAggregatorFunction(DriverContext driverContext, List<ExpressionEvaluator> inputs) {
     this.driverContext = driverContext;
-    this.channels = channels;
+    this.inputs = inputs;
     this.state = AnyBytesRefAggregator.initSingle(driverContext);
+    boolean success = false;
+    try {
+      driverContext.breaker().addEstimateBytesAndMaybeBreak(ExpressionEvaluator.totalRamBytesUsed(inputs), "ESQL");
+      success = true;
+    } finally {
+      if (success == false) {
+        this.state.close();
+      }
+    }
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -60,37 +70,41 @@ public final class AnyBytesRefAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
-    BytesRefBlock valuesBlock = page.getBlock(channels.get(0));
-    if (valuesBlock.areAllValuesNull()) {
-      /*
-       * All values are null so we can skip processing this block.
-       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
-       *       being fast without this. Likely the branch predictor is kicking
-       *       in there. But we do this anyway, just so we don't have to trust
-       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
-       *       always have long sequences of ConstantNullBlock. And this code
-       *       shows readers we've thought about this.
-       */
-      return;
+    try (Block valuesUncast = inputs.get(0).eval(page)) {
+      BytesRefBlock valuesBlock = (BytesRefBlock) valuesUncast;
+      if (valuesBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
+      addRawBlock(valuesBlock, mask);
     }
-    addRawBlock(valuesBlock, mask);
   }
 
   private void addRawInputNotMasked(Page page) {
-    BytesRefBlock valuesBlock = page.getBlock(channels.get(0));
-    if (valuesBlock.areAllValuesNull()) {
-      /*
-       * All values are null so we can skip processing this block.
-       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
-       *       being fast without this. Likely the branch predictor is kicking
-       *       in there. But we do this anyway, just so we don't have to trust
-       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
-       *       always have long sequences of ConstantNullBlock. And this code
-       *       shows readers we've thought about this.
-       */
-      return;
+    try (Block valuesUncast = inputs.get(0).eval(page)) {
+      BytesRefBlock valuesBlock = (BytesRefBlock) valuesUncast;
+      if (valuesBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
+      addRawBlock(valuesBlock);
     }
-    addRawBlock(valuesBlock);
   }
 
   private void addRawBlock(BytesRefBlock valuesBlock) {
@@ -110,40 +124,24 @@ public final class AnyBytesRefAggregatorFunction implements AggregatorFunction {
 
   @Override
   public void addIntermediateInput(Page page) {
-    assert channels.size() == intermediateBlockCount();
-    assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    Block observedUncast = page.getBlock(channels.get(0));
-    if (observedUncast.areAllValuesNull()) {
-      /*
-       * All values are null so we can skip processing this block.
-       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
-       *       being fast without this. Likely the branch predictor is kicking
-       *       in there. But we do this anyway, just so we don't have to trust
-       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
-       *       always have long sequences of ConstantNullBlock. And this code
-       *       shows readers we've thought about this.
-       */
-      return;
+    assert inputs.size() == intermediateBlockCount();
+    try (
+      Block observedUncast = inputs.get(0).eval(page);
+      Block valuesUncast = inputs.get(1).eval(page);
+    ) {
+      if (observedUncast.areAllValuesNull()) {
+        return;
+      }
+      BooleanVector observed = ((BooleanBlock) observedUncast).asVector();
+      assert observed.getPositionCount() == 1;
+      if (valuesUncast.areAllValuesNull()) {
+        return;
+      }
+      BytesRefBlock values = (BytesRefBlock) valuesUncast;
+      assert values.getPositionCount() == 1;
+      BytesRef valuesScratch = new BytesRef();
+      AnyBytesRefAggregator.combineIntermediate(state, observed.getBoolean(0), values);
     }
-    BooleanVector observed = ((BooleanBlock) observedUncast).asVector();
-    assert observed.getPositionCount() == 1;
-    Block valuesUncast = page.getBlock(channels.get(1));
-    if (valuesUncast.areAllValuesNull()) {
-      /*
-       * All values are null so we can skip processing this block.
-       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
-       *       being fast without this. Likely the branch predictor is kicking
-       *       in there. But we do this anyway, just so we don't have to trust
-       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
-       *       always have long sequences of ConstantNullBlock. And this code
-       *       shows readers we've thought about this.
-       */
-      return;
-    }
-    BytesRefBlock values = (BytesRefBlock) valuesUncast;
-    assert values.getPositionCount() == 1;
-    BytesRef valuesScratch = new BytesRef();
-    AnyBytesRefAggregator.combineIntermediate(state, observed.getBoolean(0), values);
   }
 
   @Override
@@ -160,13 +158,17 @@ public final class AnyBytesRefAggregatorFunction implements AggregatorFunction {
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName()).append("[");
-    sb.append("channels=").append(channels);
+    sb.append("inputs=").append(inputs);
     sb.append("]");
     return sb.toString();
   }
 
   @Override
   public void close() {
-    state.close();
+    Releasables.closeExpectNoException(
+          state,
+          Releasables.wrap(inputs),
+          () -> driverContext.breaker().addWithoutBreaking(-ExpressionEvaluator.totalRamBytesUsed(inputs))
+        );
   }
 }

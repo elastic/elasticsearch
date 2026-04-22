@@ -8,6 +8,7 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -33,8 +34,8 @@ public final class CountDistinctFloatAggregatorFunctionSupplier implements Aggre
 
   @Override
   public CountDistinctFloatAggregatorFunction aggregator(DriverContext driverContext,
-      List<Integer> channels) {
-    return new CountDistinctFloatAggregatorFunction(driverContext, channels, precision);
+      List<ExpressionEvaluator> inputs) {
+    return new CountDistinctFloatAggregatorFunction(driverContext, inputs, precision);
   }
 
   @Override

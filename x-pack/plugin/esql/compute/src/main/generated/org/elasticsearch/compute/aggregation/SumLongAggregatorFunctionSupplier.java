@@ -8,6 +8,7 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.WarningSourceLocation;
 import org.elasticsearch.compute.operator.Warnings;
@@ -34,9 +35,10 @@ public final class SumLongAggregatorFunctionSupplier implements AggregatorFuncti
   }
 
   @Override
-  public SumLongAggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
+  public SumLongAggregatorFunction aggregator(DriverContext driverContext,
+      List<ExpressionEvaluator> inputs) {
     var warnings = Warnings.createWarnings(driverContext.warningsMode(), warningsSource);
-    return new SumLongAggregatorFunction(warnings, driverContext, channels);
+    return new SumLongAggregatorFunction(warnings, driverContext, inputs);
   }
 
   @Override

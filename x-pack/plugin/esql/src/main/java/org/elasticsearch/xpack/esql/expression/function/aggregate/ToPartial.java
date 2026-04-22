@@ -19,6 +19,8 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.aggregation.ToPartialAggregatorFunction;
 import org.elasticsearch.compute.aggregation.ToPartialGroupingAggregatorFunction;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.LoadFromPageEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -125,7 +127,7 @@ public class ToPartial extends AggregateFunction implements ToAggregator {
             }
 
             @Override
-            public AggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
+            public AggregatorFunction aggregator(DriverContext driverContext, List<ExpressionEvaluator> inputs) {
                 assert false : "aggregatorFactory() is override";
                 throw new UnsupportedOperationException();
             }
@@ -137,14 +139,20 @@ public class ToPartial extends AggregateFunction implements ToAggregator {
             }
 
             @Override
-            public Aggregator.Factory aggregatorFactory(AggregatorMode mode, List<Integer> channels) {
-                List<Integer> intermediateChannels = mode.isInputPartial()
-                    ? IntStream.range(0, supplier.nonGroupingIntermediateStateDesc().size()).boxed().toList()
-                    : channels;
+            public Aggregator.Factory aggregatorFactory(AggregatorMode mode, List<ExpressionEvaluator.Factory> inputs) {
+                List<ExpressionEvaluator.Factory> innerInputs = mode.isInputPartial()
+                    ? IntStream.range(0, supplier.nonGroupingIntermediateStateDesc().size()).<ExpressionEvaluator.Factory>mapToObj(
+                        LoadFromPageEvaluator.Factory::new
+                    ).toList()
+                    : inputs;
+                List<Integer> channels = inputs.stream().map(f -> ((LoadFromPageEvaluator.Factory) f).channel()).toList();
                 return new Aggregator.Factory() {
                     @Override
                     public Aggregator apply(DriverContext driverContext) {
-                        final AggregatorFunction aggregatorFunction = supplier.aggregator(driverContext, intermediateChannels);
+                        final AggregatorFunction aggregatorFunction = supplier.aggregator(
+                            driverContext,
+                            innerInputs.stream().map(f -> f.get(driverContext)).toList()
+                        );
                         return new Aggregator(new ToPartialAggregatorFunction(aggregatorFunction, channels), mode);
                     }
 

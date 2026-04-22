@@ -42,7 +42,7 @@ public class FilteredAggregatorFunctionTests extends AggregatorFunctionTestCase 
 
     @Override
     protected String expectedToStringOfSimpleAggregator() {
-        return "FilteredAggregatorFunction[next=SumIntAggregatorFunction[channels=[0]], filter=any > 0]";
+        return "FilteredAggregatorFunction[next=SumIntAggregatorFunction[inputs=[Attribute[channel=0]]], filter=any > 0]";
     }
 
     @Override

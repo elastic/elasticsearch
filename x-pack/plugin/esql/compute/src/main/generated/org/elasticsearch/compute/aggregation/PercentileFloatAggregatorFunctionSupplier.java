@@ -8,6 +8,7 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -33,8 +34,8 @@ public final class PercentileFloatAggregatorFunctionSupplier implements Aggregat
 
   @Override
   public PercentileFloatAggregatorFunction aggregator(DriverContext driverContext,
-      List<Integer> channels) {
-    return new PercentileFloatAggregatorFunction(driverContext, channels, percentile);
+      List<ExpressionEvaluator> inputs) {
+    return new PercentileFloatAggregatorFunction(driverContext, inputs, percentile);
   }
 
   @Override

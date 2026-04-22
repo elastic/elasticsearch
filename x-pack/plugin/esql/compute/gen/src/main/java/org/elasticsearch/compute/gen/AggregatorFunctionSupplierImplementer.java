@@ -37,6 +37,7 @@ import static org.elasticsearch.compute.gen.Methods.requireType;
 import static org.elasticsearch.compute.gen.Types.AGGREGATOR_FUNCTION_SUPPLIER;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.LIST_AGG_FUNC_DESC;
+import static org.elasticsearch.compute.gen.Types.LIST_EXPRESSION_EVALUATOR;
 import static org.elasticsearch.compute.gen.Types.LIST_INTEGER;
 import static org.elasticsearch.compute.gen.Types.STRING;
 import static org.elasticsearch.compute.gen.Types.WARNINGS;
@@ -150,7 +151,7 @@ public class AggregatorFunctionSupplierImplementer {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("aggregator");
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
         builder.addParameter(DRIVER_CONTEXT, "driverContext");
-        builder.addParameter(LIST_INTEGER, "channels");
+        builder.addParameter(LIST_EXPRESSION_EVALUATOR, "inputs");
 
         if (aggregatorImplementer == null) {
             builder.returns(Types.AGGREGATOR_FUNCTION);
@@ -168,7 +169,7 @@ public class AggregatorFunctionSupplierImplementer {
             "return new $T($L)",
             aggregatorImplementer.implementation(),
             Stream.concat(
-                Stream.concat(hasWarnings ? Stream.of("warnings") : Stream.of(), Stream.of("driverContext, channels")),
+                Stream.concat(hasWarnings ? Stream.of("warnings") : Stream.of(), Stream.of("driverContext, inputs")),
                 aggregatorImplementer.createParameters().stream().map(Parameter::name)
             ).collect(Collectors.joining(", "))
         );

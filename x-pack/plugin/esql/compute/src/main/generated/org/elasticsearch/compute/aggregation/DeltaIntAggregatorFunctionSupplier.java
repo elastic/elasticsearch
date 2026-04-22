@@ -8,6 +8,7 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -29,7 +30,8 @@ public final class DeltaIntAggregatorFunctionSupplier implements AggregatorFunct
   }
 
   @Override
-  public AggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
+  public AggregatorFunction aggregator(DriverContext driverContext,
+      List<ExpressionEvaluator> inputs) {
     throw new UnsupportedOperationException("non-grouping aggregator is not supported");
   }
 

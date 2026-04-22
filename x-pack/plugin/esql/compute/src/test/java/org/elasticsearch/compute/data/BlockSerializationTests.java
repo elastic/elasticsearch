@@ -17,6 +17,8 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.LoadFromPageEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.compute.test.TestBlockFactory;
@@ -276,7 +278,10 @@ public class BlockSerializationTests extends SerializationTestCase {
     public void testSimulateAggs() {
         DriverContext driverCtx = driverContext();
         Page page = new Page(blockFactory.newLongArrayVector(new long[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 }, 10).asBlock());
-        var function = new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).aggregator(driverCtx, List.of(0));
+        var function = new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).aggregator(
+            driverCtx,
+            List.of(new LoadFromPageEvaluator(0))
+        );
         try (BooleanVector noMasking = driverContext().blockFactory().newConstantBooleanVector(true, page.getPositionCount())) {
             function.addRawInput(page, noMasking);
         }
@@ -289,11 +294,13 @@ public class BlockSerializationTests extends SerializationTestCase {
                 IntStream.range(0, blocks.length)
                     .forEach(i -> EqualsHashCodeTestUtils.checkEqualsAndHashCode(blocks[i], unused -> deserBlocks[i]));
 
-                var inputChannels = IntStream.range(0, SumLongAggregatorFunction.intermediateStateDesc().size()).boxed().toList();
+                var inputEvaluators = IntStream.range(0, SumLongAggregatorFunction.intermediateStateDesc().size())
+                    .mapToObj(i -> (ExpressionEvaluator) new LoadFromPageEvaluator(i))
+                    .toList();
                 try (
                     var finalAggregator = new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).aggregator(
                         driverCtx,
-                        inputChannels
+                        inputEvaluators
                     )
                 ) {
                     finalAggregator.addIntermediateInput(new Page(deserBlocks));

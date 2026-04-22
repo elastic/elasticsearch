@@ -10,6 +10,7 @@ import java.lang.String;
 import java.util.List;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -32,8 +33,8 @@ public final class SpatialExtentGeoShapeSourceValuesAggregatorFunctionSupplier i
 
   @Override
   public SpatialExtentGeoShapeSourceValuesAggregatorFunction aggregator(DriverContext driverContext,
-      List<Integer> channels) {
-    return new SpatialExtentGeoShapeSourceValuesAggregatorFunction(driverContext, channels);
+      List<ExpressionEvaluator> inputs) {
+    return new SpatialExtentGeoShapeSourceValuesAggregatorFunction(driverContext, inputs);
   }
 
   @Override

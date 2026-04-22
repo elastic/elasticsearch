@@ -32,8 +32,8 @@ public record FilteredAggregatorFunctionSupplier(AggregatorFunctionSupplier next
     }
 
     @Override
-    public AggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
-        AggregatorFunction next = this.next.aggregator(driverContext, channels);
+    public AggregatorFunction aggregator(DriverContext driverContext, List<ExpressionEvaluator> inputs) {
+        AggregatorFunction next = this.next.aggregator(driverContext, inputs);
         ExpressionEvaluator filter = null;
         try {
             filter = this.filter.get(driverContext);

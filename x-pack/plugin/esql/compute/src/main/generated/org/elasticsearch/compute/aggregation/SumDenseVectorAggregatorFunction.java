@@ -5,7 +5,6 @@
 package org.elasticsearch.compute.aggregation;
 
 import java.lang.ArithmeticException;
-import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -16,8 +15,10 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link AggregatorFunction} implementation for {@link SumDenseVectorAggregator}.
@@ -34,14 +35,23 @@ public final class SumDenseVectorAggregatorFunction implements AggregatorFunctio
 
   private final SumDenseVectorAggregator.SingleState state;
 
-  private final List<Integer> channels;
+  private final List<ExpressionEvaluator> inputs;
 
   SumDenseVectorAggregatorFunction(Warnings warnings, DriverContext driverContext,
-      List<Integer> channels) {
+      List<ExpressionEvaluator> inputs) {
     this.warnings = warnings;
     this.driverContext = driverContext;
-    this.channels = channels;
+    this.inputs = inputs;
     this.state = SumDenseVectorAggregator.initSingle();
+    boolean success = false;
+    try {
+      driverContext.breaker().addEstimateBytesAndMaybeBreak(ExpressionEvaluator.totalRamBytesUsed(inputs), "ESQL");
+      success = true;
+    } finally {
+      if (success == false) {
+        this.state.close();
+      }
+    }
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -65,37 +75,41 @@ public final class SumDenseVectorAggregatorFunction implements AggregatorFunctio
   }
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
-    FloatBlock vectorBlock = page.getBlock(channels.get(0));
-    if (vectorBlock.areAllValuesNull()) {
-      /*
-       * All values are null so we can skip processing this block.
-       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
-       *       being fast without this. Likely the branch predictor is kicking
-       *       in there. But we do this anyway, just so we don't have to trust
-       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
-       *       always have long sequences of ConstantNullBlock. And this code
-       *       shows readers we've thought about this.
-       */
-      return;
+    try (Block vectorUncast = inputs.get(0).eval(page)) {
+      FloatBlock vectorBlock = (FloatBlock) vectorUncast;
+      if (vectorBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
+      addRawBlock(vectorBlock, mask);
     }
-    addRawBlock(vectorBlock, mask);
   }
 
   private void addRawInputNotMasked(Page page) {
-    FloatBlock vectorBlock = page.getBlock(channels.get(0));
-    if (vectorBlock.areAllValuesNull()) {
-      /*
-       * All values are null so we can skip processing this block.
-       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
-       *       being fast without this. Likely the branch predictor is kicking
-       *       in there. But we do this anyway, just so we don't have to trust
-       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
-       *       always have long sequences of ConstantNullBlock. And this code
-       *       shows readers we've thought about this.
-       */
-      return;
+    try (Block vectorUncast = inputs.get(0).eval(page)) {
+      FloatBlock vectorBlock = (FloatBlock) vectorUncast;
+      if (vectorBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
+      addRawBlock(vectorBlock);
     }
-    addRawBlock(vectorBlock);
   }
 
   private void addRawBlock(FloatBlock vectorBlock) {
@@ -127,39 +141,23 @@ public final class SumDenseVectorAggregatorFunction implements AggregatorFunctio
 
   @Override
   public void addIntermediateInput(Page page) {
-    assert channels.size() == intermediateBlockCount();
-    assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    Block sumUncast = page.getBlock(channels.get(0));
-    if (sumUncast.areAllValuesNull()) {
-      /*
-       * All values are null so we can skip processing this block.
-       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
-       *       being fast without this. Likely the branch predictor is kicking
-       *       in there. But we do this anyway, just so we don't have to trust
-       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
-       *       always have long sequences of ConstantNullBlock. And this code
-       *       shows readers we've thought about this.
-       */
-      return;
+    assert inputs.size() == intermediateBlockCount();
+    try (
+      Block sumUncast = inputs.get(0).eval(page);
+      Block failedUncast = inputs.get(1).eval(page);
+    ) {
+      if (sumUncast.areAllValuesNull()) {
+        return;
+      }
+      FloatBlock sum = (FloatBlock) sumUncast;
+      assert sum.getPositionCount() == 1;
+      if (failedUncast.areAllValuesNull()) {
+        return;
+      }
+      BooleanVector failed = ((BooleanBlock) failedUncast).asVector();
+      assert failed.getPositionCount() == 1;
+      SumDenseVectorAggregator.combineIntermediate(state, sum, failed.getBoolean(0));
     }
-    FloatBlock sum = (FloatBlock) sumUncast;
-    assert sum.getPositionCount() == 1;
-    Block failedUncast = page.getBlock(channels.get(1));
-    if (failedUncast.areAllValuesNull()) {
-      /*
-       * All values are null so we can skip processing this block.
-       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
-       *       being fast without this. Likely the branch predictor is kicking
-       *       in there. But we do this anyway, just so we don't have to trust
-       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
-       *       always have long sequences of ConstantNullBlock. And this code
-       *       shows readers we've thought about this.
-       */
-      return;
-    }
-    BooleanVector failed = ((BooleanBlock) failedUncast).asVector();
-    assert failed.getPositionCount() == 1;
-    SumDenseVectorAggregator.combineIntermediate(state, sum, failed.getBoolean(0));
   }
 
   @Override
@@ -176,13 +174,17 @@ public final class SumDenseVectorAggregatorFunction implements AggregatorFunctio
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName()).append("[");
-    sb.append("channels=").append(channels);
+    sb.append("inputs=").append(inputs);
     sb.append("]");
     return sb.toString();
   }
 
   @Override
   public void close() {
-    state.close();
+    Releasables.closeExpectNoException(
+          state,
+          Releasables.wrap(inputs),
+          () -> driverContext.breaker().addWithoutBreaking(-ExpressionEvaluator.totalRamBytesUsed(inputs))
+        );
   }
 }

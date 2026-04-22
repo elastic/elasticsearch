@@ -18,6 +18,8 @@ import org.elasticsearch.compute.aggregation.FromPartialGroupingAggregatorFuncti
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.LoadFromPageEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -115,7 +117,7 @@ public class FromPartial extends AggregateFunction implements ToAggregator {
             }
 
             @Override
-            public AggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
+            public AggregatorFunction aggregator(DriverContext driverContext, List<ExpressionEvaluator> inputs) {
                 assert false : "aggregatorFactory() is override";
                 throw new UnsupportedOperationException();
             }
@@ -127,12 +129,12 @@ public class FromPartial extends AggregateFunction implements ToAggregator {
             }
 
             @Override
-            public Aggregator.Factory aggregatorFactory(AggregatorMode mode, List<Integer> channels) {
-                if (channels.size() != 1) {
-                    assert false : "from_partial aggregation requires exactly one input channel; got " + channels;
-                    throw new IllegalArgumentException("from_partial aggregation requires exactly one input channel; got " + channels);
+            public Aggregator.Factory aggregatorFactory(AggregatorMode mode, List<ExpressionEvaluator.Factory> inputs) {
+                if (inputs.size() != 1) {
+                    assert false : "from_partial aggregation requires exactly one input; got " + inputs;
+                    throw new IllegalArgumentException("from_partial aggregation requires exactly one input; got " + inputs);
                 }
-                final int inputChannel = channels.get(0);
+                final int inputChannel = ((LoadFromPageEvaluator.Factory) inputs.get(0)).channel();
                 var intermediateChannels = IntStream.range(0, supplier.nonGroupingIntermediateStateDesc().size()).boxed().toList();
                 return new Aggregator.Factory() {
                     @Override

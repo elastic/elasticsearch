@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.LoadFromPageEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 
 import java.util.List;
@@ -70,7 +71,10 @@ public class LuceneMinDoubleOperatorTests extends LuceneMinOperatorTestCase {
 
             @Override
             public AggregatorFunction newAggregatorFunction(DriverContext context) {
-                return new MinDoubleAggregatorFunctionSupplier().aggregator(context, List.of(0, 1));
+                return new MinDoubleAggregatorFunctionSupplier().aggregator(
+                    context,
+                    List.of(new LoadFromPageEvaluator(0), new LoadFromPageEvaluator(1))
+                );
             }
 
             @Override

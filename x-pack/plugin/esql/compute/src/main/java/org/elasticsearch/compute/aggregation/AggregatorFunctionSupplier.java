@@ -8,6 +8,9 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.Describable;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 
 import java.util.List;
@@ -20,15 +23,24 @@ public interface AggregatorFunctionSupplier extends Describable {
 
     List<IntermediateStateDesc> groupingIntermediateStateDesc();
 
-    AggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels);
+    AggregatorFunction aggregator(DriverContext driverContext, List<ExpressionEvaluator> inputs);
 
     GroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels);
 
-    default Aggregator.Factory aggregatorFactory(AggregatorMode mode, List<Integer> channels) {
+    /**
+     * Create a factory for the aggregator.
+     * @param mode the input and output configuration for the agg
+     * @param inputs Factories for the {@link ExpressionEvaluator}s used to fetch {@link Block}s
+     *               from the input {@link Page}. Generally we always
+     *               {@link ExpressionEvaluator.Factory load} from the page, but we're
+     *               <strong>allowed</strong> to use evaluator. Soon, we will use this
+     *               for constants.
+     */
+    default Aggregator.Factory aggregatorFactory(AggregatorMode mode, List<ExpressionEvaluator.Factory> inputs) {
         return new Aggregator.Factory() {
             @Override
             public Aggregator apply(DriverContext driverContext) {
-                return new Aggregator(aggregator(driverContext, channels), mode);
+                return new Aggregator(aggregator(driverContext, inputs.stream().map(f -> f.get(driverContext)).toList()), mode);
             }
 
             @Override

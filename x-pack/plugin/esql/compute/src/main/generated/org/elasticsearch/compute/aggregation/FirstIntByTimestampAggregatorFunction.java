@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -18,7 +17,9 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link AggregatorFunction} implementation for {@link FirstIntByTimestampAggregator}.
@@ -34,12 +35,22 @@ public final class FirstIntByTimestampAggregatorFunction implements AggregatorFu
 
   private final LongIntState state;
 
-  private final List<Integer> channels;
+  private final List<ExpressionEvaluator> inputs;
 
-  FirstIntByTimestampAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
+  FirstIntByTimestampAggregatorFunction(DriverContext driverContext,
+      List<ExpressionEvaluator> inputs) {
     this.driverContext = driverContext;
-    this.channels = channels;
+    this.inputs = inputs;
     this.state = FirstIntByTimestampAggregator.initSingle(driverContext);
+    boolean success = false;
+    try {
+      driverContext.breaker().addEstimateBytesAndMaybeBreak(ExpressionEvaluator.totalRamBytesUsed(inputs), "ESQL");
+      success = true;
+    } finally {
+      if (success == false) {
+        this.state.close();
+      }
+    }
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -63,35 +74,45 @@ public final class FirstIntByTimestampAggregatorFunction implements AggregatorFu
   }
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
-    IntBlock valueBlock = page.getBlock(channels.get(0));
-    LongBlock timestampBlock = page.getBlock(channels.get(1));
-    IntVector valueVector = valueBlock.asVector();
-    if (valueVector == null) {
-      addRawBlock(valueBlock, timestampBlock, mask);
-      return;
+    try (
+      Block valueUncast = inputs.get(0).eval(page);
+      Block timestampUncast = inputs.get(1).eval(page);
+    ) {
+      IntBlock valueBlock = (IntBlock) valueUncast;
+      LongBlock timestampBlock = (LongBlock) timestampUncast;
+      IntVector valueVector = valueBlock.asVector();
+      if (valueVector == null) {
+        addRawBlock(valueBlock, timestampBlock, mask);
+        return;
+      }
+      LongVector timestampVector = timestampBlock.asVector();
+      if (timestampVector == null) {
+        addRawBlock(valueBlock, timestampBlock, mask);
+        return;
+      }
+      addRawVector(valueVector, timestampVector, mask);
     }
-    LongVector timestampVector = timestampBlock.asVector();
-    if (timestampVector == null) {
-      addRawBlock(valueBlock, timestampBlock, mask);
-      return;
-    }
-    addRawVector(valueVector, timestampVector, mask);
   }
 
   private void addRawInputNotMasked(Page page) {
-    IntBlock valueBlock = page.getBlock(channels.get(0));
-    LongBlock timestampBlock = page.getBlock(channels.get(1));
-    IntVector valueVector = valueBlock.asVector();
-    if (valueVector == null) {
-      addRawBlock(valueBlock, timestampBlock);
-      return;
+    try (
+      Block valueUncast = inputs.get(0).eval(page);
+      Block timestampUncast = inputs.get(1).eval(page);
+    ) {
+      IntBlock valueBlock = (IntBlock) valueUncast;
+      LongBlock timestampBlock = (LongBlock) timestampUncast;
+      IntVector valueVector = valueBlock.asVector();
+      if (valueVector == null) {
+        addRawBlock(valueBlock, timestampBlock);
+        return;
+      }
+      LongVector timestampVector = timestampBlock.asVector();
+      if (timestampVector == null) {
+        addRawBlock(valueBlock, timestampBlock);
+        return;
+      }
+      addRawVector(valueVector, timestampVector);
     }
-    LongVector timestampVector = timestampBlock.asVector();
-    if (timestampVector == null) {
-      addRawBlock(valueBlock, timestampBlock);
-      return;
-    }
-    addRawVector(valueVector, timestampVector);
   }
 
   private void addRawVector(IntVector valueVector, LongVector timestampVector) {
@@ -205,54 +226,29 @@ public final class FirstIntByTimestampAggregatorFunction implements AggregatorFu
 
   @Override
   public void addIntermediateInput(Page page) {
-    assert channels.size() == intermediateBlockCount();
-    assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    Block timestampsUncast = page.getBlock(channels.get(0));
-    if (timestampsUncast.areAllValuesNull()) {
-      /*
-       * All values are null so we can skip processing this block.
-       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
-       *       being fast without this. Likely the branch predictor is kicking
-       *       in there. But we do this anyway, just so we don't have to trust
-       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
-       *       always have long sequences of ConstantNullBlock. And this code
-       *       shows readers we've thought about this.
-       */
-      return;
+    assert inputs.size() == intermediateBlockCount();
+    try (
+      Block timestampsUncast = inputs.get(0).eval(page);
+      Block valuesUncast = inputs.get(1).eval(page);
+      Block seenUncast = inputs.get(2).eval(page);
+    ) {
+      if (timestampsUncast.areAllValuesNull()) {
+        return;
+      }
+      LongVector timestamps = ((LongBlock) timestampsUncast).asVector();
+      assert timestamps.getPositionCount() == 1;
+      if (valuesUncast.areAllValuesNull()) {
+        return;
+      }
+      IntVector values = ((IntBlock) valuesUncast).asVector();
+      assert values.getPositionCount() == 1;
+      if (seenUncast.areAllValuesNull()) {
+        return;
+      }
+      BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
+      assert seen.getPositionCount() == 1;
+      FirstIntByTimestampAggregator.combineIntermediate(state, timestamps.getLong(0), values.getInt(0), seen.getBoolean(0));
     }
-    LongVector timestamps = ((LongBlock) timestampsUncast).asVector();
-    assert timestamps.getPositionCount() == 1;
-    Block valuesUncast = page.getBlock(channels.get(1));
-    if (valuesUncast.areAllValuesNull()) {
-      /*
-       * All values are null so we can skip processing this block.
-       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
-       *       being fast without this. Likely the branch predictor is kicking
-       *       in there. But we do this anyway, just so we don't have to trust
-       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
-       *       always have long sequences of ConstantNullBlock. And this code
-       *       shows readers we've thought about this.
-       */
-      return;
-    }
-    IntVector values = ((IntBlock) valuesUncast).asVector();
-    assert values.getPositionCount() == 1;
-    Block seenUncast = page.getBlock(channels.get(2));
-    if (seenUncast.areAllValuesNull()) {
-      /*
-       * All values are null so we can skip processing this block.
-       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
-       *       being fast without this. Likely the branch predictor is kicking
-       *       in there. But we do this anyway, just so we don't have to trust
-       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
-       *       always have long sequences of ConstantNullBlock. And this code
-       *       shows readers we've thought about this.
-       */
-      return;
-    }
-    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
-    assert seen.getPositionCount() == 1;
-    FirstIntByTimestampAggregator.combineIntermediate(state, timestamps.getLong(0), values.getInt(0), seen.getBoolean(0));
   }
 
   @Override
@@ -273,13 +269,17 @@ public final class FirstIntByTimestampAggregatorFunction implements AggregatorFu
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName()).append("[");
-    sb.append("channels=").append(channels);
+    sb.append("inputs=").append(inputs);
     sb.append("]");
     return sb.toString();
   }
 
   @Override
   public void close() {
-    state.close();
+    Releasables.closeExpectNoException(
+          state,
+          Releasables.wrap(inputs),
+          () -> driverContext.breaker().addWithoutBreaking(-ExpressionEvaluator.totalRamBytesUsed(inputs))
+        );
   }
 }

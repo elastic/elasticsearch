@@ -8,6 +8,7 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -36,8 +37,8 @@ public final class TopLongDoubleAggregatorFunctionSupplier implements Aggregator
 
   @Override
   public TopLongDoubleAggregatorFunction aggregator(DriverContext driverContext,
-      List<Integer> channels) {
-    return new TopLongDoubleAggregatorFunction(driverContext, channels, limit, ascending);
+      List<ExpressionEvaluator> inputs) {
+    return new TopLongDoubleAggregatorFunction(driverContext, inputs, limit, ascending);
   }
 
   @Override

@@ -16,6 +16,7 @@ import org.elasticsearch.compute.aggregation.WindowAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.LoadFromPageEvaluator;
 import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.Operator;
@@ -88,12 +89,17 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 aggregatorMode,
                 sourceLayout,
                 false, // non-grouping
-                s -> aggregatorFactories.add(s.supplier.aggregatorFactory(s.mode, s.channels)),
+                s -> aggregatorFactories.add(
+                    s.supplier.aggregatorFactory(
+                        s.mode,
+                        s.channels.stream().<ExpressionEvaluator.Factory>map(LoadFromPageEvaluator.Factory::new).toList()
+                    )
+                ),
                 context
             );
 
             if (aggregatorFactories.isEmpty() == false) {
-                operatorFactory = new AggregationOperator.AggregationOperatorFactory(aggregatorFactories, aggregatorMode);
+                operatorFactory = new AggregationOperator.Factory(aggregatorFactories, aggregatorMode);
             }
         } else {
             // grouping

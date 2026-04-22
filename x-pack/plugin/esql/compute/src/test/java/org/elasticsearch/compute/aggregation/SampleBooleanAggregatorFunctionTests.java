@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.LoadFromPageEvaluator;
 import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.TestDriverRunner;
@@ -57,11 +58,11 @@ public class SampleBooleanAggregatorFunctionTests extends AggregatorFunctionTest
     public void testDistribution() {
         // Sample from the numbers 50x true and 50x false.
         int N = 100;
-        Aggregator.Factory aggregatorFactory = aggregatorFunction().aggregatorFactory(AggregatorMode.SINGLE, List.of(0));
-        AggregationOperator.AggregationOperatorFactory operatorFactory = new AggregationOperator.AggregationOperatorFactory(
-            List.of(aggregatorFactory),
-            AggregatorMode.SINGLE
+        Aggregator.Factory aggregatorFactory = aggregatorFunction().aggregatorFactory(
+            AggregatorMode.SINGLE,
+            List.of(new LoadFromPageEvaluator.Factory(0))
         );
+        AggregationOperator.Factory operatorFactory = new AggregationOperator.Factory(List.of(aggregatorFactory), AggregatorMode.SINGLE);
 
         // Repeat 1000x, count how often each value is sampled.
         int trueCount = 0;

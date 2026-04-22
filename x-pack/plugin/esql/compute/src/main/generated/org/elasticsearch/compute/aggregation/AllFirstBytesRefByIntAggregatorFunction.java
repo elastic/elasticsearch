@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -17,7 +16,9 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link AggregatorFunction} implementation for {@link AllFirstBytesRefByIntAggregator}.
@@ -34,12 +35,22 @@ public final class AllFirstBytesRefByIntAggregatorFunction implements Aggregator
 
   private final AllIntBytesRefState state;
 
-  private final List<Integer> channels;
+  private final List<ExpressionEvaluator> inputs;
 
-  AllFirstBytesRefByIntAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
+  AllFirstBytesRefByIntAggregatorFunction(DriverContext driverContext,
+      List<ExpressionEvaluator> inputs) {
     this.driverContext = driverContext;
-    this.channels = channels;
+    this.inputs = inputs;
     this.state = AllFirstBytesRefByIntAggregator.initSingle(driverContext);
+    boolean success = false;
+    try {
+      driverContext.breaker().addEstimateBytesAndMaybeBreak(ExpressionEvaluator.totalRamBytesUsed(inputs), "ESQL");
+      success = true;
+    } finally {
+      if (success == false) {
+        this.state.close();
+      }
+    }
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -63,15 +74,25 @@ public final class AllFirstBytesRefByIntAggregatorFunction implements Aggregator
   }
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
-    BytesRefBlock valuesBlock = page.getBlock(channels.get(0));
-    IntBlock timestampsBlock = page.getBlock(channels.get(1));
-    addRawBlock(valuesBlock, timestampsBlock, mask);
+    try (
+      Block valuesUncast = inputs.get(0).eval(page);
+      Block timestampsUncast = inputs.get(1).eval(page);
+    ) {
+      BytesRefBlock valuesBlock = (BytesRefBlock) valuesUncast;
+      IntBlock timestampsBlock = (IntBlock) timestampsUncast;
+      addRawBlock(valuesBlock, timestampsBlock, mask);
+    }
   }
 
   private void addRawInputNotMasked(Page page) {
-    BytesRefBlock valuesBlock = page.getBlock(channels.get(0));
-    IntBlock timestampsBlock = page.getBlock(channels.get(1));
-    addRawBlock(valuesBlock, timestampsBlock);
+    try (
+      Block valuesUncast = inputs.get(0).eval(page);
+      Block timestampsUncast = inputs.get(1).eval(page);
+    ) {
+      BytesRefBlock valuesBlock = (BytesRefBlock) valuesUncast;
+      IntBlock timestampsBlock = (IntBlock) timestampsUncast;
+      addRawBlock(valuesBlock, timestampsBlock);
+    }
   }
 
   private void addRawBlock(BytesRefBlock valuesBlock, IntBlock timestampsBlock) {
@@ -92,22 +113,24 @@ public final class AllFirstBytesRefByIntAggregatorFunction implements Aggregator
 
   @Override
   public void addIntermediateInput(Page page) {
-    assert channels.size() == intermediateBlockCount();
-    assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    Block observedUncast = page.getBlock(channels.get(0));
-    BooleanBlock observed = (BooleanBlock) observedUncast;
-    assert observed.getPositionCount() == 1;
-    Block timestampPresentUncast = page.getBlock(channels.get(1));
-    BooleanBlock timestampPresent = (BooleanBlock) timestampPresentUncast;
-    assert timestampPresent.getPositionCount() == 1;
-    Block timestampUncast = page.getBlock(channels.get(2));
-    IntBlock timestamp = (IntBlock) timestampUncast;
-    assert timestamp.getPositionCount() == 1;
-    Block valuesUncast = page.getBlock(channels.get(3));
-    BytesRefBlock values = (BytesRefBlock) valuesUncast;
-    assert values.getPositionCount() == 1;
-    BytesRef valuesScratch = new BytesRef();
-    AllFirstBytesRefByIntAggregator.combineIntermediate(state, observed.getBoolean(0), timestampPresent.getBoolean(0), timestamp.getInt(0), values);
+    assert inputs.size() == intermediateBlockCount();
+    try (
+      Block observedUncast = inputs.get(0).eval(page);
+      Block timestampPresentUncast = inputs.get(1).eval(page);
+      Block timestampUncast = inputs.get(2).eval(page);
+      Block valuesUncast = inputs.get(3).eval(page);
+    ) {
+      BooleanBlock observed = (BooleanBlock) observedUncast;
+      assert observed.getPositionCount() == 1;
+      BooleanBlock timestampPresent = (BooleanBlock) timestampPresentUncast;
+      assert timestampPresent.getPositionCount() == 1;
+      IntBlock timestamp = (IntBlock) timestampUncast;
+      assert timestamp.getPositionCount() == 1;
+      BytesRefBlock values = (BytesRefBlock) valuesUncast;
+      assert values.getPositionCount() == 1;
+      BytesRef valuesScratch = new BytesRef();
+      AllFirstBytesRefByIntAggregator.combineIntermediate(state, observed.getBoolean(0), timestampPresent.getBoolean(0), timestamp.getInt(0), values);
+    }
   }
 
   @Override
@@ -124,13 +147,17 @@ public final class AllFirstBytesRefByIntAggregatorFunction implements Aggregator
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName()).append("[");
-    sb.append("channels=").append(channels);
+    sb.append("inputs=").append(inputs);
     sb.append("]");
     return sb.toString();
   }
 
   @Override
   public void close() {
-    state.close();
+    Releasables.closeExpectNoException(
+          state,
+          Releasables.wrap(inputs),
+          () -> driverContext.breaker().addWithoutBreaking(-ExpressionEvaluator.totalRamBytesUsed(inputs))
+        );
   }
 }

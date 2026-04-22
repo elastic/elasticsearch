@@ -8,6 +8,7 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -30,8 +31,8 @@ public final class FirstExponentialHistogramByTimestampAggregatorFunctionSupplie
 
   @Override
   public FirstExponentialHistogramByTimestampAggregatorFunction aggregator(
-      DriverContext driverContext, List<Integer> channels) {
-    return new FirstExponentialHistogramByTimestampAggregatorFunction(driverContext, channels);
+      DriverContext driverContext, List<ExpressionEvaluator> inputs) {
+    return new FirstExponentialHistogramByTimestampAggregatorFunction(driverContext, inputs);
   }
 
   @Override

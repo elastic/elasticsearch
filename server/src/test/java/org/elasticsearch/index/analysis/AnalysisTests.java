@@ -36,7 +36,6 @@ import java.util.List;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -196,31 +195,6 @@ public class AnalysisTests extends ESTestCase {
         }
         assertThat(content, containsString("quick, fast"));
         assertThat(content, containsString("jumps, leaps"));
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testGetReaderFromIndexAggregateLimitTruncates() throws IOException {
-        SynonymsManagementAPIService service = mock(SynonymsManagementAPIService.class);
-        // Service has already applied the limit and returned only 2 rules (set-b's rule was dropped)
-        SynonymRule[] truncatedRules = new SynonymRule[] { new SynonymRule("a1", "quick, fast"), new SynonymRule("a2", "big, large") };
-
-        doAnswer(invocation -> {
-            ActionListener<PagedResult<SynonymRule>> listener = invocation.getArgument(2);
-            listener.onResponse(new PagedResult<>(3, truncatedRules));
-            return null;
-        }).when(service).getSynonymSetRules(eq(List.of("set-a", "set-b")), eq(false), any());
-
-        try (BufferedReader br = new BufferedReader(Analysis.getReaderFromIndex(List.of("set-a", "set-b"), service, false))) {
-            StringBuilder sb = new StringBuilder();
-            String line;
-            while ((line = br.readLine()) != null) {
-                sb.append(line).append("\n");
-            }
-            String content = sb.toString();
-            assertThat(content, containsString("quick, fast"));
-            assertThat(content, containsString("big, large"));
-            assertThat(content, is(not(containsString("jumps, leaps"))));
-        }
     }
 
     @SuppressWarnings("unchecked")

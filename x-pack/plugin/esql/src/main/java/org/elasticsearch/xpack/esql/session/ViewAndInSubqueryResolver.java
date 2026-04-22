@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.session;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -33,6 +35,8 @@ import java.util.function.BiFunction;
  * unresolved {@code InSubquery} expressions remain.
  */
 public final class ViewAndInSubqueryResolver {
+
+    private static final Logger log = LogManager.getLogger(ViewAndInSubqueryResolver.class);
 
     /**
      * Maximum zero-based iteration index allowed for the view / IN subquery resolution loop
@@ -99,20 +103,29 @@ public final class ViewAndInSubqueryResolver {
 
         // Step 1: Resolve views
         viewResolver.replaceViews(plan, viewParser, listener.delegateFailureAndWrap((l, viewResult) -> {
-            boolean viewsExpanded = viewResult.viewQueries().isEmpty() == false;
             accumulatedViewQueries.putAll(viewResult.viewQueries());
             LogicalPlan afterViews = viewResult.plan();
+            if (log.isDebugEnabled()) {
+                log.debug("ViewAndInSubqueryResolver: logical plan after ViewResolver, iteration {}:\n{}", iteration, afterViews);
+            }
 
             // Step 2: Resolve InSubquery expressions with validation.
             // Throws VerificationException immediately if InSubquery is used in an unsupported position
             // (e.g. EVAL, SORT), so we fail fast without continuing to iterate.
             LogicalPlan afterInSubquery = InSubqueryResolver.resolve(afterViews);
+            if (log.isDebugEnabled()) {
+                log.debug(
+                    "ViewAndInSubqueryResolver: logical plan after InSubqueryResolver, iteration {}:\n{}",
+                    iteration,
+                    afterInSubquery
+                );
+            }
+
             boolean inSubqueryResolved = afterInSubquery != afterViews;
 
             // Step 3: Check if another round is needed
-            // - If InSubquery was resolved (plan changed), new plan nodes may contain view references → need ViewResolver
-            // - If views were expanded, InSubqueryResolver may have resolved new InSubquery from view definitions
-            if (inSubqueryResolved || viewsExpanded) {
+            // If InSubquery was resolved (plan changed), new plan nodes may contain view references → need ViewResolver again.
+            if (inSubqueryResolved) {
                 resolve(afterInSubquery, viewParser, accumulatedViewQueries, iteration + 1, l);
             } else {
                 l.onResponse(new ViewResolver.ViewResolutionResult(afterInSubquery, accumulatedViewQueries));

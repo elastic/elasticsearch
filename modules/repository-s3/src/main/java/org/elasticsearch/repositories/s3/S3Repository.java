@@ -242,6 +242,8 @@ class S3Repository extends MeteredBlobStoreRepository {
         false
     );
 
+    static final Setting<Boolean> S3_TENACIOUS_RETRIES_ENABLED_SETTING = Setting.boolSetting("s3.client.tenacious_retries.enabled", false);
+
     private final S3Service service;
 
     private final String bucket;

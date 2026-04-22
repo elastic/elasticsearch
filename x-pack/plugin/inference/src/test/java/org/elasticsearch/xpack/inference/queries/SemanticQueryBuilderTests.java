@@ -344,6 +344,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
             assertThat(request.getInferenceEntityId(), equalTo(useSearchInferenceId ? SEARCH_INFERENCE_ID : INFERENCE_ID));
             assertThat(request.getTaskType(), equalTo(TaskType.EMBEDDING));
             assertThat(request.getEmbeddingRequest().inputType(), equalTo(InputType.INTERNAL_SEARCH));
+            assertThat("Expected a single query as input", request.getEmbeddingRequest().inputs().size(), equalTo(1));
 
             @SuppressWarnings("unchecked")
             ActionListener<InferenceAction.Response> listener = (ActionListener<InferenceAction.Response>) args[2];
@@ -354,6 +355,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
             InferenceAction.Request request = (InferenceAction.Request) args[1];
             assertThat(request.getInferenceEntityId(), equalTo(useSearchInferenceId ? SEARCH_INFERENCE_ID : INFERENCE_ID));
             assertThat(request.getInputType(), equalTo(InputType.INTERNAL_SEARCH));
+            assertThat("Expected a single query as input", request.getInput().size(), equalTo(1));
 
             String query = request.getInput().get(0);
             InferenceAction.Response response = switch (inferenceResultType) {

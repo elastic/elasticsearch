@@ -6,18 +6,33 @@
  */
 package org.elasticsearch.xpack.security.crypto;
 
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.test.SecuritySettingsSource;
+import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xpack.core.crypto.PrimaryEncryptionKeyMetadata;
 
+import java.io.IOException;
+
+import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 // 3 master-eligible nodes so testKeySurvivesMasterFailover keeps a quorum after stopping one
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 3, supportsDedicatedMasters = false)
 public class PrimaryEncryptionKeyIT extends SecurityIntegTestCase {
+
+    @Override
+    protected boolean addMockHttpTransport() {
+        return false;
+    }
 
     private PrimaryEncryptionKeyMetadata getKeyFromClusterState(String nodeName) {
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, nodeName);
@@ -99,5 +114,30 @@ public class PrimaryEncryptionKeyIT extends SecurityIntegTestCase {
             assertThat("Key should survive full cluster restart", pek, notNullValue());
             assertEquals("Key ID should be the same after restart", original.getActiveKeyId(), pek.getActiveKeyId());
         });
+    }
+
+    public void testKeyNotExposedViaClusterStateApi() throws Exception {
+        ensureGreen();
+        assertBusy(() -> assertThat(getKeyFromClusterState(internalCluster().getMasterName()), notNullValue()));
+
+        ObjectPath response = ObjectPath.createFromResponse(performClusterStateRequest());
+        assertNull(
+            "primary_encryption_key must not be exposed via the cluster state API",
+            response.evaluate("metadata.primary_encryption_key")
+        );
+    }
+
+    private Response performClusterStateRequest() throws IOException {
+        Request request = new Request("GET", "/_cluster/state/metadata");
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader(
+            "Authorization",
+            basicAuthHeaderValue(
+                SecuritySettingsSource.TEST_USER_NAME,
+                new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())
+            )
+        );
+        request.setOptions(options);
+        return getRestClient().performRequest(request);
     }
 }

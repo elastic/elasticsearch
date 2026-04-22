@@ -90,10 +90,16 @@ public class PrimaryEncryptionKeyService implements PrimaryEncryptionKeyProvider
         if (event.changedCustomProjectMetadataSet().contains(PrimaryEncryptionKeyMetadata.TYPE)) {
             ProjectState projectState = projectResolver.getProjectState(state);
             PrimaryEncryptionKeyMetadata metadata = projectState.metadata().custom(PrimaryEncryptionKeyMetadata.TYPE);
+
+            assert metadata != null || this.cache == KeyCache.EMPTY
+                : "PEK metadata was removed from cluster state, but cache still holds keys";
+
             if (metadata != null) {
-                Map<String, SecretKey> keysByKeyId = new HashMap<>();
+                Map<String, SecretKey> keysByKeyId = HashMap.newHashMap(metadata.getKeys().size());
                 for (Map.Entry<String, byte[]> entry : metadata.getKeys().entrySet()) {
-                    keysByKeyId.put(entry.getKey(), metadata.toSecretKey(entry.getKey()));
+                    SecretKey secretKey = metadata.toSecretKey(entry.getKey());
+                    assert secretKey != null : "key [" + entry.getKey() + "] present in metadata but toSecretKey returned null";
+                    keysByKeyId.put(entry.getKey(), secretKey);
                 }
                 this.cache = new KeyCache(metadata.getActiveKeyId(), keysByKeyId);
                 logger.debug("primary encryption key cache updated: activeKeyId={}", metadata.getActiveKeyId());

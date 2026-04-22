@@ -97,6 +97,51 @@ public class HttpHeaderParserTests extends ESTestCase {
         assertEquals(new HttpHeaderParser.ContentRange(null, null, null), HttpHeaderParser.parseContentRangeHeader("bytes */*"));
     }
 
+    public void testResolveAgainstBounded() {
+        var resolved = new HttpHeaderParser.Range(10, 50L).resolveAgainst(100);
+        assertNotNull(resolved);
+        assertEquals(10, resolved.start());
+        assertEquals(50, resolved.end());
+        assertEquals(41, resolved.length());
+    }
+
+    public void testResolveAgainstOpenEnded() {
+        var resolved = new HttpHeaderParser.Range(80, null).resolveAgainst(100);
+        assertNotNull(resolved);
+        assertEquals(80, resolved.start());
+        assertEquals(99, resolved.end());
+        assertEquals(20, resolved.length());
+    }
+
+    public void testResolveAgainstSuffix() {
+        var resolved = new HttpHeaderParser.Range(-30, null).resolveAgainst(100);
+        assertNotNull(resolved);
+        assertEquals(70, resolved.start());
+        assertEquals(99, resolved.end());
+        assertEquals(30, resolved.length());
+    }
+
+    public void testResolveAgainstSuffixLargerThanContent() {
+        var resolved = new HttpHeaderParser.Range(-200, null).resolveAgainst(100);
+        assertNotNull(resolved);
+        assertEquals(0, resolved.start());
+        assertEquals(99, resolved.end());
+        assertEquals(100, resolved.length());
+    }
+
+    public void testResolveAgainstUnsatisfiable() {
+        assertNull(new HttpHeaderParser.Range(100, 150L).resolveAgainst(100));
+        assertNull(new HttpHeaderParser.Range(200, null).resolveAgainst(100));
+    }
+
+    public void testResolveAgainstClampsEnd() {
+        var resolved = new HttpHeaderParser.Range(50, 200L).resolveAgainst(100);
+        assertNotNull(resolved);
+        assertEquals(50, resolved.start());
+        assertEquals(99, resolved.end());
+        assertEquals(50, resolved.length());
+    }
+
     public void testContentRangeHeaderString() {
         final long start = randomLongBetween(0, 10_000);
         final long end = randomLongBetween(start, start + 10_000);

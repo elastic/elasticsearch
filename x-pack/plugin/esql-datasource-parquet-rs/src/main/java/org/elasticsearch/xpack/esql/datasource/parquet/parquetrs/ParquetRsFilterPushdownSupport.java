@@ -140,18 +140,25 @@ public class ParquetRsFilterPushdownSupport implements FilterPushdownSupport {
 
     private static long translateExpressions(List<Expression> expressions) {
         long combined = 0;
-        for (Expression expr : expressions) {
-            long handle = translateExpression(expr);
-            if (handle == 0) {
-                continue;
+        try {
+            for (Expression expr : expressions) {
+                long handle = translateExpression(expr);
+                if (handle == 0) {
+                    continue;
+                }
+                if (combined == 0) {
+                    combined = handle;
+                } else {
+                    combined = ParquetRsBridge.createAnd(combined, handle);
+                }
             }
-            if (combined == 0) {
-                combined = handle;
-            } else {
-                combined = ParquetRsBridge.createAnd(combined, handle);
+            return combined;
+        } catch (Exception e) {
+            if (combined != 0) {
+                ParquetRsBridge.freeExpr(combined);
             }
+            throw e;
         }
-        return combined;
     }
 
     private static long translateExpression(Expression expr) {
@@ -187,7 +194,15 @@ public class ParquetRsFilterPushdownSupport implements FilterPushdownSupport {
         }
         if (expr instanceof Or or) {
             long leftHandle = translateExpression(or.left());
-            long rightHandle = translateExpression(or.right());
+            long rightHandle;
+            try {
+                rightHandle = translateExpression(or.right());
+            } catch (Exception e) {
+                if (leftHandle != 0) {
+                    ParquetRsBridge.freeExpr(leftHandle);
+                }
+                throw e;
+            }
             if (leftHandle != 0 && rightHandle != 0) {
                 return ParquetRsBridge.createOr(leftHandle, rightHandle);
             }
@@ -226,7 +241,15 @@ public class ParquetRsFilterPushdownSupport implements FilterPushdownSupport {
         boolean rightConvertible = canConvert(and.right());
         if (leftConvertible && rightConvertible) {
             long leftHandle = translateExpression(and.left());
-            long rightHandle = translateExpression(and.right());
+            long rightHandle;
+            try {
+                rightHandle = translateExpression(and.right());
+            } catch (Exception e) {
+                if (leftHandle != 0) {
+                    ParquetRsBridge.freeExpr(leftHandle);
+                }
+                throw e;
+            }
             if (leftHandle != 0 && rightHandle != 0) {
                 return ParquetRsBridge.createAnd(leftHandle, rightHandle);
             }
@@ -240,20 +263,27 @@ public class ParquetRsFilterPushdownSupport implements FilterPushdownSupport {
 
     private static long translateIn(NamedExpression ne, List<Expression> items) {
         List<Long> litHandles = new ArrayList<>();
-        for (Expression item : items) {
-            if (item instanceof Literal lit && lit.value() != null) {
-                long h = createLiteral(ne.dataType(), lit.value());
-                if (h != 0) {
-                    litHandles.add(h);
+        try {
+            for (Expression item : items) {
+                if (item instanceof Literal lit && lit.value() != null) {
+                    long h = createLiteral(ne.dataType(), lit.value());
+                    if (h != 0) {
+                        litHandles.add(h);
+                    }
                 }
             }
+            if (litHandles.isEmpty()) {
+                return 0;
+            }
+            long colHandle = ParquetRsBridge.createColumn(ne.name());
+            long[] handles = litHandles.stream().mapToLong(Long::longValue).toArray();
+            return ParquetRsBridge.createInList(colHandle, handles);
+        } catch (Exception e) {
+            for (long h : litHandles) {
+                ParquetRsBridge.freeExpr(h);
+            }
+            throw e;
         }
-        if (litHandles.isEmpty()) {
-            return 0;
-        }
-        long colHandle = ParquetRsBridge.createColumn(ne.name());
-        long[] handles = litHandles.stream().mapToLong(Long::longValue).toArray();
-        return ParquetRsBridge.createInList(colHandle, handles);
     }
 
     private static long translateRange(NamedExpression ne, Range range) {
@@ -277,18 +307,23 @@ public class ParquetRsFilterPushdownSupport implements FilterPushdownSupport {
             ? ParquetRsBridge.createGreaterThanOrEqual(colLower, litLower)
             : ParquetRsBridge.createGreaterThan(colLower, litLower);
 
-        long colUpper = ParquetRsBridge.createColumn(ne.name());
-        long litUpper = createLiteral(ne.dataType(), upper);
-        if (litUpper == 0) {
-            ParquetRsBridge.freeExpr(colUpper);
-            ParquetRsBridge.freeExpr(lowerBound);
-            return 0;
-        }
-        long upperBound = range.includeUpper()
-            ? ParquetRsBridge.createLessThanOrEqual(colUpper, litUpper)
-            : ParquetRsBridge.createLessThan(colUpper, litUpper);
+        try {
+            long colUpper = ParquetRsBridge.createColumn(ne.name());
+            long litUpper = createLiteral(ne.dataType(), upper);
+            if (litUpper == 0) {
+                ParquetRsBridge.freeExpr(colUpper);
+                ParquetRsBridge.freeExpr(lowerBound);
+                return 0;
+            }
+            long upperBound = range.includeUpper()
+                ? ParquetRsBridge.createLessThanOrEqual(colUpper, litUpper)
+                : ParquetRsBridge.createLessThan(colUpper, litUpper);
 
-        return ParquetRsBridge.createAnd(lowerBound, upperBound);
+            return ParquetRsBridge.createAnd(lowerBound, upperBound);
+        } catch (Exception e) {
+            ParquetRsBridge.freeExpr(lowerBound);
+            throw e;
+        }
     }
 
     private static long createComparison(EsqlBinaryComparison bc, long colHandle, long litHandle) {
@@ -329,6 +364,9 @@ public class ParquetRsFilterPushdownSupport implements FilterPushdownSupport {
                 case '_' -> sb.append("\\_");
                 default -> sb.append(c);
             }
+        }
+        if (escaped) {
+            sb.append('\\');
         }
         return sb.toString();
     }

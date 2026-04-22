@@ -155,25 +155,14 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                             throw new AssertionError("Range bytes header does not match expected format: " + rangeHeader);
                         }
 
-                        long start;
-                        long end;
-                        if (range.isSuffixRange()) {
-                            long suffixLength = -range.start();
-                            start = Math.max(0, blob.contents().length() - suffixLength);
-                            end = blob.contents().length() - 1;
-                        } else {
-                            start = range.start();
-                            end = range.end() != null ? range.end() : blob.contents().length() - 1;
-                        }
-
-                        if (start >= blob.contents().length()) {
+                        final HttpHeaderParser.ResolvedRange resolved = range.resolveAgainst(blob.contents().length());
+                        if (resolved == null) {
                             exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                             exchange.sendResponseHeaders(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus(), -1);
                             return;
                         }
 
-                        final long lastIndex = Math.min(end, blob.contents().length() - 1);
-                        response = blob.contents().slice(Math.toIntExact(start), Math.toIntExact(lastIndex - start + 1));
+                        response = blob.contents().slice(Math.toIntExact(resolved.start()), Math.toIntExact(resolved.length()));
                         statusCode = RestStatus.PARTIAL_CONTENT.getStatus();
                     }
                     // I think it's enough to use the generation here, at least until
@@ -366,25 +355,15 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                             if (range == null) {
                                 throw new AssertionError("Range header does not match expected format: " + rangeHeader);
                             }
-                            long start;
-                            long end;
-                            if (range.isSuffixRange()) {
-                                long suffixLength = -range.start();
-                                start = Math.max(0, blob.contents().length() - suffixLength);
-                                end = blob.contents().length() - 1;
-                            } else {
-                                start = range.start();
-                                end = range.end() != null ? range.end() : blob.contents().length() - 1;
-                            }
-                            if (start >= blob.contents().length()) {
+                            final HttpHeaderParser.ResolvedRange resolved = range.resolveAgainst(blob.contents().length());
+                            if (resolved == null) {
                                 exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                                 exchange.sendResponseHeaders(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus(), -1);
                                 return;
                             }
-                            final long lastIndex = Math.min(end, blob.contents().length() - 1);
-                            response = blob.contents().slice(Math.toIntExact(start), Math.toIntExact(lastIndex - start + 1));
+                            response = blob.contents().slice(Math.toIntExact(resolved.start()), Math.toIntExact(resolved.length()));
                             exchange.getResponseHeaders()
-                                .add("Content-Range", "bytes " + start + "-" + lastIndex + "/" + blob.contents().length());
+                                .add("Content-Range", "bytes " + resolved.start() + "-" + resolved.end() + "/" + blob.contents().length());
                             statusCode = RestStatus.PARTIAL_CONTENT.getStatus();
                         }
                         final String lastModified = DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now(ZoneId.of("UTC")));

@@ -340,6 +340,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         int withIndex = externalPart.indexOf("WITH {");
         if (withIndex >= 0) {
             int closingBrace = findClosingBrace(query, query.indexOf('{', withIndex));
+            assert closingBrace >= 0 : "Malformed WITH clause in query: " + query;
             return query.substring(0, closingBrace) + ", " + readerEntry + query.substring(closingBrace);
         }
         if (pipeIndex == -1) {

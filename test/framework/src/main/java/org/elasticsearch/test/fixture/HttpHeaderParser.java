@@ -83,11 +83,44 @@ public enum HttpHeaderParser {
             return end == null && start >= 0;
         }
 
+        /**
+         * Resolves this (possibly relative) range against a known content length,
+         * producing absolute byte offsets clamped to [0, contentLength).
+         *
+         * @return resolved absolute range, or null if the range is unsatisfiable (start >= contentLength)
+         */
+        public ResolvedRange resolveAgainst(long contentLength) {
+            long resolvedStart;
+            long resolvedEnd;
+            if (isSuffixRange()) {
+                long suffixLength = -start;
+                resolvedStart = Math.max(0, contentLength - suffixLength);
+                resolvedEnd = contentLength - 1;
+            } else {
+                resolvedStart = start;
+                resolvedEnd = end != null ? end : contentLength - 1;
+            }
+            if (resolvedStart >= contentLength) {
+                return null;
+            }
+            resolvedEnd = Math.min(resolvedEnd, contentLength - 1);
+            return new ResolvedRange(resolvedStart, resolvedEnd);
+        }
+
         public String headerString() {
             if (start < 0) {
                 return "bytes=-" + (-start);
             }
             return end != null ? "bytes=" + start + "-" + end : "bytes=" + start + "-";
+        }
+    }
+
+    /**
+     * An absolute byte range with both start and end resolved against a content length.
+     */
+    public record ResolvedRange(long start, long end) {
+        public long length() {
+            return end - start + 1;
         }
     }
 

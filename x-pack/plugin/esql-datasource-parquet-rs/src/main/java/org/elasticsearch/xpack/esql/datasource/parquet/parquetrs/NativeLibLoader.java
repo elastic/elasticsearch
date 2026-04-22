@@ -55,7 +55,7 @@ final class NativeLibLoader {
         try {
             doLoad();
         } catch (Throwable t) {
-            loadError = t.getMessage();
+            loadError = t.getMessage() != null ? t.getMessage() : t.getClass().getName();
             logger.warn("Failed to load native parquet-rs library: [{}]", loadError);
         }
     }
@@ -107,7 +107,7 @@ final class NativeLibLoader {
 
     @SuppressForbidden(reason = "Cleanup of extracted native library on JVM shutdown")
     private static void registerDeleteOnExit(Path tmpLib, Path tmpDir) {
-        tmpLib.toFile().deleteOnExit();
         tmpDir.toFile().deleteOnExit();
+        tmpLib.toFile().deleteOnExit();
     }
 }

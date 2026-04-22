@@ -398,30 +398,23 @@ public class S3HttpHandler implements HttpHandler {
                 if (range == null) {
                     throw new AssertionError("Bytes range does not match expected pattern: " + rangeHeader);
                 }
-                long start;
-                long end;
-                if (range.isSuffixRange()) {
-                    long suffixLength = -range.start();
-                    start = Math.max(0, blob.length() - suffixLength);
-                    end = blob.length() - 1;
-                } else {
-                    start = range.start();
-                    end = range.end() != null ? range.end() : blob.length() - 1;
-                }
-                if (end < start) {
-                    exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), blob.length());
-                    blob.writeTo(exchange.getResponseBody());
-                    return;
-                } else if (blob.length() <= start) {
+                final HttpHeaderParser.ResolvedRange resolved = range.resolveAgainst(blob.length());
+                if (resolved == null) {
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                     exchange.sendResponseHeaders(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus(), -1);
                     return;
                 }
-                var responseBlob = blob.slice(Math.toIntExact(start), Math.toIntExact(Math.min(end - start + 1, blob.length() - start)));
-                end = start + responseBlob.length() - 1;
+                if (resolved.end() < resolved.start()) {
+                    exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), blob.length());
+                    blob.writeTo(exchange.getResponseBody());
+                    return;
+                }
+                var responseBlob = blob.slice(Math.toIntExact(resolved.start()), Math.toIntExact(resolved.length()));
+                long end = resolved.start() + responseBlob.length() - 1;
                 exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-                exchange.getResponseHeaders().add("Content-Range", String.format(Locale.ROOT, "bytes %d-%d/%d", start, end, blob.length()));
+                exchange.getResponseHeaders()
+                    .add("Content-Range", String.format(Locale.ROOT, "bytes %d-%d/%d", resolved.start(), end, blob.length()));
                 exchange.sendResponseHeaders(RestStatus.PARTIAL_CONTENT.getStatus(), responseBlob.length());
                 responseBlob.writeTo(exchange.getResponseBody());
 

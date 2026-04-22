@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.synonyms.PagedResult;
 import org.elasticsearch.synonyms.SynonymRule;
 import org.elasticsearch.synonyms.SynonymsManagementAPIService;
@@ -217,6 +218,21 @@ public class AnalysisTests extends ESTestCase {
             }
             assertThat(sb.toString(), containsString("quick, fast"));
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetReaderFromIndexMissingSetFailsWhenNotLenient() {
+        SynonymsManagementAPIService service = mock(SynonymsManagementAPIService.class);
+        ResourceNotFoundException cause = new ResourceNotFoundException("synonym set [set-missing] not found");
+
+        doAnswer(invocation -> {
+            ActionListener<PagedResult<SynonymRule>> listener = invocation.getArgument(2);
+            listener.onFailure(cause);
+            return null;
+        }).when(service).getSynonymSetRules(eq(List.of("set-a", "set-missing")), eq(false), any());
+
+        Exception e = expectThrows(Exception.class, () -> Analysis.getReaderFromIndex(List.of("set-a", "set-missing"), service, false));
+        assertThat(e.getMessage(), containsString("set-missing"));
     }
 
     public void testParseDuplicatesWComments() throws IOException {

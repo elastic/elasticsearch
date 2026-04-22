@@ -95,11 +95,7 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
         this.refCounted = refCounted;
     }
 
-    public static SearchHits unpooled(SearchHit[] hits, @Nullable TotalHits totalHits, float maxScore) {
-        return unpooled(hits, totalHits, maxScore, null, null, null);
-    }
-
-    public static SearchHits unpooled(
+    private static SearchHits unpooled(
         SearchHit[] hits,
         @Nullable TotalHits totalHits,
         float maxScore,

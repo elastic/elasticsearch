@@ -207,6 +207,7 @@ FROM employees,
 // end::subquery_with_metadata[]
 | EVAL _index = MV_LAST(SPLIT(_index, ":"))
 | SORT count ASC
+| KEEP count, emp_no, _index, _index_mode
 ;
 
 // tag::subquery_with_metadata-result[]
@@ -227,6 +228,7 @@ FROM employees,
 // end::subquery_with_metadata_inner[]
 | EVAL _index = MV_LAST(SPLIT(_index, ":"))
 | SORT count ASC
+| KEEP count, emp_no, _index, _index_mode
 ;
 
 // tag::subquery_with_metadata_inner-result[]
@@ -248,6 +250,7 @@ FROM employees,
 // end::subquery_with_metadata_outer[]
 | EVAL _index = MV_LAST(SPLIT(_index, ":"))
 | SORT count ASC
+| KEEP count, emp_no, _index, _index_mode
 ;
 
 // tag::subquery_with_metadata_outer-result[]

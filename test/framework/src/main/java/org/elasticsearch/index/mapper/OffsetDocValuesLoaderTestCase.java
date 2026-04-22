@@ -15,6 +15,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -139,6 +140,7 @@ public abstract class OffsetDocValuesLoaderTestCase extends MapperServiceTestCas
         minimalMapping(mapping);
         mapping.startObject("doc_values").field("cardinality", "high").endObject();
         mapping.endObject().endObject().endObject().endObject();
+        testOffsetArrayRandom(mapping);
     }
 
     protected void minimalMapping(XContentBuilder b) throws IOException {
@@ -173,6 +175,10 @@ public abstract class OffsetDocValuesLoaderTestCase extends MapperServiceTestCas
             try (var directory = newDirectory()) {
                 var iw = indexWriterForSyntheticSource(directory);
                 var doc = mapper.parse(new SourceToParse("_id", new BytesArray(source), XContentType.JSON));
+
+                var offsetsField = doc.rootDoc().getFields("field.offsets");
+                assertThat(offsetsField, Matchers.hasSize(1));
+
                 doc.updateSeqID(0, 0);
                 doc.version().setLongValue(0);
                 iw.addDocuments(doc.docs());

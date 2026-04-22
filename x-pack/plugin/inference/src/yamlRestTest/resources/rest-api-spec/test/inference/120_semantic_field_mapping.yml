@@ -1,6 +1,6 @@
 setup:
   - requires:
-      cluster_features: "semantic_text.semantic_field_mapper"
+      cluster_features: "semantic_field.semantic_field_mapper"
       reason: "semantic field mapper is only available in snapshot builds"
 
   - do:

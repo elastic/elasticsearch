@@ -262,9 +262,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=mget/60_realtime_refresh/Realtime Refresh}
   issue: https://github.com/elastic/elasticsearch/issues/146410
-- class: org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SubstituteRoundToGoldenTests
-  method: testDateTruncNotTransformToQueryAndTags
-  issue: https://github.com/elastic/elasticsearch/issues/146458
 - class: org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SubstituteRoundToTests
   method: testBlockLoaderFallbackForDate {default}
   issue: https://github.com/elastic/elasticsearch/issues/146459
@@ -463,15 +460,6 @@ tests:
   method: test {p0=search/395_binary_doc_values_search/*}
   issue: https://github.com/elastic/elasticsearch/issues/147064
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=get/100_synthetic_source/fields with ignore_malformed}
-  issue: https://github.com/elastic/elasticsearch/issues/147064
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=mget/90_synthetic_source/keyword with normalizer and skip store original value}
-  issue: https://github.com/elastic/elasticsearch/issues/147064
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=mget/90_synthetic_source/keyword with built-in normalizer}
-  issue: https://github.com/elastic/elasticsearch/issues/147064
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=mget/90_synthetic_source/keyword with non-lowercase normalizer}
   issue: https://github.com/elastic/elasticsearch/issues/147064
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
@@ -498,6 +486,21 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=indices.simulate_index_template/10_basic/Simulate index template with data stream with mapping and setting overrides}
   issue: https://github.com/elastic/elasticsearch/issues/147064
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search.vectors/260_knn_lookup_query_builder/Test error when field is missing}
+  issue: https://github.com/elastic/elasticsearch/issues/147076
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search.vectors/260_knn_lookup_query_builder/Test error when document not found}
+  issue: https://github.com/elastic/elasticsearch/issues/147081
+- class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
+  method: test {yaml=rrf/310_rrf_retriever_simplified/Expansion to equivalent custom sub-retrievers returns the same results}
+  issue: https://github.com/elastic/elasticsearch/issues/146464
+- class: org.elasticsearch.index.mapper.KeywordOffsetDocValuesLoaderTests
+  method: testOffsetArrayRandomHighCardinality
+  issue: https://github.com/elastic/elasticsearch/issues/147085
+- class: org.elasticsearch.index.mapper.IpOffsetDocValuesLoaderTests
+  method: testOffsetArrayRandomHighCardinality
+  issue: https://github.com/elastic/elasticsearch/issues/147086
 
 # Examples:
 #

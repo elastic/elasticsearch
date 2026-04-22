@@ -143,7 +143,7 @@ public class GoogleCloudStorageClientSettings {
     static final Setting.AffixSetting<Boolean> GCS_TENACIOUS_RETRIES_ENABLED_SETTING = Setting.affixKeySetting(
         PREFIX,
         "tenacious_retries.enabled",
-        key -> Setting.boolSetting(key, false)
+        key -> Setting.boolSetting(key, false, Setting.Property.NodeScope)
     );
 
     /** The credentials used by the client to connect to the Storage endpoint. */
@@ -175,6 +175,7 @@ public class GoogleCloudStorageClientSettings {
     /** The maximum number of megabytes to copy for each copy RPC call. */
     private final long megabytesCopiedPerChunk;
 
+    /** Tenacious retries for transient blob store errors. */
     private final boolean tenaciousRetriesEnabled;
 
     GoogleCloudStorageClientSettings(

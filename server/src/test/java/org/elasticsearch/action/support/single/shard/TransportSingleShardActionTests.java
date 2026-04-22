@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.RetryableSplitAwareRequest;
 import org.elasticsearch.action.SplitAwareRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -60,7 +61,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.action.support.single.shard.TransportSingleShardAction.ROUTE_REFRESH_TIMEOUT;
+import static org.elasticsearch.action.support.ReshardingActionHelper.ROUTE_REFRESH_TIMEOUT;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.hamcrest.Matchers.isA;
 import static org.mockito.ArgumentMatchers.any;
@@ -144,14 +146,18 @@ public class TransportSingleShardActionTests extends ESTestCase {
     // test that when the target shard fails an action with StaleRequestException the coordinator fails it after a timeout
     // rather than waiting indefinitely for a routing update
     public void testStaleRequestExceptionTimesOut() {
-        // invoke the action
         doAnswer(invocation -> {
             final ActionListenerResponseHandler<TestResponse> listener = invocation.getArgument(3);
-            listener.handleException(new RemoteTransportException("stale", new StaleRequestException("stale")));
+            listener.handleException(
+                new RemoteTransportException(
+                    "stale",
+                    new StaleRequestException(new ShardId("index", INDEX_UUID_NA_VALUE, 0), SplitShardCountSummary.fromInt(2))
+                )
+            );
             return null;
         }).when(transportService).sendRequest(any(), any(), any(), ArgumentMatchers.<ActionListenerResponseHandler<TestResponse>>any());
 
-        final var action = new TestTransportSingleShardAction(threadPool, clusterService, transportService, projectResolver);
+        final var action = new TestTransportSingleShardAction<TestRequest>(threadPool, clusterService, transportService, projectResolver);
         final var result = new PlainActionFuture<TestResponse>();
 
         action.execute(null, new TestRequest().index("index"), result);
@@ -164,7 +170,12 @@ public class TransportSingleShardActionTests extends ESTestCase {
         // throw stale, then succeed
         doAnswer(invocation -> {
             final ActionListenerResponseHandler<TestResponse> listener = invocation.getArgument(3);
-            listener.handleException(new RemoteTransportException("stale", new StaleRequestException("stale")));
+            listener.handleException(
+                new RemoteTransportException(
+                    "stale",
+                    new StaleRequestException(new ShardId("index", INDEX_UUID_NA_VALUE, 0), SplitShardCountSummary.fromInt(1))
+                )
+            );
             return null;
         }).doAnswer(invocation -> {
             final ActionListenerResponseHandler<TestResponse> listener = invocation.getArgument(3);
@@ -172,7 +183,7 @@ public class TransportSingleShardActionTests extends ESTestCase {
             return null;
         }).when(transportService).sendRequest(any(), any(), any(), ArgumentMatchers.<ActionListenerResponseHandler<TestResponse>>any());
 
-        final var action = new TestTransportSingleShardAction(threadPool, clusterService, transportService, projectResolver);
+        final var action = new TestTransportSingleShardAction<TestRequest>(threadPool, clusterService, transportService, projectResolver);
         final var result = new PlainActionFuture<TestResponse>();
 
         // the supplier causes the request to get a new summary each time TransportSingleShardAction reads it, so that it
@@ -184,7 +195,37 @@ public class TransportSingleShardActionTests extends ESTestCase {
         assertThat(response, isA(TestResponse.class));
     }
 
-    static class TestRequest extends SingleShardRequest<TestRequest> implements SplitAwareRequest {
+    public void testStaleRequestExceptionIsBubbledUpForNonRetryableRequest() throws Exception {
+        // throw stale, then succeed
+        doAnswer(invocation -> {
+            final ActionListenerResponseHandler<TestResponse> listener = invocation.getArgument(3);
+            listener.handleException(
+                new RemoteTransportException(
+                    "stale",
+                    new StaleRequestException(new ShardId("index", INDEX_UUID_NA_VALUE, 0), SplitShardCountSummary.fromInt(1))
+                )
+            );
+            return null;
+        }).doAnswer(invocation -> {
+            final ActionListenerResponseHandler<TestResponse> listener = invocation.getArgument(3);
+            listener.handleResponse(new TestResponse(null));
+            return null;
+        }).when(transportService).sendRequest(any(), any(), any(), ArgumentMatchers.<ActionListenerResponseHandler<TestResponse>>any());
+
+        final var action = new TestTransportSingleShardAction<TestNonRetryableRequest>(
+            threadPool,
+            clusterService,
+            transportService,
+            projectResolver
+        );
+        final var result = new PlainActionFuture<TestResponse>();
+
+        action.execute(null, new TestNonRetryableRequest().index("index"), result);
+        // No retries since the request opted out of them.
+        assertThrows(StaleRequestException.class, () -> result.actionGet(SAFE_AWAIT_TIMEOUT.seconds(), TimeUnit.SECONDS));
+    }
+
+    static class TestRequest extends SingleShardRequest<TestRequest> implements RetryableSplitAwareRequest {
         private final Supplier<SplitShardCountSummary> splitShardCountSummarySupplier;
 
         TestRequest() {
@@ -209,6 +250,15 @@ public class TransportSingleShardActionTests extends ESTestCase {
         public void setSplitShardCountSummary(ProjectMetadata projectMetadata, String index) {}
     }
 
+    static class TestNonRetryableRequest extends SingleShardRequest<TestNonRetryableRequest> implements SplitAwareRequest {
+        TestNonRetryableRequest() {}
+
+        @Override
+        public ActionRequestValidationException validate() {
+            return null;
+        }
+    }
+
     static class TestResponse extends ActionResponse {
         TestResponse(StreamInput ignored) {}
 
@@ -216,7 +266,9 @@ public class TransportSingleShardActionTests extends ESTestCase {
         public void writeTo(StreamOutput out) {}
     }
 
-    static class TestTransportSingleShardAction extends TransportSingleShardAction<TestRequest, TestResponse> {
+    static class TestTransportSingleShardAction<TRequest extends SingleShardRequest<TRequest>> extends TransportSingleShardAction<
+        TRequest,
+        TestResponse> {
         static String NAME = "test:single_shard_action";
 
         protected TestTransportSingleShardAction(
@@ -239,7 +291,7 @@ public class TransportSingleShardActionTests extends ESTestCase {
         }
 
         @Override
-        protected TestResponse shardOperation(TestRequest request, ShardId shardId) throws IOException {
+        protected TestResponse shardOperation(TRequest request, ShardId shardId) throws IOException {
             return null;
         }
 
@@ -249,12 +301,12 @@ public class TransportSingleShardActionTests extends ESTestCase {
         }
 
         @Override
-        protected boolean resolveIndex(TestRequest request) {
+        protected boolean resolveIndex(TRequest request) {
             return false;
         }
 
         @Override
-        protected ShardsIterator shards(ProjectState state, TransportSingleShardAction<TestRequest, TestResponse>.InternalRequest request) {
+        protected ShardsIterator shards(ProjectState state, TransportSingleShardAction<TRequest, TestResponse>.InternalRequest request) {
             final var shardRouting = shardRoutingBuilder("index", 0, "node", true, ShardRoutingState.STARTED).build();
             return new PlainShardsIterator(List.of(shardRouting));
         }

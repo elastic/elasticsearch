@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
@@ -40,6 +41,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -500,16 +504,18 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         assertNotNull(operator);
 
         List<Page> pages = new ArrayList<>();
-        while (operator.isFinished() == false) {
-            Page page = operator.getOutput();
-            if (page != null) {
-                pages.add(page);
+        RuntimeException readFailure = expectThrows(RuntimeException.class, () -> {
+            while (operator.isFinished() == false) {
+                Page page = operator.getOutput();
+                if (page != null) {
+                    pages.add(page);
+                }
             }
-        }
+        });
+        assertThat(readFailure.getCause(), org.hamcrest.Matchers.instanceOf(IOException.class));
+        assertTrue(readFailure.getCause().getMessage().contains("Simulated read error"));
 
-        AsyncExternalSourceOperator.Status status = (AsyncExternalSourceOperator.Status) operator.status();
-        assertNotNull(status.failure());
-        assertTrue(status.failure().getMessage().contains("Simulated read error"));
+        assertEquals("First file should yield one page before the second file fails", 1, pages.size());
 
         for (Page p : pages) {
             p.releaseBlocks();
@@ -839,7 +845,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         operator.close();
     }
 
-    public void testSliceQueueWithZeroOffsetDoesNotWrapWithRangeStorageObject() throws Exception {
+    public void testSliceQueueWithZeroOffsetWrapsRangeForSplitSpan() throws Exception {
         FileSplit split = new FileSplit("test", StoragePath.of("s3://bucket/small.csv"), 0, 1000, "csv", Map.of(), Map.of());
         ExternalSliceQueue sliceQueue = new ExternalSliceQueue(List.of(split));
 
@@ -887,7 +893,13 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
 
         assertEquals(1, capturedObjects.size());
-        assertFalse("Expected no RangeStorageObject for zero offset", capturedObjects.get(0) instanceof RangeStorageObject);
+        assertTrue(
+            "Zero-offset split must still use RangeStorageObject for the split length",
+            capturedObjects.get(0) instanceof RangeStorageObject
+        );
+        RangeStorageObject range0 = (RangeStorageObject) capturedObjects.get(0);
+        assertEquals(0, range0.offset());
+        assertEquals(1000, range0.length());
 
         assertEquals(1, capturedSkipFirstLine.size());
         assertFalse("Zero-offset split should not skip first line", capturedSkipFirstLine.get(0));
@@ -1034,7 +1046,10 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         assertEquals(3, capturedObjects.size());
 
-        assertFalse("First split (offset=0) should not be wrapped", capturedObjects.get(0) instanceof RangeStorageObject);
+        assertTrue("First split (offset=0) must use RangeStorageObject", capturedObjects.get(0) instanceof RangeStorageObject);
+        RangeStorageObject range0 = (RangeStorageObject) capturedObjects.get(0);
+        assertEquals(0, range0.offset());
+        assertEquals(1000, range0.length());
         assertFalse("First split should not skip first line", capturedSkipFirstLine.get(0));
 
         assertTrue("Second split (offset=1000) should be wrapped", capturedObjects.get(1) instanceof RangeStorageObject);
@@ -1309,6 +1324,584 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 pages.add(page);
             }
         }
+
+        for (Page p : pages) {
+            p.releaseBlocks();
+        }
+        operator.close();
+    }
+
+    // ===== Lifecycle tests: removeAsyncAction fires exactly once per producer path =====
+
+    /**
+     * Sync-wrapper path: verifies removeAsyncAction fires exactly once on success.
+     */
+    public void testSyncWrapperRemoveAsyncActionExactlyOnce() throws Exception {
+        AtomicInteger readCount = new AtomicInteger(0);
+        FormatReader formatReader = new PageCountingFormatReader(readCount);
+        StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
+
+        StoragePath path = StoragePath.of("file:///test.csv");
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "value",
+                new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+
+        DriverContext driverContext = mock(DriverContext.class);
+        BlockFactory blockFactory = mock(BlockFactory.class);
+        when(driverContext.blockFactory()).thenReturn(blockFactory);
+
+        AtomicInteger addCount = new AtomicInteger(0);
+        AtomicInteger removeCount = new AtomicInteger(0);
+        doAnswer(inv -> {
+            addCount.incrementAndGet();
+            return null;
+        }).when(driverContext).addAsyncAction();
+        doAnswer(inv -> {
+            removeCount.incrementAndGet();
+            return null;
+        }).when(driverContext).removeAsyncAction();
+
+        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+            storageProvider,
+            formatReader,
+            path,
+            attributes,
+            100,
+            10,
+            (Runnable r) -> r.run()
+        );
+
+        SourceOperator operator = factory.get(driverContext);
+        List<Page> pages = new ArrayList<>();
+        while (operator.isFinished() == false) {
+            Page page = operator.getOutput();
+            if (page != null) {
+                pages.add(page);
+            }
+        }
+
+        assertEquals("addAsyncAction should be called exactly once", 1, addCount.get());
+        assertEquals("removeAsyncAction should be called exactly once", 1, removeCount.get());
+
+        for (Page p : pages) {
+            p.releaseBlocks();
+        }
+        operator.close();
+    }
+
+    /**
+     * Multi-file path: verifies removeAsyncAction fires exactly once for the entire multi-file iteration.
+     */
+    public void testMultiFileRemoveAsyncActionExactlyOnce() throws Exception {
+        AtomicInteger readCount = new AtomicInteger(0);
+        List<StorageEntry> entries = List.of(
+            new StorageEntry(StoragePath.of("s3://bucket/data/f1.parquet"), 100, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://bucket/data/f2.parquet"), 200, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://bucket/data/f3.parquet"), 300, Instant.EPOCH)
+        );
+        FileList fileList = GlobExpander.fileListOf(entries, "s3://bucket/data/*.parquet");
+
+        FormatReader formatReader = new PageCountingFormatReader(readCount);
+        StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
+
+        StoragePath path = StoragePath.of("s3://bucket/data/f1.parquet");
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "value",
+                new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+
+        DriverContext driverContext = mock(DriverContext.class);
+        BlockFactory blockFactory = mock(BlockFactory.class);
+        when(driverContext.blockFactory()).thenReturn(blockFactory);
+
+        AtomicInteger addCount = new AtomicInteger(0);
+        AtomicInteger removeCount = new AtomicInteger(0);
+        doAnswer(inv -> {
+            addCount.incrementAndGet();
+            return null;
+        }).when(driverContext).addAsyncAction();
+        doAnswer(inv -> {
+            removeCount.incrementAndGet();
+            return null;
+        }).when(driverContext).removeAsyncAction();
+
+        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+            storageProvider,
+            formatReader,
+            path,
+            attributes,
+            100,
+            10,
+            (Runnable r) -> r.run(),
+            fileList
+        );
+
+        SourceOperator operator = factory.get(driverContext);
+        List<Page> pages = new ArrayList<>();
+        while (operator.isFinished() == false) {
+            Page page = operator.getOutput();
+            if (page != null) {
+                pages.add(page);
+            }
+        }
+
+        assertEquals("addAsyncAction should be called exactly once", 1, addCount.get());
+        assertEquals("removeAsyncAction should be called exactly once for all files", 1, removeCount.get());
+        assertEquals(3, readCount.get());
+
+        for (Page p : pages) {
+            p.releaseBlocks();
+        }
+        operator.close();
+    }
+
+    /**
+     * Slice-queue path: verifies removeAsyncAction fires exactly once after all splits are processed.
+     */
+    public void testSliceQueueRemoveAsyncActionExactlyOnce() throws Exception {
+        List<FileSplit> splits = List.of(
+            new FileSplit("test", StoragePath.of("s3://bucket/f1.parquet"), 0, 100, "parquet", Map.of(), Map.of()),
+            new FileSplit("test", StoragePath.of("s3://bucket/f2.parquet"), 0, 200, "parquet", Map.of(), Map.of())
+        );
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(new ArrayList<>(splits));
+
+        AtomicInteger readCount = new AtomicInteger(0);
+        FormatReader formatReader = new PageCountingFormatReader(readCount);
+        StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
+
+        StoragePath path = StoragePath.of("s3://bucket/f1.parquet");
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "value",
+                new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+
+        DriverContext driverContext = mock(DriverContext.class);
+        BlockFactory blockFactory = mock(BlockFactory.class);
+        when(driverContext.blockFactory()).thenReturn(blockFactory);
+
+        AtomicInteger addCount = new AtomicInteger(0);
+        AtomicInteger removeCount = new AtomicInteger(0);
+        doAnswer(inv -> {
+            addCount.incrementAndGet();
+            return null;
+        }).when(driverContext).addAsyncAction();
+        doAnswer(inv -> {
+            removeCount.incrementAndGet();
+            return null;
+        }).when(driverContext).removeAsyncAction();
+
+        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+            storageProvider,
+            formatReader,
+            path,
+            attributes,
+            100,
+            10,
+            (Runnable r) -> r.run(),
+            null,
+            null,
+            null,
+            sliceQueue
+        );
+
+        SourceOperator operator = factory.get(driverContext);
+        List<Page> pages = new ArrayList<>();
+        while (operator.isFinished() == false) {
+            Page page = operator.getOutput();
+            if (page != null) {
+                pages.add(page);
+            }
+        }
+
+        assertEquals("addAsyncAction should be called exactly once", 1, addCount.get());
+        assertEquals("removeAsyncAction should be called exactly once after all splits", 1, removeCount.get());
+        assertEquals(2, readCount.get());
+
+        for (Page p : pages) {
+            p.releaseBlocks();
+        }
+        operator.close();
+    }
+
+    /**
+     * Sync-wrapper path with error: removeAsyncAction fires exactly once even when read fails.
+     */
+    public void testSyncWrapperRemoveAsyncActionOnError() throws Exception {
+        FormatReader formatReader = new AlwaysFailFormatReader();
+        StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
+
+        StoragePath path = StoragePath.of("s3://bucket/data/bad.parquet");
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "value",
+                new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+
+        DriverContext driverContext = mock(DriverContext.class);
+        BlockFactory blockFactory = mock(BlockFactory.class);
+        when(driverContext.blockFactory()).thenReturn(blockFactory);
+
+        AtomicInteger addCount = new AtomicInteger(0);
+        AtomicInteger removeCount = new AtomicInteger(0);
+        doAnswer(inv -> {
+            addCount.incrementAndGet();
+            return null;
+        }).when(driverContext).addAsyncAction();
+        doAnswer(inv -> {
+            removeCount.incrementAndGet();
+            return null;
+        }).when(driverContext).removeAsyncAction();
+
+        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+            storageProvider,
+            formatReader,
+            path,
+            attributes,
+            100,
+            10,
+            (Runnable r) -> r.run()
+        );
+
+        SourceOperator operator = factory.get(driverContext);
+        List<Page> pages = new ArrayList<>();
+        RuntimeException failure = expectThrows(RuntimeException.class, () -> {
+            while (operator.isFinished() == false) {
+                Page page = operator.getOutput();
+                if (page != null) {
+                    pages.add(page);
+                }
+            }
+        });
+        assertNotNull(failure);
+
+        assertEquals("addAsyncAction should be called exactly once", 1, addCount.get());
+        assertEquals("removeAsyncAction should be called exactly once even on error", 1, removeCount.get());
+
+        for (Page p : pages) {
+            p.releaseBlocks();
+        }
+        operator.close();
+    }
+
+    // ===== Regression: buffer.finish / buffer.onFailure mutually exclusive on factory paths =====
+
+    /**
+     * Sync-wrapper success: buffer.finish(false) is called, buffer.onFailure is not.
+     */
+    public void testSyncWrapperBufferFinishOnSuccess() throws Exception {
+        AtomicInteger readCount = new AtomicInteger(0);
+        FormatReader formatReader = new PageCountingFormatReader(readCount);
+        StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
+
+        StoragePath path = StoragePath.of("file:///test.csv");
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "value",
+                new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+
+        DriverContext driverContext = mock(DriverContext.class);
+        BlockFactory blockFactory = mock(BlockFactory.class);
+        when(driverContext.blockFactory()).thenReturn(blockFactory);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+            storageProvider,
+            formatReader,
+            path,
+            attributes,
+            100,
+            10,
+            (Runnable r) -> r.run()
+        );
+
+        SourceOperator operator = factory.get(driverContext);
+        List<Page> pages = new ArrayList<>();
+        while (operator.isFinished() == false) {
+            Page page = operator.getOutput();
+            if (page != null) {
+                pages.add(page);
+            }
+        }
+
+        assertTrue("Operator should be finished", operator.isFinished());
+        assertNull("No failure should be recorded", ((AsyncExternalSourceOperator.Status) operator.status()).failure());
+
+        for (Page p : pages) {
+            p.releaseBlocks();
+        }
+        operator.close();
+    }
+
+    // ===== Regression: backpressure with real thread pool across all producer paths =====
+
+    /**
+     * Sync-wrapper with real thread pool and small buffer: verifies end-to-end backpressure works.
+     */
+    public void testSyncWrapperBackpressureWithRealThreadPool() throws Exception {
+        ExecutorService realExec = Executors.newFixedThreadPool(2, EsExecutors.daemonThreadFactory("test", "bp-test"));
+        try {
+            AtomicInteger readCount = new AtomicInteger(0);
+            FormatReader formatReader = new MultiPageFormatReader(readCount, 10);
+            StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
+
+            StoragePath path = StoragePath.of("file:///test.csv");
+            List<Attribute> attributes = List.of(
+                new FieldAttribute(
+                    Source.EMPTY,
+                    "value",
+                    new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+                )
+            );
+
+            DriverContext driverContext = mock(DriverContext.class);
+            BlockFactory blockFactory = mock(BlockFactory.class);
+            when(driverContext.blockFactory()).thenReturn(blockFactory);
+            doAnswer(inv -> null).when(driverContext).addAsyncAction();
+            doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+            AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+                storageProvider,
+                formatReader,
+                path,
+                attributes,
+                100,
+                2,
+                realExec
+            );
+
+            SourceOperator operator = factory.get(driverContext);
+            List<Page> pages = new ArrayList<>();
+
+            long deadline = System.currentTimeMillis() + 30_000;
+            while (operator.isFinished() == false && System.currentTimeMillis() < deadline) {
+                Page page = operator.getOutput();
+                if (page != null) {
+                    pages.add(page);
+                } else {
+                    Thread.sleep(10);
+                }
+            }
+            assertTrue("Operator should complete within timeout", operator.isFinished());
+            assertEquals(10, pages.size());
+
+            for (Page p : pages) {
+                p.releaseBlocks();
+            }
+            operator.close();
+        } finally {
+            realExec.shutdown();
+            assertTrue(realExec.awaitTermination(10, TimeUnit.SECONDS));
+        }
+    }
+
+    /**
+     * Multi-file path with real thread pool: exercises backpressure across file boundaries.
+     */
+    public void testMultiFileBackpressureWithRealThreadPool() throws Exception {
+        ExecutorService realExec = Executors.newFixedThreadPool(2, EsExecutors.daemonThreadFactory("test", "mf-test"));
+        try {
+            AtomicInteger readCount = new AtomicInteger(0);
+            FormatReader formatReader = new MultiPageFormatReader(readCount, 5);
+            StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
+
+            List<StorageEntry> entries = List.of(
+                new StorageEntry(StoragePath.of("s3://bucket/f1.parquet"), 100, Instant.EPOCH),
+                new StorageEntry(StoragePath.of("s3://bucket/f2.parquet"), 200, Instant.EPOCH),
+                new StorageEntry(StoragePath.of("s3://bucket/f3.parquet"), 300, Instant.EPOCH)
+            );
+            FileList fileList = GlobExpander.fileListOf(entries, "s3://bucket/*.parquet");
+
+            StoragePath path = StoragePath.of("s3://bucket/f1.parquet");
+            List<Attribute> attributes = List.of(
+                new FieldAttribute(
+                    Source.EMPTY,
+                    "value",
+                    new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+                )
+            );
+
+            DriverContext driverContext = mock(DriverContext.class);
+            BlockFactory blockFactory = mock(BlockFactory.class);
+            when(driverContext.blockFactory()).thenReturn(blockFactory);
+            doAnswer(inv -> null).when(driverContext).addAsyncAction();
+            doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+            AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+                storageProvider,
+                formatReader,
+                path,
+                attributes,
+                100,
+                2,
+                realExec,
+                fileList
+            );
+
+            SourceOperator operator = factory.get(driverContext);
+            List<Page> pages = new ArrayList<>();
+
+            long deadline = System.currentTimeMillis() + 30_000;
+            while (operator.isFinished() == false && System.currentTimeMillis() < deadline) {
+                Page page = operator.getOutput();
+                if (page != null) {
+                    pages.add(page);
+                } else {
+                    Thread.sleep(10);
+                }
+            }
+            assertTrue("Operator should complete within timeout", operator.isFinished());
+            assertEquals(3, readCount.get());
+            assertEquals(15, pages.size());
+
+            for (Page p : pages) {
+                p.releaseBlocks();
+            }
+            operator.close();
+        } finally {
+            realExec.shutdown();
+            assertTrue(realExec.awaitTermination(10, TimeUnit.SECONDS));
+        }
+    }
+
+    /**
+     * Slice-queue path with real thread pool: exercises backpressure within split processing.
+     */
+    public void testSliceQueueBackpressureWithRealThreadPool() throws Exception {
+        ExecutorService realExec = Executors.newFixedThreadPool(2, EsExecutors.daemonThreadFactory("test", "sq-test"));
+        try {
+            AtomicInteger readCount = new AtomicInteger(0);
+            FormatReader formatReader = new MultiPageFormatReader(readCount, 5);
+            StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
+
+            List<FileSplit> splits = List.of(
+                new FileSplit("test", StoragePath.of("s3://bucket/f1.parquet"), 0, 100, "parquet", Map.of(), Map.of()),
+                new FileSplit("test", StoragePath.of("s3://bucket/f2.parquet"), 0, 200, "parquet", Map.of(), Map.of())
+            );
+            ExternalSliceQueue sliceQueue = new ExternalSliceQueue(new ArrayList<>(splits));
+
+            StoragePath path = StoragePath.of("s3://bucket/f1.parquet");
+            List<Attribute> attributes = List.of(
+                new FieldAttribute(
+                    Source.EMPTY,
+                    "value",
+                    new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+                )
+            );
+
+            DriverContext driverContext = mock(DriverContext.class);
+            BlockFactory blockFactory = mock(BlockFactory.class);
+            when(driverContext.blockFactory()).thenReturn(blockFactory);
+            doAnswer(inv -> null).when(driverContext).addAsyncAction();
+            doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+            AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+                storageProvider,
+                formatReader,
+                path,
+                attributes,
+                100,
+                2,
+                realExec,
+                null,
+                null,
+                null,
+                sliceQueue
+            );
+
+            SourceOperator operator = factory.get(driverContext);
+            List<Page> pages = new ArrayList<>();
+
+            long deadline = System.currentTimeMillis() + 30_000;
+            while (operator.isFinished() == false && System.currentTimeMillis() < deadline) {
+                Page page = operator.getOutput();
+                if (page != null) {
+                    pages.add(page);
+                } else {
+                    Thread.sleep(10);
+                }
+            }
+            assertTrue("Operator should complete within timeout", operator.isFinished());
+            assertEquals(2, readCount.get());
+            assertEquals(10, pages.size());
+
+            for (Page p : pages) {
+                p.releaseBlocks();
+            }
+            operator.close();
+        } finally {
+            realExec.shutdown();
+            assertTrue(realExec.awaitTermination(10, TimeUnit.SECONDS));
+        }
+    }
+
+    /**
+     * Native async path: verifies removeAsyncAction fires exactly once.
+     */
+    public void testNativeAsyncRemoveAsyncActionExactlyOnce() throws Exception {
+        FormatReader formatReader = new TestAsyncFormatReader();
+        StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
+
+        StoragePath path = StoragePath.of("s3://bucket/test.parquet");
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "value",
+                new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+
+        DriverContext driverContext = mock(DriverContext.class);
+        BlockFactory blockFactory = mock(BlockFactory.class);
+        when(driverContext.blockFactory()).thenReturn(blockFactory);
+
+        AtomicInteger addCount = new AtomicInteger(0);
+        AtomicInteger removeCount = new AtomicInteger(0);
+        doAnswer(inv -> {
+            addCount.incrementAndGet();
+            return null;
+        }).when(driverContext).addAsyncAction();
+        doAnswer(inv -> {
+            removeCount.incrementAndGet();
+            return null;
+        }).when(driverContext).removeAsyncAction();
+
+        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+            storageProvider,
+            formatReader,
+            path,
+            attributes,
+            100,
+            10,
+            (Runnable r) -> r.run()
+        );
+
+        SourceOperator operator = factory.get(driverContext);
+        List<Page> pages = new ArrayList<>();
+        while (operator.isFinished() == false) {
+            Page page = operator.getOutput();
+            if (page != null) {
+                pages.add(page);
+            }
+        }
+
+        assertEquals("addAsyncAction should be called exactly once", 1, addCount.get());
+        assertEquals("removeAsyncAction should be called exactly once", 1, removeCount.get());
 
         for (Page p : pages) {
             p.releaseBlocks();
@@ -1785,6 +2378,90 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         public StoragePath path() {
             return path;
         }
+    }
+
+    /**
+     * Format reader that always throws on read, for testing error handling.
+     */
+    private static class AlwaysFailFormatReader implements FormatReader {
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return null;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            throw new IOException("Simulated read error");
+        }
+
+        @Override
+        public String formatName() {
+            return "test-always-fail";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".parquet");
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    /**
+     * Format reader that returns multiple pages per read, for testing backpressure.
+     */
+    private static class MultiPageFormatReader implements FormatReader {
+        private final AtomicInteger readCount;
+        private final int pagesPerRead;
+
+        MultiPageFormatReader(AtomicInteger readCount, int pagesPerRead) {
+            this.readCount = readCount;
+            this.pagesPerRead = pagesPerRead;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return null;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            readCount.incrementAndGet();
+            return new CloseableIterator<>() {
+                private int remaining = pagesPerRead;
+
+                @Override
+                public boolean hasNext() {
+                    return remaining > 0;
+                }
+
+                @Override
+                public Page next() {
+                    if (remaining <= 0) {
+                        throw new NoSuchElementException();
+                    }
+                    remaining--;
+                    return createTestPage();
+                }
+
+                @Override
+                public void close() {}
+            };
+        }
+
+        @Override
+        public String formatName() {
+            return "test-multi-page";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".parquet");
+        }
+
+        @Override
+        public void close() {}
     }
 
     /**

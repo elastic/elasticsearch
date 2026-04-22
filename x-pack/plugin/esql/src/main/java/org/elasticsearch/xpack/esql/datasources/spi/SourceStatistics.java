@@ -67,5 +67,13 @@ public interface SourceStatistics {
          * The type depends on the column data type.
          */
         Optional<Object> maxValue();
+
+        /**
+         * Returns the uncompressed size of this column in bytes, if known.
+         * Useful for cost-based filter evaluation ordering.
+         */
+        default OptionalLong sizeInBytes() {
+            return OptionalLong.empty();
+        }
     }
 }

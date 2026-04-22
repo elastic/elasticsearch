@@ -44,6 +44,7 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -89,6 +90,17 @@ public class CsvTestsDataLoader {
         new TestDataset("employees", "mapping-default.json", "employees.csv").noSubfields(),
         new TestDataset("voyager", "mapping-voyager.json", "voyager.csv").noSubfields(),
         new TestDataset("employees_incompatible", "mapping-default-incompatible.json", "employees_incompatible.csv").noSubfields(),
+        new TestDataset("employees", "mapping-default.json", "employees.csv").withIndex("employees_no_names")
+            .withTypeMapping(removeFields("first_name", "last_name"))
+            .withDynamic("false")
+            .noSubfields(),
+        new TestDataset("employees", "mapping-default.json", "employees.csv").withIndex("employees_gender_text")
+            .withTypeMapping(Map.of("gender", "text"))
+            .noSubfields(),
+        new TestDataset("employees", "mapping-default.json", "employees.csv").withIndex("employees_no_gender")
+            .withTypeMapping(removeFields("gender"))
+            .withDynamic("false")
+            .noSubfields(),
         new TestDataset("all_types", "mapping-all-types.json", "all-types.csv"),
         new TestDataset("hosts"),
         new TestDataset("apps"),
@@ -110,9 +122,7 @@ public class CsvTestsDataLoader {
         new TestDataset("sample_data"),
         new TestDataset("sample_data").withIndex("cloned_sample_data"),
         new TestDataset("partial_mapping_sample_data"),
-        new TestDataset("no_mapping_sample_data", "mapping-no_mapping_sample_data.json", "partial_mapping_sample_data.csv").withTypeMapping(
-            Stream.of("timestamp", "client_ip", "event_duration").collect(toMap(k -> k, k -> "keyword"))
-        ),
+        new TestDataset("no_mapping_sample_data", "mapping-no_mapping_sample_data.json", "partial_mapping_sample_data.csv"),
         new TestDataset(
             "partial_mapping_no_source_sample_data",
             "mapping-partial_mapping_no_source_sample_data.json",
@@ -173,6 +183,30 @@ public class CsvTestsDataLoader {
         new TestDataset("k8s-downsampled", "k8s-downsampled-mappings.json", "k8s-downsampled.csv", "k8s-downsampled-settings.json"),
         new TestDataset("distances"),
         new TestDataset("addresses"),
+        new TestDataset("addresses").withIndex("addresses_no_continent")
+            .withTypeMapping(removeFields("city.country.continent"))
+            .withDynamic("false"),
+        new TestDataset("addresses").withIndex("addresses_text")
+            .withTypeMapping(
+                Map.of(
+                    "street",
+                    "text",
+                    "number",
+                    "text",
+                    "zip_code",
+                    "text",
+                    "city.name",
+                    "text",
+                    "city.country.name",
+                    "text",
+                    "city.country.continent.name",
+                    "text",
+                    "city.country.continent.planet.name",
+                    "text",
+                    "city.country.continent.planet.galaxy",
+                    "text"
+                )
+            ),
         new TestDataset("books").withSetting("books-settings.json"),
         new TestDataset("semantic_text").withInferenceEndpoints("test_sparse_inference", "test_dense_inference"),
         new TestDataset("logs"),
@@ -218,7 +252,7 @@ public class CsvTestsDataLoader {
             "metric_temporality-mappings.json",
             "metric_temporality.csv",
             "metric_temporality-settings.json"
-        ),
+        ).withRequiredCapabilities(EsqlCapabilities.Cap.TSDB_TEMPORALITY_SUPPORT_V1),
         new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json")
     ).collect(toMap(TestDataset::indexName, Function.identity()));
 
@@ -247,6 +281,7 @@ public class CsvTestsDataLoader {
     public static final Map<String, InferenceConfig> INFERENCE_CONFIGS = Stream.of(
         new InferenceConfig("test_sparse_inference", TaskType.SPARSE_EMBEDDING),
         new InferenceConfig("test_dense_inference", TaskType.TEXT_EMBEDDING),
+        new InferenceConfig("test_embedding_inference", TaskType.EMBEDDING),
         new InferenceConfig("test_reranker", TaskType.RERANK),
         new InferenceConfig("test_completion", TaskType.COMPLETION)
     ).collect(toMap(InferenceConfig::id, Function.identity()));
@@ -780,25 +815,63 @@ public class CsvTestsDataLoader {
         }
     }
 
+    /**
+     * Creates a type mapping that removes the given fields from the mapping.
+     * For use with {@link TestDataset#withTypeMapping}.
+     */
+    private static Map<String, String> removeFields(String... fields) {
+        var map = new HashMap<String, String>();
+        for (String field : fields) {
+            map.put(field, null);
+        }
+        return map;
+    }
+
     public static String readMappingFile(TestDataset dataset) throws IOException {
         String mappingJsonText = dataset.loadMappings();
-        if (dataset.typeMapping == null || dataset.typeMapping.isEmpty()) {
+        boolean hasTypeMappingOverrides = dataset.typeMapping != null && dataset.typeMapping.isEmpty() == false;
+        if (hasTypeMappingOverrides == false && dataset.dynamic == null) {
             return mappingJsonText;
         }
         boolean modified = false;
         ObjectMapper mapper = new ObjectMapper();
         JsonNode mappingNode = mapper.readTree(mappingJsonText);
-        JsonNode propertiesNode = mappingNode.path("properties");
 
-        for (Map.Entry<String, String> entry : dataset.typeMapping.entrySet()) {
-            String key = entry.getKey();
-            String newType = entry.getValue();
+        if (hasTypeMappingOverrides) {
+            for (Map.Entry<String, String> entry : dataset.typeMapping.entrySet()) {
+                String key = entry.getKey();
+                String newType = entry.getValue();
 
-            if (propertiesNode.has(key)) {
-                modified = true;
-                ((ObjectNode) propertiesNode.get(key)).put("type", newType);
+                // Navigate dotted paths to find the parent properties node and leaf field name.
+                String[] segments = key.split("\\.");
+                ObjectNode propertiesNode = (ObjectNode) mappingNode.path("properties");
+                for (int i = 0; i < segments.length - 1 && propertiesNode != null; i++) {
+                    JsonNode child = propertiesNode.get(segments[i]);
+                    propertiesNode = child != null ? (ObjectNode) child.path("properties") : null;
+                }
+                String leafName = segments[segments.length - 1];
+
+                if (propertiesNode == null) {
+                    continue;
+                }
+                if (newType == null) {
+                    // null value means remove the field from the mapping
+                    if (propertiesNode.has(leafName)) {
+                        propertiesNode.remove(leafName);
+                        modified = true;
+                    }
+                } else if (propertiesNode.has(leafName)) {
+                    ((ObjectNode) propertiesNode.get(leafName)).put("type", newType);
+                    modified = true;
+                }
             }
         }
+
+        if (dataset.dynamic != null) {
+            ((ObjectNode) mappingNode).put("dynamic", dataset.dynamic);
+            modified = true;
+        }
+
         if (modified) {
             return mapper.writerWithDefaultPrettyPrinter().writeValueAsString(mappingNode);
         }
@@ -1083,22 +1156,23 @@ public class CsvTestsDataLoader {
         String dataFileName,
         String settingFileName,
         boolean allowSubFields,
-        @Nullable Map<String, String> typeMapping, // Override mappings read from mappings file
-        @Nullable Map<String, String> dynamicTypeMapping, // Define mappings not in the mapping files, but available from field-caps
+        @Nullable Map<String, String> typeMapping,
+        @Nullable Map<String, String> dynamicTypeMapping,
+        @Nullable String dynamic,
         List<String> inferenceEndpoints,
         List<EsqlCapabilities.Cap> requiredCapabilities
     ) {
 
         public TestDataset(String indexName) {
-            this(indexName, "mapping-" + indexName + ".json", indexName + ".csv", null, true, null, null, List.of(), List.of());
+            this(indexName, "mapping-" + indexName + ".json", indexName + ".csv", null, true, null, null, null, List.of(), List.of());
         }
 
         public TestDataset(String indexName, String mappingFileName, String dataFileName) {
-            this(indexName, mappingFileName, dataFileName, null, true, null, null, List.of(), List.of());
+            this(indexName, mappingFileName, dataFileName, null, true, null, null, null, List.of(), List.of());
         }
 
         public TestDataset(String indexName, String mappingFileName, String dataFileName, String settingFileName) {
-            this(indexName, mappingFileName, dataFileName, settingFileName, true, null, null, List.of(), List.of());
+            this(indexName, mappingFileName, dataFileName, settingFileName, true, null, null, null, List.of(), List.of());
         }
 
         public TestDataset withIndex(String indexName) {
@@ -1110,6 +1184,7 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
+                dynamic,
                 inferenceEndpoints,
                 requiredCapabilities
             );
@@ -1124,6 +1199,7 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
+                dynamic,
                 inferenceEndpoints,
                 requiredCapabilities
             );
@@ -1138,6 +1214,7 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
+                dynamic,
                 inferenceEndpoints,
                 requiredCapabilities
             );
@@ -1152,6 +1229,7 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
+                dynamic,
                 inferenceEndpoints,
                 requiredCapabilities
             );
@@ -1166,11 +1244,20 @@ public class CsvTestsDataLoader {
                 false,
                 typeMapping,
                 dynamicTypeMapping,
+                dynamic,
                 inferenceEndpoints,
                 requiredCapabilities
             );
         }
 
+        /**
+         * Overrides the types of fields in the mapping file. Each entry maps a field name to its new type
+         * (e.g. {@code Map.of("client_ip", "keyword")} changes client_ip from ip to keyword).
+         * A {@code null} value removes the field from the mapping entirely, making it unmapped for this index.
+         * <p>
+         * This affects both the Elasticsearch index mapping (via {@link CsvTestsDataLoader#readMappingFile}) and
+         * the in-memory mapping used by CSV unit tests.
+         */
         public TestDataset withTypeMapping(Map<String, String> typeMapping) {
             return new TestDataset(
                 indexName,
@@ -1180,11 +1267,16 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
+                dynamic,
                 inferenceEndpoints,
                 requiredCapabilities
             );
         }
 
+        /**
+         * Adds field mappings that are not present in the mapping file, but will be in the field caps response, e.g. because during
+         * ingestion more fields are added dynamically. Required for csv tests which do not ingest the csvs into real indices.
+         */
         public TestDataset withDynamicTypeMapping(Map<String, String> dynamicTypeMapping) {
             return new TestDataset(
                 indexName,
@@ -1194,6 +1286,26 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
+                dynamic,
+                inferenceEndpoints,
+                requiredCapabilities
+            );
+        }
+
+        /**
+         * Sets the "dynamic" mapping parameter (e.g. "false", "strict", "runtime").
+         * This prevents unmapped fields in the data from being automatically indexed.
+         */
+        public TestDataset withDynamic(String dynamic) {
+            return new TestDataset(
+                indexName,
+                mappingFileName,
+                dataFileName,
+                settingFileName,
+                allowSubFields,
+                typeMapping,
+                dynamicTypeMapping,
+                dynamic,
                 inferenceEndpoints,
                 requiredCapabilities
             );
@@ -1208,6 +1320,7 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
+                dynamic,
                 List.of(inferenceEndpoints),
                 requiredCapabilities
             );
@@ -1222,6 +1335,7 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
+                dynamic,
                 inferenceEndpoints,
                 List.of(requiredCapabilities)
             );

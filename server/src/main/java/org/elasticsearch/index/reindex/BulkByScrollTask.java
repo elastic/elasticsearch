@@ -33,6 +33,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -62,6 +63,7 @@ public class BulkByScrollTask extends CancellableTask {
     private volatile LeaderBulkByScrollTaskState leaderState;
     private volatile WorkerBulkByScrollTaskState workerState;
     private volatile boolean relocationRequested = false;
+    private volatile boolean relocationHandoffInitiated = false;
 
     public BulkByScrollTask(
         TaskId taskId,
@@ -228,6 +230,22 @@ public class BulkByScrollTask extends CancellableTask {
         return relocationRequested;
     }
 
+    /**
+     * Marks that this task has initiated a relocation handoff (the resume request has been sent to the destination).
+     */
+    public void setRelocationHandoffInitiated() {
+        this.relocationHandoffInitiated = true;
+    }
+
+    /**
+     * If relocation handoff has started, the destination may have already stored the task result, so the source should
+     * use create-if-absent semantics to avoid overwriting it.
+     */
+    @Override
+    public boolean useCreateSemanticsForResultStorage() {
+        return relocationHandoffInitiated;
+    }
+
     /** Returns the relocation origin if this task is a relocated continuation. */
     public ResumeInfo.RelocationOrigin relocationOrigin() {
         return relocationOrigin;
@@ -236,6 +254,15 @@ public class BulkByScrollTask extends CancellableTask {
     /** Returns true if this task was created via relocation from another node. */
     public boolean isRelocatedTask() {
         return relocatedTask;
+    }
+
+    @Override
+    protected Optional<OriginalTaskInfo> getOriginalTaskInfo() {
+        if (relocatedTask && getParentTaskId().isSet() == false) { // children have no OriginalTaskInfo
+            return Optional.of(new OriginalTaskInfo(relocationOrigin.originalTaskId(), relocationOrigin.originalStartTimeMillis()));
+        } else {
+            return Optional.empty();
+        }
     }
 
     /**

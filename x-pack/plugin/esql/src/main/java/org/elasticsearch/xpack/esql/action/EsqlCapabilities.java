@@ -1264,7 +1264,13 @@ public class EsqlCapabilities {
         /**
          * Fixed a bug where views are incorrectly de-duplicated.
          */
+
         VIEWS_DEDUPLICATION_BUGFIX,
+        /**
+         * Fixed false circular view reference errors when multiple sibling views are resolved together.
+         * See https://github.com/elastic/elasticsearch/issues/146208
+         */
+        VIEWS_FALSE_CIRCULAR_REFERENCE_FIX,
 
         /**
          * Support for the {@code leading_zeros} named parameter.

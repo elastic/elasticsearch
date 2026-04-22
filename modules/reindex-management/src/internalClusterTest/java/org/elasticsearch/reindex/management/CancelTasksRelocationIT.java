@@ -9,6 +9,9 @@
 
 package org.elasticsearch.reindex.management;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
@@ -21,9 +24,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.ReindexAction;
+import org.elasticsearch.index.reindex.ResumeReindexAction;
 import org.elasticsearch.node.ShutdownPrepareService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskResult;
@@ -31,6 +36,7 @@ import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -47,13 +53,18 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class CancelTasksRelocationIT extends ESIntegTestCase {
 
+    private static final Logger logger = LogManager.getLogger(CancelTasksRelocationIT.class);
+
     private static final String SOURCE_INDEX = "cancel_reindex_src";
+
     private static final String DEST_INDEX = "cancel_reindex_dst";
 
     private final int bulkSize = randomIntBetween(1, 4);
@@ -68,7 +79,7 @@ public class CancelTasksRelocationIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ReindexPlugin.class, ReindexManagementPlugin.class);
+        return Arrays.asList(ReindexPlugin.class, ReindexManagementPlugin.class, MockTransportService.TestPlugin.class);
     }
 
     @Override
@@ -159,6 +170,105 @@ public class CancelTasksRelocationIT extends ESIntegTestCase {
         );
 
         internalCluster().stopNode(shutdownNode);
+    }
+
+    /**
+     * Forces the relocation handoff to sit mid-flight so a cancel issued during that window reliably hits the CAS gate and is rejected
+     * with {@code 409 CONFLICT}.
+     * <p>
+     * The destination node's transport is configured to hold any {@code ResumeReindexAction} message until we release
+     * it. After {@code prepareForShutdown} triggers the handoff and the source has CAS'd its {@code RelocationProgress}
+     * into {@code HANDOFF_INITIATED}, we observe the held message, fire the cancel, and only then release the hold so
+     * relocation completes and the cluster can be torn down cleanly.
+     */
+    public void testCancelBailsWhenHandoffInitiated() throws Exception {
+        final String indexHostNode = internalCluster().startNode(
+            NodeRoles.onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE))
+        );
+        final String shutdownNode = internalCluster().startNode(
+            NodeRoles.onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE))
+        );
+        ensureStableCluster(2);
+
+        createIndexPinnedToNodeName(SOURCE_INDEX, indexHostNode);
+        createIndexPinnedToNodeName(DEST_INDEX, indexHostNode);
+        indexRandom(true, SOURCE_INDEX, numberOfDocumentsThatTakes60SecondsToIngest);
+        ensureGreen(SOURCE_INDEX, DEST_INDEX);
+
+        final TaskId originalTaskId = startAsyncThrottledReindexOnNode(shutdownNode);
+
+        // Hold ResumeReindexAction on the destination until we say go, so the source parks in HANDOFF_INITIATED.
+        // The hold is deferred to a background thread so we don't block a transport handler thread, which can
+        // otherwise cascade into starvation of unrelated requests to the destination node.
+        final CountDownLatch resumeReceivedOnDestination = new CountDownLatch(1);
+        final CountDownLatch releaseResume = new CountDownLatch(1);
+        final MockTransportService destinationTransport = MockTransportService.getInstance(indexHostNode);
+        destinationTransport.addRequestHandlingBehavior(ResumeReindexAction.NAME, (handler, request, channel, task) -> {
+            resumeReceivedOnDestination.countDown();
+            final Thread forwarder = new Thread(() -> {
+                try {
+                    releaseResume.await();
+                    handler.messageReceived(request, channel, task);
+                } catch (Exception e) {
+                    try {
+                        channel.sendResponse(e);
+                    } catch (Exception ignored) {
+                        // channel already closed
+                    }
+                }
+            }, "resume-reindex-hold");
+            forwarder.setDaemon(true);
+            forwarder.start();
+        });
+
+        final Thread relocationThread = new Thread(
+            () -> internalCluster().getInstance(ShutdownPrepareService.class, shutdownNode).prepareForShutdown(),
+            "relocation-thread"
+        );
+        relocationThread.start();
+
+        try {
+            // Wait for the handoff to reach the destination, i.e. the source has CAS'd into HANDOFF_INITIATED.
+            assertTrue(
+                "relocation handoff must reach the destination within 60s",
+                resumeReceivedOnDestination.await(60, TimeUnit.SECONDS)
+            );
+
+            // Fire the cancel: must bail with 409 because the source's RelocationProgress is HANDOFF_INITIATED.
+            final CancelTasksRequest cancel = new CancelTasksRequest();
+            cancel.setTargetTaskId(originalTaskId);
+            final ListTasksResponse response = clusterAdmin().cancelTasks(cancel).actionGet(TimeValue.timeValueSeconds(30));
+            assertThat(response.getTasks(), hasSize(0));
+            assertThat(response.getTaskFailures(), hasSize(1));
+            final Throwable cause = response.getTaskFailures().get(0).getCause();
+            assertThat(cause, instanceOf(ElasticsearchStatusException.class));
+            assertThat(((ElasticsearchStatusException) cause).status(), is(RestStatus.CONFLICT));
+            assertThat(
+                cause.getMessage(),
+                equalTo("cannot cancel task [" + originalTaskId.getId() + "] because it is being relocated")
+            );
+        } finally {
+            // Release so the rest of the flow can unwind regardless of assertion outcome.
+            releaseResume.countDown();
+            // The relocationThread is the daemon we spawned; bound its join so the test can't hang here.
+            relocationThread.join(TimeValue.timeValueMinutes(1).millis());
+            // Best-effort teardown: cancel any lingering reindex tasks (resumed + rethrottle) so the heavy throttle
+            // doesn't push the test past the suite timeout. Failures here are swallowed - the point of this test
+            // is the 409 assertion above, not the cleanup.
+            try {
+                final CancelTasksRequest sweep = new CancelTasksRequest();
+                sweep.setActions(ReindexAction.NAME);
+                sweep.setWaitForCompletion(false);
+                clusterAdmin().cancelTasks(sweep).actionGet(TimeValue.timeValueSeconds(30));
+                for (TaskInfo t : listAllReindexTasks()) {
+                    unthrottleReindex(t.taskId());
+                }
+                assertBusy(() -> assertThat(listAllReindexTasks(), hasSize(0)), 60, TimeUnit.SECONDS);
+            } catch (Exception teardownFailure) {
+                logger.warn("teardown best-effort failed (ignored)", teardownFailure);
+            }
+            internalCluster().stopNode(shutdownNode);
+        }
     }
 
     /**

@@ -15,7 +15,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.DiversifyingChildrenFloatKnnVectorQuery;
 import org.apache.lucene.search.knn.KnnCollectorManager;
@@ -92,20 +91,8 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
 
     @Override
     public Query rewrite(IndexSearcher indexSearcher) throws IOException {
-        if (filter != null) {
-            Weight filterWeight = createFilterWeight(indexSearcher, filter, seenDocs, field);
-            Query postFilterQuery = createPostFilterQuery(
-                indexSearcher.getLeafContexts(),
-                filterWeight,
-                kParam,
-                indexSearcher.getIndexReader(),
-                null
-            );
-            if (postFilterQuery != null) {
-                return postFilterQuery;
-            }
-        }
-        return super.rewrite(indexSearcher);
+        var maybePostFilter = maybeRewriteAsPostFilter(indexSearcher, filter, kParam, field, parentsFilter);
+        return maybePostFilter == null ? super.rewrite(indexSearcher) : maybePostFilter;
     }
 
     @Override
@@ -115,10 +102,11 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
 
     @Override
     public Query createInnerQuery(IndexReader reader, int[] seenDocs) {
+        var excludeDocsFilter = new ExcludeDocsQuery(seenDocs, reader);
         return new ESDiversifyingChildrenFloatKnnVectorQuery(
             field,
             getTargetCopy(),
-            null,
+            excludeDocsFilter,
             kParam,
             numCands,
             parentsFilter,

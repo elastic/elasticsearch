@@ -101,7 +101,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         IndexReader reader = indexSearcher.getIndexReader();
         List<LeafReaderContext> leaves = reader.leaves();
 
-        final Weight filterWeight = createFilterWeight(indexSearcher, filter, null, field);
+        final Weight filterWeight = createFilterWeight(indexSearcher, filter, field);
         if (filter != null && filterWeight == null) {
             return MatchNoDocsQuery.INSTANCE;
         }

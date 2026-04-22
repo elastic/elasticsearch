@@ -16,7 +16,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.elasticsearch.search.profile.query.QueryProfiler;
@@ -68,20 +67,8 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
 
     @Override
     public Query rewrite(IndexSearcher indexSearcher) throws IOException {
-        if (filter != null) {
-            Weight filterWeight = createFilterWeight(indexSearcher, filter, seenDocs, field);
-            Query postFilterQuery = createPostFilterQuery(
-                indexSearcher.getLeafContexts(),
-                filterWeight,
-                kParam,
-                indexSearcher.getIndexReader(),
-                null
-            );
-            if (postFilterQuery != null) {
-                return postFilterQuery;
-            }
-        }
-        return super.rewrite(indexSearcher);
+        var maybePostFilter = maybeRewriteAsPostFilter(indexSearcher, filter, kParam, field, null);
+        return maybePostFilter == null ? super.rewrite(indexSearcher) : maybePostFilter;
     }
 
     @Override
@@ -98,7 +85,17 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
 
     @Override
     public Query createInnerQuery(IndexReader reader, int[] seenDocs) {
-        return new ESKnnFloatVectorQuery(field, getTargetCopy(), kParam, numCandsParam, null, searchStrategy, earlyTermination, seenDocs);
+        var excludeDocsFilter = new ExcludeDocsQuery(seenDocs, reader);
+        return new ESKnnFloatVectorQuery(
+            field,
+            getTargetCopy(),
+            kParam,
+            numCandsParam,
+            excludeDocsFilter,
+            searchStrategy,
+            earlyTermination,
+            seenDocs
+        );
     }
 
     @Override

@@ -82,26 +82,26 @@ public interface PostFilterableKnnQuery {
         return null;
     }
 
-    default Weight createFilterWeight(IndexSearcher searcher, Query filter, int[] seenDocs, String field) throws IOException {
-        if (filter == null && seenDocs == null) {
+    default Weight createFilterWeight(IndexSearcher searcher, Query filter, String field) throws IOException {
+        if (filter == null) {
             return null;
         }
-        var booleanQueryBuilder = new BooleanQuery.Builder();
-        if (filter != null) {
-            booleanQueryBuilder = booleanQueryBuilder.add(filter, BooleanClause.Occur.FILTER);
-        }
-        ;
-        if (seenDocs != null) {
-            booleanQueryBuilder = booleanQueryBuilder.add(
-                new ExcludeDocsQuery(seenDocs, searcher.getIndexReader()),
-                BooleanClause.Occur.FILTER
-            );
-        }
-        booleanQueryBuilder = booleanQueryBuilder.add(new FieldExistsQuery(field), BooleanClause.Occur.FILTER);
-        Query rewritten = searcher.rewrite(booleanQueryBuilder.build());
+        var booleanQuery = new BooleanQuery.Builder().add(filter, BooleanClause.Occur.FILTER)
+            .add(new FieldExistsQuery(field), BooleanClause.Occur.FILTER)
+            .build();
+        Query rewritten = searcher.rewrite(booleanQuery);
         if (rewritten.getClass() == MatchNoDocsQuery.class) {
             return null;
         }
         return searcher.createWeight(rewritten, ScoreMode.COMPLETE_NO_SCORES, 1f);
+    }
+
+    default Query maybeRewriteAsPostFilter(IndexSearcher indexSearcher, Query filter, int k, String field, BitSetProducer parentBitSet)
+        throws IOException {
+        if (filter != null && filter instanceof ExcludeDocsQuery == false) {
+            Weight filterWeight = createFilterWeight(indexSearcher, filter, field);
+            return createPostFilterQuery(indexSearcher.getLeafContexts(), filterWeight, k, indexSearcher.getIndexReader(), parentBitSet);
+        }
+        return null;
     }
 }

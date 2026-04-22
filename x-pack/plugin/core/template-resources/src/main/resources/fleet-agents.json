@@ -46,6 +46,9 @@
         "effective_config_hash": {
           "type": "keyword"
         },
+        "effective_config_label": {
+          "type": "keyword"
+        },
         "enrolled_at": {
           "type": "date"
         },

@@ -8,11 +8,14 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 
+import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -29,7 +32,7 @@ public class FlatIndexResolverIT extends AbstractEsqlIntegTestCase {
 
         // only required index requested
         {
-            var result = resolveFlatIndices("index-1", "");
+            var result = resolveFlatIndices("index-1", null);
             assertThat(result.isValid(), equalTo(true));
             assertThat(result.resolvedIndices(), containsInAnyOrder("index-1"));
             assertThat(result.get().mapping().keySet(), containsInAnyOrder("f1"));
@@ -37,7 +40,8 @@ public class FlatIndexResolverIT extends AbstractEsqlIntegTestCase {
 
         // only optional index requested
         {
-            var result = resolveFlatIndices("", "index-2");
+            var lenientCaps = resolveLenient("index-2");
+            var result = resolveFlatIndices("", lenientCaps);
             assertThat(result.isValid(), equalTo(true));
             assertThat(result.resolvedIndices(), containsInAnyOrder("index-2"));
             assertThat(result.get().mapping().keySet(), containsInAnyOrder("f2"));
@@ -45,38 +49,44 @@ public class FlatIndexResolverIT extends AbstractEsqlIntegTestCase {
 
         // required and optional index found
         {
-            var result = resolveFlatIndices("index-1", "index-2");
+            var lenientCaps = resolveLenient("index-2");
+            var result = resolveFlatIndices("index-1", lenientCaps);
             assertThat(result.isValid(), equalTo(true));
             assertThat(result.resolvedIndices(), containsInAnyOrder("index-1", "index-2"));
             assertThat(result.get().mapping().keySet(), containsInAnyOrder("f1", "f2"));
         }
 
-        // only required index found
+        // only required index found, optional missing
         {
-            var result = resolveFlatIndices("index-1", "index-3");
+            var lenientCaps = resolveLenient("index-3");
+            var result = resolveFlatIndices("index-1", lenientCaps);
             assertThat(result.isValid(), equalTo(true));
             assertThat(result.resolvedIndices(), containsInAnyOrder("index-1"));
             assertThat(result.get().mapping().keySet(), containsInAnyOrder("f1"));
         }
 
         // required index is not found
-        expectThrows(
-            IndexNotFoundException.class,
-            containsString("no such index [index-3]"),
-            () -> resolveFlatIndices("index-3", "index-2")
-        );
+        expectThrows(IndexNotFoundException.class, containsString("no such index [index-3]"), () -> resolveFlatIndices("index-3", null));
     }
 
-    private IndexResolution resolveFlatIndices(String required, String optional) {
+    private FieldCapabilitiesResponse resolveLenient(String optionalPattern) {
+        var response = FlatIndexResolverIT.<EsqlResolveFieldsResponse>run(
+            future -> new IndexResolver(client()).resolveLenientOnly(optionalPattern, null, Set.of("*"), null, future)
+        ).actionGet();
+        return IndexResolver.mergeLenientResponses(List.of(response));
+    }
+
+    private IndexResolution resolveFlatIndices(String required, FieldCapabilitiesResponse additionalLenientCaps) {
         return FlatIndexResolverIT.<Versioned<IndexResolution>>run(
             future -> new IndexResolver(client()).resolveMainFlatIndicesVersioned(
                 required,
-                optional,
+                additionalLenientCaps,
                 null,
                 Set.of("*"),
                 null,
                 false,
                 TransportVersion.current(),
+                false,
                 false,
                 false,
                 false,

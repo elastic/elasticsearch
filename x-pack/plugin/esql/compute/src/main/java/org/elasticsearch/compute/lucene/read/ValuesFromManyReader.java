@@ -17,6 +17,76 @@ import java.io.IOException;
 
 /**
  * Loads values from a many leaves. Much less efficient than {@link ValuesFromSingleReader}.
+ * See {@link ValuesSourceReaderOperator} for an introduction. This takes a page containing
+ * a {@link DocVector} like:
+ * {@snippet lang="txt" :
+ * ┌───────────────────────┐
+ * │          doc          │
+ * ├───────┬─────────┬─────┤
+ * │ shard │ segment │ doc │
+ * ├───────┼─────────┼─────┤
+ * │     0 │       0 │   0 │
+ * │     0 │       1 │   0 │
+ * │     0 │       1 │   1 │
+ * │     1 │       0 │   1 │
+ * │     1 │       1 │  12 │
+ * └───────┴─────────┴─────┘
+ * }
+ * <p>
+ *     and loads columns from lucene:
+ * </p>
+ * {@snippet lang="txt" :
+ * ┌───────────────────────┬─────┐
+ * │          doc          │     │
+ * ├───────┬─────────┬─────│ ref │
+ * │ shard │ segment │ doc │     │
+ * ├───────┼─────────┼─────┼─────┤
+ * │     0 │       0 │   0 │ 173 │
+ * │     0 │       1 │   0 │ 049 │
+ * │     0 │       1 │   1 │ 096 │
+ * │     1 │       0 │   1 │ 682 │
+ * │     1 │       1 │  12 │ 055 │
+ * └───────┴─────────┴─────┴─────┘
+ * }
+ * <h2>Are the documents non-decreasing?</h2>
+ * <p>
+ *     Lucene's tools for loading values need to load documents in non-decreasing order.
+ *     Think {@code 1, 2, 3, 4, 4, 4, 5, 9, 1000, etc}. The reader can only go "forwards".
+ *     It can go forwards {@code 0} documents, but never backwards. This implementation
+ *     always loads values in this order, regardless of the order in the actual page.
+ *     If we're lucky then they are already in that order, like the example above. If,
+ *     instead, the incoming page looks like:
+ * </p>
+ * {@snippet lang="txt" :
+ * ┌───────────────────────┐
+ * │          doc          │
+ * ├───────┬─────────┬─────┤
+ * │ shard │ segment │ doc │
+ * ├───────┼─────────┼─────┤
+ * │     0 │       1 │   0 │
+ * │     0 │       0 │   0 │
+ * │     1 │       1 │  12 │
+ * │     0 │       1 │   1 │
+ * │     1 │       0 │   1 │
+ * └───────┴─────────┴─────┘
+ * }
+ * <p>
+ *     Then we map the rows <strong>into</strong> non-decreasing order. We load in that
+ *     order. Then put them back in order:
+ * </p>
+ * {@snippet lang="txt" :
+ * ┌───────────────────────┐   ┌───────────────────────┐   ┌───────────────────────┬─────┐   ┌───────────────────────┬─────┐
+ * │          doc          │   │          doc          │   │          doc          │     │   │          doc          │     │
+ * ├───────┬─────────┬─────┤   ├───────┬─────────┬─────┤   ├───────┬─────────┬─────┤ ref │   ├───────┬─────────┬─────┤ ref │
+ * │ shard │ segment │ doc │   │ shard │ segment │ doc │   │ shard │ segment │ doc │     │   │ shard │ segment │ doc │     │
+ * ├───────┼─────────┼─────┤   ├───────┼─────────┼─────┤   ├───────┼─────────┼─────┼─────┤   ├───────┼─────────┼─────┼─────┤
+ * │     0 │       1 │   0 │   │     0 │       0 │   0 │   │     0 │       0 │   0 │ 173 │   │     0 │       1 │   0 │ 049 │
+ * │     0 │       0 │   0 │   │     0 │       1 │   0 │   │     0 │       1 │   0 │ 049 │   │     0 │       0 │   0 │ 173 │
+ * │     1 │       1 │  12 │ ⟶ │     0 │       1 │   1 │ ⟶ │     0 │       1 │   1 │ 096 │ ⟶ │     1 │       1 │  12 │ 055 │
+ * │     0 │       1 │   1 │   │     1 │       0 │   1 │   │     1 │       0 │   1 │ 682 │   │     0 │       1 │   1 │ 096 │
+ * │     1 │       0 │   1 │   │     1 │       1 │  12 │   │     1 │       1 │  12 │ 055 │   │     1 │       0 │   1 │ 682 │
+ * └───────┴─────────┴─────┘   └───────┴─────────┴─────┘   └───────┴─────────┴─────┴─────┘   └───────┴─────────┴─────┴─────┘
+ * }
  */
 class ValuesFromManyReader extends ValuesReader {
     private static final Logger log = LogManager.getLogger(ValuesFromManyReader.class);

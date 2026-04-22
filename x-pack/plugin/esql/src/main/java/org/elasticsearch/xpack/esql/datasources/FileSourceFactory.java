@@ -163,7 +163,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 context.sliceQueue(),
                 errorPolicy,
                 context.parsingParallelism(),
-                null,
                 pushedExpressions,
                 pushdownSupport
             );

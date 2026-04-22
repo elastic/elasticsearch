@@ -408,7 +408,7 @@ public enum SearchResponseUtils {
             }
         }
 
-        return new SearchResponse(
+        SearchResponse searchResponse = new SearchResponse(
             hits,
             aggs,
             suggest,
@@ -427,6 +427,10 @@ public enum SearchResponseUtils {
             null,
             null
         );
+        if (hits != null) {
+            hits.decRef();
+        }
+        return searchResponse;
     }
 
     private static SearchResponse.Clusters parseClusters(XContentParser parser) throws IOException {

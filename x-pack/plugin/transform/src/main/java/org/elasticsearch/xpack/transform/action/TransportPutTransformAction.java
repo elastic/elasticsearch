@@ -146,10 +146,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             if (cpsCredential != null) {
                 cpsCredentialService.grantCpsCredential(cpsCredential, transformId, l.delegateFailureAndWrap((ll, grantResult) -> {
                     config.setCpsCredential(grantResult.credential());
-                    var headers = Map.of(
-                        AuthenticationField.AUTHENTICATION_KEY,
-                        grantResult.authentication().encode()
-                    );
+                    var headers = Map.of(AuthenticationField.AUTHENTICATION_KEY, grantResult.authentication().encode());
                     config.setHeaders(ClientHelper.getPersistableSafeSecurityHeaders(headers, clusterState));
                     putTransform(request, ll);
                 }));

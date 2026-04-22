@@ -311,7 +311,10 @@ public class SearchHitsTests extends AbstractChunkedSerializingTestCase<SearchHi
                             assertEquals(hits[i].getExplanation(), newSearchHits.getAt(i).getExplanation());
                             if (withExplanation) {
                                 assertEquals(hits[i].getShard().getIndex(), newSearchHits.getAt(i).getShard().getIndex());
-                                assertEquals(hits[i].getShard().getShardId().getId(), newSearchHits.getAt(i).getShard().getShardId().getId());
+                                assertEquals(
+                                    hits[i].getShard().getShardId().getId(),
+                                    newSearchHits.getAt(i).getShard().getShardId().getId()
+                                );
                                 assertEquals(
                                     hits[i].getShard().getShardId().getIndexName(),
                                     newSearchHits.getAt(i).getShard().getShardId().getIndexName()

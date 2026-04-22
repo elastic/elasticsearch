@@ -2582,6 +2582,11 @@ public class EsqlCapabilities {
         PROMQL_YEAR,
 
         /**
+         * Unknown PromQL functions now make the error message "Unknown PromQL function".
+         */
+        PROMQL_RESOLVE_UNKOWN,
+
+        /**
          * Support for PromQL time extraction functions: month(), day_of_month(), day_of_week(), day_of_year(), hour(), minute().
          */
         PROMQL_TIME_FUNCTIONS,

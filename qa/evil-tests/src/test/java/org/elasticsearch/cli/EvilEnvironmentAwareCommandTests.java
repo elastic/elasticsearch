@@ -9,6 +9,8 @@
 
 package org.elasticsearch.cli;
 
+import org.elasticsearch.cli.terminal.Terminal;
+
 import joptsimple.OptionSet;
 
 import org.apache.lucene.tests.util.TestRuleRestoreSystemProperties;

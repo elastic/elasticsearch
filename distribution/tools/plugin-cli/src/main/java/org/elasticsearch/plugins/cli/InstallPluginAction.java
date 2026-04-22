@@ -14,7 +14,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.Build;
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.terminal.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.Streams;
@@ -81,7 +81,7 @@ import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
-import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
+import static org.elasticsearch.cli.terminal.Terminal.Verbosity.VERBOSE;
 
 /**
  * A command for the plugin cli to install a plugin into elasticsearch.

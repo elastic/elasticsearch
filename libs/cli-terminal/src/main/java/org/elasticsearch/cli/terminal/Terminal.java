@@ -7,10 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.cli;
-
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.SuppressForbidden;
+package org.elasticsearch.cli.terminal;
 
 import java.io.Console;
 import java.io.IOException;
@@ -19,9 +16,8 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.io.Reader;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Locale;
 
@@ -43,9 +39,8 @@ public abstract class Terminal {
     /** The default terminal implementation, which will be a console if available, or stdout/stderr if not. */
     public static final Terminal DEFAULT = ConsoleTerminal.isSupported() ? new ConsoleTerminal() : new SystemTerminal();
 
-    @SuppressForbidden(reason = "Writer for System.err")
     private static PrintWriter newErrorWriter() {
-        return new PrintWriter(System.err, true);
+        return new PrintWriter(System.err, true, StandardCharsets.UTF_8);
     }
 
     /** Defines the available verbosity levels of messages to be printed. */
@@ -135,7 +130,6 @@ public abstract class Terminal {
      * <p> May return {@code null} if this Terminal is not capable of binary input.
      * This corresponds with the underlying stream of bytes read by {@link #reader}.
      */
-    @Nullable
     public InputStream getInputStream() {
         return null;
     }
@@ -146,7 +140,6 @@ public abstract class Terminal {
      * <p> May return {@code null} if this Terminal is not capable of binary output.
      * This corresponds with the underlying stream of bytes written to by {@link #println(CharSequence)}.
       */
-    @Nullable
     public OutputStream getOutputStream() {
         return null;
     }
@@ -301,8 +294,7 @@ public abstract class Terminal {
     }
 
     private static class ConsoleTerminal extends Terminal {
-        private static final int JDK_VERSION_WITH_IS_TERMINAL = 22;
-        private static final Console CONSOLE = detectTerminal();
+        private static final Console CONSOLE = ConsoleUtil.detectTerminal();
 
         ConsoleTerminal() {
             super(CONSOLE.reader(), CONSOLE.writer(), ERROR_WRITER);
@@ -310,23 +302,6 @@ public abstract class Terminal {
 
         static boolean isSupported() {
             return CONSOLE != null;
-        }
-
-        static Console detectTerminal() {
-            // JDK >= 22 returns a console even if the terminal is redirected unless using -Djdk.console=java.base
-            // https://bugs.openjdk.org/browse/JDK-8308591
-            Console console = System.console();
-            if (console != null && Runtime.version().feature() >= JDK_VERSION_WITH_IS_TERMINAL) {
-                try {
-                    // verify the console is a terminal using isTerminal() on JDK >= 22
-                    // TODO: Remove reflection once Java 22 sources are supported, e.g. using a MRJAR
-                    Method isTerminal = Console.class.getMethod("isTerminal");
-                    return Boolean.TRUE.equals(isTerminal.invoke(console)) ? console : null;
-                } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
-                    throw new AssertionError(e);
-                }
-            }
-            return console;
         }
 
         @Override
@@ -341,7 +316,6 @@ public abstract class Terminal {
     }
 
     /** visible for testing */
-    @SuppressForbidden(reason = "Access streams for construction")
     static class SystemTerminal extends Terminal {
         SystemTerminal() {
             super(
@@ -349,7 +323,7 @@ public abstract class Terminal {
                 // at the end of each character based read, so that switching to using getInputStream() returns binary data
                 // right after the last character based input (newline)
                 new InputStreamReader(System.in, Charset.defaultCharset()),
-                new PrintWriter(System.out, true),
+                new PrintWriter(System.out, true, StandardCharsets.UTF_8),
                 ERROR_WRITER
             );
         }

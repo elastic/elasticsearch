@@ -9,7 +9,7 @@
 
 package org.elasticsearch.launcher;
 
-import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.terminal.Terminal;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.InputStream;

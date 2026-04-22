@@ -35,7 +35,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.ProcessInfo;
-import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.terminal.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.FileSystemUtils;

@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.cli;
+package org.elasticsearch.cli.terminal;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTestCase.WithoutEntitlements;

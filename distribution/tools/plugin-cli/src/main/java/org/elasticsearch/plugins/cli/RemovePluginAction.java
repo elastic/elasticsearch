@@ -10,7 +10,7 @@
 package org.elasticsearch.plugins.cli;
 
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.terminal.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
@@ -28,7 +28,7 @@ import java.util.Map;
 import java.util.StringJoiner;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
+import static org.elasticsearch.cli.terminal.Terminal.Verbosity.VERBOSE;
 import static org.elasticsearch.plugins.cli.InstallPluginAction.PLUGINS_CONVERTED_TO_MODULES;
 
 /**

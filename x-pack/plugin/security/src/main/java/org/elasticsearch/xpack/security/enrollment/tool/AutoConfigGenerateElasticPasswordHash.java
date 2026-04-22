@@ -11,7 +11,7 @@ import joptsimple.OptionSet;
 
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.ProcessInfo;
-import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.terminal.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.cli.KeyStoreAwareCommand;
 import org.elasticsearch.common.settings.KeyStoreWrapper;

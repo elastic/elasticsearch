@@ -10,7 +10,6 @@
 package org.elasticsearch.repositories.gcs;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.support.TenaciousRetryBlobContainer;
 import org.elasticsearch.repositories.RepositoriesMetrics;
@@ -19,19 +18,10 @@ import java.net.UnknownHostException;
 
 public class GcsTenaciousRetryBlobContainer extends TenaciousRetryBlobContainer {
 
-    private final int maxRetries;
-    private final BackoffPolicy backoffPolicy;
     private final RepositoriesMetrics repositoriesMetrics;
 
-    public GcsTenaciousRetryBlobContainer(
-        BlobContainer delegate,
-        int maxRetries,
-        BackoffPolicy backoffPolicy,
-        RepositoriesMetrics repositoriesMetrics
-    ) {
-        super(delegate, maxRetries, backoffPolicy, repositoriesMetrics);
-        this.maxRetries = maxRetries;
-        this.backoffPolicy = backoffPolicy;
+    public GcsTenaciousRetryBlobContainer(BlobContainer delegate, RepositoriesMetrics repositoriesMetrics) {
+        super(delegate, repositoriesMetrics);
         this.repositoriesMetrics = repositoriesMetrics;
     }
 
@@ -47,6 +37,6 @@ public class GcsTenaciousRetryBlobContainer extends TenaciousRetryBlobContainer 
 
     @Override
     protected BlobContainer wrapChild(BlobContainer child) {
-        return new GcsTenaciousRetryBlobContainer(child, maxRetries, backoffPolicy, repositoriesMetrics);
+        return new GcsTenaciousRetryBlobContainer(child, repositoriesMetrics);
     }
 }

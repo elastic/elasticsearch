@@ -10,13 +10,11 @@
 package org.elasticsearch.common.blobstore;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.blobstore.support.TenaciousRetryBlobContainer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
@@ -63,12 +61,7 @@ public class TenaciousRetryBlobContainerTests extends ESTestCase {
             throw new IOException(invocationOnMock.getMethod().getName());
         });
 
-        TenaciousRetryBlobContainer alwaysRetryBlobContainer = new TenaciousRetryBlobContainer(
-            blobContainer,
-            Integer.MAX_VALUE,
-            BackoffPolicy.linearBackoff(TimeValue.timeValueMillis(50), Integer.MAX_VALUE, TimeValue.ONE_MINUTE),
-            repositoriesMetrics
-        ) {
+        TenaciousRetryBlobContainer alwaysRetryBlobContainer = new TenaciousRetryBlobContainer(blobContainer, repositoriesMetrics) {
             @Override
             protected boolean isExceptionRetryable(Exception e) {
                 return true;
@@ -118,14 +111,7 @@ public class TenaciousRetryBlobContainerTests extends ESTestCase {
         when(blobContainer.listBlobsByPrefix(any(), any())).thenThrow(new IOException());
         when(blobContainer.children(any())).thenThrow(new IOException("children"));
 
-        int maximumRetries = randomIntBetween(5, 9);
-
-        TenaciousRetryBlobContainer tenaciousRetryBlobContainer = new TenaciousRetryBlobContainer(
-            blobContainer,
-            maximumRetries,
-            BackoffPolicy.linearBackoff(TimeValue.timeValueMillis(10), Integer.MAX_VALUE, TimeValue.ONE_MINUTE),
-            repositoriesMetrics
-        ) {
+        TenaciousRetryBlobContainer tenaciousRetryBlobContainer = new TenaciousRetryBlobContainer(blobContainer, repositoriesMetrics) {
             @Override
             protected boolean isExceptionRetryable(Exception e) {
                 return e instanceof IOException;
@@ -167,7 +153,9 @@ public class TenaciousRetryBlobContainerTests extends ESTestCase {
         when(blobContainer.listBlobs(any())).thenThrow(new IOException("listBlobs"))
             .thenThrow(new IOException("listBlobs"))
             .thenReturn(answer);
-        when(blobContainer.listBlobsByPrefix(any(), any())).thenThrow(new IOException());
+        when(blobContainer.listBlobsByPrefix(any(), any())).thenThrow(new IOException())
+            .thenThrow(new IOException())
+            .thenThrow(new RuntimeException());
 
         assertThat(tenaciousRetryBlobContainer.listBlobs(OperationPurpose.INDICES), is(answer));
         verify(blobContainer, times(3)).listBlobs(any());
@@ -177,12 +165,12 @@ public class TenaciousRetryBlobContainerTests extends ESTestCase {
         assertThat(getMeasurements(recordingMeterRegistry, METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_SUCCESS_HISTOGRAM), equalTo(1));
 
         recordingMeterRegistry.getRecorder().resetCalls();
-        expectThrows(IOException.class, () -> tenaciousRetryBlobContainer.listBlobsByPrefix(OperationPurpose.INDICES, randomIndexName()));
-        recordingMeterRegistry.getRecorder().collect();
-        assertThat(
-            getMeasurements(recordingMeterRegistry, METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_ATTEMPTS_HISTOGRAM),
-            equalTo(maximumRetries - 1)
+        expectThrows(
+            RuntimeException.class,
+            () -> tenaciousRetryBlobContainer.listBlobsByPrefix(OperationPurpose.INDICES, randomIndexName())
         );
+        recordingMeterRegistry.getRecorder().collect();
+        assertThat(getMeasurements(recordingMeterRegistry, METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_ATTEMPTS_HISTOGRAM), equalTo(2));
         assertThat(getMeasurements(recordingMeterRegistry, METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_FAILURE_HISTOGRAM), equalTo(1));
 
         // Key retryable method children()
@@ -201,14 +189,14 @@ public class TenaciousRetryBlobContainerTests extends ESTestCase {
 
         reset(blobContainer);
         recordingMeterRegistry.getRecorder().resetCalls();
-        when(blobContainer.children(any())).thenThrow(new IOException("children"));
-        expectThrows(IOException.class, () -> tenaciousRetryBlobContainer.children(OperationPurpose.INDICES));
+        when(blobContainer.children(any())).thenThrow(new IOException("children"))
+            .thenThrow(new IOException("children"))
+            .thenThrow(new IOException("children"))
+            .thenThrow(new RuntimeException());
+        expectThrows(RuntimeException.class, () -> tenaciousRetryBlobContainer.children(OperationPurpose.INDICES));
         recordingMeterRegistry.getRecorder().collect();
 
-        assertThat(
-            getMeasurements(recordingMeterRegistry, METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_ATTEMPTS_HISTOGRAM),
-            equalTo(maximumRetries - 1)
-        );
+        assertThat(getMeasurements(recordingMeterRegistry, METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_ATTEMPTS_HISTOGRAM), equalTo(3));
         assertThat(getMeasurements(recordingMeterRegistry, METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_FAILURE_HISTOGRAM), equalTo(1));
     }
 

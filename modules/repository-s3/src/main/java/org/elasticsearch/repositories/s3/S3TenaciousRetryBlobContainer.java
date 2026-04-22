@@ -12,7 +12,6 @@ package org.elasticsearch.repositories.s3;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.support.TenaciousRetryBlobContainer;
 import org.elasticsearch.repositories.RepositoriesMetrics;
@@ -24,19 +23,10 @@ import static software.amazon.awssdk.http.HttpStatusCode.THROTTLING;
 
 public class S3TenaciousRetryBlobContainer extends TenaciousRetryBlobContainer {
 
-    private final int maxRetries;
-    private final BackoffPolicy backoffPolicy;
     private final RepositoriesMetrics repositoriesMetrics;
 
-    public S3TenaciousRetryBlobContainer(
-        BlobContainer delegate,
-        int maxRetries,
-        BackoffPolicy backoffPolicy,
-        RepositoriesMetrics repositoriesMetrics
-    ) {
-        super(delegate, maxRetries, backoffPolicy, repositoriesMetrics);
-        this.maxRetries = maxRetries;
-        this.backoffPolicy = backoffPolicy;
+    public S3TenaciousRetryBlobContainer(BlobContainer delegate, RepositoriesMetrics repositoriesMetrics) {
+        super(delegate, repositoriesMetrics);
         this.repositoriesMetrics = repositoriesMetrics;
     }
 
@@ -61,6 +51,6 @@ public class S3TenaciousRetryBlobContainer extends TenaciousRetryBlobContainer {
 
     @Override
     protected BlobContainer wrapChild(BlobContainer child) {
-        return new S3TenaciousRetryBlobContainer(child, maxRetries, backoffPolicy, repositoriesMetrics);
+        return new S3TenaciousRetryBlobContainer(child, repositoriesMetrics);
     }
 }

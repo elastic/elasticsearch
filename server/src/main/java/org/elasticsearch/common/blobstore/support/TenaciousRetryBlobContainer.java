@@ -11,15 +11,14 @@ package org.elasticsearch.common.blobstore.support;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.core.CheckedSupplier;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 
 import java.io.IOException;
-import java.util.Iterator;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -31,22 +30,16 @@ import java.util.Map;
 public abstract class TenaciousRetryBlobContainer extends FilterBlobContainer {
 
     private static final Logger logger = LogManager.getLogger(TenaciousRetryBlobContainer.class);
-    private final int maxRetries;
-    private final BackoffPolicy backoffPolicy;
     private final RepositoriesMetrics repositoriesMetrics;
     private static final int INITIAL_ATTEMPT = 1;
     private static final String REPOSITORY_TYPE = "cloud_provider";
+    public static final int MAX_SUPPRESSED_EXCEPTIONS = 10;
+    private final List<Exception> failures;
 
-    public TenaciousRetryBlobContainer(
-        BlobContainer delegate,
-        int maxRetries,
-        BackoffPolicy backoffPolicy,
-        RepositoriesMetrics repositoriesMetrics
-    ) {
+    public TenaciousRetryBlobContainer(BlobContainer delegate, RepositoriesMetrics repositoriesMetrics) {
         super(delegate);
-        this.maxRetries = maxRetries;
-        this.backoffPolicy = backoffPolicy;
         this.repositoriesMetrics = repositoriesMetrics;
+        this.failures = new ArrayList<>(MAX_SUPPRESSED_EXCEPTIONS);
     }
 
     protected abstract boolean isExceptionRetryable(Exception e);
@@ -82,22 +75,29 @@ public abstract class TenaciousRetryBlobContainer extends FilterBlobContainer {
 
     private <T, E extends Exception> T execute(CheckedSupplier<T, E> operation) throws E {
         int attempts = INITIAL_ATTEMPT;
-        final Iterator<TimeValue> iterator = backoffPolicy.iterator();
+
         while (true) {
             try {
                 T t = operation.get();
                 maybeLogSuccessfulRetry(attempts);
                 return t;
             } catch (Exception e) {
-                if (isExceptionRetryable(e) && attempts < maxRetries) {
+                if (isExceptionRetryable(e)) {
                     attempts++;
+                    if (failures.size() < MAX_SUPPRESSED_EXCEPTIONS) {
+                        failures.add(e);
+                    }
                     logRetryAttempt();
                     try {
-                        Thread.sleep(iterator.next().millis());
+                        Thread.sleep(getRetryDelayInMillis(attempts));
                     } catch (InterruptedException exception) {
+                        logger.info("");
                         Thread.currentThread().interrupt();
                     }
                 } else {
+                    for (Exception failure : failures) {
+                        e.addSuppressed(failure);
+                    }
                     logRetryFailure(e);
                     throw e;
                 }
@@ -124,4 +124,8 @@ public abstract class TenaciousRetryBlobContainer extends FilterBlobContainer {
         repositoriesMetrics.allocationTransientErrorRetryFailureCounter().incrementBy(1, Map.of(REPOSITORY_TYPE, getRepositoryType()));
     }
 
+    protected long getRetryDelayInMillis(int attempt) {
+        // Initial delay is 10 ms and cap max delay at 10 * 1024 millis, i.e. it retries every ~10 seconds at a minimum
+        return 10L << (Math.min(attempt - 1, 10));
+    }
 }

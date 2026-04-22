@@ -48,7 +48,6 @@ import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -484,7 +483,6 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
                     false,
                     null,
                     false,
-                    IndexVersion.current(),
                     true,
                     true
                 );

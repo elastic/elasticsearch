@@ -460,15 +460,6 @@ tests:
   method: testCancellationWhileWaitingOnWaitForSpace
   issue: https://github.com/elastic/elasticsearch/issues/147073
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=get/100_synthetic_source/fields with ignore_malformed}
-  issue: https://github.com/elastic/elasticsearch/issues/147064
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=mget/90_synthetic_source/keyword with normalizer and skip store original value}
-  issue: https://github.com/elastic/elasticsearch/issues/147064
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=mget/90_synthetic_source/keyword with built-in normalizer}
-  issue: https://github.com/elastic/elasticsearch/issues/147064
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=mget/90_synthetic_source/keyword with non-lowercase normalizer}
   issue: https://github.com/elastic/elasticsearch/issues/147064
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
@@ -495,6 +486,9 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=indices.simulate_index_template/10_basic/Simulate index template with data stream with mapping and setting overrides}
   issue: https://github.com/elastic/elasticsearch/issues/147064
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search.vectors/260_knn_lookup_query_builder/Test error when field is missing}
+  issue: https://github.com/elastic/elasticsearch/issues/147076
 
 # Examples:
 #

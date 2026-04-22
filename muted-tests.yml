@@ -478,6 +478,9 @@ tests:
 - class: org.elasticsearch.xpack.security.operator.OperatorPrivilegesIT
   method: testNonOperatorUserCanCallAnalyzeRepositoryAPI
   issue: https://github.com/elastic/elasticsearch/issues/147171
+- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
+  method: testBulkOperations {useLegacyFormat=false useSyntheticSource=true}
+  issue: https://github.com/elastic/elasticsearch/issues/147177
 
 # Examples:
 #

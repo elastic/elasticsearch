@@ -1,0 +1,1 @@
+PROMQL index=k8s step=1h bytes=(SUM by (pod) (network.bytes_in))

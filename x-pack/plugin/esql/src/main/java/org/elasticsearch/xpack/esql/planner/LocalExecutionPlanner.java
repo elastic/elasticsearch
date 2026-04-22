@@ -182,6 +182,7 @@ import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -1551,22 +1552,28 @@ public class LocalExecutionPlanner {
         PhysicalOperation source = plan(collapse.child(), context);
         Layout layout = source.layout;
 
-        Set<NameId> collapseIds = collapse.collapseAttributes().stream().map(Attribute::id).collect(java.util.stream.Collectors.toSet());
-
-        int[] collapseChannels = collapse.collapseAttributes().stream().mapToInt(a -> layout.get(a.id()).channel()).toArray();
+        List<Attribute> collapseAttributes = collapse.collapseAttributes();
+        int[] collapseChannels = new int[collapseAttributes.size()];
+        Set<NameId> collapseIds = new HashSet<>(collapseAttributes.size());
+        int timestampChannel = -1;
+        for (int i = 0; i < collapseAttributes.size(); i++) {
+            Attribute a = collapseAttributes.get(i);
+            int channel = layout.get(a.id()).channel();
+            collapseChannels[i] = channel;
+            collapseIds.add(a.id());
+            if (a.dataType() == DataType.DATETIME) {
+                timestampChannel = channel;
+            }
+        }
+        if (timestampChannel == -1) {
+            throw new IllegalStateException("TimeSeriesCollapseExec has no DATETIME collapse attribute");
+        }
 
         int[] keyChannels = collapse.output()
             .stream()
             .filter(a -> collapseIds.contains(a.id()) == false)
             .mapToInt(a -> layout.get(a.id()).channel())
             .toArray();
-
-        int timestampChannel = collapse.collapseAttributes()
-            .stream()
-            .filter(a -> a.dataType() == DataType.DATETIME)
-            .mapToInt(a -> layout.get(a.id()).channel())
-            .findFirst()
-            .orElseThrow(() -> new IllegalStateException("TimeSeriesCollapseExec has no DATETIME collapse attribute"));
 
         return source.with(new TimeSeriesCollapseOperator.Factory(keyChannels, collapseChannels, timestampChannel), layout);
     }

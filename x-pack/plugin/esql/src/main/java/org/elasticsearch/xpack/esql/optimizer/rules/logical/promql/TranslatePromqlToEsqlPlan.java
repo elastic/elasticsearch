@@ -224,6 +224,8 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
                 .stream()
                 .filter(a -> a.name().equals(stepName) || a.name().equals(valueName))
                 .collect(Collectors.toList());
+            assert collapseAttributes.size() == 2
+                : "expected step [" + stepName + "] and value [" + valueName + "] in output, found " + collapseAttributes;
             plan = new TimeSeriesCollapse(promqlCommand.source(), plan, collapseAttributes);
         }
 

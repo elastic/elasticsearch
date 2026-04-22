@@ -20,6 +20,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.UpdateForV10;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -56,6 +57,7 @@ public final class BulkRequestParser {
     private static final ParseField TYPE = new ParseField("_type");
     private static final ParseField ID = new ParseField("_id");
     private static final ParseField ROUTING = new ParseField("routing");
+    private static final ParseField SLICE = new ParseField("_slice");
     private static final ParseField OP_TYPE = new ParseField("op_type");
     private static final ParseField VERSION = new ParseField("version");
     private static final ParseField VERSION_TYPE = new ParseField("version_type");
@@ -351,6 +353,8 @@ public final class BulkRequestParser {
                 String index = defaultIndex;
                 String id = null;
                 String routing = defaultRouting;
+                boolean routingProvided = false;
+                boolean sliceProvided = false;
                 String opType = null;
                 long version = Versions.MATCH_ANY;
                 VersionType versionType = VersionType.INTERNAL;
@@ -387,7 +391,26 @@ public final class BulkRequestParser {
                             } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
                                 id = parser.text();
                             } else if (ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
+                                if (sliceProvided) {
+                                    throw new IllegalArgumentException(
+                                        "Action/metadata line [" + line + "] contains both [routing] and [_slice]"
+                                    );
+                                }
                                 routing = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
+                                routingProvided = true;
+                            } else if (SLICE.match(currentFieldName, parser.getDeprecationHandler())) {
+                                if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
+                                    throw new IllegalArgumentException("request does not support [_slice]");
+                                }
+                                final String sliceValue = parser.text();
+                                SliceIndexing.validateUserSliceValue(sliceValue);
+                                if (routingProvided) {
+                                    throw new IllegalArgumentException(
+                                        "Action/metadata line [" + line + "] contains both [routing] and [_slice]"
+                                    );
+                                }
+                                routing = stringDeduplicator.computeIfAbsent(sliceValue, Function.identity());
+                                sliceProvided = true;
                             } else if (OP_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                                 opType = parser.text();
                             } else if (VERSION.match(currentFieldName, parser.getDeprecationHandler())) {

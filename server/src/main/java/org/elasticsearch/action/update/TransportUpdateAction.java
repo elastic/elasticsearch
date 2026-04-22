@@ -43,6 +43,8 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.InferenceFieldMapper;
@@ -129,6 +131,31 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     @Override
     protected void resolveRequest(ProjectState state, UpdateRequest docWriteRequest) {
         docWriteRequest.routing(state.metadata().resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
+        requireSliceRoutingWhenEnabled(state, docWriteRequest);
+    }
+
+    private static void requireSliceRoutingWhenEnabled(ProjectState state, UpdateRequest request) {
+        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
+            return;
+        }
+        final String concreteName = IndexNameExpressionResolver.resolveDateMathExpression(request.index());
+        final var indexAbstraction = state.metadata().getIndicesLookup().get(concreteName);
+        if (indexAbstraction == null) {
+            return;
+        }
+        final var writeIndex = indexAbstraction.getWriteIndex();
+        if (writeIndex == null) {
+            return;
+        }
+        final IndexMetadata targetMetadata = state.metadata().index(writeIndex);
+        if (targetMetadata == null) {
+            return;
+        }
+        if (IndexSettings.SLICE_ENABLED.get(targetMetadata.getSettings()) && request.routing() == null) {
+            throw new IllegalArgumentException(
+                "[_slice] is required when [index.slice.enabled] is true for request targeting [" + request.index() + "]"
+            );
+        }
     }
 
     @Override

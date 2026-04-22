@@ -10,16 +10,20 @@
 package org.elasticsearch.rest.action.document;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.InputStreamReader;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class RestIndexActionIT extends ESIntegTestCase {
@@ -49,5 +53,46 @@ public class RestIndexActionIT extends ESIntegTestCase {
                 containsString("REDACTED (`StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION` disabled)")
             )
         );
+    }
+
+    public void testSliceValidationAndRequirement() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        Request create = new Request("PUT", "/slice-index-it");
+        create.setJsonEntity("""
+            {
+              "settings": {
+                "index.slice.enabled": true
+              }
+            }""");
+        getRestClient().performRequest(create);
+
+        Request missingSlice = new Request("POST", "/slice-index-it/_doc/1");
+        missingSlice.setJsonEntity("""
+            {
+              "field": "value"
+            }""");
+        ResponseException missingSliceException = expectThrows(ResponseException.class, () -> getRestClient().performRequest(missingSlice));
+        String missingSliceBody = Streams.copyToString(new InputStreamReader(missingSliceException.getResponse().getEntity().getContent(), UTF_8));
+        assertThat(missingSliceBody, containsString("[_slice] is required when [index.slice.enabled] is true"));
+
+        Request invalidSlice = new Request("POST", "/slice-index-it/_doc/2");
+        invalidSlice.addParameter("_slice", "_all");
+        invalidSlice.setJsonEntity("""
+            {
+              "field": "value"
+            }""");
+        ResponseException invalidSliceException = expectThrows(ResponseException.class, () -> getRestClient().performRequest(invalidSlice));
+        String invalidSliceBody = Streams.copyToString(new InputStreamReader(invalidSliceException.getResponse().getEntity().getContent(), UTF_8));
+        assertThat(invalidSliceBody, containsString("invalid [_slice] value"));
+
+        Request validSlice = new Request("POST", "/slice-index-it/_doc/3");
+        validSlice.addParameter("_slice", "s1");
+        validSlice.setJsonEntity("""
+            {
+              "field": "value"
+            }""");
+        Response response = getRestClient().performRequest(validSlice);
+        ObjectPath objectPath = ObjectPath.createFromResponse(response);
+        assertThat(objectPath.evaluate("result"), equalTo("created"));
     }
 }

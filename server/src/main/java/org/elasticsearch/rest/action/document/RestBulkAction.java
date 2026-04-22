@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -101,6 +102,19 @@ public class RestBulkAction extends BaseRestHandler {
             BulkRequest bulkRequest = new BulkRequest();
             String defaultIndex = request.param("index");
             String defaultRouting = request.param("routing");
+            String defaultSlice = request.param("_slice");
+            if (defaultSlice != null && SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
+                throw new IllegalArgumentException("request does not support [_slice]");
+            }
+            if (defaultSlice != null) {
+                SliceIndexing.validateUserSliceValue(defaultSlice);
+            }
+            if (defaultSlice != null && defaultRouting != null) {
+                throw new IllegalArgumentException("[routing] is not allowed together with [_slice]");
+            }
+            if (defaultSlice != null) {
+                defaultRouting = defaultSlice;
+            }
             FetchSourceContext defaultFetchSourceContext = FetchSourceContext.parseFromRestRequest(request);
             String defaultPipeline = request.param("pipeline");
             boolean defaultListExecutedPipelines = request.paramAsBoolean("list_executed_pipelines", false);
@@ -178,10 +192,24 @@ public class RestBulkAction extends BaseRestHandler {
         ChunkHandler(boolean allowExplicitIndex, RestRequest request, Supplier<IncrementalBulkService.Handler> handlerSupplier) {
             this.request = request;
             this.handlerSupplier = handlerSupplier;
+            String defaultRouting = request.param("routing");
+            String defaultSlice = request.param("_slice");
+            if (defaultSlice != null && SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
+                throw new IllegalArgumentException("request does not support [_slice]");
+            }
+            if (defaultSlice != null) {
+                SliceIndexing.validateUserSliceValue(defaultSlice);
+            }
+            if (defaultSlice != null && defaultRouting != null) {
+                throw new IllegalArgumentException("[routing] is not allowed together with [_slice]");
+            }
+            if (defaultSlice != null) {
+                defaultRouting = defaultSlice;
+            }
             this.parser = new BulkRequestParser(true, RestUtils.getIncludeSourceOnError(request), request.getRestApiVersion())
                 .incrementalParser(
                     request.param("index"),
-                    request.param("routing"),
+                    defaultRouting,
                     FetchSourceContext.parseFromRestRequest(request),
                     request.param("pipeline"),
                     request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, false),

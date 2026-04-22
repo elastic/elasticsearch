@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.streams.StreamType;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -130,7 +131,21 @@ public class RestIndexAction extends BaseRestHandler {
 
         IndexRequest indexRequest = new IndexRequest(index);
         indexRequest.id(request.param("id"));
-        indexRequest.routing(request.param("routing"));
+
+        final String routing = request.param("routing");
+        final String slice = request.param("_slice");
+        if (slice != null && SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
+            throw new IllegalArgumentException("request does not support [_slice]");
+        }
+        if (slice != null) {
+            SliceIndexing.validateUserSliceValue(slice);
+        }
+        if (slice != null && routing != null) {
+            throw new IllegalArgumentException("[routing] is not allowed together with [_slice]");
+        }
+
+        indexRequest.routing(slice != null ? slice : routing);
+
         indexRequest.setPipeline(request.param("pipeline"));
         indexRequest.indexSource().source(source, request.getXContentType());
         indexRequest.timeout(request.paramAsTime("timeout", IndexRequest.DEFAULT_TIMEOUT));

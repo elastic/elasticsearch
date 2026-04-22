@@ -29,16 +29,16 @@ import org.elasticsearch.core.Releasables;
 // end generated imports
 
 /**
- * A rate grouping aggregation definition for long. This implementation supports the `irate` and `idelta` functions.
+ * An irate grouping aggregation definition for long.
  * This class is generated. Edit `X-IrateAggregator.java.st` instead.
  */
 @GroupingAggregator(
     value = { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "LONG_BLOCK") }
 )
 public class IrateLongAggregator {
-    public static LongIrateGroupingState initGrouping(DriverContext driverContext, boolean isDelta, boolean isDateNanos) {
+    public static LongIrateGroupingState initGrouping(DriverContext driverContext, boolean isDateNanos) {
         final int dateFactor = isDateNanos ? 1_000_000_000 : 1000;
-        return new LongIrateGroupingState(driverContext.bigArrays(), driverContext.breaker(), isDelta, dateFactor);
+        return new LongIrateGroupingState(driverContext.bigArrays(), driverContext.breaker(), dateFactor);
     }
 
     public static void combine(LongIrateGroupingState current, int groupId, long value, long timestamp) {
@@ -88,14 +88,12 @@ public class IrateLongAggregator {
         private final BigArrays bigArrays;
         private final CircuitBreaker breaker;
         private long stateBytes; // for individual states
-        private final boolean isDelta;
         private final int dateFactor;
 
-        LongIrateGroupingState(BigArrays bigArrays, CircuitBreaker breaker, boolean isDelta, int dateFactor) {
+        LongIrateGroupingState(BigArrays bigArrays, CircuitBreaker breaker, int dateFactor) {
             this.bigArrays = bigArrays;
             this.breaker = breaker;
             this.states = bigArrays.newObjectArray(1);
-            this.isDelta = isDelta;
             this.dateFactor = dateFactor;
         }
 
@@ -104,7 +102,7 @@ public class IrateLongAggregator {
         }
 
         void adjustBreaker(long bytes) {
-            breaker.addEstimateBytesAndMaybeBreak(bytes, "<<rate aggregation>>");
+            breaker.addEstimateBytesAndMaybeBreak(bytes, "<<irate aggregation>>");
             stateBytes += bytes;
             assert stateBytes >= 0 : stateBytes;
         }
@@ -203,18 +201,13 @@ public class IrateLongAggregator {
                         rates.appendNull();
                         continue;
                     }
-                    if (isDelta) {
-                        // delta: just return the difference
-                        rates.appendDouble(state.lastValue - state.secondLastValue);
-                    } else {
-                        // When the last value is less than the previous one, we assume a reset
-                        // and use the last value directly.
-                        final double ydiff = state.lastValue >= state.secondLastValue
-                            ? state.lastValue - state.secondLastValue
-                            : state.lastValue;
-                        final long xdiff = state.lastTimestamp - state.secondLastTimestamp;
-                        rates.appendDouble(ydiff / xdiff * dateFactor);
-                    }
+                    // When the last value is less than the previous one, we assume a reset
+                    // and use the last value directly.
+                    final double ydiff = state.lastValue >= state.secondLastValue
+                        ? state.lastValue - state.secondLastValue
+                        : state.lastValue;
+                    final long xdiff = state.lastTimestamp - state.secondLastTimestamp;
+                    rates.appendDouble(ydiff / xdiff * dateFactor);
                 }
                 return rates.build();
             }

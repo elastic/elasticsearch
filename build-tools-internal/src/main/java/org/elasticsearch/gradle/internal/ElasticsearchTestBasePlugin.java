@@ -350,30 +350,13 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
                 nonInputSystemProperties.systemProperty("jdk.attach.allowAttachSelf", () -> agentFiles.isEmpty() ? "false" : "true");
 
                 // Bridge
-                String modulesContainingEntitlementInstrumentation = "java.logging,java.net.http,java.naming,jdk.net";
+                String modulesContainingEntitlementInstrumentation = "java.logging,java.net.http,java.naming,jdk.net,jdk.zipfs";
                 test.getInputs().files(bridgeFiles).optional(true);
                 // Tests may not be modular, but the JDK still is
                 test.jvmArgs(
                     "--add-exports=java.base/org.elasticsearch.entitlement.bridge=ALL-UNNAMED,"
                         + modulesContainingEntitlementInstrumentation
                 );
-
-                // Export internal JDK packages that are required (temporarily) to declare instrumentation
-                test.jvmArgs("--add-exports=jdk.jlink/jdk.tools.jlink.internal=ALL-UNNAMED");
-                test.jvmArgs("--add-exports=jdk.internal.vm.ci/jdk.vm.ci.services=ALL-UNNAMED");
-                test.jvmArgs("--add-exports=java.base/sun.net.www=ALL-UNNAMED");
-                test.jvmArgs("--add-exports=java.base/sun.net.www.protocol.ftp=ALL-UNNAMED");
-                test.jvmArgs("--add-exports=java.base/sun.net.www.protocol.file=ALL-UNNAMED");
-                test.jvmArgs("--add-exports=java.base/sun.net.www.protocol.jar=ALL-UNNAMED");
-                test.jvmArgs("--add-exports=java.base/sun.net.www.protocol.http=ALL-UNNAMED");
-                test.jvmArgs("--add-exports=java.base/sun.net.www.protocol.https=ALL-UNNAMED");
-                test.jvmArgs("--add-exports=java.base/sun.net.www.protocol.mailto=ALL-UNNAMED");
-                test.jvmArgs("--add-exports=java.base/sun.nio.ch=ALL-UNNAMED");
-                test.jvmArgs("--add-exports=java.base/jdk.internal.foreign=ALL-UNNAMED");
-                test.jvmArgs("--add-exports=java.base/jdk.internal.foreign.abi=ALL-UNNAMED");
-                test.jvmArgs("--add-exports=java.base/jdk.internal.foreign.layout=ALL-UNNAMED");
-                test.jvmArgs("--add-exports=java.net.http/jdk.internal.net.http=ALL-UNNAMED");
-                test.jvmArgs("--add-exports=jdk.jdi/com.sun.tools.jdi=ALL-UNNAMED");
             });
     }
 

@@ -547,10 +547,7 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
 
         try {
             try {
-                expectThrows(
-                    CircuitBreakingException.class,
-                    () -> stream.writeChunk(chunk, () -> releasableClosed.set(true))
-                );
+                expectThrows(CircuitBreakingException.class, () -> stream.writeChunk(chunk, () -> releasableClosed.set(true)));
             } finally {
                 chunk.close();
             }

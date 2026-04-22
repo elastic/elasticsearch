@@ -280,12 +280,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         SearchHits hits = new SearchHits(new SearchHit[] { hit1, hit2 }, new TotalHits(2, TotalHits.Relation.EQUAL_TO), 1f);
         try {
             TransportVersion version = TransportVersionUtils.randomVersion();
-            SearchHits results = copyWriteable(
-                hits,
-                getNamedWriteableRegistry(),
-                (StreamInput in) -> SearchHits.readFrom(in),
-                version
-            );
+            SearchHits results = copyWriteable(hits, getNamedWriteableRegistry(), (StreamInput in) -> SearchHits.readFrom(in), version);
             try {
                 SearchShardTarget deserializedTarget = results.getAt(0).getShard();
                 assertThat(deserializedTarget, equalTo(target));

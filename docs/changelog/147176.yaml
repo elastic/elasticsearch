@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 147176
+summary: Implicit Roles SPI
+type: enhancement

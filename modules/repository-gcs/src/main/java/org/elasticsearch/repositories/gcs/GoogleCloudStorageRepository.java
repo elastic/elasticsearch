@@ -60,6 +60,7 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
         Property.Dynamic
     );
     static final Setting<String> CLIENT_NAME = Setting.simpleString("client", "default");
+    static final Setting<Boolean> TENACIOUS_RETRIES_ENABLED = Setting.boolSetting("gcs.client.tenacious_retries.enabled", false);
 
     /**
      * We will retry CASes that fail due to throttling. We use an {@link BackoffPolicy#linearBackoff(TimeValue, int, TimeValue)}
@@ -89,6 +90,7 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
     private final int retryThrottledCasMaxNumberOfRetries;
     private final TimeValue retryThrottledCasMaxDelay;
     private final GcsRepositoryStatsCollector statsCollector;
+    private final boolean tenaciousRetriesEnabled;
 
     GoogleCloudStorageRepository(
         @Nullable final ProjectId projectId,
@@ -116,6 +118,7 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
         this.chunkSize = getSetting(CHUNK_SIZE, metadata);
         this.bucket = getSetting(BUCKET, metadata);
         this.clientName = CLIENT_NAME.get(metadata.settings());
+        this.tenaciousRetriesEnabled = TENACIOUS_RETRIES_ENABLED.get(metadata.settings());
         this.retryThrottledCasDelayIncrement = RETRY_THROTTLED_CAS_DELAY_INCREMENT.get(metadata.settings());
         this.retryThrottledCasMaxNumberOfRetries = RETRY_THROTTLED_CAS_MAX_NUMBER_OF_RETRIES.get(metadata.settings());
         this.retryThrottledCasMaxDelay = RETRY_THROTTLED_CAS_MAXIMUM_DELAY.get(metadata.settings());
@@ -152,7 +155,8 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
             bigArrays,
             bufferSize,
             BackoffPolicy.linearBackoff(retryThrottledCasDelayIncrement, retryThrottledCasMaxNumberOfRetries, retryThrottledCasMaxDelay),
-            statsCollector
+            statsCollector,
+            tenaciousRetriesEnabled
         );
     }
 

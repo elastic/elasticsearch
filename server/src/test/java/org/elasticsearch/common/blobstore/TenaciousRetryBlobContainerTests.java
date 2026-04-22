@@ -9,7 +9,6 @@
 
 package org.elasticsearch.common.blobstore;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.blobstore.support.TenaciousRetryBlobContainer;
@@ -43,7 +42,6 @@ import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_ALLOCATI
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.mock;
@@ -156,8 +154,7 @@ public class TenaciousRetryBlobContainerTests extends ESTestCase {
         when(blobContainer.listBlobs(any())).thenThrow(new IOException("listBlobs"))
             .thenThrow(new IOException("listBlobs"))
             .thenReturn(answer);
-        when(blobContainer.listBlobsByPrefix(any(), any()))
-            .thenThrow(new IOException())
+        when(blobContainer.listBlobsByPrefix(any(), any())).thenThrow(new IOException())
             .thenThrow(new IOException())
             .thenThrow(new IllegalArgumentException());
 

@@ -365,7 +365,8 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                             bigArrays,
                             randomIntBetween(1, 8) * 1024,
                             BackoffPolicy.noBackoff(),
-                            this.statsCollector()
+                            this.statsCollector(),
+                            false
                         ) {
                             @Override
                             long getLargeBlobThresholdInBytes() {

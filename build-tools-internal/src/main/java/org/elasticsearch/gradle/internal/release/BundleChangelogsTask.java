@@ -195,7 +195,7 @@ public class BundleChangelogsTask extends DefaultTask {
                 var prNumber = f.getName().replace(".yaml", "");
                 var output = gitWrapper.runCommand("git", "log", bcRef, "--grep", "(#" + prNumber + ")");
                 return output.trim().isEmpty() == false;
-            }).map(ChangelogEntry::parse).sorted(Comparator.comparing(ChangelogEntry::getPr)).collect(toList());
+            }).map(ChangelogEntry::parse).sorted(changelogEntryComparator()).collect(toList());
 
             // Fetch changelog entries from external repositories
             for (ExternalChangelogSource source : externalSources) {
@@ -206,7 +206,7 @@ public class BundleChangelogsTask extends DefaultTask {
                 }
             }
 
-            entries.sort(Comparator.comparing(ChangelogEntry::getPr));
+            entries.sort(changelogEntryComparator());
 
             ChangelogBundle bundle = new ChangelogBundle(version, finalize, Instant.now().toString(), entries);
 
@@ -311,6 +311,17 @@ public class BundleChangelogsTask extends DefaultTask {
      * All other refs (including branch names with slashes like {@code feature/foo})
      * are passed through unchanged.
      */
+    /**
+     * Orders bundled changelog entries by PR number, then by {@code source_repo} so entries from
+     * different repositories that share a PR number sort deterministically.
+     */
+    static Comparator<ChangelogEntry> changelogEntryComparator() {
+        return Comparator.comparing(ChangelogEntry::getPr, Comparator.nullsLast(Comparator.naturalOrder())).thenComparing(
+            ChangelogEntry::getSourceRepo,
+            Comparator.nullsFirst(Comparator.naturalOrder())
+        );
+    }
+
     static boolean isShaRef(String ref) {
         return ref.matches("(?i)^[0-9a-f]{7,40}$");
     }

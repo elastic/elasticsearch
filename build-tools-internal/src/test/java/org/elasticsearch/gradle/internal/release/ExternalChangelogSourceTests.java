@@ -12,6 +12,8 @@ package org.elasticsearch.gradle.internal.release;
 import org.junit.Test;
 
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -136,5 +138,24 @@ public class ExternalChangelogSourceTests {
         assertThat(source.repoUrl(), equalTo("https://github.com/elastic/ml-cpp.git"));
         assertThat(source.sourceRepo(), equalTo("elastic/ml-cpp"));
         assertThat(source.changelogPath(), equalTo("docs/changelog"));
+    }
+
+    @Test
+    public void testChangelogEntryComparatorUsesSourceRepoForDuplicatePrNumbers() {
+        var mlCpp = new ChangelogEntry();
+        mlCpp.setPr(100);
+        mlCpp.setSourceRepo("elastic/ml-cpp");
+        var es = new ChangelogEntry();
+        es.setPr(100);
+        es.setSourceRepo(null);
+        var other = new ChangelogEntry();
+        other.setPr(100);
+        other.setSourceRepo("elastic/other");
+
+        var entries = new ArrayList<>(List.of(mlCpp, es, other));
+        entries.sort(BundleChangelogsTask.changelogEntryComparator());
+        assertThat(entries.get(0).getSourceRepo(), nullValue());
+        assertThat(entries.get(1).getSourceRepo(), equalTo("elastic/ml-cpp"));
+        assertThat(entries.get(2).getSourceRepo(), equalTo("elastic/other"));
     }
 }

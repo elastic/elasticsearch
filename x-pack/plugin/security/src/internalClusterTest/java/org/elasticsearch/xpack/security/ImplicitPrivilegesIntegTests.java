@@ -237,7 +237,9 @@ public class ImplicitPrivilegesIntegTests extends SecurityIntegTestCase {
     public void testApiKeyWithImplicitGrantAndOwnerWithRawAccessPreservesImplicitGrant() throws Exception {
         createUserWithRole("banner", createRoleWithRawReadOnHelicarrier("raw_reader"));
 
-        assertAcked(indicesAdmin().prepareCreate("helicarrier-raw-owner").setMapping("clearance", "type=keyword", "codename", "type=keyword"));
+        assertAcked(
+            indicesAdmin().prepareCreate("helicarrier-raw-owner").setMapping("clearance", "type=keyword", "codename", "type=keyword")
+        );
         prepareIndex("helicarrier-raw-owner").setId("1")
             .setSource("clearance", "public", "codename", "hulk")
             .setRefreshPolicy(IMMEDIATE)
@@ -283,7 +285,9 @@ public class ImplicitPrivilegesIntegTests extends SecurityIntegTestCase {
     public void testApiKeyWithRawAccessAndOwnerWithImplicitGrantPreservesImplicitGrant() throws Exception {
         createUserWithRole("rogers", createRoleWithApplicationPrivilege("captain"));
 
-        assertAcked(indicesAdmin().prepareCreate("helicarrier-implicit-owner").setMapping("clearance", "type=keyword", "codename", "type=keyword"));
+        assertAcked(
+            indicesAdmin().prepareCreate("helicarrier-implicit-owner").setMapping("clearance", "type=keyword", "codename", "type=keyword")
+        );
         prepareIndex("helicarrier-implicit-owner").setId("1")
             .setSource("clearance", "public", "codename", "cap")
             .setRefreshPolicy(IMMEDIATE)

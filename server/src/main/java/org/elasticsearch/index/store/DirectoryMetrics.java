@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -112,7 +113,7 @@ public class DirectoryMetrics implements ToXContentFragment, Writeable {
         for (PluggableMetrics<?> metric : data.values()) {
             entries.putAll(metric.entries());
         }
-        return entries;
+        return Collections.unmodifiableMap(entries);
     }
 
     /**

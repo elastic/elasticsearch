@@ -1,5 +1,0 @@
-area: Analysis
-issues: []
-pr: 144770
-summary: Allow multiple synonym sets per synonym graph filter via the synonyms API
-type: feature

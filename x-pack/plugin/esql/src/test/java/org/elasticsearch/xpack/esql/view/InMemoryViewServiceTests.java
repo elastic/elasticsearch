@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelationSerializationTests;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -421,7 +422,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(as(rewritten, UnresolvedRelation.class).indexPattern().indexPattern(), equalTo("emp,index1"));
     }
 
-    public void testSiblingViewsWithExclusionAreNotMerged() {
+    public void testViewBodyExclusionNotMergedWithSibling() {
         addIndex("logs1");
         addIndex("logs2");
         addView("v1", "FROM logs*");
@@ -432,15 +433,27 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         ViewUnionAll vua = as(rewritten, ViewUnionAll.class);
         assertThat(vua.namedSubqueries().keySet(), containsInAnyOrder("v1", "v2"));
         assertThat(as(vua.namedSubqueries().get("v1"), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo("logs*"));
-        assertThat(as(vua.namedSubqueries().get("v2"), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo("-logs1"));
+        LogicalPlan v2Plan = vua.namedSubqueries().get("v2");
+        assertThat(v2Plan, instanceOf(NamedSubquery.class));
+        assertThat(as(((NamedSubquery) v2Plan).child(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo("-logs1"));
     }
 
-    public void testSiblingExclusionViewWithIndexIsNotMerged() {
+    public void testViewBodyExclusionNotMergedWithIndex() {
         addIndex("logs1");
         addView("v_excl", "FROM -logs1");
         LogicalPlan plan = query("FROM logs1, v_excl");
         LogicalPlan rewritten = replaceViews(plan);
         assertThat(rewritten, instanceOf(ViewUnionAll.class));
+    }
+
+    public void testResidualExclusionMergedWithViewBody() {
+        addIndex("logs1");
+        addIndex("remote_index");
+        addView("v1", "FROM logs1");
+        LogicalPlan plan = query("FROM v1, remote_index, -logs1");
+        LogicalPlan rewritten = replaceViews(plan);
+        assertThat(rewritten, instanceOf(UnresolvedRelation.class));
+        assertThat(as(rewritten, UnresolvedRelation.class).indexPattern().indexPattern(), equalTo("logs1,remote_index,-logs1"));
     }
 
     public void testMissingIndexPreservedWhenMixedWithView() {

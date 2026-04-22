@@ -56,8 +56,8 @@ public class DateUnitCountTests extends AbstractConfigurationFunctionTestCase {
                         new TestCaseSupplier.TypedData(null, DataType.DATETIME, "date")
                     ),
                     Matchers.startsWith(
-                        "DateUnitCountMillisEvaluator[dstUnit=Attribute[channel=0], "
-                            + "srcUnit=Attribute[channel=1], date=Attribute[channel=2], zoneId="
+                        "DateUnitCountMillisEvaluator[toUnit=Attribute[channel=0], "
+                            + "fromUnit=Attribute[channel=1], date=Attribute[channel=2], zoneId="
                     ),
                     DataType.LONG,
                     equalTo(null)
@@ -81,8 +81,8 @@ public class DateUnitCountTests extends AbstractConfigurationFunctionTestCase {
                         new TestCaseSupplier.TypedData(millis, DataType.DATETIME, "date")
                     ),
                     Matchers.startsWith(
-                        "DateUnitCountMillisEvaluator[dstUnit=Attribute[channel=0], "
-                            + "srcUnit=Attribute[channel=1], date=Attribute[channel=2], zoneId="
+                        "DateUnitCountMillisEvaluator[toUnit=Attribute[channel=0], "
+                            + "fromUnit=Attribute[channel=1], date=Attribute[channel=2], zoneId="
                             + zoneId
                             + "]"
                     ),
@@ -100,8 +100,8 @@ public class DateUnitCountTests extends AbstractConfigurationFunctionTestCase {
                         new TestCaseSupplier.TypedData(nanos, DataType.DATE_NANOS, "date")
                     ),
                     Matchers.startsWith(
-                        "DateUnitCountNanosEvaluator[dstUnit=Attribute[channel=0], "
-                            + "srcUnit=Attribute[channel=1], date=Attribute[channel=2], zoneId="
+                        "DateUnitCountNanosEvaluator[toUnit=Attribute[channel=0], "
+                            + "fromUnit=Attribute[channel=1], date=Attribute[channel=2], zoneId="
                             + zoneId
                             + "]"
                     ),
@@ -141,14 +141,12 @@ public class DateUnitCountTests extends AbstractConfigurationFunctionTestCase {
         assertThat(DateUnitCount.processMillis(new BytesRef("hh"), new BytesRef("dd"), millis, zoneId), equalTo(24L));
     }
 
-    public void testUnsupportedContainerUnitThrows() {
+    public void testConstantCombinationsViaProcessMillis() {
         ZoneId zoneId = ZoneId.of("Z");
         long millis = Instant.parse("2024-02-15T12:34:56Z").toEpochMilli();
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> DateUnitCount.processMillis(DateDiff.Part.SECOND, DateDiff.Part.MINUTE, millis, zoneId)
-        );
-        assertThat(e.getMessage(), equalTo("Unsupported unit [MINUTE]"));
+        assertThat(DateUnitCount.processMillis(DateDiff.Part.SECOND, DateDiff.Part.MINUTE, millis, zoneId), equalTo(60L));
+        assertThat(DateUnitCount.processMillis(DateDiff.Part.MINUTE, DateDiff.Part.HOUR, millis, zoneId), equalTo(60L));
+        assertThat(DateUnitCount.processMillis(DateDiff.Part.NANOSECOND, DateDiff.Part.MICROSECOND, millis, zoneId), equalTo(1000L));
     }
 }

@@ -2,7 +2,7 @@
 
 ## Supported types
 
-| dst_unit | src_unit | date | result |
+| to_unit | from_unit | date | result |
 | --- | --- | --- | --- |
 | keyword | keyword | date | long |
 | keyword | keyword | date_nanos | long |

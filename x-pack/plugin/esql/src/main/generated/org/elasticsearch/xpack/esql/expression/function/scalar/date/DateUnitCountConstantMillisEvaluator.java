@@ -28,9 +28,9 @@ public final class DateUnitCountConstantMillisEvaluator implements ExpressionEva
 
   private final Source source;
 
-  private final DateDiff.Part dstUnit;
+  private final DateDiff.Part toUnit;
 
-  private final DateDiff.Part scrUnit;
+  private final DateDiff.Part fromUnit;
 
   private final ExpressionEvaluator date;
 
@@ -40,11 +40,12 @@ public final class DateUnitCountConstantMillisEvaluator implements ExpressionEva
 
   private Warnings warnings;
 
-  public DateUnitCountConstantMillisEvaluator(Source source, DateDiff.Part dstUnit,
-      DateDiff.Part scrUnit, ExpressionEvaluator date, ZoneId zoneId, DriverContext driverContext) {
+  public DateUnitCountConstantMillisEvaluator(Source source, DateDiff.Part toUnit,
+      DateDiff.Part fromUnit, ExpressionEvaluator date, ZoneId zoneId,
+      DriverContext driverContext) {
     this.source = source;
-    this.dstUnit = dstUnit;
-    this.scrUnit = scrUnit;
+    this.toUnit = toUnit;
+    this.fromUnit = fromUnit;
     this.date = date;
     this.zoneId = zoneId;
     this.driverContext = driverContext;
@@ -83,7 +84,7 @@ public final class DateUnitCountConstantMillisEvaluator implements ExpressionEva
               continue position;
         }
         long date = dateBlock.getLong(dateBlock.getFirstValueIndex(p));
-        result.appendLong(DateUnitCount.processMillis(this.dstUnit, this.scrUnit, date, this.zoneId));
+        result.appendLong(DateUnitCount.processMillis(this.toUnit, this.fromUnit, date, this.zoneId));
       }
       return result.build();
     }
@@ -93,7 +94,7 @@ public final class DateUnitCountConstantMillisEvaluator implements ExpressionEva
     try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         long date = dateVector.getLong(p);
-        result.appendLong(p, DateUnitCount.processMillis(this.dstUnit, this.scrUnit, date, this.zoneId));
+        result.appendLong(p, DateUnitCount.processMillis(this.toUnit, this.fromUnit, date, this.zoneId));
       }
       return result.build();
     }
@@ -101,7 +102,7 @@ public final class DateUnitCountConstantMillisEvaluator implements ExpressionEva
 
   @Override
   public String toString() {
-    return "DateUnitCountConstantMillisEvaluator[" + "dstUnit=" + dstUnit + ", scrUnit=" + scrUnit + ", date=" + date + ", zoneId=" + zoneId + "]";
+    return "DateUnitCountConstantMillisEvaluator[" + "toUnit=" + toUnit + ", fromUnit=" + fromUnit + ", date=" + date + ", zoneId=" + zoneId + "]";
   }
 
   @Override
@@ -119,31 +120,31 @@ public final class DateUnitCountConstantMillisEvaluator implements ExpressionEva
   static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final DateDiff.Part dstUnit;
+    private final DateDiff.Part toUnit;
 
-    private final DateDiff.Part scrUnit;
+    private final DateDiff.Part fromUnit;
 
     private final ExpressionEvaluator.Factory date;
 
     private final ZoneId zoneId;
 
-    public Factory(Source source, DateDiff.Part dstUnit, DateDiff.Part scrUnit,
+    public Factory(Source source, DateDiff.Part toUnit, DateDiff.Part fromUnit,
         ExpressionEvaluator.Factory date, ZoneId zoneId) {
       this.source = source;
-      this.dstUnit = dstUnit;
-      this.scrUnit = scrUnit;
+      this.toUnit = toUnit;
+      this.fromUnit = fromUnit;
       this.date = date;
       this.zoneId = zoneId;
     }
 
     @Override
     public DateUnitCountConstantMillisEvaluator get(DriverContext context) {
-      return new DateUnitCountConstantMillisEvaluator(source, dstUnit, scrUnit, date.get(context), zoneId, context);
+      return new DateUnitCountConstantMillisEvaluator(source, toUnit, fromUnit, date.get(context), zoneId, context);
     }
 
     @Override
     public String toString() {
-      return "DateUnitCountConstantMillisEvaluator[" + "dstUnit=" + dstUnit + ", scrUnit=" + scrUnit + ", date=" + date + ", zoneId=" + zoneId + "]";
+      return "DateUnitCountConstantMillisEvaluator[" + "toUnit=" + toUnit + ", fromUnit=" + fromUnit + ", date=" + date + ", zoneId=" + zoneId + "]";
     }
   }
 }

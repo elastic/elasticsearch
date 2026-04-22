@@ -31,9 +31,9 @@ public final class DateUnitCountMillisEvaluator implements ExpressionEvaluator {
 
   private final Source source;
 
-  private final ExpressionEvaluator dstUnit;
+  private final ExpressionEvaluator toUnit;
 
-  private final ExpressionEvaluator srcUnit;
+  private final ExpressionEvaluator fromUnit;
 
   private final ExpressionEvaluator date;
 
@@ -43,12 +43,12 @@ public final class DateUnitCountMillisEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
-  public DateUnitCountMillisEvaluator(Source source, ExpressionEvaluator dstUnit,
-      ExpressionEvaluator srcUnit, ExpressionEvaluator date, ZoneId zoneId,
+  public DateUnitCountMillisEvaluator(Source source, ExpressionEvaluator toUnit,
+      ExpressionEvaluator fromUnit, ExpressionEvaluator date, ZoneId zoneId,
       DriverContext driverContext) {
     this.source = source;
-    this.dstUnit = dstUnit;
-    this.srcUnit = srcUnit;
+    this.toUnit = toUnit;
+    this.fromUnit = fromUnit;
     this.date = date;
     this.zoneId = zoneId;
     this.driverContext = driverContext;
@@ -56,22 +56,22 @@ public final class DateUnitCountMillisEvaluator implements ExpressionEvaluator {
 
   @Override
   public Block eval(Page page) {
-    try (BytesRefBlock dstUnitBlock = (BytesRefBlock) dstUnit.eval(page)) {
-      try (BytesRefBlock srcUnitBlock = (BytesRefBlock) srcUnit.eval(page)) {
+    try (BytesRefBlock toUnitBlock = (BytesRefBlock) toUnit.eval(page)) {
+      try (BytesRefBlock fromUnitBlock = (BytesRefBlock) fromUnit.eval(page)) {
         try (LongBlock dateBlock = (LongBlock) date.eval(page)) {
-          BytesRefVector dstUnitVector = dstUnitBlock.asVector();
-          if (dstUnitVector == null) {
-            return eval(page.getPositionCount(), dstUnitBlock, srcUnitBlock, dateBlock);
+          BytesRefVector toUnitVector = toUnitBlock.asVector();
+          if (toUnitVector == null) {
+            return eval(page.getPositionCount(), toUnitBlock, fromUnitBlock, dateBlock);
           }
-          BytesRefVector srcUnitVector = srcUnitBlock.asVector();
-          if (srcUnitVector == null) {
-            return eval(page.getPositionCount(), dstUnitBlock, srcUnitBlock, dateBlock);
+          BytesRefVector fromUnitVector = fromUnitBlock.asVector();
+          if (fromUnitVector == null) {
+            return eval(page.getPositionCount(), toUnitBlock, fromUnitBlock, dateBlock);
           }
           LongVector dateVector = dateBlock.asVector();
           if (dateVector == null) {
-            return eval(page.getPositionCount(), dstUnitBlock, srcUnitBlock, dateBlock);
+            return eval(page.getPositionCount(), toUnitBlock, fromUnitBlock, dateBlock);
           }
-          return eval(page.getPositionCount(), dstUnitVector, srcUnitVector, dateVector).asBlock();
+          return eval(page.getPositionCount(), toUnitVector, fromUnitVector, dateVector).asBlock();
         }
       }
     }
@@ -80,19 +80,19 @@ public final class DateUnitCountMillisEvaluator implements ExpressionEvaluator {
   @Override
   public long baseRamBytesUsed() {
     long baseRamBytesUsed = BASE_RAM_BYTES_USED;
-    baseRamBytesUsed += dstUnit.baseRamBytesUsed();
-    baseRamBytesUsed += srcUnit.baseRamBytesUsed();
+    baseRamBytesUsed += toUnit.baseRamBytesUsed();
+    baseRamBytesUsed += fromUnit.baseRamBytesUsed();
     baseRamBytesUsed += date.baseRamBytesUsed();
     return baseRamBytesUsed;
   }
 
-  public LongBlock eval(int positionCount, BytesRefBlock dstUnitBlock, BytesRefBlock srcUnitBlock,
+  public LongBlock eval(int positionCount, BytesRefBlock toUnitBlock, BytesRefBlock fromUnitBlock,
       LongBlock dateBlock) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
-      BytesRef dstUnitScratch = new BytesRef();
-      BytesRef srcUnitScratch = new BytesRef();
+      BytesRef toUnitScratch = new BytesRef();
+      BytesRef fromUnitScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        switch (dstUnitBlock.getValueCount(p)) {
+        switch (toUnitBlock.getValueCount(p)) {
           case 0:
               result.appendNull();
               continue position;
@@ -103,7 +103,7 @@ public final class DateUnitCountMillisEvaluator implements ExpressionEvaluator {
               result.appendNull();
               continue position;
         }
-        switch (srcUnitBlock.getValueCount(p)) {
+        switch (fromUnitBlock.getValueCount(p)) {
           case 0:
               result.appendNull();
               continue position;
@@ -125,25 +125,25 @@ public final class DateUnitCountMillisEvaluator implements ExpressionEvaluator {
               result.appendNull();
               continue position;
         }
-        BytesRef dstUnit = dstUnitBlock.getBytesRef(dstUnitBlock.getFirstValueIndex(p), dstUnitScratch);
-        BytesRef srcUnit = srcUnitBlock.getBytesRef(srcUnitBlock.getFirstValueIndex(p), srcUnitScratch);
+        BytesRef toUnit = toUnitBlock.getBytesRef(toUnitBlock.getFirstValueIndex(p), toUnitScratch);
+        BytesRef fromUnit = fromUnitBlock.getBytesRef(fromUnitBlock.getFirstValueIndex(p), fromUnitScratch);
         long date = dateBlock.getLong(dateBlock.getFirstValueIndex(p));
-        result.appendLong(DateUnitCount.processMillis(dstUnit, srcUnit, date, this.zoneId));
+        result.appendLong(DateUnitCount.processMillis(toUnit, fromUnit, date, this.zoneId));
       }
       return result.build();
     }
   }
 
-  public LongVector eval(int positionCount, BytesRefVector dstUnitVector,
-      BytesRefVector srcUnitVector, LongVector dateVector) {
+  public LongVector eval(int positionCount, BytesRefVector toUnitVector,
+      BytesRefVector fromUnitVector, LongVector dateVector) {
     try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
-      BytesRef dstUnitScratch = new BytesRef();
-      BytesRef srcUnitScratch = new BytesRef();
+      BytesRef toUnitScratch = new BytesRef();
+      BytesRef fromUnitScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        BytesRef dstUnit = dstUnitVector.getBytesRef(p, dstUnitScratch);
-        BytesRef srcUnit = srcUnitVector.getBytesRef(p, srcUnitScratch);
+        BytesRef toUnit = toUnitVector.getBytesRef(p, toUnitScratch);
+        BytesRef fromUnit = fromUnitVector.getBytesRef(p, fromUnitScratch);
         long date = dateVector.getLong(p);
-        result.appendLong(p, DateUnitCount.processMillis(dstUnit, srcUnit, date, this.zoneId));
+        result.appendLong(p, DateUnitCount.processMillis(toUnit, fromUnit, date, this.zoneId));
       }
       return result.build();
     }
@@ -151,12 +151,12 @@ public final class DateUnitCountMillisEvaluator implements ExpressionEvaluator {
 
   @Override
   public String toString() {
-    return "DateUnitCountMillisEvaluator[" + "dstUnit=" + dstUnit + ", srcUnit=" + srcUnit + ", date=" + date + ", zoneId=" + zoneId + "]";
+    return "DateUnitCountMillisEvaluator[" + "toUnit=" + toUnit + ", fromUnit=" + fromUnit + ", date=" + date + ", zoneId=" + zoneId + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(dstUnit, srcUnit, date);
+    Releasables.closeExpectNoException(toUnit, fromUnit, date);
   }
 
   private Warnings warnings() {
@@ -169,31 +169,31 @@ public final class DateUnitCountMillisEvaluator implements ExpressionEvaluator {
   static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final ExpressionEvaluator.Factory dstUnit;
+    private final ExpressionEvaluator.Factory toUnit;
 
-    private final ExpressionEvaluator.Factory srcUnit;
+    private final ExpressionEvaluator.Factory fromUnit;
 
     private final ExpressionEvaluator.Factory date;
 
     private final ZoneId zoneId;
 
-    public Factory(Source source, ExpressionEvaluator.Factory dstUnit,
-        ExpressionEvaluator.Factory srcUnit, ExpressionEvaluator.Factory date, ZoneId zoneId) {
+    public Factory(Source source, ExpressionEvaluator.Factory toUnit,
+        ExpressionEvaluator.Factory fromUnit, ExpressionEvaluator.Factory date, ZoneId zoneId) {
       this.source = source;
-      this.dstUnit = dstUnit;
-      this.srcUnit = srcUnit;
+      this.toUnit = toUnit;
+      this.fromUnit = fromUnit;
       this.date = date;
       this.zoneId = zoneId;
     }
 
     @Override
     public DateUnitCountMillisEvaluator get(DriverContext context) {
-      return new DateUnitCountMillisEvaluator(source, dstUnit.get(context), srcUnit.get(context), date.get(context), zoneId, context);
+      return new DateUnitCountMillisEvaluator(source, toUnit.get(context), fromUnit.get(context), date.get(context), zoneId, context);
     }
 
     @Override
     public String toString() {
-      return "DateUnitCountMillisEvaluator[" + "dstUnit=" + dstUnit + ", srcUnit=" + srcUnit + ", date=" + date + ", zoneId=" + zoneId + "]";
+      return "DateUnitCountMillisEvaluator[" + "toUnit=" + toUnit + ", fromUnit=" + fromUnit + ", date=" + date + ", zoneId=" + zoneId + "]";
     }
   }
 }

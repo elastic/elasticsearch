@@ -15,6 +15,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -31,8 +32,6 @@ import java.io.IOException;
 import java.time.DayOfWeek;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.time.temporal.ChronoUnit;
-import java.time.temporal.IsoFields;
 import java.time.temporal.TemporalAdjusters;
 import java.util.List;
 
@@ -45,7 +44,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStringAndExact;
 
 /**
- * Counts how many {@code dstUnit} values fit into one {@code srcUnit} interval for the given date.
+ * Counts how many {@code toUnit} values fit into one {@code fromUnit} interval for the given date.
  */
 public class DateUnitCount extends EsqlConfigurationFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -53,17 +52,18 @@ public class DateUnitCount extends EsqlConfigurationFunction {
         "DateUnitCount",
         DateUnitCount::new
     );
+
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(DateUnitCount.class)
         .ternaryConfig(DateUnitCount::new)
         .name("date_unit_count");
 
-    private final Expression dstUnit;
-    private final Expression srcUnit;
+    private final Expression toUnit;
+    private final Expression fromUnit;
     private final Expression date;
 
     @FunctionInfo(
         returnType = "long",
-        description = "Counts how many `dst_unit` values are contained in a single `src_unit` period for `date`.",
+        description = "Counts how many `to_unit` values are contained in a single `from_unit` period for `date`.",
         examples = @Example(
             description = "Count the number of days in February for a timestamp using explicit units.",
             file = "date",
@@ -72,14 +72,14 @@ public class DateUnitCount extends EsqlConfigurationFunction {
     )
     public DateUnitCount(
         Source source,
-        @Param(name = "dst_unit", type = { "keyword" }, description = "The unit to count.") Expression dstUnit,
-        @Param(name = "src_unit", type = { "keyword" }, description = "The enclosing container unit.") Expression srcUnit,
+        @Param(name = "to_unit", type = { "keyword" }, description = "The unit to count.") Expression toUnit,
+        @Param(name = "from_unit", type = { "keyword" }, description = "The enclosing container unit.") Expression fromUnit,
         @Param(name = "date", type = { "date", "date_nanos" }, description = "Date expression.") Expression date,
         Configuration configuration
     ) {
-        super(source, List.of(dstUnit, srcUnit, date), configuration);
-        this.dstUnit = dstUnit;
-        this.srcUnit = srcUnit;
+        super(source, List.of(toUnit, fromUnit, date), configuration);
+        this.toUnit = toUnit;
+        this.fromUnit = fromUnit;
         this.date = date;
     }
 
@@ -96,8 +96,8 @@ public class DateUnitCount extends EsqlConfigurationFunction {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
-        out.writeNamedWriteable(dstUnit);
-        out.writeNamedWriteable(srcUnit);
+        out.writeNamedWriteable(toUnit);
+        out.writeNamedWriteable(fromUnit);
         out.writeNamedWriteable(date);
     }
 
@@ -113,7 +113,29 @@ public class DateUnitCount extends EsqlConfigurationFunction {
 
     @Override
     public boolean foldable() {
-        return dstUnit.foldable() && srcUnit.foldable() && date.foldable();
+        if (toUnit.foldable() && fromUnit.foldable() && date.foldable()) {
+            return true;
+        }
+
+        DateDiff.Part dst = foldedPart(toUnit, FoldContext.small());
+        DateDiff.Part src = foldedPart(fromUnit, FoldContext.small());
+
+        return dst != null && src != null && constCount(dst, src) != null;
+    }
+
+    @Override
+    public Object fold(FoldContext ctx) {
+        DateDiff.Part dst = foldedPart(toUnit, ctx);
+        DateDiff.Part src = foldedPart(fromUnit, ctx);
+
+        if (dst != null && src != null) {
+            Long constant = constCount(dst, src);
+            if (constant != null) {
+                return constant;
+            }
+        }
+
+        return super.fold(ctx);
     }
 
     @Override
@@ -123,7 +145,7 @@ public class DateUnitCount extends EsqlConfigurationFunction {
         }
 
         var operation = sourceText();
-        return isStringAndExact(dstUnit, operation, FIRST).and(isStringAndExact(srcUnit, operation, SECOND))
+        return isStringAndExact(toUnit, operation, FIRST).and(isStringAndExact(fromUnit, operation, SECOND))
             .and(TypeResolutions.isType(date, DataType::isDate, operation, THIRD, "datetime or date_nanos"));
     }
 
@@ -132,15 +154,8 @@ public class DateUnitCount extends EsqlConfigurationFunction {
         var dateEvaluator = toEvaluator.apply(date);
         var zoneId = configuration().zoneId();
 
-        DateDiff.Part dst = null;
-        if (dstUnit.foldable() != false) {
-            dst = parsePart(dstUnit.fold(toEvaluator.foldCtx()));
-        }
-
-        DateDiff.Part src = null;
-        if (srcUnit.foldable() != false) {
-            src = parsePart(srcUnit.fold(toEvaluator.foldCtx()));
-        }
+        DateDiff.Part dst = foldedPart(toUnit, toEvaluator.foldCtx());
+        DateDiff.Part src = foldedPart(fromUnit, toEvaluator.foldCtx());
 
         if (dst != null && src != null) {
             return date.dataType() == DataType.DATE_NANOS
@@ -151,33 +166,29 @@ public class DateUnitCount extends EsqlConfigurationFunction {
         return date.dataType() == DataType.DATE_NANOS
             ? new DateUnitCountNanosEvaluator.Factory(
                 source(),
-                toEvaluator.apply(dstUnit),
-                toEvaluator.apply(srcUnit),
+                toEvaluator.apply(toUnit),
+                toEvaluator.apply(fromUnit),
                 dateEvaluator,
                 zoneId
             )
             : new DateUnitCountMillisEvaluator.Factory(
                 source(),
-                toEvaluator.apply(dstUnit),
-                toEvaluator.apply(srcUnit),
+                toEvaluator.apply(toUnit),
+                toEvaluator.apply(fromUnit),
                 dateEvaluator,
                 zoneId
             );
+    }
+
+    private static DateDiff.Part foldedPart(Expression expression, FoldContext ctx) {
+        return expression.foldable() ? parsePart(expression.fold(ctx)) : null;
     }
 
     private static DateDiff.Part parsePart(Object value) {
         if (value == null) {
             return null;
         }
-
-        String text;
-        if (value instanceof BytesRef b) {
-            text = b.utf8ToString();
-        } else {
-            text = value.toString();
-        }
-
-        return DateDiff.Part.resolve(text);
+        return DateDiff.Part.resolve(value instanceof BytesRef b ? b.utf8ToString() : value.toString());
     }
 
     @Override
@@ -187,71 +198,90 @@ public class DateUnitCount extends EsqlConfigurationFunction {
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, DateUnitCount::new, dstUnit, srcUnit, date, configuration());
+        return NodeInfo.create(this, DateUnitCount::new, toUnit, fromUnit, date, configuration());
     }
 
     @Evaluator(extraName = "ConstantMillis")
-    static long processMillis(@Fixed DateDiff.Part dstUnit, @Fixed DateDiff.Part scrUnit, long date, @Fixed ZoneId zoneId) {
-        return count(dstUnit, scrUnit, ofInstant(ofEpochMilli(date), zoneId));
+    static long processMillis(@Fixed DateDiff.Part toUnit, @Fixed DateDiff.Part fromUnit, long date, @Fixed ZoneId zoneId) {
+        return count(toUnit, fromUnit, ofInstant(ofEpochMilli(date), zoneId));
     }
 
     @Evaluator(extraName = "ConstantNanos")
-    static long processNanos(@Fixed DateDiff.Part dstUnit, @Fixed DateDiff.Part srcUnit, long date, @Fixed ZoneId zoneId) {
-        return count(dstUnit, srcUnit, ofInstant(ofEpochSecond(0L, date), zoneId));
+    static long processNanos(@Fixed DateDiff.Part toUnit, @Fixed DateDiff.Part fromUnit, long date, @Fixed ZoneId zoneId) {
+        return count(toUnit, fromUnit, ofInstant(ofEpochSecond(0L, date), zoneId));
     }
 
     @Evaluator(extraName = "Millis")
-    static long processMillis(BytesRef dstUnit, BytesRef srcUnit, long date, @Fixed ZoneId zoneId) {
-        return processMillis(parsePart(dstUnit), parsePart(srcUnit), date, zoneId);
+    static long processMillis(BytesRef toUnit, BytesRef fromUnit, long date, @Fixed ZoneId zoneId) {
+        return processMillis(parsePart(toUnit), parsePart(fromUnit), date, zoneId);
     }
 
     @Evaluator(extraName = "Nanos")
-    static long processNanos(BytesRef dstUnit, BytesRef srcUnit, long date, @Fixed ZoneId zoneId) {
-        return processNanos(parsePart(dstUnit), parsePart(srcUnit), date, zoneId);
+    static long processNanos(BytesRef toUnit, BytesRef fromUnit, long date, @Fixed ZoneId zoneId) {
+        return processNanos(parsePart(toUnit), parsePart(fromUnit), date, zoneId);
     }
 
-    private static long count(@Fixed DateDiff.Part dstUnit, @Fixed DateDiff.Part srcUnit, ZonedDateTime timestamp) {
-        return switch (srcUnit) {
-            case HOUR -> {
-                var start = timestamp.truncatedTo(ChronoUnit.HOURS);
-                yield diffLong(dstUnit, start, start.plusHours(1));
-            }
-            case DAY -> {
-                var start = timestamp.toLocalDate().atStartOfDay(timestamp.getZone());
-                yield diffLong(dstUnit, start, start.plusDays(1));
-            }
-            case WEEK -> {
-                var start = timestamp.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-                    .toLocalDate()
-                    .atStartOfDay(timestamp.getZone());
-                yield diffLong(dstUnit, start, start.plusWeeks(1));
-            }
-            case MONTH -> {
-                var start = timestamp.with(TemporalAdjusters.firstDayOfMonth()).toLocalDate().atStartOfDay(timestamp.getZone());
-                yield diffLong(dstUnit, start, start.plusMonths(1));
-            }
-            case YEAR -> {
-                var start = timestamp.with(TemporalAdjusters.firstDayOfYear()).toLocalDate().atStartOfDay(timestamp.getZone());
-                yield diffLong(dstUnit, start, start.plusYears(1));
-            }
-            default -> throw new IllegalArgumentException("Unsupported unit [" + srcUnit + "]");
-        };
+    private static long count(DateDiff.Part toUnit, DateDiff.Part fromUnit, ZonedDateTime timestamp) {
+        Long constant = constCount(toUnit, fromUnit);
+        if (constant != null) {
+            return constant;
+        }
+        // Only variable-length from_units reach here
+        final var zone = timestamp.getZone();
+        if (fromUnit == DateDiff.Part.DAY) {
+            var start = timestamp.toLocalDate().atStartOfDay(zone);
+            return toUnit.diff(start, start.plusDays(1));
+        } else if (fromUnit == DateDiff.Part.WEEK) {
+            var start = timestamp.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).toLocalDate().atStartOfDay(zone);
+            return toUnit.diff(start, start.plusWeeks(1));
+        } else if (fromUnit == DateDiff.Part.MONTH) {
+            var start = timestamp.with(TemporalAdjusters.firstDayOfMonth()).toLocalDate().atStartOfDay(zone);
+            return toUnit.diff(start, start.plusMonths(1));
+        } else if (fromUnit == DateDiff.Part.YEAR) {
+            var start = timestamp.with(TemporalAdjusters.firstDayOfYear()).toLocalDate().atStartOfDay(zone);
+            return toUnit.diff(start, start.plusYears(1));
+        }
+        throw new IllegalArgumentException("Unsupported unit [" + fromUnit + "]");
     }
 
-    private static long diffLong(DateDiff.Part unit, ZonedDateTime start, ZonedDateTime end) {
+    static Long constCount(DateDiff.Part toUnit, DateDiff.Part fromUnit) {
+        if (toUnit == fromUnit) {
+            return 1L;
+        }
+
+        Long srcNanos = constNanos(fromUnit);
+        Long dstNanos = constNanos(toUnit);
+        if (srcNanos != null && dstNanos != null) {
+            return srcNanos / dstNanos;
+        }
+
+        if (fromUnit == DateDiff.Part.WEEK) {
+            return switch (toUnit) {
+                case DAY, DAYOFYEAR, WEEKDAY -> 7L;
+                default -> null;
+            };
+        }
+
+        if (fromUnit == DateDiff.Part.YEAR) {
+            return switch (toUnit) {
+                case MONTH -> 12L;
+                case QUARTER -> 4L;
+                default -> null;
+            };
+        }
+
+        return null;
+    }
+
+    private static Long constNanos(DateDiff.Part unit) {
         return switch (unit) {
-            case YEAR -> ChronoUnit.YEARS.between(start, end);
-            case QUARTER -> IsoFields.QUARTER_YEARS.between(start, end);
-            case MONTH -> ChronoUnit.MONTHS.between(start, end);
-            case DAYOFYEAR, DAY, WEEKDAY -> ChronoUnit.DAYS.between(start, end);
-            case WEEK -> ChronoUnit.WEEKS.between(start, end);
-            case HOUR -> ChronoUnit.HOURS.between(start, end);
-            case MINUTE -> ChronoUnit.MINUTES.between(start, end);
-            case SECOND -> ChronoUnit.SECONDS.between(start, end);
-            case MILLISECOND -> ChronoUnit.MILLIS.between(start, end);
-            case MICROSECOND -> ChronoUnit.MICROS.between(start, end);
-            case NANOSECOND -> ChronoUnit.NANOS.between(start, end);
+            case NANOSECOND -> 1L;
+            case MICROSECOND -> 1_000L;
+            case MILLISECOND -> 1_000_000L;
+            case SECOND -> 1_000_000_000L;
+            case MINUTE -> 60_000_000_000L;
+            case HOUR -> 3_600_000_000_000L;
+            default -> null;
         };
     }
-
 }

@@ -2,10 +2,10 @@
 
 ## Parameters
 
-`dst_unit`
+`to_unit`
 :   The unit to count.
 
-`src_unit`
+`from_unit`
 :   The enclosing container unit.
 
 `date`

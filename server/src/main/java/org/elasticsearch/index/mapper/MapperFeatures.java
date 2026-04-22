@@ -85,6 +85,7 @@ public class MapperFeatures implements FeatureSpecification {
         "mapper.dense_vector.dynamic_template_nested_object_fix"
     );
     public static final NodeFeature ES940_DISK_BBQ = new NodeFeature("mapper.es940_disk_bbq");
+    public static final NodeFeature IGNORED_VALUES_STORED_IN_BINARY_DV = new NodeFeature("mapper.doc_values.ignored_values_in_binary_dv");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -145,7 +146,8 @@ public class MapperFeatures implements FeatureSpecification {
             DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX,
             FLATTENED_MAPPED_SUBFIELDS_FEATURE,
             ES940_DISK_BBQ,
-            FLATTENED_PASSTHROUGH_FEATURE
+            FLATTENED_PASSTHROUGH_FEATURE,
+            IGNORED_VALUES_STORED_IN_BINARY_DV
         );
     }
 }

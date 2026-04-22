@@ -138,7 +138,7 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
 
     @Override
     public Query createInnerQuery(IndexReader reader, int[] docsVisited) {
-        appendSeenDocs(seenDocs, docsVisited, reader.maxDoc());
+        seenDocs = appendSeenDocs(seenDocs, docsVisited, reader.maxDoc());
         return new ESDiversifyingChildrenByteKnnVectorQuery(
             field,
             getTargetCopy(),

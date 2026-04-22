@@ -237,7 +237,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         float scaledVisitRatio = providedVisitRatio > 0f ? Math.min(1.0f, providedVisitRatio * visitOversampling) : 0f;
         return new IVFKnnFloatVectorQuery(
             field,
-            originalQuery.clone(),
+            originalQuery,
             scaledK,
             Math.max(numCands, scaledK),
             null,
@@ -250,7 +250,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
     @Override
     public Query createInnerQuery(IndexReader reader, int[] previousDocs) {
         Map<Integer, FixedBitSet> mergedSkip = mergeSkipCentroids();
-        return new IVFKnnFloatVectorQuery(field, originalQuery.clone(), k, numCands, null, providedVisitRatio, doPrecondition, mergedSkip);
+        return new IVFKnnFloatVectorQuery(field, originalQuery, k, numCands, null, providedVisitRatio, doPrecondition, mergedSkip);
     }
 
     @Override

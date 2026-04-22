@@ -37,7 +37,7 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
     private final int numCandsParam;
     private long vectorOpsCount;
     private final boolean earlyTermination;
-    private final FixedBitSet seenDocs;
+    private FixedBitSet seenDocs;
     private final int[] docsToSeed;
 
     public ESKnnFloatVectorQuery(String field, float[] target, int k, int numCands, Query filter, KnnSearchStrategy strategy) {
@@ -107,7 +107,7 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
 
     @Override
     public Query createInnerQuery(IndexReader reader, int[] docsVisited) {
-        appendSeenDocs(seenDocs, docsVisited, reader.maxDoc());
+        seenDocs = appendSeenDocs(seenDocs, docsVisited, reader.maxDoc());
         return new ESKnnFloatVectorQuery(
             field,
             getTargetCopy(),

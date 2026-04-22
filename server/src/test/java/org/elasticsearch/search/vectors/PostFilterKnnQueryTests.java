@@ -305,8 +305,6 @@ public class PostFilterKnnQueryTests extends ESTestCase {
         }
     }
 
-    // ==================== Retry loop integration tests ====================
-
     public void testRetryLoopRetriesAndAccumulatesResults() throws IOException {
         try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
             // 10 docs: even indices tagged "pass", odd tagged "fail"
@@ -358,7 +356,6 @@ public class PostFilterKnnQueryTests extends ESTestCase {
                 );
 
                 int k = 3;
-                AtomicLong capturedOps = new AtomicLong();
                 PostFilterKnnQuery query = new PostFilterKnnQuery(round1, filterWeight, k, reader, null);
 
                 Query result = query.rewrite(searcher);
@@ -367,7 +364,7 @@ public class PostFilterKnnQueryTests extends ESTestCase {
                 KnnScoreDocQuery knnResult = (KnnScoreDocQuery) result;
                 assertEquals(3, knnResult.docs().length);
                 // Vector ops accumulated: 100 + 80 = 180
-                assertEquals(180L, capturedOps.get());
+                assertEquals(180L, query.getTotalVectorOps());
             }
         }
     }
@@ -432,15 +429,13 @@ public class PostFilterKnnQueryTests extends ESTestCase {
                         next
                     );
                 }
-
-                AtomicLong capturedOps = new AtomicLong();
                 PostFilterKnnQuery query = new PostFilterKnnQuery(rounds[0], filterWeight, 5, reader, null);
 
                 Query result = query.rewrite(searcher);
                 // No docs pass the filter → should return no-docs
                 assertTrue("Expected MatchNoDocsQuery but got " + result.getClass(), result instanceof MatchNoDocsQuery);
                 // Vector ops: 10 * MAX_ROUNDS
-                assertEquals(10L * PostFilterKnnQuery.MAX_ROUNDS, capturedOps.get());
+                assertEquals(10L * PostFilterKnnQuery.MAX_ROUNDS, query.getTotalVectorOps());
             }
         }
     }
@@ -613,6 +608,7 @@ public class PostFilterKnnQueryTests extends ESTestCase {
         private final TopDocs results;
         private final long opsCount;
         private final FakePostFilterableQuery nextRetry;
+        private FakePostFilterableQuery currentRound = this;
 
         FakePostFilterableQuery(TopDocs results, long opsCount, FakePostFilterableQuery nextRetry) {
             this.results = results;
@@ -630,7 +626,10 @@ public class PostFilterKnnQueryTests extends ESTestCase {
 
         @Override
         public Query createInnerQuery(IndexReader reader, int[] previousResults) {
-            return nextRetry;
+            if (currentRound == null) return null;
+            FakePostFilterableQuery toReturn = currentRound;
+            currentRound = currentRound.nextRetry;
+            return toReturn;
         }
 
         @Override

@@ -37,7 +37,7 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryPro
     private final int numCandsParam;
     private long vectorOpsCount;
     private final boolean earlyTermination;
-    private final FixedBitSet seenDocs;
+    private FixedBitSet seenDocs;
     private final int[] docsToSeed;
 
     public ESKnnByteVectorQuery(String field, byte[] target, int k, int numCands, Query filter, KnnSearchStrategy strategy) {
@@ -121,7 +121,7 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryPro
 
     @Override
     public Query createInnerQuery(IndexReader reader, int[] docsVisited) {
-        appendSeenDocs(seenDocs, docsVisited, reader.maxDoc());
+        seenDocs = appendSeenDocs(seenDocs, docsVisited, reader.maxDoc());
         return new ESKnnByteVectorQuery(
             field,
             getTargetCopy(),

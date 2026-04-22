@@ -223,6 +223,10 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
         queryProfiler.addVectorOpsCount(totalVectorOps);
     }
 
+    public long getTotalVectorOps(){
+        return totalVectorOps;
+    }
+
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
         throw new UnsupportedOperationException("PostFilterKnnQuery does not support [createWeight]. Missing a rewrite?");

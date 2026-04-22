@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.inference.InferencePlugin;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.inference.vectors.EmbeddingQueryVectorBuilder.DEFAULT_TIMEOUT;
+import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
@@ -50,7 +50,7 @@ public class EmbeddingQueryVectorBuilderTests extends AbstractQueryVectorBuilder
         int expectedInputSize = builder.getInput().inferenceStrings().size();
         assertThat(embeddingRequest.getEmbeddingRequest().inputs().getFirst().inferenceStrings(), hasSize(expectedInputSize));
 
-        TimeValue expectedTimeout = builder.getTimeout() != null ? builder.getTimeout() : DEFAULT_TIMEOUT;
+        TimeValue expectedTimeout = builder.getTimeout() != null ? builder.getTimeout() : TIMEOUT_NOT_DETERMINED;
         assertEquals(expectedTimeout, embeddingRequest.getTimeout());
     }
 

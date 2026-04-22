@@ -161,7 +161,9 @@ public class MockBigArrays extends BigArrays {
         super(recycler, breakerService, CircuitBreaker.REQUEST, checkBreaker);
         this.recycler = recycler;
         this.breakerService = breakerService;
-        this.mockBytesRefRecycler = recycler != null ? new MockBytesRefRecycler(recycler) : null;
+        this.mockBytesRefRecycler = recycler != null
+            ? new MockBytesRefRecycler(recycler, breakerService.getBreaker(CircuitBreaker.REQUEST), checkBreaker)
+            : null;
         long seed;
         try {
             seed = SeedUtils.parseSeed(RandomizedContext.current().getRunnerSeedAsString());

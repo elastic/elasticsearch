@@ -248,7 +248,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
     }
 
     @Override
-    public Query createInnerQuery(IndexReader reader, int[] seenDocs) {
+    public Query createInnerQuery(IndexReader reader, int[] docsVisited) {
         Map<Integer, FixedBitSet> mergedSkip = mergeSkipCentroids();
         return new IVFKnnFloatVectorQuery(field, originalQuery, k, numCands, null, providedVisitRatio, doPrecondition, mergedSkip);
     }

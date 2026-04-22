@@ -36,7 +36,7 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
     private long vectorOpsCount;
     private final boolean earlyTermination;
     private final BitSetProducer parentsFilter;
-    private final int[] seenDocs;
+    private final int[] docsVisited;
 
     public ESDiversifyingChildrenFloatKnnVectorQuery(
         String field,
@@ -72,14 +72,14 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
         BitSetProducer parentsFilter,
         KnnSearchStrategy strategy,
         boolean earlyTermination,
-        int[] seenDocs
+        int[] docsVisited
     ) {
         super(field, query, childFilter, numCands, parentsFilter, strategy);
         this.kParam = k;
         this.numCands = numCands;
         this.earlyTermination = earlyTermination;
         this.parentsFilter = parentsFilter;
-        this.seenDocs = seenDocs;
+        this.docsVisited = docsVisited;
     }
 
     @Override
@@ -101,8 +101,8 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
     }
 
     @Override
-    public Query createInnerQuery(IndexReader reader, int[] seenDocs) {
-        var excludeDocsFilter = new ExcludeDocsQuery(seenDocs, reader);
+    public Query createInnerQuery(IndexReader reader, int[] docsVisited) {
+        var excludeDocsFilter = new ExcludeDocsQuery(docsVisited, reader);
         return new ESDiversifyingChildrenFloatKnnVectorQuery(
             field,
             getTargetCopy(),
@@ -112,7 +112,7 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
             parentsFilter,
             searchStrategy,
             earlyTermination,
-            seenDocs
+            docsVisited
         );
     }
 
@@ -157,8 +157,8 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
     @Override
     protected KnnCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
         var base = super.getKnnCollectorManager(k, searcher);
-        if (seenDocs != null && seenDocs.length > 0) {
-            base = new SeededRetryCollectorManager(base, seenDocs, field);
+        if (docsVisited != null && docsVisited.length > 0) {
+            base = new SeededRetryCollectorManager(base, docsVisited, field);
         }
         return earlyTermination ? PatienceCollectorManager.wrap(base) : base;
     }

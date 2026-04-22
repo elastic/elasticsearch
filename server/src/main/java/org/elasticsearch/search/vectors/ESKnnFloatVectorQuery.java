@@ -30,7 +30,7 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
     private final int numCandsParam;
     private long vectorOpsCount;
     private final boolean earlyTermination;
-    private final int[] seenDocs;
+    private final int[] docsVisited;
 
     public ESKnnFloatVectorQuery(String field, float[] target, int k, int numCands, Query filter, KnnSearchStrategy strategy) {
         this(field, target, k, numCands, filter, strategy, false);
@@ -56,13 +56,13 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
         Query filter,
         KnnSearchStrategy strategy,
         boolean earlyTermination,
-        int[] seenDocs
+        int[] docsVisited
     ) {
         super(field, target, numCands, filter, strategy);
         this.kParam = k;
         this.numCandsParam = numCands;
         this.earlyTermination = earlyTermination;
-        this.seenDocs = seenDocs;
+        this.docsVisited = docsVisited;
     }
 
     @Override
@@ -84,8 +84,8 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
     }
 
     @Override
-    public Query createInnerQuery(IndexReader reader, int[] seenDocs) {
-        var excludeDocsFilter = new ExcludeDocsQuery(seenDocs, reader);
+    public Query createInnerQuery(IndexReader reader, int[] docsVisited) {
+        var excludeDocsFilter = new ExcludeDocsQuery(docsVisited, reader);
         return new ESKnnFloatVectorQuery(
             field,
             getTargetCopy(),
@@ -94,7 +94,7 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
             excludeDocsFilter,
             searchStrategy,
             earlyTermination,
-            seenDocs
+            docsVisited
         );
     }
 
@@ -135,8 +135,8 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
     @Override
     protected KnnCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
         var base = super.getKnnCollectorManager(k, searcher);
-        if (seenDocs != null && seenDocs.length > 0) {
-            base = new SeededRetryCollectorManager(base, seenDocs, field);
+        if (docsVisited != null && docsVisited.length > 0) {
+            base = new SeededRetryCollectorManager(base, docsVisited, field);
         }
         return earlyTermination ? PatienceCollectorManager.wrap(base) : base;
     }

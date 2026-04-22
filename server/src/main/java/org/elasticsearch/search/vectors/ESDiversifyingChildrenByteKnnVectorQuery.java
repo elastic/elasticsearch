@@ -36,7 +36,7 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
     private long vectorOpsCount;
     private final boolean earlyTermination;
     private final BitSetProducer parentsFilter;
-    private final int[] seenDocs;
+    private final int[] docsVisited;
 
     public ESDiversifyingChildrenByteKnnVectorQuery(
         String field,
@@ -72,14 +72,14 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
         BitSetProducer parentsFilter,
         KnnSearchStrategy strategy,
         boolean earlyTermination,
-        int[] seenDocs
+        int[] docsVisited
     ) {
         super(field, query, childFilter, numCands, parentsFilter, strategy);
         this.kParam = k;
         this.numCands = numCands;
         this.earlyTermination = earlyTermination;
         this.parentsFilter = parentsFilter;
-        this.seenDocs = seenDocs;
+        this.docsVisited = docsVisited;
     }
 
     @Override
@@ -102,7 +102,7 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
 
     @Override
     public Query createInnerQuery(IndexReader reader, int[] docsVisited) {
-        var excludeDocsFilter = new ExcludeDocsQuery(seenDocs, reader);
+        var excludeDocsFilter = new ExcludeDocsQuery(docsVisited, reader);
         return new ESDiversifyingChildrenByteKnnVectorQuery(
             field,
             getTargetCopy(),
@@ -159,8 +159,8 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
     @Override
     protected KnnCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
         var base = super.getKnnCollectorManager(k, searcher);
-        if (seenDocs != null && seenDocs.length > 0) {
-            base = new SeededRetryCollectorManager(base, seenDocs, field);
+        if (docsVisited != null && docsVisited.length > 0) {
+            base = new SeededRetryCollectorManager(base, docsVisited, field);
         }
         return earlyTermination ? PatienceCollectorManager.wrap(base) : base;
     }

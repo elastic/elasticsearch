@@ -109,7 +109,7 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
 
     @Override
     public ScoreDoc[] findCandidates(IndexSearcher searcher) throws IOException {
-        searcher.rewrite(this);
+        super.rewrite(searcher);
         return lastSearchResults != null ? lastSearchResults : new ScoreDoc[0];
     }
 

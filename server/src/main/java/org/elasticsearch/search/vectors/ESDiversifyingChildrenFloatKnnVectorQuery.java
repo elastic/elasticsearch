@@ -129,7 +129,7 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
 
     @Override
     public ScoreDoc[] findCandidates(IndexSearcher searcher) throws IOException {
-        searcher.rewrite(this);
+        super.rewrite(searcher);
         return lastSearchResults != null ? lastSearchResults : new ScoreDoc[0];
     }
 

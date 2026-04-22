@@ -109,7 +109,7 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryPro
 
     @Override
     public ScoreDoc[] findCandidates(IndexSearcher searcher) throws IOException {
-        searcher.rewrite(this);
+        super.rewrite(searcher);
         return lastSearchResults != null ? lastSearchResults : new ScoreDoc[0];
     }
 

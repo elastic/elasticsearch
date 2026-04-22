@@ -86,6 +86,9 @@ dependencies {
     }
   }
 
+  implementation 'org.apache.commons:commons-text:1.4'
+  runtimeOnly 'org.apache.commons:commons-lang3:3.18.0'
+
   testImplementation project(":libs:x-content")
   testImplementation project(":test:framework")
 }

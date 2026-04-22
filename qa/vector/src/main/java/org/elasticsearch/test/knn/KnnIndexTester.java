@@ -11,6 +11,7 @@ package org.elasticsearch.test.knn;
 
 import com.sun.management.ThreadMXBean;
 
+import org.apache.commons.text.StringEscapeUtils;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
@@ -675,38 +676,11 @@ public class KnnIndexTester {
                 return "No results available.";
             }
 
-            String[] indexingHeaders = {
-                "index_name",
-                "index_type",
-                "num_docs",
-                "doc_add_time(ms)",
-                "total_index_time(ms)",
-                "force_merge_time(ms)",
-                "num_segments" };
-
             // Only include partition recall columns if any result has partition data
             boolean hasPartitionRecall = queryResults.stream()
                 .anyMatch(r -> r.perPartitionRecall != null && r.perPartitionRecall.isEmpty() == false);
 
-            List<String> searchHeaderList = CollectionUtils.arrayAsArrayList(
-                "index_name",
-                "index_type",
-                "num_segments",
-                "visit_percentage(%)",
-                "actual_visit(%)",
-                "latency(ms)",
-                "net_cpu_time(ms)",
-                "avg_cpu_count",
-                "QPS",
-                "recall",
-                "top_k",
-                "visited",
-                "filter_selectivity",
-                "filter_cached",
-                "oversampling_factor",
-                "num_candidates",
-                "early_termination"
-            );
+            List<String> searchHeaderList = CollectionUtils.arrayAsArrayList(RESULT_TABLE_SEARCH_HEADERS);
             if (hasPartitionRecall) {
                 searchHeaderList.add("partition_recall_min");
                 searchHeaderList.add("partition_recall_max");
@@ -728,7 +702,7 @@ public class KnnIndexTester {
                     Long.toString(indexResult.forceMergeTimeMS),
                     Integer.toString(indexResult.numSegments) };
             }
-            printBlock(sb, indexingHeaders, indexResultsArray);
+            printBlock(sb, RESULT_TABLE_INDEX_HEADERS, indexResultsArray);
             String[][] queryResultsArray = new String[queryResults.size()][];
             for (int i = 0; i < queryResults.size(); i++) {
                 Results queryResult = queryResults.get(i);
@@ -957,6 +931,34 @@ public class KnnIndexTester {
         }
     }
 
+    private static final String[] RESULT_TABLE_INDEX_HEADERS = {
+        "index_name",
+        "index_type",
+        "num_docs",
+        "doc_add_time(ms)",
+        "total_index_time(ms)",
+        "force_merge_time(ms)",
+        "num_segments" };
+
+    private static final String[] RESULT_TABLE_SEARCH_HEADERS = {
+        "index_name",
+        "index_type",
+        "num_segments",
+        "visit_percentage(%)",
+        "actual_visit(%)",
+        "latency(ms)",
+        "net_cpu_time(ms)",
+        "avg_cpu_count",
+        "QPS",
+        "recall",
+        "top_k",
+        "visited",
+        "filter_selectivity",
+        "filter_cached",
+        "oversampling_factor",
+        "num_candidates",
+        "early_termination" };
+
     private static final String[] CSV_HEADERS = {
         "timestamp",
         "config_file",
@@ -1130,15 +1132,8 @@ public class KnnIndexTester {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < values.length; i++) {
             if (i > 0) sb.append(',');
-            sb.append(csvQuote(values[i]));
+            sb.append(StringEscapeUtils.escapeCsv(values[i]));
         }
         return sb.toString();
-    }
-
-    private static String csvQuote(String value) {
-        if (value.contains(",") || value.contains("\"") || value.contains("\n") || value.contains("\r")) {
-            return "\"" + value.replace("\"", "\"\"") + "\"";
-        }
-        return value;
     }
 }

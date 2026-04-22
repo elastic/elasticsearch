@@ -101,20 +101,7 @@ public class RestBulkAction extends BaseRestHandler {
         if (request.isStreamedContent() == false) {
             BulkRequest bulkRequest = new BulkRequest();
             String defaultIndex = request.param("index");
-            String defaultRouting = request.param("routing");
-            String defaultSlice = request.param("_slice");
-            if (defaultSlice != null && SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
-                throw new IllegalArgumentException("request does not support [_slice]");
-            }
-            if (defaultSlice != null) {
-                SliceIndexing.validateUserSliceValue(defaultSlice);
-            }
-            if (defaultSlice != null && defaultRouting != null) {
-                throw new IllegalArgumentException("[routing] is not allowed together with [_slice]");
-            }
-            if (defaultSlice != null) {
-                defaultRouting = defaultSlice;
-            }
+            String defaultRouting = SliceIndexing.parseRoutingOrSlice(request);
             FetchSourceContext defaultFetchSourceContext = FetchSourceContext.parseFromRestRequest(request);
             String defaultPipeline = request.param("pipeline");
             boolean defaultListExecutedPipelines = request.paramAsBoolean("list_executed_pipelines", false);
@@ -192,20 +179,7 @@ public class RestBulkAction extends BaseRestHandler {
         ChunkHandler(boolean allowExplicitIndex, RestRequest request, Supplier<IncrementalBulkService.Handler> handlerSupplier) {
             this.request = request;
             this.handlerSupplier = handlerSupplier;
-            String defaultRouting = request.param("routing");
-            String defaultSlice = request.param("_slice");
-            if (defaultSlice != null && SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
-                throw new IllegalArgumentException("request does not support [_slice]");
-            }
-            if (defaultSlice != null) {
-                SliceIndexing.validateUserSliceValue(defaultSlice);
-            }
-            if (defaultSlice != null && defaultRouting != null) {
-                throw new IllegalArgumentException("[routing] is not allowed together with [_slice]");
-            }
-            if (defaultSlice != null) {
-                defaultRouting = defaultSlice;
-            }
+            String defaultRouting = SliceIndexing.parseRoutingOrSlice(request);
             this.parser = new BulkRequestParser(true, RestUtils.getIncludeSourceOnError(request), request.getRestApiVersion())
                 .incrementalParser(
                     request.param("index"),

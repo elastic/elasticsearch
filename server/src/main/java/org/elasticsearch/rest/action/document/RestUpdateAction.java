@@ -47,18 +47,7 @@ public class RestUpdateAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         UpdateRequest updateRequest = new UpdateRequest(request.param("index"), request.param("id"));
-        final String routing = request.param("routing");
-        final String slice = request.param("_slice");
-        if (slice != null && SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
-            throw new IllegalArgumentException("request does not support [_slice]");
-        }
-        if (slice != null) {
-            SliceIndexing.validateUserSliceValue(slice);
-        }
-        if (slice != null && routing != null) {
-            throw new IllegalArgumentException("[routing] is not allowed together with [_slice]");
-        }
-        final String resolvedRouting = slice != null ? slice : routing;
+        final String resolvedRouting = SliceIndexing.parseRoutingOrSlice(request);
         updateRequest.routing(resolvedRouting);
         updateRequest.timeout(request.paramAsTime("timeout", updateRequest.timeout()));
         updateRequest.setRefreshPolicy(request.param("refresh"));

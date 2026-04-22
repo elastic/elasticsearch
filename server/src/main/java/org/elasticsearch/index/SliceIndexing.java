@@ -10,6 +10,7 @@
 package org.elasticsearch.index;
 
 import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.rest.RestRequest;
 
 import java.util.regex.Pattern;
 
@@ -62,5 +63,24 @@ public final class SliceIndexing {
                     + "]"
             );
         }
+    }
+
+    /**
+     * Parses and validates the REST-level {@code routing} and {@code _slice} parameters for write APIs.
+     * Returns the effective routing value after enforcing mutual exclusion and feature-gate checks.
+     */
+    public static String parseRoutingOrSlice(RestRequest request) {
+        final String routing = request.param("routing");
+        final String slice = request.param("_slice");
+        if (slice != null && SLICE_FEATURE_FLAG.isEnabled() == false) {
+            throw new IllegalArgumentException("request does not support [_slice]");
+        }
+        if (slice != null) {
+            validateUserSliceValue(slice);
+        }
+        if (slice != null && routing != null) {
+            throw new IllegalArgumentException("[routing] is not allowed together with [_slice]");
+        }
+        return slice != null ? slice : routing;
     }
 }

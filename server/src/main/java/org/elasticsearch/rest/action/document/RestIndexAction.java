@@ -132,19 +132,7 @@ public class RestIndexAction extends BaseRestHandler {
         IndexRequest indexRequest = new IndexRequest(index);
         indexRequest.id(request.param("id"));
 
-        final String routing = request.param("routing");
-        final String slice = request.param("_slice");
-        if (slice != null && SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
-            throw new IllegalArgumentException("request does not support [_slice]");
-        }
-        if (slice != null) {
-            SliceIndexing.validateUserSliceValue(slice);
-        }
-        if (slice != null && routing != null) {
-            throw new IllegalArgumentException("[routing] is not allowed together with [_slice]");
-        }
-
-        indexRequest.routing(slice != null ? slice : routing);
+        indexRequest.routing(SliceIndexing.parseRoutingOrSlice(request));
 
         indexRequest.setPipeline(request.param("pipeline"));
         indexRequest.indexSource().source(source, request.getXContentType());

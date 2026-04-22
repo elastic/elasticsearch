@@ -109,4 +109,19 @@ public class RestUpdateActionIT extends ESIntegTestCase {
         ObjectPath objectPath = ObjectPath.createFromResponse(response);
         assertThat(objectPath.evaluate("result"), equalTo("updated"));
     }
+
+    public void testUpdateSliceParamRejectedWhenFeatureFlagDisabled() throws Exception {
+        assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        Request request = new Request("POST", "/test_index/_update/1");
+        request.addParameter("_slice", "s1");
+        request.setJsonEntity("""
+            {
+              "doc": {
+                "field": "updated"
+              }
+            }""");
+        ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
+        String response = Streams.copyToString(new InputStreamReader(exception.getResponse().getEntity().getContent(), UTF_8));
+        assertThat(response, containsString("request does not support [_slice]"));
+    }
 }

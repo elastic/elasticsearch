@@ -65,6 +65,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.Executor;
 
 import static org.elasticsearch.ExceptionsHelper.unwrapCause;
@@ -139,19 +140,12 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
             return;
         }
         final String concreteName = IndexNameExpressionResolver.resolveDateMathExpression(request.index());
-        final var indexAbstraction = state.metadata().getIndicesLookup().get(concreteName);
-        if (indexAbstraction == null) {
-            return;
-        }
-        final var writeIndex = indexAbstraction.getWriteIndex();
-        if (writeIndex == null) {
-            return;
-        }
-        final IndexMetadata targetMetadata = state.metadata().index(writeIndex);
-        if (targetMetadata == null) {
-            return;
-        }
-        if (IndexSettings.SLICE_ENABLED.get(targetMetadata.getSettings()) && request.routing() == null) {
+        final boolean sliceEnabled = Optional.ofNullable(state.metadata().getIndicesLookup().get(concreteName))
+            .map(indexAbstraction -> indexAbstraction.getWriteIndex())
+            .map(state.metadata()::index)
+            .map(metadata -> IndexSettings.SLICE_ENABLED.get(metadata.getSettings()))
+            .orElse(false);
+        if (sliceEnabled && request.routing() == null) {
             throw new IllegalArgumentException(
                 "[_slice] is required when [index.slice.enabled] is true for request targeting [" + request.index() + "]"
             );

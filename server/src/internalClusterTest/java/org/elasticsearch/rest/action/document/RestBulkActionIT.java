@@ -146,4 +146,17 @@ public class RestBulkActionIT extends ESIntegTestCase {
         ObjectPath objectPath = ObjectPath.createFromResponse(getRestClient().performRequest(bulkWithSlice));
         assertThat(objectPath.evaluate("errors"), equalTo(false));
     }
+
+    public void testBulkSliceParamRejectedWhenFeatureFlagDisabled() throws Exception {
+        assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        Request bulk = new Request("POST", "/test_index/_bulk");
+        bulk.addParameter("_slice", "s1");
+        bulk.setJsonEntity("""
+            {"index":{"_id":"1"}}
+            {"field":"value1"}
+            """);
+        ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(bulk));
+        String response = Streams.copyToString(new InputStreamReader(exception.getResponse().getEntity().getContent(), UTF_8));
+        assertThat(response, containsString("request does not support [_slice]"));
+    }
 }

@@ -75,15 +75,19 @@ public class DateRangeDocValuesLoader extends BlockDocValuesReader.DocValuesBloc
                     } else {
                         BytesRef ref = docValues.docValues().binaryValue();
                         var ranges = BinaryRangeUtil.decodeLongRanges(ref);
-                        for (var range : ranges) {
-                            lastDoc = doc;
-                            this.docId = doc;
-                            // While the index stores ranges with fully-inclusive bounds [from, to], in ESQL we always
-                            // represent and use date ranges as half-open [from, to), so we add 1 to the upper bound here.
-                            long from = (long) range.getFrom();
-                            long toIndex = (long) range.getTo();
-                            builder.from().appendLong(from);
-                            builder.to().appendLong(toIndex + 1);
+                        if (ranges.isEmpty()) {
+                            builder.appendNull();
+                        } else {
+                            for (var range : ranges) {
+                                lastDoc = doc;
+                                this.docId = doc;
+                                // While the index stores ranges with fully-inclusive bounds [from, to], in ESQL we always
+                                // represent and use date ranges as half-open [from, to), so we add 1 to the upper bound here.
+                                long from = (long) range.getFrom();
+                                long toIndex = (long) range.getTo();
+                                builder.from().appendLong(from);
+                                builder.to().appendLong(toIndex + 1);
+                            }
                         }
                     }
                 }

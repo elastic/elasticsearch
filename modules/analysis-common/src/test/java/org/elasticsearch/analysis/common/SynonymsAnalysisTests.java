@@ -587,7 +587,8 @@ public class SynonymsAnalysisTests extends ESTestCase {
             .putList("index.analysis.analyzer.my_analyzer.filter", "lowercase", "my_synonyms");
 
         // single set is always allowed on old index versions
-        Settings singleSetSettings = Settings.builder().put(baseSettings.build())
+        Settings singleSetSettings = Settings.builder()
+            .put(baseSettings.build())
             .put("index.analysis.filter.my_synonyms.synonyms_set", "set-a")
             .build();
         IndexSettings singleSetIdxSettings = IndexSettingsModule.newIndexSettings("index", singleSetSettings);
@@ -595,7 +596,8 @@ public class SynonymsAnalysisTests extends ESTestCase {
         assertNotNull(indexAnalyzers.get("my_analyzer"));
 
         // multiple sets are rejected on old index versions
-        Settings multiSetSettings = Settings.builder().put(baseSettings.build())
+        Settings multiSetSettings = Settings.builder()
+            .put(baseSettings.build())
             .putList("index.analysis.filter.my_synonyms.synonyms_set", "set-a", "set-b")
             .build();
         IndexSettings multiSetIdxSettings = IndexSettingsModule.newIndexSettings("index", multiSetSettings);

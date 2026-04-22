@@ -1,0 +1,5 @@
+area: CRUD
+issues: []
+pr: 146247
+summary: Release `requestToExecute` memory when it is not needed by replication
+type: enhancement

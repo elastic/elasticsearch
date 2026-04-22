@@ -200,7 +200,9 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
 
         storeVisitedCentroids(context.ord, strategy.visitedCentroids());
 
-        TopDocs results = knnCollector.topDocs();
+        TopDocs results = knnCollector instanceof BulkKnnCollector bulkKnnCollector
+            ? bulkKnnCollector.unsortedTopK()
+            : knnCollector.topDocs();
         return results != null ? results : NO_RESULTS;
     }
 

@@ -196,6 +196,7 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable {
         Releasables.close(toClose);
         toClose.clear();
         breaker.addWithoutBreaking(-usedBytesByKeyPages);
+        usedBytesByKeyPages = 0;
     }
 
     private int growTracking() {

@@ -262,6 +262,7 @@ public abstract class SwissHash {
             Releasables.close(toClose);
             toClose.clear();
             breaker.addWithoutBreaking(-usedBytes);
+            usedBytes = 0;
         }
     }
 

@@ -81,7 +81,7 @@ public final class LongIntAdaptiveBlockHash extends AdaptiveBlockHash {
         private final long batchUsedBytes;
         private final long[] batchKeys1;
         private final long[] batchKeys2;
-        private final int[] ids;
+        private final int[] batchIds;
 
         LongIntVectorOnlyBlockHash(BlockFactory blockFactory) {
             super(blockFactory);
@@ -91,7 +91,7 @@ public final class LongIntAdaptiveBlockHash extends AdaptiveBlockHash {
             boolean success = false;
             batchKeys1 = new long[emitBatchSize];
             batchKeys2 = new long[emitBatchSize];
-            ids = new int[emitBatchSize];
+            batchIds = new int[emitBatchSize];
             try {
                 this.longLongHash = HashImplFactory.newLongLongHash(blockFactory);
                 success = true;
@@ -122,8 +122,8 @@ public final class LongIntAdaptiveBlockHash extends AdaptiveBlockHash {
                 for (int i = 0; i < batchSize; i++) {
                     batchKeys2[i] = intVector.getInt(offset + i);
                 }
-                longLongHash.bulkAdd(batchKeys1, batchKeys2, ids, batchSize);
-                try (var groupIds = blockFactory.newIntArrayVector(ids, batchSize)) {
+                longLongHash.bulkAdd(batchKeys1, batchKeys2, batchIds, batchSize);
+                try (var groupIds = blockFactory.newIntArrayVector(batchIds, batchSize)) {
                     addInput.add(offset, groupIds);
                 }
                 offset += batchSize;

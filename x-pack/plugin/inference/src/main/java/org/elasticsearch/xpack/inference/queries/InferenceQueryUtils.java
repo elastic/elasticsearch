@@ -541,12 +541,7 @@ public final class InferenceQueryUtils {
                     new GetInferenceModelAction.Request(inferenceId, TaskType.ANY),
                     getModelGrouped.delegateFailureAndWrap((l, response) -> {
                         var endpoints = response.getEndpoints();
-                        if (endpoints.isEmpty()) {
-                            l.onFailure(
-                                new IllegalArgumentException("No inference endpoints found for inference ID [" + inferenceId + "]")
-                            );
-                            return;
-                        } else if (endpoints.size() > 1) {
+                        if (endpoints.size() > 1) {
                             throw new IllegalStateException(
                                 endpoints.size() + " inference endpoints found for inference ID [" + inferenceId + "]"
                             );

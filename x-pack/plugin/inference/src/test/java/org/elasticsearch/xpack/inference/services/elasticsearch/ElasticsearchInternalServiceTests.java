@@ -2299,7 +2299,10 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
 
     private ElasticsearchInternalService createService(Client client) {
         var cs = mock(ClusterService.class);
-        var cSettings = new ClusterSettings(Settings.EMPTY, Set.of(MachineLearningField.MAX_LAZY_ML_NODES));
+        var cSettings = new ClusterSettings(
+            Settings.EMPTY,
+            Set.of(MachineLearningField.MAX_LAZY_ML_NODES, InferencePlugin.INFERENCE_QUERY_TIMEOUT)
+        );
         when(cs.getClusterSettings()).thenReturn(cSettings);
         var context = new InferenceServiceExtension.InferenceServiceFactoryContext(client, threadPool, cs, Settings.EMPTY, inferenceStats);
         return new ElasticsearchInternalService(context);

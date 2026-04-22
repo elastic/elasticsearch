@@ -24,7 +24,6 @@ subprojects {
 
     dependencies {
       yamlRestTestImplementation project(":x-pack:qa:runtime-fields")
-      restTestConfig project(path: ':modules:aggregations', configuration: 'restTests')
     }
 
     restResources {

@@ -22,7 +22,6 @@ apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  restTestConfig project(path: ':modules:aggregations', configuration: 'restTests')
   restTestConfig project(path: ':modules:mapper-extras', configuration: 'restTests')
 }
 

@@ -23,7 +23,6 @@ apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  testImplementation project(':modules:aggregations')
   testImplementation project(':modules:parent-join')
 }
 

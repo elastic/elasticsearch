@@ -25,7 +25,6 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: ':modules:percolator')
   testImplementation project(path: xpackModule('vector-tile'))
-  testImplementation project(path: ':modules:aggregations')
 }
 
 testClusters.configureEach {

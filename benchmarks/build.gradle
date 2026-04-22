@@ -41,7 +41,6 @@ dependencies {
     exclude group: 'net.sf.jopt-simple', module: 'jopt-simple'
   }
   api(project(':libs:h3'))
-  api(project(':modules:aggregations'))
   implementation project(':modules:mapper-extras');
   api(project(':x-pack:plugin:esql-core'))
   api(project(':x-pack:plugin:core'))

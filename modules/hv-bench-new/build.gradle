@@ -1,0 +1,14 @@
+/*
+ * Benchmark-only Gradle module — tests the PR-incremental filter's
+ * new-package discovery path end-to-end.
+ */
+
+esplugin {
+  description = 'Benchmark module for PR-incremental filter.'
+  classname = 'org.elasticsearch.bench.HvBenchNewPlugin'
+}
+
+dependencies {
+  implementation 'com.google.guava:guava:32.1.2-jre'
+  implementation 'org.apache.commons:commons-lang3:3.12.0'
+}

@@ -18,7 +18,6 @@ configurations {
 dependencies {
   apis project(path: ':rest-api-spec', configuration: 'restSpecs')
   freeTests project(path: ':rest-api-spec', configuration: 'restTests')
-  freeTests project(path: ':modules:aggregations', configuration: 'restTests')
   freeTests project(path: ':modules:analysis-common', configuration: 'restTests')
   freeTests project(path: ':modules:data-streams', configuration: 'restTests')
   freeTests project(path: ':modules:ingest-geoip', configuration: 'restTests')

@@ -2501,6 +2501,12 @@ public class EsqlCapabilities {
         FIX_STARTS_WITH_ENDS_WITH_PUSHDOWN_ON_INDEX,
 
         /**
+         * Allow evaluatable grouping functions (such as {@code BUCKET}) inside {@code LIMIT ... BY}.
+         * Stateful grouping functions (such as {@code CATEGORIZE}) remain restricted to {@code STATS}.
+         */
+        LIMIT_BY_ALLOW_EVALUATABLE_GROUPING_FUNCTIONS,
+
+        /**
          * Fix for {@link org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushCountQueryAndTagsToSource} incorrectly
          * replacing an {@code AggregateExec} that has multiple aggregate functions (e.g. COUNT + MAX) with an
          * {@code EsStatsQueryExec} that only handles COUNT, when {@code CombineProjections} had removed the grouping key

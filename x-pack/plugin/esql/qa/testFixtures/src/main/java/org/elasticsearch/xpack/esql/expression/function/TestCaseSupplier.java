@@ -1881,9 +1881,9 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 foldingExceptionMessage,
                 extra,
                 canBuildEvaluator,
-                true);
+                true
+            );
         }
-
 
         public TestCase(
             Source source,
@@ -1989,7 +1989,9 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             return extra;
         }
 
-        public boolean convertToNoText() { return convertToNoText; }
+        public boolean convertToNoText() {
+            return convertToNoText;
+        }
 
         /**
          * Build a new {@link TestCase} with new {@link #configuration}.

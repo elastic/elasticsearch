@@ -321,6 +321,11 @@ class BulkPrimaryExecutionContext {
         assert executionResult != null && translatedResponse.getItemId() == executionResult.getItemId();
         assert translatedResponse.getItemId() == getCurrentItem().id();
 
+        // If the replication group only contains the primary, we know that we do not need to hold the request into memory anymore.
+        if (primary.hasPeerReplicationTargets() == false) {
+            requestToExecute = null;
+        }
+
         if (translatedResponse.isFailed() == false && requestToExecute != null && requestToExecute != getCurrent()) {
             request.items()[currentIndex] = new BulkItemRequest(request.items()[currentIndex].id(), requestToExecute);
         }
@@ -363,7 +368,7 @@ class BulkPrimaryExecutionContext {
                 assert executionResult != null;
                 break;
             case COMPLETED:
-                assert requestToExecute != null;
+                // requestToExecute can be null if there are no replicas
                 assert executionResult != null;
                 assert getCurrentItem().getPrimaryResponse() != null;
                 break;

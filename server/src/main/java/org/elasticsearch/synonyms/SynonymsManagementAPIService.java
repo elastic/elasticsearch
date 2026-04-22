@@ -78,6 +78,8 @@ import java.io.UncheckedIOException;
 import java.security.InvalidParameterException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -303,6 +305,152 @@ public class SynonymsManagementAPIService {
                 fetchPageWithPit(synonymSetId, pitResponse.getPointInTimeId(), null, new ArrayList<>(), l);
             })
         );
+    }
+
+    /**
+     * Retrieves all synonym rules for multiple synonym sets in a single PIT + search_after pass,
+     * using a terms query across all requested sets. After fetching, any requested set not
+     * represented in the results is existence-checked; missing sets are handled according to
+     * {@code ignoreMissing}.
+     *
+     * @param synonymSetIds the synonym sets to load
+     * @param ignoreMissing if true, log a warning for missing sets; if false, fail on the first missing set
+     * @param listener      receives the combined rules from all synonym sets
+     */
+    public void getSynonymSetRules(List<String> synonymSetIds, boolean ignoreMissing, ActionListener<PagedResult<SynonymRule>> listener) {
+        OpenPointInTimeRequest pitRequest = new OpenPointInTimeRequest(SYNONYMS_ALIAS_NAME).keepAlive(PIT_KEEP_ALIVE);
+        client.execute(
+            TransportOpenPointInTimeAction.TYPE,
+            pitRequest,
+            ActionListener.wrap(
+                pitResponse -> fetchPagesWithPit(
+                    synonymSetIds,
+                    ignoreMissing,
+                    pitResponse.getPointInTimeId(),
+                    null,
+                    new ArrayList<>(),
+                    new HashSet<>(),
+                    listener
+                ),
+                e -> {
+                    Throwable cause = ExceptionsHelper.unwrapCause(e);
+                    if (cause instanceof IndexNotFoundException) {
+                        // Synonyms index does not exist — treat all sets as missing
+                        checkMissingSetsAndRespond(
+                            synonymSetIds.iterator(),
+                            ignoreMissing,
+                            new PagedResult<>(0, new SynonymRule[0]),
+                            listener
+                        );
+                    } else {
+                        listener.onFailure(e);
+                    }
+                }
+            )
+        );
+    }
+
+    private void fetchPagesWithPit(
+        List<String> synonymSetIds,
+        boolean ignoreMissing,
+        BytesReference pitId,
+        Object[] searchAfter,
+        List<SynonymRule> accumulated,
+        Set<String> seenSetIds,
+        ActionListener<PagedResult<SynonymRule>> listener
+    ) {
+        SearchSourceBuilder source = new SearchSourceBuilder().query(
+            QueryBuilders.boolQuery()
+                .must(QueryBuilders.termsQuery(SYNONYMS_SET_FIELD, synonymSetIds))
+                .filter(QueryBuilders.termQuery(OBJECT_TYPE_FIELD, SYNONYM_RULE_OBJECT_TYPE))
+        )
+            .size(pitBatchSize)
+            .sort(SortBuilders.fieldSort(SYNONYM_RULE_ID_FIELD).order(SortOrder.ASC))
+            .sort(SortBuilders.fieldSort("_shard_doc").order(SortOrder.ASC))
+            .trackTotalHits(true)
+            .fetchSource(false)
+            .fetchField(SYNONYM_RULE_ID_FIELD)
+            .fetchField(SYNONYMS_FIELD)
+            .fetchField(SYNONYMS_SET_FIELD)
+            .pointInTimeBuilder(new PointInTimeBuilder(pitId).setKeepAlive(PIT_KEEP_ALIVE));
+
+        if (searchAfter != null) {
+            source.searchAfter(searchAfter);
+        }
+
+        AtomicReference<BytesReference> currentPitId = new AtomicReference<>(pitId);
+        client.execute(TransportSearchAction.TYPE, new SearchRequest().source(source), ActionListener.wrap(response -> {
+            SearchHit[] hits = response.getHits().getHits();
+            long totalHits = response.getHits().getTotalHits().value();
+            assert response.pointInTimeId() != null;
+            currentPitId.set(response.pointInTimeId());
+
+            if (searchAfter == null && totalHits > maxSynonymRules) {
+                logger.warn(
+                    "The total number of synonym rules across synonym sets [{}] exceeds the maximum allowed [{}]."
+                        + " Inconsistent synonym results may occur",
+                    String.join(", ", synonymSetIds),
+                    maxSynonymRules
+                );
+            }
+
+            if (hits.length == 0) {
+                Set<String> missingSets = new HashSet<>(synonymSetIds);
+                missingSets.removeAll(seenSetIds);
+                PagedResult<SynonymRule> result = new PagedResult<>(totalHits, accumulated.toArray(new SynonymRule[0]));
+                closePitAndThen(
+                    currentPitId.get(),
+                    () -> checkMissingSetsAndRespond(missingSets.iterator(), ignoreMissing, result, listener)
+                );
+                return;
+            }
+
+            for (SearchHit hit : hits) {
+                accumulated.add(hitToSynonymRule(hit));
+                seenSetIds.add(hit.field(SYNONYMS_SET_FIELD).<String>getValue());
+                if (accumulated.size() >= maxSynonymRules) {
+                    PagedResult<SynonymRule> result = new PagedResult<>(totalHits, accumulated.toArray(new SynonymRule[0]));
+                    closePitAndThen(currentPitId.get(), () -> listener.onResponse(result));
+                    return;
+                }
+            }
+
+            Object[] lastSortValues = hits[hits.length - 1].getSortValues();
+            fetchPagesWithPit(synonymSetIds, ignoreMissing, currentPitId.get(), lastSortValues, accumulated, seenSetIds, listener);
+        }, e -> closePitAndThen(currentPitId.get(), () -> listener.onFailure(e))));
+    }
+
+    private void checkMissingSetsAndRespond(
+        Iterator<String> missingIter,
+        boolean ignoreMissing,
+        PagedResult<SynonymRule> result,
+        ActionListener<PagedResult<SynonymRule>> listener
+    ) {
+        if (missingIter.hasNext() == false) {
+            listener.onResponse(result);
+            return;
+        }
+        String setId = missingIter.next();
+        checkSynonymSetExists(setId, new ActionListener<>() {
+            @Override
+            public void onResponse(Object ignored) {
+                // Set exists but has 0 rules — fine
+                checkMissingSetsAndRespond(missingIter, ignoreMissing, result, listener);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (ignoreMissing && e instanceof ResourceNotFoundException) {
+                    logger.warn(
+                        "Synonyms set [{}] not found. Synonyms will not be applied to search results on indices that use this synonym set",
+                        setId
+                    );
+                    checkMissingSetsAndRespond(missingIter, ignoreMissing, result, listener);
+                } else {
+                    listener.onFailure(e);
+                }
+            }
+        });
     }
 
     private void fetchPageWithPit(

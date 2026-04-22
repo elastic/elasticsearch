@@ -89,21 +89,22 @@ public interface TokenFilterFactory {
 
     /**
      * Get the name of the resource that this filter is based on.
-     * Used to reload analyzers on this resource changes.
-     *
-     * For an example, see @SynonymGraphTokenFilterFactory#getResourceName()
+     * Used to reload analyzers when this resource changes.
      *
      * @return the name of the resource that this filter was loaded from if any
+     * @deprecated Override {@link #getResourceNames()} instead, which supports multiple resources.
      */
+    @Deprecated
     default String getResourceName() {
         return null;
     }
 
     /**
-     * Returns the set of synonym set resource names this filter depends on.
+     * Returns the set of resource names this filter depends on.
      * Used by {@link ReloadableCustomAnalyzer} to determine which synonym sets
      * trigger a reload for this filter. Defaults to a singleton set containing
      * {@link #getResourceName()} if non-null, or an empty set.
+     * Override this method (not {@link #getResourceName()}) to declare resource dependencies.
      */
     default Set<String> getResourceNames() {
         String name = getResourceName();

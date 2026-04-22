@@ -9,9 +9,7 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.logging.log4j.Level;
 import org.apache.lucene.analysis.CharArraySet;
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -20,7 +18,6 @@ import org.elasticsearch.synonyms.PagedResult;
 import org.elasticsearch.synonyms.SynonymRule;
 import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLog;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -44,7 +41,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class AnalysisTests extends ESTestCase {
     public void testParseStemExclusion() {
@@ -179,22 +175,14 @@ public class AnalysisTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testGetReaderFromIndexMultipleSynsets() throws IOException {
         SynonymsManagementAPIService service = mock(SynonymsManagementAPIService.class);
-        when(service.getMaxSynonymRules()).thenReturn(100_000);
 
-        SynonymRule[] rulesA = new SynonymRule[] { new SynonymRule("rule-a-1", "quick, fast") };
-        SynonymRule[] rulesB = new SynonymRule[] { new SynonymRule("rule-b-1", "jumps, leaps") };
+        SynonymRule[] rules = new SynonymRule[] { new SynonymRule("rule-a-1", "quick, fast"), new SynonymRule("rule-b-1", "jumps, leaps") };
 
         doAnswer(invocation -> {
-            ActionListener<PagedResult<SynonymRule>> listener = invocation.getArgument(1);
-            listener.onResponse(new PagedResult<>(1, rulesA));
+            ActionListener<PagedResult<SynonymRule>> listener = invocation.getArgument(2);
+            listener.onResponse(new PagedResult<>(2, rules));
             return null;
-        }).when(service).getSynonymSetRules(eq("set-a"), any());
-
-        doAnswer(invocation -> {
-            ActionListener<PagedResult<SynonymRule>> listener = invocation.getArgument(1);
-            listener.onResponse(new PagedResult<>(1, rulesB));
-            return null;
-        }).when(service).getSynonymSetRules(eq("set-b"), any());
+        }).when(service).getSynonymSetRules(eq(List.of("set-a", "set-b")), eq(false), any());
 
         Reader reader = Analysis.getReaderFromIndex(List.of("set-a", "set-b"), service, false);
         String content;
@@ -213,89 +201,48 @@ public class AnalysisTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testGetReaderFromIndexAggregateLimitTruncates() throws IOException {
         SynonymsManagementAPIService service = mock(SynonymsManagementAPIService.class);
-        // limit of 2 rules total; set-a has 2, set-b has 1 → set-b's rule should be absent
-        when(service.getMaxSynonymRules()).thenReturn(2);
-
-        SynonymRule[] rulesA = new SynonymRule[] { new SynonymRule("a1", "quick, fast"), new SynonymRule("a2", "big, large") };
-        SynonymRule[] rulesB = new SynonymRule[] { new SynonymRule("b1", "jumps, leaps") };
+        // Service has already applied the limit and returned only 2 rules (set-b's rule was dropped)
+        SynonymRule[] truncatedRules = new SynonymRule[] { new SynonymRule("a1", "quick, fast"), new SynonymRule("a2", "big, large") };
 
         doAnswer(invocation -> {
-            ActionListener<PagedResult<SynonymRule>> listener = invocation.getArgument(1);
-            listener.onResponse(new PagedResult<>(2, rulesA));
+            ActionListener<PagedResult<SynonymRule>> listener = invocation.getArgument(2);
+            listener.onResponse(new PagedResult<>(3, truncatedRules));
             return null;
-        }).when(service).getSynonymSetRules(eq("set-a"), any());
+        }).when(service).getSynonymSetRules(eq(List.of("set-a", "set-b")), eq(false), any());
 
-        doAnswer(invocation -> {
-            ActionListener<PagedResult<SynonymRule>> listener = invocation.getArgument(1);
-            listener.onResponse(new PagedResult<>(1, rulesB));
-            return null;
-        }).when(service).getSynonymSetRules(eq("set-b"), any());
-
-        MockLog.assertThatLogger(() -> {
-            try (BufferedReader br = new BufferedReader(Analysis.getReaderFromIndex(List.of("set-a", "set-b"), service, false))) {
-                StringBuilder sb = new StringBuilder();
-                String line;
-                while ((line = br.readLine()) != null) {
-                    sb.append(line).append("\n");
-                }
-                String content = sb.toString();
-                assertThat(content, containsString("quick, fast"));
-                assertThat(content, containsString("big, large"));
-                assertThat(content, is(not(containsString("jumps, leaps"))));
-            } catch (IOException e) {
-                throw new RuntimeException(e);
+        try (BufferedReader br = new BufferedReader(Analysis.getReaderFromIndex(List.of("set-a", "set-b"), service, false))) {
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while ((line = br.readLine()) != null) {
+                sb.append(line).append("\n");
             }
-        },
-            Analysis.class,
-            new MockLog.SeenEventExpectation(
-                "truncation warning",
-                Analysis.class.getName(),
-                Level.WARN,
-                "The total number of synonym rules across synonym sets*exceeds the maximum*"
-            )
-        );
+            String content = sb.toString();
+            assertThat(content, containsString("quick, fast"));
+            assertThat(content, containsString("big, large"));
+            assertThat(content, is(not(containsString("jumps, leaps"))));
+        }
     }
 
     @SuppressWarnings("unchecked")
     public void testGetReaderFromIndexMissingSetIgnoredWhenLenient() throws IOException {
         SynonymsManagementAPIService service = mock(SynonymsManagementAPIService.class);
-        when(service.getMaxSynonymRules()).thenReturn(100_000);
-
+        // Service handles missing-set detection and returns only the rules it found
         SynonymRule[] rulesA = new SynonymRule[] { new SynonymRule("a1", "quick, fast") };
 
         doAnswer(invocation -> {
-            ActionListener<PagedResult<SynonymRule>> listener = invocation.getArgument(1);
+            ActionListener<PagedResult<SynonymRule>> listener = invocation.getArgument(2);
             listener.onResponse(new PagedResult<>(1, rulesA));
             return null;
-        }).when(service).getSynonymSetRules(eq("set-a"), any());
+        }).when(service).getSynonymSetRules(eq(List.of("set-a", "set-missing")), eq(true), any());
 
-        doAnswer(invocation -> {
-            ActionListener<PagedResult<SynonymRule>> listener = invocation.getArgument(1);
-            listener.onFailure(new ResourceNotFoundException("set-missing"));
-            return null;
-        }).when(service).getSynonymSetRules(eq("set-missing"), any());
-
-        MockLog.assertThatLogger(() -> {
-            try (BufferedReader br = new BufferedReader(Analysis.getReaderFromIndex(List.of("set-a", "set-missing"), service, true))) {
-                StringBuilder sb = new StringBuilder();
-                String line;
-                while ((line = br.readLine()) != null) {
-                    sb.append(line).append("\n");
-                }
-                String content = sb.toString();
-                assertThat(content, containsString("quick, fast"));
-            } catch (IOException e) {
-                throw new RuntimeException(e);
+        try (BufferedReader br = new BufferedReader(Analysis.getReaderFromIndex(List.of("set-a", "set-missing"), service, true))) {
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while ((line = br.readLine()) != null) {
+                sb.append(line).append("\n");
             }
-        },
-            Analysis.class,
-            new MockLog.SeenEventExpectation(
-                "missing set warning",
-                Analysis.class.getName(),
-                Level.WARN,
-                "Synonyms set set-missing not found*"
-            )
-        );
+            assertThat(sb.toString(), containsString("quick, fast"));
+        }
     }
 
     public void testParseDuplicatesWComments() throws IOException {

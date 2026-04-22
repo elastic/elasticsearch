@@ -48,7 +48,6 @@ import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.apache.lucene.analysis.util.CSVUtil;
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -376,75 +375,15 @@ public class Analysis {
         SynonymsManagementAPIService synonymsManagementAPIService,
         boolean ignoreMissing
     ) {
-        List<PlainActionFuture<PagedResult<SynonymRule>>> futures = new ArrayList<>(synonymsSets.size());
-        for (String synonymsSet : synonymsSets) {
-            PlainActionFuture<PagedResult<SynonymRule>> future = new PlainActionFuture<>();
-            synonymsManagementAPIService.getSynonymSetRules(synonymsSet, future);
-            futures.add(future);
-        }
-
-        List<PagedResult<SynonymRule>> results = new ArrayList<>(synonymsSets.size());
-        for (int i = 0; i < futures.size(); i++) {
-            results.add(fetchSynonymRules(synonymsSets.get(i), futures.get(i), ignoreMissing));
-        }
-
-        int maxRules = synonymsManagementAPIService.getMaxSynonymRules();
-        int totalRules = 0;
-        for (PagedResult<SynonymRule> result : results) {
-            totalRules += result.pageResults().length;
-        }
-        if (totalRules > maxRules) {
-            logger.warn(
-                "The total number of synonym rules across synonym sets [{}] is [{}], which exceeds the maximum allowed [{}]."
-                    + " Inconsistent synonym results may occur",
-                String.join(", ", synonymsSets),
-                totalRules,
-                maxRules
-            );
-        }
+        PlainActionFuture<PagedResult<SynonymRule>> future = new PlainActionFuture<>();
+        synonymsManagementAPIService.getSynonymSetRules(synonymsSets, ignoreMissing, future);
+        PagedResult<SynonymRule> result = future.actionGet();
 
         StringBuilder sb = new StringBuilder();
-        int appended = 0;
-        outer: for (PagedResult<SynonymRule> result : results) {
-            for (SynonymRule synonymRule : result.pageResults()) {
-                if (appended >= maxRules) {
-                    break outer;
-                }
-                sb.append(synonymRule.synonyms()).append(System.lineSeparator());
-                appended++;
-            }
+        for (SynonymRule rule : result.pageResults()) {
+            sb.append(rule.synonyms()).append(System.lineSeparator());
         }
         return new StringReader(sb.toString());
-    }
-
-    private static PagedResult<SynonymRule> fetchSynonymRules(
-        String synonymsSet,
-        PlainActionFuture<PagedResult<SynonymRule>> future,
-        boolean ignoreMissing
-    ) {
-        try {
-            return future.actionGet();
-        } catch (Exception e) {
-            if (ignoreMissing == false) {
-                throw e;
-            }
-
-            boolean notFound = e instanceof ResourceNotFoundException;
-            String message = String.format(
-                Locale.ROOT,
-                "Synonyms set %s %s. Synonyms will not be applied to search results on indices that use this synonym set",
-                synonymsSet,
-                notFound ? "not found" : "could not be loaded"
-            );
-
-            if (notFound) {
-                logger.warn(message);
-            } else {
-                logger.error(message, e);
-            }
-
-            return new PagedResult<>(0, new SynonymRule[0]);
-        }
     }
 
     private static boolean isNotEntitled(IOException ioe) {

@@ -93,12 +93,6 @@ public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
             }
 
             @Override
-            public String getResourceName() {
-                List<String> names = rulesReader.resources();
-                return names.size() == 1 ? names.get(0) : null;
-            }
-
-            @Override
             public Set<String> getResourceNames() {
                 return Set.copyOf(rulesReader.resources());
             }

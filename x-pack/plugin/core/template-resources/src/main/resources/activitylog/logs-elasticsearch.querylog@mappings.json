@@ -132,7 +132,7 @@
                 "query": {
                   "type": "keyword",
                   "index": false,
-                  "ignore_above": 2147483647
+                  "ignore_above": 32765
                 },
                 "result_count": {
                   "type": "long",

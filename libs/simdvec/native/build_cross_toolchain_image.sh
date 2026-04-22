@@ -37,21 +37,24 @@ fi
 
 cd "$(dirname "$0")"
 
-echo "Building $IMAGE ..."
-docker build --platform linux/amd64 \
-  -f Dockerfile.cross-toolchain \
-  -t "$IMAGE" \
-  .
-
 if [ "$LOCAL" = true ]; then
+  echo "Building $IMAGE (host platform only) ..."
+  docker build --pull \
+    -f Dockerfile.cross-toolchain \
+    -t "$IMAGE" \
+    .
   echo "Local build complete. Image tagged as $IMAGE."
-  echo "To use it: set the docker run image to $IMAGE in publish_vec_binaries.sh."
+  echo "To use it: ./publish_vec_binaries.sh --local"
 else
-  echo "Pushing $IMAGE ..."
+  echo "Building and pushing $IMAGE (linux/amd64 + linux/arm64) ..."
   # Authenticate at https://docker-auth.elastic.co if not already logged in.
   # If you get a 500, or if https://docker-auth.elastic.co is a blank page,
   # first do ` docker logout docker.elastic.co`, then visit https://docker-auth.elastic.co again
   # and follow the instructions to login.
-  docker push "$IMAGE"
+  docker buildx build --platform linux/amd64,linux/arm64 \
+    -f Dockerfile.cross-toolchain \
+    -t "$IMAGE" \
+    --push \
+    .
   echo "Done. Update publish_vec_binaries.sh to reference $REPOSITORY:$VERSION."
 fi

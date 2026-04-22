@@ -15,7 +15,9 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
@@ -23,7 +25,9 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.InferenceFieldMapper;
@@ -36,6 +40,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
+import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.IndexOptions;
@@ -48,6 +53,11 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentLocation;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 import java.io.IOException;
@@ -608,8 +618,152 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        // TODO: Implement
-        throw new UnsupportedOperationException("Unimplemented");
+        // Value parsing is handled by parseCreateFieldFromContext
+        context.parser().skipChildren();
+    }
+
+    protected SemanticTextField.ParserContext getParserContext(DocumentParserContext context) {
+        return new SemanticTextField.ParserContext(false, fullPath(), context.parser().contentType());
+    }
+
+    protected SemanticTextField parseSemanticTextField(DocumentParserContext context) throws IOException {
+        XContentParser parser = context.parser();
+        if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+            return null;
+        }
+
+        boolean isWithinLeaf = context.path().isWithinLeafObject();
+        try {
+            context.path().setWithinLeafObject(true);
+            return SemanticTextField.parse(context.parser(), getParserContext(context));
+        } finally {
+            context.path().setWithinLeafObject(isWithinLeaf);
+        }
+    }
+
+    protected void parseCreateFieldFromContext(DocumentParserContext context, SemanticTextField field, XContentLocation xContentLocation)
+        throws IOException {
+        final String fullFieldName = fieldType().name();
+        if (field.inference().inferenceId().equals(fieldType().getInferenceId()) == false) {
+            throw new DocumentParsingException(
+                xContentLocation,
+                Strings.format(
+                    "The configured %s [%s] for field [%s] doesn't match the %s [%s] reported in the document.",
+                    INFERENCE_ID_FIELD,
+                    field.inference().inferenceId(),
+                    fullFieldName,
+                    INFERENCE_ID_FIELD,
+                    fieldType().getInferenceId()
+                )
+            );
+        }
+
+        final SemanticFieldMapper mapper;
+        if (fieldType().getModelSettings() == null && field.inference().modelSettings() != null) {
+            mapper = addDynamicUpdate(context, field);
+        } else {
+            Conflicts conflicts = new Conflicts(fullFieldName);
+            canMergeModelSettings(fieldType().getModelSettings(), field.inference().modelSettings(), conflicts);
+            try {
+                conflicts.check();
+            } catch (Exception exc) {
+                throw new DocumentParsingException(
+                    xContentLocation,
+                    "Incompatible model settings for field ["
+                        + fullPath()
+                        + "]. Check that the "
+                        + INFERENCE_ID_FIELD
+                        + " is not using different model settings",
+                    exc
+                );
+            }
+            mapper = this;
+        }
+
+        if (mapper.fieldType().getModelSettings() == null) {
+            for (var chunkList : field.inference().chunks().values()) {
+                if (chunkList.isEmpty() == false) {
+                    throw new DocumentParsingException(
+                        xContentLocation,
+                        "[" + MODEL_SETTINGS_FIELD + "] must be set for field [" + fullFieldName + "] when chunks are provided"
+                    );
+                }
+            }
+        }
+
+        var chunksField = mapper.fieldType().getChunksField();
+        var embeddingsField = mapper.fieldType().getEmbeddingsField();
+        for (var entry : field.inference().chunks().entrySet()) {
+            for (var chunk : entry.getValue()) {
+                var nestedContext = context.createNestedContext(chunksField);
+                try (
+                    XContentParser subParser = XContentHelper.createParserNotCompressed(
+                        XContentParserConfiguration.EMPTY,
+                        chunk.rawEmbeddings(),
+                        context.parser().contentType()
+                    )
+                ) {
+                    DocumentParserContext subContext = nestedContext.switchParser(subParser);
+                    subParser.nextToken();
+                    embeddingsField.parse(subContext);
+                }
+
+                parseChunkValueReference(nestedContext, mapper.fieldType(), entry.getKey(), chunk);
+            }
+        }
+    }
+
+    protected void parseChunkValueReference(
+        DocumentParserContext context,
+        SemanticFieldType fieldType,
+        String fieldName,
+        SemanticTextField.Chunk chunk
+    ) throws IOException {
+        XContentType contentType = context.parser().contentType();
+        FieldMapper offsetsField = fieldType.getOffsetsField();
+        try (XContentBuilder builder = XContentFactory.contentBuilder(contentType)) {
+            builder.startObject();
+            builder.field("field", fieldName);
+            builder.field("start", chunk.startOffset());
+            builder.field("end", chunk.endOffset());
+            builder.endObject();
+            try (
+                XContentParser subParser = XContentHelper.createParserNotCompressed(
+                    XContentParserConfiguration.EMPTY,
+                    BytesReference.bytes(builder),
+                    contentType
+                )
+            ) {
+                DocumentParserContext subContext = context.switchParser(subParser);
+                subParser.nextToken();
+                offsetsField.parse(subContext);
+            }
+        }
+    }
+
+    protected SemanticFieldMapper addDynamicUpdate(DocumentParserContext context, SemanticTextField field) {
+        Builder builder = getMergeBuilder();
+        context.path().remove();
+        try {
+            builder.setModelSettings(field.inference().modelSettings()).setInferenceId(field.inference().inferenceId());
+            if (context.mappingLookup().isMultiField(fullPath())) {
+                // The field is part of a multi-field, so the parent field must also be updated accordingly.
+                var fieldName = context.path().remove();
+                try {
+                    var parentMapper = ((FieldMapper) context.mappingLookup().getMapper(context.mappingLookup().parentField(fullPath())))
+                        .getMergeBuilder();
+                    String parentFullPath = context.mappingLookup().parentField(fullPath());
+                    context.addDynamicMapper(parentMapper.addMultiField(builder), parentFullPath);
+                    return builder.build(context.createDynamicMapperBuilderContext());
+                } finally {
+                    context.path().add(fieldName);
+                }
+            } else {
+                return (SemanticFieldMapper) context.getDynamicMapper(builder);
+            }
+        } finally {
+            context.path().add(leafName());
+        }
     }
 
     public static class SemanticFieldType extends SimpleMappedFieldType {
@@ -713,14 +867,40 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            // TODO: Implement
-            throw new UnsupportedOperationException("Unimplemented");
+            if (format != null && "chunks".equals(format) == false) {
+                throw new IllegalArgumentException(
+                    "Unknown format [" + format + "] for field [" + name() + "], only [chunks] is supported."
+                );
+            }
+            if (format != null) {
+                return new SemanticFieldValueFetcher(
+                    this,
+                    getChunksField().bitsetProducer(),
+                    context.searcher(),
+                    SemanticFieldValueFetcher.Mode.TEXT
+                );
+            }
+
+            return originalValueFetcher(context);
         }
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            // TODO: Implement
-            throw new UnsupportedOperationException("Unimplemented");
+            return new BlockSourceReader.BytesRefsBlockLoader(allValuesFetcher(blContext), BlockSourceReader.lookupMatchingAll());
+        }
+
+        /**
+         * Get a {@link ValueFetcher} for the original value(s) directly written to this field.
+         */
+        protected ValueFetcher originalValueFetcher(SearchExecutionContext context) {
+            return SourceValueFetcher.toString(name(), context, null);
+        }
+
+        /**
+         * Get a {@link ValueFetcher} for all values written to this field, both directly and via {@code copy_to}.
+         */
+        protected ValueFetcher allValuesFetcher(MappedFieldType.BlockLoaderContext blContext) {
+            return SourceValueFetcher.toString(blContext.sourcePaths(name()), blContext.indexSettings());
         }
     }
 

@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.network.InetAddresses;
@@ -183,14 +182,7 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
 
         return new AzureBlobContainer(
             BlobPath.EMPTY,
-            new AzureBlobStore(
-                ProjectId.DEFAULT,
-                repositoryMetadata,
-                service,
-                BigArrays.NON_RECYCLING_INSTANCE,
-                RepositoriesMetrics.NOOP,
-                BackoffPolicy.linearBackoff(TimeValue.timeValueMillis(100), Integer.MAX_VALUE, TimeValue.ONE_MINUTE)
-            )
+            new AzureBlobStore(ProjectId.DEFAULT, repositoryMetadata, service, BigArrays.NON_RECYCLING_INSTANCE, RepositoriesMetrics.NOOP)
         );
     }
 

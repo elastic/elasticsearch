@@ -55,7 +55,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.util.Throwables;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
-import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -141,7 +140,6 @@ public class AzureBlobStore implements BlobStore {
     private final int deletionBatchSize;
     private final int maxConcurrentBatchDeletes;
     private final int multipartUploadMaxConcurrency;
-    private final BackoffPolicy transientErrorBackoffPolicy;
     private final TimeValue copyPollInterval;
 
     private final RequestMetricsRecorder requestMetricsRecorder;
@@ -152,8 +150,7 @@ public class AzureBlobStore implements BlobStore {
         RepositoryMetadata metadata,
         AzureStorageService service,
         BigArrays bigArrays,
-        RepositoriesMetrics repositoriesMetrics,
-        BackoffPolicy transientErrorBackoffPolicy
+        RepositoriesMetrics repositoriesMetrics
     ) {
         this.projectId = projectId;
         this.container = Repository.CONTAINER_SETTING.get(metadata.settings());
@@ -169,7 +166,6 @@ public class AzureBlobStore implements BlobStore {
         this.deletionBatchSize = Repository.DELETION_BATCH_SIZE_SETTING.get(metadata.settings());
         this.maxConcurrentBatchDeletes = Repository.MAX_CONCURRENT_BATCH_DELETES_SETTING.get(metadata.settings());
         this.multipartUploadMaxConcurrency = service.getMultipartUploadMaxConcurrency();
-        this.transientErrorBackoffPolicy = transientErrorBackoffPolicy;
         this.copyPollInterval = Repository.COPY_POLL_INTERVAL.get(metadata.settings());
 
         List<RequestMatcher> requestMatchers = List.of(

@@ -642,7 +642,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                     .field("task_type", taskType);
                 b.endObject();
             }), useLegacyFormat));
-            assertThat(e.getMessage(), containsString("Wrong [task_type], expected text_embedding, embedding or sparse_embedding"));
+            assertThat(e.getMessage(), containsString("Wrong [task_type], expected text_embedding, embedding, or sparse_embedding"));
         }
     }
 

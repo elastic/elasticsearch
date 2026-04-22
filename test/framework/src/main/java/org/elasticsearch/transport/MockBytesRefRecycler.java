@@ -23,16 +23,13 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.junit.Assert.assertTrue;
 
-/// A test-only [BytesRefRecycler] that uses two forms of leak detection:
-///
-/// - Circuit-breaker accounting: each [#obtain] call charges [PageCacheRecycler#BYTE_PAGE_SIZE]
-///   bytes against the [CircuitBreaker] supplied at construction time, so that
-///   [org.elasticsearch.test.InternalTestCluster#ensureEstimatedStats] catches unreleased pages
-///   in integration tests.
-///
-/// - Active teardown tracking: outstanding page acquisitions are recorded in a static set.
-///   [#ensureAllPagesAreReleased] fails the test if any pages were not returned, mirroring the
-///   `ACQUIRED_ARRAYS` pattern in [org.elasticsearch.common.util.MockBigArrays].
+/// A test-only [BytesRefRecycler] that similarly to [org.elasticsearch.common.util.MockBigArrays],
+/// uses two forms of leak detection:
+/// Circuit-breaker accounting: each [#obtain] call charges [PageCacheRecycler#BYTE_PAGE_SIZE] bytes against the
+/// [CircuitBreaker] supplied at construction time, so that [org.elasticsearch.test.InternalTestCluster#ensureEstimatedStats]
+/// catches unreleased pages in integration tests.
+/// Active teardown tracking: outstanding page acquisitions are recorded in a static set. [#ensureAllPagesAreReleased]
+/// fails the test if any pages were not returned, mirroring the `ACQUIRED_ARRAYS` pattern in `MockBigArrays`.
 public class MockBytesRefRecycler extends BytesRefRecycler {
 
     private static final Set<Object> ACQUIRED_PAGES = ConcurrentHashMap.newKeySet();

@@ -31,7 +31,7 @@ public class DefaultWarmingRatioProviderFactory implements WarmingRatioProviderF
 
     /**
      * When no {@link WarmingRatioProviderFactory} SPI is registered, fraction of each compound commit to warm during search recovery
-     * BCC warming (0 = off, 1 = full). Default 0. Ignored when an SPI implementation is present (e.g. serverless).
+     * BCC warming (0 = off, 1 = full). Default 0. Ignored when an SPI implementation is present.
      */
     public static final Setting<Double> SEARCH_RECOVERY_WARMING_RATIO_SETTING = Setting.doubleSetting(
         SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".recovery_warming_ratio",

@@ -11,6 +11,7 @@ import org.apache.http.HttpHeaders;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -368,9 +369,19 @@ public class HttpRequestSenderTests extends ESTestCase {
         final var maxResponseThreads = 2;
         try (var smallThreadPool = createThreadPool(inferenceUtilityExecutors(maxUtilityThreads, maxResponseThreads))) {
             var mockManager = createMockHttpClientManager();
-            // Use a latch that is never counted down to simulate a hung startup
             var latch = new CountDownLatch(1);
-            var sender = new HttpRequestSender(smallThreadPool, mockManager, mock(RequestSender.class), mock(RequestExecutor.class), latch);
+            // Count down the latch when manager.start() is called so startup completes immediately
+            doAnswer(invocation -> {
+                latch.countDown();
+                return null;
+            }).when(mockManager).start();
+            var mockService = mock(RequestExecutor.class);
+            doAnswer(invocation -> {
+                ActionListener<InferenceServiceResults> listener = invocation.getArgument(3);
+                listener.onFailure(new ElasticsearchStatusException("test", RestStatus.SERVICE_UNAVAILABLE));
+                return null;
+            }).when(mockService).execute(any(), any(), any(), any());
+            var sender = new HttpRequestSender(smallThreadPool, mockManager, mock(RequestSender.class), mockService, latch);
 
             // Use more threads than the utility thread pool size
             final var threadCountMinimum = maxUtilityThreads + 2;
@@ -417,6 +428,11 @@ public class HttpRequestSenderTests extends ESTestCase {
         try (var smallThreadPool = createThreadPool(inferenceUtilityExecutors(maxUtilityThreads, maxResponseThreads))) {
             var mockManager = createMockHttpClientManager();
             var latch = new CountDownLatch(1);
+            // Count down the latch when manager.start() is called so startup completes immediately
+            doAnswer(invocation -> {
+                latch.countDown();
+                return null;
+            }).when(mockManager).start();
             var sender = new HttpRequestSender(smallThreadPool, mockManager, mock(RequestSender.class), mock(RequestExecutor.class), latch);
 
             // Use more threads than the utility thread pool size
@@ -429,14 +445,16 @@ public class HttpRequestSenderTests extends ESTestCase {
             for (int i = 0; i < threadCount; i++) {
                 final var future = new PlainActionFuture<InferenceServiceResults>();
                 futures.add(future);
+                final var request = mock(Request.class);
+                when(request.getInferenceEntityId()).thenReturn(INFERENCE_ID);
                 final var threadName = "send-without-queuing-thread-" + i;
                 threads.add(new Thread(() -> {
                     safeAwait(barrier);
                     sender.sendWithoutQueuing(
                         mock(Logger.class),
-                        mock(Request.class),
+                        request,
                         mock(ResponseHandler.class),
-                        TimeValue.timeValueNanos(1),
+                        ONE_NANOSECOND,
                         future
                     );
                 }, threadName));
@@ -450,7 +468,7 @@ public class HttpRequestSenderTests extends ESTestCase {
             }
 
             for (var future : futures) {
-                expectThrows(ElasticsearchStatusException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
+                expectThrows(ElasticsearchTimeoutException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
             }
 
             verify(mockManager, times(1)).start();

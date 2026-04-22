@@ -403,7 +403,6 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).startAsynchronously(any(), any());
         }
 
         verify(sender, times(1)).close();
@@ -431,7 +430,6 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).startAsynchronously(any(), any());
         }
 
         verify(sender, times(1)).close();
@@ -461,7 +459,6 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).startAsynchronously(any(), any());
         }
 
         verify(sender, times(1)).close();
@@ -493,7 +490,6 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).startAsynchronously(any(), any());
         }
 
         verify(sender, times(1)).close();

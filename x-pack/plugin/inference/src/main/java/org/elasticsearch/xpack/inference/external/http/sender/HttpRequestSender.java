@@ -198,7 +198,7 @@ public class HttpRequestSender implements Sender {
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        SubscribableListener.<Void>newForked(l -> startAsynchronously(l, timeout))
+        SubscribableListener.<Void>newForked(l -> startAsynchronously(l, null))
             .<InferenceServiceResults>andThen(sendListener -> service.execute(requestCreator, inferenceInputs, timeout, sendListener))
             .addListener(listener);
     }
@@ -221,7 +221,7 @@ public class HttpRequestSender implements Sender {
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        SubscribableListener.<Void>newForked(l -> startAsynchronously(l, timeout)).<InferenceServiceResults>andThen(sendListener -> {
+        SubscribableListener.<Void>newForked(l -> startAsynchronously(l, null)).<InferenceServiceResults>andThen(sendListener -> {
             var preservedListener = ContextPreservingActionListener.wrapPreservingContext(sendListener, threadPool.getThreadContext());
             var timedListener = new TimedListener<>(timeout, preservedListener, threadPool, request.getInferenceEntityId());
             threadPool.executor(UTILITY_THREAD_POOL_NAME)

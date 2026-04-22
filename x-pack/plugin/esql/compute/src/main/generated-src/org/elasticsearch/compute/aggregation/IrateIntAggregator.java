@@ -9,14 +9,17 @@ package org.elasticsearch.compute.aggregation;
 
 // begin generated imports
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
+import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.FloatBlock;
@@ -33,7 +36,8 @@ import org.elasticsearch.core.Releasables;
  * This class is generated. Edit `X-IrateAggregator.java.st` instead.
  */
 @GroupingAggregator(
-    value = { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "INT_BLOCK") }
+    value = { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "INT_BLOCK") },
+    processNulls = true
 )
 public class IrateIntAggregator {
     public static IntIrateGroupingState initGrouping(DriverContext driverContext, boolean isDateNanos) {
@@ -41,7 +45,27 @@ public class IrateIntAggregator {
         return new IntIrateGroupingState(driverContext.bigArrays(), driverContext.breaker(), dateFactor);
     }
 
-    public static void combine(IntIrateGroupingState current, int groupId, int value, long timestamp) {
+    public static void combine(
+        IntIrateGroupingState current,
+        int groupId,
+        @Position int position,
+        IntBlock values,
+        LongBlock timestamps,
+        BytesRefBlock temporality
+    ) {
+        if (values.isNull(position) || timestamps.isNull(position)) {
+            return;
+        }
+        if (temporality.isNull(position) == false) {
+            BytesRef bytes = temporality.getBytesRef(temporality.getFirstValueIndex(position), current.scratch);
+            Temporality resolved = Temporality.fromBytesRef(bytes);
+            if (resolved != Temporality.CUMULATIVE) {
+                // TODO: emit a warning for delta or unknown temporality
+                return; // skip this data point
+            }
+        }
+        int value = values.getInt(values.getFirstValueIndex(position));
+        long timestamp = timestamps.getLong(timestamps.getFirstValueIndex(position));
         current.ensureCapacity(groupId);
         current.append(groupId, timestamp, value);
     }
@@ -89,6 +113,7 @@ public class IrateIntAggregator {
         private final CircuitBreaker breaker;
         private long stateBytes; // for individual states
         private final int dateFactor;
+        final BytesRef scratch = new BytesRef();
 
         IntIrateGroupingState(BigArrays bigArrays, CircuitBreaker breaker, int dateFactor) {
             this.bigArrays = bigArrays;

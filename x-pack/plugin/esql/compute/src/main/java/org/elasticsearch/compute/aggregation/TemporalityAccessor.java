@@ -69,7 +69,7 @@ public class TemporalityAccessor {
         BytesRef scratch = new BytesRef();
         if (temporalityBlock.asVector() != null && temporalityBlock.asVector().isConstant()) {
             BytesRef constantValue = temporalityBlock.asVector().getBytesRef(0, scratch);
-            return switch (resolveTemporality(constantValue)) {
+            return switch (Temporality.fromBytesRef(constantValue)) {
                 case null -> new TemporalityAccessor(
                     Mode.DYNAMIC,
                     defaultTemporality,
@@ -133,7 +133,7 @@ public class TemporalityAccessor {
         }
 
         BytesRef temporalityBytesRef = ordinalBytesRefBlock.getDictionaryVector().getBytesRef(ordinal, scratch);
-        Temporality resolved = resolveTemporality(temporalityBytesRef);
+        Temporality resolved = Temporality.fromBytesRef(temporalityBytesRef);
         if (resolved == null) {
             return invalidTemporalityHandler.apply(temporalityBytesRef);
         }
@@ -151,21 +151,11 @@ public class TemporalityAccessor {
             return constantOrDefaultTemporality;
         }
         BytesRef value = temporalityBlock.getBytesRef(temporalityBlock.getFirstValueIndex(position), scratch);
-        Temporality resolved = resolveTemporality(value);
+        Temporality resolved = Temporality.fromBytesRef(value);
         if (resolved != null) {
             return resolved;
         } else {
             return invalidTemporalityHandler.apply(value);
         }
-    }
-
-    @Nullable
-    private static Temporality resolveTemporality(BytesRef value) {
-        if (Temporality.CUMULATIVE.bytesRef().equals(value)) {
-            return Temporality.CUMULATIVE;
-        } else if (Temporality.DELTA.bytesRef().equals(value)) {
-            return Temporality.DELTA;
-        }
-        return null;
     }
 }

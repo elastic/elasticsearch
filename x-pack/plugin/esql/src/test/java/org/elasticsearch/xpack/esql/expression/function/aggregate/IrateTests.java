@@ -10,7 +10,10 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.aggregation.Temporality;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
@@ -22,6 +25,7 @@ import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -56,7 +60,7 @@ public class IrateTests extends AbstractAggregationTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Irate(source, args.get(0), args.get(1), AggregateFunction.NO_WINDOW);
+        return new Irate(source, args.get(0), Literal.TRUE, AggregateFunction.NO_WINDOW, args.get(1), args.get(2));
     }
 
     @Override
@@ -86,76 +90,87 @@ public class IrateTests extends AbstractAggregationTestCase {
     @SuppressWarnings("unchecked")
     private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
         DataType type = counterType(fieldSupplier.type());
-        return new TestCaseSupplier(fieldSupplier.name(), List.of(type, DataType.DATETIME, DataType.INTEGER, DataType.LONG), () -> {
-            TestCaseSupplier.TypedData fieldTypedData = fieldSupplier.get();
-            List<Object> dataRows = fieldTypedData.multiRowData();
-            if (randomBoolean()) {
-                List<Object> withNulls = new ArrayList<>(dataRows.size());
-                for (Object dataRow : dataRows) {
-                    if (randomBoolean()) {
-                        withNulls.add(null);
-                    } else {
-                        withNulls.add(dataRow);
+        return new TestCaseSupplier(
+            fieldSupplier.name(),
+            List.of(type, DataType.DATETIME, DataType.KEYWORD, DataType.INTEGER, DataType.LONG),
+            () -> {
+                TestCaseSupplier.TypedData fieldTypedData = fieldSupplier.get();
+                List<Object> dataRows = fieldTypedData.multiRowData();
+                if (randomBoolean()) {
+                    List<Object> withNulls = new ArrayList<>(dataRows.size());
+                    for (Object dataRow : dataRows) {
+                        if (randomBoolean()) {
+                            withNulls.add(null);
+                        } else {
+                            withNulls.add(dataRow);
+                        }
                     }
+                    dataRows = withNulls;
                 }
-                dataRows = withNulls;
-            }
-            fieldTypedData = TestCaseSupplier.TypedData.multiRow(dataRows, type, fieldTypedData.name());
-            List<Long> timestamps = new ArrayList<>();
-            List<Integer> slices = new ArrayList<>();
-            List<Long> maxTimestamps = new ArrayList<>();
-            long lastTimestamp = randomLongBetween(0, 1_000_000);
-            for (int row = 0; row < dataRows.size(); row++) {
-                lastTimestamp += randomLongBetween(1, 10_000);
-                timestamps.add(lastTimestamp);
-                slices.add(0);
-                maxTimestamps.add(Long.MAX_VALUE);
-            }
-            TestCaseSupplier.TypedData timestampsField = TestCaseSupplier.TypedData.multiRow(
-                timestamps.reversed(),
-                DataType.DATETIME,
-                "timestamps"
-            );
-            TestCaseSupplier.TypedData sliceIndexType = TestCaseSupplier.TypedData.multiRow(slices, DataType.INTEGER, "_slice_index");
-            TestCaseSupplier.TypedData nextTimestampType = TestCaseSupplier.TypedData.multiRow(
-                maxTimestamps,
-                DataType.LONG,
-                "_max_timestamp"
-            );
+                fieldTypedData = TestCaseSupplier.TypedData.multiRow(dataRows, type, fieldTypedData.name());
+                List<Long> timestamps = new ArrayList<>();
+                List<Integer> slices = new ArrayList<>();
+                List<Long> maxTimestamps = new ArrayList<>();
+                long lastTimestamp = randomLongBetween(0, 1_000_000);
+                for (int row = 0; row < dataRows.size(); row++) {
+                    lastTimestamp += randomLongBetween(1, 10_000);
+                    timestamps.add(lastTimestamp);
+                    slices.add(0);
+                    maxTimestamps.add(Long.MAX_VALUE);
+                }
+                TestCaseSupplier.TypedData timestampsField = TestCaseSupplier.TypedData.multiRow(
+                    timestamps.reversed(),
+                    DataType.DATETIME,
+                    "timestamps"
+                );
+                List<BytesRef> temporalities = new ArrayList<>(Collections.nCopies(dataRows.size(), null));
+                TestCaseSupplier.TypedData temporalityField = TestCaseSupplier.TypedData.multiRow(
+                    temporalities,
+                    DataType.KEYWORD,
+                    "temporality"
+                );
+                TestCaseSupplier.TypedData sliceIndexType = TestCaseSupplier.TypedData.multiRow(slices, DataType.INTEGER, "_slice_index");
+                TestCaseSupplier.TypedData nextTimestampType = TestCaseSupplier.TypedData.multiRow(
+                    maxTimestamps,
+                    DataType.LONG,
+                    "_max_timestamp"
+                );
 
-            List<Object> nonNullDataRows = dataRows.stream().filter(Objects::nonNull).toList();
-            Matcher<?> matcher;
-            if (nonNullDataRows.size() < 2) {
-                matcher = Matchers.nullValue();
-            } else {
-                var lastValue = ((Number) nonNullDataRows.getFirst()).doubleValue();
-                var secondLastValue = ((Number) nonNullDataRows.get(1)).doubleValue();
-                var increase = lastValue >= secondLastValue ? lastValue - secondLastValue : lastValue;
-                var largestTimestamp = timestamps.get(0);
-                var secondLargestTimestamp = timestamps.get(1);
-                var smallestTimestamp = timestamps.getLast();
-                matcher = Matchers.allOf(
-                    Matchers.greaterThanOrEqualTo(increase / (largestTimestamp - smallestTimestamp) * 1000 * 0.9),
-                    Matchers.lessThanOrEqualTo(
-                        increase / (largestTimestamp - secondLargestTimestamp) * (largestTimestamp - smallestTimestamp) * 1000
-                    )
+                List<Object> nonNullDataRows = dataRows.stream().filter(Objects::nonNull).toList();
+                Matcher<?> matcher;
+                if (nonNullDataRows.size() < 2) {
+                    matcher = Matchers.nullValue();
+                } else {
+                    var lastValue = ((Number) nonNullDataRows.getFirst()).doubleValue();
+                    var secondLastValue = ((Number) nonNullDataRows.get(1)).doubleValue();
+                    var increase = lastValue >= secondLastValue ? lastValue - secondLastValue : lastValue;
+                    var largestTimestamp = timestamps.get(0);
+                    var secondLargestTimestamp = timestamps.get(1);
+                    var smallestTimestamp = timestamps.getLast();
+                    matcher = Matchers.allOf(
+                        Matchers.greaterThanOrEqualTo(increase / (largestTimestamp - smallestTimestamp) * 1000 * 0.9),
+                        Matchers.lessThanOrEqualTo(
+                            increase / (largestTimestamp - secondLargestTimestamp) * (largestTimestamp - smallestTimestamp) * 1000
+                        )
+                    );
+                }
+
+                return new TestCaseSupplier.TestCase(
+                    List.of(fieldTypedData, timestampsField, temporalityField, sliceIndexType, nextTimestampType),
+                    standardAggregatorName("Irate", fieldTypedData.type()),
+                    DataType.DOUBLE,
+                    matcher
                 );
             }
-
-            return new TestCaseSupplier.TestCase(
-                List.of(fieldTypedData, timestampsField, sliceIndexType, nextTimestampType),
-                standardAggregatorName("Irate", fieldTypedData.type()),
-                DataType.DOUBLE,
-                matcher
-            );
-        });
+        );
     }
 
     public static List<DocsV3Support.Param> signatureTypes(List<DocsV3Support.Param> params) {
-        assertThat(params, hasSize(4));
+        assertThat(params, hasSize(5));
         assertThat(params.get(1).dataType(), equalTo(DataType.DATETIME));
-        assertThat(params.get(2).dataType(), equalTo(DataType.INTEGER));
-        assertThat(params.get(3).dataType(), equalTo(DataType.LONG));
+        assertThat(params.get(2).dataType(), equalTo(DataType.KEYWORD));
+        assertThat(params.get(3).dataType(), equalTo(DataType.INTEGER));
+        assertThat(params.get(4).dataType(), equalTo(DataType.LONG));
         ArrayList<DocsV3Support.Param> result = new ArrayList<>();
         result.add(params.get(0));
         var preview = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);

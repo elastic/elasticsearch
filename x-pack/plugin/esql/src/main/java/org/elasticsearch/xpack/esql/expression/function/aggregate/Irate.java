@@ -13,6 +13,7 @@ import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.IrateDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.IrateIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.IrateLongAggregatorFunctionSupplier;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -27,7 +28,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
+import org.elasticsearch.xpack.esql.expression.function.TemporalityAware;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
@@ -39,17 +40,20 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class Irate extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TimestampAware {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Irate", Irate::new);
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Irate.class).ternary(Irate::new).name("irate");
+public class Irate extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TemporalityAware {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Irate", Irate::readFrom);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Irate.class)
+        .ternary(Irate::createWithImplicitTemporality)
+        .name("irate");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
-        .withinSeries(Irate::new)
+        .withinSeries(Irate::createWithImplicitTemporality)
         .counterSupport(PromqlFunctionDefinition.CounterSupport.REQUIRED)
         .description("Calculates the per-second instant rate of increase based on the last two data points.")
         .example("irate(http_requests_total[5m])")
         .name("irate");
 
     private final Expression timestamp;
+    private final Expression temporality;
 
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
@@ -75,24 +79,36 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
             description = "the time window over which to compute the irate",
             optional = true
         ) Expression window,
-        Expression timestamp
+        Expression timestamp,
+        @Nullable Expression temporality
     ) {
-        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp);
+        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp, temporality);
     }
 
-    public Irate(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
-        super(source, field, filter, window, List.of(timestamp));
+    public static Irate createWithImplicitTemporality(Source source, Expression field, Expression window, Expression timestamp) {
+        return new Irate(source, field, window, timestamp, null);
+    }
+
+    public Irate(
+        Source source,
+        Expression field,
+        Expression filter,
+        Expression window,
+        Expression timestamp,
+        @Nullable Expression temporality
+    ) {
+        super(source, field, filter, window, temporality == null ? List.of(timestamp) : List.of(timestamp, temporality));
         this.timestamp = timestamp;
+        this.temporality = temporality;
     }
 
-    public Irate(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
-            readWindow(in),
-            in.readNamedWriteableCollectionAsList(Expression.class).getFirst()
-        );
+    private static Irate readFrom(StreamInput in) throws IOException {
+        Source source = Source.readFrom((PlanStreamInput) in);
+        Expression field = in.readNamedWriteable(Expression.class);
+        Expression filter = in.readNamedWriteable(Expression.class);
+        Expression window = readWindow(in);
+        List<Expression> parameters = in.readNamedWriteableCollectionAsList(Expression.class);
+        return new Irate(source, field, filter, window, parameters.getFirst(), parameters.size() > 1 ? parameters.get(1) : null);
     }
 
     @Override
@@ -102,17 +118,35 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
 
     @Override
     protected NodeInfo<Irate> info() {
-        return NodeInfo.create(this, Irate::new, field(), filter(), window(), timestamp);
+        if (temporality != null) {
+            return NodeInfo.create(this, Irate::new, field(), filter(), window(), timestamp, temporality);
+        } else {
+            return NodeInfo.create(
+                this,
+                (source, field, filter, window, timestamp) -> new Irate(source, field, filter, window, timestamp, null),
+                field(),
+                filter(),
+                window(),
+                timestamp
+            );
+        }
     }
 
     @Override
     public Irate replaceChildren(List<Expression> newChildren) {
-        return new Irate(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
+        return new Irate(
+            source(),
+            newChildren.get(0),
+            newChildren.get(1),
+            newChildren.get(2),
+            newChildren.get(3),
+            newChildren.size() > 4 ? newChildren.get(4) : null
+        );
     }
 
     @Override
     public Irate withFilter(Expression filter) {
-        return new Irate(source(), field(), filter, window(), timestamp);
+        return new Irate(source(), field(), filter, window(), timestamp, temporality);
     }
 
     @Override
@@ -145,11 +179,21 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
 
     @Override
     public String toString() {
-        return "irate(" + field() + ", " + timestamp() + ")";
+        return "irate(" + field() + ", " + timestamp() + ", " + temporality() + ")";
     }
 
     @Override
     public Expression timestamp() {
         return timestamp;
+    }
+
+    @Override
+    public Expression temporality() {
+        return temporality;
+    }
+
+    @Override
+    public Irate withTemporality(Expression newTemporality) {
+        return new Irate(source(), field(), filter(), window(), timestamp, newTemporality);
     }
 }

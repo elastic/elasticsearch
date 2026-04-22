@@ -21,22 +21,25 @@ public class IrateSerializationTests extends AbstractExpressionSerializationTest
         Expression filter = randomChild();
         Expression window = randomChild();
         Expression timestamp = randomChild();
-        return new Irate(source, field, filter, window, timestamp);
+        Expression temporality = randomChild();
+        return new Irate(source, field, filter, window, timestamp, temporality);
     }
 
     @Override
     protected Irate mutateInstance(Irate instance) throws IOException {
-        Source source = instance.source();
+        Source source = randomSource();
         Expression field = instance.field();
         Expression filter = instance.filter();
         Expression window = instance.window();
         Expression timestamp = instance.timestamp();
-        switch (between(0, 3)) {
+        Expression temporality = instance.temporality();
+        switch (between(0, 4)) {
             case 0 -> field = randomValueOtherThan(field, AbstractExpressionSerializationTests::randomChild);
             case 1 -> filter = randomValueOtherThan(filter, AbstractExpressionSerializationTests::randomChild);
             case 2 -> window = randomValueOtherThan(window, AbstractExpressionSerializationTests::randomChild);
             case 3 -> timestamp = randomValueOtherThan(timestamp, AbstractExpressionSerializationTests::randomChild);
+            case 4 -> temporality = randomValueOtherThan(temporality, AbstractExpressionSerializationTests::randomChild);
         }
-        return new Irate(source, field, filter, window, timestamp);
+        return new Irate(source, field, filter, window, timestamp, temporality);
     }
 }

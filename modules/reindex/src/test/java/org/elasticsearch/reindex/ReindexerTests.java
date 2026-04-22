@@ -81,6 +81,7 @@ import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -580,7 +581,7 @@ public class ReindexerTests extends ESTestCase {
 
     /**
      * Verifies that if a cancellation wins the CAS race before relocation handoff is initiated, the handoff is
-     * aborted with a {@link org.elasticsearch.tasks.TaskCancelledException} and the task state reflects the
+     * aborted with a {@link TaskCancelledException} and the task state reflects the
      * cancellation (no resumed task is created on the destination node).
      */
     public void testRelocationAbortedWhenCancellationWonTheRace() {
@@ -618,16 +619,20 @@ public class ReindexerTests extends ESTestCase {
         assertFalse("handoff flag must not be set after cancellation won", task.useCreateSemanticsForResultStorage());
         // No resume request must have been sent to the target node.
         verify(transportService, never()).sendRequest(
-            any(org.elasticsearch.cluster.node.DiscoveryNode.class),
+            any(DiscoveryNode.class),
             any(String.class),
-            any(org.elasticsearch.transport.TransportRequest.class),
+            any(TransportRequest.class),
             Mockito.<org.elasticsearch.transport.TransportResponseHandler<?>>any()
         );
-        // The listener fails with a TaskCancelledException (surfaced to the caller).
-        final Exception failure = expectThrows(Exception.class, future::actionGet);
-        assertThat(failure.getCause(), instanceOf(org.elasticsearch.tasks.TaskCancelledException.class));
-        final Exception onRelocationFailure = expectThrows(Exception.class, onRelocationFuture::actionGet);
-        assertThat(onRelocationFailure.getCause(), instanceOf(org.elasticsearch.tasks.TaskCancelledException.class));
+        // The listener fails with a TaskCancelledException
+        assertThat(
+            expectThrows(Exception.class, future::actionGet),
+            instanceOf(TaskCancelledException.class)
+        );
+        assertThat(
+            expectThrows(Exception.class, onRelocationFuture::actionGet),
+            instanceOf(TaskCancelledException.class)
+        );
     }
 
     public void testExecuteFailsWhenSourceTaskResultStorageFails() throws Exception {
@@ -838,16 +843,40 @@ public class ReindexerTests extends ESTestCase {
     }
 
     /**
-     * When the task has relocation requested and the failure is TaskCancelledException,
-     * wrapListenerWithClosePit must not close the PIT (relocated task will use it).
+     * When the task has relocation requested but the handoff has not yet committed, a cancellation failure must
+     * close the PIT.
      */
-    public void testWrapListenerWithClosePitDoesNotCloseOnCancellationDuringRelocation() {
+    public void testWrapListenerWithClosePitClosesOnCancellationWhenHandoffNotCommitted() {
         final AtomicInteger closeCount = new AtomicInteger(0);
         final ActionListener<BulkByScrollResponse> delegate = spy(ActionListener.noop());
         final BytesReference pitId = new BytesArray("pit-id");
         final BulkByScrollTask task = createTaskWithParentIdAndRelocationEnabled(new TaskId("node", 1));
         task.setWorker(Float.POSITIVE_INFINITY, 0);
         task.requestRelocation();
+
+        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(pitId, delegate, (id, done) -> {
+            closeCount.incrementAndGet();
+            done.onResponse(null);
+        }, task, () -> true);
+
+        wrapped.onFailure(new TaskCancelledException("cancelled before handoff committed"));
+
+        verify(delegate).onFailure(any());
+        assertThat(closeCount.get(), equalTo(1));
+    }
+
+    /**
+     * When the task has relocation handoff initiated and the failure is TaskCancelledException,
+     * wrapListenerWithClosePit must not close the PIT (relocated task will use it).
+     */
+    public void testWrapListenerWithClosePitDoesNotCloseAfterHandoffCommitted() {
+        final AtomicInteger closeCount = new AtomicInteger(0);
+        final ActionListener<BulkByScrollResponse> delegate = spy(ActionListener.noop());
+        final BytesReference pitId = new BytesArray("pit-id");
+        final BulkByScrollTask task = createTaskWithParentIdAndRelocationEnabled(new TaskId("node", 1));
+        task.setWorker(Float.POSITIVE_INFINITY, 0);
+        task.requestRelocation();
+        assertTrue(task.tryInitiateRelocationHandoff());
 
         final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(pitId, delegate, (id, done) -> {
             closeCount.incrementAndGet();

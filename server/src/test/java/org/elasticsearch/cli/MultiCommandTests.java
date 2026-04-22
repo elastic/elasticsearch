@@ -9,12 +9,11 @@
 
 package org.elasticsearch.cli;
 
-import org.elasticsearch.cli.terminal.Terminal;
-
 import joptsimple.ArgumentAcceptingOptionSpec;
 import joptsimple.OptionSet;
 import joptsimple.util.KeyValuePair;
 
+import org.elasticsearch.cli.terminal.Terminal;
 import org.junit.Before;
 
 import java.io.IOException;

@@ -17,9 +17,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.AcceptDocs;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.Lucene;
@@ -34,7 +32,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /** A {@link IVFKnnFloatVectorQuery} that uses the IVF search strategy. */
-public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery implements PostFilterableKnnQuery {
+public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
 
     private boolean isQueryPreconditioned = false;
     private float[] query;
@@ -128,7 +126,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery implements
     }
 
     @Override
-    protected int countTotalVectors(List<LeafReaderContext> leaves) throws IOException {
+    public int countTotalVectors(List<LeafReaderContext> leaves) throws IOException {
         int totalVectors = 0;
         for (LeafReaderContext leaf : leaves) {
             FloatVectorValues fvv = leaf.reader().getFloatVectorValues(field);
@@ -233,12 +231,15 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery implements
     }
 
     @Override
-    PostFilterableKnnQuery createPostFilterDelegate(int scaledK, int scaledNumCands, float scaledVisitRatio) {
+    public PostFilterableKnnQuery createPostFilterDelegate(float filterSelectivity) {
+        int scaledK = (int) Math.ceil(k / filterSelectivity);
+        float visitOversampling = Math.max(1.1f, 1.2f / filterSelectivity);
+        float scaledVisitRatio = providedVisitRatio > 0f ? Math.min(1.0f, providedVisitRatio * visitOversampling) : 0f;
         return new IVFKnnFloatVectorQuery(
             field,
             originalQuery.clone(),
             scaledK,
-            scaledNumCands,
+            Math.max(numCands, scaledK),
             null,
             scaledVisitRatio,
             doPrecondition,
@@ -247,22 +248,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery implements
     }
 
     @Override
-    public ScoreDoc[] findCandidates(IndexSearcher searcher) throws IOException {
-        Query rewritten = searcher.rewrite(this);
-        if (rewritten instanceof KnnScoreDocQuery knnResult) {
-            int[] docs = knnResult.docs();
-            float[] scores = knnResult.scores();
-            ScoreDoc[] scoreDocs = new ScoreDoc[docs.length];
-            for (int i = 0; i < docs.length; i++) {
-                scoreDocs[i] = new ScoreDoc(docs[i], scores[i]);
-            }
-            return scoreDocs;
-        }
-        return new ScoreDoc[0];
-    }
-
-    @Override
-    public PostFilterableKnnQuery createRetryQuery(IndexReader reader, ScoreDoc[] previousResults) {
+    public Query createInnerQuery(IndexReader reader, int[] previousDocs) {
         Map<Integer, FixedBitSet> mergedSkip = mergeSkipCentroids();
         return new IVFKnnFloatVectorQuery(field, originalQuery.clone(), k, numCands, null, providedVisitRatio, doPrecondition, mergedSkip);
     }

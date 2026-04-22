@@ -44,9 +44,8 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.LongAccumulator;
 
 import static org.elasticsearch.search.vectors.AbstractMaxScoreKnnCollector.LEAST_COMPETITIVE;
-import static org.elasticsearch.search.vectors.PostFilterAwareKnnQuery.POST_FILTERING_THRESHOLD;
 
-abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerProvider {
+abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerProvider, PostFilterableKnnQuery {
 
     static final TopDocs NO_RESULTS = TopDocsCollector.EMPTY_TOPDOCS;
 
@@ -111,20 +110,15 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             return MatchNoDocsQuery.INSTANCE;
         }
 
-        // When providedVisitRatio is 0.0f (dynamic), the codec computes the visit ratio
-        // per-segment using the Two-Signal model with segment-size awareness.
-        float visitRatio = providedVisitRatio;
-
         IVFCollectorManager collectorManager = getKnnCollectorManager(Math.round(2f * k), indexSearcher);
         if (filterWeight != null) {
-            int totalVectors = countTotalVectors(leaves);
-            float selectivity = computeSelectivity(filterWeight, leaves, totalVectors);
-            if (selectivity > POST_FILTERING_THRESHOLD) {
-                return rewriteAsPostFilterQuery(filterWeight, selectivity, visitRatio, reader);
+            Query postFilterQuery = createPostFilterQuery(leaves, filterWeight, k, reader, getParentsFilter());
+            if (postFilterQuery != null) {
+                return postFilterQuery;
             }
         }
 
-        return executeSearch(indexSearcher, leaves, filterWeight, collectorManager, visitRatio);
+        return executeSearch(indexSearcher, leaves, filterWeight, collectorManager, providedVisitRatio);
     }
 
     private Weight createFilterWeight(IndexSearcher searcher) throws IOException {
@@ -141,36 +135,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         return searcher.createWeight(rewritten, ScoreMode.COMPLETE_NO_SCORES, 1f);
     }
 
-    protected abstract int countTotalVectors(List<LeafReaderContext> leaves) throws IOException;
-
-    private static float computeSelectivity(Weight filterWeight, List<LeafReaderContext> leaves, int totalVectors) throws IOException {
-        long filterCost = 0;
-        for (LeafReaderContext leafCtx : leaves) {
-            ScorerSupplier ss = filterWeight.scorerSupplier(leafCtx);
-            if (ss != null) {
-                filterCost += ss.cost();
-            }
-        }
-        return totalVectors > 0 ? Math.min(1f, (float) filterCost / totalVectors) : 0f;
-    }
-
     protected BitSetProducer getParentsFilter() {
         return null;
     }
-
-    private Query rewriteAsPostFilterQuery(Weight filterWeight, float selectivity, float visitRatio, IndexReader reader) {
-        int scaledK = (int) Math.ceil(k / selectivity);
-        float visitOversampling = Math.max(1.1f, 1.2f / selectivity);
-        float scaledVisitRatio = visitRatio > 0f ? Math.min(1.0f, visitRatio * visitOversampling) : 0f;
-        PostFilterableKnnQuery delegate = createPostFilterDelegate(scaledK, Math.max(numCands, scaledK), scaledVisitRatio);
-        return new PostFilterAwareKnnQuery(delegate, filterWeight, k, reader, ops -> this.vectorOpsCount = ops, getParentsFilter());
-    }
-
-    /**
-     * Creates a filter-less delegate query for post-filtering. Subclasses provide
-     * the concrete query type with the appropriate vector data.
-     */
-    abstract PostFilterableKnnQuery createPostFilterDelegate(int scaledK, int scaledNumCands, float scaledVisitRatio);
 
     private Query executeSearch(
         IndexSearcher indexSearcher,

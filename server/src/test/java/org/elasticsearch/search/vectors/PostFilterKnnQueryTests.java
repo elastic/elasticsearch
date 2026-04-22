@@ -43,20 +43,21 @@ import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class PostFilterAwareKnnQueryTests extends ESTestCase {
+public class PostFilterKnnQueryTests extends ESTestCase {
 
     // ==================== mergeResults tests ====================
 
     public void testMergeResultsBothEmpty() {
-        ScoreDoc[] result = PostFilterAwareKnnQuery.mergeResults(new ScoreDoc[0], new ScoreDoc[0]);
+        ScoreDoc[] result = PostFilterKnnQuery.mergeResults(new ScoreDoc[0], new ScoreDoc[0]);
         assertEquals(0, result.length);
     }
 
     public void testMergeResultsFirstEmpty() {
         ScoreDoc[] input = new ScoreDoc[] { new ScoreDoc(1, 0.9f), new ScoreDoc(2, 0.8f) };
-        ScoreDoc[] result = PostFilterAwareKnnQuery.mergeResults(new ScoreDoc[0], input);
+        ScoreDoc[] result = PostFilterKnnQuery.mergeResults(new ScoreDoc[0], input);
         assertEquals(2, result.length);
         assertEquals(1, result[0].doc);
         assertEquals(2, result[1].doc);
@@ -64,7 +65,7 @@ public class PostFilterAwareKnnQueryTests extends ESTestCase {
 
     public void testMergeResultsSecondEmpty() {
         ScoreDoc[] input = new ScoreDoc[] { new ScoreDoc(1, 0.9f), new ScoreDoc(2, 0.8f) };
-        ScoreDoc[] result = PostFilterAwareKnnQuery.mergeResults(input, new ScoreDoc[0]);
+        ScoreDoc[] result = PostFilterKnnQuery.mergeResults(input, new ScoreDoc[0]);
         assertEquals(2, result.length);
         assertEquals(1, result[0].doc);
         assertEquals(2, result[1].doc);
@@ -73,7 +74,7 @@ public class PostFilterAwareKnnQueryTests extends ESTestCase {
     public void testMergeResultsMergesByScoreDescending() {
         ScoreDoc[] existing = new ScoreDoc[] { new ScoreDoc(1, 0.9f), new ScoreDoc(3, 0.7f) };
         ScoreDoc[] incoming = new ScoreDoc[] { new ScoreDoc(2, 0.8f), new ScoreDoc(4, 0.6f) };
-        ScoreDoc[] result = PostFilterAwareKnnQuery.mergeResults(existing, incoming);
+        ScoreDoc[] result = PostFilterKnnQuery.mergeResults(existing, incoming);
         assertEquals(4, result.length);
         assertEquals(1, result[0].doc);
         assertEquals(0.9f, result[0].score, 0.001f);
@@ -88,7 +89,7 @@ public class PostFilterAwareKnnQueryTests extends ESTestCase {
     public void testMergeResultsDeduplicatesByDocId() {
         ScoreDoc[] existing = new ScoreDoc[] { new ScoreDoc(1, 0.9f), new ScoreDoc(2, 0.7f) };
         ScoreDoc[] incoming = new ScoreDoc[] { new ScoreDoc(2, 0.8f), new ScoreDoc(3, 0.6f) };
-        ScoreDoc[] result = PostFilterAwareKnnQuery.mergeResults(existing, incoming);
+        ScoreDoc[] result = PostFilterKnnQuery.mergeResults(existing, incoming);
         // doc 2 appears in both; the higher-ranked one (0.8 from incoming) wins
         // Merge order: 1(0.9) from existing, 2(0.8) from incoming, 2(0.7) from existing (dup skipped), 3(0.6)
         assertEquals(3, result.length);
@@ -127,7 +128,7 @@ public class PostFilterAwareKnnQueryTests extends ESTestCase {
                     new ScoreDoc(3, 0.6f),
                     new ScoreDoc(4, 0.5f) };
 
-                ScoreDoc[] result = PostFilterAwareKnnQuery.applyFilter(candidates, filterWeight, searcher);
+                ScoreDoc[] result = PostFilterKnnQuery.applyFilter(candidates, filterWeight, searcher);
                 // Even docs (0, 2, 4) pass, sorted by score descending
                 assertEquals(3, result.length);
                 assertEquals(0, result[0].doc);
@@ -155,7 +156,7 @@ public class PostFilterAwareKnnQueryTests extends ESTestCase {
                     1f
                 );
                 ScoreDoc[] candidates = new ScoreDoc[] { new ScoreDoc(0, 0.9f) };
-                ScoreDoc[] result = PostFilterAwareKnnQuery.applyFilter(candidates, filterWeight, searcher);
+                ScoreDoc[] result = PostFilterKnnQuery.applyFilter(candidates, filterWeight, searcher);
                 assertEquals(0, result.length);
             }
         }
@@ -188,7 +189,7 @@ public class PostFilterAwareKnnQueryTests extends ESTestCase {
                     new ScoreDoc(3, 0.6f),  // child → parent 5 (dup)
                 };
 
-                ScoreDoc[] result = PostFilterAwareKnnQuery.deduplicateByParent(docs, reader, parentsFilter);
+                ScoreDoc[] result = PostFilterKnnQuery.deduplicateByParent(docs, reader, parentsFilter);
                 assertEquals(2, result.length);
                 assertEquals(1, result[0].doc);
                 assertEquals(0.9f, result[0].score, 0.001f);
@@ -211,7 +212,7 @@ public class PostFilterAwareKnnQueryTests extends ESTestCase {
                 BitSetProducer parentsFilter = context -> { return new FixedBitSet(context.reader().maxDoc()); };
 
                 ScoreDoc[] docs = new ScoreDoc[] { new ScoreDoc(0, 0.9f), new ScoreDoc(1, 0.8f) };
-                ScoreDoc[] result = PostFilterAwareKnnQuery.deduplicateByParent(docs, reader, parentsFilter);
+                ScoreDoc[] result = PostFilterKnnQuery.deduplicateByParent(docs, reader, parentsFilter);
                 // nextSetBit returns NO_MORE_DOCS for empty bitset, so all are filtered
                 assertEquals(0, result.length);
             }
@@ -358,7 +359,7 @@ public class PostFilterAwareKnnQueryTests extends ESTestCase {
 
                 int k = 3;
                 AtomicLong capturedOps = new AtomicLong();
-                PostFilterAwareKnnQuery query = new PostFilterAwareKnnQuery(round1, filterWeight, k, reader, capturedOps::set, null);
+                PostFilterKnnQuery query = new PostFilterKnnQuery(round1, filterWeight, k, reader, null);
 
                 Query result = query.rewrite(searcher);
                 assertTrue("Expected KnnScoreDocQuery but got " + result.getClass(), result instanceof KnnScoreDocQuery);
@@ -394,7 +395,7 @@ public class PostFilterAwareKnnQueryTests extends ESTestCase {
                     null
                 );
 
-                PostFilterAwareKnnQuery query = new PostFilterAwareKnnQuery(round1, filterWeight, 5, reader, ops -> {}, null);
+                PostFilterKnnQuery query = new PostFilterKnnQuery(round1, filterWeight, 5, reader, null);
                 Query result = query.rewrite(searcher);
                 assertTrue("Expected MatchNoDocsQuery but got " + result.getClass(), result instanceof MatchNoDocsQuery);
             }
@@ -422,9 +423,9 @@ public class PostFilterAwareKnnQueryTests extends ESTestCase {
                 );
 
                 // Build a chain of MAX_ROUNDS fake queries, each returning results that won't pass the filter
-                FakePostFilterableQuery[] rounds = new FakePostFilterableQuery[PostFilterAwareKnnQuery.MAX_ROUNDS];
-                for (int i = PostFilterAwareKnnQuery.MAX_ROUNDS - 1; i >= 0; i--) {
-                    FakePostFilterableQuery next = i < PostFilterAwareKnnQuery.MAX_ROUNDS - 1 ? rounds[i + 1] : null;
+                FakePostFilterableQuery[] rounds = new FakePostFilterableQuery[PostFilterKnnQuery.MAX_ROUNDS];
+                for (int i = PostFilterKnnQuery.MAX_ROUNDS - 1; i >= 0; i--) {
+                    FakePostFilterableQuery next = i < PostFilterKnnQuery.MAX_ROUNDS - 1 ? rounds[i + 1] : null;
                     rounds[i] = new FakePostFilterableQuery(
                         new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(i, 0.5f) }),
                         10,
@@ -433,13 +434,13 @@ public class PostFilterAwareKnnQueryTests extends ESTestCase {
                 }
 
                 AtomicLong capturedOps = new AtomicLong();
-                PostFilterAwareKnnQuery query = new PostFilterAwareKnnQuery(rounds[0], filterWeight, 5, reader, capturedOps::set, null);
+                PostFilterKnnQuery query = new PostFilterKnnQuery(rounds[0], filterWeight, 5, reader, null);
 
                 Query result = query.rewrite(searcher);
                 // No docs pass the filter → should return no-docs
                 assertTrue("Expected MatchNoDocsQuery but got " + result.getClass(), result instanceof MatchNoDocsQuery);
                 // Vector ops: 10 * MAX_ROUNDS
-                assertEquals(10L * PostFilterAwareKnnQuery.MAX_ROUNDS, capturedOps.get());
+                assertEquals(10L * PostFilterKnnQuery.MAX_ROUNDS, capturedOps.get());
             }
         }
     }
@@ -488,7 +489,7 @@ public class PostFilterAwareKnnQueryTests extends ESTestCase {
                 );
 
                 int k = 2;
-                PostFilterAwareKnnQuery query = new PostFilterAwareKnnQuery(round1, filterWeight, k, reader, ops -> {}, parentsFilter);
+                PostFilterKnnQuery query = new PostFilterKnnQuery(round1, filterWeight, k, reader, parentsFilter);
 
                 Query result = query.rewrite(searcher);
                 assertTrue(result instanceof KnnScoreDocQuery);
@@ -628,28 +629,23 @@ public class PostFilterAwareKnnQueryTests extends ESTestCase {
         }
 
         @Override
-        public ScoreDoc[] findCandidates(IndexSearcher searcher) throws IOException {
-            Query rewritten = searcher.rewrite(this);
-            if (rewritten instanceof KnnScoreDocQuery knnResult) {
-                int[] docs = knnResult.docs();
-                float[] scores = knnResult.scores();
-                ScoreDoc[] scoreDocs = new ScoreDoc[docs.length];
-                for (int i = 0; i < docs.length; i++) {
-                    scoreDocs[i] = new ScoreDoc(docs[i], scores[i]);
-                }
-                return scoreDocs;
-            }
-            return new ScoreDoc[0];
+        public Query createInnerQuery(IndexReader reader, int[] previousResults) {
+            return nextRetry;
         }
 
         @Override
-        public PostFilterableKnnQuery createRetryQuery(IndexReader reader, ScoreDoc[] previousResults) {
+        public PostFilterableKnnQuery createPostFilterDelegate(float filterSelectivity) {
             return nextRetry;
         }
 
         @Override
         public long vectorOpsCount() {
             return opsCount;
+        }
+
+        @Override
+        public int countTotalVectors(List<LeafReaderContext> leaves) throws IOException {
+            return 100;
         }
 
         @Override

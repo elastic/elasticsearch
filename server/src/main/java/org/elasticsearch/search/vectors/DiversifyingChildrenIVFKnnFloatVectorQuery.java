@@ -12,7 +12,6 @@ package org.elasticsearch.search.vectors;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.FixedBitSet;
 
@@ -74,12 +73,15 @@ public class DiversifyingChildrenIVFKnnFloatVectorQuery extends IVFKnnFloatVecto
     }
 
     @Override
-    PostFilterableKnnQuery createPostFilterDelegate(int scaledK, int scaledNumCands, float scaledVisitRatio) {
+    public DiversifyingChildrenIVFKnnFloatVectorQuery createPostFilterDelegate(float filterSelectivity) {
+        int scaledK = (int) Math.ceil(k / filterSelectivity);
+        float visitOversampling = Math.max(1.1f, 1.2f / filterSelectivity);
+        float scaledVisitRatio = providedVisitRatio > 0f ? Math.min(1.0f, providedVisitRatio * visitOversampling) : 0f;
         return new DiversifyingChildrenIVFKnnFloatVectorQuery(
             field,
             getOriginalQuery().clone(),
             scaledK,
-            scaledNumCands,
+            Math.max(scaledK, numCands),
             null,
             parentsFilter,
             scaledVisitRatio,
@@ -89,7 +91,7 @@ public class DiversifyingChildrenIVFKnnFloatVectorQuery extends IVFKnnFloatVecto
     }
 
     @Override
-    public PostFilterableKnnQuery createRetryQuery(IndexReader reader, ScoreDoc[] previousResults) {
+    public Query createInnerQuery(IndexReader reader, int[] previousDocs) {
         Map<Integer, FixedBitSet> mergedSkip = mergeSkipCentroids();
         return new DiversifyingChildrenIVFKnnFloatVectorQuery(
             field,
@@ -102,11 +104,6 @@ public class DiversifyingChildrenIVFKnnFloatVectorQuery extends IVFKnnFloatVecto
             doPrecondition,
             mergedSkip
         );
-    }
-
-    @Override
-    public long vectorOpsCount() {
-        return vectorOpsCount;
     }
 
     @Override

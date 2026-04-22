@@ -21,6 +21,7 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
@@ -33,89 +34,83 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.LongConsumer;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 /**
  * A query that wraps a {@link PostFilterableKnnQuery} and applies post-filtering with retry.
- * When post-filtering yields fewer than k results, retries with new delegates that avoid
+ * When post-filtering yields fewer than k results, retries with new innerQueries that avoid
  * re-visiting previously seen results (doc IDs for HNSW, centroid posting lists for IVF).
  * <p>
  * The retry loop runs internally (up to {@link #MAX_ROUNDS} rounds). Each round:
- * 1. Executes the delegate's search via rewrite
-* 2. Applies the filter to raw results
+ * 1. Executes the innerQuery's search via rewrite
+ * 2. Applies the filter to raw results
  * 3. Accumulates filtered results
- * 4. If not enough results, creates a retry delegate and continues
+ * 4. If not enough results, creates a retry innerQuery and continues
  */
-public class PostFilterAwareKnnQuery extends Query implements QueryProfilerProvider {
+public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
 
     public static final float POST_FILTERING_THRESHOLD = 0.7f;
 
     static final int MAX_ROUNDS = 5;
 
-    private final PostFilterableKnnQuery delegate;
+    private final PostFilterableKnnQuery innerQuery;
     private final Weight filterWeight;
     private final int k;
-    private final IndexReader reader;
-    private final LongConsumer vectorOpsCallback;
-    private final BitSetProducer parentsFilter;
     private long totalVectorOps;
+    private final BitSetProducer parentsFilter;
 
-    public PostFilterAwareKnnQuery(
-        PostFilterableKnnQuery delegate,
+    public PostFilterKnnQuery(
+        PostFilterableKnnQuery innerQuery,
         Weight filterWeight,
         int k,
         IndexReader reader,
-        LongConsumer vectorOpsCallback,
         BitSetProducer parentsFilter
     ) {
-        this.delegate = delegate;
+        this.innerQuery = innerQuery;
         this.filterWeight = filterWeight;
         this.k = k;
-        this.reader = reader;
-        this.vectorOpsCallback = vectorOpsCallback;
         this.parentsFilter = parentsFilter;
     }
 
     @Override
     public Query rewrite(IndexSearcher searcher) throws IOException {
-        ScoreDoc[] accumulated = new ScoreDoc[0];
+        ScoreDoc[] scoreDocs = new ScoreDoc[0];
+        int[] docsVisited = new int[0];
         long vectorOps = 0;
-        PostFilterableKnnQuery current = delegate;
-
         for (int round = 0; round < MAX_ROUNDS; round++) {
-            ScoreDoc[] rawResults = current.findCandidates(searcher);
-            vectorOps += current.vectorOpsCount();
-
-            if (rawResults.length == 0) {
-                break;
+            Query queryToRun = innerQuery.createInnerQuery(searcher.getIndexReader(), docsVisited);
+            TopDocs topDocs = searcher.search(queryToRun, Integer.MAX_VALUE);
+            if (queryToRun instanceof PostFilterableKnnQuery) {
+                vectorOps += ((PostFilterableKnnQuery) queryToRun).vectorOpsCount();
             }
 
-            ScoreDoc[] filtered = applyFilter(rawResults, filterWeight, searcher);
-            accumulated = mergeResults(accumulated, filtered);
+            if (topDocs.scoreDocs.length == 0) {
+                break;
+            }
+            docsVisited = new int[topDocs.scoreDocs.length];
+            for (int i = 0; i < topDocs.scoreDocs.length; i++) {
+                docsVisited[i] = topDocs.scoreDocs[i].doc;
+            }
+
+            ScoreDoc[] filtered = applyFilter(topDocs.scoreDocs, filterWeight, searcher);
+            scoreDocs = mergeResults(scoreDocs, filtered);
 
             if (parentsFilter != null) {
-                accumulated = deduplicateByParent(accumulated, searcher.getIndexReader(), parentsFilter);
+                scoreDocs = deduplicateByParent(scoreDocs, searcher.getIndexReader(), parentsFilter);
             }
-
-            if (accumulated.length >= k) {
+            if (scoreDocs.length >= k) {
                 break;
             }
-            current = current.createRetryQuery(searcher.getIndexReader(), rawResults);
         }
-
-        // Propagate profiling info
         this.totalVectorOps = vectorOps;
-        if (vectorOpsCallback != null) {
-            vectorOpsCallback.accept(vectorOps);
-        }
-
-        if (accumulated.length == 0) {
+        if (scoreDocs.length == 0) {
             return Queries.NO_DOCS_INSTANCE;
         }
-        int count = Math.min(k, accumulated.length);
-        return new KnnScoreDocQuery(Arrays.copyOf(accumulated, count), reader);
+        if (k < scoreDocs.length) {
+            scoreDocs = Arrays.copyOf(scoreDocs, k);
+        }
+        return new KnnScoreDocQuery(scoreDocs, searcher.getIndexReader());
     }
 
     /**
@@ -125,7 +120,7 @@ public class PostFilterAwareKnnQuery extends Query implements QueryProfilerProvi
     static ScoreDoc[] applyFilter(ScoreDoc[] scoreDocs, Weight filterWeight, IndexSearcher searcher) throws IOException {
         List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
 
-        // Group docs by leaf ordinal
+        // group docs by leaf ordinal
         @SuppressWarnings({ "unchecked", "rawtypes" })
         List<ScoreDoc>[] byLeaf = new List[leaves.size()];
         for (ScoreDoc sd : scoreDocs) {
@@ -136,7 +131,8 @@ public class PostFilterAwareKnnQuery extends Query implements QueryProfilerProvi
             byLeaf[leafOrd].add(sd);
         }
 
-        List<ScoreDoc> passing = new ArrayList<>();
+        // filter each leaf separately
+        List<ScoreDoc> passingDocs = new ArrayList<>();
         for (int leafOrd = 0; leafOrd < leaves.size(); leafOrd++) {
             if (byLeaf[leafOrd] == null) continue;
             LeafReaderContext ctx = leaves.get(leafOrd);
@@ -144,7 +140,6 @@ public class PostFilterAwareKnnQuery extends Query implements QueryProfilerProvi
             if (ss == null) continue;
 
             DocIdSetIterator filterIter = ss.get(NO_MORE_DOCS).iterator();
-            // Sort by local doc ID for efficient filter advancing
             List<ScoreDoc> leafDocs = byLeaf[leafOrd];
             leafDocs.sort(Comparator.comparingInt(sd -> sd.doc));
 
@@ -155,15 +150,15 @@ public class PostFilterAwareKnnQuery extends Query implements QueryProfilerProvi
                     filterDoc = filterIter.advance(localDoc);
                 }
                 if (filterDoc == localDoc) {
-                    passing.add(sd);
+                    passingDocs.add(sd);
                 }
                 if (filterDoc == NO_MORE_DOCS) break;
             }
         }
 
-        // Sort by score descending
-        passing.sort((a, b) -> Float.compare(b.score, a.score));
-        return passing.toArray(new ScoreDoc[0]);
+        // srot back by score descending
+        passingDocs.sort((a, b) -> Float.compare(b.score, a.score));
+        return passingDocs.toArray(new ScoreDoc[0]);
     }
 
     /**
@@ -230,36 +225,36 @@ public class PostFilterAwareKnnQuery extends Query implements QueryProfilerProvi
 
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
-        throw new UnsupportedOperationException("PostFilterAwareKnnQuery should always be rewritten before createWeight");
+        throw new UnsupportedOperationException("PostFilterKnnQuery does not support [createWeight]. Missing a rewrite?");
     }
 
     @Override
     public String toString(String field) {
-        return "PostFilterAwareKnnQuery[k=" + k + ", delegate=" + delegate + "]";
+        return "PostFilterKnnQuery[k=" + k + ", innerQuery=" + innerQuery + "]";
     }
 
     @Override
     public void visit(QueryVisitor visitor) {
-        ((Query) delegate).visit(visitor);
+        ((Query) innerQuery).visit(visitor);
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        PostFilterAwareKnnQuery that = (PostFilterAwareKnnQuery) o;
+        PostFilterKnnQuery that = (PostFilterKnnQuery) o;
         // Weight doesn't implement equals/hashCode, so use identity comparison.
         // This is acceptable because this query is always rewritten before execution
         // and never needs cache matching.
         return k == that.k
-            && delegate.equals(that.delegate)
+            && innerQuery.equals(that.innerQuery)
             && filterWeight == that.filterWeight
             && Objects.equals(parentsFilter, that.parentsFilter);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), delegate, k, System.identityHashCode(filterWeight), parentsFilter);
+        return Objects.hash(classHash(), innerQuery, k, System.identityHashCode(filterWeight), parentsFilter);
     }
 
 }

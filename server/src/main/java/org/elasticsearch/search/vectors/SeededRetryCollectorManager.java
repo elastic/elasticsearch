@@ -15,7 +15,6 @@ import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.KnnCollector;
-import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 
@@ -30,12 +29,12 @@ import java.util.Arrays;
 class SeededRetryCollectorManager implements KnnCollectorManager {
 
     private final KnnCollectorManager delegate;
-    private final ScoreDoc[] seedResults;
+    private final int[] seedDocs;
     private final String field;
 
-    SeededRetryCollectorManager(KnnCollectorManager delegate, ScoreDoc[] seedResults, String field) {
+    SeededRetryCollectorManager(KnnCollectorManager delegate, int[] seedDocs, String field) {
         this.delegate = delegate;
-        this.seedResults = seedResults;
+        this.seedDocs = seedDocs;
         this.field = field;
     }
 
@@ -78,10 +77,10 @@ class SeededRetryCollectorManager implements KnnCollectorManager {
         int maxDoc = ctx.reader().maxDoc();
 
         // Collect and sort local doc IDs for this leaf
-        int[] localDocIds = new int[seedResults.length];
+        int[] localDocIds = new int[seedDocs.length];
         int count = 0;
-        for (ScoreDoc sd : seedResults) {
-            int localDoc = sd.doc - docBase;
+        for (int doc : seedDocs) {
+            int localDoc = doc - docBase;
             if (localDoc >= 0 && localDoc < maxDoc) {
                 localDocIds[count++] = localDoc;
             }
@@ -103,8 +102,6 @@ class SeededRetryCollectorManager implements KnnCollectorManager {
         for (int i = 0; i < count; i++) {
             int docId = localDocIds[i];
             if (docId <= iterDoc) {
-                // Iterator already advanced past this doc; calling advance() would violate
-                // the DocIdSetIterator contract (target must be > current).
                 continue;
             }
             iterDoc = docIndexIter.advance(docId);

@@ -11,55 +11,91 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.knn.KnnSearchStrategy;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.util.FixedBitSet;
 
 import java.io.IOException;
+import java.util.List;
+
+import static org.elasticsearch.search.vectors.PostFilterKnnQuery.POST_FILTERING_THRESHOLD;
 
 /**
  * Interface for KNN queries that support post-filtering with retry.
  * Implemented by both HNSW ({@link ESKnnFloatVectorQuery}, {@link ESKnnByteVectorQuery})
  * and IVF ({@link IVFKnnFloatVectorQuery}) queries.
  * <p>
- * Shared logic (selectivity computation, retry state building, collector wrapping) lives in
- * {@link PostFilterHelper} to keep this interface focused on the per-query-type contract.
  */
 public interface PostFilterableKnnQuery {
-
-    /**
-     * Finds raw (unfiltered) candidate results by executing this query's vector search.
-     * Each implementation owns the full rewrite-and-extract lifecycle:
-     * HNSW calls {@code searcher.rewrite(this)} and returns internally captured results
-     * (Lucene's DocAndScoreQuery is package-private); IVF calls {@code searcher.rewrite(this)}
-     * and extracts docs/scores from the returned {@link KnnScoreDocQuery}.
-     */
-    ScoreDoc[] findCandidates(IndexSearcher searcher) throws IOException;
 
     /**
      * Creates a new query for the next retry round, configured to avoid re-visiting
      * previously seen results. For HNSW, this excludes previously seen doc IDs via a
      * FixedBitSet filter and seeds the next search with {@code previousResults}.
      * For IVF, this skips previously visited centroid posting lists.
-     *
-     * @param previousResults the raw results from the current round, used by HNSW
-     *                        to build the seen-docs exclusion set and seed the next search
      */
-    PostFilterableKnnQuery createRetryQuery(IndexReader reader, ScoreDoc[] previousResults);
+    Query createInnerQuery(IndexReader reader, int[] docsVisited);
 
     /**
-     * Returns the number of vector operations performed during the most recent search.
+     * Creates a filter-less delegate query for post-filtering. Subclasses provide
+     * the concrete query type with the appropriate vector data.
      */
+    PostFilterableKnnQuery createPostFilterDelegate(float filterSelectivity);
+
     long vectorOpsCount();
+
+    int countTotalVectors(List<LeafReaderContext> leaves) throws IOException;
 
     @FunctionalInterface
     interface VectorCountSupplier {
         long totalVectors(LeafReaderContext ctx) throws IOException;
     }
 
-    /** Creates a filter-less delegate for post-filtering — type-specific. */
-    @FunctionalInterface
-    interface PostFilterDelegateFactory {
-        PostFilterableKnnQuery create(int scaledK, int scaledNumCands, KnnSearchStrategy strategy, boolean earlyTermination);
+    /**
+     * Builds the cumulative seenDocs bitset from previous rounds' results, used by HNSW retry
+     * to avoid re-visiting documents.
+     */
+    default FixedBitSet appendSeenDocs(FixedBitSet seenDocs, int[] previousResults, int maxDoc) {
+        if (seenDocs == null) {
+            seenDocs = new FixedBitSet(maxDoc);
+        }
+        if (previousResults != null) {
+            for (int doc : previousResults) {
+                if (doc >= 0 && doc < seenDocs.length()) {
+                    seenDocs.set(doc);
+                }
+            }
+        }
+        return seenDocs;
     }
+
+    default float computeSelectivity(Weight filterWeight, List<LeafReaderContext> leaves, int totalVectors) throws IOException {
+        long filterCost = 0;
+        for (LeafReaderContext leafCtx : leaves) {
+            ScorerSupplier ss = filterWeight.scorerSupplier(leafCtx);
+            if (ss != null) {
+                filterCost += ss.cost();
+            }
+        }
+        return totalVectors > 0 ? Math.min(1f, (float) filterCost / totalVectors) : 0f;
+    }
+
+    default Query createPostFilterQuery(
+        List<LeafReaderContext> leaves,
+        Weight filterWeight,
+        int k,
+        IndexReader reader,
+        BitSetProducer parentsBitset
+    ) throws IOException {
+        int totalVectors = countTotalVectors(leaves);
+        float selectivity = computeSelectivity(filterWeight, leaves, totalVectors);
+        if (selectivity >= POST_FILTERING_THRESHOLD) {
+            PostFilterableKnnQuery delegate = createPostFilterDelegate(selectivity);
+            return new PostFilterKnnQuery(delegate, filterWeight, k, reader, parentsBitset);
+        }
+        return null;
+    }
+
 }

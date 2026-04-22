@@ -17,7 +17,6 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
@@ -138,7 +137,7 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
     }
 
     @Override
-    protected int countTotalVectors(List<LeafReaderContext> leaves) throws IOException {
+    public int countTotalVectors(List<LeafReaderContext> leaves) throws IOException {
         int totalVectors = 0;
         for (LeafReaderContext leaf : leaves) {
             SortedDocValues sdv = leaf.reader().getSortedDocValues(sliceField);
@@ -163,12 +162,15 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
     }
 
     @Override
-    PostFilterableKnnQuery createPostFilterDelegate(int scaledK, int scaledNumCands, float scaledVisitRatio) {
+    public IVFKnnFloatSlicedVectorQuery createPostFilterDelegate(float filterSelectivity) {
+        int scaledK = (int) Math.ceil(k / filterSelectivity);
+        float visitOversampling = Math.max(1.1f, 1.2f / filterSelectivity);
+        float scaledVisitRatio = providedVisitRatio > 0f ? Math.min(1.0f, providedVisitRatio * visitOversampling) : 0f;
         return new IVFKnnFloatSlicedVectorQuery(
             field,
             originalQuery.clone(),
             scaledK,
-            scaledNumCands,
+            Math.max(scaledK, numCands),
             null,
             scaledVisitRatio,
             doPrecondition,
@@ -178,9 +180,9 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
     }
 
     @Override
-    public PostFilterableKnnQuery createRetryQuery(IndexReader reader, ScoreDoc[] previousResults) {
+    public Query createInnerQuery(IndexReader reader, int[] previousDocs) {
         Map<Integer, FixedBitSet> mergedSkip = mergeSkipCentroids();
-        var retryQuery = new IVFKnnFloatSlicedVectorQuery(
+        return new IVFKnnFloatSlicedVectorQuery(
             field,
             originalQuery.clone(),
             k,
@@ -192,7 +194,6 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
             sliceId,
             mergedSkip
         );
-        return retryQuery;
     }
 
     private static ESAcceptDocs.SliceAcceptDocs getSliceAcceptDocsSupplier(

@@ -11,10 +11,16 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.DiversifyingChildrenByteKnnVectorQuery;
 import org.apache.lucene.search.knn.KnnCollectorManager;
@@ -23,6 +29,9 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
+import java.util.List;
+
+import static org.elasticsearch.search.vectors.KnnSearchBuilder.NUM_CANDS_LIMIT;
 
 public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildrenByteKnnVectorQuery
     implements
@@ -34,11 +43,8 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
     private long vectorOpsCount;
     private final boolean earlyTermination;
     private final BitSetProducer parentsFilter;
-    private final FixedBitSet seenDocs;
-    private final ScoreDoc[] seedResults;
-
-    // Internal plumbing: written in mergeLeafResults() during rewrite, read by search() immediately after
-    private ScoreDoc[] lastSearchResults;
+    private FixedBitSet seenDocs;
+    private final int[] docsToSeed;
 
     public ESDiversifyingChildrenByteKnnVectorQuery(
         String field,
@@ -75,7 +81,7 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
         KnnSearchStrategy strategy,
         boolean earlyTermination,
         FixedBitSet seenDocs,
-        ScoreDoc[] seedResults
+        int[] docsToSeed
     ) {
         super(field, query, childFilter, numCands, parentsFilter, strategy);
         this.kParam = k;
@@ -83,39 +89,44 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
         this.earlyTermination = earlyTermination;
         this.parentsFilter = parentsFilter;
         this.seenDocs = seenDocs;
-        this.seedResults = seedResults;
+        this.docsToSeed = docsToSeed;
     }
 
     @Override
     public Query rewrite(IndexSearcher indexSearcher) throws IOException {
-        Query postFiltered = PostFilterHelper.maybePostFilterRewrite(indexSearcher, filter, field, ctx -> {
-            ByteVectorValues bvv = ctx.reader().getByteVectorValues(field);
-            return bvv != null ? bvv.size() : 0;
-        },
-            (scaledK, scaledNumCands, strategy, et) -> new ESDiversifyingChildrenByteKnnVectorQuery(
-                field,
-                getTargetCopy(),
-                null,
-                scaledK,
-                scaledNumCands,
-                parentsFilter,
-                strategy,
-                et
-            ),
-            kParam,
-            numCands,
-            searchStrategy,
-            earlyTermination,
-            ops -> this.vectorOpsCount = ops,
-            parentsFilter
-        );
-        return postFiltered != null ? postFiltered : super.rewrite(indexSearcher);
+        Weight filterWeight = createFilterWeight(indexSearcher);
+        if (filter != null) {
+            Query postFilterQuery = createPostFilterQuery(
+                indexSearcher.getLeafContexts(),
+                filterWeight,
+                kParam,
+                indexSearcher.getIndexReader(),
+                null
+            );
+            if (postFilterQuery != null) {
+                return postFilterQuery;
+            }
+        }
+        return super.rewrite(indexSearcher);
+    }
+
+    private Weight createFilterWeight(IndexSearcher searcher) throws IOException {
+        if (filter == null) {
+            return null;
+        }
+        BooleanQuery booleanQuery = new BooleanQuery.Builder().add(filter, BooleanClause.Occur.FILTER)
+            .add(new FieldExistsQuery(field), BooleanClause.Occur.FILTER)
+            .build();
+        Query rewritten = searcher.rewrite(booleanQuery);
+        if (rewritten.getClass() == MatchNoDocsQuery.class) {
+            return null;
+        }
+        return searcher.createWeight(rewritten, ScoreMode.COMPLETE_NO_SCORES, 1f);
     }
 
     @Override
     protected TopDocs mergeLeafResults(TopDocs[] perLeafResults) {
         TopDocs topK = TopDocs.merge(kParam, perLeafResults);
-        this.lastSearchResults = topK.scoreDocs;
         vectorOpsCount = topK.totalHits.value();
         return topK;
     }
@@ -125,34 +136,56 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
         queryProfiler.addVectorOpsCount(vectorOpsCount);
     }
 
-    // --- PostFilterableKnnQuery ---
-
     @Override
-    public ScoreDoc[] findCandidates(IndexSearcher searcher) throws IOException {
-        super.rewrite(searcher);
-        return lastSearchResults != null ? lastSearchResults : new ScoreDoc[0];
-    }
-
-    @Override
-    public PostFilterableKnnQuery createRetryQuery(IndexReader reader, ScoreDoc[] previousResults) {
-        FixedBitSet newSeenDocs = PostFilterHelper.buildRetrySeenDocs(seenDocs, previousResults, reader);
+    public Query createInnerQuery(IndexReader reader, int[] docsVisited) {
+        appendSeenDocs(seenDocs, docsVisited, reader.maxDoc());
         return new ESDiversifyingChildrenByteKnnVectorQuery(
             field,
             getTargetCopy(),
-            new ExcludeDocsQuery(newSeenDocs, reader),
+            new ExcludeDocsQuery(seenDocs, reader),
             kParam,
             numCands,
             parentsFilter,
             searchStrategy,
             earlyTermination,
-            newSeenDocs,
-            previousResults
+            seenDocs,
+            docsVisited
+        );
+    }
+
+    @Override
+    public PostFilterableKnnQuery createPostFilterDelegate(float filterSelectivity) {
+        int scaledK = (int) Math.max(NUM_CANDS_LIMIT, Math.ceil(kParam / filterSelectivity));
+        int scaledNumCands = (int) Math.max(NUM_CANDS_LIMIT, Math.ceil((double) numCands / filterSelectivity));
+        return new ESDiversifyingChildrenByteKnnVectorQuery(
+            field,
+            getTargetCopy(),
+            null,
+            scaledK,
+            scaledNumCands,
+            parentsFilter,
+            searchStrategy,
+            earlyTermination,
+            null,
+            null
         );
     }
 
     @Override
     public long vectorOpsCount() {
         return vectorOpsCount;
+    }
+
+    @Override
+    public int countTotalVectors(List<LeafReaderContext> leaves) throws IOException {
+        int totalVectors = 0;
+        for (LeafReaderContext leaf : leaves) {
+            ByteVectorValues fvv = leaf.reader().getByteVectorValues(field);
+            if (fvv != null) {
+                totalVectors += fvv.size();
+            }
+        }
+        return totalVectors;
     }
 
     // --- Accessors ---
@@ -163,6 +196,10 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
 
     @Override
     protected KnnCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
-        return PostFilterHelper.wrapCollectorManager(super.getKnnCollectorManager(k, searcher), seedResults, field, earlyTermination);
+        var base = super.getKnnCollectorManager(k, searcher);
+        if (docsToSeed != null && docsToSeed.length > 0) {
+            base = new SeededRetryCollectorManager(base, docsToSeed, field);
+        }
+        return earlyTermination ? PatienceCollectorManager.wrap(base) : base;
     }
 }

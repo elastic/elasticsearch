@@ -9,12 +9,9 @@
 
 package org.elasticsearch.index;
 
-import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.rest.RestRequest;
 
-import java.util.Optional;
 import java.util.regex.Pattern;
 
 /**
@@ -75,14 +72,6 @@ public final class SliceIndexing {
 
     /**
      * Parses and validates the REST-level {@code routing} and {@code _slice} parameters for write APIs.
-     * Returns the effective routing value after enforcing mutual exclusion and feature-gate checks.
-     */
-    public static String parseRoutingOrSlice(RestRequest request) {
-        return parseRoutingOrSliceWithProvenance(request).routing();
-    }
-
-    /**
-     * Parses and validates the REST-level {@code routing} and {@code _slice} parameters for write APIs.
      * Returns the effective routing value and whether it was provided via {@code _slice}.
      */
     public static ParsedRouting parseRoutingOrSliceWithProvenance(RestRequest request) {
@@ -100,17 +89,4 @@ public final class SliceIndexing {
         return new ParsedRouting(slice != null ? slice : routing, slice != null);
     }
 
-    /**
-     * Validates that using {@code _slice} is allowed for the resolved write index, if the target can be resolved from metadata.
-     */
-    public static void validateSliceAllowedForWriteTarget(ProjectMetadata projectMetadata, String indexExpression) {
-        boolean sliceEnabled = Optional.ofNullable(projectMetadata.getIndicesLookup().get(indexExpression))
-            .map(IndexAbstraction::getWriteIndex)
-            .map(projectMetadata::index)
-            .map(indexMetadata -> IndexSettings.SLICE_ENABLED.get(indexMetadata.getSettings()))
-            .orElse(true);
-        if (sliceEnabled == false) {
-            throw new IllegalArgumentException("[_slice] is not allowed when [index.slice.enabled] is false");
-        }
-    }
 }

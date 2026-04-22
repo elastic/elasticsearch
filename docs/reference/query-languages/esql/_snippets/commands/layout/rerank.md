@@ -96,7 +96,7 @@ the [inference endpoint](docs-content://explore-analyze/elastic-inference/infere
 to use for the task.
 The inference endpoint must be configured with the `rerank` task type.
 
-`timeout_duration`
+`timeout_duration` {applies_to}`stack: ga 9.4.1+, serverless: ga`
 :   (Optional) Timeout for the inference request (for example, `"30s"`, `"1m"`).
     If not specified, the default search timeout applies. Use this to set a
     per-call timeout independent of the cluster-wide search timeout.

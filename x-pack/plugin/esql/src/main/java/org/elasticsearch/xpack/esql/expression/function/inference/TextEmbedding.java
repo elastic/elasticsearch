@@ -97,7 +97,8 @@ public class TextEmbedding extends InferenceFunction<TextEmbedding> implements O
                 @MapParam.MapParamEntry(
                     name = "timeout",
                     type = { "keyword" },
-                    description = "Timeout for the inference request (e.g. \"30s\", \"1m\")."
+                    description = "Timeout for the inference request (e.g. \"30s\", \"1m\").",
+                    applies_to = "stack: ga 9.4.1+, serverless: ga"
                 ) },
             optional = true
         ) Expression inputOptions

@@ -96,7 +96,7 @@ COMPLETION [column =] prompt WITH my_inference_endpoint
 :   The ID of the [inference endpoint](docs-content://explore-analyze/elastic-inference/inference-api.md) to use for the task.
     The inference endpoint must be configured with the `completion` task type.
 
-`timeout_duration`
+`timeout_duration` {applies_to}`stack: ga 9.4.1+, serverless: ga`
 :   (Optional) Timeout for the inference request (for example, `"30s"`, `"1m"`).
     If not specified, the default inference timeout applies. Use this to set a
     per-call timeout independent of the inference task timeout.

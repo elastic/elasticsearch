@@ -71,6 +71,11 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
         .map(x -> Pattern.compile(x, Pattern.DOTALL))
         .collect(Collectors.toSet());
 
+    private static final Pattern CANNOT_LOAD_BLOCKS_WITHOUT_DOC_VALUES = Pattern.compile(
+        ".*Cannot load blocks without doc values.*",
+        Pattern.DOTALL
+    );
+
     @Before
     public void setupRandomIndices() throws IOException {
         synchronized (GenerativeRandomMappingRestTest.class) {
@@ -220,6 +225,26 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
         for (Pattern p : ADDITIONAL_ALLOWED_PATTERNS) {
             if (isAllowedError(errorMessage, p)) {
                 return true;
+            }
+        }
+        // RangeFieldMapper throws "Cannot load blocks without doc values" for *_range fields
+        // with doc_values:false. https://github.com/elastic/elasticsearch/issues/146527
+        if (isAllowedError(errorMessage, CANNOT_LOAD_BLOCKS_WITHOUT_DOC_VALUES) && hasRangeFieldType()) {
+            return true;
+        }
+        return false;
+    }
+
+    private static boolean hasRangeFieldType() {
+        List<GeneratedIndex> indices = generatedIndices;
+        if (indices == null) {
+            return false;
+        }
+        for (GeneratedIndex idx : indices) {
+            for (RandomMappingGenerator.FieldDef field : idx.fields()) {
+                if (field.esType().endsWith("_range")) {
+                    return true;
+                }
             }
         }
         return false;

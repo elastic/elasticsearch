@@ -10,7 +10,6 @@
 package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.HnswQueueSaturationCollector;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;

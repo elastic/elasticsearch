@@ -17,7 +17,6 @@
 
 import org.elasticsearch.gradle.util.GradleUtils
 import org.gradle.kotlin.dsl.invoke
-import org.gradle.kotlin.dsl.project
 import org.gradle.kotlin.dsl.withType
 import org.gradle.kotlin.dsl.yamlRestTest
 
@@ -26,7 +25,6 @@ import org.gradle.kotlin.dsl.yamlRestTest
 // to gradle when it is moved to the public repository.
 
 plugins {
-    id("elasticsearch.internal-es-plugin")
     id("elasticsearch.internal-cluster-test")
     id("elasticsearch.internal-yaml-rest-test")
     id("elasticsearch.internal-test-artifact")
@@ -40,8 +38,6 @@ esplugin {
     extendedPlugins = listOf("x-pack-core", "blob-cache")
     deploymentTarget = "STATELESS_ONLY"
 }
-
-// TODO: clean up this file and remove unnecessary stuff for stateless self-managed ES-13786
 
 configurations {
     all {

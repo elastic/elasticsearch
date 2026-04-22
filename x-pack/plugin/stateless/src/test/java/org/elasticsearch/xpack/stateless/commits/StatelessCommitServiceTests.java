@@ -860,10 +860,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
         }
     }
 
-    @TestIssueLogging(
-        value = "org.elasticsearch.xpack.stateless.commits.StatelessCommitService:TRACE",
-        issueUrl = "https://github.com/elastic/elasticsearch-serverless/issues/5520"
-    )
+    @TestIssueLogging(value = "org.elasticsearch.xpack.stateless.commits.StatelessCommitService:TRACE", issueUrl = "#5520")
     public void testCommitsTrackingTakesIntoAccountSearchNodeUsage() throws Exception {
         Set<PrimaryTermAndGeneration> uploadedCommits = Collections.newSetFromMap(new ConcurrentHashMap<>());
         Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();

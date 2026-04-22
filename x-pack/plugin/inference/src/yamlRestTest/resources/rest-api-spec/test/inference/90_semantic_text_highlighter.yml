@@ -938,7 +938,7 @@ setup:
 ---
 "Highlighting using an embedding model":
   - requires:
-      cluster_features: "inference.embedding_task_type"
+      cluster_features: "semantic_text.inference_using_embedding_task"
       reason: EMBEDDING task type for semantic_text
 
   - do:

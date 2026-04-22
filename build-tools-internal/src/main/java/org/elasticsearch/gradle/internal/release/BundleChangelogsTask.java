@@ -277,10 +277,6 @@ public class BundleChangelogsTask extends DefaultTask {
         String branchRef,
         @Nullable String bcRefForFilter
     ) {
-        if (isShaRef(branchRef)) {
-            LOGGER.info("Skipping external changelog fetch from {} for SHA ref {}", source.sourceRepo(), branchRef);
-            return List.of();
-        }
         String normalizedBranch = normalizeBranchForExternalFetch(branchRef);
 
         try {
@@ -398,7 +394,12 @@ public class BundleChangelogsTask extends DefaultTask {
     static String normalizeBranchForExternalFetch(String branchRef) {
         if (isShaRef(branchRef)) {
             throw new IllegalArgumentException(
-                "Cannot use a commit SHA (" + branchRef + ") for external changelog sources. Use a branch name instead."
+                "Cannot use a commit SHA ("
+                    + branchRef
+                    + ") as --branch when fetching external changelog sources: "
+                    + "git fetch on the remote repository requires a branch or tag name. "
+                    + "Local Elasticsearch changelog YAML can still be checked out from a SHA; "
+                    + "pass a named branch for --branch (and use --bc-ref for the build candidate when applicable)."
             );
         }
         for (String prefix : KNOWN_REMOTE_PREFIXES) {

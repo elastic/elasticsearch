@@ -191,6 +191,7 @@ toc:
                   - file: esql/functions-operators/grouping-functions/bucket.md
                   - file: esql/functions-operators/grouping-functions/tbucket.md
                   - file: esql/functions-operators/grouping-functions/categorize.md
+                  - file: esql/functions-operators/grouping-functions/without.md
               - file: esql/functions-operators/conditional-functions-and-expressions.md
                 children:
                   - file: esql/functions-operators/conditional-functions-and-expressions/case.md

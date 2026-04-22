@@ -67,7 +67,16 @@ The following [aggregation functions](/reference/query-languages/esql/functions-
 
 When `STATS` is used under the [`TS`](/reference/query-languages/esql/commands/ts.md) source command,
 [time series aggregation functions](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md)
-are also supported.
+are also supported. In that mode, `STATS` has additional time series–specific grouping
+semantics:
+
+- Omitting `BY` while using a bare time series aggregation function implicitly groups by
+  every time series dimension and emits a `_timeseries` column. Refer to
+  [Grouping time series](/reference/query-languages/esql/commands/ts.md#grouping-time-series).
+- [`WITHOUT(...)`](/reference/query-languages/esql/functions-operators/grouping-functions/without.md)
+  ({applies_to}`stack: preview 9.5`) can be used in `BY` to group by all dimensions except
+  the listed ones; `WITHOUT()` with no arguments is equivalent to grouping by all dimensions.
+  `WITHOUT` is only valid under a `TS` pipeline.
 
 The following [grouping functions](/reference/query-languages/esql/functions-operators/grouping-functions.md) are supported:
 

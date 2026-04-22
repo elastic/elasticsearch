@@ -11,14 +11,11 @@ import java.util.List;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunctionSupplier} implementation for {@link IrateLongAggregator}.
+ * {@link AggregatorFunctionSupplier} implementation for {@link IdeltaIntAggregator}.
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
-public final class IrateLongAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final boolean isDateNanos;
-
-  public IrateLongAggregatorFunctionSupplier(boolean isDateNanos) {
-    this.isDateNanos = isDateNanos;
+public final class IdeltaIntAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+  public IdeltaIntAggregatorFunctionSupplier() {
   }
 
   @Override
@@ -28,7 +25,7 @@ public final class IrateLongAggregatorFunctionSupplier implements AggregatorFunc
 
   @Override
   public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
-    return IrateLongGroupingAggregatorFunction.intermediateStateDesc();
+    return IdeltaIntGroupingAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
@@ -37,13 +34,13 @@ public final class IrateLongAggregatorFunctionSupplier implements AggregatorFunc
   }
 
   @Override
-  public IrateLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+  public IdeltaIntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return new IrateLongGroupingAggregatorFunction(channels, driverContext, isDateNanos);
+    return new IdeltaIntGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override
   public String describe() {
-    return IrateLongAggregator.describe();
+    return IdeltaIntAggregator.describe();
   }
 }

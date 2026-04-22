@@ -29,29 +29,28 @@ import org.elasticsearch.core.Releasables;
 // end generated imports
 
 /**
- * An irate grouping aggregation definition for double.
- * This class is generated. Edit `X-IrateAggregator.java.st` instead.
+ * An idelta grouping aggregation definition for double.
+ * This class is generated. Edit `X-IdeltaAggregator.java.st` instead.
  */
 @GroupingAggregator(
     value = { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "DOUBLE_BLOCK") }
 )
-public class IrateDoubleAggregator {
-    public static DoubleIrateGroupingState initGrouping(DriverContext driverContext, boolean isDateNanos) {
-        final int dateFactor = isDateNanos ? 1_000_000_000 : 1000;
-        return new DoubleIrateGroupingState(driverContext.bigArrays(), driverContext.breaker(), dateFactor);
+public class IdeltaDoubleAggregator {
+    public static DoubleIdeltaGroupingState initGrouping(DriverContext driverContext) {
+        return new DoubleIdeltaGroupingState(driverContext.bigArrays(), driverContext.breaker());
     }
 
-    public static void combine(DoubleIrateGroupingState current, int groupId, double value, long timestamp) {
+    public static void combine(DoubleIdeltaGroupingState current, int groupId, double value, long timestamp) {
         current.ensureCapacity(groupId);
         current.append(groupId, timestamp, value);
     }
 
     public static String describe() {
-        return "instant change of doubles";
+        return "instant delta of doubles";
     }
 
     public static void combineIntermediate(
-        DoubleIrateGroupingState current,
+        DoubleIdeltaGroupingState current,
         int groupId,
         LongBlock timestamps,
         DoubleBlock values,
@@ -60,19 +59,23 @@ public class IrateDoubleAggregator {
         current.combine(groupId, timestamps, values, otherPosition);
     }
 
-    public static Block evaluateFinal(DoubleIrateGroupingState state, IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
+    public static Block evaluateFinal(
+        DoubleIdeltaGroupingState state,
+        IntVector selected,
+        GroupingAggregatorEvaluationContext evalContext
+    ) {
         return state.evaluateFinal(selected, evalContext);
     }
 
-    private static class DoubleIrateState {
-        static final long BASE_RAM_USAGE = RamUsageEstimator.sizeOfObject(DoubleIrateState.class);
+    private static class DoubleIdeltaState {
+        static final long BASE_RAM_USAGE = RamUsageEstimator.sizeOfObject(DoubleIdeltaState.class);
         long lastTimestamp;
         long secondLastTimestamp = -1;
         double lastValue;
         double secondLastValue;
         boolean hasSecond;
 
-        DoubleIrateState(long lastTimestamp, double lastValue) {
+        DoubleIdeltaState(long lastTimestamp, double lastValue) {
             this.lastTimestamp = lastTimestamp;
             this.lastValue = lastValue;
             this.hasSecond = false;
@@ -83,18 +86,16 @@ public class IrateDoubleAggregator {
         }
     }
 
-    public static final class DoubleIrateGroupingState implements Releasable, Accountable, GroupingAggregatorState {
-        private ObjectArray<DoubleIrateState> states;
+    public static final class DoubleIdeltaGroupingState implements Releasable, Accountable, GroupingAggregatorState {
+        private ObjectArray<DoubleIdeltaState> states;
         private final BigArrays bigArrays;
         private final CircuitBreaker breaker;
         private long stateBytes; // for individual states
-        private final int dateFactor;
 
-        DoubleIrateGroupingState(BigArrays bigArrays, CircuitBreaker breaker, int dateFactor) {
+        DoubleIdeltaGroupingState(BigArrays bigArrays, CircuitBreaker breaker) {
             this.bigArrays = bigArrays;
             this.breaker = breaker;
             this.states = bigArrays.newObjectArray(1);
-            this.dateFactor = dateFactor;
         }
 
         void ensureCapacity(int groupId) {
@@ -102,7 +103,7 @@ public class IrateDoubleAggregator {
         }
 
         void adjustBreaker(long bytes) {
-            breaker.addEstimateBytesAndMaybeBreak(bytes, "<<irate aggregation>>");
+            breaker.addEstimateBytesAndMaybeBreak(bytes, "<<idelta aggregation>>");
             stateBytes += bytes;
             assert stateBytes >= 0 : stateBytes;
         }
@@ -110,7 +111,7 @@ public class IrateDoubleAggregator {
         void append(int groupId, long timestamp, double value) {
             var state = states.get(groupId);
             if (state == null) {
-                state = new DoubleIrateState(timestamp, value);
+                state = new DoubleIdeltaState(timestamp, value);
                 states.set(groupId, state);
                 adjustBreaker(state.bytesUsed());
             } else {
@@ -201,13 +202,7 @@ public class IrateDoubleAggregator {
                         rates.appendNull();
                         continue;
                     }
-                    // When the last value is less than the previous one, we assume a reset
-                    // and use the last value directly.
-                    final double ydiff = state.lastValue >= state.secondLastValue
-                        ? state.lastValue - state.secondLastValue
-                        : state.lastValue;
-                    final long xdiff = state.lastTimestamp - state.secondLastTimestamp;
-                    rates.appendDouble(ydiff / xdiff * dateFactor);
+                    rates.appendDouble(state.lastValue - state.secondLastValue);
                 }
                 return rates.build();
             }

@@ -7,13 +7,13 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.transport;
+package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.transport.BytesRefRecycler;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -23,13 +23,14 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.junit.Assert.assertTrue;
 
-/// A test-only [BytesRefRecycler] that similarly to [org.elasticsearch.common.util.MockBigArrays],
+/// A test-only [BytesRefRecycler] that similarly to [MockBigArrays],
 /// uses two forms of leak detection:
-/// Circuit-breaker accounting: each [#obtain] call charges [PageCacheRecycler#BYTE_PAGE_SIZE] bytes against the
-/// [CircuitBreaker] supplied at construction time, so that [org.elasticsearch.test.InternalTestCluster#ensureEstimatedStats]
-/// catches unreleased pages in integration tests.
-/// Active teardown tracking: outstanding page acquisitions are recorded in a static set. [#ensureAllPagesAreReleased]
-/// fails the test if any pages were not returned, mirroring the `ACQUIRED_ARRAYS` pattern in `MockBigArrays`.
+///
+/// - Circuit-breaker accounting: each [#obtain] call charges [PageCacheRecycler#BYTE_PAGE_SIZE] bytes against the
+///   [CircuitBreaker] supplied at construction time, so that [org.elasticsearch.test.InternalTestCluster#ensureEstimatedStats]
+///   catches unreleased pages in integration tests.
+/// - Active teardown tracking: outstanding page acquisitions are recorded in a static set. [#ensureAllPagesAreReleased]
+///   fails the test if any pages were not returned, mirroring the `ACQUIRED_ARRAYS` pattern in [MockBigArrays].
 public class MockBytesRefRecycler extends BytesRefRecycler {
 
     private static final Set<Object> ACQUIRED_PAGES = ConcurrentHashMap.newKeySet();

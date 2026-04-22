@@ -21,12 +21,13 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 
-/// Verifies that [MockBigArrays] and [org.elasticsearch.transport.MockBytesRefRecycler] detect
+/// Verifies that [MockBigArrays] and [org.elasticsearch.common.util.MockBytesRefRecycler] detect
 /// unreleased allocations at teardown, using a plugin that simulates allocation without release.
 @ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1)
 public class CBForMockArraysIT extends ESIntegTestCase {
@@ -90,12 +91,16 @@ public class CBForMockArraysIT extends ESIntegTestCase {
 
     public void testLeakingBytesRefPageIsDetected() {
         final var faultyService = internalCluster().getInstance(LeakyService.class);
-        final var leaked = faultyService.leakPage();
+        final int count = between(1, 5);
+        final var leaked = new ArrayList<Recycler.V<BytesRef>>(count);
+        for (int i = 0; i < count; i++) {
+            leaked.add(faultyService.leakPage());
+        }
         try {
             final var e = expectThrows(RuntimeException.class, MockBigArrays::ensureAllArraysAreReleased);
-            assertThat(e.getMessage(), containsString("pages have not been released"));
+            assertThat(e.getMessage(), containsString(count + " pages have not been released"));
         } finally {
-            leaked.close();
+            leaked.forEach(Recycler.V::close);
         }
     }
 

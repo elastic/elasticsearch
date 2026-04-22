@@ -31,7 +31,6 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.transport.BytesRefRecycler;
-import org.elasticsearch.transport.MockBytesRefRecycler;
 
 import java.io.IOException;
 import java.io.InputStream;

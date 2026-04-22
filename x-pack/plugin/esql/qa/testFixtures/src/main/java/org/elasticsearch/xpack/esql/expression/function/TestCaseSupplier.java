@@ -1904,7 +1904,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             this.configuration = configuration;
             this.data = data;
             this.evaluatorToString = evaluatorToString;
-            this.expectedType = (expectedType == null || allowText)? expectedType : expectedType.noText();
+            this.expectedType = (expectedType == null || allowText) ? expectedType : expectedType.noText();
             @SuppressWarnings("unchecked")
             Matcher<Object> downcast = (Matcher<Object>) matcher;
             this.matcher = downcast;

@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.transform.CpsCredentialService;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
@@ -53,6 +54,7 @@ import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
 
 import java.time.Instant;
+import java.util.Map;
 import java.util.function.BooleanSupplier;
 
 import static org.elasticsearch.xpack.transform.utils.SecondaryAuthorizationUtils.getSecurityHeadersPreferringSecondary;
@@ -142,8 +144,13 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         // <3> Grant a dedicated CPS API key (if cross-project) then create the transform
         ActionListener<ValidateTransformAction.Response> validateTransformListener = listener.delegateFailureAndWrap((l, unused) -> {
             if (cpsCredential != null) {
-                cpsCredentialService.grantCpsCredential(cpsCredential, transformId, l.delegateFailureAndWrap((ll, grantedCredential) -> {
-                    config.setCpsCredential(grantedCredential);
+                cpsCredentialService.grantCpsCredential(cpsCredential, transformId, l.delegateFailureAndWrap((ll, grantResult) -> {
+                    config.setCpsCredential(grantResult.credential());
+                    var headers = Map.of(
+                        AuthenticationField.AUTHENTICATION_KEY,
+                        grantResult.authentication().encode()
+                    );
+                    config.setHeaders(ClientHelper.getPersistableSafeSecurityHeaders(headers, clusterState));
                     putTransform(request, ll);
                 }));
             } else {

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.transform;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -27,6 +28,8 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public interface CpsCredentialService {
 
+    record CpsGrantResult(String credential, Authentication authentication) {}
+
     CpsCredentialService NOOP = new CpsCredentialService() {
         @Override
         public String extractCpsCredential(ThreadContext threadContext) {
@@ -37,8 +40,8 @@ public interface CpsCredentialService {
         public void injectCpsCredential(ThreadContext threadContext, String storedCredential) {}
 
         @Override
-        public void grantCpsCredential(String callerCredential, String description, ActionListener<String> listener) {
-            listener.onResponse(callerCredential);
+        public void grantCpsCredential(String callerCredential, String description, ActionListener<CpsGrantResult> listener) {
+            listener.onFailure(new UnsupportedOperationException("CPS credential grant is not available outside serverless"));
         }
     };
 
@@ -59,11 +62,12 @@ public interface CpsCredentialService {
 
     /**
      * Grants a dedicated CPS API key for a transform, using the caller's credential to authenticate
-     * the grant request. The resulting credential replaces the caller's credential for persistence.
+     * the grant request. The granted key is then authenticated to produce an {@link Authentication}
+     * that the caller can persist alongside the credential.
      *
      * @param callerCredential the base64-encoded caller credential (from {@link #extractCpsCredential})
      * @param description      a human-readable description for the granted key (e.g. transform ID)
-     * @param listener         receives the base64-encoded granted credential to persist
+     * @param listener         receives the granted credential and its corresponding {@link Authentication}
      */
-    void grantCpsCredential(String callerCredential, String description, ActionListener<String> listener);
+    void grantCpsCredential(String callerCredential, String description, ActionListener<CpsGrantResult> listener);
 }

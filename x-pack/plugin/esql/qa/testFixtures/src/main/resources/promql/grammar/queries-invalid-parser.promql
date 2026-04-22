@@ -23,8 +23,6 @@
 |bad number or duration syntax: "0de";
 1 /;
 |unexpected end of input;
-//1;
-//|unexpected op:*;
 (1));
 |unexpected right parenthesis ')';
 ((1);
@@ -33,24 +31,12 @@
 |out of range;
 (;
 |unclosed left parenthesis;
-1 and 1;
-|set operator "and" not allowed in binary scalar expression;
-1 == 1;
-|1:3: parse error: comparisons between scalars must use BOOL modifier;
-1 or 1;
-|set operator "or" not allowed in binary scalar expression;
-1 unless 1;
-|set operator "unless" not allowed in binary scalar expression;
 1 !~ 1;
 |unexpected character after '!': '';
 1 = 1;
 |unexpected character after '=': '~';
 -"string";
 |unary expression only allowed on expressions of type scalar or instant vector, got "string";
--test[5m];
-|unary expression only allowed on expressions of type scalar or instant vector, got "range vector";
-//test;
-//|unexpected op:*;
 1 offset 1d;
 |1:1: parse error: offset modifier must be preceded by an instant vector selector or range vector selector or a subquery;
 foo offset 1s offset 2s;
@@ -61,22 +47,6 @@ a - on(b) ignoring(c) d;
 //
 // operators
 //
-foo and 1;
-|set operator "and" not allowed in binary scalar expression;
-1 and foo;
-|set operator "and" not allowed in binary scalar expression;
-foo or 1;
-|set operator "or" not allowed in binary scalar expression;
-1 or foo;
-|set operator "or" not allowed in binary scalar expression;
-foo unless 1;
-|set operator "unless" not allowed in binary scalar expression;
-1 unless foo;
-|set operator "unless" not allowed in binary scalar expression;
-1 or on(bar) foo;
-|vector matching only allowed between instant vectors;
-foo == on(bar) 10;
-|vector matching only allowed between instant vectors;
 foo + group_left(baz) bar;
 |unexpected <group_left>;
 foo and on(bar) group_left(baz) bar;
@@ -225,37 +195,14 @@ sum (some_metric) without (test) by (test);
 |unexpected <by>;
 sum without (test) (some_metric) by (test);
 |unexpected <by>;
-topk(some_metric);
-|wrong number of arguments for aggregate expression provided, expected 2, got 1;
 topk(some_metric,);
 |trailing commas not allowed in function call args;
-topk(some_metric, other_metric);
-|1:6: parse error: expected type scalar in aggregation parameter, got instant vector;
-count_values(5, other_metric);
-|1:14: parse error: expected type string in aggregation parameter, got scalar;
 rate(some_metric[5m]) @ 1234;
 |1:1: parse error: @ modifier must be preceded by an instant vector selector or range vector selector or a subquery;
 
 //
 // functions
 //
-floor();
-|expected 1 argument(s) in call to "floor", got 0;
-floor(some_metric, other_metric);
-|expected 1 argument(s) in call to "floor", got 2;
-floor(some_metric, 1);
-|expected 1 argument(s) in call to "floor", got 2;
-floor(1);
-|expected type instant vector in call to function "floor", got scalar;
-hour(some_metric, some_metric, some_metric);
-|expected at most 1 argument(s) in call to "hour", got 3;
-time(some_metric);
-|expected 0 argument(s) in call to "time", got 1;
-non_existent_function_far_bar();
-|unknown function with name "non_existent_function_far_bar";
-// we support automatically converting instant vectors to range vectors
-// rate(some_metric);
-// |expected type range vector in call to function "rate", got instant vector;
 label_replace(a, b, c\xff, d, .*);
 |1:23: parse error: invalid UTF-8 rune;
 -=;
@@ -264,11 +211,6 @@ label_replace(a, b, c\xff, d, .*);
 |unexpected <op:<>;
 e-+=/(0);
 |unexpected "=";
-a>b();
-|unknown function;
-// we support automatically converting instant vectors to range vectors
-// rate(avg);
-// |expected type range vector;
 (-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}--1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}--1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}--1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1...;
 |1:3: parse error: vector selector must contain at least one non-empty matcher;
 
@@ -292,10 +234,6 @@ a>b();
 //
 foo{bar="baz"}[;
 |unexpected end of input in duration expression;
-test[5d] OFFSET 10s [10m:5s];
-|1:1: parse error: subquery is only allowed on instant vector, got matrix;
-(foo + bar{nm="val"})[5m:][10m:5s];
-|1:1: parse error: subquery is only allowed on instant vector, got matrix;
 rate(food[1m])[1h] offset 1h;
 |1:15: parse error: ranges only allowed for vector selectors;
 rate(food[1m])[1h] @ 100;
@@ -308,8 +246,6 @@ start();
 |1:6: parse error: unexpected "(";
 end();
 |1:4: parse error: unexpected "(";
-info(rate(http_request_counter_total{}[5m]), target_info{foo="bar"});
-|1:46: parse error: expected label selectors only, got vector selector instead;
 
 // invalid math
 foo[5s/0d];

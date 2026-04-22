@@ -80,16 +80,6 @@ public class InSubqueryResolver {
         return plan.transformUp(Filter.class, InSubqueryResolver::resolveInSubqueryInFilter);
     }
 
-    private static boolean hasInSubquery(LogicalPlan plan) {
-        boolean[] found = { false };
-        plan.forEachDown(p -> {
-            if (found[0] == false) {
-                p.forEachExpression(InSubquery.class, inSub -> found[0] = true);
-            }
-        });
-        return found[0];
-    }
-
     /**
      * Checks the plan for any remaining {@link InSubquery} expressions that were not resolved.
      * These indicate unsupported usage such as IN subquery inside EVAL, SORT, or STATS BY.

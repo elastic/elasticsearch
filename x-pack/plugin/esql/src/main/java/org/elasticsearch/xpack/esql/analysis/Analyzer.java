@@ -1098,9 +1098,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return rightFields;
             }
             List<Attribute> rightOutput = semiJoin.right().output();
-            if (rightOutput.isEmpty()) {
-                return rightFields;
-            }
             if (rightOutput.size() != 1) {
                 return singletonList(
                     new UnresolvedAttribute(

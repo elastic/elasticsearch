@@ -20,7 +20,7 @@ import java.util.Map;
 import java.util.function.BiFunction;
 
 /**
- * Iteratively resolves views and {@code IN} /subquery expressions until a fixed point is reached.
+ * Iteratively resolves views and {@code InSubquery} expressions until a fixed point is reached.
  * <p>
  * Views and {@code IN} subqueries form a mutually recursive expansion problem: a view definition may
  * contain an {@code IN} subquery, and an {@code IN} subquery may reference a view. Each iteration:

@@ -1825,6 +1825,26 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
     }
 
     /**
+     * Verifies that an IN subquery with STATS ... BY returning two columns is rejected.
+     */
+    public void testRejectsInSubqueryWithStatsByReturningMultipleColumns() {
+        errorInSubquery("""
+            FROM test
+            | WHERE emp_no IN (FROM employees | STATS max(emp_no) BY languages)
+            """, containsString("IN subquery must return exactly one column, found [max(emp_no), languages]"));
+    }
+
+    /**
+     * Verifies that an IN subquery returning no column is rejected.
+     */
+    public void testRejectsInSubqueryReturningNoColumn() {
+        errorInSubquery("""
+            FROM test
+            | WHERE emp_no IN (FROM employees | STATS m = max(emp_no) BY languages | DROP m ,languages)
+            """, containsString("IN subquery must return exactly one column, found []"));
+    }
+
+    /**
      * Verifies that an IN subquery with integer left side and keyword right side is rejected.
      */
     public void testRejectsTypeMismatchIntegerVsKeyword() {
@@ -1852,16 +1872,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
             FROM test
             | WHERE emp_no IN (FROM employees | KEEP hire_date)
             """, containsString("left field [emp_no] of type [INTEGER] is incompatible with right field [hire_date] of type [DATETIME]"));
-    }
-
-    /**
-     * Verifies that an IN subquery with STATS ... BY returning two columns is rejected.
-     */
-    public void testRejectsInSubqueryWithStatsByReturningMultipleColumns() {
-        errorInSubquery("""
-            FROM test
-            | WHERE emp_no IN (FROM employees | STATS max(emp_no) BY languages)
-            """, containsString("IN subquery must return exactly one column, found [max(emp_no), languages]"));
     }
 
     // -- non-comparable types in IN subquery --

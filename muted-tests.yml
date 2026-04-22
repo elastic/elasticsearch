@@ -388,21 +388,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
   method: test {csv-spec:unmapped-type-conflicts.noTypeConflictKeepTriggersLoadInlineStatsWithFilter}
   issue: https://github.com/elastic/elasticsearch/issues/147023
-- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
-  method: test {csv-spec:external-basic.topSnippetsFunction [HTTP]}
-  issue: https://github.com/elastic/elasticsearch/issues/147049
-- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
-  method: test {csv-spec:external-basic.convertToLong [S3]}
-  issue: https://github.com/elastic/elasticsearch/issues/147050
-- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
-  method: test {csv-spec:external-basic.categorizeByFullName [HTTP]}
-  issue: https://github.com/elastic/elasticsearch/issues/147051
-- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
-  method: test {csv-spec:external-basic.externalRerankBooks [GCS]}
-  issue: https://github.com/elastic/elasticsearch/issues/147053
-- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
-  method: test {csv-spec:external-basic.lookupJoin [HTTP]}
-  issue: https://github.com/elastic/elasticsearch/issues/147055
 - class: org.elasticsearch.reindex.management.ReindexManagementClientYamlTestSuiteIT
   method: test {yaml=reindex/30_cancel_reindex/Cancel running reindex returns response and GET confirms completed}
   issue: https://github.com/elastic/elasticsearch/issues/146314

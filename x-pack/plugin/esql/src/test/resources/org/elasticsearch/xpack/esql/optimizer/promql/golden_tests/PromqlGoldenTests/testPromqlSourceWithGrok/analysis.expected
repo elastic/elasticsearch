@@ -1,0 +1,10 @@
+Limit[10000000[INTEGER],false,false]
+\_Limit[1[INTEGER],false,false]
+  \_Project[[parts.domain{r}#0, parts.fragment{r}#1, parts.path{r}#2, parts.extension{r}#3, parts.port{r}#4, parts.query{r}#5, parts.scheme{r}#6, parts.user_info{r}#7, parts.username{r}#8, parts.password{r}#9]]
+    \_UriParts[_timeseries{f}#10,[domain, fragment, path, extension, port, query, scheme, user_info, username, password],[parts.domain{r}#0, parts.fragment{r}#1, parts.path{r}#2, parts.extension{r}#3, parts.port{r}#4, parts.query{r}#5, parts.scheme{r}#6, parts.user_info{r}#7, parts.username{r}#8, parts.password{r}#9]]
+      \_Grok[_timeseries{f}#10,Parser[pattern=%{WORD:zEyDkwmbYa} %{WORD:step} %{WORD:step}],[step{r}#11, zEyDkwmbYa{r}#12]]
+        \_PromqlCommand start=[null] end=[null] step=[PT1H] buckets=[null] scrape_interval=[PT1M] valueColumnName=[oYJdEiiJ] promql=[<>
+InstantSelector[network.bytes_in{f}#13,[cluster{f}#14, pod{f}#15],[__name__=network.bytes_in, cluster!=qa, pod!=two],@ null]
+\_PlaceholderRelation[]
+<>]]
+          \_EsRelation[k8s-downsampled][TIME_SERIES][@timestamp{f}#16, client.ip{f}#17, cluster{f}#14, event{f}#18, event_city{f}#19, event_city_boundary{f}#20, event_location{f}#21, event_log{f}#22, event_shape{f}#23, events_received{f}#24, network.bytes_in{f}#13, network.cost{f}#25, network.eth0.currently_connected_clients{f}#26, network.eth0.firmware_version{f}#27, network.eth0.last_up{f}#28, network.eth0.rx{f}#29, network.eth0.tx{f}#30, network.eth0.up{f}#31, network.total_bytes_in{f}#32, network.total_cost{f}#33, pod{f}#15]

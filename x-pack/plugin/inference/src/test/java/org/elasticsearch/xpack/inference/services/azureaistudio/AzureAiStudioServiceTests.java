@@ -53,7 +53,6 @@ import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionServiceSettingsTests;
-import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionTaskSettingsTests;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsModelTests;
@@ -1180,61 +1179,6 @@ public class AzureAiStudioServiceTests extends InferenceServiceTestCase {
             SimilarityMeasure expectedSimilarityMeasure = similarityMeasure == null ? SimilarityMeasure.DOT_PRODUCT : similarityMeasure;
             assertEquals(expectedSimilarityMeasure, updatedModel.getServiceSettings().similarity());
             assertEquals(embeddingSize, updatedModel.getServiceSettings().dimensions().intValue());
-        }
-    }
-
-    public void testUpdateModelWithChatCompletionDetails_InvalidModelProvided() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
-            var model = AzureAiStudioEmbeddingsModelTests.createModel(
-                randomAlphaOfLength(10),
-                randomAlphaOfLength(10),
-                randomFrom(AzureAiStudioProvider.values()),
-                randomFrom(AzureAiStudioEndpointType.values()),
-                randomAlphaOfLength(10),
-                randomNonNegativeInt(),
-                randomBoolean(),
-                randomNonNegativeInt(),
-                randomFrom(SimilarityMeasure.values()),
-                randomAlphaOfLength(10),
-                RateLimitSettingsTests.createRandom()
-            );
-            assertThrows(ElasticsearchStatusException.class, () -> { service.updateModelWithChatCompletionDetails(model); });
-        }
-    }
-
-    public void testUpdateModelWithChatCompletionDetails_NullSimilarityInOriginalModel() throws IOException {
-        testUpdateModelWithChatCompletionDetails_Successful(null);
-    }
-
-    public void testUpdateModelWithChatCompletionDetails_NonNullSimilarityInOriginalModel() throws IOException {
-        testUpdateModelWithChatCompletionDetails_Successful(randomNonNegativeInt());
-    }
-
-    private void testUpdateModelWithChatCompletionDetails_Successful(Integer maxNewTokens) throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
-            var model = AzureAiStudioChatCompletionModelTests.createModel(
-                randomAlphaOfLength(10),
-                randomAlphaOfLength(10),
-                randomFrom(AzureAiStudioProvider.values()),
-                randomFrom(AzureAiStudioEndpointType.values()),
-                randomAlphaOfLength(10),
-                randomDouble(),
-                randomDouble(),
-                randomBoolean(),
-                maxNewTokens,
-                RateLimitSettingsTests.createRandom()
-            );
-
-            Model updatedModel = service.updateModelWithChatCompletionDetails(model);
-            assertThat(updatedModel, instanceOf(AzureAiStudioChatCompletionModel.class));
-            AzureAiStudioChatCompletionTaskSettings updatedTaskSettings = (AzureAiStudioChatCompletionTaskSettings) updatedModel
-                .getTaskSettings();
-            Integer expectedMaxNewTokens = maxNewTokens == null
-                ? AzureAiStudioChatCompletionTaskSettings.DEFAULT_MAX_NEW_TOKENS
-                : maxNewTokens;
-            assertEquals(expectedMaxNewTokens, updatedTaskSettings.maxNewTokens());
         }
     }
 

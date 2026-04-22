@@ -53,7 +53,7 @@ public class StreamOutputToBytesTests extends ESTestCase {
 
         try (
             var countingStream = new CountingStreamOutput();
-            var mockRecycler = new MockBytesRefRecycler();
+            var mockRecycler = new RandomOffsetBytesRefRecycler();
             var recyclerBytesStream = new RecyclerBytesStreamOutput(mockRecycler);
             var plainBytesStream = new BytesStreamOutput();
             var toBeBufferedStream = new ByteArrayOutputStream(targetSize) {

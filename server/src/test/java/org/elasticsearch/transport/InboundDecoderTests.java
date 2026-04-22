@@ -13,7 +13,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
+import org.elasticsearch.common.io.stream.RandomOffsetBytesRefRecycler;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
@@ -37,12 +37,12 @@ import static org.hamcrest.Matchers.instanceOf;
 public class InboundDecoderTests extends ESTestCase {
 
     private ThreadContext threadContext;
-    private MockBytesRefRecycler recycler;
+    private RandomOffsetBytesRefRecycler recycler;
 
     @Before
     public void createServices() {
         threadContext = new ThreadContext(Settings.EMPTY);
-        recycler = new MockBytesRefRecycler();
+        recycler = new RandomOffsetBytesRefRecycler();
     }
 
     @After

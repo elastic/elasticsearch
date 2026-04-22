@@ -27,10 +27,10 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 
 /**
- * A {@link Recycler} for {@link BytesRef} pages which returns pages with nontrivial offsets and verifies that the surrounding buffer pool
- * is left untouched.
+ * A test {@link Recycler} for {@link BytesRef} pages which returns pages with nontrivial offsets and verifies that the
+ * surrounding buffer pool is left untouched.
  */
-public class MockBytesRefRecycler implements Recycler<BytesRef>, Releasable {
+public class RandomOffsetBytesRefRecycler implements Recycler<BytesRef>, Releasable {
 
     private final AtomicInteger activePageCount = new AtomicInteger();
 

@@ -17,7 +17,7 @@ import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
+import org.elasticsearch.common.io.stream.RandomOffsetBytesRefRecycler;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -46,11 +46,11 @@ public class InboundPipelineTests extends ESTestCase {
     private static final int BYTE_THRESHOLD = 128 * 1024;
     private final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
 
-    private MockBytesRefRecycler recycler;
+    private RandomOffsetBytesRefRecycler recycler;
 
     @Before
     public void createServices() {
-        recycler = new MockBytesRefRecycler();
+        recycler = new RandomOffsetBytesRefRecycler();
     }
 
     @After

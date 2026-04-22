@@ -15,7 +15,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
+import org.elasticsearch.common.io.stream.RandomOffsetBytesRefRecycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
@@ -64,7 +64,7 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
     private ClusterService clusterService;
     private MockLicenseState license;
     private SecurityContext securityContext;
-    private MockBytesRefRecycler bytesRefRecycler;
+    private RandomOffsetBytesRefRecycler bytesRefRecycler;
 
     @Before
     public void setup() {
@@ -78,7 +78,7 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
         this.clusterService = ClusterServiceUtils.createClusterService(threadPool);
         this.license = mock(MockLicenseState.class);
         when(license.isAllowed(Security.TOKEN_SERVICE_FEATURE)).thenReturn(true);
-        bytesRefRecycler = new MockBytesRefRecycler();
+        bytesRefRecycler = new RandomOffsetBytesRefRecycler();
     }
 
     public void testInvalidateTokensWhenIndexUnavailable() throws Exception {

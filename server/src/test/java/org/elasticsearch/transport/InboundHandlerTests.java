@@ -19,8 +19,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
-import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.RandomOffsetBytesRefRecycler;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.HandlingTimeTracker;
@@ -60,7 +60,7 @@ public class InboundHandlerTests extends ESTestCase {
     private Transport.RequestHandlers requestHandlers;
     private InboundHandler handler;
     private FakeTcpChannel channel;
-    private MockBytesRefRecycler recycler;
+    private RandomOffsetBytesRefRecycler recycler;
 
     @Before
     public void setUp() throws Exception {
@@ -98,7 +98,7 @@ public class InboundHandlerTests extends ESTestCase {
             new HandlingTimeTracker(),
             ignoreDeserializationErrors
         );
-        recycler = new MockBytesRefRecycler();
+        recycler = new RandomOffsetBytesRefRecycler();
     }
 
     @After

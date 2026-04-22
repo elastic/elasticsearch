@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.BytesRefRecycler;
 
 import java.util.HashSet;
@@ -35,11 +36,13 @@ public class MockBytesRefRecycler extends BytesRefRecycler {
 
     private static final Set<Object> ACQUIRED_PAGES = ConcurrentHashMap.newKeySet();
 
+    @Nullable
     private final CircuitBreaker breaker;
     private final boolean checkBreaker;
 
-    public MockBytesRefRecycler(PageCacheRecycler recycler, CircuitBreaker breaker, boolean checkBreaker) {
+    public MockBytesRefRecycler(PageCacheRecycler recycler, @Nullable CircuitBreaker breaker, boolean checkBreaker) {
         super(recycler);
+        assert breaker != null || checkBreaker == false : "breaker must be non-null when checkBreaker is true";
         this.breaker = breaker;
         this.checkBreaker = checkBreaker;
     }

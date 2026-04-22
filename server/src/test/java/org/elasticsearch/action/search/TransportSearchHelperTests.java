@@ -10,7 +10,7 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
-import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
+import org.elasticsearch.common.io.stream.RandomOffsetBytesRefRecycler;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -51,7 +51,7 @@ public class TransportSearchHelperTests extends ESTestCase {
     public void testParseScrollId() {
         final AtomicArray<SearchPhaseResult> queryResults = generateQueryResults();
         final String scrollId;
-        try (var recycler = new MockBytesRefRecycler()) {
+        try (var recycler = new RandomOffsetBytesRefRecycler()) {
             scrollId = TransportSearchHelper.buildScrollId(queryResults, recycler, true);
         }
         ParsedScrollId parseScrollId = TransportSearchHelper.parseScrollId(scrollId);
@@ -87,7 +87,7 @@ public class TransportSearchHelperTests extends ESTestCase {
         single.setSearchShardTarget(new SearchShardTarget("node_1", new ShardId("idx", "uuid1", 0), null));
         queryResults.setOnce(0, single);
         final String scrollId;
-        try (var recycler = new MockBytesRefRecycler()) {
+        try (var recycler = new RandomOffsetBytesRefRecycler()) {
             scrollId = TransportSearchHelper.buildScrollId(queryResults, recycler, true);
         }
         ParsedScrollId parsed = TransportSearchHelper.parseScrollId(scrollId);

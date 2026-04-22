@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.security.support;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
+import org.elasticsearch.common.io.stream.RandomOffsetBytesRefRecycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.test.ESTestCase;
 
@@ -23,7 +23,7 @@ public class SecureBytesRefRecyclerTests extends ESTestCase {
     public void testSecureBytesRefRecycler() {
         final BytesReference blankPage = new BytesArray(new byte[PageCacheRecycler.BYTE_PAGE_SIZE]);
         final var closedBlankPage = new AtomicBoolean();
-        try (var mockRecycler = new MockBytesRefRecycler() {
+        try (var mockRecycler = new RandomOffsetBytesRefRecycler() {
             @Override
             protected void onClose(BytesRef bytesRef) {
                 assertThat(new BytesArray(bytesRef), equalBytes(blankPage));

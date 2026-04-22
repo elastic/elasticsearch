@@ -24,7 +24,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
+import org.elasticsearch.common.io.stream.RandomOffsetBytesRefRecycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasables;
@@ -91,7 +91,7 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
     private List<BulkRequest> bulkRequests;
     private Client client;
     private TransportOpenIdConnectLogoutAction action;
-    private MockBytesRefRecycler bytesRefRecycler;
+    private RandomOffsetBytesRefRecycler bytesRefRecycler;
 
     @Before
     public void setup() throws Exception {
@@ -188,7 +188,7 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
         final MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.isAllowed(Security.TOKEN_SERVICE_FEATURE)).thenReturn(true);
 
-        bytesRefRecycler = new MockBytesRefRecycler();
+        bytesRefRecycler = new RandomOffsetBytesRefRecycler();
 
         tokenService = new TokenService(
             settings,

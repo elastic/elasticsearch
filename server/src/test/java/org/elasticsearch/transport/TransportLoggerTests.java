@@ -10,7 +10,7 @@ package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
+import org.elasticsearch.common.io.stream.RandomOffsetBytesRefRecycler;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -57,7 +57,7 @@ public class TransportLoggerTests extends ESTestCase {
 
         try (
             var mockLog = MockLog.capture(TransportLogger.class);
-            var recycler = new MockBytesRefRecycler();
+            var recycler = new RandomOffsetBytesRefRecycler();
             var bytesStreamOutput = new RecyclerBytesStreamOutput(recycler)
         ) {
             mockLog.addExpectation(writeExpectation);

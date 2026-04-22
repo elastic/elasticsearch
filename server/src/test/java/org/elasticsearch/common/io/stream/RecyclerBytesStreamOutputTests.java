@@ -70,7 +70,7 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class RecyclerBytesStreamOutputTests extends ESTestCase {
 
-    private final MockBytesRefRecycler recycler = new MockBytesRefRecycler();
+    private final RandomOffsetBytesRefRecycler recycler = new RandomOffsetBytesRefRecycler();
 
     @After
     public void closeRecycler() {

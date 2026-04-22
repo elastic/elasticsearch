@@ -91,7 +91,6 @@ public abstract class TenaciousRetryBlobContainer extends FilterBlobContainer {
                     try {
                         Thread.sleep(getRetryDelayInMillis(attempts));
                     } catch (InterruptedException exception) {
-                        logger.info("");
                         Thread.currentThread().interrupt();
                     }
                 } else {

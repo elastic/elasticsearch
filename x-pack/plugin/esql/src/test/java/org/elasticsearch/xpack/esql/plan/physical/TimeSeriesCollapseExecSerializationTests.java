@@ -20,20 +20,23 @@ public class TimeSeriesCollapseExecSerializationTests extends AbstractPhysicalPl
     protected TimeSeriesCollapseExec createTestInstance() {
         Source source = randomSource();
         PhysicalPlan child = randomChild(0);
-        List<Attribute> collapseAttributes = randomFieldAttributes(1, 5, false);
-        return new TimeSeriesCollapseExec(source, child, collapseAttributes);
+        Attribute timestamp = randomFieldAttributes(1, 1, false).get(0);
+        List<Attribute> values = randomFieldAttributes(1, 5, false);
+        return new TimeSeriesCollapseExec(source, child, timestamp, values);
     }
 
     @Override
     protected TimeSeriesCollapseExec mutateInstance(TimeSeriesCollapseExec instance) throws IOException {
         PhysicalPlan child = instance.child();
-        List<Attribute> collapseAttributes = instance.collapseAttributes();
-        switch (between(0, 1)) {
+        Attribute timestamp = instance.timestamp();
+        List<Attribute> values = instance.values();
+        switch (between(0, 2)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
-            case 1 -> collapseAttributes = randomValueOtherThan(collapseAttributes, () -> randomFieldAttributes(1, 5, false));
+            case 1 -> timestamp = randomValueOtherThan(timestamp, () -> randomFieldAttributes(1, 1, false).get(0));
+            case 2 -> values = randomValueOtherThan(values, () -> randomFieldAttributes(1, 5, false));
             default -> throw new IllegalStateException();
         }
-        return new TimeSeriesCollapseExec(instance.source(), child, collapseAttributes);
+        return new TimeSeriesCollapseExec(instance.source(), child, timestamp, values);
     }
 
     @Override

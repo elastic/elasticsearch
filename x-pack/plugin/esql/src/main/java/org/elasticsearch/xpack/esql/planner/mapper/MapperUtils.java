@@ -151,7 +151,7 @@ public class MapperUtils {
         }
 
         if (p instanceof TimeSeriesCollapse collapse) {
-            return new TimeSeriesCollapseExec(collapse.source(), child, collapse.collapseAttributes());
+            return new TimeSeriesCollapseExec(collapse.source(), child, collapse.timestamp(), collapse.values());
         }
 
         if (p instanceof ChangePoint changePoint) {

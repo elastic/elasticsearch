@@ -22,8 +22,8 @@ import java.util.Objects;
 
 /**
  * Logical plan node that stream-collapses label-contiguous expanded rows into one multi-valued
- * row per series. The {@code collapseAttributes} columns become multi-valued; all other columns
- * remain single-valued (dimension/label columns).
+ * row per series. The {@code timestamp} column and every column in {@code values} become
+ * multi-valued; all other columns remain single-valued (dimension/label columns).
  * <p>
  * This node is injected by the PromQL translation rules at the top of the translated plan when
  * {@link org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand#isCollapsed()} is true.
@@ -38,17 +38,20 @@ public class TimeSeriesCollapse extends UnaryPlan {
         TimeSeriesCollapse::new
     );
 
-    private final List<Attribute> collapseAttributes;
+    private final Attribute timestamp;
+    private final List<Attribute> values;
 
-    public TimeSeriesCollapse(Source source, LogicalPlan child, List<Attribute> collapseAttributes) {
+    public TimeSeriesCollapse(Source source, LogicalPlan child, Attribute timestamp, List<Attribute> values) {
         super(source, child);
-        this.collapseAttributes = collapseAttributes;
+        this.timestamp = timestamp;
+        this.values = values;
     }
 
     private TimeSeriesCollapse(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(LogicalPlan.class),
+            in.readNamedWriteable(Attribute.class),
             in.readNamedWriteableCollectionAsList(Attribute.class)
         );
     }
@@ -57,7 +60,8 @@ public class TimeSeriesCollapse extends UnaryPlan {
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(child());
-        out.writeNamedWriteableCollection(collapseAttributes);
+        out.writeNamedWriteable(timestamp);
+        out.writeNamedWriteableCollection(values);
     }
 
     @Override
@@ -65,8 +69,12 @@ public class TimeSeriesCollapse extends UnaryPlan {
         return ENTRY.name;
     }
 
-    public List<Attribute> collapseAttributes() {
-        return collapseAttributes;
+    public Attribute timestamp() {
+        return timestamp;
+    }
+
+    public List<Attribute> values() {
+        return values;
     }
 
     @Override
@@ -76,12 +84,12 @@ public class TimeSeriesCollapse extends UnaryPlan {
 
     @Override
     public boolean expressionsResolved() {
-        return collapseAttributes.stream().allMatch(Attribute::resolved);
+        return timestamp.resolved() && values.stream().allMatch(Attribute::resolved);
     }
 
     @Override
     public TimeSeriesCollapse replaceChild(LogicalPlan newChild) {
-        return new TimeSeriesCollapse(source(), newChild, collapseAttributes);
+        return new TimeSeriesCollapse(source(), newChild, timestamp, values);
     }
 
     @Override
@@ -91,12 +99,12 @@ public class TimeSeriesCollapse extends UnaryPlan {
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, TimeSeriesCollapse::new, child(), collapseAttributes);
+        return NodeInfo.create(this, TimeSeriesCollapse::new, child(), timestamp, values);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), collapseAttributes);
+        return Objects.hash(super.hashCode(), timestamp, values);
     }
 
     @Override
@@ -105,6 +113,6 @@ public class TimeSeriesCollapse extends UnaryPlan {
             return false;
         }
         TimeSeriesCollapse other = (TimeSeriesCollapse) obj;
-        return Objects.equals(collapseAttributes, other.collapseAttributes);
+        return Objects.equals(timestamp, other.timestamp) && Objects.equals(values, other.values);
     }
 }

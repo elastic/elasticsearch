@@ -30,17 +30,20 @@ public class TimeSeriesCollapseExec extends UnaryExec {
         TimeSeriesCollapseExec::new
     );
 
-    private final List<Attribute> collapseAttributes;
+    private final Attribute timestamp;
+    private final List<Attribute> values;
 
-    public TimeSeriesCollapseExec(Source source, PhysicalPlan child, List<Attribute> collapseAttributes) {
+    public TimeSeriesCollapseExec(Source source, PhysicalPlan child, Attribute timestamp, List<Attribute> values) {
         super(source, child);
-        this.collapseAttributes = collapseAttributes;
+        this.timestamp = timestamp;
+        this.values = values;
     }
 
     private TimeSeriesCollapseExec(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(PhysicalPlan.class),
+            in.readNamedWriteable(Attribute.class),
             in.readNamedWriteableCollectionAsList(Attribute.class)
         );
     }
@@ -49,7 +52,8 @@ public class TimeSeriesCollapseExec extends UnaryExec {
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(child());
-        out.writeNamedWriteableCollection(collapseAttributes);
+        out.writeNamedWriteable(timestamp);
+        out.writeNamedWriteableCollection(values);
     }
 
     @Override
@@ -57,8 +61,12 @@ public class TimeSeriesCollapseExec extends UnaryExec {
         return ENTRY.name;
     }
 
-    public List<Attribute> collapseAttributes() {
-        return collapseAttributes;
+    public Attribute timestamp() {
+        return timestamp;
+    }
+
+    public List<Attribute> values() {
+        return values;
     }
 
     @Override
@@ -68,17 +76,17 @@ public class TimeSeriesCollapseExec extends UnaryExec {
 
     @Override
     protected NodeInfo<TimeSeriesCollapseExec> info() {
-        return NodeInfo.create(this, TimeSeriesCollapseExec::new, child(), collapseAttributes);
+        return NodeInfo.create(this, TimeSeriesCollapseExec::new, child(), timestamp, values);
     }
 
     @Override
     public TimeSeriesCollapseExec replaceChild(PhysicalPlan newChild) {
-        return new TimeSeriesCollapseExec(source(), newChild, collapseAttributes);
+        return new TimeSeriesCollapseExec(source(), newChild, timestamp, values);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(child(), collapseAttributes);
+        return Objects.hash(child(), timestamp, values);
     }
 
     @Override
@@ -90,6 +98,6 @@ public class TimeSeriesCollapseExec extends UnaryExec {
             return false;
         }
         TimeSeriesCollapseExec other = (TimeSeriesCollapseExec) obj;
-        return Objects.equals(child(), other.child()) && Objects.equals(collapseAttributes, other.collapseAttributes);
+        return Objects.equals(child(), other.child()) && Objects.equals(timestamp, other.timestamp) && Objects.equals(values, other.values);
     }
 }

@@ -18,20 +18,23 @@ public class TimeSeriesCollapseSerializationTests extends AbstractLogicalPlanSer
     protected TimeSeriesCollapse createTestInstance() {
         Source source = randomSource();
         LogicalPlan child = randomChild(0);
-        List<Attribute> collapseAttributes = randomFieldAttributes(1, 5, false);
-        return new TimeSeriesCollapse(source, child, collapseAttributes);
+        Attribute timestamp = randomFieldAttributes(1, 1, false).get(0);
+        List<Attribute> values = randomFieldAttributes(1, 5, false);
+        return new TimeSeriesCollapse(source, child, timestamp, values);
     }
 
     @Override
     protected TimeSeriesCollapse mutateInstance(TimeSeriesCollapse instance) throws IOException {
         LogicalPlan child = instance.child();
-        List<Attribute> collapseAttributes = instance.collapseAttributes();
-        switch (between(0, 1)) {
+        Attribute timestamp = instance.timestamp();
+        List<Attribute> values = instance.values();
+        switch (between(0, 2)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
-            case 1 -> collapseAttributes = randomValueOtherThan(collapseAttributes, () -> randomFieldAttributes(1, 5, false));
+            case 1 -> timestamp = randomValueOtherThan(timestamp, () -> randomFieldAttributes(1, 1, false).get(0));
+            case 2 -> values = randomValueOtherThan(values, () -> randomFieldAttributes(1, 5, false));
             default -> throw new IllegalStateException();
         }
-        return new TimeSeriesCollapse(instance.source(), child, collapseAttributes);
+        return new TimeSeriesCollapse(instance.source(), child, timestamp, values);
     }
 
     @Override

@@ -1552,26 +1552,23 @@ public class LocalExecutionPlanner {
         PhysicalOperation source = plan(collapse.child(), context);
         Layout layout = source.layout;
 
-        List<Attribute> collapseAttributes = collapse.collapseAttributes();
-        int[] collapseChannels = new int[collapseAttributes.size()];
-        Set<NameId> collapseIds = new HashSet<>(collapseAttributes.size());
-        int timestampChannel = -1;
-        for (int i = 0; i < collapseAttributes.size(); i++) {
-            Attribute a = collapseAttributes.get(i);
-            int channel = layout.get(a.id()).channel();
-            collapseChannels[i] = channel;
-            collapseIds.add(a.id());
-            if (a.dataType() == DataType.DATETIME) {
-                timestampChannel = channel;
-            }
-        }
-        if (timestampChannel == -1) {
-            throw new IllegalStateException("TimeSeriesCollapseExec has no DATETIME collapse attribute");
+        List<Attribute> values = collapse.values();
+        int timestampChannel = layout.get(collapse.timestamp().id()).channel();
+        int[] collapseChannels = new int[values.size() + 1];
+        collapseChannels[0] = timestampChannel;
+        Set<NameId> collapsedIds = new HashSet<>(values.size() + 1);
+        collapsedIds.add(collapse.timestamp().id());
+        for (int i = 0; i < values.size(); i++) {
+            Attribute v = values.get(i);
+            collapseChannels[i + 1] = layout.get(v.id()).channel();
+            collapsedIds.add(v.id());
         }
 
+        // keyChannels are the dimension/label columns that stay single-valued across the collapse:
+        // everything in the input that isn't the timestamp or a collapsed value.
         int[] keyChannels = collapse.output()
             .stream()
-            .filter(a -> collapseIds.contains(a.id()) == false)
+            .filter(a -> collapsedIds.contains(a.id()) == false)
             .mapToInt(a -> layout.get(a.id()).channel())
             .toArray();
 

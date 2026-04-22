@@ -80,7 +80,6 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.core.expression.MetadataAttribute.isTimeSeriesAttributeName;
 import static org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction.withFilter;
@@ -220,13 +219,18 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         if (promqlCommand.isCollapsed()) {
             String stepName = promqlCommand.stepColumnName();
             String valueName = promqlCommand.valueColumnName();
-            List<Attribute> collapseAttributes = plan.output()
-                .stream()
-                .filter(a -> a.name().equals(stepName) || a.name().equals(valueName))
-                .collect(Collectors.toList());
-            assert collapseAttributes.size() == 2
-                : "expected step [" + stepName + "] and value [" + valueName + "] in output, found " + collapseAttributes;
-            plan = new TimeSeriesCollapse(promqlCommand.source(), plan, collapseAttributes);
+            Attribute timestamp = null;
+            Attribute value = null;
+            for (Attribute a : plan.output()) {
+                if (a.name().equals(stepName)) {
+                    timestamp = a;
+                } else if (a.name().equals(valueName)) {
+                    value = a;
+                }
+            }
+            assert timestamp != null && value != null
+                : "expected step [" + stepName + "] and value [" + valueName + "] in output " + plan.output();
+            plan = new TimeSeriesCollapse(promqlCommand.source(), plan, timestamp, List.of(value));
         }
 
         return plan;

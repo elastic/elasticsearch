@@ -152,6 +152,9 @@ public class AsyncTaskMaintenanceService extends AbstractLifecycleComponent impl
             }
 
             final IndexRoutingTable indexRouting = state.routingTable(project).index(index.getWriteIndex());
+            if (indexRouting == null) {
+                return false;
+            }
             final String primaryNodeId = indexRouting.shard(0).primaryShard().currentNodeId();
             return localNodeId.equals(primaryNodeId);
         }).toList();

@@ -1021,7 +1021,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         DataType expectedOutputType,
         Function<Object, Object> expectedValueMapper,
         Function<Object, List<String>> expectedWarnings,
-        boolean convertToNoText
+        boolean allowText
     ) {
         for (TypedDataSupplier supplier : valueSuppliers) {
             suppliers.add(new TestCaseSupplier(supplier.name(), List.of(supplier.type()), () -> {
@@ -1044,7 +1044,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                     null,
                     null,
                     true,
-                    convertToNoText
+                    allowText
                 );
 
                 for (String warning : expectedWarnings.apply(value)) {
@@ -1817,7 +1817,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          * as needed and extra <strong>whatever</strong> helps them.
          */
         private final Object extra;
-        private final boolean convertToNoText;
+        private final boolean allowText;
 
         public TestCase(List<TypedData> data, String evaluatorToString, DataType expectedType, Matcher<?> matcher) {
             this(data, equalTo(evaluatorToString), expectedType, matcher);
@@ -1881,7 +1881,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 foldingExceptionMessage,
                 extra,
                 canBuildEvaluator,
-                true
+                false
             );
         }
 
@@ -1898,13 +1898,13 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             String foldingExceptionMessage,
             Object extra,
             boolean canBuildEvaluator,
-            boolean convertToNoText
+            boolean allowText
         ) {
             this.source = source;
             this.configuration = configuration;
             this.data = data;
             this.evaluatorToString = evaluatorToString;
-            this.expectedType = expectedType == null ? null : expectedType.convertToNoText(convertToNoText);
+            this.expectedType = (expectedType == null || allowText)? expectedType : expectedType.noText();
             @SuppressWarnings("unchecked")
             Matcher<Object> downcast = (Matcher<Object>) matcher;
             this.matcher = downcast;
@@ -1914,7 +1914,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             this.foldingExceptionMessage = foldingExceptionMessage;
             this.extra = extra;
             this.canBuildEvaluator = canBuildEvaluator;
-            this.convertToNoText = convertToNoText;
+            this.allowText = allowText;
         }
 
         public Source getSource() {
@@ -1989,8 +1989,11 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             return extra;
         }
 
-        public boolean convertToNoText() {
-            return convertToNoText;
+        /**
+         * Specifies if this test case can return a TEXT value, or whether it should treat a TEXT return value as KEYWORD.
+         */
+        public boolean allowText() {
+            return allowText;
         }
 
         /**
@@ -2033,7 +2036,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 foldingExceptionMessage,
                 extra,
                 canBuildEvaluator,
-                convertToNoText
+                allowText
             );
         }
 

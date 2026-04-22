@@ -192,7 +192,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                         null,
                         null,
                         oc.canBuildEvaluator(),
-                        oc.convertToNoText()
+                        oc.allowText()
                     );
                 }));
 
@@ -226,7 +226,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                                 null,
                                 null,
                                 oc.canBuildEvaluator(),
-                                oc.convertToNoText()
+                                oc.allowText()
                             );
                         }));
                     }

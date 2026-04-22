@@ -36,7 +36,7 @@ public class ToTextTests extends AbstractScalarFunctionTestCase {
             DataType.TEXT,
             a -> a,
             unused -> List.of(),
-            false
+            true
         );
 
         TestCaseSupplier.unary(
@@ -46,7 +46,7 @@ public class ToTextTests extends AbstractScalarFunctionTestCase {
             DataType.TEXT,
             a -> a,
             unused -> List.of(),
-            false
+            true
         );
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);

@@ -27,6 +27,13 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 
+/**
+ * Converts a value to an expression of type {@code TEXT}. This is different from the {@link ToString} function, which converts to
+ * {@code KEYWORD}. {@code TEXT} and {@code KEYWORD} data types are treated in ES|QL almost the same, the main difference is that
+ * {@code TEXT} is considered to be analyzed, while {@code KEYWORD} is not.
+ * This matters for functions like {@link org.elasticsearch.xpack.esql.expression.function.fulltext.Match} which will treat these data types
+ * differently.
+ */
 public class ToText extends AbstractConvertFunction implements EvaluatorMapper {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToText", ToText::new);

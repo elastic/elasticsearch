@@ -938,13 +938,6 @@ public enum DataType implements Writeable {
         return isString(this) ? KEYWORD : this;
     }
 
-    public DataType convertToNoText(boolean noText) {
-        if (noText == false) {
-            return this;
-        }
-        return noText();
-    }
-
     public DataType noCounter() {
         return switch (this) {
             case COUNTER_DOUBLE -> DOUBLE;

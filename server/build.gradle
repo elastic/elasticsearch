@@ -61,6 +61,7 @@ dependencies {
   // utilities
   api project(":libs:cli")
   implementation 'com.carrotsearch:hppc:0.8.1'
+  api 'org.apache.commons:commons-text:1.9'
 
   // precentil ranks aggregation
   api 'org.hdrhistogram:HdrHistogram:2.1.9'

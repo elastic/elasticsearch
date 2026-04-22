@@ -3,8 +3,8 @@ serverless: preview
 stack: preview 9.4
 ```
 
-The `PROMQL` source command is similar to the [`TS`](/reference/query-languages/esql/commands/ts.md)
-source command allowing you to query time series data using [**Prometheus Query Language**](https://prometheus.io/docs/prometheus/latest/querying/basics/).
+The `PROMQL` source command queries [time series indices](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md) using [**Prometheus Query Language (PromQL)**](https://prometheus.io/docs/prometheus/latest/querying/basics/).
+Like [`TS`](/reference/query-languages/esql/commands/ts.md), it enables time series aggregation functions, but accepts PromQL syntax instead of ES|QL.
 
 ::::{note}
 In 9.4, `PROMQL` command is available as a preview feature. Current limitations include:
@@ -34,7 +34,7 @@ The options are inspired by the Prometheus [HTTP API](https://prometheus.io/docs
     Example: `PROMQL index=metrics-*.otel-* sum(rate(http_requests_total))`
 
 `step`
-:   Query resolution step width.
+:   Query resolution step width (optional).
     Automatically determined given the number of target `buckets` and the selected time range.
     Example: `PROMQL step=1m sum(rate(http_requests_total[5m]))`
 
@@ -45,12 +45,12 @@ The options are inspired by the Prometheus [HTTP API](https://prometheus.io/docs
     Example: `PROMQL buckets=50 start="2026-04-01T00:00:00Z" end="2026-04-01T01:00:00Z" sum(rate(http_requests_total))`
 
 `start`
-:   Start time of the query, inclusive.
+:   Start time of the query, inclusive (optional).
     Uses the start based on Kibana's date picker or unrestricted if missing.
     Example: `PROMQL start="2026-04-01T00:00:00Z" end="2026-04-01T01:00:00Z" sum(rate(http_requests_total))`
 
 `end`
-:   End time of the query, inclusive.
+:   End time of the query, inclusive (optional).
     Uses the end based on Kibana's date picker or unrestricted if missing.
     Example: `PROMQL start="2026-04-01T00:00:00Z" end="2026-04-01T02:00:00Z" sum(rate(http_requests_total))`
 
@@ -59,9 +59,9 @@ The options are inspired by the Prometheus [HTTP API](https://prometheus.io/docs
     Defaults to `1m`. Used to determine implicit range selector windows as `max(step, scrape_interval)`.
     Example: `PROMQL scrape_interval=15s sum(rate(http_requests_total))`
 
-`result_name`
-:   Name of the output column with the query result timeseries.
-    By default, the name of the output column is the text of the PromQL expression itself.
+`<result_name>=(<PromQL Expression>)`
+:   Name of the output column with the query result timeseries (optional).
+    By default, the name of the output column is the PromQL expression itself.
     Example: `PROMQL http_rate=(sum by (instance) (rate(http_requests_total))) | SORT http_rate DESC`
 
 
@@ -76,7 +76,7 @@ The result contains the following columns:
 
 | Column | Type | Description |
 |--------|------|-------------|
-| The PromQL expression (or `result_name` if specified) | `double` | The computed metric value |
+| The PromQL expression (or `<result_name>` if specified) | `double` | The computed metric value |
 | `step` | `date` | The timestamp for each evaluation step |
 | Grouping labels (if any) | `keyword` | One column per grouping label from `by` clauses |
 

@@ -1264,7 +1264,13 @@ public class EsqlCapabilities {
         /**
          * Fixed a bug where views are incorrectly de-duplicated.
          */
+
         VIEWS_DEDUPLICATION_BUGFIX,
+        /**
+         * Fixed false circular view reference errors when multiple sibling views are resolved together.
+         * See https://github.com/elastic/elasticsearch/issues/146208
+         */
+        VIEWS_FALSE_CIRCULAR_REFERENCE_FIX,
 
         /**
          * Support for the {@code leading_zeros} named parameter.
@@ -1611,6 +1617,11 @@ public class EsqlCapabilities {
         TBUCKET,
 
         /**
+         * Support for tstep function
+         */
+        TSTEP,
+
+        /**
          * Allow qualifiers in attribute names.
          */
         NAME_QUALIFIERS(Build.current().isSnapshot()),
@@ -1767,9 +1778,9 @@ public class EsqlCapabilities {
         DOTS_IN_FUSE,
 
         /**
-         * Support for the DATE_RANGE field type.
+         * Support for the DATE_RANGE field type, RANGE_WITHIN, TO_DATE_RANGE(string), RANGE_MIN, RANGE_MAX.
          */
-        DATE_RANGE_FIELD_TYPE(Build.current().isSnapshot()),
+        DATE_RANGE_FIELD_TYPE_V2(Build.current().isSnapshot()),
 
         /**
          * Network direction function.
@@ -2406,6 +2417,11 @@ public class EsqlCapabilities {
         FIX_PASSTHROUGH_FIELD_CAPS_OBJECT_PARENT,
 
         /**
+         * Support for highlight markup in {@code TOP_SNIPPETS} via the {@code highlight} option.
+         */
+        TOP_SNIPPETS_HIGHLIGHT,
+
+        /**
          * Enables the feature LIMIT n BY expr1, expr2 for retaining at most n docs per group.
          * The feature will not work if we had SORT | LIMIT n BY
          */
@@ -2519,7 +2535,7 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code EMBEDDING} function for generating dense vector embeddings using the {@code embedding} task type.
          */
-        EMBEDDING_FUNCTION(Build.current().isSnapshot()),
+        EMBEDDING_FUNCTION,
 
         /**
          * Fix for {@code STARTS_WITH} and {@code ENDS_WITH} Lucene pushdown on {@code _index}: use wildcard escaping instead of
@@ -2559,6 +2575,16 @@ public class EsqlCapabilities {
          * Support query approximation with INLINE STATS
          */
         APPROXIMATION_INLINE_STATS(Build.current().isSnapshot()),
+
+        /**
+         * Support for PromQL year() function.
+         */
+        PROMQL_YEAR,
+
+        /**
+         * Support for PromQL time extraction functions: month(), day_of_month(), day_of_week(), day_of_year(), hour(), minute().
+         */
+        PROMQL_TIME_FUNCTIONS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

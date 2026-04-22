@@ -4,7 +4,7 @@
  * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
  * Public License v 1"; you may not use this file except in compliance with, at
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
- * License v 3.0 only", or the "Server Side Public License, v 1".
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex.management;
@@ -28,6 +28,7 @@ import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.reindex.management.TransportGetReindexAction.notFoundException;
@@ -62,41 +63,47 @@ public class TransportGetReindexActionTests extends ESTestCase {
     }
 
     public void testReindexFound() {
-        TaskInfo reindexTask = createTaskInfo(taskId, ReindexAction.NAME);
-        TaskResult taskResult = new TaskResult(true, reindexTask);
-        GetTaskResponse getTaskResponse = new GetTaskResponse(taskResult);
-        GetReindexRequest request = createGetReindexRequest(taskId, false, timeout);
+        TaskResult probeResult = new TaskResult(false, createReindexTaskInfo());
+        TaskResult fetchResult = new TaskResult(true, createReindexTaskInfo());
+        GetReindexRequest request = createGetReindexRequest(false);
 
-        doAnswer(invocation -> {
-            ActionListener<GetTaskResponse> inner = invocation.getArgument(1);
-            inner.onResponse(getTaskResponse);
-            return null;
-        }).when(client).getTask(any(GetTaskRequest.class), any());
-
+        mockGetTaskSequence(probeResult, fetchResult);
         action.doExecute(mock(), request, listener);
 
         assertNull(failureRef.get());
-        GetReindexResponse expectedResponse = new GetReindexResponse(new RelocatableReindexResult(taskResult, null));
-        assertEquals(expectedResponse, responseRef.get());
+        assertEquals(new GetReindexResponse(fetchResult), responseRef.get());
+        assertProbeAndFetch(false);
+    }
 
-        ArgumentCaptor<GetTaskRequest> requestCaptor = ArgumentCaptor.captor();
-        verify(client).getTask(requestCaptor.capture(), any());
+    public void testReindexFoundWithWait() {
+        TaskResult probeResult = new TaskResult(false, createReindexTaskInfo());
+        TaskResult fetchResult = new TaskResult(true, createReindexTaskInfo());
+        GetReindexRequest request = createGetReindexRequest(true);
 
-        GetTaskRequest capturedRequest = requestCaptor.getValue();
-        assertEquals(taskId, capturedRequest.getTaskId());
-        assertFalse(capturedRequest.getWaitForCompletion());
+        mockGetTaskSequence(probeResult, fetchResult);
+        action.doExecute(mock(), request, listener);
+
+        assertNull(failureRef.get());
+        assertEquals(new GetReindexResponse(fetchResult), responseRef.get());
+        assertProbeAndFetch(true);
+    }
+
+    public void testWaitForAlreadyCompletedTask() {
+        TaskResult completedResult = new TaskResult(true, createReindexTaskInfo());
+        GetReindexRequest request = createGetReindexRequest(true);
+
+        mockGetTaskSequence(completedResult, completedResult);
+        action.doExecute(mock(), request, listener);
+
+        assertNull(failureRef.get());
+        assertEquals(new GetReindexResponse(completedResult), responseRef.get());
+        assertProbeAndFetch(true);
     }
 
     public void testTaskNotFound() {
-        GetReindexRequest request = createGetReindexRequest(taskId, false, timeout);
+        GetReindexRequest request = createGetReindexRequest(false);
 
-        ResourceNotFoundException notFoundException = new ResourceNotFoundException("task not found");
-        doAnswer(invocation -> {
-            ActionListener<GetTaskResponse> inner = invocation.getArgument(1);
-            inner.onFailure(notFoundException);
-            return null;
-        }).when(client).getTask(any(GetTaskRequest.class), any());
-
+        mockGetTaskFailure(new ResourceNotFoundException("task not found"));
         action.doExecute(mock(), request, listener);
 
         assertNull(responseRef.get());
@@ -104,375 +111,182 @@ public class TransportGetReindexActionTests extends ESTestCase {
         assertEquals(notFoundException(taskId).getMessage(), failureRef.get().getMessage());
     }
 
-    public void testTreatNonReindexTasksAsNotFound() {
-        TaskInfo otherTask = createTaskInfo(taskId, "other_action");
-        TaskResult taskResult = new TaskResult(true, otherTask);
-        GetTaskResponse getTaskResponse = new GetTaskResponse(taskResult);
-        GetReindexRequest request = createGetReindexRequest(taskId, true, timeout);
+    public void testNonReindexTaskTreatedAsNotFound() {
+        TaskResult probeResult = new TaskResult(true, createTaskInfo(taskId, "other_action"));
+        GetReindexRequest request = createGetReindexRequest(randomBoolean());
 
-        doAnswer(invocation -> {
-            ActionListener<GetTaskResponse> inner = invocation.getArgument(1);
-            inner.onResponse(getTaskResponse);
-            return null;
-        }).when(client).getTask(any(GetTaskRequest.class), any());
-
+        mockGetTask(probeResult);
         action.doExecute(mock(), request, listener);
 
         assertNull(responseRef.get());
         assertThat(failureRef.get(), instanceOf(ResourceNotFoundException.class));
         assertEquals(notFoundException(taskId).getMessage(), failureRef.get().getMessage());
+        assertSingleProbe();
     }
 
-    public void testHandleOtherExceptions() {
-        GetReindexRequest request = createGetReindexRequest(taskId, false, timeout);
+    public void testSubtaskTreatedAsNotFound() {
+        TaskId parentTaskId = new TaskId(randomAlphaOfLength(10), randomIntBetween(1, 1000));
+        TaskInfo subtaskInfo = new TaskInfo(
+            taskId,
+            "test",
+            taskId.getNodeId(),
+            ReindexAction.NAME,
+            "test",
+            null,
+            0,
+            0,
+            false,
+            false,
+            parentTaskId,
+            Collections.emptyMap()
+        );
+        GetReindexRequest request = createGetReindexRequest(randomBoolean());
+
+        mockGetTask(new TaskResult(false, subtaskInfo));
+        action.doExecute(mock(), request, listener);
+
+        assertNull(responseRef.get());
+        assertThat(failureRef.get(), instanceOf(ResourceNotFoundException.class));
+        assertSingleProbe();
+    }
+
+    public void testOtherExceptionPropagated() {
+        GetReindexRequest request = createGetReindexRequest(false);
 
         RuntimeException otherException = new RuntimeException("some other error");
-        doAnswer(invocation -> {
-            ActionListener<GetTaskResponse> inner = invocation.getArgument(1);
-            inner.onFailure(otherException);
-            return null;
-        }).when(client).getTask(any(GetTaskRequest.class), any());
-
+        mockGetTaskFailure(otherException);
         action.doExecute(mock(), request, listener);
 
         assertNull(responseRef.get());
         assertSame(otherException, failureRef.get());
     }
 
-    public void testWaitForReindexToComplete() {
-        TaskInfo reindexTask = createTaskInfo(taskId, ReindexAction.NAME);
-        GetReindexRequest request = createGetReindexRequest(taskId, true, timeout);
+    public void testExceptionInFetchPropagated() {
+        TaskResult probeResult = new TaskResult(false, createReindexTaskInfo());
+        GetReindexRequest request = createGetReindexRequest(true);
 
-        // set up get task result
-        TaskResult taskResultIncomplete = new TaskResult(false, reindexTask);
-        GetTaskResponse getTaskResponseIncomplete = new GetTaskResponse(taskResultIncomplete);
-        TaskResult taskResultCompleted = new TaskResult(true, reindexTask);
-        GetTaskResponse getTaskResponseCompleted = new GetTaskResponse(taskResultCompleted);
-        doAnswer(invocation -> {
-            ActionListener<GetTaskResponse> inner = invocation.getArgument(1);
-            inner.onResponse(getTaskResponseIncomplete);
+        RuntimeException fetchException = new RuntimeException("random error");
+        doAnswer(inv -> {
+            ActionListener<GetTaskResponse> l = inv.getArgument(1);
+            l.onResponse(new GetTaskResponse(probeResult));
             return null;
-        }).doAnswer(invocation -> {
-            ActionListener<GetTaskResponse> inner = invocation.getArgument(1);
-            inner.onResponse(getTaskResponseCompleted);
-            return null;
-        }).when(client).getTask(any(GetTaskRequest.class), any());
-
-        action.doExecute(mock(), request, listener);
-
-        assertNull(failureRef.get());
-        GetReindexResponse expectedResponse = new GetReindexResponse(new RelocatableReindexResult(taskResultCompleted, null));
-        assertEquals(expectedResponse, responseRef.get());
-
-        ArgumentCaptor<GetTaskRequest> requestCaptor = ArgumentCaptor.captor();
-        verify(client, times(2)).getTask(requestCaptor.capture(), any());
-
-        GetTaskRequest capturedRequestIncomplete = requestCaptor.getAllValues().getFirst();
-        assertEquals(taskId, capturedRequestIncomplete.getTaskId());
-        assertFalse(capturedRequestIncomplete.getWaitForCompletion());
-
-        GetTaskRequest capturedRequestCompleted = requestCaptor.getAllValues().getLast();
-        assertEquals(taskId, capturedRequestCompleted.getTaskId());
-        assertEquals(timeout, capturedRequestCompleted.getTimeout());
-        assertTrue(capturedRequestCompleted.getWaitForCompletion());
-    }
-
-    public void testDoNotWaitForNonReindex() {
-        TaskInfo otherTask = createTaskInfo(taskId, "other_action");
-        TaskResult taskResult = new TaskResult(false, otherTask);
-        GetTaskResponse getTaskResponse = new GetTaskResponse(taskResult);
-        GetReindexRequest request = createGetReindexRequest(taskId, true, timeout);
-
-        doAnswer(invocation -> {
-            ActionListener<GetTaskResponse> inner = invocation.getArgument(1);
-            inner.onResponse(getTaskResponse);
+        }).doAnswer(inv -> {
+            ActionListener<GetTaskResponse> l = inv.getArgument(1);
+            l.onFailure(fetchException);
             return null;
         }).when(client).getTask(any(GetTaskRequest.class), any());
 
         action.doExecute(mock(), request, listener);
 
         assertNull(responseRef.get());
-        assertThat(failureRef.get(), instanceOf(ResourceNotFoundException.class));
-        assertEquals(notFoundException(taskId).getMessage(), failureRef.get().getMessage());
-
-        ArgumentCaptor<GetTaskRequest> requestCaptor = ArgumentCaptor.captor();
-        verify(client).getTask(requestCaptor.capture(), any());
-
-        GetTaskRequest capturedRequest = requestCaptor.getValue();
-        assertEquals(taskId, capturedRequest.getTaskId());
-        assertFalse(capturedRequest.getWaitForCompletion());
+        assertSame(fetchException, failureRef.get());
     }
 
-    public void testDoNotWaitForCompletedTask() {
-        TaskInfo reindexTask = createTaskInfo(taskId, ReindexAction.NAME);
-        GetReindexRequest request = createGetReindexRequest(taskId, true, timeout);
-
-        // set up get task result
-        TaskResult taskResult = new TaskResult(true, reindexTask);
-        GetTaskResponse getTaskResponse = new GetTaskResponse(taskResult);
-        doAnswer(invocation -> {
-            ActionListener<GetTaskResponse> inner = invocation.getArgument(1);
-            inner.onResponse(getTaskResponse);
-            return null;
-        }).when(client).getTask(any(GetTaskRequest.class), any());
-
-        action.doExecute(mock(), request, listener);
-
-        assertNull(failureRef.get());
-        GetReindexResponse expectedResponse = new GetReindexResponse(new RelocatableReindexResult(taskResult, null));
-        assertEquals(expectedResponse, responseRef.get());
-
-        ArgumentCaptor<GetTaskRequest> requestCaptor = ArgumentCaptor.captor();
-        verify(client).getTask(requestCaptor.capture(), any());
-
-        GetTaskRequest capturedRequest = requestCaptor.getValue();
-        assertEquals(taskId, capturedRequest.getTaskId());
-        assertFalse(capturedRequest.getWaitForCompletion());
-    }
-
-    public void testHandleExceptionInWaitForTask() {
-        TaskInfo reindexTask = createTaskInfo(taskId, ReindexAction.NAME);
-        TaskResult taskResultIncomplete = new TaskResult(false, reindexTask);
-        GetTaskResponse getTaskResponseIncomplete = new GetTaskResponse(taskResultIncomplete);
-        GetReindexRequest request = createGetReindexRequest(taskId, true, timeout);
-
-        RuntimeException expectedException = new RuntimeException("random error");
-        doAnswer(invocation -> {
-            ActionListener<GetTaskResponse> inner = invocation.getArgument(1);
-            inner.onResponse(getTaskResponseIncomplete);
-            return null;
-        }).doAnswer(invocation -> {
-            ActionListener<GetTaskResponse> inner = invocation.getArgument(1);
-            inner.onFailure(expectedException);
-            return null;
-        }).when(client).getTask(any(GetTaskRequest.class), any());
-
-        action.doExecute(mock(), request, listener);
-
-        assertNull(responseRef.get());
-        assertSame(expectedException, failureRef.get());
-
-        ArgumentCaptor<GetTaskRequest> requestCaptor = ArgumentCaptor.captor();
-        verify(client, times(2)).getTask(requestCaptor.capture(), any());
-
-        GetTaskRequest capturedRequestIncomplete = requestCaptor.getAllValues().getFirst();
-        assertEquals(taskId, capturedRequestIncomplete.getTaskId());
-        assertFalse(capturedRequestIncomplete.getWaitForCompletion());
-
-        GetTaskRequest capturedRequestCompleted = requestCaptor.getAllValues().getLast();
-        assertEquals(taskId, capturedRequestCompleted.getTaskId());
-        assertEquals(timeout, capturedRequestCompleted.getTimeout());
-        assertTrue(capturedRequestCompleted.getWaitForCompletion());
-    }
-
-    public void testNoRelocationReturnsAsIs() {
-        final TaskInfo reindexTask = createTaskInfo(taskId, ReindexAction.NAME);
-        final TaskResult taskResult = new TaskResult(false, reindexTask);
-        final GetReindexRequest request = createGetReindexRequest(taskId, false, timeout);
-
-        doAnswer(invocation -> {
-            final ActionListener<GetTaskResponse> inner = invocation.getArgument(1);
-            inner.onResponse(new GetTaskResponse(taskResult));
-            return null;
-        }).when(client).getTask(any(GetTaskRequest.class), any());
-
-        action.doExecute(mock(), request, listener);
-
-        assertNull(failureRef.get());
-        assertNotNull(responseRef.get());
-        final GetReindexResponse response = responseRef.get();
-        assertEquals(taskResult, response.getOriginalTask());
-        assertTrue(response.getRelocatedTask().isEmpty());
-    }
-
-    public void testFollowsSingleRelocation() throws IOException {
-        final TaskId originalTaskId = taskId;
-        final TaskId relocatedTaskId = randomValueOtherThan(taskId, () -> new TaskId(randomAlphaOfLength(10), randomIntBetween(1, 1000)));
-
-        final var relocatedException = new TaskRelocatedException(originalTaskId, relocatedTaskId);
-
-        final TaskInfo originalInfo = createTaskInfo(originalTaskId, ReindexAction.NAME);
-        final TaskResult originalResult = new TaskResult(originalInfo, (Exception) relocatedException);
-
-        final TaskInfo relocatedInfo = createTaskInfo(relocatedTaskId, ReindexAction.NAME);
-        final TaskResult relocatedResult = new TaskResult(false, relocatedInfo);
-
-        final GetReindexRequest request = createGetReindexRequest(originalTaskId, false, timeout);
-
-        doAnswer(invocation -> {
-            final ActionListener<GetTaskResponse> inner = invocation.getArgument(1);
-            inner.onResponse(new GetTaskResponse(originalResult));
-            return null;
-        }).doAnswer(invocation -> {
-            final ActionListener<GetTaskResponse> inner = invocation.getArgument(1);
-            inner.onResponse(new GetTaskResponse(relocatedResult));
-            return null;
-        }).when(client).getTask(any(GetTaskRequest.class), any());
-
-        action.doExecute(mock(), request, listener);
-
-        assertNull(failureRef.get());
-        assertNotNull(responseRef.get());
-        final GetReindexResponse response = responseRef.get();
-        assertEquals(originalResult, response.getOriginalTask());
-        assertThat(relocatedResult, equalTo(response.getRelocatedTask().orElseThrow()));
-
-        final ArgumentCaptor<GetTaskRequest> requestCaptor = ArgumentCaptor.captor();
-        verify(client, times(2)).getTask(requestCaptor.capture(), any());
-        assertEquals(originalTaskId, requestCaptor.getAllValues().get(0).getTaskId());
-        assertEquals(relocatedTaskId, requestCaptor.getAllValues().get(1).getTaskId());
-    }
-
-    public void testFollowsTwoRelocations() throws IOException {
-        final TaskId originalTaskId = taskId;
-        final TaskId firstRelocatedTaskId = randomValueOtherThan(
+    public void testMergedRelocatedResultAccepted() {
+        TaskId relocatedTaskId = randomValueOtherThan(taskId, () -> new TaskId(randomAlphaOfLength(10), randomIntBetween(1, 1000)));
+        TaskInfo mergedInfo = new TaskInfo(
+            relocatedTaskId,
+            "test",
+            relocatedTaskId.getNodeId(),
+            ReindexAction.NAME,
+            "test",
+            null,
+            100,
+            5000,
+            false,
+            false,
+            TaskId.EMPTY_TASK_ID,
+            Collections.emptyMap(),
             taskId,
-            () -> new TaskId(randomAlphaOfLength(10), randomIntBetween(1, 1000))
+            100
         );
-        final TaskId secondRelocatedTaskId = randomValueOtherThan(
-            firstRelocatedTaskId,
-            () -> new TaskId(randomAlphaOfLength(10), randomIntBetween(1, 1000))
-        );
+        TaskResult probeResult = new TaskResult(false, createReindexTaskInfo());
+        TaskResult mergedResult = new TaskResult(false, mergedInfo);
+        GetReindexRequest request = createGetReindexRequest(false);
 
-        final var firstRelocation = new TaskRelocatedException(originalTaskId, firstRelocatedTaskId);
-
-        final var secondRelocation = new TaskRelocatedException(originalTaskId, secondRelocatedTaskId);
-
-        final TaskInfo originalInfo = createTaskInfo(originalTaskId, ReindexAction.NAME);
-        final TaskResult originalResult = new TaskResult(originalInfo, (Exception) firstRelocation);
-
-        final TaskInfo firstRelocatedInfo = createTaskInfo(firstRelocatedTaskId, ReindexAction.NAME);
-        final TaskResult firstRelocatedResult = new TaskResult(firstRelocatedInfo, (Exception) secondRelocation);
-
-        final TaskInfo secondRelocatedInfo = createTaskInfo(secondRelocatedTaskId, ReindexAction.NAME);
-        final TaskResult secondRelocatedResult = new TaskResult(false, secondRelocatedInfo);
-
-        final GetReindexRequest request = createGetReindexRequest(originalTaskId, false, timeout);
-
-        doAnswer(invocation -> {
-            final ActionListener<GetTaskResponse> inner = invocation.getArgument(1);
-            inner.onResponse(new GetTaskResponse(originalResult));
-            return null;
-        }).doAnswer(invocation -> {
-            final ActionListener<GetTaskResponse> inner = invocation.getArgument(1);
-            inner.onResponse(new GetTaskResponse(firstRelocatedResult));
-            return null;
-        }).doAnswer(invocation -> {
-            final ActionListener<GetTaskResponse> inner = invocation.getArgument(1);
-            inner.onResponse(new GetTaskResponse(secondRelocatedResult));
-            return null;
-        }).when(client).getTask(any(GetTaskRequest.class), any());
-
+        mockGetTaskSequence(probeResult, mergedResult);
         action.doExecute(mock(), request, listener);
 
         assertNull(failureRef.get());
-        assertNotNull(responseRef.get());
-        final GetReindexResponse response = responseRef.get();
-        assertEquals(originalResult, response.getOriginalTask());
-        assertEquals(secondRelocatedResult, response.getRelocatedTask().orElseThrow());
-
-        final ArgumentCaptor<GetTaskRequest> requestCaptor = ArgumentCaptor.captor();
-        verify(client, times(3)).getTask(requestCaptor.capture(), any());
-        assertEquals(originalTaskId, requestCaptor.getAllValues().get(0).getTaskId());
-        assertEquals(firstRelocatedTaskId, requestCaptor.getAllValues().get(1).getTaskId());
-        assertEquals(secondRelocatedTaskId, requestCaptor.getAllValues().get(2).getTaskId());
+        assertEquals(mergedResult, responseRef.get().getTaskResult());
+        assertThat(responseRef.get().getTaskResult().getTask().originalTaskId(), equalTo(taskId));
     }
 
-    public void testWaitForCompletionHandlesRelocationWhileWaiting() throws IOException {
-        final TaskId originalTaskId = taskId;
-        final TaskId relocatedTaskId = randomValueOtherThan(taskId, () -> new TaskId(randomAlphaOfLength(10), randomIntBetween(1, 1000)));
+    public void testUnresolvedRelocationReturnedAsIs() throws IOException {
+        TaskId relocatedTaskId = randomValueOtherThan(taskId, () -> new TaskId(randomAlphaOfLength(10), randomIntBetween(1, 1000)));
+        TaskResult probeResult = new TaskResult(false, createReindexTaskInfo());
+        TaskResult relocationResult = new TaskResult(
+            createReindexTaskInfo(),
+            (Exception) new TaskRelocatedException(taskId, relocatedTaskId)
+        );
+        GetReindexRequest request = createGetReindexRequest(false);
 
-        final var relocatedException = new TaskRelocatedException(originalTaskId, relocatedTaskId);
-
-        final TaskInfo originalInfo = createTaskInfo(originalTaskId, ReindexAction.NAME);
-        final TaskResult originalIncomplete = new TaskResult(false, originalInfo);
-        final TaskResult originalCompletedWithRelocation = new TaskResult(originalInfo, (Exception) relocatedException);
-
-        final TaskInfo relocatedInfo = createTaskInfo(relocatedTaskId, ReindexAction.NAME);
-        final TaskResult relocatedIncomplete = new TaskResult(false, relocatedInfo);
-        final TaskResult relocatedCompleted = new TaskResult(true, relocatedInfo);
-
-        final GetReindexRequest request = createGetReindexRequest(originalTaskId, true, timeout);
-
-        doAnswer(invocation -> {
-            final ActionListener<GetTaskResponse> inner = invocation.getArgument(1);
-            inner.onResponse(new GetTaskResponse(originalIncomplete));
-            return null;
-        }).doAnswer(invocation -> {
-            final ActionListener<GetTaskResponse> inner = invocation.getArgument(1);
-            inner.onResponse(new GetTaskResponse(originalCompletedWithRelocation));
-            return null;
-        }).doAnswer(invocation -> {
-            final ActionListener<GetTaskResponse> inner = invocation.getArgument(1);
-            inner.onResponse(new GetTaskResponse(relocatedIncomplete));
-            return null;
-        }).doAnswer(invocation -> {
-            final ActionListener<GetTaskResponse> inner = invocation.getArgument(1);
-            inner.onResponse(new GetTaskResponse(relocatedCompleted));
-            return null;
-        }).when(client).getTask(any(GetTaskRequest.class), any());
-
+        mockGetTaskSequence(probeResult, relocationResult);
         action.doExecute(mock(), request, listener);
 
         assertNull(failureRef.get());
-        assertNotNull(responseRef.get());
-        final GetReindexResponse response = responseRef.get();
-        assertEquals(originalCompletedWithRelocation, response.getOriginalTask());
-        assertEquals(relocatedCompleted, response.getRelocatedTask().orElseThrow());
-
-        final ArgumentCaptor<GetTaskRequest> requestCaptor = ArgumentCaptor.captor();
-        verify(client, times(4)).getTask(requestCaptor.capture(), any());
-
-        final GetTaskRequest probeRequest = requestCaptor.getAllValues().get(0);
-        assertEquals(originalTaskId, probeRequest.getTaskId());
-        assertFalse(probeRequest.getWaitForCompletion());
-
-        final GetTaskRequest waitRequest = requestCaptor.getAllValues().get(1);
-        assertEquals(originalTaskId, waitRequest.getTaskId());
-        assertTrue(waitRequest.getWaitForCompletion());
-        assertEquals(timeout, waitRequest.getTimeout());
-
-        final GetTaskRequest followRequest = requestCaptor.getAllValues().get(2);
-        assertEquals(relocatedTaskId, followRequest.getTaskId());
-        assertFalse(followRequest.getWaitForCompletion());
-
-        final GetTaskRequest waitRelocatedRequest = requestCaptor.getAllValues().get(3);
-        assertEquals(relocatedTaskId, waitRelocatedRequest.getTaskId());
-        assertTrue(waitRelocatedRequest.getWaitForCompletion());
-        assertEquals(timeout, waitRelocatedRequest.getTimeout());
+        assertEquals(relocationResult, responseRef.get().getTaskResult());
     }
 
-    public void testRelocatedTaskNotFound() throws IOException {
-        final TaskId originalTaskId = taskId;
-        final TaskId relocatedTaskId = randomValueOtherThan(taskId, () -> new TaskId(randomAlphaOfLength(10), randomIntBetween(1, 1000)));
+    // --- helpers ---
 
-        final var relocatedException = new TaskRelocatedException(originalTaskId, relocatedTaskId);
+    private TaskInfo createReindexTaskInfo() {
+        return createTaskInfo(taskId, ReindexAction.NAME);
+    }
 
-        final TaskInfo originalInfo = createTaskInfo(originalTaskId, ReindexAction.NAME);
-        final TaskResult originalResult = new TaskResult(originalInfo, (Exception) relocatedException);
-
-        final GetReindexRequest request = createGetReindexRequest(originalTaskId, false, timeout);
-
-        doAnswer(invocation -> {
-            final ActionListener<GetTaskResponse> inner = invocation.getArgument(1);
-            inner.onResponse(new GetTaskResponse(originalResult));
-            return null;
-        }).doAnswer(invocation -> {
-            final ActionListener<GetTaskResponse> inner = invocation.getArgument(1);
-            inner.onFailure(new ResourceNotFoundException("task not found"));
+    private void mockGetTask(TaskResult result) {
+        doAnswer(inv -> {
+            ActionListener<GetTaskResponse> l = inv.getArgument(1);
+            l.onResponse(new GetTaskResponse(result));
             return null;
         }).when(client).getTask(any(GetTaskRequest.class), any());
+    }
 
-        action.doExecute(mock(), request, listener);
+    private void mockGetTaskFailure(Exception e) {
+        doAnswer(inv -> {
+            ActionListener<GetTaskResponse> l = inv.getArgument(1);
+            l.onFailure(e);
+            return null;
+        }).when(client).getTask(any(GetTaskRequest.class), any());
+    }
 
-        assertNull(responseRef.get());
-        assertThat(failureRef.get(), instanceOf(ResourceNotFoundException.class));
-        assertEquals(notFoundException(originalTaskId).getMessage(), failureRef.get().getMessage());
+    private void mockGetTaskSequence(TaskResult first, TaskResult second) {
+        doAnswer(inv -> {
+            ActionListener<GetTaskResponse> l = inv.getArgument(1);
+            l.onResponse(new GetTaskResponse(first));
+            return null;
+        }).doAnswer(inv -> {
+            ActionListener<GetTaskResponse> l = inv.getArgument(1);
+            l.onResponse(new GetTaskResponse(second));
+            return null;
+        }).when(client).getTask(any(GetTaskRequest.class), any());
+    }
 
-        final ArgumentCaptor<GetTaskRequest> requestCaptor = ArgumentCaptor.captor();
-        verify(client, times(2)).getTask(requestCaptor.capture(), any());
-        assertEquals(originalTaskId, requestCaptor.getAllValues().get(0).getTaskId());
-        assertEquals(relocatedTaskId, requestCaptor.getAllValues().get(1).getTaskId());
+    /** Asserts only the probe was issued (validation rejected before the fetch). */
+    private void assertSingleProbe() {
+        ArgumentCaptor<GetTaskRequest> captor = ArgumentCaptor.captor();
+        verify(client).getTask(captor.capture(), any());
+        GetTaskRequest probe = captor.getValue();
+        assertFalse(probe.getWaitForCompletion());
+        assertFalse(probe.getFollowRelocations());
+    }
+
+    /** Asserts probe + fetch were issued with the expected wait_for_completion. */
+    private void assertProbeAndFetch(boolean expectWait) {
+        ArgumentCaptor<GetTaskRequest> captor = ArgumentCaptor.captor();
+        verify(client, times(2)).getTask(captor.capture(), any());
+        List<GetTaskRequest> requests = captor.getAllValues();
+
+        GetTaskRequest probe = requests.get(0);
+        assertFalse(probe.getWaitForCompletion());
+        assertFalse(probe.getFollowRelocations());
+
+        GetTaskRequest fetch = requests.get(1);
+        assertEquals(expectWait, fetch.getWaitForCompletion());
+        assertTrue(fetch.getFollowRelocations());
+        if (expectWait) {
+            assertEquals(timeout, fetch.getTimeout());
+        }
     }
 
     private TaskInfo createTaskInfo(TaskId taskId, String action) {
@@ -492,7 +306,7 @@ public class TransportGetReindexActionTests extends ESTestCase {
         );
     }
 
-    private GetReindexRequest createGetReindexRequest(TaskId taskId, boolean waitForCompletion, TimeValue timeout) {
+    private GetReindexRequest createGetReindexRequest(boolean waitForCompletion) {
         return new GetReindexRequest(taskId, waitForCompletion, timeout);
     }
 
@@ -503,5 +317,4 @@ public class TransportGetReindexActionTests extends ESTestCase {
         when(adminClient.cluster()).thenReturn(clusterAdminClient);
         return client;
     }
-
 }

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.synonyms;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
@@ -22,27 +23,39 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.ClosePointInTimeRequest;
+import org.elasticsearch.action.search.ClosePointInTimeResponse;
+import org.elasticsearch.action.search.OpenPointInTimeRequest;
+import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.action.synonyms.SynonymsTestUtils.randomSynonymsSet;
@@ -201,6 +214,139 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
         Exception ex = expectThrows(Exception.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
         assertThat(ex.getMessage(), containsString("Error updating synonyms"));
         assertThat("chunk 2 must not be attempted after chunk 1 fails", failingClient.bulkRequestCount.get(), equalTo(2));
+    }
+
+    public void testGetSynonymSetRulesMultipleSetsAggregateTruncationWarning() throws Exception {
+        int maxRules = 2;
+        // Three rules across two sets — exceeds the limit of 2
+        SearchHit hitA1 = synonymRuleHit(1, "rule-a-1", "quick, fast", "set-a");
+        SearchHit hitA2 = synonymRuleHit(2, "rule-a-2", "big, large", "set-a");
+        SearchHit hitB1 = synonymRuleHit(3, "rule-b-1", "jumps, leaps", "set-b");
+
+        var client = new PitSearchClient(threadPool, new SearchHit[] { hitA1, hitA2, hitB1 }, 3L, Map.of());
+        var service = buildService(client, clusterService, maxRules, SynonymsManagementAPIService.BULK_CHUNK_SIZE);
+
+        var future = new PlainActionFuture<PagedResult<SynonymRule>>();
+        MockLog.assertThatLogger(
+            () -> service.getSynonymSetRules(List.of("set-a", "set-b"), false, future),
+            SynonymsManagementAPIService.class,
+            new MockLog.SeenEventExpectation(
+                "truncation warning",
+                SynonymsManagementAPIService.class.getName(),
+                Level.WARN,
+                "*synonym sets*exceeds the maximum allowed*"
+            )
+        );
+
+        PagedResult<SynonymRule> result = safeGet(future);
+        assertThat(result.pageResults().length, equalTo(maxRules));
+        assertThat(result.pageResults()[0].synonyms(), equalTo("quick, fast"));
+        assertThat(result.pageResults()[1].synonyms(), equalTo("big, large"));
+    }
+
+    public void testGetSynonymSetRulesMultipleSetsMissingSetIgnoredWhenLenient() throws Exception {
+        // set-a has one rule; set-missing has no document in the index
+        SearchHit hitA1 = synonymRuleHit(1, "rule-a-1", "quick, fast", "set-a");
+
+        var client = new PitSearchClient(threadPool, new SearchHit[] { hitA1 }, 1L, Map.of("set-a", true, "set-missing", false));
+        var service = buildService(client, clusterService, 100_000, SynonymsManagementAPIService.BULK_CHUNK_SIZE);
+
+        var future = new PlainActionFuture<PagedResult<SynonymRule>>();
+        // safeGet is inside the lambda so assertThatLogger waits for the full async chain
+        // (the warning fires on system_read thread via closePitAndThen) before checking
+        MockLog.assertThatLogger(() -> {
+            service.getSynonymSetRules(List.of("set-a", "set-missing"), true, future);
+            safeGet(future);
+        },
+            SynonymsManagementAPIService.class,
+            new MockLog.SeenEventExpectation(
+                "missing set warning",
+                SynonymsManagementAPIService.class.getName(),
+                Level.WARN,
+                "*set-missing*not found*"
+            )
+        );
+
+        PagedResult<SynonymRule> result = safeGet(future);
+        assertThat(result.pageResults().length, equalTo(1));
+        assertThat(result.pageResults()[0].synonyms(), equalTo("quick, fast"));
+    }
+
+    /** Builds a SearchHit with the three fields getSynonymSetRules reads from each rule document. */
+    private static SearchHit synonymRuleHit(int docId, String ruleId, String synonyms, String synonymsSet) {
+        SearchHit hit = SearchHit.unpooled(docId, ruleId);
+        hit.addDocumentFields(
+            Map.of(
+                SynonymsManagementAPIService.SYNONYMS_SET_FIELD,
+                new DocumentField(SynonymsManagementAPIService.SYNONYMS_SET_FIELD, List.of(synonymsSet)),
+                SynonymRule.ID_FIELD.getPreferredName(),
+                new DocumentField(SynonymRule.ID_FIELD.getPreferredName(), List.of(ruleId)),
+                SynonymRule.SYNONYMS_FIELD.getPreferredName(),
+                new DocumentField(SynonymRule.SYNONYMS_FIELD.getPreferredName(), List.of(synonyms))
+            ),
+            Map.of()
+        );
+        // Sort values are required so search_after on the next page is valid
+        hit.sortValues(new Object[] { ruleId, (long) docId }, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW });
+        return hit;
+    }
+
+    /**
+     * Handles the PIT + search_after lifecycle for {@code getSynonymSetRules(List, boolean, ActionListener)}.
+     * Returns {@code firstPageHits} on the first search, then empty hits to signal exhaustion.
+     * GET requests are answered using {@code setExistence}: {@code true} → found, {@code false} → not found.
+     */
+    private static class PitSearchClient extends NoOpClient {
+        private static final BytesReference FAKE_PIT_ID = new BytesArray("test-pit-id");
+        private final SearchHit[] firstPageHits;
+        private final long totalHits;
+        private final Map<String, Boolean> setExistence;
+        private final AtomicInteger searchCallCount = new AtomicInteger();
+
+        PitSearchClient(ThreadPool threadPool, SearchHit[] firstPageHits, long totalHits, Map<String, Boolean> setExistence) {
+            super(threadPool);
+            this.firstPageHits = firstPageHits;
+            this.totalHits = totalHits;
+            this.setExistence = setExistence;
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+            ActionType<Response> action,
+            Request request,
+            ActionListener<Response> listener
+        ) {
+            if (request instanceof OpenPointInTimeRequest) {
+                ((ActionListener<OpenPointInTimeResponse>) listener).onResponse(new OpenPointInTimeResponse(FAKE_PIT_ID, 1, 1, 0, 0));
+            } else if (request instanceof SearchRequest) {
+                int call = searchCallCount.getAndIncrement();
+                SearchHit[] hits = call == 0 ? firstPageHits : new SearchHit[0];
+                long total = call == 0 ? totalHits : 0L;
+                SearchHits searchHits = new SearchHits(hits, new TotalHits(total, TotalHits.Relation.EQUAL_TO), Float.NaN);
+                SearchResponse response = SearchResponseUtils.response(searchHits).pointInTimeId(FAKE_PIT_ID).build();
+                searchHits.decRef();
+                ActionListener.respondAndRelease((ActionListener<SearchResponse>) listener, response);
+            } else if (request instanceof ClosePointInTimeRequest) {
+                ((ActionListener<ClosePointInTimeResponse>) listener).onResponse(new ClosePointInTimeResponse(true, 1));
+            } else if (request instanceof GetRequest getRequest) {
+                Boolean exists = setExistence.get(getRequest.id());
+                var getResult = new GetResult(
+                    getRequest.index(),
+                    getRequest.id(),
+                    SequenceNumbers.UNASSIGNED_SEQ_NO,
+                    SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
+                    1,
+                    exists != null && exists,
+                    null,
+                    null,
+                    null
+                );
+                ((ActionListener<GetResponse>) listener).onResponse(new GetResponse(getResult));
+            } else {
+                super.doExecute(action, request, listener);
+            }
+        }
     }
 
     /**

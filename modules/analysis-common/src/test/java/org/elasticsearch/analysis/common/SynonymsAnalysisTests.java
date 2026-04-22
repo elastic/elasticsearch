@@ -575,7 +575,6 @@ public class SynonymsAnalysisTests extends ESTestCase {
 
     public void testMultipleSynonymSetsOnOldIndexVersion() throws IOException {
         IndexVersion oldVersion = IndexVersionUtils.randomVersionBetween(
-            random(),
             IndexVersions.MINIMUM_READONLY_COMPATIBLE,
             IndexVersionUtils.getPreviousVersion(IndexVersions.MULTIPLE_SYNONYM_SETS_PER_FILTER)
         );
@@ -588,7 +587,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
             .putList("index.analysis.analyzer.my_analyzer.filter", "lowercase", "my_synonyms");
 
         // single set is always allowed on old index versions
-        Settings singleSetSettings = Settings.builder(baseSettings.build())
+        Settings singleSetSettings = Settings.builder().put(baseSettings.build())
             .put("index.analysis.filter.my_synonyms.synonyms_set", "set-a")
             .build();
         IndexSettings singleSetIdxSettings = IndexSettingsModule.newIndexSettings("index", singleSetSettings);
@@ -596,7 +595,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
         assertNotNull(indexAnalyzers.get("my_analyzer"));
 
         // multiple sets are rejected on old index versions
-        Settings multiSetSettings = Settings.builder(baseSettings.build())
+        Settings multiSetSettings = Settings.builder().put(baseSettings.build())
             .putList("index.analysis.filter.my_synonyms.synonyms_set", "set-a", "set-b")
             .build();
         IndexSettings multiSetIdxSettings = IndexSettingsModule.newIndexSettings("index", multiSetSettings);

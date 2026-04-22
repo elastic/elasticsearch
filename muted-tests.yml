@@ -469,12 +469,6 @@ tests:
   method: test {p0=mapping/20_synthetic_source/synthetic_source text with normalized keyword with default skip store original value}
   issue: https://github.com/elastic/elasticsearch/issues/147064
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=mapping/20_synthetic_source/synthetic_source text with normalized keyword with skip store original value}
-  issue: https://github.com/elastic/elasticsearch/issues/147064
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=mapping/20_synthetic_source/synthetic_source text with normalized keyword with store original value}
-  issue: https://github.com/elastic/elasticsearch/issues/147064
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=logsdb/10_settings/override sort mode settings}
   issue: https://github.com/elastic/elasticsearch/issues/147064
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT

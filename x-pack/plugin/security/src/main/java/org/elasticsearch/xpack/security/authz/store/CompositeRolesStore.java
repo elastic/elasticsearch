@@ -29,6 +29,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
@@ -43,7 +44,9 @@ import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermi
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ImplicitPrivilegesProvider;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
@@ -122,6 +125,8 @@ public class CompositeRolesStore {
     private final RestrictedIndices restrictedIndices;
     private final ThreadContext threadContext;
     private final Executor roleBuildingExecutor;
+    private final List<ImplicitPrivilegesProvider> implicitPrivilegesProviders;
+    private final boolean dlsFlsEnabled;
 
     public CompositeRolesStore(
         Settings settings,
@@ -137,7 +142,8 @@ public class CompositeRolesStore {
         DocumentSubsetBitsetCache dlsBitsetCache,
         RestrictedIndices restrictedIndices,
         Executor roleBuildingExecutor,
-        Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer
+        Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer,
+        List<ImplicitPrivilegesProvider> implicitPrivilegesProviders
     ) {
         new ProjectDeletedListener(this::removeProject).attach(clusterService);
 
@@ -204,6 +210,8 @@ public class CompositeRolesStore {
         this.anonymousUser = new AnonymousUser(settings);
         this.threadContext = threadContext;
         this.roleBuildingExecutor = roleBuildingExecutor;
+        this.implicitPrivilegesProviders = implicitPrivilegesProviders;
+        this.dlsFlsEnabled = XPackSettings.DLS_FLS_ENABLED.get(settings);
     }
 
     public void getRoles(Authentication authentication, ActionListener<Tuple<Role, Role>> roleActionListener) {
@@ -421,7 +429,9 @@ public class CompositeRolesStore {
                     }
                 }
                 delegate.onResponse(role);
-            })
+            }),
+            implicitPrivilegesProviders,
+            dlsFlsEnabled
         );
     }
 
@@ -483,7 +493,9 @@ public class CompositeRolesStore {
         FieldPermissionsCache fieldPermissionsCache,
         NativePrivilegeStore privilegeStore,
         RestrictedIndices restrictedIndices,
-        ActionListener<Role> listener
+        ActionListener<Role> listener,
+        List<ImplicitPrivilegesProvider> implicitPrivilegesProviders,
+        boolean dlsFlsEnabled
     ) {
         if (roleDescriptors.isEmpty()) {
             listener.onResponse(Role.EMPTY);
@@ -557,24 +569,7 @@ public class CompositeRolesStore {
             .cluster(clusterPrivileges, configurableClusterPrivileges)
             .runAs(runAsPrivilege);
 
-        indicesPrivilegesMap.forEach(
-            (key, privilege) -> builder.add(
-                fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
-                privilege.query,
-                IndexPrivilege.resolveBySelectorAccess(privilege.privileges),
-                false,
-                privilege.indices.toArray(Strings.EMPTY_ARRAY)
-            )
-        );
-        restrictedIndicesPrivilegesMap.forEach(
-            (key, privilege) -> builder.add(
-                fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
-                privilege.query,
-                IndexPrivilege.resolveBySelectorAccess(privilege.privileges),
-                true,
-                privilege.indices.toArray(Strings.EMPTY_ARRAY)
-            )
-        );
+        addIndicesPrivilegesToBuilder(builder, fieldPermissionsCache, indicesPrivilegesMap, restrictedIndicesPrivilegesMap, false);
 
         remoteIndicesPrivilegesByCluster.forEach((clusterAliasKey, remoteIndicesPrivilegesForCluster) -> {
             remoteIndicesPrivilegesForCluster.forEach(
@@ -601,6 +596,7 @@ public class CompositeRolesStore {
             builder.workflows(workflows);
         }
         if (applicationPrivilegesMap.isEmpty()) {
+            addImplicitPrivileges(roleDescriptors, fieldPermissionsCache, implicitPrivilegesProviders, List.of(), builder, dlsFlsEnabled);
             listener.onResponse(builder.build());
         } else {
             final Set<String> applicationNames = applicationPrivilegesMap.keySet().stream().map(Tuple::v1).collect(Collectors.toSet());
@@ -617,10 +613,113 @@ public class CompositeRolesStore {
                         (key, names) -> ApplicationPrivilege.get(key.v1(), names, appPrivileges)
                             .forEach(priv -> builder.addApplicationPrivilege(priv, key.v2()))
                     );
+                    addImplicitPrivileges(
+                        roleDescriptors,
+                        fieldPermissionsCache,
+                        implicitPrivilegesProviders,
+                        appPrivileges,
+                        builder,
+                        dlsFlsEnabled
+                    );
                     delegate.onResponse(builder.build());
                 })
             );
         }
+    }
+
+    /**
+     * Folds {@code indicesPrivilegesMap} and {@code restrictedIndicesPrivilegesMap} into the role
+     * builder. The {@code implicitlyGranted} flag flows through to IndexAccessControl
+     * and gates whether downstream DLS/FLS license checks and feature-usage tracking apply: explicit
+     * grants ({@code false}) follow the standard license-enforcement path; implicit grants ({@code true})
+     * bypass it.
+     */
+    private static void addIndicesPrivilegesToBuilder(
+        Role.Builder builder,
+        FieldPermissionsCache fieldPermissionsCache,
+        Map<Set<String>, MergeableIndicesPrivilege> indicesPrivilegesMap,
+        Map<Set<String>, MergeableIndicesPrivilege> restrictedIndicesPrivilegesMap,
+        boolean implicitlyGranted
+    ) {
+        indicesPrivilegesMap.forEach(
+            (key, privilege) -> builder.add(
+                fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
+                privilege.query,
+                IndexPrivilege.resolveBySelectorAccess(privilege.privileges),
+                false,
+                implicitlyGranted,
+                privilege.indices.toArray(Strings.EMPTY_ARRAY)
+            )
+        );
+        restrictedIndicesPrivilegesMap.forEach(
+            (key, privilege) -> builder.add(
+                fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
+                privilege.query,
+                IndexPrivilege.resolveBySelectorAccess(privilege.privileges),
+                true,
+                implicitlyGranted,
+                privilege.indices.toArray(Strings.EMPTY_ARRAY)
+            )
+        );
+    }
+
+    /**
+     * Invokes each {@link ImplicitPrivilegesProvider} once per role descriptor and folds the
+     * returned {@link IndicesPrivileges} into {@code builder} as implicit grants.
+     *
+     * <p>Each provider is passed the subset of resolved {@link ApplicationPrivilegeDescriptor}s
+     * that the role actually references, so providers can condition their grants on which
+     * application privileges the role holds. If {@code dlsFlsEnabled} is {@code false}, any
+     * returned privilege that uses DLS or FLS is suppressed.
+     */
+    private static void addImplicitPrivileges(
+        Collection<RoleDescriptor> roleDescriptors,
+        FieldPermissionsCache fieldPermissionsCache,
+        List<ImplicitPrivilegesProvider> implicitPrivilegesProviders,
+        Collection<ApplicationPrivilegeDescriptor> appPrivileges,
+        Role.Builder builder,
+        boolean dlsFlsEnabled
+    ) {
+        if (implicitPrivilegesProviders.isEmpty()) {
+            return;
+        }
+        final Map<Set<String>, MergeableIndicesPrivilege> indicesPrivilegesMap = new HashMap<>();
+        final Map<Set<String>, MergeableIndicesPrivilege> restrictedIndicesPrivilegesMap = new HashMap<>();
+        final Map<Tuple<String, String>, ApplicationPrivilegeDescriptor> appPrivLookup = appPrivileges.stream()
+            .collect(Collectors.toMap(p -> new Tuple<>(p.getApplication(), p.getName()), p -> p));
+        for (RoleDescriptor rd : roleDescriptors) {
+            final List<ApplicationPrivilegeDescriptor> roleAppPrivs = new ArrayList<>();
+            for (RoleDescriptor.ApplicationResourcePrivileges ap : rd.getApplicationPrivileges()) {
+                for (String priv : ap.getPrivileges()) {
+                    // Miss == either an action pattern (e.g. "data:read/*", never stored) or a
+                    // reference to an undefined stored privilege. Both are silently skipped; providers
+                    // that need action-pattern visibility can read roleDescriptor.getApplicationPrivileges().
+                    final ApplicationPrivilegeDescriptor descriptor = appPrivLookup.get(new Tuple<>(ap.getApplication(), priv));
+                    if (descriptor == null) {
+                        continue;
+                    }
+                    roleAppPrivs.add(descriptor);
+                }
+            }
+            for (ImplicitPrivilegesProvider provider : implicitPrivilegesProviders) {
+                final Collection<IndicesPrivileges> implicit = provider.getImplicitIndicesPrivileges(rd, roleAppPrivs);
+                final IndicesPrivileges[] kept = implicit.stream()
+                    .filter(ip -> dlsFlsEnabled || !ip.isUsingDocumentOrFieldLevelSecurity())
+                    .toArray(IndicesPrivileges[]::new);
+                final int suppressed = implicit.size() - kept.length;
+                if (suppressed > 0) {
+                    logger.debug(
+                        "Suppressed [{}] implicit privilege(s) on role [{}] from provider [{}] because DLS/FLS is disabled",
+                        suppressed,
+                        rd.getName(),
+                        provider.getClass().getName()
+                    );
+                }
+                MergeableIndicesPrivilege.collatePrivilegesByIndices(kept, true, restrictedIndicesPrivilegesMap);
+                MergeableIndicesPrivilege.collatePrivilegesByIndices(kept, false, indicesPrivilegesMap);
+            }
+        }
+        addIndicesPrivilegesToBuilder(builder, fieldPermissionsCache, indicesPrivilegesMap, restrictedIndicesPrivilegesMap, true);
     }
 
     public void invalidateProject() {

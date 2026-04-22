@@ -171,7 +171,8 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             String termQuery = "{\"term\": {\"field\": \"" + values[i] + "\"} }";
             IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(
                 FieldPermissions.DEFAULT,
-                DocumentPermissions.filteredBy(Set.of(new BytesArray(termQuery)))
+                DocumentPermissions.filteredBy(Set.of(new BytesArray(termQuery))),
+                false
             );
             SecurityIndexReaderWrapper wrapper = new SecurityIndexReaderWrapper(
                 s -> searchExecutionContext,
@@ -237,7 +238,8 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         queries.add(new BytesArray("{\"terms\" : { \"f2\" : [\"fv32\"] } }"));
         IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(
             FieldPermissions.DEFAULT,
-            DocumentPermissions.filteredBy(queries)
+            DocumentPermissions.filteredBy(queries),
+            false
         );
         queries = Set.of(new BytesArray("{\"terms\" : { \"f1\" : [\"fv11\", \"fv21\", \"fv31\"] } }"));
         if (restrictiveLimitedIndexPermissions) {
@@ -245,7 +247,8 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         }
         IndicesAccessControl.IndexAccessControl limitedIndexAccessControl = new IndicesAccessControl.IndexAccessControl(
             FieldPermissions.DEFAULT,
-            DocumentPermissions.filteredBy(queries)
+            DocumentPermissions.filteredBy(queries),
+            false
         );
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
             shardId.getIndex(),
@@ -478,7 +481,8 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         queries.add(new BytesArray("{\"bool\": { \"must_not\": { \"exists\": { \"field\": \"f1\" } } } }"));
         IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(
             FieldPermissions.DEFAULT,
-            DocumentPermissions.filteredBy(queries)
+            DocumentPermissions.filteredBy(queries),
+            false
         );
 
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY);

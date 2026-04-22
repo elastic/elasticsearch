@@ -103,7 +103,8 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
             protected IndicesAccessControl getIndicesAccessControl() {
                 IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(
                     new FieldPermissions(fieldPermissionDef(new String[] {}, null)),
-                    DocumentPermissions.allowAll()
+                    DocumentPermissions.allowAll(),
+                    false
                 );
                 return new IndicesAccessControl(true, Map.of("_index", indexAccessControl));
             }

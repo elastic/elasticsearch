@@ -413,7 +413,9 @@ public class AuthorizationServiceTests extends ESTestCase {
                 ActionListener.wrap(r -> {
                     roleCache.put(names, r);
                     listener.onResponse(r);
-                }, listener::onFailure)
+                }, listener::onFailure),
+                List.of(),
+                false
             );
         }
     }

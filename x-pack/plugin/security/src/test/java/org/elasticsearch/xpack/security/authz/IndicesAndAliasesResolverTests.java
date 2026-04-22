@@ -286,7 +286,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 new DocumentSubsetBitsetCache(Settings.EMPTY),
                 RESTRICTED_INDICES,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                rds -> {}
+                rds -> {},
+                List.of()
             )
         );
         userAuthorizedIndices = new String[] {
@@ -406,7 +407,9 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                     fieldPermissionsCache,
                     null,
                     RESTRICTED_INDICES,
-                    ActionListener.wrap(r -> callback.onResponse(r), callback::onFailure)
+                    ActionListener.wrap(r -> callback.onResponse(r), callback::onFailure),
+                    List.of(),
+                    false
                 );
             }
             return Void.TYPE;

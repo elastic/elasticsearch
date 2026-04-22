@@ -201,7 +201,9 @@ public class PrometheusMetadataPlanBuilderTests extends ESTestCase {
         stack.push(expression);
         while (stack.isEmpty() == false) {
             Expression current = stack.pop();
-            if (current instanceof IsNotNull isNotNull && isNotNull.field() instanceof UnresolvedAttribute attribute && name.equals(attribute.name())) {
+            if (current instanceof IsNotNull isNotNull
+                && isNotNull.field() instanceof UnresolvedAttribute attribute
+                && name.equals(attribute.name())) {
                 return true;
             }
             stack.addAll(current.children());

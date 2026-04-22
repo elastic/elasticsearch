@@ -7,6 +7,9 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
@@ -17,6 +20,7 @@ import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.operator.blocksource.LongExponentialHistogramBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramBuilder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramMerger;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramUtils;
@@ -80,4 +84,31 @@ public class HistogramMergeExponentialHistogramGroupingAggregatorFunctionTests e
         ExponentialHistogramBlock b = page.getBlock(1);
         return allValueOffsets(page, group).mapToObj(i -> b.getExponentialHistogram(i, new ExponentialHistogramScratch()));
     }
+
+    /**
+     * Tests that under memory pressure, the adaptive accuracy feature reduces histogram bucket limits
+     * and emits a warning exactly once.
+     */
+    public void testAdaptiveAccuracyReducesBucketLimitUnderMemoryPressure() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(10));
+        BigArrays bigArrays = nonBreakingBigArrays();
+
+        ExponentialHistogramBuilder builder = ExponentialHistogram.builder(10, ExponentialHistogramCircuitBreaker.noop());
+        for (int i1 = 1; i1 <= 100; i1++) {
+            builder.setPositiveBucket(i1, i1);
+        }
+        ExponentialHistogram largeHistogram = builder.build();
+
+        try (var state = new ExponentialHistogramStates.GroupingState(bigArrays, breaker)) {
+            for (int i = 0; i < 10_000; i++) {
+                state.add(i, largeHistogram);
+            }
+        }
+
+        assertWarnings(
+            "Using reduced precision for histograms due to high memory pressure. "
+                + "Reduce data cardinality or increase available memory to improve accuracy."
+        );
+    }
+
 }

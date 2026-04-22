@@ -15,6 +15,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.features.NodeFeature;
@@ -410,6 +411,18 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         query = maybeRandomizeQuery(query);
 
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
+        if (Strings.isNullOrEmpty(testCase.timestampBoundsGte) == false) {
+            String gte = testCase.timestampBoundsGte;
+            String lte = testCase.timestampBoundsLte;
+            builder.filter(b -> {
+                b.startObject("range");
+                b.startObject("@timestamp");
+                b.field("gte", gte);
+                b.field("lte", lte);
+                b.endObject();
+                b.endObject();
+            });
+        }
 
         boolean checkTook = supportsTook() && rarely();
         Map<?, ?> prevTooks = checkTook ? tooks() : null;

@@ -40,6 +40,8 @@ public record DesiredBalanceStats(
         }
     }
 
+    public static final DesiredBalanceStats ZERO = new DesiredBalanceStats(0, false, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+
     public static DesiredBalanceStats readFrom(StreamInput in) throws IOException {
         return new DesiredBalanceStats(
             in.readVLong(),

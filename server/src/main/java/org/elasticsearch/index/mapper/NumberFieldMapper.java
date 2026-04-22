@@ -1282,7 +1282,7 @@ public class NumberFieldMapper extends FieldMapper {
                 } else if (indexType.hasPoints()) {
                     return IntPoint.newExactQuery(field, v);
                 } else {
-                    return SortedNumericDocValuesField.newSlowExactQuery(field, v);
+                    return new SortedNumericDocValuesRangeQuery(field, v, v);
                 }
             }
 
@@ -1490,7 +1490,7 @@ public class NumberFieldMapper extends FieldMapper {
                 } else if (indexType.hasPoints()) {
                     return LongPoint.newExactQuery(field, v);
                 } else {
-                    return SortedNumericDocValuesField.newSlowExactQuery(field, v);
+                    return new SortedNumericDocValuesRangeQuery(field, v, v);
                 }
             }
 

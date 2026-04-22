@@ -38,6 +38,7 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.lucene.queries.SortedNumericDocValuesRangeQuery;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
@@ -179,7 +180,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         Query[] expectedIntegerQueries = new Query[] {
             IntField.newExactQuery("field", 42),
             IntPoint.newExactQuery("field", 42),
-            SortedNumericDocValuesField.newSlowExactQuery("field", 42) };
+            new SortedNumericDocValuesRangeQuery("field", 42, 42) };
         List<TermQueryTestCase> testCases = List.of(
             new TermQueryTestCase(NumberType.BYTE, expectedIntegerQueries),
             new TermQueryTestCase(NumberType.SHORT, expectedIntegerQueries),
@@ -189,7 +190,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 new Query[] {
                     LongField.newExactQuery("field", 42),
                     LongPoint.newExactQuery("field", 42),
-                    SortedNumericDocValuesField.newSlowExactQuery("field", 42) }
+                    new SortedNumericDocValuesRangeQuery("field", 42, 42) }
             ),
             new TermQueryTestCase(
                 NumberType.FLOAT,
@@ -604,12 +605,12 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
         Query expected = new IndexOrDocValuesQuery(
             LongPoint.newRangeQuery("field", 1, 3),
-            SortedNumericDocValuesField.newSlowRangeQuery("field", 1, 3)
+            new SortedNumericDocValuesRangeQuery("field", 1, 3)
         );
         assertEquals(expected, ft.rangeQuery("1", "3", true, true, null, null, null, MOCK_CONTEXT));
 
         ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG, false, true);
-        expected = SortedNumericDocValuesField.newSlowRangeQuery("field", 1, 3);
+        expected = new SortedNumericDocValuesRangeQuery("field", 1, 3);
         assertEquals(expected, ft.rangeQuery("1", "3", true, true, null, null, null, MOCK_CONTEXT));
 
         MappedFieldType unsearchable = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG, false, false);

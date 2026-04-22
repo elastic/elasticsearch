@@ -15,15 +15,15 @@ import org.apache.lucene.store.IndexInput;
 import java.io.IOException;
 
 /**
- * Reads a single numeric field from a segment in two phases.
+ * Reads the ordinal stream of a single sorted or sorted-set field from a segment.
  *
  * <p>{@link #readFieldEntry} runs once per field at segment-open time and parses the field metadata
- * (value counts, offsets, codec-specific header, DISI metadata) into a
+ * (value counts, block index, offsets, DISI metadata) into a
  * {@link AbstractTSDBDocValuesProducer.NumericEntry}. {@link #decoder()} returns the per-block
- * {@link Decoder} that the iteration code drives during value access; the same decoder may be
- * used for many blocks of the same field.
+ * {@link Decoder} that the iteration code drives during ordinal access; the same decoder may
+ * be used for many blocks of the same field.
  */
-public interface NumericFieldReader {
+public interface OrdinalFieldReader {
 
     /**
      * Parses the field metadata into {@code entry}.
@@ -35,24 +35,25 @@ public interface NumericFieldReader {
     void readFieldEntry(IndexInput meta, AbstractTSDBDocValuesProducer.NumericEntry entry, int numericBlockShift) throws IOException;
 
     /**
-     * Returns the per-block decoder used to decode the field's value blocks.
+     * Returns the per-block decoder used to decode the field's ordinal blocks.
      *
      * @return the block decoder
      */
     Decoder decoder();
 
     /**
-     * Decodes one block of numeric values.
+     * Decodes one block of ordinal values.
      */
+    @FunctionalInterface
     interface Decoder {
 
         /**
          * Decodes the next block from {@code input} into {@code values}.
          *
-         * @param input  data input positioned at the start of the block
-         * @param values output array to fill
-         * @param count  number of values in the block
+         * @param input      data input positioned at the start of the block
+         * @param values     output array to fill with ordinal values
+         * @param bitsPerOrd number of bits per ordinal in the encoded block
          */
-        void decodeBlock(DataInput input, long[] values, int count) throws IOException;
+        void decodeOrdinals(DataInput input, long[] values, int bitsPerOrd) throws IOException;
     }
 }

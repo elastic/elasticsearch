@@ -34,6 +34,12 @@ import java.io.IOException;
  * <p>Supports zero-copy transport by separating header metadata from serialized hits.
  * The header is created after hits are serialized (since we don't know hit count until
  * the buffer is full), then combined using {@link CompositeBytesReference} to avoid copying.
+ *
+ * <p>Lifecycle: {@link #getHits()} may deserialize pooled {@link SearchHit}s whose {@code _source}
+ * bytes are backed by {@link ReleasableBytesReference} slices or heap copies, depending on the
+ * {@link StreamInput} used. {@link #close()} releases {@code serializedHits} when it is
+ * {@link Releasable}, then {@link SearchHit#decRef()}s any cached deserialized hits so pooled
+ * sources are released in a refcount-safe way (hits retain their own refs until {@code decRef}).
  */
 public class FetchPhaseResponseChunk implements Writeable, Releasable {
 
@@ -58,7 +64,9 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
 
     /**
      * Creates a chunk with pre-serialized hits.
-     * Takes ownership of serializedHits - caller must not release it.
+     * Takes ownership of {@code serializedHits}; the caller must not release it.
+     * {@link #close()} releases that buffer when it is {@link Releasable}, and also
+     * {@link SearchHit#decRef() release}s any hits produced by {@link #getHits()}.
      *
      * @param shardId          source shard
      * @param serializedHits   pre-serialized hit bytes
@@ -135,7 +143,7 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
             try (StreamInput in = createStreamInput()) {
                 for (int i = 0; i < hitCount; i++) {
                     hitPositions[i] = in.readVInt();
-                    deserializedHits[i] = SearchHit.readFrom(in, false);
+                    deserializedHits[i] = SearchHit.readFrom(in);
                 }
             }
         }
@@ -170,6 +178,16 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
         return sequenceStart;
     }
 
+    /**
+     * Releases {@code serializedHits} when releasable, then releases deserialized hits.
+     * <p>
+     * Order is safe even when hit {@code _source} bytes were read from a slice of {@code serializedHits}:
+     * {@link SearchHit#readFrom(StreamInput)} uses {@link StreamInput#readReleasableBytesReference()},
+     * which on releasable streams retains the underlying buffer (e.g. via
+     * {@link ReleasableBytesReference#retainedSlice(int, int)}), so dropping this chunk's ref to
+     * {@code serializedHits} cannot free bytes hits still own. On plain heap-backed streams,
+     * {@code _source} is typically an independent copy.
+     */
     @Override
     public void close() {
         if (serializedHits instanceof Releasable) {

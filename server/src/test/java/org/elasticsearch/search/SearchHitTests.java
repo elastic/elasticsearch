@@ -145,7 +145,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
 
     @Override
     protected Writeable.Reader<SearchHit> instanceReader() {
-        return in -> SearchHit.readFrom(in, randomBoolean());
+        return in -> SearchHit.readFrom(in);
     }
 
     @Override
@@ -283,7 +283,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
             SearchHits results = copyWriteable(
                 hits,
                 getNamedWriteableRegistry(),
-                (StreamInput in) -> SearchHits.readFrom(in, randomBoolean()),
+                (StreamInput in) -> SearchHits.readFrom(in),
                 version
             );
             try {

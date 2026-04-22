@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.example.data.Group;
 import org.apache.parquet.example.data.simple.NanoTime;
 import org.apache.parquet.example.data.simple.SimpleGroupFactory;
@@ -365,6 +366,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
         // of increasing byte size when it flushes at the 1 KB row-group threshold.
         try (
             ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
                 .withType(schema)
                 .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
                 .withRowGroupSize(1024L)
@@ -1700,6 +1703,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
         String padding = "x".repeat(200);
         try (
             ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
                 .withType(schema)
                 .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
                 .withRowGroupSize(4 * 1024L)
@@ -1728,8 +1733,14 @@ public class ParquetFormatReaderTests extends ESTestCase {
         SimpleGroupFactory groupFactory = new SimpleGroupFactory(schema);
         List<Group> groups = groupCreator.create(groupFactory);
 
-        try (ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile).withType(schema).withCompressionCodec(codec).build()) {
-
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withType(schema)
+                .withCompressionCodec(codec)
+                .build()
+        ) {
             for (Group group : groups) {
                 writer.write(group);
             }

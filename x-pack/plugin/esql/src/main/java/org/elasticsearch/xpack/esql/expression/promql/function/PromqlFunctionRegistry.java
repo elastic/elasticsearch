@@ -144,6 +144,12 @@ public class PromqlFunctionRegistry {
         PromqlBuiltinFunctionDefinitions.SCALAR,
         Pi.PROMQL_DEFINITION,
         PromqlBuiltinFunctionDefinitions.YEAR,
+        PromqlBuiltinFunctionDefinitions.MONTH,
+        PromqlBuiltinFunctionDefinitions.DAY_OF_MONTH,
+        PromqlBuiltinFunctionDefinitions.DAY_OF_WEEK,
+        PromqlBuiltinFunctionDefinitions.DAY_OF_YEAR,
+        PromqlBuiltinFunctionDefinitions.HOUR,
+        PromqlBuiltinFunctionDefinitions.MINUTE,
         PromqlBuiltinFunctionDefinitions.TIME, };
 
     public static final PromqlFunctionRegistry INSTANCE = new PromqlFunctionRegistry();
@@ -184,13 +190,7 @@ public class PromqlFunctionRegistry {
         "sort_desc",
 
         // Time functions
-        "day_of_month",
-        "day_of_week",
-        "day_of_year",
         "days_in_month",
-        "hour",
-        "minute",
-        "month",
         "timestamp",
 
         // Label manipulation functions
@@ -221,6 +221,14 @@ public class PromqlFunctionRegistry {
     public PromqlFunctionDefinition functionMetadata(String name) {
         String normalized = normalize(name);
         return promqlFunctions.get(normalized);
+    }
+
+    /**
+     * Returns {@code true} if the function with the given name exists in the registry but
+     * has not yet been implemented.
+     */
+    public boolean isNotImplemented(String name) {
+        return NOT_IMPLEMENTED.contains(normalize(name));
     }
 
     public void checkFunction(Source source, String name) {

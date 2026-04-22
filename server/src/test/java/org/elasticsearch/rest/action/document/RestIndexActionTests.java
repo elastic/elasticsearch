@@ -13,9 +13,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.project.ProjectIdResolver;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.shard.ShardId;
@@ -24,12 +21,10 @@ import org.elasticsearch.rest.RestResponseUtils;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.document.RestIndexAction.AutoIdHandler;
 import org.elasticsearch.rest.action.document.RestIndexAction.CreateHandler;
-import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.elasticsearch.xcontent.XContentType;
-import org.junit.After;
 import org.junit.Before;
 
 import java.util.Map;
@@ -39,21 +34,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public final class RestIndexActionTests extends RestActionTestCase {
-    private ClusterService clusterService;
-    private ProjectIdResolver projectIdResolver;
-
     @Before
     public void setUpAction() {
-        clusterService = ClusterServiceUtils.createClusterService(verifyingClient.threadPool(), Metadata.DEFAULT_PROJECT_ID);
-        projectIdResolver = () -> Metadata.DEFAULT_PROJECT_ID;
-        controller().registerHandler(new RestIndexAction(clusterService, projectIdResolver));
-        controller().registerHandler(new CreateHandler(clusterService, projectIdResolver));
-        controller().registerHandler(new AutoIdHandler(clusterService, projectIdResolver));
-    }
-
-    @After
-    public void tearDownAction() {
-        clusterService.close();
+        controller().registerHandler(new RestIndexAction(null, null));
+        controller().registerHandler(new CreateHandler(null, null));
+        controller().registerHandler(new AutoIdHandler(null, null));
     }
 
     public void testCreateOpTypeValidation() {

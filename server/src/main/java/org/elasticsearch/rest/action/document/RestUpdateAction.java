@@ -34,8 +34,6 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestUpdateAction extends BaseRestHandler {
-    public RestUpdateAction() {}
-
     @Override
     public List<Route> routes() {
         return List.of(new Route(POST, "/{index}/_update/{id}"));

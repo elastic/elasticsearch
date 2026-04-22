@@ -1,0 +1,94 @@
+setup:
+  - requires:
+      cluster_features: ["mapper.search_as_you_type.reloadable_analyzer_fix"]
+      reason: "search_as_you_type with reloadable search_analyzer threw ClassCastException before the fix (issue #146914)"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+            analysis:
+              filter:
+                sayt_synonym_filter:
+                  type: synonym_graph
+                  synonyms:
+                    - "quick, fast"
+                  updateable: true
+              analyzer:
+                sayt_search_analyzer:
+                  type: custom
+                  tokenizer: standard
+                  filter: [ lowercase, sayt_synonym_filter ]
+          mappings:
+            properties:
+              title:
+                type: search_as_you_type
+                search_analyzer: sayt_search_analyzer
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          title: "quick brown fox"
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          title: "the lazy dog"
+
+  - do:
+      indices.refresh: {}
+
+---
+"search_as_you_type root field with reloadable search_analyzer":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match:
+              title:
+                query: "fast"
+                analyzer: sayt_search_analyzer
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+---
+"search_as_you_type _2gram sub-field with reloadable search_analyzer":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            multi_match:
+              query: "quick brown"
+              type: bool_prefix
+              fields: [ "title", "title._2gram", "title._3gram" ]
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+---
+"match_bool_prefix on search_as_you_type with reloadable search_analyzer":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match_bool_prefix:
+              title:
+                query: "fast br"
+                analyzer: sayt_search_analyzer
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "1" }

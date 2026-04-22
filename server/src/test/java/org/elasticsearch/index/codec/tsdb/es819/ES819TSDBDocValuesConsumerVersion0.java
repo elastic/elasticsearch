@@ -47,6 +47,7 @@ import org.elasticsearch.index.codec.tsdb.DISIAccumulator;
 import org.elasticsearch.index.codec.tsdb.DocValuesConsumerUtil.MergeStats;
 import org.elasticsearch.index.codec.tsdb.OffsetsAccumulator;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder;
+import org.elasticsearch.index.codec.tsdb.TSDBDocValuesFormatConfig;
 import org.elasticsearch.index.codec.tsdb.TsdbDocValuesProducer;
 import org.elasticsearch.index.codec.tsdb.XDocValuesConsumer;
 
@@ -101,7 +102,7 @@ final class ES819TSDBDocValuesConsumerVersion0 extends XDocValuesConsumer {
             CodecUtil.writeIndexHeader(
                 data,
                 dataCodec,
-                ES819TSDBDocValuesFormat.VERSION_START, // Test with version 0 rather than current
+                TSDBDocValuesFormatConfig.VERSION_START, // Test with version 0 rather than current
                 state.segmentInfo.getId(),
                 state.segmentSuffix
             );
@@ -110,7 +111,7 @@ final class ES819TSDBDocValuesConsumerVersion0 extends XDocValuesConsumer {
             CodecUtil.writeIndexHeader(
                 meta,
                 metaCodec,
-                ES819TSDBDocValuesFormat.VERSION_START, // Test with version 0 rather than current
+                TSDBDocValuesFormatConfig.VERSION_START, // Test with version 0 rather than current
                 state.segmentInfo.getId(),
                 state.segmentSuffix
             );

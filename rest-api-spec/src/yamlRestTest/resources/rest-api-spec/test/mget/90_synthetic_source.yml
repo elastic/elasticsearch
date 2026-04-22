@@ -140,6 +140,10 @@ keyword with normalizer:
 
 ---
 keyword with non-lowercase normalizer:
+  - requires:
+      cluster_features: [ "mapper.keyword.normalizer_skip_store_setting" ]
+      reason: "setting under test must be present"
+
   - do:
       indices.create:
         index: test-keyword-with-normalizer
@@ -236,6 +240,9 @@ keyword with non-lowercase normalizer:
 
 ---
 keyword with normalizer and skip store original value:
+  - requires:
+      cluster_features: [ "mapper.keyword.normalizer_skip_store_setting"]
+      reason: "Setting under test must be present"
   - do:
       indices.create:
         index: test-keyword-with-normalizer

@@ -130,21 +130,21 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
         QuantizedByteVectorValues values,
         float scoreCorrectionConstant
     ) {
+        if (SUPPORTS_HEAP_SEGMENTS == false) {
+            return Optional.empty();
+        }
         input = FilterIndexInput.unwrapOnlyTest(input);
         input = MemorySegmentAccessInputAccess.unwrap(input);
-        if (input instanceof MemorySegmentAccessInput msInput) {
-            checkInvariants(values.size(), values.dimension(), input);
-            return switch (similarityType) {
-                case COSINE, DOT_PRODUCT -> Optional.of(
-                    new Int7SQVectorScorerSupplier.DotProductSupplier(msInput, values, scoreCorrectionConstant)
-                );
-                case EUCLIDEAN -> Optional.of(new Int7SQVectorScorerSupplier.EuclideanSupplier(msInput, values, scoreCorrectionConstant));
-                case MAXIMUM_INNER_PRODUCT -> Optional.of(
-                    new Int7SQVectorScorerSupplier.MaxInnerProductSupplier(msInput, values, scoreCorrectionConstant)
-                );
-            };
-        }
-        return Optional.empty();
+        checkInvariants(values.size(), values.dimension(), input);
+        return switch (similarityType) {
+            case COSINE, DOT_PRODUCT -> Optional.of(
+                new Int7SQVectorScorerSupplier.DotProductSupplier(input, values, scoreCorrectionConstant)
+            );
+            case EUCLIDEAN -> Optional.of(new Int7SQVectorScorerSupplier.EuclideanSupplier(input, values, scoreCorrectionConstant));
+            case MAXIMUM_INNER_PRODUCT -> Optional.of(
+                new Int7SQVectorScorerSupplier.MaxInnerProductSupplier(input, values, scoreCorrectionConstant)
+            );
+        };
     }
 
     @Override
@@ -162,17 +162,17 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
         IndexInput input,
         org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues values
     ) {
+        if (SUPPORTS_HEAP_SEGMENTS == false) {
+            return Optional.empty();
+        }
         input = FilterIndexInput.unwrapOnlyTest(input);
         input = MemorySegmentAccessInputAccess.unwrap(input);
-        if (input instanceof MemorySegmentAccessInput msInput) {
-            checkInvariants(values.size(), values.dimension(), input);
-            return switch (similarityType) {
-                case COSINE, DOT_PRODUCT -> Optional.of(new Int7uOSQVectorScorerSupplier.DotProductSupplier(msInput, values));
-                case EUCLIDEAN -> Optional.of(new Int7uOSQVectorScorerSupplier.EuclideanSupplier(msInput, values));
-                case MAXIMUM_INNER_PRODUCT -> Optional.of(new Int7uOSQVectorScorerSupplier.MaxInnerProductSupplier(msInput, values));
-            };
-        }
-        return Optional.empty();
+        checkInvariants(values.size(), values.dimension(), input);
+        return switch (similarityType) {
+            case COSINE, DOT_PRODUCT -> Optional.of(new Int7uOSQVectorScorerSupplier.DotProductSupplier(input, values));
+            case EUCLIDEAN -> Optional.of(new Int7uOSQVectorScorerSupplier.EuclideanSupplier(input, values));
+            case MAXIMUM_INNER_PRODUCT -> Optional.of(new Int7uOSQVectorScorerSupplier.MaxInnerProductSupplier(input, values));
+        };
     }
 
     @Override

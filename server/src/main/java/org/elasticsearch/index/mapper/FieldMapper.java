@@ -1474,6 +1474,14 @@ public abstract class FieldMapper extends Mapper {
                 SORTED_SET,
                 ARRAYS;
 
+                /**
+                 * Whether this mode restricts the field to a single value per document. Callers use this to branch between single-valued
+                 * and multi-valued code paths (e.g. Lucene field selection, block loaders, doc-values-fallback queries).
+                 */
+                public boolean isSingleValued() {
+                    return this == NO;
+                }
+
                 @Override
                 public String toString() {
                     return name().toLowerCase(Locale.ROOT);

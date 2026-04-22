@@ -81,7 +81,6 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             assertEquals(expectedClientSettings.getConnectTimeout(), actualClientSettings.getConnectTimeout());
             assertEquals(expectedClientSettings.getReadTimeout(), actualClientSettings.getReadTimeout());
             assertEquals(expectedClientSettings.getApplicationName(), actualClientSettings.getApplicationName());
-            assertEquals(expectedClientSettings.getTenaciousRetriesEnabled(), actualClientSettings.getTenaciousRetriesEnabled());
         }
 
         if (deprecationWarnings.isEmpty() == false) {

@@ -426,12 +426,16 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
     }
 
     /**
-     * End-to-end: on the scroll path, throttling delays the next scroll longer than the scroll keep-alive, so the keep-alive reaper
+     * Tests that the correct metrics are emitted when a reindexing task fails because the keep alive of the
+     * search context expires. In practice, this occurs when searching exceeds the keep-alive set, possible due to a
+     * network outage, or master starvation etc.
+     * <p>
+     * This is simulated by using throttling to delay the next scroll longer than the scroll keep-alive. The keep-alive reaper
      * closes the reindex-owned scroll context and increments {@link SearchService#REINDEX_SCROLL_CONTEXT_CLOSED_KEEPALIVE_TOTAL}.
-     * The reindex request then fails (missing search context). Skipped when {@link ReindexPlugin#REINDEX_PIT_SEARCH_ENABLED} is true.
+     * The reindex request then fails (missing search context).
      */
-    public void testReindexScrollKeepAliveReaperMetricWhenThrottledPastScrollTimeout() throws Exception {
-        assumeFalse("scroll path only", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
+    public void testReindexMetricsWhenScrollContextKeepAliveExpires() throws Exception {
+        assumeFalse("This test is for scroll-based searching in reindexing", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final String dataNodeName = internalCluster().startNode(
             Settings.builder()
@@ -472,10 +476,61 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
     }
 
     /**
-     * Like {@link #testReindexScrollKeepAliveReaperMetricWhenThrottledPastScrollTimeout}, but for delete-by-query: scroll expires while
-     * throttled, yet {@link SearchService}'s reindex keep-alive counters must stay zero (task is not reindex-derived).
+     * Tests that the correct metrics are emitted when a reindexing task fails because the keep alive of the
+     * search context expires. In practice, this occurs when searching exceeds the keep-alive set, possible due to a
+     * network outage, or master starvation etc.
+     * <p>
+     * This is simulated by using throttling to delay the next scroll longer than the scroll keep-alive. The keep-alive reaper
+     * closes the reindex-owned scroll context and increments {@link SearchService#REINDEX_SCROLL_CONTEXT_CLOSED_KEEPALIVE_TOTAL}.
+     * The reindex request then fails (missing search context).
      */
-    public void testDeleteByQueryDoesNotIncrementReindexSearchKeepAliveMetricsWhenThrottledPastScrollTimeout() throws Exception {
+    public void testReindexMetricsWhenPitContextKeepAliveExpires() throws Exception {
+        assumeTrue("This test is for point-in-time searching during reindexing", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
+
+        final String dataNodeName = internalCluster().startNode(
+            Settings.builder()
+                .put(SearchService.DEFAULT_KEEPALIVE_SETTING.getKey(), "1ms")
+                .put(SearchService.MAX_KEEPALIVE_SETTING.getKey(), "10m")
+                .put(SearchService.KEEPALIVE_INTERVAL_SETTING.getKey(), "10ms")
+                .build()
+        );
+
+        indexRandom(
+            true,
+            prepareIndex("source").setId("1").setSource("foo", "a"),
+            prepareIndex("source").setId("2").setSource("foo", "b"),
+            prepareIndex("source").setId("3").setSource("foo", "c")
+        );
+        assertHitCount(prepareSearch("source").setSize(0), 3);
+
+        final TestTelemetryPlugin testTelemetryPlugin = internalCluster().getInstance(PluginsService.class, dataNodeName)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+        testTelemetryPlugin.resetMeter();
+
+        final ReindexRequestBuilder reindex = reindex().source("source").destination("dest");
+        reindex.source().setScroll(TimeValue.timeValueMillis(1));
+        reindex.source().setSize(1);
+        reindex.setRequestsPerSecond(1.0f);
+
+        expectThrows(Exception.class, reindex::get);
+
+        assertBusy(() -> {
+            testTelemetryPlugin.collect();
+            final long keepAliveClosures = testTelemetryPlugin.getLongCounterMeasurement(
+                SearchService.REINDEX_PIT_CONTEXT_CLOSED_KEEPALIVE_TOTAL
+            ).stream().mapToLong(Measurement::getLong).sum();
+            assertThat(keepAliveClosures, greaterThanOrEqualTo(1L));
+        });
+    }
+
+    /**
+     * A delete-by-query version of {@link #testReindexMetricsWhenScrollContextKeepAliveExpires} and
+     * {@link #testReindexMetricsWhenPitContextKeepAliveExpires}, testing that when a delete-by-query task fails
+     * because the underlying search context keep alive expires then no reindexing metrics are erroneously emitted.
+     */
+    public void testDeleteByQueryMetricsWhenSearchContextKeepAliveExpires() throws Exception {
         assumeFalse("scroll path only", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final String dataNodeName = internalCluster().startNode(
@@ -513,10 +568,11 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
     }
 
     /**
-     * Same negative check as {@link #testDeleteByQueryDoesNotIncrementReindexSearchKeepAliveMetricsWhenThrottledPastScrollTimeout} for
-     * update-by-query.
+     * An update-by-query version of {@link #testReindexMetricsWhenScrollContextKeepAliveExpires} and
+     * {@link #testReindexMetricsWhenPitContextKeepAliveExpires}, testing that when an update-by-query task fails
+     * because the underlying search context keep alive expires then no reindexing metrics are erroneously emitted.
      */
-    public void testUpdateByQueryDoesNotIncrementReindexSearchKeepAliveMetricsWhenThrottledPastScrollTimeout() throws Exception {
+    public void testUpdateByQueryMetricsWhenSearchContextKeepAliveExpires() throws Exception {
         assumeFalse("scroll path only", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final String dataNodeName = internalCluster().startNode(

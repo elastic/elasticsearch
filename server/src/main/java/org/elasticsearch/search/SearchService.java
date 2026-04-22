@@ -1486,14 +1486,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     /**
-     * {@code true} if {@code searchShardTask} is part of a reindex or resume-reindex task on this node (ancestor in the local task tree).
+     * {@code true} if {@code task} is part of a reindex or resume-reindex task on this node (ancestor in the local task tree).
      */
-    private boolean isReindexingDerivedSearch(@Nullable CancellableTask searchShardTask) {
-        if (searchShardTask == null) {
+    private boolean isReindexingDerivedSearch(@Nullable Task task) {
+        if (task == null) {
             return false;
         }
         final String localNodeId = clusterService.localNode().getId();
-        TaskId parentTaskId = searchShardTask.getParentTaskId();
+        TaskId parentTaskId = task.getParentTaskId();
         while (parentTaskId != null && parentTaskId.isSet()) {
             if (localNodeId.equals(parentTaskId.getNodeId()) == false) {
                 return false;
@@ -1656,10 +1656,24 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * until the {@code keepAlive} elapsed unless it is manually released.
      */
     public void openReaderContext(ShardId shardId, TimeValue keepAlive, ActionListener<ShardSearchContextId> listener) {
+        openReaderContext(shardId, keepAlive, null, listener);
+    }
+
+    /**
+     * Same as {@link #openReaderContext(ShardId, TimeValue, ActionListener)} but records whether the open is part of a reindex-derived
+     * task tree for {@link ReaderContext#openedUnderReindexingTask()} (used by the keep-alive reaper metrics).
+     */
+    public void openReaderContext(
+        ShardId shardId,
+        TimeValue keepAlive,
+        @Nullable Task openingTask,
+        ActionListener<ShardSearchContextId> listener
+    ) {
         checkKeepAliveLimit(keepAlive.millis());
         final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         final IndexShard shard = indexService.getShard(shardId.id());
         final SearchOperationListener searchOperationListener = shard.getSearchOperationListener();
+        final boolean openedUnderReindexingTask = isReindexingDerivedSearch(openingTask);
         shard.ensureShardSearchActive(ignored -> {
             Engine.SearcherSupplier searcherSupplier = null;
             ReaderContext readerContext = null;
@@ -1670,7 +1684,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     idGenerator.incrementAndGet(),
                     searcherSupplier.getSearcherId()
                 );
-                readerContext = new ReaderContext(id, indexService, shard, searcherSupplier, keepAlive.millis(), false);
+                readerContext = new ReaderContext(
+                    id,
+                    indexService,
+                    shard,
+                    searcherSupplier,
+                    keepAlive.millis(),
+                    false,
+                    openedUnderReindexingTask
+                );
                 final ReaderContext finalReaderContext = readerContext;
                 searcherSupplier = null; // transfer ownership to reader context
                 searchOperationListener.onNewReaderContext(readerContext);

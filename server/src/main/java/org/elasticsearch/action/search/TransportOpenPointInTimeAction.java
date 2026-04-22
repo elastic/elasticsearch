@@ -516,6 +516,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             searchService.openReaderContext(
                 request.getShardId(),
                 request.keepAlive,
+                task,
                 new ChannelActionListener<>(channel).map(ShardOpenReaderResponse::new)
             );
         }

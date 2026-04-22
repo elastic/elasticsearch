@@ -1,0 +1,56 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.build'
+
+versions << [
+  'hadoop' : '3.4.3',
+]
+
+dependencies {
+  // Native access for Rust FFI
+  compileOnly project(':libs:native')
+
+  // Arrow C Data Interface for schema FFI
+  implementation("org.apache.arrow:arrow-c-data:18.3.0") {
+    exclude group: 'org.slf4j'
+  }
+  implementation(project(':libs:arrow'))
+
+  testImplementation project(':test:framework')
+
+  // Parquet writing for test fixtures
+  testImplementation("org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}")
+  testImplementation("org.apache.hadoop:hadoop-client-api:${versions.hadoop}")
+  testImplementation("org.apache.hadoop:hadoop-client-runtime:${versions.hadoop}")
+  // jts-core is needed at test time: parquet-hadoop-bundle's ColumnChunkPageWriteStore
+  // references GeospatialStatistics which requires JTS. Normally resolved transitively
+  // via esql-core, but this module does not depend on esql-core.
+  testImplementation("org.locationtech.jts:jts-core:1.20.0")
+}
+
+tasks.named('forbiddenApisMain').configure {
+  replaceSignatureFiles 'jdk-signatures'
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses()
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /arrow-.*/, to: 'arrow'
+  mapping from: /parquet-.*/, to: 'parquet'
+  mapping from: /hadoop-.*/, to: 'hadoop'
+  mapping from: /jackson-.*/, to: 'jackson'
+  mapping from: /slf4j-.*/, to: 'slf4j'
+  mapping from: /checker-qual.*/, to: 'checker-qual'
+  mapping from: /flatbuffers-.*/, to: 'flatbuffers'
+}
+
+tasks.named("test").configure {
+  jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED') // WHY IS THIS NEEDED?
+}

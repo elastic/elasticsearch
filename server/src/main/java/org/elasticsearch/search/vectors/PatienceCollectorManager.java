@@ -10,6 +10,7 @@
 package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.HnswQueueSaturationCollector;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
@@ -48,7 +49,7 @@ class PatienceCollectorManager implements KnnCollectorManager {
         if (collector == null) {
             return null;
         }
-        return new AdaptiveHnswQueueSaturationCollector(collector);
+        return new HnswQueueSaturationCollector(collector, saturationThreshold, patience);
     }
 
     @Override
@@ -57,7 +58,7 @@ class PatienceCollectorManager implements KnnCollectorManager {
         if (knnCollectorManager.isOptimistic()) {
             KnnCollector collector = knnCollectorManager.newOptimisticCollector(visitLimit, searchStrategy, ctx, k);
             if (collector != null) {
-                return new AdaptiveHnswQueueSaturationCollector(collector);
+                return new HnswQueueSaturationCollector(collector, saturationThreshold, patience);
             }
         }
         return null;

@@ -117,12 +117,12 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 version = CodecUtil.checkIndexHeader(
                     in,
                     metaCodec,
-                    formatConfig.versionStart(),
-                    formatConfig.versionCurrent(),
+                    TSDBDocValuesFormatConfig.VERSION_START,
+                    TSDBDocValuesFormatConfig.VERSION_CURRENT,
                     state.segmentInfo.getId(),
                     state.segmentSuffix
                 );
-                if (version >= formatConfig.versionLargeBlocks()) {
+                if (version >= TSDBDocValuesFormatConfig.VERSION_NUMERIC_LARGE_BLOCKS) {
                     blockShift = in.readByte();
                 }
                 readFields(in, state.fieldInfos, version, blockShift);
@@ -144,8 +144,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             final int version2 = CodecUtil.checkIndexHeader(
                 data,
                 dataCodec,
-                formatConfig.versionStart(),
-                formatConfig.versionCurrent(),
+                TSDBDocValuesFormatConfig.VERSION_START,
+                TSDBDocValuesFormatConfig.VERSION_CURRENT,
                 state.segmentInfo.getId(),
                 state.segmentSuffix
             );
@@ -1983,7 +1983,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
     private BinaryEntry readBinary(IndexInput meta, int version) throws IOException {
         final BinaryDVCompressionMode compression;
-        if (version >= formatConfig.versionBinaryCompression()) {
+        if (version >= TSDBDocValuesFormatConfig.VERSION_BINARY_DV_COMPRESSION) {
             compression = BinaryDVCompressionMode.fromMode(meta.readByte());
         } else {
             compression = BinaryDVCompressionMode.NO_COMPRESS;
@@ -2051,7 +2051,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         SortedEntry entry = new SortedEntry();
         entry.ordsEntry = new NumericEntry();
         entry.termsDictEntry = new TermsDictEntry();
-        if (version >= formatConfig.versionPrefixPartitions()) {
+        if (version >= TSDBDocValuesFormatConfig.VERSION_PREFIX_PARTITIONS) {
             readTermDict(meta, entry.termsDictEntry, termsDictBlockLz4Shift);
             readNumeric(meta, entry.ordsEntry, numericBlockShift);
             if (primarySorted && meta.readByte() == 1) {

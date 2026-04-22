@@ -622,7 +622,7 @@ public class PostFilterAwareKnnQueryTests extends ESTestCase {
         @Override
         public Query rewrite(IndexSearcher searcher) {
             if (results == null || results.scoreDocs.length == 0) {
-                return new MatchNoDocsQuery();
+                return MatchNoDocsQuery.INSTANCE;
             }
             return new KnnScoreDocQuery(results.scoreDocs, searcher.getIndexReader());
         }

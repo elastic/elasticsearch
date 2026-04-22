@@ -99,7 +99,7 @@ COMPLETION [column =] prompt WITH my_inference_endpoint
 `timeout_duration`
 :   (Optional) Timeout for the inference request (for example, `"30s"`, `"1m"`).
     If not specified, the default inference timeout applies. Use this to set a
-    per-call timeout independent of the inference inference task timeout.
+    per-call timeout independent of the inference task timeout.
 
 ## Description
 
@@ -125,7 +125,7 @@ task type `completion`.
 ### Handling timeouts
 
 `COMPLETION` commands may time out when processing large datasets or complex prompts.
-The default timeout is 30 seconds, but you can increase this limit if necessary.
+The default timeout is 120 seconds, but you can increase this limit if necessary.
 
 You can set a per-call inference timeout using the `"timeout"` option in the `WITH` clause:
   ```esql

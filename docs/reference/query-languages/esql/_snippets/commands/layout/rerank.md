@@ -130,17 +130,10 @@ queries. The default timeout is 30 seconds, but you can increase this limit if
 necessary.
 
 You can set a per-call inference timeout using the `"timeout"` option in the `WITH` clause:
+
   ```esql
   RERANK "search query" ON title WITH { "inference_id": "my_rerank_endpoint", "timeout": "30s" }
   ```
-  :::
-
-:::{tab-item} {{serverless-full}}
-
-* Requires a manual override from Elastic Support because you cannot modify
-  timeout settings directly
-  :::
-  ::::
 
 If you don't want to increase the timeout limit, try the following:
 

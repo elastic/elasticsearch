@@ -119,13 +119,15 @@ public class HuggingFaceRerankServiceSettingsTests extends AbstractWireSerializi
 
     @Override
     protected HuggingFaceRerankServiceSettings mutateInstance(HuggingFaceRerankServiceSettings instance) throws IOException {
-        if (randomBoolean()) {
-            var uri = randomValueOtherThan(instance.uri(), () -> createUri(randomAlphaOfLength(15)));
-            return new HuggingFaceRerankServiceSettings(uri, instance.rateLimitSettings());
-        } else {
-            var rateLimitSettings = randomValueOtherThan(instance.rateLimitSettings(), RateLimitSettingsTests::createRandom);
-            return new HuggingFaceRerankServiceSettings(instance.uri(), rateLimitSettings);
+        var uri = instance.uri();
+        var rateLimitSettings = instance.rateLimitSettings();
+        switch (randomIntBetween(0, 1)) {
+            case 0 -> uri = randomValueOtherThan(uri, () -> createUri(randomAlphaOfLength(15)));
+            case 1 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
+
+        return new HuggingFaceRerankServiceSettings(uri, rateLimitSettings);
     }
 
     public static Map<String, Object> buildServiceSettingsMap(@Nullable String url, @Nullable Integer rateLimit) {

@@ -46,29 +46,23 @@ public class EsqlLicenseChecker {
      * to run ES|QL cross-cluster searches and what license (if any) was found.
      */
     public static ElasticsearchStatusException invalidLicenseForCcsException(XPackLicenseState licenseState) {
-        String message = "A valid Enterprise license is required to run ES|QL cross-cluster searches. License found: ";
-        if (licenseState == null) {
-            message += "none";
-        } else {
-            message += licenseState.statusDescription();
-        }
-        return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST);
+        return getException("A valid Enterprise license is required to run ES|QL cross-cluster searches.", licenseState);
     }
 
     /**
      * @param licenseState existing license state. Need to extract info on the current installed license.
-     * Throws an error informing the caller what license is needed to use ES|QL query approximation
-     * and what license (if any) was found.
+     * @throws ElasticsearchStatusException if query approximation is not supported.
      */
-    public static void checkQueryApproximation(XPackLicenseState licenseState) {
+    public static void checkQueryApproximation(XPackLicenseState licenseState) throws ElasticsearchStatusException {
         if (licenseState == null || QUERY_APPROXIMATION_FEATURE.check(licenseState) == false) {
-            String message = "A valid Enterprise license is required to use ES|QL query approximation. License found: ";
-            if (licenseState == null) {
-                message += "none";
-            } else {
-                message += licenseState.statusDescription();
-            }
-            throw new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST);
+            throw getException("A valid Enterprise license is required to use ES|QL query approximation.", licenseState);
         }
+    }
+
+    private static ElasticsearchStatusException getException(String message, XPackLicenseState licenseState) {
+        return new ElasticsearchStatusException(
+            message + " License found: " + (licenseState == null ? "none" : licenseState.statusDescription()),
+            RestStatus.BAD_REQUEST
+        );
     }
 }

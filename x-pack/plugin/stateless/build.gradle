@@ -1,0 +1,74 @@
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+
+esplugin {
+    name = 'stateless'
+    description = 'Elasticsearch Expanded Pack Plugin - Stateless self managed'
+    classname = 'org.elasticsearch.xpack.stateless.StatelessPlugin'
+    extendedPlugins = ['x-pack-core', 'blob-cache']
+}
+
+configurations {
+    all {
+        resolutionStrategy {
+            preferProjectModules()
+        }
+    }
+    testImplementation {
+        exclude group: 'javax.xml.bind', module: 'jaxb-api'
+    }
+}
+
+dependencies {
+    compileOnly project(':server')
+    testImplementation project(':test:framework')
+
+    compileOnly project(xpackModule('core'))
+    compileOnly project(xpackModule('blob-cache'))
+
+    internalClusterTestImplementation testArtifact(project(xpackModule('core')))
+    internalClusterTestImplementation project(xpackModule('shutdown'))
+
+    internalClusterTestImplementation 'org.elasticsearch.plugin:data-streams'
+    internalClusterTestImplementation 'org.elasticsearch.plugin:mapper-extras'
+    internalClusterTestImplementation project(xpackModule('esql'))
+    internalClusterTestImplementation project(xpackModule('esql-core'))
+
+    testImplementation testArtifact(project(xpackModule('searchable-snapshots')))
+    testImplementation 'com.amazonaws:aws-java-sdk-core:1.12.684'
+    testImplementation 'com.amazonaws:aws-java-sdk-s3:1.12.684'
+    testImplementation 'org.elasticsearch.test:s3-fixture'
+    testImplementation 'org.elasticsearch.test:gcs-fixture'
+    testImplementation 'org.elasticsearch.test:azure-fixture'
+    testImplementation 'org.elasticsearch.test:aws-fixture-utils'
+    testImplementation 'org.elasticsearch.plugin:repository-s3'
+    testImplementation 'org.elasticsearch.plugin:repository-gcs'
+    testImplementation 'org.elasticsearch.plugin:repository-azure'
+    testImplementation testArtifact(project(':server'))
+}
+
+restResources {
+    restApi {
+        include '_common', 'cluster', 'indices', 'index', 'search'
+    }
+}
+
+tasks.named('test') {
+    exclude '**/S3RegisterCASLinearizabilityTests.class'
+    systemProperty 'es.searchable.snapshot.shared_cache.write_buffer.size', '8kb'
+}
+
+tasks.named('internalClusterTest') {
+    jvmArgs '--add-opens=java.base/java.io=ALL-UNNAMED'
+}
+
+tasks.named('yamlRestTest') {
+    usesDefaultDistribution 'to be triaged'
+}
+
+tasks.named('javaRestTest') {
+    usesDefaultDistribution 'to be triaged'
+}

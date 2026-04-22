@@ -1,0 +1,244 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.stateless.snapshots;
+
+import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
+import org.elasticsearch.xpack.stateless.StatelessMockRepositoryPlugin;
+import org.elasticsearch.xpack.stateless.StatelessMockRepositoryStrategy;
+import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
+import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
+import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Collection;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_TTL;
+import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
+import static org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
+import static org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotSettings.STATELESS_SNAPSHOT_ENABLED_SETTING;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+
+public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        @SuppressWarnings("unchecked")
+        final var plugins = CollectionUtils.appendToCopyNoNullElements(
+            super.nodePlugins(),
+            StatelessMockRepositoryPlugin.class,
+            TestTelemetryPlugin.class
+        );
+        return plugins;
+    }
+
+    @Override
+    protected boolean addMockFsRepository() {
+        return false;
+    }
+
+    public void testStatelessSnapshotReadsFromObjectStore() {
+        final var indexNodeName = startMasterAndIndexNode(
+            Settings.builder().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK).build()
+        );
+
+        final String indexName = randomIdentifier();
+        createIndex(indexName, 1, 0);
+        indexAndMaybeFlush(indexName);
+
+        final var repoName = randomIdentifier();
+        createRepository(repoName, "fs");
+
+        final var snapshotReadSeen = new AtomicBoolean(false);
+        setNodeRepositoryStrategy(indexNodeName, new StatelessMockRepositoryStrategy() {
+            @Override
+            public InputStream blobContainerReadBlob(
+                CheckedSupplier<InputStream, IOException> originalSupplier,
+                OperationPurpose purpose,
+                String blobName
+            ) throws IOException {
+                if (purpose == OperationPurpose.SNAPSHOT_DATA) {
+                    snapshotReadSeen.set(true);
+                }
+                return super.blobContainerReadBlob(originalSupplier, purpose, blobName);
+            }
+
+            @Override
+            public InputStream blobContainerReadBlob(
+                CheckedSupplier<InputStream, IOException> originalSupplier,
+                OperationPurpose purpose,
+                String blobName,
+                long position,
+                long length
+            ) throws IOException {
+                if (purpose == OperationPurpose.SNAPSHOT_DATA) {
+                    snapshotReadSeen.set(true);
+                }
+                return super.blobContainerReadBlob(originalSupplier, purpose, blobName, position, length);
+            }
+        });
+
+        // 1. Stateless snapshot is disabled by default so that indices reads are from local primary shard
+        // The object store should not see any read with SNAPSHOT_DATA operation purpose
+        createSnapshot(repoName, "snap-1", List.of(indexName), List.of());
+        assertFalse(snapshotReadSeen.get());
+
+        // 2. Enable stateless snapshot and take another snapshot. The object store should see reads with SNAPSHOT_DATA operation purpose
+        indexAndMaybeFlush(indexName);
+        updateClusterSettings(Settings.builder().put(STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(), "read_from_object_store"));
+        createSnapshot(repoName, "snap-2", List.of(indexName), List.of());
+        assertTrue(snapshotReadSeen.get());
+
+        // 3. Disable stateless snapshot and take yet another snapshot.
+        // The object store should no longer see any new read with SNAPSHOT_DATA operation purpose
+        snapshotReadSeen.set(false);
+        indexAndMaybeFlush(indexName);
+        updateClusterSettings(Settings.builder().put(STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(), "disabled"));
+        createSnapshot(repoName, "snap-3", List.of(indexName), List.of());
+        assertFalse(snapshotReadSeen.get());
+    }
+
+    public void testStatelessSnapshotBasic() {
+        final var settings = Settings.builder().put(STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(), "read_from_object_store").build();
+        startMasterAndIndexNode(settings);
+        startSearchNode(settings);
+        ensureStableCluster(2);
+
+        final String indexName = randomIdentifier();
+        final int numberOfShards = between(1, 5);
+        createIndex(indexName, numberOfShards, 1);
+        ensureGreen(indexName);
+        final var nDocs = indexAndMaybeFlush(indexName);
+
+        final var repoName = randomIdentifier();
+        createRepository(repoName, "fs");
+        final var snapshotName = randomIdentifier();
+        createSnapshot(repoName, snapshotName, List.of(indexName), List.of());
+
+        safeGet(client().admin().indices().prepareDelete(indexName).execute());
+        final var restoreSnapshotResponse = safeGet(
+            client().admin()
+                .cluster()
+                .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
+                .setIndices(indexName)
+                .setWaitForCompletion(true)
+                .execute()
+        );
+        assertThat(restoreSnapshotResponse.getRestoreInfo().successfulShards(), equalTo(numberOfShards));
+
+        ensureGreen(indexName);
+        assertHitCount(prepareSearch(indexName), nDocs);
+    }
+
+    public void testStatelessSnapshotDoesNotReadFromCache() {
+        final var settings = Settings.builder().put(STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(), "read_from_object_store").build();
+        final var indexNode = startMasterAndIndexNode(settings);
+
+        final String indexName = randomIndexName();
+        final int numberOfShards = between(1, 5);
+        createIndex(indexName, numberOfShards, 0);
+        ensureGreen(indexName);
+        indexAndMaybeFlush(indexName);
+        flush(indexName); // flush so that snapshot does not flush it and lead to cache activities
+
+        final var repoName = randomRepoName();
+        createRepository(repoName, "fs");
+
+        // Force evict cache and gather metrics before snapshot so that we can assert that snapshot does not lead to cache activities
+        final var indexShardBlobStoreCacheDirectory = BlobStoreCacheDirectory.unwrapDirectory(
+            findIndexShard(indexName).store().directory()
+        );
+        getCacheService(indexShardBlobStoreCacheDirectory).forceEvict((key) -> true);
+        final var testTelemetryPlugin = findPlugin(indexNode, TestTelemetryPlugin.class);
+        testTelemetryPlugin.collect();
+        long readsBeforeSnapshot = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.read.total").getLast().getLong();
+        long missesBeforeSnapshot = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.miss.total").getLast().getLong();
+
+        final var snapshotName = randomSnapshotName();
+        createSnapshot(repoName, snapshotName, List.of(indexName), List.of());
+        // Assert snapshot does not lead to any cache activities
+        testTelemetryPlugin.collect();
+        assertThat(
+            testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.read.total").getLast().getLong(),
+            equalTo(readsBeforeSnapshot)
+        );
+        assertThat(
+            testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.miss.total").getLast().getLong(),
+            equalTo(missesBeforeSnapshot)
+        );
+    }
+
+    public void testSnapshotHollowShard() throws Exception {
+        final Settings settings = Settings.builder()
+            .put(STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(), "read_from_object_store")
+            .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
+            .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), true)
+            .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.timeValueMillis(1))
+            .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0)
+            .build();
+        final var node0 = startMasterAndIndexNode(settings);
+        final var node1 = startMasterAndIndexNode(settings);
+        ensureStableCluster(2);
+
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).put("index.routing.allocation.exclude._name", node1).build());
+        ensureGreen(indexName);
+        final int nDocs = indexAndMaybeFlush(indexName);
+
+        final var hollowShardsService = internalCluster().getInstance(HollowShardsService.class, node0);
+        assertBusy(() -> assertThat(hollowShardsService.isHollowableIndexShard(findIndexShard(indexName)), equalTo(true)));
+
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", node0));
+        ensureGreen(indexName);
+
+        final var indexShard = findIndexShard(indexName);
+        assertThat(indexShard.getEngineOrNull(), instanceOf(HollowIndexEngine.class));
+
+        final var repoName = randomIdentifier();
+        createRepository(repoName, "fs");
+        final var snapshotInfo = createSnapshot(repoName, "snap-1", List.of(indexName), List.of());
+        assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
+
+        final String restoredIndexName = "restored-" + indexName;
+        client().admin()
+            .cluster()
+            .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap-1")
+            .setIndices(indexName)
+            .setRenamePattern(indexName)
+            .setRenameReplacement(restoredIndexName)
+            .setWaitForCompletion(true)
+            .get();
+
+        final var indicesStatsResponse = safeGet(client().admin().indices().prepareStats(restoredIndexName).setDocs(true).execute());
+        final long count = indicesStatsResponse.getIndices().get(restoredIndexName).getTotal().getDocs().getCount();
+        assertThat(count, equalTo((long) nDocs));
+    }
+
+    private int indexAndMaybeFlush(String indexName) {
+        final int nDocs = between(50, 100);
+        indexDocs(indexName, nDocs);
+        if (randomBoolean()) {
+            flush(indexName);
+        }
+        return nDocs;
+    }
+}

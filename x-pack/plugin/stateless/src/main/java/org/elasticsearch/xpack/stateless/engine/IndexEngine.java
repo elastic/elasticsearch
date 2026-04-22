@@ -1,0 +1,1040 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.stateless.engine;
+
+import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValuesSkipIndexType;
+import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.SegmentReadState;
+import org.apache.lucene.index.StandardDirectoryReader;
+import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.ElasticsearchMergeScheduler;
+import org.elasticsearch.index.engine.ElasticsearchReaderManager;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.engine.EngineCreationFailureException;
+import org.elasticsearch.index.engine.EngineException;
+import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.engine.LiveVersionMapArchive;
+import org.elasticsearch.index.engine.MergeMemoryEstimateProvider;
+import org.elasticsearch.index.engine.MergeMetrics;
+import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.merge.OnGoingMerge;
+import org.elasticsearch.index.seqno.LocalCheckpointTracker;
+import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardSplittingQuery;
+import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
+import org.elasticsearch.plugins.internal.DocumentSizeAccumulator;
+import org.elasticsearch.plugins.internal.DocumentSizeReporter;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BlobLocation;
+import org.elasticsearch.xpack.stateless.commits.CommitBCCResolver;
+import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
+import org.elasticsearch.xpack.stateless.commits.ShardLocalReadersTracker;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.engine.translog.TranslogRecoveryMetrics;
+import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
+import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicatorReader;
+import org.elasticsearch.xpack.stateless.lucene.IndexDirectory;
+import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
+import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.LongConsumer;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
+
+import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.HOLLOW_TRANSLOG_RECOVERY_START_FILE;
+
+/**
+ * {@link Engine} implementation for index shards
+ */
+public class IndexEngine extends InternalEngine {
+
+    public static final String TRANSLOG_RELEASE_END_FILE = "translog_release_end_file";
+    public static final String DOC_STATS = "doc_stats";
+    public static final String SHARD_FIELD_STATS = "shard_field_stats";
+    public static final Setting<Boolean> MERGE_PREWARM = Setting.boolSetting("stateless.merge.prewarm", true, Setting.Property.NodeScope);
+    // If the size of a merge is greater than or equal to this, force a refresh to allow its space to be reclaimed immediately.
+    public static final Setting<ByteSizeValue> MERGE_FORCE_REFRESH_SIZE = Setting.byteSizeSetting(
+        "stateless.merge.force_refresh_size",
+        ByteSizeValue.ofMb(64),
+        Setting.Property.NodeScope
+    );
+    // A flag for whether the flush call is originated from a refresh
+    private static final ThreadLocal<Boolean> IS_FLUSH_BY_REFRESH = ThreadLocal.withInitial(() -> false);
+
+    private final TranslogReplicator translogReplicator;
+    private final StatelessCommitService statelessCommitService;
+    private final HollowShardsService hollowShardsService;
+    private final Function<String, BlobContainer> translogBlobContainer;
+    private final RefreshManager refreshManager;
+    private final ReshardIndexService reshardIndexService;
+    private final long mergeForceRefreshSize;
+    private final CommitBCCResolver commitBCCResolver;
+    private final DocumentSizeAccumulator documentSizeAccumulator;
+    private final DocumentSizeReporter documentParsingReporter;
+    private final TranslogRecoveryMetrics translogRecoveryMetrics;
+    private final SharedBlobCacheWarmingService cacheWarmingService;
+    private final Predicate<ShardId> shouldSkipMerges;
+    private volatile long hollowMaxSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+    // This is written and then accessed on the same thread under the flush lock. So not need for volatile
+    private long translogStartFileForNextCommit = 0;
+    private final ShardLocalReadersTracker localReadersTracker;
+
+    private final AtomicBoolean ongoingFlushMustUpload = new AtomicBoolean(false);
+    private final AtomicInteger forceMergesInProgress = new AtomicInteger(0);
+    private final AtomicInteger queuedOrRunningMergesCount = new AtomicInteger();
+    private final AtomicLong lastDocIdAndVersionLookupMillis = new AtomicLong();
+
+    @SuppressWarnings("this-escape")
+    public IndexEngine(
+        EngineConfig engineConfig,
+        TranslogReplicator translogReplicator,
+        Function<String, BlobContainer> translogBlobContainer,
+        StatelessCommitService statelessCommitService,
+        HollowShardsService hollowShardsService,
+        SharedBlobCacheWarmingService cacheWarmingService,
+        RefreshManagerService refreshManagerService,
+        ReshardIndexService reshardIndexService,
+        CommitBCCResolver commitBCCResolver,
+        DocumentParsingProvider documentParsingProvider,
+        EngineMetrics metrics,
+        ShardLocalReadersTracker shardLocalReadersTracker
+    ) {
+        this(
+            engineConfig,
+            translogReplicator,
+            translogBlobContainer,
+            statelessCommitService,
+            hollowShardsService,
+            cacheWarmingService,
+            refreshManagerService,
+            reshardIndexService,
+            commitBCCResolver,
+            documentParsingProvider,
+            metrics,
+            (shardId) -> false,
+            shardLocalReadersTracker
+        );
+    }
+
+    @SuppressWarnings("this-escape")
+    public IndexEngine(
+        EngineConfig engineConfig,
+        TranslogReplicator translogReplicator,
+        Function<String, BlobContainer> translogBlobContainer,
+        StatelessCommitService statelessCommitService,
+        HollowShardsService hollowShardsService,
+        SharedBlobCacheWarmingService cacheWarmingService,
+        RefreshManagerService refreshManagerService,
+        ReshardIndexService reshardIndexService,
+        CommitBCCResolver commitBCCResolver,
+        DocumentParsingProvider documentParsingProvider,
+        EngineMetrics metrics,
+        Predicate<ShardId> shouldSkipMerges,
+        ShardLocalReadersTracker shardLocalReadersTracker
+    ) {
+        super(engineConfig);
+        assert engineConfig.isPromotableToPrimary();
+        this.translogReplicator = translogReplicator;
+        this.translogBlobContainer = translogBlobContainer;
+        this.statelessCommitService = statelessCommitService;
+        this.hollowShardsService = hollowShardsService;
+        this.cacheWarmingService = cacheWarmingService;
+        this.refreshManager = refreshManagerService.createRefreshManager(engineConfig.getIndexSettings(), this::doExternalRefresh);
+        this.reshardIndexService = reshardIndexService;
+        this.mergeForceRefreshSize = MERGE_FORCE_REFRESH_SIZE.get(config().getIndexSettings().getSettings()).getBytes();
+        this.commitBCCResolver = commitBCCResolver;
+        this.documentSizeAccumulator = documentParsingProvider.createDocumentSizeAccumulator();
+        this.documentParsingReporter = documentParsingProvider.newDocumentSizeReporter(
+            shardId.getIndex(),
+            engineConfig.getMapperService(),
+            documentSizeAccumulator
+        );
+        this.shouldSkipMerges = shouldSkipMerges;
+        this.localReadersTracker = shardLocalReadersTracker;
+        // We have to track the initial BCC references held by local readers at this point instead of doing it in
+        // #createInternalReaderManager because that method is called from the super constructor and at that point,
+        // commitBCCResolver field is not set yet.
+        var referenceManager = getReferenceManager(SearcherScope.INTERNAL);
+        try {
+            ElasticsearchDirectoryReader directoryReader = referenceManager.acquire();
+            try {
+                trackOpenLocalReader(directoryReader);
+            } finally {
+                referenceManager.release(directoryReader);
+            }
+        } catch (IOException e) {
+            throw new EngineCreationFailureException(engineConfig.getShardId(), "Failed to create an index engine", e);
+        }
+        this.translogRecoveryMetrics = metrics.translogRecoveryMetrics();
+    }
+
+    /**
+     * Reads the value range for the field with the date mapping type {@param timestampFieldMappedType} from the underlying
+     * lucene directory {@code indexCommit#getDirectory}.
+     * It only considers a subset of the segments (i.e. {@param subsetSegmentNames}) among those reachable from the
+     * {@code indexCommit#getSegmentsFileName} commit file.
+     * Note that soft deletes, which are persisted in generational files, are not considered (unless all docs in a particular
+     * segment are deleted, which un-references the segment internally).
+     */
+    public static @Nullable StatelessCompoundCommit.TimestampFieldValueRange readTimestampFieldValueRangeAcrossSegments(
+        IndexCommit indexCommit,
+        Set<String> subsetSegmentNames,
+        @Nullable DateFieldMapper.DateFieldType timestampFieldMappedType
+    ) throws IOException {
+        if (timestampFieldMappedType == null || subsetSegmentNames.isEmpty()) {
+            return null;
+        }
+        long minTimestampValue = Long.MAX_VALUE;
+        long maxTimestampValue = Long.MIN_VALUE;
+        boolean found = false;
+        final var segmentInfos = Lucene.readSegmentInfos(indexCommit);
+        if (Assertions.ENABLED) {
+            Set<String> allSegmentNames = StreamSupport.stream(segmentInfos.spliterator(), false)
+                .map(segmentCommitInfo -> segmentCommitInfo.info.name)
+                .collect(Collectors.toUnmodifiableSet());
+            for (var segmentName : subsetSegmentNames) {
+                assert IndexFileNames.getExtension(segmentName) == null
+                    : "Expected a segment name not a lucene file name [" + segmentName + "]";
+                assert allSegmentNames.contains(segmentName)
+                    : "["
+                        + segmentName
+                        + "] is not among the segments referenced by ["
+                        + indexCommit.getSegmentsFileName()
+                        + "], i.e. "
+                        + allSegmentNames
+                        + ", from lucene directory ["
+                        + indexCommit.getDirectory()
+                        + "]";
+            }
+        }
+        for (var segmentCommitInfo : segmentInfos) {
+            if (subsetSegmentNames.contains(segmentCommitInfo.info.name) == false) {
+                continue;
+            }
+            var codec = segmentCommitInfo.info.getCodec();
+            Directory cfsIndexDirectory = null;
+            try {
+                if (segmentCommitInfo.info.getUseCompoundFile()) {
+                    cfsIndexDirectory = codec.compoundFormat().getCompoundReader(indexCommit.getDirectory(), segmentCommitInfo.info);
+                } else {
+                    cfsIndexDirectory = indexCommit.getDirectory();
+                }
+                var fieldsInfo = codec.fieldInfosFormat().read(cfsIndexDirectory, segmentCommitInfo.info, "", IOContext.DEFAULT);
+                var timestampFieldInfo = fieldsInfo.fieldInfo(timestampFieldMappedType.name());
+                if (timestampFieldInfo != null) {
+                    var segmentReadState = new SegmentReadState(cfsIndexDirectory, segmentCommitInfo.info, fieldsInfo, IOContext.DEFAULT);
+                    long segmentMinValue = minTimestampValue;
+                    long segmentMaxValue = maxTimestampValue;
+                    // logsdb and time_series index mode store the @timestamp field values as "doc values" (with a doc values skip index)
+                    if (timestampFieldInfo.docValuesSkipIndexType() == DocValuesSkipIndexType.RANGE) {
+                        assert timestampFieldMappedType.indexType().hasDocValuesSkipper();
+                        try (var fieldsProducer = codec.docValuesFormat().fieldsProducer(segmentReadState)) {
+                            var docValuesSkipper = fieldsProducer.getSkipper(timestampFieldInfo);
+                            segmentMinValue = docValuesSkipper.minValue();
+                            segmentMaxValue = docValuesSkipper.maxValue();
+                        }
+                        found = true;
+                    } else if (timestampFieldInfo.getPointDimensionCount() == 1) {
+                        // standard index mode stores the @timestamp field values as uni-dimensional points data
+                        assert timestampFieldMappedType.indexType().hasPoints();
+                        try (var fieldsReader = codec.pointsFormat().fieldsReader(segmentReadState)) {
+                            var pointsReader = fieldsReader.getValues(timestampFieldMappedType.name());
+                            // Sometimes it's possible to get ghost points, since we're using a low level API
+                            // so we should skip those. This can happen when all the docs containing points
+                            // are deleted and the segments get merged.
+                            // See https://github.com/apache/lucene/issues/11393 for more details.
+                            if (pointsReader == null) {
+                                continue;
+                            }
+                            segmentMinValue = LongPoint.decodeDimension(pointsReader.getMinPackedValue(), 0);
+                            segmentMaxValue = LongPoint.decodeDimension(pointsReader.getMaxPackedValue(), 0);
+                        }
+                        found = true;
+                    } else {
+                        assert false : "Could not parse field value for [" + timestampFieldMappedType.name() + "] field";
+                    }
+                    assert segmentMinValue <= segmentMaxValue
+                        : "Invalid timestamp values interval for commit ["
+                            + segmentCommitInfo
+                            + "], ["
+                            + segmentMinValue
+                            + ", "
+                            + segmentMaxValue
+                            + "]";
+                    minTimestampValue = Math.min(minTimestampValue, segmentMinValue);
+                    maxTimestampValue = Math.max(maxTimestampValue, segmentMaxValue);
+                }
+            } finally {
+                if (cfsIndexDirectory != null && segmentCommitInfo.info.getUseCompoundFile()) {
+                    assert cfsIndexDirectory != indexCommit.getDirectory();
+                    cfsIndexDirectory.close();
+                }
+            }
+        }
+        if (found) {
+            if (timestampFieldMappedType.resolution() == DateFieldMapper.Resolution.MILLISECONDS) {
+                return new StatelessCompoundCommit.TimestampFieldValueRange(minTimestampValue, maxTimestampValue);
+            } else {
+                // Resolution#roundDownToMillis doesn't handle negative values
+                assert timestampFieldMappedType.resolution() == DateFieldMapper.Resolution.NANOSECONDS;
+                return new StatelessCompoundCommit.TimestampFieldValueRange(
+                    Math.floorDiv(minTimestampValue, 1_000_000L),
+                    Math.ceilDiv(maxTimestampValue, 1_000_000L)
+                );
+            }
+        } else {
+            return null;
+        }
+    }
+
+    @Override
+    protected LongConsumer translogPersistedSeqNoConsumer() {
+        return seqNo -> {};
+    }
+
+    @Override
+    protected boolean shouldRetainForPeerRecovery() {
+        return false;
+    }
+
+    public LongConsumer objectStorePersistedSeqNoConsumer() {
+        return seqNo -> {
+            final LocalCheckpointTracker tracker = getLocalCheckpointTracker();
+            if (tracker != null) {
+                tracker.markSeqNoAsPersisted(seqNo);
+            }
+        };
+    }
+
+    @Override
+    public long getLastSyncedGlobalCheckpoint() {
+        return getPersistedLocalCheckpoint();
+    }
+
+    @Override
+    protected ElasticsearchReaderManager createInternalReaderManager(ElasticsearchDirectoryReader directoryReader) {
+        return new ElasticsearchReaderManager(directoryReader) {
+            @Override
+            protected ElasticsearchDirectoryReader refreshIfNeeded(ElasticsearchDirectoryReader referenceToRefresh) throws IOException {
+                ElasticsearchDirectoryReader next = super.refreshIfNeeded(referenceToRefresh);
+                if (next == null) {
+                    return null;
+                }
+                boolean success = false;
+                try {
+                    trackOpenLocalReader(next);
+                    success = true;
+                } finally {
+                    if (success == false) {
+                        IOUtils.closeWhileHandlingException(next);
+                    }
+                }
+                return next;
+            }
+        };
+    }
+
+    private void trackOpenLocalReader(ElasticsearchDirectoryReader directoryReader) {
+        long generation = getLatestCommittedGeneration(directoryReader);
+
+        var referencedBCCsForCommit = commitBCCResolver.resolveReferencedBCCsForCommit(generation);
+        // If the set of referenced BCC commits is empty it means that the shard has been relocated or closed,
+        // in that case we're not interested tracking this newly open reader for file deletions.
+        if (referencedBCCsForCommit.isEmpty()) {
+            return;
+        }
+
+        ElasticsearchDirectoryReader.addReaderCloseListener(
+            directoryReader,
+            ignored -> localReadersTracker.onLocalReaderClosed(directoryReader)
+        );
+        localReadersTracker.trackOpenReader(directoryReader, referencedBCCsForCommit);
+    }
+
+    static long getLatestCommittedGeneration(DirectoryReader directoryReader) {
+        if (FilterDirectoryReader.unwrap(directoryReader) instanceof StandardDirectoryReader standardDirectoryReader) {
+            // If there's a concurrent flush while the refresh is executed, the generation from
+            // getIndexCommit().getGeneration() will point to the yet to be committed Lucene commit generation
+            // therefore, we need to fetch the last generation that refers to the latest successful Lucene commit
+            return standardDirectoryReader.getSegmentInfos().getLastGeneration();
+        }
+
+        try {
+            assert false;
+            return directoryReader.getIndexCommit().getGeneration();
+        } catch (IOException e) {
+            assert false;
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    @Override
+    public boolean refreshNeeded() {
+        var lastCommittedSegmentInfos = getLastCommittedSegmentInfos();
+        if (isLastCommitHollow(lastCommittedSegmentInfos)) {
+            return false;
+        }
+        boolean committedLocalCheckpointNeedsUpdate = getProcessedLocalCheckpoint() > Long.parseLong(
+            lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
+        );
+        // It is possible that the index writer has uncommitted changes. We could check here, but we will check before actually
+        // triggering the flush anyway.
+        return hasUncommittedChanges() || committedLocalCheckpointNeedsUpdate || super.refreshNeeded();
+    }
+
+    @Override
+    protected void flushHoldingLock(boolean force, boolean waitIfOngoing, FlushResultListener listener) throws EngineException {
+        // A regular flush, i.e. not converted from refresh, must trigger to a commit generation to be uploaded
+        // (by increase maxGenerationToUploadDueToFlush).
+        // We set ongoingFlushMustUpload to true so that if this thread does not flush on its own (because the
+        // flush lock is held by another thread and this thread does not wait for it), some other concurrent
+        // flushing thread will promise to do it.
+        // This protocol does not care exactly which thread ends up doing the job. It could be any of the concurrent
+        // flush threads including this one. The setMaxGenerationToUploadDueToFlush method will be called
+        // exactly once to a generation processed by one of the threads.
+        // If the flush thread errors before ongoingFlushMustUpload can be cleared, the next flush will handle it.
+        // Note the behaviour is still same if we just check `IS_FLUSH_BY_REFRESH.get() == false`.
+        // However this may in some cases trigger more than one uploads, e.g. another thread may see the flag and
+        // trigger upload immediately while this thread creates a new commit and should also upload.
+        if (IS_FLUSH_BY_REFRESH.get()) {
+            logger.trace("flush-by-refresh for {}", shardId);
+        } else {
+            logger.trace("flush for {}", shardId);
+            if (force == false && waitIfOngoing == false) {
+                ongoingFlushMustUpload.set(true);
+            }
+        }
+        super.flushHoldingLock(force, waitIfOngoing, listener);
+    }
+
+    @Override
+    protected void commitIndexWriter(IndexWriter writer, Translog translog) throws IOException {
+        // We must fetch the max uploaded translog file BEFORE performing the commit. Since all of those operations were written to
+        // Lucene at this point, it is safe to start with the next file. The flush thread synchronously kicks of the commit upload
+        // process, so for now we just store the start file as a thread local.
+        translogStartFileForNextCommit = translogReplicator.getMaxUploadedFile() + 1;
+        super.commitIndexWriter(writer, translog);
+    }
+
+    @Override
+    protected void afterFlush(long generation) {
+        assert isFlushLockIsHeldByCurrentThread() == false;
+        if (ongoingFlushMustUpload.compareAndSet(true, false) || IS_FLUSH_BY_REFRESH.get() == false) {
+            logger.trace("flush sets max generation of {} to generation [{}]", shardId, generation);
+            statelessCommitService.ensureMaxGenerationToUploadForFlush(shardId, generation);
+        }
+    }
+
+    @Override
+    public IndexResult index(Index index) throws IOException {
+        checkNoNewOperationsWhileHollow();
+        ParsedDocument parsedDocument = index.parsedDoc();
+
+        documentParsingReporter.onParsingCompleted(parsedDocument);
+        IndexResult result = super.index(index);
+
+        if (result.getResultType() == Result.Type.SUCCESS) {
+            documentParsingReporter.onIndexingCompleted(parsedDocument);
+        }
+        return result;
+    }
+
+    @Override
+    public DeleteResult delete(Delete delete) throws IOException {
+        checkNoNewOperationsWhileHollow();
+        return super.delete(delete);
+    }
+
+    /**
+     * Marks the engine as hollow by making sure a last commit is flushed that has a
+     * {@link StatelessCompoundCommit#TRANSLOG_RECOVERY_START_FILE} user data equal
+     * to {@link StatelessCompoundCommit#HOLLOW_TRANSLOG_RECOVERY_START_FILE}.
+     * This function should be called only when there is no concurrent ingestion, e.g., when holding/blocking all shard's primary permits.
+     *
+     * Note that even if concurrent flush(es) are ongoing, this function will force a hollow commit.
+     * The function is ineffective if the last commit is already hollow.
+     *
+     * Since no translog will be associated with the hollow commit, any new operations attempted to be ingested by the engine will throw
+     * an exception. This is done by pinpointing the max sequence number when hollowing (while holding the primary permits), and any
+     * future attempt to generate a next sequence number will throw. To ingest new data, the shard will need to be unhollowed (i.e.,
+     * producing a non-hollow blob) with a new engine.
+     */
+    protected void flushHollow(ActionListener<FlushResult> listener) {
+        if (isLastCommitHollow()) {
+            listener.onResponse(FlushResult.FLUSH_REQUEST_PROCESSED_AND_NOT_PERFORMED);
+        } else {
+            long maxSeqNo = getMaxSeqNo();
+            assert hollowMaxSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO || hollowMaxSeqNo == maxSeqNo
+                : "engine hollowed with max seq no [" + hollowMaxSeqNo + "] cannot be hollowed again with max seq no [" + maxSeqNo + "]";
+            this.hollowMaxSeqNo = maxSeqNo;
+            flush(true, true, listener);
+        }
+    }
+
+    protected void checkNoNewOperationsWhileHollow() {
+        // If flushHollow() has been called (which assumes holding the primary permits), we expect no new operations to be ingested.
+        // Any new operation attempted to be ingested after hollowing will throw an exception (that signifies a bug since we expect
+        // the shard to be unhollowed with a new engine to process ingestion).
+        if (hollowMaxSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+            throw new IllegalStateException("cannot ingest new operation when engine is hollow");
+        }
+        if (Assertions.ENABLED && isLastCommitHollow()) {
+            hollowShardsService.ensureHollowShard(shardId, true);
+        }
+    }
+
+    public boolean isLastCommitHollow() {
+        return isLastCommitHollow(getLastCommittedSegmentInfos());
+    }
+
+    public static boolean isLastCommitHollow(SegmentInfos segmentInfos) {
+        String translogRecoveryStartFile = segmentInfos.getUserData().get(StatelessCompoundCommit.TRANSLOG_RECOVERY_START_FILE);
+        return translogRecoveryStartFile != null ? Long.parseLong(translogRecoveryStartFile) == HOLLOW_TRANSLOG_RECOVERY_START_FILE : false;
+    }
+
+    @Override
+    protected Map<String, String> getCommitExtraUserData(final long localCheckpoint) {
+        SegmentInfos lastCommittedSegmentInfos = getLastCommittedSegmentInfos();
+        var accumulatorUserData = documentSizeAccumulator.getAsCommitUserData(lastCommittedSegmentInfos);
+
+        final Map<String, String> commitExtraUserData;
+
+        // We check the local checkpoint to ensure that only a commit that has committed all operations is marked as hollow.
+        if (hollowMaxSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO && localCheckpoint == hollowMaxSeqNo) {
+            assert hollowMaxSeqNo == getMaxSeqNo()
+                : "engine has ingested after being hollowed with max seq no ["
+                    + hollowMaxSeqNo
+                    + "] and current max seq no ["
+                    + getMaxSeqNo()
+                    + "]";
+            logger.info(
+                () -> "flushing hollow commit with max seq no " + hollowMaxSeqNo + " and generation " + (getCurrentGeneration() + 1)
+            );
+            commitExtraUserData = Maps.newMapWithExpectedSize(4 + accumulatorUserData.size());
+            commitExtraUserData.put(
+                StatelessCompoundCommit.TRANSLOG_RECOVERY_START_FILE,
+                Long.toString(HOLLOW_TRANSLOG_RECOVERY_START_FILE)
+            );
+            commitExtraUserData.put(TRANSLOG_RELEASE_END_FILE, Long.toString(translogStartFileForNextCommit));
+            // Calculating the stats for hollow commits holds up the IndexWriter commit path, but it should not matter much because anyway
+            // ingestion is blocked at a higher level (e.g., by blocking the primary permits), and the calculations should be fast.
+            commitExtraUserData.put(DOC_STATS, org.elasticsearch.common.Strings.toString(docStats()));
+            commitExtraUserData.put(SHARD_FIELD_STATS, org.elasticsearch.common.Strings.toString(shardFieldStats()));
+        } else {
+            // carry over previous translog information during translog recovery.
+            boolean pendingTranslogRecovery = this.pendingTranslogRecovery();
+            if (pendingTranslogRecovery) {
+                var existingTranslogRecoveryStartFile = lastCommittedSegmentInfos.getUserData()
+                    .get(StatelessCompoundCommit.TRANSLOG_RECOVERY_START_FILE);
+                if (existingTranslogRecoveryStartFile != null) {
+                    commitExtraUserData = Maps.newMapWithExpectedSize(2 + accumulatorUserData.size());
+                    commitExtraUserData.put(StatelessCompoundCommit.TRANSLOG_RECOVERY_START_FILE, existingTranslogRecoveryStartFile);
+                } else {
+                    commitExtraUserData = Maps.newMapWithExpectedSize(1 + accumulatorUserData.size());
+                }
+
+                commitExtraUserData.put(StatelessCommitRef.TRANSLOG_CARRY_OVER, "true");
+            } else {
+                commitExtraUserData = Maps.newMapWithExpectedSize(1 + accumulatorUserData.size());
+                commitExtraUserData.put(
+                    StatelessCompoundCommit.TRANSLOG_RECOVERY_START_FILE,
+                    Long.toString(translogStartFileForNextCommit)
+                );
+            }
+        }
+
+        commitExtraUserData.putAll(accumulatorUserData);
+        return Collections.unmodifiableMap(commitExtraUserData);
+    }
+
+    @Override
+    protected void ensureCanFlush() {
+        // Override to empty to always allow flush in stateless.
+        // This includes flush during translog replay which is useful to make incremental progress when recovering
+        // with a large translog.
+        // Ultimately we should do the same in stateful.
+    }
+
+    @Override
+    public void prepareForEngineReset() throws IOException {
+        // We do not need to care about primary term and generation listeners of the engine as these are used only in the search tier.
+        logger.debug(() -> "preparing to reset index engine for shard " + shardId);
+        // The shard is not yet marked as hollow in the HollowShardsService. It will be marked as hollow after the engine is reset.
+        hollowShardsService.ensureHollowShard(shardId, false, "hollowing the index engine requires the shard to be unhollow");
+        // The primary relocation will wait for the hollowed commit to upload. Even if the flush fails, the engine will be reset to a hollow
+        // engine and either closed (upon a successful relocation) or continue to live and be unhollowed by any lingering or new ingestion.
+        flushHollow(ActionListener.noop());
+    }
+
+    @Override
+    protected RefreshResult refreshInternalSearcher(String source, boolean block) throws EngineException {
+        if (source.equals(REAL_TIME_GET_REFRESH_SOURCE) || source.equals(UNSAFE_VERSION_MAP_REFRESH_SOURCE)) {
+            try {
+                IS_FLUSH_BY_REFRESH.set(true);
+                // TODO: Eventually the Refresh API will also need to transition (maybe) to an async API here.
+                flush(true, true);
+            } finally {
+                IS_FLUSH_BY_REFRESH.set(false);
+            }
+        }
+        // TODO: could we avoid this refresh if we have flushed above?
+        return super.refreshInternalSearcher(source, block);
+    }
+
+    // visible for testing
+    public long getCurrentGeneration() {
+        return getLastCommittedSegmentInfos().getGeneration();
+    }
+
+    // visible for testing
+    Map<DirectoryReader, Set<PrimaryTermAndGeneration>> getOpenReaders() {
+        return localReadersTracker.getOpenReaders();
+    }
+
+    @Override
+    public boolean allowSearchIdleOptimization() {
+        return false;
+    }
+
+    @Override
+    public void externalRefresh(String source, ActionListener<RefreshResult> listener) {
+        // TODO: should we first check if a flush/refresh is needed or not? If not we could simply not go
+        // through the throttler.
+        // During resharding, there is a period of time when new shards have become available for search
+        // but not all coordinators have learned this fact. If an up-to-date coordinator does some indexing and
+        // calls refresh, and some of the indexing operations apply to the new shards, then a stale coordinator
+        // that doesn't know about the new shards and so only consults the old shards may return search results
+        // that don't include the latest indexing operations. This violates the contract of refresh.
+        // To avoid this, if resharding is in progress we block refresh on the target nodes until we can confirm
+        // that all coordinators have either seen that the new shards are active or they will have their requests
+        // rejected for being stale.
+        // The throttler will call back the listener after it performs the refresh, so we wait for
+        // the split if necessary before adding the listener to the throttler. Although technically it's ok
+        // to *perform* the refresh, as long as we don't *acknowledge* it, blocking before queuing lets the
+        // throttler potentially batch more requests together.
+        reshardIndexService.maybeAwaitSplit(
+            shardId,
+            ActionListener.wrap(
+                (ignored) -> refreshManager.onExternalRefresh(new RefreshManager.Request(source, listener)),
+                listener::onFailure
+            )
+        );
+    }
+
+    @Override
+    public void maybeRefresh(String source, ActionListener<RefreshResult> listener) throws EngineException {
+        try {
+            IS_FLUSH_BY_REFRESH.set(true);
+            Thread originalThread = Thread.currentThread();
+            // Maybe refresh is called on scheduled periodic refreshes and needs to flush so that the search shards received the data.
+            flush(false, false, listener.delegateFailure((l, flushResult) -> {
+                ActionRunnable<RefreshResult> refreshRunnable = new ActionRunnable<>(listener) {
+
+                    @Override
+                    protected void doRun() {
+                        IndexEngine.super.maybeRefresh(source, listener);
+                    }
+                };
+
+                dispatchRefreshRunnable(originalThread, refreshRunnable);
+            }));
+        } finally {
+            IS_FLUSH_BY_REFRESH.set(false);
+        }
+    }
+
+    private void doExternalRefresh(RefreshManager.Request request) {
+        try {
+            IS_FLUSH_BY_REFRESH.set(true);
+            Thread originalThread = Thread.currentThread();
+            flush(true, true, request.listener().delegateFailure((l, flushResult) -> {
+                ActionRunnable<RefreshResult> refreshRunnable = new ActionRunnable<>(l) {
+
+                    @Override
+                    protected void doRun() {
+                        IndexEngine.super.externalRefresh(request.source(), listener);
+                    }
+                };
+                dispatchRefreshRunnable(originalThread, refreshRunnable);
+            }));
+        } catch (AlreadyClosedException ace) {
+            request.listener().onFailure(ace);
+        } finally {
+            IS_FLUSH_BY_REFRESH.set(false);
+        }
+    }
+
+    private void dispatchRefreshRunnable(Thread originalThread, ActionRunnable<RefreshResult> refreshRunnable) {
+        // Sometimes a flush will have been performed meaning we are likely on the object store thread pool now. Dispatch back if the thread
+        // has changed
+        ThreadPool threadPool = engineConfig.getThreadPool();
+        if (Thread.currentThread() == originalThread) {
+            refreshRunnable.run();
+        } else {
+            threadPool.executor(ThreadPool.Names.REFRESH).execute(refreshRunnable);
+        }
+    }
+
+    @Override
+    public void asyncEnsureTranslogSynced(Translog.Location location, Consumer<Exception> listener) {
+        super.asyncEnsureTranslogSynced(location, e -> {
+            if (e != null) {
+                listener.accept(e);
+            } else {
+                translogReplicator.sync(shardId, location, new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void unused) {
+                        listener.accept(null);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        listener.accept(e);
+                    }
+                });
+            }
+        });
+    }
+
+    @Override
+    public boolean isTranslogSyncNeeded() {
+        return super.isTranslogSyncNeeded() || translogReplicator.isSyncNeeded(shardId);
+    }
+
+    @Override
+    public void syncTranslog() throws IOException {
+        assert Thread.currentThread().getName().contains("[" + ThreadPool.Names.WRITE + "]") == false
+            : "Expected current thread [" + Thread.currentThread() + "] to not be on a write thread. Reason: [syncTranslog]";
+        super.syncTranslog();
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        translogReplicator.syncAll(shardId, future);
+        try {
+            future.actionGet();
+        } catch (Exception e) {
+            throw new IOException("Exception while syncing translog remotely", e);
+        }
+    }
+
+    public void syncTranslogReplicator(ActionListener<Void> listener) {
+        translogReplicator.syncAll(shardId, listener);
+    }
+
+    @Override
+    public void flushAndClose() throws IOException {
+        // Don't flush on closing to avoid doing blobstore IO for reading back the latest commit from the repository
+        // if it's not cached or doing an actual flush if there's outstanding translog operations.
+        close();
+    }
+
+    // package-protected for testing
+    void awaitClose() {
+        super.awaitPendingClose();
+    }
+
+    @Override
+    public LiveVersionMapArchive createLiveVersionMapArchive() {
+        return new StatelessLiveVersionMapArchive(this::getPreCommitSegmentGeneration);
+    }
+
+    public void commitSuccess(long generation) {
+        ((StatelessLiveVersionMapArchive) getLiveVersionMapArchive()).afterUnpromotablesRefreshed(generation);
+    }
+
+    @Override
+    protected Translog.Snapshot newTranslogSnapshot(long fromSeqNo, long toSeqNo) throws IOException {
+        IndexDirectory indexDirectory = IndexDirectory.unwrapDirectory(this.store.directory());
+        Optional<String> nodeEphemeralId = indexDirectory.getRecoveryCommitMetadataNodeEphemeralId();
+        long translogRecoveryStartFile = indexDirectory.getTranslogRecoveryStartFile();
+
+        if (nodeEphemeralId.isPresent()) {
+            logger.debug("new translog snapshot seqnos [{}]-[{}] and node ephemeral id [{}]", fromSeqNo, toSeqNo, nodeEphemeralId.get());
+            BlobContainer translogBlobContainer = this.translogBlobContainer.apply(nodeEphemeralId.get());
+            TranslogReplicatorReader reader = new TranslogReplicatorReader(
+                translogBlobContainer,
+                shardId,
+                fromSeqNo,
+                toSeqNo,
+                translogRecoveryStartFile,
+                this::isClosing,
+                translogRecoveryMetrics
+            );
+            return new Translog.Snapshot() {
+                @Override
+                public int totalOperations() {
+                    // The reader returns an estimated number of operations which will inform the stats.
+                    return reader.totalOperations();
+                }
+
+                @Override
+                public Translog.Operation next() throws IOException {
+                    Translog.Operation next = reader.next();
+                    if (next != null) {
+                        advanceMaxSeqNoOfUpdatesOrDeletes(next.seqNo());
+                    }
+                    return next;
+                }
+
+                @Override
+                public void close() throws IOException {
+                    reader.close();
+                }
+            };
+        } else {
+            return Translog.Snapshot.EMPTY;
+        }
+    }
+
+    @Override
+    protected void waitForCommitDurability(long generation, ActionListener<Void> listener) {
+        try {
+            ensureOpen();
+        } catch (AlreadyClosedException e) {
+            listener.onFailure(e);
+            return;
+        }
+        if (getLastCommittedSegmentInfos().getGeneration() < generation) {
+            listener.onFailure(new IllegalStateException("Cannot wait on generation which has not been committed"));
+        } else {
+            // Wait for upload to complete only for true flushes, i.e. _not_ converted from refreshes, which guarantee
+            // a commit to be uploaded.
+            if (IS_FLUSH_BY_REFRESH.get() == false) {
+                statelessCommitService.addListenerForUploadedGeneration(shardId, generation, listener);
+            } else {
+                logger.trace(() -> Strings.format("no need to wait for non-uploaded generation [%s]", generation));
+                listener.onResponse(null);
+            }
+        }
+    }
+
+    @Override
+    protected void reclaimVersionMapMemory() {
+        // For Stateless LVM, we need to refresh AND flush as a refresh by itself doesn't decrease the memory usage of the version map.
+        refresh("write indexing buffer", SearcherScope.INTERNAL, false);
+        flush(false, false, ActionListener.noop());
+    }
+
+    // For cleanup after resharding
+    public void deleteUnownedDocuments(ShardSplittingQuery query) throws Exception {
+        super.deleteByQuery(query);
+    }
+
+    @Override
+    public void forceMerge(boolean flush, int maxNumSegments, boolean onlyExpungeDeletes, String forceMergeUUID) throws EngineException,
+        IOException {
+        forceMergesInProgress.incrementAndGet();
+        try (Releasable ignored = forceMergesInProgress::decrementAndGet) {
+            int before = getLastCommittedSegmentInfos().size();
+            super.forceMerge(flush, maxNumSegments, onlyExpungeDeletes, forceMergeUUID);
+            if (flush) {
+                var info = getLastCommittedSegmentInfos();
+                int after = info.size();
+                boolean merged = Objects.equals(info.getUserData().get(FORCE_MERGE_UUID_KEY), forceMergeUUID);
+                logger.info("Completed force merge for shard {}. forceMergeSet={}, segment count {} -> {}", shardId, merged, before, after);
+            } else {
+                logger.info("Completed force merge for shard {} without flushing", shardId);
+            }
+        } catch (EngineException | IOException e) {
+            logger.warn(() -> Strings.format("Force merge failed for shard %s", shardId), e);
+            throw e;
+        }
+    }
+
+    // package private for testing
+    RefreshManager getRefreshManager() {
+        return refreshManager;
+    }
+
+    public StatelessCommitService getStatelessCommitService() {
+        return statelessCommitService;
+    }
+
+    private void onAfterMerge(OnGoingMerge merge) {
+        // A merge can occupy a lot of disk space that can't be reused until it has been pushed into the object store, so it
+        // can be worth refreshing immediately to allow that space to be reclaimed faster.
+        if (merge.getTotalBytesSize() >= mergeForceRefreshSize) {
+            try {
+                maybeRefresh("large merge", ActionListener.noop());
+            } catch (AlreadyClosedException e) {
+                // There can be a race with a merge when the IW is closing and trying to flush. This is fine to ignore.
+            }
+        }
+    }
+
+    @Override
+    protected ElasticsearchMergeScheduler createMergeScheduler(
+        ShardId shardId,
+        IndexSettings indexSettings,
+        @Nullable ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
+        MergeMetrics mergeMetrics
+    ) {
+        if (threadPoolMergeExecutorService != null) {
+            return new StatelessThreadPoolMergeScheduler(
+                shardId,
+                indexSettings,
+                threadPoolMergeExecutorService,
+                this::estimateMergeBytes,
+                mergeMetrics
+            );
+        } else {
+            return super.createMergeScheduler(shardId, indexSettings, threadPoolMergeExecutorService, mergeMetrics);
+        }
+    }
+
+    private void onMergeEnqueued(OnGoingMerge merge) {
+        var queuedOrRunningMerges = queuedOrRunningMergesCount.incrementAndGet();
+        assert queuedOrRunningMerges > 0;
+    }
+
+    private void onMergeExecutedOrAborted(OnGoingMerge merge) {
+        var remainingMerges = queuedOrRunningMergesCount.decrementAndGet();
+        assert remainingMerges >= 0;
+    }
+
+    public boolean hasQueuedOrRunningMerges() {
+        return queuedOrRunningMergesCount.get() > 0;
+    }
+
+    @Override
+    protected void notifyLastDocIdAndVersionLookup() {
+        lastDocIdAndVersionLookupMillis.accumulateAndGet(engineConfig.getThreadPool().relativeTimeInMillis(), Math::max);
+    }
+
+    public boolean hasRecentIdLookup(TimeValue recencyThreshold) {
+        long lastLookup = lastDocIdAndVersionLookupMillis.get();
+        return lastLookup > 0 && (engineConfig.getThreadPool().relativeTimeInMillis() - lastLookup) <= recencyThreshold.getMillis();
+    }
+
+    private final class StatelessThreadPoolMergeScheduler extends org.elasticsearch.index.engine.ThreadPoolMergeScheduler {
+        private final boolean prewarm;
+
+        StatelessThreadPoolMergeScheduler(
+            ShardId shardId,
+            IndexSettings indexSettings,
+            ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
+            MergeMemoryEstimateProvider mergeMemoryEstimateProvider,
+            MergeMetrics mergeMetrics
+        ) {
+            super(shardId, indexSettings, threadPoolMergeExecutorService, mergeMemoryEstimateProvider, mergeMetrics);
+            prewarm = MERGE_PREWARM.get(indexSettings.getSettings());
+        }
+
+        @Override
+        protected void beforeMerge(OnGoingMerge merge) {
+            if (prewarm) {
+                cacheWarmingService.warmCacheForMerge(merge.getId(), shardId, store, merge.getMerge(), fileName -> {
+                    BatchedCompoundCommit latestUploadedBcc = statelessCommitService.getLatestUploadedBcc(shardId);
+                    BlobLocation blobLocation = statelessCommitService.getBlobLocation(shardId, fileName);
+                    if (blobLocation != null && latestUploadedBcc != null) {
+                        // Only return the location if the file is uploaded as we don't want to try warming an un-uploaded file
+                        if (blobLocation.getBatchedCompoundCommitTermAndGeneration()
+                            .compareTo(latestUploadedBcc.primaryTermAndGeneration()) <= 0) {
+                            return blobLocation;
+                        }
+                    }
+                    return null;
+                });
+            }
+        }
+
+        @Override
+        protected void afterMerge(OnGoingMerge merge) {
+            onAfterMerge(merge);
+        }
+
+        @Override
+        protected void mergeQueued(OnGoingMerge merge) {
+            onMergeEnqueued(merge);
+        }
+
+        @Override
+        protected void mergeExecutedOrAborted(OnGoingMerge merge) {
+            onMergeExecutedOrAborted(merge);
+        }
+
+        @Override
+        protected boolean shouldSkipMerge() {
+            return forceMergesInProgress.get() == 0 && shouldSkipMerges.test(shardId);
+        }
+
+        @Override
+        protected boolean isAutoThrottle() {
+            return false;
+        }
+
+        @Override
+        protected int getMaxMergeCount() {
+            return Integer.MAX_VALUE;
+        }
+
+        @Override
+        protected int getMaxThreadCount() {
+            return Integer.MAX_VALUE;
+        }
+
+        @Override
+        public void refreshConfig() {
+            // no-op
+        }
+
+        @Override
+        protected void handleMergeException(Throwable t) {
+            mergeException(t);
+        }
+    }
+
+    public record EngineMetrics(
+        TranslogRecoveryMetrics translogRecoveryMetrics,
+        MergeMetrics mergeMetrics,
+        HollowShardsMetrics hollowShardsMetrics
+    ) {}
+}

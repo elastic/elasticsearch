@@ -216,7 +216,7 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
         assertThat("chunk 2 must not be attempted after chunk 1 fails", failingClient.bulkRequestCount.get(), equalTo(2));
     }
 
-    public void testGetSynonymSetRulesMultipleSetsAggregateTruncationWarning() throws Exception {
+    public void testGetSynonymSetRulesAggregateTruncationWarning() throws Exception {
         int maxRules = 2;
         // Three rules across two sets — exceeds the limit of 2
         SearchHit hitA1 = synonymRuleHit(1, "rule-a-1", "quick, fast", "set-a");
@@ -244,7 +244,7 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
         assertThat(result.pageResults()[1].synonyms(), equalTo("big, large"));
     }
 
-    public void testGetSynonymSetRulesMultipleSetsMissingSetIgnoredWhenLenient() throws Exception {
+    public void testGetSynonymSetRulesMissingSetIgnoredWhenLenient() throws Exception {
         // set-a has one rule; set-missing has no document in the index
         SearchHit hitA1 = synonymRuleHit(1, "rule-a-1", "quick, fast", "set-a");
 

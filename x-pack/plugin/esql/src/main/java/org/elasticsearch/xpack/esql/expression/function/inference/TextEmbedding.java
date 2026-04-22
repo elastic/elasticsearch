@@ -176,7 +176,7 @@ public class TextEmbedding extends InferenceFunction<TextEmbedding> implements O
                 try {
                     inputTimeout();
                 } catch (IllegalArgumentException e) {
-                    throw new InvalidArgumentException("Invalid options for TEXT_EMBEDDING: " + e.getMessage());
+                    throw new InvalidArgumentException("Invalid timeout option for TEXT_EMBEDDING: " + e.getMessage());
                 }
             });
             if (optionsResolution.unresolved()) {

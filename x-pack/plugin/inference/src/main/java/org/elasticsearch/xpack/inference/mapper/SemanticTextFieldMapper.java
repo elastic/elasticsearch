@@ -388,7 +388,7 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
                         + TEXT_EMBEDDING
                         + ", "
                         + EMBEDDING
-                        + " or "
+                        + ", or "
                         + SPARSE_EMBEDDING
                         + ", got "
                         + modelSettings.taskType().name()
@@ -429,7 +429,7 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
                     throw new IllegalArgumentException(
                         "Invalid task type for index options, required ["
                             + TEXT_EMBEDDING
-                            + " or "
+                            + "] or ["
                             + EMBEDDING
                             + "] but was ["
                             + modelSettings.taskType()

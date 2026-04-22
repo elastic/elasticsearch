@@ -1340,11 +1340,10 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
     @Override
     public void expandLongs32(long[] arr, int offset) {
-        final long MASK = 0xFFFFFFFFL;
-        for (int i = 0; i < 64; i += LONG_SPECIES.length()) {
-            LongVector v = LongVector.fromArray(LONG_SPECIES, arr, offset + i);
-            v.lanewise(LSHR, 32).intoArray(arr, offset + i);
-            v.and(MASK).intoArray(arr, offset + 64 + i);
+        for (int i = 0; i < 64; ++i) {
+            long l = arr[i + offset];
+            arr[i + offset] = l >>> 32;
+            arr[64 + i + offset] = l & 0xFFFFFFFFL;
         }
     }
 
@@ -1406,46 +1405,53 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
     @Override
     public void collapseLongs32(long[] arr, int offset) {
-        for (int i = 0; i < 64; i += LONG_SPECIES.length()) {
-            LongVector high = LongVector.fromArray(LONG_SPECIES, arr, offset + i);
-            LongVector low = LongVector.fromArray(LONG_SPECIES, arr, offset + 64 + i);
-            high.lanewise(LSHL, 32).or(low).intoArray(arr, offset + i);
+        for (int i = 0; i < 64; ++i) {
+            arr[i + offset] = (arr[i + offset] << 32) | arr[64 + i + offset];
         }
     }
 
     @Override
     public void decodeMultiByteLongs(byte[] in, int bytesPerValue, long[] out, int count) {
-        final VectorShuffle<Byte> shuffle;
-        final LongVector mask;
-        switch (bytesPerValue) {
-            case 5 -> {
-                shuffle = DECODE_SHUFFLE_5;
-                mask = DECODE_MASK_5;
+        if (VECTOR_BITSIZE >= 512) {
+            // On AVX-512, VPERMB handles cross-lane byte permutation; the wide register amortizes
+            // shuffle overhead across 8 longs per iteration. On AVX2 (128-bit shuffle species,
+            // 2 longs per iteration) the overhead exceeds the benefit, so we fall through to scalar.
+            final VectorShuffle<Byte> shuffle;
+            final LongVector mask;
+            switch (bytesPerValue) {
+                case 5 -> {
+                    shuffle = DECODE_SHUFFLE_5;
+                    mask = DECODE_MASK_5;
+                }
+                case 6 -> {
+                    shuffle = DECODE_SHUFFLE_6;
+                    mask = DECODE_MASK_6;
+                }
+                case 7 -> {
+                    shuffle = DECODE_SHUFFLE_7;
+                    mask = DECODE_MASK_7;
+                }
+                default -> throw new AssertionError("unexpected bytesPerValue: " + bytesPerValue);
             }
-            case 6 -> {
-                shuffle = DECODE_SHUFFLE_6;
-                mask = DECODE_MASK_6;
+            int vecInBytes = DECODE_LONG_LANE_COUNT * bytesPerValue;
+            int outOffset = 0;
+            int inOffset = 0;
+            for (; outOffset + DECODE_LONG_LANE_COUNT <= count; outOffset += DECODE_LONG_LANE_COUNT, inOffset += vecInBytes) {
+                ByteVector.fromArray(DECODE_BYTE_SPECIES, in, inOffset)
+                    .rearrange(shuffle)
+                    .reinterpretAsLongs()
+                    .and(mask)
+                    .intoArray(out, outOffset);
             }
-            case 7 -> {
-                shuffle = DECODE_SHUFFLE_7;
-                mask = DECODE_MASK_7;
+            long longMask = mask.lane(0);
+            for (; outOffset < count; outOffset++, inOffset += bytesPerValue) {
+                out[outOffset] = (long) BitUtil.VH_LE_LONG.get(in, inOffset) & longMask;
             }
-            default -> throw new AssertionError("unexpected bytesPerValue: " + bytesPerValue);
-        }
-        int vecInBytes = DECODE_LONG_LANE_COUNT * bytesPerValue;
-        int outOffset = 0;
-        int inOffset = 0;
-        for (; outOffset + DECODE_LONG_LANE_COUNT <= count; outOffset += DECODE_LONG_LANE_COUNT, inOffset += vecInBytes) {
-            ByteVector.fromArray(DECODE_BYTE_SPECIES, in, inOffset)
-                .rearrange(shuffle)
-                .reinterpretAsLongs()
-                .and(mask)
-                .intoArray(out, outOffset);
-        }
-        // scalar tail (runs only when count is not a multiple of DECODE_LONG_LANE_COUNT)
-        long longMask = mask.lane(0);
-        for (; outOffset < count; outOffset++, inOffset += bytesPerValue) {
-            out[outOffset] = (long) BitUtil.VH_LE_LONG.get(in, inOffset) & longMask;
+        } else {
+            long longMask = (1L << (bytesPerValue * Byte.SIZE)) - 1;
+            for (int i = 0, byteOffset = 0; i < count; i++, byteOffset += bytesPerValue) {
+                out[i] = (long) BitUtil.VH_LE_LONG.get(in, byteOffset) & longMask;
+            }
         }
     }
 

@@ -26,7 +26,6 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
@@ -705,6 +704,9 @@ public enum SearchResponseUtils {
         return new QueryProfileShardResult(queryProfileResults, rewriteTime, collector, vectorOperationsCount);
     }
 
+    /**
+     * Parses search hits from XContent into a ref-counted {@link SearchHits}. Callers must {@link SearchHits#decRef()} when done.
+     */
     public static SearchHits parseSearchHits(XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             parser.nextToken();
@@ -746,7 +748,7 @@ public enum SearchResponseUtils {
                 }
             }
         }
-        return SearchHits.unpooled(hits.toArray(SearchHits.EMPTY), totalHits, maxScore);
+        return new SearchHits(hits.toArray(SearchHits.EMPTY), totalHits, maxScore);
     }
 
     /**
@@ -769,6 +771,9 @@ public enum SearchResponseUtils {
         declareInnerHitsParseFields(MAP_PARSER);
     }
 
+    /**
+     * Parses a single search hit from XContent into a ref-counted {@link SearchHit}. Callers must {@link SearchHit#decRef()} when done.
+     */
     public static SearchHit parseSearchHit(XContentParser parser) {
         return searchHitFromMap(MAP_PARSER.apply(parser, null));
     }
@@ -1029,7 +1034,7 @@ public enum SearchResponseUtils {
             get(SearchHit.Fields.INNER_HITS, values, null),
             get(SearchHit.DOCUMENT_FIELDS, values, Collections.emptyMap()),
             get(SearchHit.METADATA_FIELDS, values, Collections.emptyMap()),
-            RefCounted.ALWAYS_REFERENCED // TODO: do we ever want pooling here?
+            null
         );
     }
 

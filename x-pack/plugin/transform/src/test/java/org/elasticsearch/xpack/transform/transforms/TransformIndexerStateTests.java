@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.transform.persistence.InMemoryTransformConfigMana
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.time.Clock;
@@ -86,9 +87,19 @@ import static org.mockito.Mockito.verify;
 
 public class TransformIndexerStateTests extends ESTestCase {
 
-    private static final SearchResponse ONE_HIT_SEARCH_RESPONSE = SearchResponseUtils.successfulResponse(
-        SearchHits.unpooled(new SearchHit[] { SearchHit.unpooled(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f)
-    );
+    private static SearchResponse ONE_HIT_SEARCH_RESPONSE;
+
+    static {
+        SearchHits hits = new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f);
+        ONE_HIT_SEARCH_RESPONSE = SearchResponseUtils.successfulResponse(hits);
+        hits.decRef(); // transfer ownership to ONE_HIT_SEARCH_RESPONSE
+    }
+
+    @AfterClass
+    public static void releaseStaticResources() {
+        ONE_HIT_SEARCH_RESPONSE.decRef();
+        ONE_HIT_SEARCH_RESPONSE = null;
+    }
 
     private Client client;
     private ThreadPool threadPool;

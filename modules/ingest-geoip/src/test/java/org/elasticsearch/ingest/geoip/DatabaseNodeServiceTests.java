@@ -357,7 +357,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
             } else {
                 chunk = new byte[0]; // We had so little data that the chunk(s) at the end will be empty
             }
-            SearchHit hit = SearchHit.unpooled(i);
+            SearchHit hit = new SearchHit(i);
             try (XContentBuilder builder = XContentBuilder.builder(XContentType.SMILE.xContent())) {
                 builder.map(Map.of("data", chunk));
                 builder.flush();
@@ -367,8 +367,9 @@ public class DatabaseNodeServiceTests extends ESTestCase {
                 throw new UncheckedIOException(ex);
             }
 
-            SearchHits hits = SearchHits.unpooled(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f);
+            SearchHits hits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f);
             SearchResponse searchResponse = SearchResponseUtils.successfulResponse(hits);
+            hits.decRef(); // transfer ownership to searchResponse
             toRelease.add(searchResponse::decRef);
             @SuppressWarnings("unchecked")
             ActionFuture<SearchResponse> actionFuture = mock(ActionFuture.class);

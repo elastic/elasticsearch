@@ -7,23 +7,16 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.CloseableIterator;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.NoSuchElementException;
-
 /**
- * Unit tests for {@link AsyncExternalSourceBuffer} producer backpressure, including
- * {@link AsyncExternalSourceBuffer#awaitSpaceForProducer} timeout behavior.
+ * Unit tests for {@link AsyncExternalSourceBuffer} backpressure via {@link AsyncExternalSourceBuffer#waitForSpace()}.
  */
 public class AsyncExternalSourceBufferTests extends ESTestCase {
 
@@ -46,13 +39,47 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
         return new Page(blocks);
     }
 
-    /**
-     * When the buffer stays full because no consumer calls {@link AsyncExternalSourceBuffer#pollPage()},
-     * {@link AsyncExternalSourceBuffer#awaitSpaceForProducer} must time out with
-     * {@link ElasticsearchTimeoutException}. The buffer must remain consistent and recover after the
-     * producer gives up (drain pages, {@link AsyncExternalSourceBuffer#finish}).
-     */
-    public void testAwaitSpaceForProducerTimeoutLeavesBufferConsistent() {
+    public void testWaitForSpaceReturnsCompletedWhenBufferHasRoom() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
+        SubscribableListener<Void> space = buffer.waitForSpace();
+        assertTrue("waitForSpace should be immediately done when buffer is empty", space.isDone());
+        buffer.finish(true);
+    }
+
+    public void testWaitForSpaceReturnsPendingWhenBufferFull() {
+        long maxBufferBytes = 1500;
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
+
+        while (buffer.bytesInBuffer() < maxBufferBytes) {
+            buffer.addPage(createTestPage(2, 50));
+        }
+        assertTrue(buffer.bytesInBuffer() >= maxBufferBytes);
+
+        SubscribableListener<Void> space = buffer.waitForSpace();
+        assertFalse("waitForSpace should NOT be done when buffer is full", space.isDone());
+
+        buffer.pollPage().releaseBlocks();
+        assertTrue("waitForSpace should complete after pollPage frees space", space.isDone());
+
+        buffer.finish(true);
+    }
+
+    public void testWaitForSpaceCompletesOnFinish() {
+        long maxBufferBytes = 1500;
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
+
+        while (buffer.bytesInBuffer() < maxBufferBytes) {
+            buffer.addPage(createTestPage(2, 50));
+        }
+
+        SubscribableListener<Void> space = buffer.waitForSpace();
+        assertFalse(space.isDone());
+
+        buffer.finish(true);
+        assertTrue("waitForSpace should complete when buffer is finished (cancelled)", space.isDone());
+    }
+
+    public void testBufferConsistentAfterFullAndDrain() {
         long maxBufferBytes = 1500;
         AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
 
@@ -65,9 +92,6 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
         assertTrue(buffer.bytesInBuffer() >= maxBufferBytes);
         int sizeBeforeWait = buffer.size();
 
-        var ex = expectThrows(ElasticsearchTimeoutException.class, () -> buffer.awaitSpaceForProducer(TimeValue.timeValueMillis(50)));
-        assertTrue(ex.getMessage().contains("timeout waiting for async external source buffer space"));
-
         assertEquals(sizeBeforeWait, buffer.size());
         assertEquals(expectedBytes, buffer.bytesInBuffer());
         assertFalse(buffer.noMoreInputs());
@@ -79,61 +103,6 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
         }
         assertEquals(0, buffer.size());
         assertEquals(0, buffer.bytesInBuffer());
-        buffer.finish(true);
-    }
-
-    /**
-     * Same scenario through {@link ExternalSourceDrainUtils}: a tight drain timeout and a stuck consumer
-     * surface {@link ElasticsearchTimeoutException}. Byte accounting for queued pages matches
-     * {@link AsyncExternalSourceBuffer#bytesInBuffer()}, and the buffer is fully recoverable.
-     */
-    public void testExternalSourceDrainUtilsTimeoutWithStuckConsumer() {
-        long maxBufferBytes = 1500;
-        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
-
-        int totalPages = 8;
-        List<Page> sourcePages = new ArrayList<>();
-        for (int i = 0; i < totalPages; i++) {
-            sourcePages.add(createTestPage(2, 50));
-        }
-
-        CloseableIterator<Page> it = new CloseableIterator<>() {
-            private int index = 0;
-
-            @Override
-            public boolean hasNext() {
-                return index < sourcePages.size();
-            }
-
-            @Override
-            public Page next() {
-                if (index >= sourcePages.size()) {
-                    throw new NoSuchElementException();
-                }
-                return sourcePages.get(index++);
-            }
-
-            @Override
-            public void close() {}
-        };
-
-        var ex = expectThrows(
-            ElasticsearchTimeoutException.class,
-            () -> ExternalSourceDrainUtils.drainPages(it, buffer, TimeValue.timeValueMillis(200))
-        );
-        assertTrue(ex.getMessage().contains("timeout waiting for async external source buffer space"));
-
-        assertTrue(buffer.size() >= 1);
-        long bytesInBuffer = buffer.bytesInBuffer();
-        long sumBytes = 0;
-        for (Page p = buffer.pollPage(); p != null; p = buffer.pollPage()) {
-            sumBytes += p.ramBytesUsedByBlocks();
-            p.releaseBlocks();
-        }
-        assertEquals(0, buffer.size());
-        assertEquals(0, buffer.bytesInBuffer());
-        assertEquals(bytesInBuffer, sumBytes);
-        assertTrue("drain should not have ingested all pages before timing out", it.hasNext());
         buffer.finish(true);
     }
 }

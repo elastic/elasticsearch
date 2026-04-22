@@ -10,16 +10,24 @@
 package org.elasticsearch.search.internal;
 
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 
 public class ReaderContextTests extends ESSingleNodeTestCase {
 
+    @Override
+    protected Settings nodeSettings() {
+        // ReaderContext uses ThreadPool#relativeTimeInMillis; with the default estimated-time cache, short sleeps do not advance time.
+        return Settings.builder().put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), TimeValue.ZERO).build();
+    }
+
     /**
-     * After wall-clock time exceeds keep-alive since last access, {@link ReaderContext#expiredDueToKeepAlive()} is true.
+     * After time exceeds keep-alive since last access, {@link ReaderContext#expiredDueToKeepAlive()} is true.
      */
     public void testExpiredDueToKeepAliveAfterElapsedTime() throws Exception {
         createIndex("index");
@@ -50,12 +58,16 @@ public class ReaderContextTests extends ESSingleNodeTestCase {
     /**
      * While {@link ReaderContext#markAsUsed} holds a ref, keep-alive expiry is suppressed.
      * After release, elapsed time can expire the context.
+     * <p>
+     * Use {@code markAsUsed(0)} so {@link ReaderContext#markAsUsed} does not raise {@link ReaderContext#keepAlive()}
+     * via {@code Math#max}; a larger argument would extend TTL after the releasable closes and this test would need
+     * to sleep past that window.
      */
     public void testExpiredDueToKeepAliveFalseWhenMarkAsUsedHeld() throws Exception {
         createIndex("index");
         final ReaderContext context = newReaderContext(1L, false);
         try {
-            try (var notUsed = context.markAsUsed(TimeValue.timeValueMinutes(10).getMillis())) {
+            try (var notUsed = context.markAsUsed(0L)) {
                 Thread.sleep(10L);
                 assertFalse(context.expiredDueToKeepAlive());
             }

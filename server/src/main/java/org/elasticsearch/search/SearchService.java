@@ -1494,7 +1494,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         final String localNodeId = clusterService.localNode().getId();
         TaskId parentTaskId = searchShardTask.getParentTaskId();
-        while (parentTaskId.isSet()) {
+        while (parentTaskId != null && parentTaskId.isSet()) {
             if (localNodeId.equals(parentTaskId.getNodeId()) == false) {
                 return false;
             }

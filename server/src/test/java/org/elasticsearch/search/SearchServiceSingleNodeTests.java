@@ -225,7 +225,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             }
         }) {
             @Override
-            protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
+            protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) {
                 return in;
             }
 
@@ -510,7 +510,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                                     public RankShardResult combineQueryPhaseResults(List<TopDocs> rankResults) {
                                         // we know we have just 1 query, so return all the docs from it
                                         return new TestRankShardResult(
-                                            Arrays.stream(rankResults.get(0).scoreDocs)
+                                            Arrays.stream(rankResults.getFirst().scoreDocs)
                                                 .map(x -> new RankDoc(x.doc, x.score, x.shardIndex))
                                                 .limit(rankWindowSize())
                                                 .toArray(RankDoc[]::new)
@@ -747,7 +747,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                                         public RankShardResult combineQueryPhaseResults(List<TopDocs> rankResults) {
                                             // we know we have just 1 query, so return all the docs from it
                                             return new TestRankShardResult(
-                                                Arrays.stream(rankResults.get(0).scoreDocs)
+                                                Arrays.stream(rankResults.getFirst().scoreDocs)
                                                     .map(x -> new RankDoc(x.doc, x.score, x.shardIndex))
                                                     .limit(rankWindowSize())
                                                     .toArray(RankDoc[]::new)
@@ -779,7 +779,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             (response) -> {
                 SearchHits hits = response.getHits();
                 assertEquals(hits.getTotalHits().value(), numDocs);
-                assertEquals(hits.getHits().length, 2);
+                assertEquals(2, hits.getHits().length);
                 int index = 0;
                 for (SearchHit hit : hits.getHits()) {
                     assertEquals(hit.getRank(), 3 + index);
@@ -874,7 +874,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                                     public RankShardResult combineQueryPhaseResults(List<TopDocs> rankResults) {
                                         // we know we have just 1 query, so return all the docs from it
                                         return new TestRankShardResult(
-                                            Arrays.stream(rankResults.get(0).scoreDocs)
+                                            Arrays.stream(rankResults.getFirst().scoreDocs)
                                                 .map(x -> new RankDoc(x.doc, x.score, x.shardIndex))
                                                 .limit(rankWindowSize())
                                                 .toArray(RankDoc[]::new)
@@ -1007,7 +1007,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                                         public RankShardResult combineQueryPhaseResults(List<TopDocs> rankResults) {
                                             // we know we have just 1 query, so return all the docs from it
                                             return new TestRankShardResult(
-                                                Arrays.stream(rankResults.get(0).scoreDocs)
+                                                Arrays.stream(rankResults.getFirst().scoreDocs)
                                                     .map(x -> new RankDoc(x.doc, x.score, x.shardIndex))
                                                     .limit(rankWindowSize())
                                                     .toArray(RankDoc[]::new)
@@ -1135,7 +1135,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                                         public RankShardResult combineQueryPhaseResults(List<TopDocs> rankResults) {
                                             // we know we have just 1 query, so return all the docs from it
                                             return new TestRankShardResult(
-                                                Arrays.stream(rankResults.get(0).scoreDocs)
+                                                Arrays.stream(rankResults.getFirst().scoreDocs)
                                                     .map(x -> new RankDoc(x.doc, x.score, x.shardIndex))
                                                     .limit(rankWindowSize())
                                                     .toArray(RankDoc[]::new)
@@ -1180,7 +1180,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         );
     }
 
-    public void testSearchWhileIndexDeletedDoesNotLeakSearchContext() throws ExecutionException, InterruptedException {
+    public void testSearchWhileIndexDeletedDoesNotLeakSearchContext() {
         createIndex("index");
         prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
 
@@ -3132,13 +3132,13 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        protected void doWriteTo(StreamOutput out) throws IOException {}
+        protected void doWriteTo(StreamOutput out) {}
 
         @Override
-        protected void doXContent(XContentBuilder builder, Params params) throws IOException {}
+        protected void doXContent(XContentBuilder builder, Params params) {}
 
         @Override
-        protected Query doToQuery(SearchExecutionContext context) throws IOException {
+        protected Query doToQuery(SearchExecutionContext context) {
             return Queries.ALL_DOCS_INSTANCE;
         }
 
@@ -3153,7 +3153,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
             if (asyncRewriteCount > 0) {
                 return this;
             }

@@ -11,11 +11,16 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.FieldExistsQuery;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
-import org.apache.lucene.util.FixedBitSet;
 
 import java.io.IOException;
 import java.util.List;
@@ -26,17 +31,19 @@ import static org.elasticsearch.search.vectors.PostFilterKnnQuery.POST_FILTERING
  * Interface for KNN queries that support post-filtering with retry.
  * Implemented by both HNSW ({@link ESKnnFloatVectorQuery}, {@link ESKnnByteVectorQuery})
  * and IVF ({@link IVFKnnFloatVectorQuery}) queries.
- * <p>
  */
 public interface PostFilterableKnnQuery {
 
     /**
      * Creates a new query for the next retry round, configured to avoid re-visiting
-     * previously seen results. For HNSW, this excludes previously seen doc IDs via a
-     * FixedBitSet filter and seeds the next search with {@code previousResults}.
+     * previously seen results. For HNSW, this excludes previously seen doc IDs via
+     * {@link ExcludeDocsQuery} and seeds the next search with the same doc IDs.
      * For IVF, this skips previously visited centroid posting lists.
+     *
+     * @param reader      the index reader
+     * @param allSeenDocs sorted array of ALL doc IDs seen across all previous rounds
      */
-    Query createInnerQuery(IndexReader reader, int[] docsVisited);
+    Query createInnerQuery(IndexReader reader, int[] allSeenDocs);
 
     /**
      * Creates a filter-less delegate query for post-filtering. Subclasses provide
@@ -47,29 +54,6 @@ public interface PostFilterableKnnQuery {
     long vectorOpsCount();
 
     int countTotalVectors(List<LeafReaderContext> leaves) throws IOException;
-
-    @FunctionalInterface
-    interface VectorCountSupplier {
-        long totalVectors(LeafReaderContext ctx) throws IOException;
-    }
-
-    /**
-     * Builds the cumulative seenDocs bitset from previous rounds' results, used by HNSW retry
-     * to avoid re-visiting documents.
-     */
-    default FixedBitSet appendSeenDocs(FixedBitSet seenDocs, int[] previousResults, int maxDoc) {
-        if (seenDocs == null) {
-            seenDocs = new FixedBitSet(maxDoc);
-        }
-        if (previousResults != null) {
-            for (int doc : previousResults) {
-                if (doc >= 0 && doc < seenDocs.length()) {
-                    seenDocs.set(doc);
-                }
-            }
-        }
-        return seenDocs;
-    }
 
     default float computeSelectivity(Weight filterWeight, List<LeafReaderContext> leaves, int totalVectors) throws IOException {
         long filterCost = 0;
@@ -98,4 +82,26 @@ public interface PostFilterableKnnQuery {
         return null;
     }
 
+    default Weight createFilterWeight(IndexSearcher searcher, Query filter, int[] seenDocs, String field) throws IOException {
+        if (filter == null && seenDocs == null) {
+            return null;
+        }
+        var booleanQueryBuilder = new BooleanQuery.Builder();
+        if (filter != null) {
+            booleanQueryBuilder = booleanQueryBuilder.add(filter, BooleanClause.Occur.FILTER);
+        }
+        ;
+        if (seenDocs != null) {
+            booleanQueryBuilder = booleanQueryBuilder.add(
+                new ExcludeDocsQuery(seenDocs, searcher.getIndexReader()),
+                BooleanClause.Occur.FILTER
+            );
+        }
+        booleanQueryBuilder = booleanQueryBuilder.add(new FieldExistsQuery(field), BooleanClause.Occur.FILTER);
+        Query rewritten = searcher.rewrite(booleanQueryBuilder.build());
+        if (rewritten.getClass() == MatchNoDocsQuery.class) {
+            return null;
+        }
+        return searcher.createWeight(rewritten, ScoreMode.COMPLETE_NO_SCORES, 1f);
+    }
 }

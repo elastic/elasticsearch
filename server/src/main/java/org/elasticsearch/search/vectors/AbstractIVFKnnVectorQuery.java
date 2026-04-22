@@ -15,15 +15,11 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.AcceptDocs;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.search.TopDocs;
@@ -105,7 +101,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         IndexReader reader = indexSearcher.getIndexReader();
         List<LeafReaderContext> leaves = reader.leaves();
 
-        final Weight filterWeight = createFilterWeight(indexSearcher);
+        final Weight filterWeight = createFilterWeight(indexSearcher, filter, null, field);
         if (filter != null && filterWeight == null) {
             return MatchNoDocsQuery.INSTANCE;
         }
@@ -119,20 +115,6 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         }
 
         return executeSearch(indexSearcher, leaves, filterWeight, collectorManager, providedVisitRatio);
-    }
-
-    private Weight createFilterWeight(IndexSearcher searcher) throws IOException {
-        if (filter == null) {
-            return null;
-        }
-        BooleanQuery booleanQuery = new BooleanQuery.Builder().add(filter, BooleanClause.Occur.FILTER)
-            .add(new FieldExistsQuery(field), BooleanClause.Occur.FILTER)
-            .build();
-        Query rewritten = searcher.rewrite(booleanQuery);
-        if (rewritten.getClass() == MatchNoDocsQuery.class) {
-            return null;
-        }
-        return searcher.createWeight(rewritten, ScoreMode.COMPLETE_NO_SCORES, 1f);
     }
 
     protected BitSetProducer getParentsFilter() {

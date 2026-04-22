@@ -76,22 +76,29 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
     @Override
     public Query rewrite(IndexSearcher searcher) throws IOException {
         ScoreDoc[] scoreDocs = new ScoreDoc[0];
-        int[] docsVisited = new int[0];
+        int[] seenDocs = new int[0];
         long vectorOps = 0;
         for (int round = 0; round < MAX_ROUNDS; round++) {
-            Query queryToRun = innerQuery.createInnerQuery(searcher.getIndexReader(), docsVisited);
+            Query queryToRun = innerQuery.createInnerQuery(searcher.getIndexReader(), seenDocs);
             TopDocs topDocs = searcher.search(queryToRun, Integer.MAX_VALUE);
-            if (queryToRun instanceof PostFilterableKnnQuery) {
-                vectorOps += ((PostFilterableKnnQuery) queryToRun).vectorOpsCount();
+            if (queryToRun instanceof PostFilterableKnnQuery pfq) {
+                vectorOps += pfq.vectorOpsCount();
             }
 
             if (topDocs.scoreDocs.length == 0) {
                 break;
             }
-            docsVisited = new int[topDocs.scoreDocs.length];
+
+            // Accumulate this round's doc IDs into the running sorted array
+            int[] roundDocs = new int[topDocs.scoreDocs.length];
             for (int i = 0; i < topDocs.scoreDocs.length; i++) {
-                docsVisited[i] = topDocs.scoreDocs[i].doc;
+                roundDocs[i] = topDocs.scoreDocs[i].doc;
             }
+            int[] merged = new int[seenDocs.length + roundDocs.length];
+            System.arraycopy(seenDocs, 0, merged, 0, seenDocs.length);
+            System.arraycopy(roundDocs, 0, merged, seenDocs.length, roundDocs.length);
+            Arrays.sort(merged);
+            seenDocs = merged;
 
             ScoreDoc[] filtered = applyFilter(topDocs.scoreDocs, filterWeight, searcher);
             scoreDocs = mergeResults(scoreDocs, filtered);
@@ -223,7 +230,7 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
         queryProfiler.addVectorOpsCount(totalVectorOps);
     }
 
-    public long getTotalVectorOps(){
+    public long getTotalVectorOps() {
         return totalVectorOps;
     }
 

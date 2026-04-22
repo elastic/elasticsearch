@@ -12,19 +12,13 @@ package org.elasticsearch.search.vectors;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnFloatVectorQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
-import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
@@ -37,8 +31,7 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
     private final int numCandsParam;
     private long vectorOpsCount;
     private final boolean earlyTermination;
-    private FixedBitSet seenDocs;
-    private final int[] docsToSeed;
+    private final int[] seenDocs;
 
     public ESKnnFloatVectorQuery(String field, float[] target, int k, int numCands, Query filter, KnnSearchStrategy strategy) {
         this(field, target, k, numCands, filter, strategy, false);
@@ -53,7 +46,7 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
         KnnSearchStrategy strategy,
         boolean earlyTermination
     ) {
-        this(field, target, k, numCands, filter, strategy, earlyTermination, null, null);
+        this(field, target, k, numCands, filter, strategy, earlyTermination, null);
     }
 
     ESKnnFloatVectorQuery(
@@ -64,21 +57,19 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
         Query filter,
         KnnSearchStrategy strategy,
         boolean earlyTermination,
-        FixedBitSet seenDocs,
-        int[] docsToSeed
+        int[] seenDocs
     ) {
         super(field, target, numCands, filter, strategy);
         this.kParam = k;
         this.numCandsParam = numCands;
         this.earlyTermination = earlyTermination;
         this.seenDocs = seenDocs;
-        this.docsToSeed = docsToSeed;
     }
 
     @Override
     public Query rewrite(IndexSearcher indexSearcher) throws IOException {
-        Weight filterWeight = createFilterWeight(indexSearcher);
         if (filter != null) {
+            Weight filterWeight = createFilterWeight(indexSearcher, filter, seenDocs, field);
             Query postFilterQuery = createPostFilterQuery(
                 indexSearcher.getLeafContexts(),
                 filterWeight,
@@ -106,50 +97,15 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
     }
 
     @Override
-    public Query createInnerQuery(IndexReader reader, int[] docsVisited) {
-        seenDocs = appendSeenDocs(seenDocs, docsVisited, reader.maxDoc());
-        return new ESKnnFloatVectorQuery(
-            field,
-            getTargetCopy(),
-            kParam,
-            numCandsParam,
-            new ExcludeDocsQuery(seenDocs, reader),
-            searchStrategy,
-            earlyTermination,
-            seenDocs,
-            docsVisited
-        );
+    public Query createInnerQuery(IndexReader reader, int[] seenDocs) {
+        return new ESKnnFloatVectorQuery(field, getTargetCopy(), kParam, numCandsParam, null, searchStrategy, earlyTermination, seenDocs);
     }
 
     @Override
     public PostFilterableKnnQuery createPostFilterDelegate(float filterSelectivity) {
         int scaledK = (int) Math.max(NUM_CANDS_LIMIT, Math.ceil(kParam / filterSelectivity));
         int scaledNumCands = (int) Math.max(NUM_CANDS_LIMIT, Math.ceil((double) numCandsParam / filterSelectivity));
-        return new ESKnnFloatVectorQuery(
-            field,
-            getTargetCopy(),
-            scaledK,
-            scaledNumCands,
-            null,
-            searchStrategy,
-            earlyTermination,
-            seenDocs,
-            null
-        );
-    }
-
-    private Weight createFilterWeight(IndexSearcher searcher) throws IOException {
-        if (filter == null) {
-            return null;
-        }
-        BooleanQuery booleanQuery = new BooleanQuery.Builder().add(filter, BooleanClause.Occur.FILTER)
-            .add(new FieldExistsQuery(field), BooleanClause.Occur.FILTER)
-            .build();
-        Query rewritten = searcher.rewrite(booleanQuery);
-        if (rewritten.getClass() == MatchNoDocsQuery.class) {
-            return null;
-        }
-        return searcher.createWeight(rewritten, ScoreMode.COMPLETE_NO_SCORES, 1f);
+        return new ESKnnFloatVectorQuery(field, getTargetCopy(), scaledK, scaledNumCands, null, searchStrategy, earlyTermination, null);
     }
 
     @Override
@@ -182,8 +138,8 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
     @Override
     protected KnnCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
         var base = super.getKnnCollectorManager(k, searcher);
-        if (docsToSeed != null && docsToSeed.length > 0) {
-            base = new SeededRetryCollectorManager(base, docsToSeed, field);
+        if (seenDocs != null && seenDocs.length > 0) {
+            base = new SeededRetryCollectorManager(base, seenDocs, field);
         }
         return earlyTermination ? PatienceCollectorManager.wrap(base) : base;
     }

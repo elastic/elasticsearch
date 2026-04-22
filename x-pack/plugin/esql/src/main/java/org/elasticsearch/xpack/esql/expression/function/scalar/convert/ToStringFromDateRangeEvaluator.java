@@ -44,11 +44,9 @@ public class ToStringFromDateRangeEvaluator extends AbstractConvertFunction.Abst
     }
 
     private BytesRef evalValue(LongRangeBlock block, int idx) {
-        return new BytesRef(
-            (EsqlDataTypeConverter.dateTimeToString(block.getFromBlock().getLong(idx), this.formatter)
-                + ".."
-                + EsqlDataTypeConverter.dateTimeToString(block.getToBlock().getLong(idx), this.formatter))
-        );
+        long from = block.getFromBlock().getLong(idx);
+        long to = block.getToBlock().getLong(idx);
+        return new BytesRef(EsqlDataTypeConverter.dateRangeToString(from, to, formatter));
     }
 
     @Override

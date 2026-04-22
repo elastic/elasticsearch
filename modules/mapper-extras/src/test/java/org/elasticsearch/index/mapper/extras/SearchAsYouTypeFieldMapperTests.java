@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.SimpleAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
@@ -927,16 +926,6 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
             ReloadableCustomAnalyzer reloadableAnalyzer = new ReloadableCustomAnalyzer(components, 0, -1);
             SearchAsYouTypeAnalyzer wrapper = SearchAsYouTypeAnalyzer.withShingle(reloadableAnalyzer, 2)
         ) {
-            // Prime the ReloadableCustomAnalyzer's storedComponents thread-local by calling tokenStream
-            // on it directly first. This triggers UPDATE_STRATEGY.getReusableComponents() on the inner
-            // analyzer, which is required before initReader/createComponents can be called on it safely.
-            // When SearchAsYouTypeAnalyzer uses PER_FIELD_REUSE_STRATEGY, it bypasses this initialization,
-            // so we replicate the setup that would normally occur in production (where NamedAnalyzer
-            // calls tokenStream on the reloadable analyzer before the wrapper does).
-            try (TokenStream ts = reloadableAnalyzer.tokenStream("field", "hello world")) {
-                ts.reset();
-                ts.end();
-            }
             // Before the fix, this threw ClassCastException because SearchAsYouTypeAnalyzer inherited
             // UPDATE_STRATEGY from ReloadableCustomAnalyzer, which hardcodes a cast to ReloadableCustomAnalyzer.
             try (TokenStream ts = wrapper.tokenStream("field", "hello world")) {

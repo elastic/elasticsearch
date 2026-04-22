@@ -20,6 +20,7 @@ import org.elasticsearch.index.IndexService.IndexCreationContext;
 import java.io.Reader;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 public final class ReloadableCustomAnalyzer extends Analyzer implements AnalyzerComponentsProvider {
@@ -165,7 +166,7 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
 
     @Override
     protected TokenStreamComponents createComponents(String fieldName) {
-        final AnalyzerComponents components = getStoredComponents();
+        final AnalyzerComponents components = Objects.requireNonNullElseGet(getStoredComponents(), this::getComponents);
         Tokenizer tokenizer = components.getTokenizerFactory().create();
         TokenStream tokenStream = tokenizer;
         for (TokenFilterFactory tokenFilter : components.getTokenFilters()) {
@@ -176,7 +177,7 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
 
     @Override
     protected Reader initReader(String fieldName, Reader reader) {
-        final AnalyzerComponents components = getStoredComponents();
+        final AnalyzerComponents components = Objects.requireNonNullElseGet(getStoredComponents(), this::getComponents);
         if (CollectionUtils.isEmpty(components.getCharFilters()) == false) {
             for (CharFilterFactory charFilter : components.getCharFilters()) {
                 reader = charFilter.create(reader);

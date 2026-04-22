@@ -63,6 +63,7 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.COMMA_ESCAPING_REGEX;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ESCAPED_COMMA_SEQUENCE;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.multiValuesAwareCsvToStringArray;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.reader;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY;
 
 public class CsvTestsDataLoader {
 
@@ -295,16 +296,16 @@ public class CsvTestsDataLoader {
         new ViewConfig("employees_not_rehired"),
         new ViewConfig("employees_all"),
         new ViewConfig("employees_extra"),
-        new ViewConfig("employees_in_subquery"),
-        new ViewConfig("employees_in_subquery_stats"),
-        new ViewConfig("employees_in_subquery_conjunction"),
-        new ViewConfig("employees_in_subquery_disjunction"),
-        new ViewConfig("employees_in_subquery_nested"),
-        new ViewConfig("employees_in_subquery_view"),
-        new ViewConfig("employees_in_subquery_stats_view"),
-        new ViewConfig("employees_in_subquery_conjunction_view"),
-        new ViewConfig("employees_in_subquery_disjunction_view"),
-        new ViewConfig("employees_in_subquery_nested_view")
+        new ViewConfig("employees_in_subquery", List.of(WHERE_IN_SUBQUERY)),
+        new ViewConfig("employees_in_subquery_stats", List.of(WHERE_IN_SUBQUERY)),
+        new ViewConfig("employees_in_subquery_conjunction", List.of(WHERE_IN_SUBQUERY)),
+        new ViewConfig("employees_in_subquery_disjunction", List.of(WHERE_IN_SUBQUERY)),
+        new ViewConfig("employees_in_subquery_nested", List.of(WHERE_IN_SUBQUERY)),
+        new ViewConfig("employees_in_subquery_view", List.of(WHERE_IN_SUBQUERY)),
+        new ViewConfig("employees_in_subquery_stats_view", List.of(WHERE_IN_SUBQUERY)),
+        new ViewConfig("employees_in_subquery_conjunction_view", List.of(WHERE_IN_SUBQUERY)),
+        new ViewConfig("employees_in_subquery_disjunction_view", List.of(WHERE_IN_SUBQUERY)),
+        new ViewConfig("employees_in_subquery_nested_view", List.of(WHERE_IN_SUBQUERY))
     ).collect(toMap(ViewConfig::name, Function.identity()));
 
     /**
@@ -429,7 +430,7 @@ public class CsvTestsDataLoader {
                     loadEnrichPolicies(client);
                 }
                 if (views) {
-                    loadViewsIntoEs(client);
+                    loadViewsIntoEs(client, cap -> true);
                 }
             }
         }
@@ -641,11 +642,23 @@ public class CsvTestsDataLoader {
         }
     }
 
-    public static void loadViewsIntoEs(RestClient client) throws IOException {
+    /**
+     * Loads all views whose {@linkplain ViewConfig#requiredCapabilities()} are satisfied by {@code capabilityCheck}.
+     * Use {@code cap -> true} when loading against a cluster known to support every view definition (for example a local dev server).
+     */
+    public static void loadViewsIntoEs(RestClient client, Predicate<EsqlCapabilities.Cap> capabilityCheck) throws IOException {
         if (clusterHasViewSupport(client)) {
             logger.info("Loading views");
             for (var view : VIEW_CONFIGS.values()) {
-                loadView(client, view);
+                if (view.requiredCapabilities().stream().allMatch(capabilityCheck)) {
+                    loadView(client, view);
+                } else {
+                    logger.debug(
+                        "Skipping view [{}] because the cluster is missing required capabilities [{}]",
+                        view.name(),
+                        view.requiredCapabilities()
+                    );
+                }
             }
         } else {
             logger.info("Skipping loading views as the cluster does not support views");
@@ -656,7 +669,7 @@ public class CsvTestsDataLoader {
         if (clusterHasViewSupport(client)) {
             logger.debug("Deleting views");
             for (var view : VIEW_CONFIGS.values()) {
-                deleteView(client, view.name);
+                deleteView(client, view.name());
             }
         } else {
             logger.info("Skipping deleting views as the cluster does not support views");
@@ -753,8 +766,8 @@ public class CsvTestsDataLoader {
     }
 
     private static void loadView(RestClient client, ViewConfig view) throws IOException {
-        logger.debug("Loading view [{}] from file [/views/{}.esql]", view.name, view.name);
-        Request request = new Request("PUT", "/_query/view/" + view.name);
+        logger.debug("Loading view [{}] from file [/views/{}.esql]", view.name(), view.name());
+        Request request = new Request("PUT", "/_query/view/" + view.name());
         request.setJsonEntity("{\"query\":\"" + view.loadQuery().replace("\"", "\\\"").replace("\r", "").replace("\n", "") + "\"}");
         client.performRequest(request);
     }
@@ -1388,7 +1401,15 @@ public class CsvTestsDataLoader {
         }
     }
 
-    public record ViewConfig(String name) {
+    public record ViewConfig(String name, List<EsqlCapabilities.Cap> requiredCapabilities) {
+        public ViewConfig(String name) {
+            this(name, List.of());
+        }
+
+        public ViewConfig {
+            requiredCapabilities = List.copyOf(requiredCapabilities);
+        }
+
         public String loadQuery() {
             return getResourceString("/views/" + name + ".esql");
         }

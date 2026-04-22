@@ -22,6 +22,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -73,6 +74,14 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
 
     private static final Pattern CANNOT_LOAD_BLOCKS_WITHOUT_DOC_VALUES = Pattern.compile(
         ".*Cannot load blocks without doc values.*",
+        Pattern.DOTALL
+    );
+
+    // FORK converts UnsupportedAttribute to a plain ReferenceAttribute(UNSUPPORTED), stripping the
+    // Unresolvable marker. Functions then reject the argument with a generic "type [unsupported]" error
+    // instead of the proper "Cannot use field" message. https://github.com/elastic/elasticsearch/issues/147094
+    private static final Pattern UNSUPPORTED_TYPE_IN_FUNCTION = Pattern.compile(
+        ".*argument of \\[.*\\] must be \\[.*\\], found value \\[.*\\] type \\[unsupported\\].*",
         Pattern.DOTALL
     );
 
@@ -168,10 +177,10 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
                 throw new AssertionError(ae.getMessage() + formatReproductionContext(query), ae.getCause() != null ? ae.getCause() : ae);
             } catch (Exception e) {
                 String errorMessage = e.getMessage();
-                if (isAdditionalAllowedError(errorMessage) || isAllowedError(errorMessage)) {
+                String query = exec.previousResult != null ? exec.previousResult.query() : null;
+                if (isAdditionalAllowedError(errorMessage, query) || isAllowedError(errorMessage)) {
                     continue;
                 }
-                String query = exec.previousResult != null ? exec.previousResult.query() : null;
                 throw new AssertionError(
                     "Random mapping generative tests, error generating new command" + formatReproductionContext(query),
                     e
@@ -213,7 +222,7 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
         List<Column> currentSchema
     ) {
         if (query.exception() != null && query.exception().getMessage() != null) {
-            if (isAdditionalAllowedError(query.exception().getMessage())) {
+            if (isAdditionalAllowedError(query.exception().getMessage(), query.query())) {
                 return;
             }
         }
@@ -221,6 +230,10 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
     }
 
     private static boolean isAdditionalAllowedError(String errorMessage) {
+        return isAdditionalAllowedError(errorMessage, null);
+    }
+
+    private static boolean isAdditionalAllowedError(String errorMessage, String query) {
         if (errorMessage == null) return false;
         for (Pattern p : ADDITIONAL_ALLOWED_PATTERNS) {
             if (isAllowedError(errorMessage, p)) {
@@ -230,6 +243,12 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
         // RangeFieldMapper throws "Cannot load blocks without doc values" for *_range fields
         // with doc_values:false. https://github.com/elastic/elasticsearch/issues/146527
         if (isAllowedError(errorMessage, CANNOT_LOAD_BLOCKS_WITHOUT_DOC_VALUES) && hasRangeFieldType()) {
+            return true;
+        }
+        // FORK converts UnsupportedAttribute to ReferenceAttribute(UNSUPPORTED), causing functions
+        // to reject the field with a generic "type [unsupported]" error.
+        // https://github.com/elastic/elasticsearch/issues/147094
+        if (query != null && isAllowedError(errorMessage, UNSUPPORTED_TYPE_IN_FUNCTION) && queryContainsFork(query)) {
             return true;
         }
         return false;
@@ -248,6 +267,10 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
             }
         }
         return false;
+    }
+
+    private static boolean queryContainsFork(String query) {
+        return query != null && query.toUpperCase(Locale.ROOT).contains("FORK");
     }
 
     private static String formatReproductionContext(String query) {

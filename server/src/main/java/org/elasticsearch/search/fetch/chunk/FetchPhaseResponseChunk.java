@@ -35,11 +35,13 @@ import java.io.IOException;
  * The header is created after hits are serialized (since we don't know hit count until
  * the buffer is full), then combined using {@link CompositeBytesReference} to avoid copying.
  *
- * <p>Lifecycle: {@link #getHits()} may deserialize pooled {@link SearchHit}s whose {@code _source}
- * bytes are backed by {@link ReleasableBytesReference} slices or heap copies, depending on the
- * {@link StreamInput} used. {@link #close()} releases {@code serializedHits} when it is
- * {@link Releasable}, then {@link SearchHit#decRef()}s any cached deserialized hits so pooled
- * sources are released in a refcount-safe way (hits retain their own refs until {@code decRef}).
+ * <p>Lifecycle: on the coordinator path the stream constructor reads {@code serializedHits} as a
+ * {@link ReleasableBytesReference} retained slice of the transport buffer, enabling zero-copy
+ * deserialization of hit {@code _source} bytes in {@link #getHits()}. On the data-node path the
+ * direct constructor accepts any {@link BytesReference}. {@link #close()} releases
+ * {@code serializedHits} when it is {@link Releasable}, then {@link SearchHit#decRef()}s any
+ * cached deserialized hits so pooled sources are released in a refcount-safe way (hits retain
+ * their own refs until {@code decRef}).
  */
 public class FetchPhaseResponseChunk implements Writeable, Releasable {
 
@@ -91,14 +93,17 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
     }
 
     /**
-     * Deserializes from stream (receiving side).
+     * Deserializes from stream (receiving side). When {@code in} is backed by a pooled buffer
+     * (e.g. a Netty transport frame), {@code serializedHits} is stored as a retained
+     * {@link ReleasableBytesReference} slice — no copy — so that subsequent {@link #getHits()}
+     * calls can in turn slice hit {@code _source} bytes directly from the same buffer.
      */
     public FetchPhaseResponseChunk(StreamInput in) throws IOException {
         this.shardId = new ShardId(in);
         this.hitCount = in.readVInt();
         this.expectedTotalDocs = in.readVInt();
         this.sequenceStart = in.readVLong();
-        this.serializedHits = in.readBytesReference();
+        this.serializedHits = in.readReleasableBytesReference();
         this.namedWriteableRegistry = in.namedWriteableRegistry();
     }
 
@@ -179,14 +184,14 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
     }
 
     /**
-     * Releases {@code serializedHits} when releasable, then releases deserialized hits.
+     * Releases {@code serializedHits} when releasable (always true on the coordinator path after
+     * the stream constructor), then releases deserialized hits.
      * <p>
-     * Order is safe even when hit {@code _source} bytes were read from a slice of {@code serializedHits}:
-     * {@link SearchHit#readFrom(StreamInput)} uses {@link StreamInput#readReleasableBytesReference()},
-     * which on releasable streams retains the underlying buffer (e.g. via
-     * {@link ReleasableBytesReference#retainedSlice(int, int)}), so dropping this chunk's ref to
-     * {@code serializedHits} cannot free bytes hits still own. On plain heap-backed streams,
-     * {@code _source} is typically an independent copy.
+     * Order is safe: {@link SearchHit#readFrom(StreamInput)} uses
+     * {@link StreamInput#readReleasableBytesReference()}, which on a pooled stream retains the
+     * underlying buffer (via {@link ReleasableBytesReference#retainedSlice(int, int)}), so
+     * releasing {@code serializedHits} first cannot free bytes that hits still own. On plain
+     * heap-backed streams {@code _source} is an independent copy and no ordering constraint applies.
      */
     @Override
     public void close() {

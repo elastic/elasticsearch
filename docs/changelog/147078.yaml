@@ -1,4 +1,4 @@
-area: "ES|QL, ES|QL"
+area: ES|QL
 issues: []
 pr: 147078
 summary: Improve `LongLongSwissHash` for high cardinality

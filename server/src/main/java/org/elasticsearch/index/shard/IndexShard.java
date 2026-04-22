@@ -3273,6 +3273,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return replicationGroup;
     }
 
+    public boolean hasPeerReplicationTargets() {
+        return this.state() != IndexShardState.CLOSED && getReplicationGroup().containsPeerReplicationTargets();
+    }
+
     /**
      * Returns the pending replication actions for the shard.
      *
@@ -4548,7 +4552,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         @Override
         public void afterRefresh(boolean didRefresh) {
-            if (enableFieldHasValue && (didRefresh || fieldInfos == null)) {
+            if (enableFieldHasValue && didRefresh) {
                 FIELD_INFOS.setRelease(IndexShard.this, loadFieldInfos());
             }
         }

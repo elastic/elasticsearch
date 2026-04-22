@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.fireworksai;
 
 import org.apache.http.HttpHeaders;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -268,6 +269,25 @@ public class FireworksAiServiceTests extends AbstractInferenceServiceTests {
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.get("model"), Matchers.is("test-model"));
+        }
+    }
+
+    public void testBuildModelFromConfigAndSecrets_UnsupportedTaskType() throws IOException {
+        var modelConfigurations = new ModelConfigurations(
+            INFERENCE_ID,
+            TaskType.RERANK,
+            FireworksAiService.NAME,
+            mock(ServiceSettings.class)
+        );
+        try (var inferenceService = createInferenceService()) {
+            var thrownException = expectThrows(
+                ElasticsearchStatusException.class,
+                () -> inferenceService.buildModelFromConfigAndSecrets(modelConfigurations, mock(ModelSecrets.class))
+            );
+            assertThat(
+                thrownException.getMessage(),
+                is(Strings.format("The [%s] service does not support task type [%s]", FireworksAiService.NAME, TaskType.RERANK))
+            );
         }
     }
 

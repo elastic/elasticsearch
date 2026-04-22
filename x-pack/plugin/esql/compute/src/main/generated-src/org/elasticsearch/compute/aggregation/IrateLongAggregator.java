@@ -102,7 +102,7 @@ public class IrateLongAggregator {
         }
 
         void adjustBreaker(long bytes) {
-            breaker.addEstimateBytesAndMaybeBreak(bytes, "<<rate aggregation>>");
+            breaker.addEstimateBytesAndMaybeBreak(bytes, "<<irate aggregation>>");
             stateBytes += bytes;
             assert stateBytes >= 0 : stateBytes;
         }

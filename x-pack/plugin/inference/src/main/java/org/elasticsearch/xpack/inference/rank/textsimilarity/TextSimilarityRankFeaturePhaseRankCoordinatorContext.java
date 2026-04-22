@@ -15,7 +15,6 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.TopNProvider;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
-import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
@@ -28,6 +27,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
 
 /**
  * A {@code RankFeaturePhaseRankCoordinatorContext} that performs a rerank inference call to determine relevance scores for documents within
@@ -146,7 +146,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
             docFeatures,
             Map.of(),
             InputType.INTERNAL_SEARCH,
-            BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.RERANK),
+            TIMEOUT_NOT_DETERMINED,
             false
         );
     }

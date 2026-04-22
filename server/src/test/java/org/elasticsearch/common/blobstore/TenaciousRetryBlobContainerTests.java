@@ -9,6 +9,7 @@
 
 package org.elasticsearch.common.blobstore;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.blobstore.support.TenaciousRetryBlobContainer;
@@ -40,7 +41,9 @@ import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_ALLOCATI
 import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_FAILURE_HISTOGRAM;
 import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_SUCCESS_HISTOGRAM;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.mock;
@@ -153,9 +156,10 @@ public class TenaciousRetryBlobContainerTests extends ESTestCase {
         when(blobContainer.listBlobs(any())).thenThrow(new IOException("listBlobs"))
             .thenThrow(new IOException("listBlobs"))
             .thenReturn(answer);
-        when(blobContainer.listBlobsByPrefix(any(), any())).thenThrow(new IOException())
+        when(blobContainer.listBlobsByPrefix(any(), any()))
             .thenThrow(new IOException())
-            .thenThrow(new RuntimeException());
+            .thenThrow(new IOException())
+            .thenThrow(new IllegalArgumentException());
 
         assertThat(tenaciousRetryBlobContainer.listBlobs(OperationPurpose.INDICES), is(answer));
         verify(blobContainer, times(3)).listBlobs(any());
@@ -166,7 +170,7 @@ public class TenaciousRetryBlobContainerTests extends ESTestCase {
 
         recordingMeterRegistry.getRecorder().resetCalls();
         expectThrows(
-            RuntimeException.class,
+            IllegalArgumentException.class,
             () -> tenaciousRetryBlobContainer.listBlobsByPrefix(OperationPurpose.INDICES, randomIndexName())
         );
         recordingMeterRegistry.getRecorder().collect();
@@ -192,8 +196,10 @@ public class TenaciousRetryBlobContainerTests extends ESTestCase {
         when(blobContainer.children(any())).thenThrow(new IOException("children"))
             .thenThrow(new IOException("children"))
             .thenThrow(new IOException("children"))
-            .thenThrow(new RuntimeException());
-        expectThrows(RuntimeException.class, () -> tenaciousRetryBlobContainer.children(OperationPurpose.INDICES));
+            .thenThrow(new IllegalArgumentException());
+        Throwable ex = expectThrows(IllegalArgumentException.class, () -> tenaciousRetryBlobContainer.children(OperationPurpose.INDICES));
+        assertThat(Arrays.stream(ex.getSuppressed()).count(), is(9L));
+        assertThat(Arrays.stream(ex.getSuppressed()).findFirst().orElseThrow(), instanceOf(IOException.class));
         recordingMeterRegistry.getRecorder().collect();
 
         assertThat(getMeasurements(recordingMeterRegistry, METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_ATTEMPTS_HISTOGRAM), equalTo(3));

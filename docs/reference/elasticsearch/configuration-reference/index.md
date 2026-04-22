@@ -42,6 +42,7 @@ The settings are grouped by feature or purpose, for example:
 - [Monitoring](/reference/elasticsearch/configuration-reference/monitoring-settings.md)
 - [Networking](/reference/elasticsearch/configuration-reference/networking-settings.md)
 - [Nodes](/reference/elasticsearch/configuration-reference/node-settings.md)
+- [Path](/reference/elasticsearch/configuration-reference/path.md)
 - [Node query cache](/reference/elasticsearch/configuration-reference/node-query-cache-settings.md)
 - [Remote clusters](/reference/elasticsearch/configuration-reference/remote-clusters.md)
 - [Search](/reference/elasticsearch/configuration-reference/search-settings.md)

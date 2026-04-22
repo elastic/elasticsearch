@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.List;
@@ -32,10 +33,23 @@ public abstract sealed class GroupingFunction extends Function implements PostAn
     @Override
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
         return (p, failures) -> {
-            if (p instanceof Aggregate == false) {
+            if (p instanceof Aggregate) {
+                return;
+            }
+            // NonEvaluatableGroupingFunction (e.g. CATEGORIZE) is only allowed inside a STATS command,
+            // since it relies on aggregation-specific state to be evaluated.
+            p.forEachExpression(
+                NonEvaluatableGroupingFunction.class,
+                gf -> failures.add(fail(gf, "cannot use grouping function [{}] outside of a STATS command", gf.sourceText()))
+            );
+            // EvaluatableGroupingFunction (e.g. BUCKET) can be computed row-by-row, so it is also
+            // allowed as a LIMIT ... BY key on top of STATS.
+            if (p instanceof LimitBy == false) {
                 p.forEachExpression(
-                    GroupingFunction.class,
-                    gf -> failures.add(fail(gf, "cannot use grouping function [{}] outside of a STATS command", gf.sourceText()))
+                    EvaluatableGroupingFunction.class,
+                    gf -> failures.add(
+                        fail(gf, "cannot use grouping function [{}] outside of a STATS or LIMIT BY command", gf.sourceText())
+                    )
                 );
             }
         };

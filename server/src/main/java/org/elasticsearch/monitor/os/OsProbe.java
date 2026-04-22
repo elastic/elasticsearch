@@ -12,7 +12,9 @@ package org.elasticsearch.monitor.os;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.Processors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.monitor.Probes;
@@ -327,11 +329,20 @@ public class OsProbe {
      * @param path path to the file to read
      * @return the single line
      * @throws IOException if an I/O exception occurs reading the file
+     * @throws IllegalStateException if the file contains zero lines
      */
-    private static String readSingleLine(final Path path) throws IOException {
+    static String readSingleLine(final Path path) throws IOException {
         final List<String> lines = Files.readAllLines(path);
+        if (lines.isEmpty()) {
+            throw new IllegalStateException(Strings.format("File %s is empty, exactly one line was expected", path));
+        }
         assert lines.size() == 1 : String.join("\n", lines);
-        return lines.get(0);
+        return lines.getFirst();
+    }
+
+    @Nullable
+    private static String maybeSingleLine(final List<String> lines) {
+        return lines.size() == 1 ? lines.getFirst() : null;
     }
 
     // this property is to support a hack to workaround an issue with Docker containers mounting the cgroups hierarchy inconsistently with
@@ -421,21 +432,26 @@ public class OsProbe {
         return readSingleLine(PathUtils.get("/sys/fs/cgroup/cpuacct", controlGroup, "cpuacct.usage"));
     }
 
+    @Nullable
     private long[] getCgroupV2CpuLimit(String controlGroup) throws IOException {
-        String entry = readCgroupV2CpuLimit(controlGroup);
+        final var entry = maybeSingleLine(readCgroupV2CpuLimit(controlGroup));
+        if (entry == null) {
+            return null;
+        }
         String[] parts = entry.split("\\s+");
-        assert parts.length == 2 : "Expected 2 fields in [cpu.max]";
+        if (parts.length != 2) {
+            return null;
+        }
 
         long[] values = new long[2];
-
         values[0] = "max".equals(parts[0]) ? -1L : Long.parseLong(parts[0]);
         values[1] = Long.parseLong(parts[1]);
         return values;
     }
 
     @SuppressForbidden(reason = "access /sys/fs/cgroup/cpu.max")
-    String readCgroupV2CpuLimit(String controlGroup) throws IOException {
-        return readSingleLine(PathUtils.get("/sys/fs/cgroup/", controlGroup, "cpu.max"));
+    List<String> readCgroupV2CpuLimit(String controlGroup) throws IOException {
+        return Files.readAllLines(PathUtils.get("/sys/fs/cgroup/", controlGroup, "cpu.max"));
     }
 
     /**
@@ -769,6 +785,10 @@ public class OsProbe {
                 cgroupCpuAcctUsageNanos = cpuStatsMap.get("usage_usec").multiply(THOUSAND); // convert from micros to nanos
 
                 long[] cpuLimits = getCgroupV2CpuLimit(cpuControlGroup);
+                if (cpuLimits == null) {
+                    logger.debug("no cpu_quota and cpu_period data found in cpu.max");
+                    return null;
+                }
                 cgroupCpuAcctCpuCfsQuotaMicros = cpuLimits[0];
                 cgroupCpuAcctCpuCfsPeriodMicros = cpuLimits[1];
 

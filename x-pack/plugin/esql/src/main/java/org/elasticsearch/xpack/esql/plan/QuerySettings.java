@@ -125,9 +125,8 @@ public class QuerySettings {
         name = "approximation",
         type = { "boolean", "map_param" },
         since = "9.4.0",
-        // TODO: make "query approximation" a link to an "Advanced workflows" page when that's ready.
-        description = "Enables query approximation if possible for the query. "
-            + "A boolean value `false` (default) disables query approximation and `true` enables it with "
+        description = "Enables [query approximation](/reference/query-languages/esql/esql-query-approximation.md) if possible for the "
+            + "query. A boolean value `false` (default) disables query approximation and `true` enables it with "
             + "default settings. Map values enable query approximation with custom settings."
     )
     @MapParam(

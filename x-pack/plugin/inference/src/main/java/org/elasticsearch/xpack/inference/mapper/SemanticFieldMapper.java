@@ -92,7 +92,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
 
     public static final FeatureFlag SEMANTIC_FIELD_FEATURE_FLAG = new FeatureFlag("semantic_field");
 
-    public static final NodeFeature SEMANTIC_FIELD_MAPPER = new NodeFeature("semantic_text.semantic_field_mapper");
+    public static final NodeFeature SEMANTIC_FIELD_MAPPER = new NodeFeature("semantic_field.semantic_field_mapper");
 
     static final String INDEX_OPTIONS_FIELD = "index_options";
 
@@ -107,7 +107,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
     public static TypeParser parser(Supplier<ModelRegistry> modelRegistry) {
         return new TypeParser(
             (n, c) -> new Builder(n, c::bitSetProducer, c.getIndexSettings(), modelRegistry.get(), c.getVectorsFormatProviders()),
-            List.of(notInMultiFields(CONTENT_TYPE), notFromDynamicTemplates(CONTENT_TYPE))
+            List.of(notFromDynamicTemplates(CONTENT_TYPE))
         );
     }
 

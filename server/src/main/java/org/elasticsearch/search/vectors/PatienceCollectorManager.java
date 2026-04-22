@@ -45,25 +45,23 @@ class PatienceCollectorManager implements KnnCollectorManager {
 
     @Override
     public KnnCollector newCollector(int visitLimit, KnnSearchStrategy searchStrategy, LeafReaderContext ctx) throws IOException {
-        return new HnswQueueSaturationCollector(
-            knnCollectorManager.newCollector(visitLimit, searchStrategy, ctx),
-            saturationThreshold,
-            patience
-        );
+        KnnCollector collector = knnCollectorManager.newCollector(visitLimit, searchStrategy, ctx);
+        if (collector == null) {
+            return null;
+        }
+        return new AdaptiveHnswQueueSaturationCollector(collector);
     }
 
     @Override
     public KnnCollector newOptimisticCollector(int visitLimit, KnnSearchStrategy searchStrategy, LeafReaderContext ctx, int k)
         throws IOException {
         if (knnCollectorManager.isOptimistic()) {
-            return new HnswQueueSaturationCollector(
-                knnCollectorManager.newOptimisticCollector(visitLimit, searchStrategy, ctx, k),
-                saturationThreshold,
-                patience
-            );
-        } else {
-            return null;
+            KnnCollector collector = knnCollectorManager.newOptimisticCollector(visitLimit, searchStrategy, ctx, k);
+            if (collector != null) {
+                return new AdaptiveHnswQueueSaturationCollector(collector);
+            }
         }
+        return null;
     }
 
     @Override

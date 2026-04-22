@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan.logical.inference;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
@@ -44,11 +45,13 @@ public abstract class InferencePlan<PlanType extends InferencePlan<PlanType>> ex
 
     private final Expression inferenceId;
     private final Expression rowLimit;
+    private final TimeValue timeout;
 
-    protected InferencePlan(Source source, LogicalPlan child, Expression inferenceId, Expression rowLimit) {
+    protected InferencePlan(Source source, LogicalPlan child, Expression inferenceId, Expression rowLimit, TimeValue timeout) {
         super(source, child);
         this.inferenceId = inferenceId;
         this.rowLimit = rowLimit;
+        this.timeout = timeout;
     }
 
     @Override
@@ -69,6 +72,10 @@ public abstract class InferencePlan<PlanType extends InferencePlan<PlanType>> ex
         return rowLimit;
     }
 
+    public TimeValue timeout() {
+        return timeout;
+    }
+
     @Override
     public boolean expressionsResolved() {
         return inferenceId.resolved() && rowLimit.resolved();
@@ -80,12 +87,14 @@ public abstract class InferencePlan<PlanType extends InferencePlan<PlanType>> ex
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
         InferencePlan<?> other = (InferencePlan<?>) o;
-        return Objects.equals(inferenceId(), other.inferenceId()) && Objects.equals(rowLimit(), other.rowLimit());
+        return Objects.equals(inferenceId(), other.inferenceId())
+            && Objects.equals(rowLimit(), other.rowLimit())
+            && Objects.equals(timeout(), other.timeout());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), inferenceId(), rowLimit());
+        return Objects.hash(super.hashCode(), inferenceId(), rowLimit(), timeout());
     }
 
     @Override
@@ -96,6 +105,8 @@ public abstract class InferencePlan<PlanType extends InferencePlan<PlanType>> ex
     public abstract TaskType taskType();
 
     public abstract PlanType withInferenceId(Expression newInferenceId);
+
+    public abstract PlanType withTimeout(TimeValue newTimeout);
 
     public PlanType withInferenceResolutionError(String inferenceId, String error) {
         return withInferenceId(new UnresolvedAttribute(inferenceId().source(), inferenceId, error));

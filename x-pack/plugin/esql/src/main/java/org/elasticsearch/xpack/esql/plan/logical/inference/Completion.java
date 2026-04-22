@@ -62,7 +62,6 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
      * Never null - defaults to empty map if not provided.
      */
     private final MapExpression taskSettings;
-    private final TimeValue timeout;
     private List<Attribute> lazyOutput;
 
     public Completion(Source source, LogicalPlan p, Expression rowLimit, Expression prompt, Attribute targetField) {
@@ -102,11 +101,10 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
         MapExpression taskSettings,
         TimeValue timeout
     ) {
-        super(source, child, inferenceId, rowLimit);
+        super(source, child, inferenceId, rowLimit, timeout);
         this.prompt = prompt;
         this.targetField = targetField;
         this.taskSettings = taskSettings;
-        this.timeout = timeout;
     }
 
     public Completion(StreamInput in) throws IOException {
@@ -132,7 +130,7 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
         out.writeNamedWriteable(targetField);
         out.writeNamedWriteable(taskSettings);
         if (out.getTransportVersion().supports(ESQL_INFERENCE_ACCEPT_TIMEOUT)) {
-            out.writeOptionalTimeValue(timeout);
+            out.writeOptionalTimeValue(timeout());
         }
     }
 
@@ -153,28 +151,25 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
         return taskSettings;
     }
 
-    public TimeValue timeout() {
-        return timeout;
-    }
-
     @Override
     public Completion withInferenceId(Expression newInferenceId) {
         if (inferenceId().equals(newInferenceId)) {
             return this;
         }
 
-        return new Completion(source(), child(), newInferenceId, rowLimit(), prompt, targetField, taskSettings, timeout);
+        return new Completion(source(), child(), newInferenceId, rowLimit(), prompt, targetField, taskSettings, timeout());
     }
 
     public Completion withTaskSettings(MapExpression newTaskSettings) {
         if (taskSettings.equals(newTaskSettings)) {
             return this;
         }
-        return new Completion(source(), child(), inferenceId(), rowLimit(), prompt, targetField, newTaskSettings, timeout);
+        return new Completion(source(), child(), inferenceId(), rowLimit(), prompt, targetField, newTaskSettings, timeout());
     }
 
+    @Override
     public Completion withTimeout(TimeValue newTimeout) {
-        if (Objects.equals(timeout, newTimeout)) {
+        if (Objects.equals(timeout(), newTimeout)) {
             return this;
         }
         return new Completion(source(), child(), inferenceId(), rowLimit(), prompt, targetField, taskSettings, newTimeout);
@@ -182,7 +177,7 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
 
     @Override
     public Completion replaceChild(LogicalPlan newChild) {
-        return new Completion(source(), newChild, inferenceId(), rowLimit(), prompt, targetField, taskSettings, timeout);
+        return new Completion(source(), newChild, inferenceId(), rowLimit(), prompt, targetField, taskSettings, timeout());
     }
 
     @Override
@@ -220,7 +215,7 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
             prompt,
             this.renameTargetField(newNames.get(0)),
             taskSettings,
-            timeout
+            timeout()
         );
     }
 
@@ -256,7 +251,7 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Completion::new, child(), inferenceId(), rowLimit(), prompt, targetField, taskSettings, timeout);
+        return NodeInfo.create(this, Completion::new, child(), inferenceId(), rowLimit(), prompt, targetField, taskSettings, timeout());
     }
 
     @Override
@@ -268,12 +263,11 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
 
         return Objects.equals(prompt, completion.prompt)
             && Objects.equals(targetField, completion.targetField)
-            && Objects.equals(taskSettings, completion.taskSettings)
-            && Objects.equals(timeout, completion.timeout);
+            && Objects.equals(taskSettings, completion.taskSettings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), prompt, targetField, taskSettings, timeout);
+        return Objects.hash(super.hashCode(), prompt, targetField, taskSettings);
     }
 }

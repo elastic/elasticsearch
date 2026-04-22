@@ -43,9 +43,7 @@ import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.azureaistudio.action.AzureAiStudioActionCreator;
-import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionModelCreator;
-import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsServiceSettings;
@@ -70,7 +68,6 @@ import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiSt
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.TARGET_FIELD;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioProviderCapabilities.providerAllowsEndpointTypeForTask;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioProviderCapabilities.providerAllowsTaskType;
-import static org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionTaskSettings.DEFAULT_MAX_NEW_TOKENS;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.EMBEDDING_MAX_BATCH_SIZE;
 
 public class AzureAiStudioService extends SenderService<AzureAiStudioModel> implements RerankingInferenceService {
@@ -297,26 +294,6 @@ public class AzureAiStudioService extends SenderService<AzureAiStudioModel> impl
             return new AzureAiStudioEmbeddingsModel(embeddingsModel, updatedServiceSettings);
         } else {
             throw ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails(model.getClass());
-        }
-    }
-
-    @Override
-    public Model updateModelWithChatCompletionDetails(Model model) {
-        if (model instanceof AzureAiStudioChatCompletionModel chatCompletionModel) {
-            var taskSettings = chatCompletionModel.getTaskSettings();
-            var modelMaxNewTokens = taskSettings.maxNewTokens();
-            var maxNewTokensToUse = modelMaxNewTokens == null ? DEFAULT_MAX_NEW_TOKENS : modelMaxNewTokens;
-
-            var updatedTaskSettings = new AzureAiStudioChatCompletionTaskSettings(
-                taskSettings.temperature(),
-                taskSettings.topP(),
-                taskSettings.doSample(),
-                maxNewTokensToUse
-            );
-
-            return new AzureAiStudioChatCompletionModel(chatCompletionModel, updatedTaskSettings);
-        } else {
-            throw ServiceUtils.invalidModelTypeForUpdateModelWithChatCompletionDetails(model.getClass());
         }
     }
 

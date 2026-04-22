@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 147157
+summary: Allow multiple synonym sets per filter using the synonyms API
+type: enhancement

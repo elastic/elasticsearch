@@ -28,6 +28,8 @@ if (buildParams.inFipsJvm) {
     def bcUtilFips
     def manualDebug = false; //change this to manually debug bouncy castle in an IDE
     def isFips140_3 = buildParams.fipsMode == '140-3'
+    String javaPolicyFilename = isFips140_3 ? 'fips_java_bc2_bwc.policy' : 'fips_java_bwc.policy'
+    File fipsPolicy = new File(fipsResourcesDir, javaPolicyFilename)
 
     if (isFips140_3) {
       // FIPS 140-3 certified BouncyCastle libraries (default)
@@ -60,6 +62,7 @@ if (buildParams.inFipsJvm) {
       fipsResourcesTask.configure {
         outputDir = fipsResourcesDir
         copy javaSecurityFilename
+        copy javaPolicyFilename
         copy 'cacerts.bcfks'
       }
 
@@ -91,8 +94,10 @@ if (buildParams.inFipsJvm) {
         }
         testClusters.configureEach {
           extraConfigFile "fips_java.security", fipsSecurity
+          extraConfigFile "fips_java.policy", fipsPolicy
           extraConfigFile "cacerts.bcfks", fipsTrustStore
           systemProperty 'java.security.properties', '=${ES_PATH_CONF}/fips_java.security'
+          systemProperty 'java.security.policy', '=${ES_PATH_CONF}/fips_java.policy'
           systemProperty 'javax.net.ssl.trustStore', '${ES_PATH_CONF}/cacerts.bcfks'
           systemProperty 'javax.net.ssl.trustStorePassword', 'password'
           systemProperty 'javax.net.ssl.keyStorePassword', 'password'
@@ -115,43 +120,15 @@ if (buildParams.inFipsJvm) {
         }
       }
 
-      // BWC test projects: explicit dependency on the previous major's checkout so the
-      // FIPS policy file is available before old-version clusters start. This mirrors
-      // the pattern used by AbstractYamlRestCompatTestPlugin for pulling resources from
-      // the old branch's source tree.
-      pluginManager.withPlugin('elasticsearch.bwc-test') {
-        String fipsPolicyFilename = isFips140_3 ? 'fips_java_bc2.policy' : 'fips_java.policy'
-        int currentMajor = buildParams.bwcVersions.currentVersion.major
-        def prevMajorVersions = buildParams.bwcVersions.unreleased.findAll { v -> v.major == currentMajor - 1 }
-        def prevMajorInfo = null
-        if (!prevMajorVersions.isEmpty()) {
-          prevMajorInfo = buildParams.bwcVersions.unreleasedInfo(prevMajorVersions.max())
-        } else {
-          prevMajorInfo = buildParams.bwcVersions.unmaintainedPreviousMajor.orElse(null)
-        }
-        if (prevMajorInfo != null) {
-          def bwcProjectRelDir = prevMajorInfo.gradleProjectPath().replaceFirst(':', '').replace(':', '/')
-          def checkoutDir = new File(rootProject.projectDir, "${bwcProjectRelDir}/build/bwc/checkout-${prevMajorInfo.branch()}")
-          File fipsPolicyFile = new File(checkoutDir, "build-tools-internal/src/main/resources/${fipsPolicyFilename}")
-
-          def bwcFipsPolicyConfig = configurations.create('bwcFipsPolicy')
-          dependencies.add(bwcFipsPolicyConfig.name, dependencies.project(path: prevMajorInfo.gradleProjectPath(), configuration: 'checkout'))
-
-          tasks.withType(StandaloneRestIntegTestTask).configureEach {
-            dependsOn bwcFipsPolicyConfig
-            systemProperty('tests.cluster.fips.policy.path', fipsPolicyFile.absolutePath)
-          }
-        }
-      }
-
       project.tasks.withType(Test).configureEach { Test task ->
         dependsOn 'fipsResources'
         task.systemProperty('javax.net.ssl.trustStorePassword', 'password')
         task.systemProperty('javax.net.ssl.keyStorePassword', 'password')
         task.systemProperty('javax.net.ssl.trustStoreType', 'BCFKS')
-        // Using the key==value format to override default JVM security settings
+        // Using the key==value format to override default JVM security settings and policy
         // see also: https://docs.oracle.com/javase/8/docs/technotes/guides/security/PolicyFiles.html
         task.systemProperty('java.security.properties', String.format(Locale.ROOT, "=%s", fipsSecurity))
+        task.systemProperty('java.security.policy', String.format(Locale.ROOT, "=%s", fipsPolicy))
         task.systemProperty('javax.net.ssl.trustStore', fipsTrustStore)
         task.systemProperty('org.bouncycastle.fips.approved_only', 'true')
       }

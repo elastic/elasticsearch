@@ -11,8 +11,6 @@ package org.elasticsearch.test.cluster.local;
 
 import org.elasticsearch.test.cluster.util.resource.Resource;
 
-import java.nio.file.Path;
-
 public class FipsEnabledClusterConfigProvider implements LocalClusterConfigProvider {
 
     @Override
@@ -22,8 +20,10 @@ public class FipsEnabledClusterConfigProvider implements LocalClusterConfigProvi
                 "fips_java.security",
                 Resource.fromClasspath(isOracleJvm() ? "fips/fips_java_oracle.security" : "fips/fips_java.security")
             )
+                .configFile("fips_java.policy", Resource.fromClasspath("fips/fips_java_bwc.policy"))
                 .configFile("cacerts.bcfks", Resource.fromClasspath("fips/cacerts.bcfks"))
                 .systemProperty("java.security.properties", "=${ES_PATH_CONF}/fips_java.security")
+                .systemProperty("java.security.policy", "=${ES_PATH_CONF}/fips_java.policy")
                 .systemProperty("javax.net.ssl.trustStore", "${ES_PATH_CONF}/cacerts.bcfks")
                 .systemProperty("javax.net.ssl.trustStorePassword", "password")
                 .systemProperty("javax.net.ssl.keyStorePassword", "password")
@@ -36,20 +36,6 @@ public class FipsEnabledClusterConfigProvider implements LocalClusterConfigProvi
                 .setting("xpack.security.authc.password_hashing.algorithm", "pbkdf2_stretch")
                 .setting("xpack.security.fips_mode.required_providers", () -> "[BCFIPS, BCJSSE]", n -> n.getVersion().onOrAfter("8.13.0"))
                 .keystorePassword("keystore-password");
-
-            // Inject SecurityManager policy from the previous major's BWC checkout for old ES versions
-            // that still install SecurityManager at bootstrap. The policy file path is provided by the
-            // build system via the tests.cluster.fips.policy.path system property, and the checkout is
-            // guaranteed to exist via a Gradle dependency on the BWC checkout configuration.
-            String fipsPolicyPath = System.getProperty("tests.cluster.fips.policy.path");
-            if (fipsPolicyPath != null) {
-                builder.configFile("fips_java.policy", Resource.fromFile(Path.of(fipsPolicyPath)));
-                builder.systemProperty(
-                    "java.security.policy",
-                    () -> "=${ES_PATH_CONF}/fips_java.policy",
-                    n -> n.getVersion().before("9.0.0")
-                );
-            }
         }
     }
 

@@ -11,9 +11,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
-import org.elasticsearch.xpack.esql.common.Failure;
-import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -46,7 +43,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 /**
  * TEXT_EMBEDDING function converts text to dense vector embeddings using an inference endpoint.
  */
-public class TextEmbedding extends InferenceFunction<TextEmbedding> implements OptionalArgument, PostOptimizationVerificationAware {
+public class TextEmbedding extends InferenceFunction<TextEmbedding> implements OptionalArgument {
 
     private static final String OPTION_TIMEOUT = "timeout";
     private static final Map<String, DataType> ALLOWED_OPTIONS = Map.of(OPTION_TIMEOUT, DataType.KEYWORD);
@@ -187,16 +184,6 @@ public class TextEmbedding extends InferenceFunction<TextEmbedding> implements O
         }
 
         return TypeResolution.TYPE_RESOLVED;
-    }
-
-    @Override
-    public void postOptimizationVerification(Failures failures) {
-        if (inputText.foldable() == false) {
-            failures.add(Failure.fail(this, "first argument for [" + sourceText() + "] must be a constant string"));
-        }
-        if (inferenceId.foldable() == false) {
-            failures.add(Failure.fail(this, "second argument for [" + sourceText() + "] must be a constant string"));
-        }
     }
 
     @Override

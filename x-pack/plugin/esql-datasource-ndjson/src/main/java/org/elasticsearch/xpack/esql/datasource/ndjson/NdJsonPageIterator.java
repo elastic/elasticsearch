@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -50,6 +51,7 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
         List<Attribute> resolvedAttributes,
         ErrorPolicy errorPolicy
     ) throws IOException {
+        Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
         InputStream inputStream = object.newStream();
         if (skipFirstLine) {
             skipToNextLine(inputStream);

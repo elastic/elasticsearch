@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
-import org.checkerframework.checker.nullness.qual.NonNull;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.IOUtils;
@@ -30,12 +29,17 @@ import java.util.Arrays;
  * causes an {@link IOException}; otherwise the buffered partial line is discarded as bogus and
  * reading continues. Discards are logged like {@link NdJsonPageDecoder} parse skips:
  * {@link Level#INFO} when {@link ErrorPolicy#logErrors()} is true, otherwise {@link Level#DEBUG}.
+ *
+ * <p>Only line feed ({@code '\n'}) is a record boundary here. A carriage return from CRLF that is
+ * split across read chunks can remain as a trailing {@code '\r'} on the emitted line (pre-existing
+ * limitation for Windows-style line endings in this path).
  */
 final class TrimLastPartialLineInputStream extends InputStream {
 
     private static final Logger logger = LogManager.getLogger(TrimLastPartialLineInputStream.class);
 
     private static final int DEFAULT_TRIM_CHUNK_SIZE = 8192;
+    /** Record delimiter for trimming (LF only; see class Javadoc for CRLF). */
     private static final char SPLIT_BOUNDARY = '\n';
 
     static final ByteSizeValue MAX_CARRY = ByteSizeValue.ofMb(32);
@@ -62,8 +66,9 @@ final class TrimLastPartialLineInputStream extends InputStream {
     TrimLastPartialLineInputStream(InputStream delegate, int chunkSize, ErrorPolicy errorPolicy) {
         this.delegate = delegate;
         Check.isTrue(chunkSize > 0, "chunkSize must strictly positive");
+        Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
         this.chunk = new byte[chunkSize];
-        this.errorPolicy = errorPolicy != null ? errorPolicy : ErrorPolicy.STRICT;
+        this.errorPolicy = errorPolicy;
     }
 
     @Override
@@ -73,7 +78,7 @@ final class TrimLastPartialLineInputStream extends InputStream {
     }
 
     @Override
-    public int read(byte @NonNull [] b, int off, int len) throws IOException {
+    public int read(byte [] b, int off, int len) throws IOException {
         int total = 0;
         while (len > 0) {
             if (readIdx < writeIdx) {

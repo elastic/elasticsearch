@@ -213,6 +213,20 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         }
     }
 
+    public void testTrimLastPartialLineEmptyStream() throws IOException {
+        try (InputStream trimmed = NdJsonPageIterator.trimLastPartialLine(new ByteArrayInputStream(new byte[0]), ErrorPolicy.STRICT)) {
+            assertEquals(0, trimmed.readAllBytes().length);
+        }
+    }
+
+    /** Input already ends on a line feed: nothing after the last delimiter to trim. */
+    public void testTrimLastPartialLineInputEndsWithNewline() throws IOException {
+        byte[] data = "{\"x\":1}\n".getBytes(StandardCharsets.UTF_8);
+        try (InputStream trimmed = NdJsonPageIterator.trimLastPartialLine(new ByteArrayInputStream(data), ErrorPolicy.STRICT)) {
+            assertArrayEquals(data, trimmed.readAllBytes());
+        }
+    }
+
     /**
      * Exercises carry + emit across multiple small reads (chunk size 4) to match the behavior of
      * trimming when newline boundaries do not align with read buffers.

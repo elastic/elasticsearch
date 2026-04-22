@@ -135,6 +135,10 @@ public abstract class OffsetDocValuesLoaderTestCase extends MapperServiceTestCas
     }
 
     public void testOffsetArrayRandomHighCardinality() throws Exception {
+        assumeTrue(
+            "high cardinality option is enabled in this build",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
         assumeTrue("supports high cardinality option", supportsDocValuesCardinality());
         XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("field");
         minimalMapping(mapping);

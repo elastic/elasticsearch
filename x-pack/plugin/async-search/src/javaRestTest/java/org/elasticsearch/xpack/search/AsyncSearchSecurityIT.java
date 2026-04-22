@@ -153,25 +153,25 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
         assertOK(submitResp);
         SearchHit[] hits = getSearchHits(extractResponseId(submitResp), "user-dls");
         try {
-        assertThat(hits, arrayContainingInAnyOrder(new CustomMatcher<>("\"index\" doc 1 matcher") {
-            @Override
-            public boolean matches(Object actual) {
-                SearchHit hit = (SearchHit) actual;
-                return "index".equals(hit.getIndex()) && "1".equals(hit.getId()) && hit.getSourceAsMap().isEmpty();
-            }
-        }, new CustomMatcher<>("\"index\" doc 2 matcher") {
-            @Override
-            public boolean matches(Object actual) {
-                SearchHit hit = (SearchHit) actual;
-                return "index".equals(hit.getIndex()) && "2".equals(hit.getId()) && "boo".equals(hit.getSourceAsMap().get("baz"));
-            }
-        }, new CustomMatcher<>("\"index-user2\" doc 1 matcher") {
-            @Override
-            public boolean matches(Object actual) {
-                SearchHit hit = (SearchHit) actual;
-                return "index-user2".equals(hit.getIndex()) && "1".equals(hit.getId()) && hit.getSourceAsMap().isEmpty();
-            }
-        }));
+            assertThat(hits, arrayContainingInAnyOrder(new CustomMatcher<>("\"index\" doc 1 matcher") {
+                @Override
+                public boolean matches(Object actual) {
+                    SearchHit hit = (SearchHit) actual;
+                    return "index".equals(hit.getIndex()) && "1".equals(hit.getId()) && hit.getSourceAsMap().isEmpty();
+                }
+            }, new CustomMatcher<>("\"index\" doc 2 matcher") {
+                @Override
+                public boolean matches(Object actual) {
+                    SearchHit hit = (SearchHit) actual;
+                    return "index".equals(hit.getIndex()) && "2".equals(hit.getId()) && "boo".equals(hit.getSourceAsMap().get("baz"));
+                }
+            }, new CustomMatcher<>("\"index-user2\" doc 1 matcher") {
+                @Override
+                public boolean matches(Object actual) {
+                    SearchHit hit = (SearchHit) actual;
+                    return "index-user2".equals(hit.getIndex()) && "1".equals(hit.getId()) && hit.getSourceAsMap().isEmpty();
+                }
+            }));
         } finally {
             releaseHits(hits);
         }

@@ -271,7 +271,14 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
                         )
                     )
                     .toArray(SearchHit[]::new);
-                SearchHits searchHits = new SearchHits(hits, new TotalHits(nhits, TotalHits.Relation.EQUAL_TO), randomFloat(), null, null, null);
+                SearchHits searchHits = new SearchHits(
+                    hits,
+                    new TotalHits(nhits, TotalHits.Relation.EQUAL_TO),
+                    randomFloat(),
+                    null,
+                    null,
+                    null
+                );
                 var searchResponse = SearchResponseUtils.successfulResponse(searchHits);
                 searchHits.decRef(); // transfer ownership to searchResponse
                 ActionListener.respondAndRelease(l, searchResponse);

@@ -358,7 +358,11 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
                 mapping.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 searchHit.sourceRef(BytesReference.bytes(builder));
             }
-            SearchHits searchHits = new SearchHits(new SearchHit[] { searchHit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), randomFloat());
+            SearchHits searchHits = new SearchHits(
+                new SearchHit[] { searchHit },
+                new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+                randomFloat()
+            );
             var searchResponse = SearchResponseUtils.successfulResponse(searchHits);
             searchHits.decRef(); // transfer ownership to searchResponse
             ActionListener.respondAndRelease(listener, searchResponse);

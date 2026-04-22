@@ -229,10 +229,7 @@ public class CancelTasksRelocationIT extends ESIntegTestCase {
 
         try {
             // Wait for the handoff to reach the destination, i.e. the source has CAS'd into HANDOFF_INITIATED.
-            assertTrue(
-                "relocation handoff must reach the destination within 60s",
-                resumeReceivedOnDestination.await(60, TimeUnit.SECONDS)
-            );
+            assertTrue("relocation handoff must reach the destination within 60s", resumeReceivedOnDestination.await(60, TimeUnit.SECONDS));
 
             // Fire the cancel: must bail with 409 because the source's RelocationProgress is HANDOFF_INITIATED.
             final CancelTasksRequest cancel = new CancelTasksRequest();
@@ -243,10 +240,7 @@ public class CancelTasksRelocationIT extends ESIntegTestCase {
             final Throwable cause = response.getTaskFailures().get(0).getCause();
             assertThat(cause, instanceOf(ElasticsearchStatusException.class));
             assertThat(((ElasticsearchStatusException) cause).status(), is(RestStatus.CONFLICT));
-            assertThat(
-                cause.getMessage(),
-                equalTo("cannot cancel task [" + originalTaskId.getId() + "] because it is being relocated")
-            );
+            assertThat(cause.getMessage(), equalTo("cannot cancel task [" + originalTaskId.getId() + "] because it is being relocated"));
         } finally {
             // Release so the rest of the flow can unwind regardless of assertion outcome.
             releaseResume.countDown();

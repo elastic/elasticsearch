@@ -65,6 +65,7 @@ import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVe
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.MIN_PRECONDITIONING_BLOCK_DIMS;
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.MIN_VECTORS_PER_CLUSTER;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
@@ -178,7 +179,7 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
             var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
             long totalByteSize = offHeap.values().stream().mapToLong(Long::longValue).sum();
             assertThat(offHeap.size(), equalTo(3));
-            assertThat(totalByteSize, equalTo(offHeap.values().stream().mapToLong(Long::longValue).sum()));
+            assertThat(totalByteSize, greaterThanOrEqualTo(0L));
         } else {
             throw new AssertionError("unexpected:" + r.getClass());
         }

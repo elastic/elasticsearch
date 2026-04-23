@@ -1263,7 +1263,13 @@ public class EsqlCapabilities {
         /**
          * Fixed a bug where views are incorrectly de-duplicated.
          */
+
         VIEWS_DEDUPLICATION_BUGFIX,
+        /**
+         * Fixed false circular view reference errors when multiple sibling views are resolved together.
+         * See https://github.com/elastic/elasticsearch/issues/146208
+         */
+        VIEWS_FALSE_CIRCULAR_REFERENCE_FIX,
 
         /**
          * Support for the {@code leading_zeros} named parameter.
@@ -2032,6 +2038,12 @@ public class EsqlCapabilities {
         PROMQL_WITHOUT_GROUPING,
 
         /**
+         * PromQL label matchers that accept the empty string (e.g. {@code {label=""}} or {@code {label!="foo"}})
+         * also match time series where the label is absent ({@code NULL}), per PromQL spec.
+         */
+        PROMQL_ABSENT_LABEL_MATCHING,
+
+        /**
          * Support for`WITHOUT` grouping function
          * that excludes specific dimensions from time-series grouping.
          */
@@ -2480,6 +2492,42 @@ public class EsqlCapabilities {
          * See https://github.com/elastic/elasticsearch/issues/145570
          */
         FIX_FULL_TEXT_FUNCTIONS_ON_CONSTANT_KEYWORD,
+
+        /**
+         * Fix for {@code STARTS_WITH} and {@code ENDS_WITH} Lucene pushdown on {@code _index}: use wildcard escaping instead of
+         * query-parser escaping, and honour the {@code stringLikeOnIndex} flag so the wildcard query forces string matching on metadata
+         * fields.
+         */
+        FIX_STARTS_WITH_ENDS_WITH_PUSHDOWN_ON_INDEX,
+
+        /**
+         * Allow evaluatable grouping functions (such as {@code BUCKET}) inside {@code LIMIT ... BY}.
+         * Stateful grouping functions (such as {@code CATEGORIZE}) remain restricted to {@code STATS}.
+         */
+        LIMIT_BY_ALLOW_EVALUATABLE_GROUPING_FUNCTIONS,
+
+        /**
+         * Fix for {@link org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushCountQueryAndTagsToSource} incorrectly
+         * replacing an {@code AggregateExec} that has multiple aggregate functions (e.g. COUNT + MAX) with an
+         * {@code EsStatsQueryExec} that only handles COUNT, when {@code CombineProjections} had removed the grouping key
+         * from the aggregates list.
+         * <p>
+         *     See <a href="https://github.com/elastic/elasticsearch/issues/146479">#146479</a>
+         * </p>
+         */
+        FIX_PUSH_COUNT_QUERY_AND_TAGS_WITH_MULTIPLE_AGGS,
+
+        /**
+         * Fix for column pruning in FORK.
+         */
+        FORK_PRUNE_ALL_COLUMNS_FIX,
+
+        /**
+         * Fix TBUCKET with a numeric bucket count returning a verification exception instead of empty results
+         * when the top-level request filter covers a time range with no matching indices.
+         * See https://github.com/elastic/elasticsearch/issues/146354
+         */
+        FIX_TBUCKET_NUMERIC_ON_EMPTY_RANGE,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

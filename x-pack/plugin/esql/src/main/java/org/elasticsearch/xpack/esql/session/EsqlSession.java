@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor;
+import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
@@ -394,11 +395,15 @@ public class EsqlSession {
         return projectRouting;
     }
 
-    public static ApproximationSettings approximationSettings(EsqlQueryRequest request, EsqlStatement statement) {
+    private ApproximationSettings approximationSettings(EsqlQueryRequest request, EsqlStatement statement) {
         // The precedence for settings is: SET in the statement > request parameter > default (=disabled).
-        return new ApproximationSettings.Builder(false).merge(request.approximation())
+        ApproximationSettings settings = new ApproximationSettings.Builder(false).merge(request.approximation())
             .merge(statement.setting(QuerySettings.APPROXIMATION))
             .build();
+        if (settings != null) {
+            EsqlLicenseChecker.checkQueryApproximation(verifier.licenseState());
+        }
+        return settings;
     }
 
     /**
@@ -858,6 +863,13 @@ public class EsqlSession {
             unmappedResolution == UnmappedResolution.LOAD
         ).withMinimumTransportVersion(localClusterMinimumVersion);
         String description = requestFilter == null ? "the only attempt without filter" : "first attempt with filter";
+        // Extract timestamp bounds eagerly from the request filter so they can be threaded through to the analyzer,
+        // even when index resolution is retried without the filter (e.g. because the filter covers an empty time range).
+        // Extraction uses configuration::absoluteStartedTimeInMillis (fixed at request start), so it is safe to do here.
+        TimestampBounds timestampBounds = QueryDslTimestampBoundsExtractor.extractTimestampBounds(
+            requestFilter,
+            configuration::absoluteStartedTimeInMillis
+        );
 
         resolveIndicesAndAnalyze(
             parsed,
@@ -866,6 +878,7 @@ public class EsqlSession {
             executionInfo,
             description,
             requestFilter,
+            timestampBounds,
             preAnalysis,
             result,
             logicalPlanListener
@@ -879,6 +892,7 @@ public class EsqlSession {
         EsqlExecutionInfo executionInfo,
         String description,
         QueryBuilder requestFilter,
+        TimestampBounds timestampBounds,
         PreAnalyzer.PreAnalysis preAnalysis,
         PreAnalysisResult result,
         ActionListener<Versioned<LogicalPlan>> logicalPlanListener
@@ -963,7 +977,18 @@ public class EsqlSession {
                     }));
             })
             .<Versioned<LogicalPlan>>andThen((l, r) -> {
-                analyzeWithRetry(parsed, unmappedResolution, configuration, executionInfo, description, requestFilter, preAnalysis, r, l);
+                analyzeWithRetry(
+                    parsed,
+                    unmappedResolution,
+                    configuration,
+                    executionInfo,
+                    description,
+                    requestFilter,
+                    timestampBounds,
+                    preAnalysis,
+                    r,
+                    l
+                );
             })
             .addListener(logicalPlanListener);
     }
@@ -1479,6 +1504,7 @@ public class EsqlSession {
         EsqlExecutionInfo executionInfo,
         String description,
         QueryBuilder requestFilter,
+        TimestampBounds timestampBounds,
         PreAnalyzer.PreAnalysis preAnalysis,
         PreAnalysisResult result,
         ActionListener<Versioned<LogicalPlan>> listener
@@ -1496,7 +1522,7 @@ public class EsqlSession {
             }
             TimeSpanMarker analysisProfile = executionInfo.queryProfile().analysis();
             analysisProfile.start();
-            LogicalPlan plan = analyzedPlan(parsed, unmappedResolution, configuration, result, executionInfo, requestFilter);
+            LogicalPlan plan = analyzedPlan(parsed, unmappedResolution, configuration, result, executionInfo, timestampBounds);
             analysisProfile.stop();
             LOGGER.debug("Analyzed plan ({}):\n{}", description, plan);
             // the analysis succeeded from the first attempt, irrespective if it had a filter or not, just continue with the planning
@@ -1516,6 +1542,7 @@ public class EsqlSession {
                     executionInfo,
                     "second attempt, without filter",
                     null,
+                    timestampBounds,
                     preAnalysis,
                     result,
                     listener
@@ -1543,17 +1570,9 @@ public class EsqlSession {
         Configuration configuration,
         PreAnalysisResult r,
         EsqlExecutionInfo executionInfo,
-        QueryBuilder requestFilter
+        TimestampBounds timestampBounds
     ) throws Exception {
         handleFieldCapsFailures(configuration.allowPartialResults(), executionInfo, r.indexResolution());
-        var timestampBounds = QueryDslTimestampBoundsExtractor.extractTimestampBounds(
-            requestFilter,
-            // Resolve date math against the query start time. If this uses the wall clock during planning instead,
-            // filters like [@timestamp >= now-5m AND @timestamp <= now] drift relative to Configuration.now(), so inferred
-            // timestamp bounds can shift within one request and misanchor TBUCKET/TSTEP bucketing.
-            // TODO: support nanos resolution for date_nanos fields
-            configuration::absoluteStartedTimeInMillis
-        );
         AnalyzerContext analyzerContext = new AnalyzerContext(
             configuration,
             functionRegistry,

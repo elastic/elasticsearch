@@ -212,7 +212,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         final long centroidLength = input.readLong();
         final float[] globalCentroid = new float[info.getVectorDimension()];
         long postingListOffset = -1;
-        long postingListLength = -1;
+        long postingListLength = 0;
         float globalCentroidDp = 0;
         if (centroidLength > 0) {
             postingListOffset = input.readLong();

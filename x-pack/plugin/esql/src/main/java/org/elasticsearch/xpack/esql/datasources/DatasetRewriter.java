@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
@@ -32,7 +33,9 @@ import java.util.Map;
 /**
  * Rewrites {@code FROM <dataset>} to the same {@link UnresolvedExternalRelation} the {@code EXTERNAL}
  * command produces, so both paths converge at the existing resolver + analyzer. Runs once on the
- * parsed plan before pre-analysis. Phase 1 rejects mixed indices-and-datasets patterns.
+ * parsed plan before pre-analysis. Mixed index + dataset FROM produces a {@link UnionAll} whose
+ * children the analyzer + mapper route independently — same shape the parser builds for mixed
+ * index + subquery FROM.
  */
 public final class DatasetRewriter {
 
@@ -64,12 +67,10 @@ public final class DatasetRewriter {
         if (datasetNames.isEmpty()) {
             return relation;
         }
+        List<LogicalPlan> children = new ArrayList<>(datasetNames.size() + (indexNames.isEmpty() ? 0 : 1));
         if (indexNames.isEmpty() == false) {
-            throw new VerificationException(
-                "FROM mixing indices and datasets is not supported yet; requested mix: indices=" + indexNames + ", datasets=" + datasetNames
-            );
+            children.add(withIndexPattern(relation, String.join(",", indexNames)));
         }
-        List<LogicalPlan> children = new ArrayList<>(datasetNames.size());
         for (String name : datasetNames) {
             Dataset dataset = datasets.get(name);
             DataSource parent = dataSources.get(dataset.dataSource().getName());
@@ -87,6 +88,19 @@ public final class DatasetRewriter {
 
     private static List<String> splitPattern(String pattern) {
         return Arrays.stream(pattern.split(",")).map(String::trim).filter(s -> s.isEmpty() == false).toList();
+    }
+
+    /** Rebuild an {@link UnresolvedRelation} with a narrower index pattern, preserving the rest. */
+    private static UnresolvedRelation withIndexPattern(UnresolvedRelation original, String newPattern) {
+        return new UnresolvedRelation(
+            original.source(),
+            new IndexPattern(original.source(), newPattern),
+            original.frozen(),
+            original.metadataFields(),
+            original.indexMode(),
+            null,
+            original.telemetryLabel()
+        );
     }
 
     /** Parent data source settings (secrets unwrapped to plaintext) overlaid by the dataset's settings. */

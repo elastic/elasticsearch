@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
@@ -22,7 +23,6 @@ import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceActio
 import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.After;
 import org.junit.Before;
@@ -36,6 +36,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
@@ -48,7 +49,13 @@ import static org.hamcrest.Matchers.hasSize;
  * them. Proves that the parser → dataset rewriter → external-source resolver → analyzer →
  * execution pipeline wires up the way the PR description claims.
  */
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false, minNumDataNodes = 1)
+@ESIntegTestCase.ClusterScope(
+    scope = ESIntegTestCase.Scope.SUITE,
+    numDataNodes = 1,
+    numClientNodes = 0,
+    supportsDedicatedMasters = false,
+    minNumDataNodes = 1
+)
 public class FromDatasetIT extends AbstractEsqlIntegTestCase {
 
     private static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(30);
@@ -126,6 +133,9 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
             client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest("local_ds"))
                 .get(30, java.util.concurrent.TimeUnit.SECONDS);
         } catch (Exception ignored) {}
+        try {
+            client().admin().indices().prepareDelete("local_emps").get();
+        } catch (Exception ignored) {}
     }
 
     public void testFromDatasetReadsCsvFixture() throws Exception {
@@ -156,8 +166,12 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testFromMixedIndexAndDatasetRejected() throws Exception {
+    public void testFromMixedIndexAndDataset() throws Exception {
         assumeTrue("requires external data sources feature flag", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
+
+        // Seed a real ES index with a single compatible row.
+        client().admin().indices().prepareCreate("local_emps").setMapping("emp_no", "type=integer", "first_name", "type=keyword").get();
+        client().prepareIndex("local_emps").setSource("emp_no", 99, "first_name", "Diana").setRefreshPolicy(IMMEDIATE).get();
 
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         assertAcked(
@@ -167,12 +181,21 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
             )
         );
 
-        Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("FROM some_real_index, employees | LIMIT 1"), TIMEOUT));
-        Throwable cause = ex;
-        while (cause != null && cause.getMessage() != null && cause.getMessage().contains("mixing indices and datasets") == false) {
-            cause = cause.getCause();
+        try (var response = run(syncEsqlQueryRequest("FROM local_emps,employees | SORT emp_no"), TIMEOUT)) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns, hasSize(2));
+            assertThat(columns.get(0).name(), equalTo("emp_no"));
+            assertThat(columns.get(1).name(), equalTo("first_name"));
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(4));
+            // rows from the CSV dataset (1..3) + the one row from the ES index (99)
+            assertThat(rows.get(0).get(0), equalTo(1));
+            assertThat(rows.get(1).get(0), equalTo(2));
+            assertThat(rows.get(2).get(0), equalTo(3));
+            assertThat(rows.get(3).get(0), equalTo(99));
+            assertThat(rows.get(3).get(1).toString(), equalTo("Diana"));
         }
-        assertThat("error chain should contain Phase-1 mix-rejection", cause, org.hamcrest.Matchers.notNullValue());
     }
 
     private static PutDataSourceAction.Request putDataSourceRequest(String name, Map<String, Object> settings) {

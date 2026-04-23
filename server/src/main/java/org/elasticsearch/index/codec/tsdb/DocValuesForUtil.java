@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec.tsdb;
 
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
+import org.apache.lucene.util.BitUtil;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.index.codec.ForUtil;
 import org.elasticsearch.index.codec.SimdForUtil;
@@ -97,7 +98,10 @@ public final class DocValuesForUtil {
         // NOTE: we expect multibyte values to be written "least significant byte" first
         int bytesPerValue = bitsPerValue / Byte.SIZE;
         in.readBytes(this.encoded, 0, bytesPerValue * blockSize);
-        ESVectorUtil.decodeMultiByteLongs(this.encoded, bytesPerValue, out, blockSize);
+        long mask = (1L << bitsPerValue) - 1;
+        for (int i = 0, byteOffset = 0; i < blockSize; i++, byteOffset += bytesPerValue) {
+            out[i] = (long) BitUtil.VH_LE_LONG.get(this.encoded, byteOffset) & mask;
+        }
     }
 
     private static void collapse32(long[] arr, int offset) {

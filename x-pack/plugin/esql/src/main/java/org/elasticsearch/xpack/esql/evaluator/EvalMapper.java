@@ -29,6 +29,19 @@ public final class EvalMapper {
     }
 
     /**
+     * Provides an ExpressionEvaluator factory to evaluate an expression that does not require shard contexts
+     * but may reference functions (e.g. {@code TOP_SNIPPETS}) that need the node-level {@link AnalysisRegistry}.
+     */
+    public static ExpressionEvaluator.Factory toEvaluator(
+        FoldContext foldCtx,
+        Expression exp,
+        Layout layout,
+        @Nullable AnalysisRegistry analysisRegistry
+    ) {
+        return toEvaluator(foldCtx, exp, layout, EmptyIndexedByShardId.instance(), analysisRegistry);
+    }
+
+    /**
      * Provides an ExpressionEvaluator factory to evaluate an expression.
      *
      * @param foldCtx the fold context for folding expressions

@@ -81,6 +81,7 @@ public class TextEmbeddingConfigTests extends InferenceConfigItemTestCase<TextEm
                 ? null
                 : randomFrom(
                     BertTokenizationTests.createRandom(),
+                    ByteLevelBpeTokenizationTests.createRandom(),
                     MPNetTokenizationTests.createRandom(),
                     RobertaTokenizationTests.createRandom()
                 ),

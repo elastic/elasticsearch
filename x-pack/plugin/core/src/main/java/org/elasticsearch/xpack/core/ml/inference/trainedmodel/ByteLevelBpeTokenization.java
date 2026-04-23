@@ -1,0 +1,235 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
+
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.action.PutTrainedModelVocabularyAction;
+
+import java.io.IOException;
+import java.util.Objects;
+import java.util.Optional;
+
+/**
+ * Tokenization settings for byte-level BPE models (for example GPT-2 style vocabularies) that ship
+ * a merge table alongside the vocabulary. The in-process tokenizer applies UTF-8 byte mapping and
+ * BPE merges using the same engine as the RoBERTa tokenizer, but special token strings are
+ * configurable so deployments can align with Hugging Face tokenizer metadata.
+ */
+public class ByteLevelBpeTokenization extends Tokenization {
+
+    /** Name used in inference configuration XContent and named writeables. */
+    public static final String NAME = "byte_level_bpe";
+
+    private static final ParseField ADD_PREFIX_SPACE = new ParseField("add_prefix_space");
+    private static final ParseField UNK_TOKEN = new ParseField("unk_token");
+    private static final ParseField PAD_TOKEN = new ParseField("pad_token");
+    private static final ParseField BOS_TOKEN = new ParseField("bos_token");
+    private static final ParseField EOS_TOKEN = new ParseField("eos_token");
+    private static final ParseField MASK_TOKEN = new ParseField("mask_token");
+
+    private static final boolean DEFAULT_ADD_PREFIX_SPACE = false;
+    private static final String DEFAULT_UNK_TOKEN = "<unk>";
+    private static final String DEFAULT_PAD_TOKEN = "<pad>";
+    private static final String DEFAULT_BOS_TOKEN = "<s>";
+    private static final String DEFAULT_EOS_TOKEN = "</s>";
+    private static final String DEFAULT_MASK_TOKEN = "<mask>";
+
+    public static ConstructingObjectParser<ByteLevelBpeTokenization, Void> createParser(boolean ignoreUnknownFields) {
+        ConstructingObjectParser<ByteLevelBpeTokenization, Void> parser = new ConstructingObjectParser<>(
+            "byte_level_bpe_tokenization",
+            ignoreUnknownFields,
+            a -> new ByteLevelBpeTokenization(
+                (Boolean) a[0],
+                (Boolean) a[1],
+                (Integer) a[2],
+                a[3] == null ? null : Truncate.fromString((String) a[3]),
+                (Integer) a[4],
+                (Boolean) a[5],
+                (String) a[6],
+                (String) a[7],
+                (String) a[8],
+                (String) a[9],
+                (String) a[10]
+            )
+        );
+        declareCommonFields(parser);
+        parser.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ADD_PREFIX_SPACE);
+        parser.declareString(ConstructingObjectParser.optionalConstructorArg(), UNK_TOKEN);
+        parser.declareString(ConstructingObjectParser.optionalConstructorArg(), PAD_TOKEN);
+        parser.declareString(ConstructingObjectParser.optionalConstructorArg(), BOS_TOKEN);
+        parser.declareString(ConstructingObjectParser.optionalConstructorArg(), EOS_TOKEN);
+        parser.declareString(ConstructingObjectParser.optionalConstructorArg(), MASK_TOKEN);
+        return parser;
+    }
+
+    private static final ConstructingObjectParser<ByteLevelBpeTokenization, Void> LENIENT_PARSER = createParser(true);
+    private static final ConstructingObjectParser<ByteLevelBpeTokenization, Void> STRICT_PARSER = createParser(false);
+
+    public static ByteLevelBpeTokenization fromXContent(XContentParser parser, boolean lenient) {
+        return lenient ? LENIENT_PARSER.apply(parser, null) : STRICT_PARSER.apply(parser, null);
+    }
+
+    private final boolean addPrefixSpace;
+    private final String unkToken;
+    private final String padToken;
+    private final String bosToken;
+    private final String eosToken;
+    private final String maskToken;
+
+    public ByteLevelBpeTokenization(
+        @Nullable Boolean doLowerCase,
+        @Nullable Boolean withSpecialTokens,
+        @Nullable Integer maxSequenceLength,
+        @Nullable Truncate truncate,
+        @Nullable Integer span,
+        @Nullable Boolean addPrefixSpace,
+        @Nullable String unkToken,
+        @Nullable String padToken,
+        @Nullable String bosToken,
+        @Nullable String eosToken,
+        @Nullable String maskToken
+    ) {
+        super(doLowerCase, withSpecialTokens, maxSequenceLength, truncate, span);
+        this.addPrefixSpace = Optional.ofNullable(addPrefixSpace).orElse(DEFAULT_ADD_PREFIX_SPACE);
+        this.unkToken = resolveSpecialToken(unkToken, DEFAULT_UNK_TOKEN);
+        this.padToken = resolveSpecialToken(padToken, DEFAULT_PAD_TOKEN);
+        this.bosToken = resolveSpecialToken(bosToken, DEFAULT_BOS_TOKEN);
+        this.eosToken = resolveSpecialToken(eosToken, DEFAULT_EOS_TOKEN);
+        this.maskToken = resolveSpecialToken(maskToken, DEFAULT_MASK_TOKEN);
+    }
+
+    public ByteLevelBpeTokenization(StreamInput in) throws IOException {
+        super(in);
+        this.addPrefixSpace = in.readBoolean();
+        this.unkToken = in.readString();
+        this.padToken = in.readString();
+        this.bosToken = in.readString();
+        this.eosToken = in.readString();
+        this.maskToken = in.readString();
+    }
+
+    private static String resolveSpecialToken(@Nullable String value, String defaultValue) {
+        if (value == null || value.isBlank()) {
+            return defaultValue;
+        }
+        return value;
+    }
+
+    public boolean isAddPrefixSpace() {
+        return addPrefixSpace;
+    }
+
+    public String getUnkToken() {
+        return unkToken;
+    }
+
+    public String getPadToken() {
+        return padToken;
+    }
+
+    public String getBosToken() {
+        return bosToken;
+    }
+
+    public String getEosToken() {
+        return eosToken;
+    }
+
+    @Override
+    Tokenization buildWindowingTokenization(int updatedMaxSeqLength, int updatedSpan) {
+        return new ByteLevelBpeTokenization(
+            doLowerCase,
+            withSpecialTokens,
+            updatedMaxSeqLength,
+            Truncate.NONE,
+            updatedSpan,
+            addPrefixSpace,
+            unkToken,
+            padToken,
+            bosToken,
+            eosToken,
+            maskToken
+        );
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeBoolean(addPrefixSpace);
+        out.writeString(unkToken);
+        out.writeString(padToken);
+        out.writeString(bosToken);
+        out.writeString(eosToken);
+        out.writeString(maskToken);
+    }
+
+    @Override
+    public String getMaskToken() {
+        return maskToken;
+    }
+
+    @Override
+    XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+        builder.field(ADD_PREFIX_SPACE.getPreferredName(), addPrefixSpace);
+        builder.field(UNK_TOKEN.getPreferredName(), unkToken);
+        builder.field(PAD_TOKEN.getPreferredName(), padToken);
+        builder.field(BOS_TOKEN.getPreferredName(), bosToken);
+        builder.field(EOS_TOKEN.getPreferredName(), eosToken);
+        builder.field(MASK_TOKEN.getPreferredName(), maskToken);
+        return builder;
+    }
+
+    @Override
+    public String getName() {
+        return NAME;
+    }
+
+    @Override
+    public void validateVocabulary(PutTrainedModelVocabularyAction.Request request) {
+        if (request.getMerges().isEmpty()) {
+            throw new ElasticsearchStatusException(
+                "cannot put vocabulary for model [{}] as tokenizer type [{}] requires [{}] to be provided and non-empty",
+                RestStatus.BAD_REQUEST,
+                request.getModelId(),
+                getName(),
+                PutTrainedModelVocabularyAction.Request.MERGES.getPreferredName()
+            );
+        }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        if (super.equals(o) == false) return false;
+        ByteLevelBpeTokenization that = (ByteLevelBpeTokenization) o;
+        return addPrefixSpace == that.addPrefixSpace
+            && Objects.equals(unkToken, that.unkToken)
+            && Objects.equals(padToken, that.padToken)
+            && Objects.equals(bosToken, that.bosToken)
+            && Objects.equals(eosToken, that.eosToken)
+            && Objects.equals(maskToken, that.maskToken);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), addPrefixSpace, unkToken, padToken, bosToken, eosToken, maskToken);
+    }
+}

@@ -36,6 +36,8 @@ public abstract class NlpConfigUpdate implements InferenceConfigUpdate, NamedXCo
             BertTokenizationUpdate::new,
             BertJapaneseTokenization.NAME.getPreferredName(),
             BertJapaneseTokenizationUpdate::new,
+            ByteLevelBpeTokenization.NAME,
+            ByteLevelBpeTokenizationUpdate::new,
             MPNetTokenization.NAME.getPreferredName(),
             MPNetTokenizationUpdate::new,
             RobertaTokenizationUpdate.NAME.getPreferredName(),

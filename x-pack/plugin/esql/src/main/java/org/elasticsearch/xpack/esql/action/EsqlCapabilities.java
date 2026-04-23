@@ -2460,7 +2460,7 @@ public class EsqlCapabilities {
         /**
          * TSDB Temporality support which is guarded by a feature flag.
          */
-        TSDB_TEMPORALITY_SUPPORT_V1(IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG),
+        TSDB_TEMPORALITY_SUPPORT_V2(IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG),
 
         /**
          * Support the null column type for the CHANGE_POINT command
@@ -2605,6 +2605,11 @@ public class EsqlCapabilities {
          * Support for PromQL time extraction functions: month(), day_of_month(), day_of_week(), day_of_year(), hour(), minute().
          */
         PROMQL_TIME_FUNCTIONS,
+
+        /**
+         * Support for PromQL days_in_month() function.
+         */
+        PROMQL_DAYS_IN_MONTH,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

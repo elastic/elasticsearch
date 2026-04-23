@@ -2,9 +2,6 @@ tests:
 - class: org.elasticsearch.packaging.test.PackagesSecurityAutoConfigurationTests
   method: test20SecurityNotAutoConfiguredOnReInstallation
   issue: https://github.com/elastic/elasticsearch/issues/112635
-- class: org.elasticsearch.xpack.transform.integration.TransformIT
-  method: testStopWaitForCheckpoint
-  issue: https://github.com/elastic/elasticsearch/issues/106113
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityWithApmTracingRestIT
   method: testTracingCrossCluster
   issue: https://github.com/elastic/elasticsearch/issues/112731
@@ -79,9 +76,6 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=termvectors/30_realtime/Realtime Term Vectors}
   issue: https://github.com/elastic/elasticsearch/issues/138370
-- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
-  method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old regression job}
-  issue: https://github.com/elastic/elasticsearch/issues/139654
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:spatial.convertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/139213
@@ -270,12 +264,18 @@ tests:
 - class: org.elasticsearch.reindex.management.ReindexListRelocationIT
   method: testListReindexShowsOriginalIdentityAfterRelocation
   issue: https://github.com/elastic/elasticsearch/issues/145963
-- class: org.elasticsearch.search.fetch.FetchPhaseDocsIteratorTests
-  method: testIterateAsyncVisitsLeavesInDocIdOrder
-  issue: https://github.com/elastic/elasticsearch/issues/146078
 - class: org.elasticsearch.xpack.entsearch.EnterpriseSearchRestIT
   method: test {p0=entsearch/rules/40_rule_query_search/Perform a rule query with an organic query that must be rewritten to another query type}
   issue: https://github.com/elastic/elasticsearch/issues/146106
+- class: org.elasticsearch.xpack.security.authz.SnapshotUserRoleIntegTests
+  method: testSnapshotUserRoleIsReserved
+  issue: https://github.com/elastic/elasticsearch/issues/146972
+- class: org.elasticsearch.xpack.security.authz.SnapshotUserRoleIntegTests
+  method: testSnapshotUserRoleCanSnapshotAndSeeAllIndices
+  issue: https://github.com/elastic/elasticsearch/issues/146973
+- class: org.elasticsearch.xpack.security.authz.SnapshotUserRoleIntegTests
+  method: testSnapshotUserRoleUnathorizedForDestructiveActions
+  issue: https://github.com/elastic/elasticsearch/issues/146974
 
 # Examples:
 #

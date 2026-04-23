@@ -1263,7 +1263,13 @@ public class EsqlCapabilities {
         /**
          * Fixed a bug where views are incorrectly de-duplicated.
          */
+
         VIEWS_DEDUPLICATION_BUGFIX,
+        /**
+         * Fixed false circular view reference errors when multiple sibling views are resolved together.
+         * See https://github.com/elastic/elasticsearch/issues/146208
+         */
+        VIEWS_FALSE_CIRCULAR_REFERENCE_FIX,
 
         /**
          * Support for the {@code leading_zeros} named parameter.
@@ -2493,6 +2499,12 @@ public class EsqlCapabilities {
          * fields.
          */
         FIX_STARTS_WITH_ENDS_WITH_PUSHDOWN_ON_INDEX,
+
+        /**
+         * Allow evaluatable grouping functions (such as {@code BUCKET}) inside {@code LIMIT ... BY}.
+         * Stateful grouping functions (such as {@code CATEGORIZE}) remain restricted to {@code STATS}.
+         */
+        LIMIT_BY_ALLOW_EVALUATABLE_GROUPING_FUNCTIONS,
 
         /**
          * Fix for {@link org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushCountQueryAndTagsToSource} incorrectly

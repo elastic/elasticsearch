@@ -44,7 +44,8 @@ final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
         Mapper.IgnoreAbove ignoreAbove,
         boolean usesBinaryDocValues,
         List<SourceLoader.SyntheticFieldLoader> mappedSubFieldLoaders,
-        boolean storeIgnoredFieldsInBinaryDocValues
+        boolean storeIgnoredFieldsInBinaryDocValues,
+        FlattenedFieldMapper.PreserveLeafArrays preserveLeafArrays
     ) {
         this.ignoreAbove = ignoreAbove;
         this.fieldLoader = new BlockFlattenedDocValuesSyntheticFieldLoader(
@@ -54,7 +55,8 @@ final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
             null,
             usesBinaryDocValues,
             mappedSubFieldLoaders,
-            storeIgnoredFieldsInBinaryDocValues
+            storeIgnoredFieldsInBinaryDocValues,
+            preserveLeafArrays
         );
         this.storedFieldLoaders = fieldLoader.storedFieldLoaders().toList();
     }
@@ -187,7 +189,8 @@ final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
             String leafName,
             boolean usesBinaryDocValues,
             List<SourceLoader.SyntheticFieldLoader> mappedSubFieldLoaders,
-            boolean storeIgnoredFieldsInBinaryDocValues
+            boolean storeIgnoredFieldsInBinaryDocValues,
+            FlattenedFieldMapper.PreserveLeafArrays preserveLeafArrays
         ) {
             super(
                 fieldFullPath,
@@ -196,7 +199,8 @@ final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
                 leafName,
                 usesBinaryDocValues,
                 mappedSubFieldLoaders,
-                storeIgnoredFieldsInBinaryDocValues
+                storeIgnoredFieldsInBinaryDocValues,
+                preserveLeafArrays
             );
         }
 

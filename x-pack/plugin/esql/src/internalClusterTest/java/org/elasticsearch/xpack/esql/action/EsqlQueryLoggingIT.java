@@ -78,6 +78,7 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
         int numDocs1 = setupIndex("index-1", "192.168.0.1");
         int numDocs2 = setupIndex("index-2", "10.0.0.1");
 
+        assertQuery("FROM index-* | LIMIT 0", 0);
         assertQuery("FROM index-* | EVAL ip = to_ip(host) | STATS s = COUNT(*) by ip | KEEP ip | LIMIT 100", 2);
         assertQuery("FROM index-* | LIMIT 100", numDocs1 + numDocs2);
         assertFailedQuery(
@@ -95,7 +96,10 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
             var loggedQuery = message.get(QUERY_FIELD_QUERY);
             var queryForAssert = loggedQuery != null && loggedQuery.startsWith(PREPARED_QUERY_PREFIX) ? PREPARED_QUERY_PREFIX : query;
             assertMessageSuccess(message, EsqlLogContext.TYPE, queryForAssert);
-            assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "successful")), greaterThanOrEqualTo(1));
+            if (hits > 0) {
+                // Zero hits may mean no shards were used, so we can't assert that
+                assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "successful")), greaterThanOrEqualTo(1));
+            }
             assertThat(Integer.valueOf(message.getOrDefault(QUERY_FIELD_SHARDS + "skipped", "0")), greaterThanOrEqualTo(0));
             assertThat(message.getOrDefault(QUERY_FIELD_SHARDS + "failed", "0"), equalTo("0"));
 

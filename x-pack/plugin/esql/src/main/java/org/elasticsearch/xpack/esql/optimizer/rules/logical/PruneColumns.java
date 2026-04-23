@@ -23,11 +23,9 @@ import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
-import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
@@ -37,9 +35,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneEmptyPlans.skipPlan;
@@ -72,13 +68,6 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
             // TODO: revisit with every new command
             // skip nodes that simply pass the input through and use no references
             if (p instanceof Limit || p instanceof Sample) {
-                return p;
-            }
-
-            // MetricsInfo/TsInfo handle their own field extraction internally;
-            // mark all child attributes as used so nothing below them is pruned.
-            if (p instanceof MetricsInfo || p instanceof TsInfo) {
-                used.addAll(((UnaryPlan) p).child().outputSet());
                 return p;
             }
 
@@ -244,10 +233,9 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         AttributeSet.Builder builder = AttributeSet.builder();
         // if any of the fork outputs are used, keep them
         // otherwise, prune them based on the rest of the plan's usage
-        Set<String> names = new HashSet<>(used.build().names());
         for (var attr : fork.output()) {
             // we should also ensure to keep any synthetic attributes around as those could still be used for internal processing
-            if (attr.synthetic() || names.contains(attr.name())) {
+            if (attr.synthetic() || used.contains(attr)) {
                 builder.add(attr);
             } else {
                 forkOutputChanged = true;
@@ -268,6 +256,8 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                 newSubPlan = new LocalRelation(localRelation.source(), outputAttrs, localRelation.supplier());
             } else {
                 // otherwise, we first prune the projections of the top-level Project of each subplan
+                subPlan.outputSet().stream().filter(x -> forkOutputNames.contains(x.name())).forEach(usedAttrs::add);
+
                 Holder<Boolean> projectVisited = new Holder<>(false);
                 newSubPlan = subPlan.transformDown(Project.class, p -> {
                     if (projectVisited.get()) {
@@ -276,10 +266,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                     projectVisited.set(true);
                     // filter projections based on fork output attributes
                     var prunedAttrs = p.projections().stream().filter(x -> forkOutputNames.contains(x.name())).toList();
-                    p = new Project(p.source(), p.child(), prunedAttrs);
-                    // add all output attributes to used set
-                    usedAttrs.addAll(p.output());
-                    return p;
+                    return new Project(p.source(), p.child(), prunedAttrs);
                 });
                 newSubPlan = pruneColumns(newSubPlan, usedAttrs, false);
             }

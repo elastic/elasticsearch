@@ -1,0 +1,136 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings_regex, contains ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_v5, optional_fields_fix_unmapped_load_multi_index_pattern ]
+      reason: 'requires SET unmapped_fields="load" and the bug fix for querying multiple indices'
+  #
+  # The table below represents the field mappings for the three indices created in this test.
+  #
+  # | Field      | index1  |   index2   | index3  |
+  # |------------|---------|------------|---------|
+  # | alpha      | long    | integer    | -       |
+  # | lambda     | keyword | keyword    | -       |
+  # | tau        | date    | date_nanos | -       |
+  # | beta       | -       | double     | -       |
+  # | a.b.c.d    | -       | -          | boolean |
+  #
+  - do:
+      indices.create:
+        index: index1
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              alpha:
+                type: long
+              lambda:
+                type: keyword
+              tau:
+                type: date
+  - do:
+      indices.create:
+        index: index2
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              alpha:
+                type: integer
+              lambda:
+                type: keyword
+              tau:
+                type: date_nanos
+              beta:
+                type: double
+  - do:
+      indices.create:
+        index: index3
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              a:
+                properties:
+                   b:
+                     properties:
+                       c:
+                         properties:
+                            d:
+                              type: boolean
+
+---
+two-branches-one-index:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM index1 | FORK (WHERE NOT BYTE_LENGTH(lambda) < 11) (WHERE true)'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Found 1 problem' }
+  - contains: { error.reason: 'line 1:43: FORK is not supported with unmapped_fields="load"' }
+
+---
+one-branch-one-index:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM index2 | FORK (WHERE NOT BYTE_LENGTH(lambda) < 11)'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Found 1 problem' }
+  - contains: { error.reason: 'line 1:43: FORK is not supported with unmapped_fields="load"' }
+
+---
+two-branches-one-index-wildcard:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM index3* | FORK (WHERE NOT BYTE_LENGTH(lambda) < 11) (WHERE true)'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Found 1 problem' }
+  - contains: { error.reason: 'line 1:44: FORK is not supported with unmapped_fields="load"' }
+
+---
+one-branch-multi-index:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM index1,index2 | FORK (WHERE NOT BYTE_LENGTH(lambda) < 11)'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Found 1 problem' }
+  - contains: { error.reason: 'line 1:50: FORK is not supported with unmapped_fields="load"' }
+
+---
+two-branches-multi-index:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM index1,index2 | FORK (WHERE NOT BYTE_LENGTH(lambda) < 11) (WHERE true)'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Found 1 problem' }
+  - contains: { error.reason: 'line 1:50: FORK is not supported with unmapped_fields="load"' }
+
+---
+two-branches-multi-index-wildcard:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM ind* | FORK (WHERE NOT BYTE_LENGTH(lambda) < 11) (WHERE true)'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Found 1 problem' }
+  - contains: { error.reason: 'line 1:41: FORK is not supported with unmapped_fields="load"' }

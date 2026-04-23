@@ -5,6 +5,12 @@ redirects:
   # Redirect for bbq.md move
   'reference/elasticsearch/index-settings/bbq.md': 'reference/elasticsearch/mapping-reference/bbq.md'
 
+  # Path settings moved from index settings to configuration reference (node path.data / path.logs)
+  'reference/elasticsearch/index-settings/path.md': 'reference/elasticsearch/configuration-reference/path.md'
+
+  # Indexing pressure documents node setting indexing_pressure.memory.limit, not index-level settings
+  'reference/elasticsearch/index-settings/pressure.md': 'reference/elasticsearch/configuration-reference/indexing-pressure-settings.md'
+
   # Related to https://github.com/elastic/elasticsearch/pull/130716/
   'reference/query-languages/eql/eql-ex-threat-detection.md': 'docs-content://explore-analyze/query-filter/languages/example-detect-threats-with-eql.md'
 

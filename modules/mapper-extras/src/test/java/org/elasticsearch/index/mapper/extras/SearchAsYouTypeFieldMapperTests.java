@@ -114,8 +114,8 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         checker.registerUpdateCheck("search_quote_analyzer", b -> {
             b.field("analyzer", "default");
             b.field("search_analyzer", "keyword");
-            b.field("search_quote_analyzer", "keyword");
-        }, m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().searchQuoteAnalyzer().name()));
+            b.field("search_quote_analyzer", "standard");
+        }, m -> assertEquals("standard", m.fieldType().getTextSearchInfo().searchQuoteAnalyzer().name()));
 
         checker.registerIgnoredParameter("doc_values");
     }
@@ -283,8 +283,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         }
     }
 
-    private static void assertMultiField(int shingleSize, MapperService mapperService, String suggestPath, String textPath)
-        throws IOException {
+    private void assertMultiField(int shingleSize, MapperService mapperService, String suggestPath, String textPath) throws IOException {
         List<String> fields = new ArrayList<>();
         fields.add(suggestPath);
         fields.add(textPath);

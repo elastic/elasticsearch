@@ -15,6 +15,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -101,7 +102,7 @@ public abstract class OffsetDocValuesLoaderTestCase extends MapperServiceTestCas
         verifyOffsets("{\"field\":[null,[null],null]}", "{\"field\":[null,null,null]}");
     }
 
-    public void testOffsetArrayRandom() throws Exception {
+    private void testOffsetArrayRandom(XContentBuilder mapping) throws Exception {
         String values;
         int numValues = randomIntBetween(0, 256);
 
@@ -122,7 +123,28 @@ public abstract class OffsetDocValuesLoaderTestCase extends MapperServiceTestCas
             b.endArray();
             values = Strings.toString(b);
         }
-        verifyOffsets("{\"field\":" + values + "}");
+        String source = "{\"field\":" + values + "}";
+        verifyOffsets(mapping, source, source);
+    }
+
+    public void testOffsetArrayRandom() throws Exception {
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("field");
+        minimalMapping(mapping);
+        mapping.endObject().endObject().endObject().endObject();
+        testOffsetArrayRandom(mapping);
+    }
+
+    public void testOffsetArrayRandomHighCardinality() throws Exception {
+        assumeTrue(
+            "high cardinality option is enabled in this build",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
+        assumeTrue("supports high cardinality option", supportsDocValuesCardinality());
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("field");
+        minimalMapping(mapping);
+        mapping.startObject("doc_values").field("cardinality", "high").endObject();
+        mapping.endObject().endObject().endObject().endObject();
+        testOffsetArrayRandom(mapping);
     }
 
     protected void minimalMapping(XContentBuilder b) throws IOException {
@@ -134,6 +156,10 @@ public abstract class OffsetDocValuesLoaderTestCase extends MapperServiceTestCas
     protected abstract String getFieldTypeName();
 
     protected abstract Object randomValue();
+
+    protected boolean supportsDocValuesCardinality() {
+        return false;
+    }
 
     protected void verifyOffsets(String source) throws IOException {
         verifyOffsets(source, source);
@@ -153,6 +179,10 @@ public abstract class OffsetDocValuesLoaderTestCase extends MapperServiceTestCas
             try (var directory = newDirectory()) {
                 var iw = indexWriterForSyntheticSource(directory);
                 var doc = mapper.parse(new SourceToParse("_id", new BytesArray(source), XContentType.JSON));
+
+                var offsetsField = doc.rootDoc().getFields("field.offsets");
+                assertThat(offsetsField, Matchers.hasSize(1));
+
                 doc.updateSeqID(0, 0);
                 doc.version().setLongValue(0);
                 iw.addDocuments(doc.docs());

@@ -7,5 +7,29 @@
 
 `num_words`
 :   (integer) The maximum number of words to return in each snippet.
+	
+{applies_to}`stack: preview 9.4`When set to 0, disables chunking entirely,
+ the input field values are used as-is, which is
+useful when the text has already been chunked.
+
+
+`highlight` {applies_to}`stack: preview 9.4.1`
+:   (boolean) When true, wraps matched query terms in the returned snippets with markup tags.
+Defaults to false.
+
+
+`pre_tag` {applies_to}`stack: preview 9.4.1`
+:   (keyword) Opening tag for highlighted terms. Only applies when highlight is true.
+Defaults to `<em>`.
+
+
+`post_tag` {applies_to}`stack: preview 9.4.1`
+:   (keyword) Closing tag for highlighted terms. Only applies when highlight is true.
+Defaults to `</em>`.
+
+
+`encoder` {applies_to}`stack: preview 9.4.1`
+:   (keyword) Controls HTML encoding of snippet text before tagging: `default` (no encoding) or `html`.
+Only applies when highlight is true. Defaults to `default`.
 
 

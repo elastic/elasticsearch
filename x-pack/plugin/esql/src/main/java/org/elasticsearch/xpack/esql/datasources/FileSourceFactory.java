@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
@@ -20,7 +22,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 /**
  * Framework-internal factory that bridges the building-block registries
@@ -138,6 +142,12 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 partitionValues = fileSplit.partitionValues();
             }
 
+            List<Expression> pushedExpressions = context.pushedExpressions();
+            FilterPushdownSupport pushdownSupport = (pushedExpressions != null && pushedExpressions.isEmpty() == false)
+                ? format.filterPushdownSupport()
+                : null;
+
+            Executor readExecutor = context.fileReadExecutor() != null ? context.fileReadExecutor() : context.executor();
             return new AsyncExternalSourceOperatorFactory(
                 storage,
                 format,
@@ -146,14 +156,15 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 context.batchSize(),
                 context.maxBufferSize(),
                 context.rowLimit(),
-                context.executor(),
+                readExecutor,
                 context.fileList(),
                 context.partitionColumnNames(),
                 partitionValues,
                 context.sliceQueue(),
                 errorPolicy,
                 context.parsingParallelism(),
-                null
+                pushedExpressions,
+                pushdownSupport
             );
         };
     }

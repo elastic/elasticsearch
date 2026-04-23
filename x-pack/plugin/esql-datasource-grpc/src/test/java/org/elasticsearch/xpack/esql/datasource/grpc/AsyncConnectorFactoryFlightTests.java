@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.esql.datasource.grpc;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
@@ -25,15 +27,16 @@ import org.elasticsearch.xpack.esql.datasources.spi.QueryRequest;
 import org.elasticsearch.xpack.esql.datasources.spi.ResultCursor;
 import org.elasticsearch.xpack.esql.datasources.spi.Split;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class AsyncConnectorFactoryFlightTests extends ESTestCase {
 
@@ -93,7 +96,7 @@ public class AsyncConnectorFactoryFlightTests extends ESTestCase {
     }
 
     public void testConnectorWithDrainUtils() throws Exception {
-        ExecutorService executor = Executors.newSingleThreadExecutor();
+        ExecutorService executor = Executors.newSingleThreadExecutor(EsExecutors.daemonThreadFactory("test", "drain"));
         try (EmployeeFlightServer server = new EmployeeFlightServer(0)) {
             String endpoint = "flight://localhost:" + server.port();
             FlightConnectorFactory factory = new FlightConnectorFactory();
@@ -109,18 +112,27 @@ public class AsyncConnectorFactoryFlightTests extends ESTestCase {
                 AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
 
                 ResultCursor cursor = connector.execute(request, Split.SINGLE);
-                executor.execute(() -> {
-                    try {
-                        ExternalSourceDrainUtils.drainPages(cursor, buffer);
-                        buffer.finish(false);
-                    } catch (Exception e) {
-                        buffer.onFailure(e);
-                    } finally {
-                        try {
-                            cursor.close();
-                        } catch (IOException ignored) {}
-                    }
-                });
+                CountDownLatch drainDone = new CountDownLatch(1);
+                AtomicReference<Exception> drainError = new AtomicReference<>();
+                executor.execute(
+                    () -> ExternalSourceDrainUtils.drainPagesAsync(
+                        cursor,
+                        buffer,
+                        executor,
+                        ActionListener.runAfter(ActionListener.wrap(v -> {
+                            buffer.finish(false);
+                            drainDone.countDown();
+                        }, e -> {
+                            drainError.set(e);
+                            buffer.onFailure(e);
+                            drainDone.countDown();
+                        }), () -> {
+                            try {
+                                cursor.close();
+                            } catch (Exception ignored) {}
+                        })
+                    )
+                );
 
                 int totalRows = 0;
                 while (buffer.noMoreInputs() == false || buffer.size() > 0) {
@@ -138,6 +150,8 @@ public class AsyncConnectorFactoryFlightTests extends ESTestCase {
                     page.releaseBlocks();
                 }
 
+                assertTrue(drainDone.await(30, TimeUnit.SECONDS));
+                assertNull("Drain should not fail", drainError.get());
                 assertEquals(100, totalRows);
             }
         } finally {
@@ -191,7 +205,7 @@ public class AsyncConnectorFactoryFlightTests extends ESTestCase {
 
     public void testMultiSplitWithSliceQueue() throws Exception {
         int numEndpoints = 4;
-        ExecutorService executor = Executors.newFixedThreadPool(2);
+        ExecutorService executor = Executors.newFixedThreadPool(2, EsExecutors.daemonThreadFactory("test", "drain"));
         try (EmployeeFlightServer server = new EmployeeFlightServer(0, numEndpoints)) {
             String endpoint = "flight://localhost:" + server.port();
             FlightConnectorFactory factory = new FlightConnectorFactory();
@@ -213,20 +227,10 @@ public class AsyncConnectorFactoryFlightTests extends ESTestCase {
             try (Connector connector = factory.open(Map.of("endpoint", endpoint))) {
                 QueryRequest request = new QueryRequest("employees", projectedColumns, attributes, Map.of(), 1000, blockFactory);
                 AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
+                CountDownLatch drainDone = new CountDownLatch(1);
+                AtomicReference<Exception> drainError = new AtomicReference<>();
 
-                executor.execute(() -> {
-                    try {
-                        ExternalSplit split;
-                        while ((split = sliceQueue.nextSplit()) != null) {
-                            try (ResultCursor cursor = connector.execute(request, split)) {
-                                ExternalSourceDrainUtils.drainPages(cursor, buffer);
-                            }
-                        }
-                        buffer.finish(false);
-                    } catch (Exception e) {
-                        buffer.onFailure(e);
-                    }
-                });
+                executor.execute(() -> drainNextSplit(sliceQueue, connector, request, buffer, executor, drainDone, drainError));
 
                 int totalRows = 0;
                 while (buffer.noMoreInputs() == false || buffer.size() > 0) {
@@ -244,12 +248,61 @@ public class AsyncConnectorFactoryFlightTests extends ESTestCase {
                     page.releaseBlocks();
                 }
 
+                assertTrue(drainDone.await(30, TimeUnit.SECONDS));
+                assertNull("Drain should not fail", drainError.get());
                 assertEquals(100, totalRows);
             }
         } finally {
             executor.shutdown();
             executor.awaitTermination(10, TimeUnit.SECONDS);
         }
+    }
+
+    private static void drainNextSplit(
+        ExternalSliceQueue sliceQueue,
+        Connector connector,
+        QueryRequest request,
+        AsyncExternalSourceBuffer buffer,
+        ExecutorService executor,
+        CountDownLatch drainDone,
+        AtomicReference<Exception> drainError
+    ) {
+        if (buffer.noMoreInputs()) {
+            buffer.finish(false);
+            drainDone.countDown();
+            return;
+        }
+        ExternalSplit split = sliceQueue.nextSplit();
+        if (split == null) {
+            buffer.finish(false);
+            drainDone.countDown();
+            return;
+        }
+        ResultCursor cursor;
+        try {
+            cursor = connector.execute(request, split);
+        } catch (Exception e) {
+            buffer.onFailure(e);
+            drainDone.countDown();
+            return;
+        }
+        ExternalSourceDrainUtils.drainPagesAsync(cursor, buffer, executor, ActionListener.runAfter(ActionListener.wrap(v -> {
+            try {
+                executor.execute(() -> drainNextSplit(sliceQueue, connector, request, buffer, executor, drainDone, drainError));
+            } catch (Exception e) {
+                drainError.set(e);
+                buffer.onFailure(e);
+                drainDone.countDown();
+            }
+        }, e -> {
+            drainError.set(e);
+            buffer.onFailure(e);
+            drainDone.countDown();
+        }), () -> {
+            try {
+                cursor.close();
+            } catch (Exception ignored) {}
+        }));
     }
 
     public void testMultiSplitWithNullLocationUsesDefaultClient() throws Exception {

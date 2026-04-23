@@ -39,8 +39,6 @@ import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase.constructorWithFunctionInfo;
-import static org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry.def;
-import static org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy.DEFAULT;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -48,46 +46,51 @@ import static org.mockito.Mockito.mock;
 public class EsqlFunctionRegistryTests extends ESTestCase {
 
     public void testNoArgFunction() {
-        UnresolvedFunction ur = uf(DEFAULT);
-        EsqlFunctionRegistry r = new EsqlFunctionRegistry(def(DummyFunction.class, DummyFunction::new, "dummyFunction"));
+        UnresolvedFunction ur = uf();
+        EsqlFunctionRegistry r = new EsqlFunctionRegistry(
+            FunctionDefinition.def(DummyFunction.class).noArgs(DummyFunction::new).name("dummyFunction")
+        );
         FunctionDefinition def = r.resolveFunction(ur.name());
         assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
     }
 
     public void testBinaryFunction() {
-        UnresolvedFunction ur = uf(DEFAULT, mock(Expression.class), mock(Expression.class));
-        EsqlFunctionRegistry r = new EsqlFunctionRegistry(def(DummyFunction.class, (Source l, Expression lhs, Expression rhs) -> {
-            assertSame(lhs, ur.children().get(0));
-            assertSame(rhs, ur.children().get(1));
-            return new DummyFunction(l);
-        }, "dummyFunction"));
+        UnresolvedFunction ur = uf(mock(Expression.class), mock(Expression.class));
+        EsqlFunctionRegistry r = new EsqlFunctionRegistry(
+            FunctionDefinition.def(DummyFunction.class).binary((Source l, Expression lhs, Expression rhs) -> {
+                assertSame(lhs, ur.children().get(0));
+                assertSame(rhs, ur.children().get(1));
+                return new DummyFunction(l);
+            }).name("dummyFunction")
+        );
         FunctionDefinition def = r.resolveFunction(ur.name());
         assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
 
         // No children aren't supported
-        ParsingException e = expectThrows(ParsingException.class, () -> uf(DEFAULT).buildResolved(randomConfiguration(), def));
+        ParsingException e = expectThrows(ParsingException.class, () -> uf().buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), containsString("expects exactly two arguments"));
 
         // One child isn't supported
-        e = expectThrows(ParsingException.class, () -> uf(DEFAULT, mock(Expression.class)).buildResolved(randomConfiguration(), def));
+        e = expectThrows(ParsingException.class, () -> uf(mock(Expression.class)).buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), containsString("expects exactly two arguments"));
 
         // Many children aren't supported
         e = expectThrows(
             ParsingException.class,
-            () -> uf(DEFAULT, mock(Expression.class), mock(Expression.class), mock(Expression.class)).buildResolved(
-                randomConfiguration(),
-                def
-            )
+            () -> uf(mock(Expression.class), mock(Expression.class), mock(Expression.class)).buildResolved(randomConfiguration(), def)
         );
         assertThat(e.getMessage(), containsString("expects exactly two arguments"));
     }
 
     public void testAliasNameIsTheSameAsAFunctionName() {
-        EsqlFunctionRegistry r = new EsqlFunctionRegistry(def(DummyFunction.class, DummyFunction::new, "DUMMY_FUNCTION", "ALIAS"));
+        EsqlFunctionRegistry r = new EsqlFunctionRegistry(
+            FunctionDefinition.def(DummyFunction.class).noArgs(DummyFunction::new).name("DUMMY_FUNCTION", "ALIAS")
+        );
         QlIllegalArgumentException iae = expectThrows(
             QlIllegalArgumentException.class,
-            () -> r.register(def(DummyFunction2.class, DummyFunction2::new, "DUMMY_FUNCTION2", "DUMMY_FUNCTION"))
+            () -> r.register(
+                FunctionDefinition.def(DummyFunction2.class).noArgs(DummyFunction2::new).name("DUMMY_FUNCTION2", "DUMMY_FUNCTION")
+            )
         );
         assertEquals("alias [DUMMY_FUNCTION] is used by [DUMMY_FUNCTION] and [DUMMY_FUNCTION2]", iae.getMessage());
     }
@@ -96,24 +99,26 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
         QlIllegalArgumentException iae = expectThrows(
             QlIllegalArgumentException.class,
             () -> new EsqlFunctionRegistry(
-                def(DummyFunction.class, DummyFunction::new, "DUMMY_FUNCTION", "ALIAS"),
-                def(DummyFunction2.class, DummyFunction2::new, "DUMMY_FUNCTION2", "ALIAS")
+                FunctionDefinition.def(DummyFunction.class).noArgs(DummyFunction::new).name("DUMMY_FUNCTION", "ALIAS"),
+                FunctionDefinition.def(DummyFunction2.class).noArgs(DummyFunction2::new).name("DUMMY_FUNCTION2", "ALIAS")
             )
         );
         assertEquals("alias [ALIAS] is used by [DUMMY_FUNCTION(ALIAS)] and [DUMMY_FUNCTION2]", iae.getMessage());
     }
 
     public void testDuplicateAliasInTwoDifferentFunctionsFromTwoDifferentBatches() {
-        EsqlFunctionRegistry r = new EsqlFunctionRegistry(def(DummyFunction.class, DummyFunction::new, "DUMMY_FUNCTION", "ALIAS"));
+        EsqlFunctionRegistry r = new EsqlFunctionRegistry(
+            FunctionDefinition.def(DummyFunction.class).noArgs(DummyFunction::new).name("DUMMY_FUNCTION", "ALIAS")
+        );
         QlIllegalArgumentException iae = expectThrows(
             QlIllegalArgumentException.class,
-            () -> r.register(def(DummyFunction2.class, DummyFunction2::new, "DUMMY_FUNCTION2", "ALIAS"))
+            () -> r.register(FunctionDefinition.def(DummyFunction2.class).noArgs(DummyFunction2::new).name("DUMMY_FUNCTION2", "ALIAS"))
         );
         assertEquals("alias [ALIAS] is used by [DUMMY_FUNCTION] and [DUMMY_FUNCTION2]", iae.getMessage());
     }
 
     public void testFunctionResolving() {
-        UnresolvedFunction ur = uf(DEFAULT, mock(Expression.class));
+        UnresolvedFunction ur = uf(mock(Expression.class));
         EsqlFunctionRegistry r = new EsqlFunctionRegistry(defineDummyFunction(ur, "dummyfunction", "dummyfunc"));
 
         // Resolve by primary name
@@ -144,47 +149,49 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
     }
 
     public void testUnaryFunction() {
-        UnresolvedFunction ur = uf(DEFAULT, mock(Expression.class));
+        UnresolvedFunction ur = uf(mock(Expression.class));
         EsqlFunctionRegistry r = new EsqlFunctionRegistry(defineDummyUnaryFunction(ur));
         FunctionDefinition def = r.resolveFunction(ur.name());
 
         // No children aren't supported
-        ParsingException e = expectThrows(ParsingException.class, () -> uf(DEFAULT).buildResolved(randomConfiguration(), def));
+        ParsingException e = expectThrows(ParsingException.class, () -> uf().buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), containsString("expects exactly one argument"));
 
         // Multiple children aren't supported
         e = expectThrows(
             ParsingException.class,
-            () -> uf(DEFAULT, mock(Expression.class), mock(Expression.class)).buildResolved(randomConfiguration(), def)
+            () -> uf(mock(Expression.class), mock(Expression.class)).buildResolved(randomConfiguration(), def)
         );
         assertThat(e.getMessage(), containsString("expects exactly one argument"));
     }
 
     public void testConfigurationOptionalFunction() {
-        UnresolvedFunction ur = uf(DEFAULT, mock(Expression.class));
+        UnresolvedFunction ur = uf(mock(Expression.class));
         FunctionDefinition def;
         EsqlFunctionRegistry r = new EsqlFunctionRegistry(
-            def(DummyConfigurationOptionalArgumentFunction.class, (Source l, Expression e, Configuration c) -> {
-                assertSame(e, ur.children().get(0));
-                return new DummyConfigurationOptionalArgumentFunction(l, List.of(ur), c);
-            }, "dummy")
+            FunctionDefinition.def(DummyConfigurationOptionalArgumentFunction.class)
+                .unaryConfig((Source l, Expression e, Configuration c) -> {
+                    assertSame(e, ur.children().get(0));
+                    return new DummyConfigurationOptionalArgumentFunction(l, List.of(ur), c);
+                })
+                .name("dummy")
         );
         def = r.resolveFunction(r.resolveAlias("DUMMY"));
         assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
 
-        ParsingException e = expectThrows(ParsingException.class, () -> uf(DEFAULT).buildResolved(randomConfiguration(), def));
+        ParsingException e = expectThrows(ParsingException.class, () -> uf().buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), containsString("expects exactly one argument"));
     }
 
-    private static UnresolvedFunction uf(FunctionResolutionStrategy resolutionStrategy, Expression... children) {
-        return new UnresolvedFunction(SourceTests.randomSource(), "dummyFunction", resolutionStrategy, Arrays.asList(children));
+    private static UnresolvedFunction uf(Expression... children) {
+        return new UnresolvedFunction(SourceTests.randomSource(), "dummyFunction", Arrays.asList(children));
     }
 
-    private static FunctionDefinition defineDummyFunction(UnresolvedFunction ur, String... names) {
-        return def(DummyFunction.class, (Source l, Expression e) -> {
+    private static FunctionDefinition defineDummyFunction(UnresolvedFunction ur, String name, String... aliases) {
+        return FunctionDefinition.def(DummyFunction.class).unary((Source l, Expression e) -> {
             assertSame(e, ur.children().get(0));
             return new DummyFunction(l);
-        }, names);
+        }).name(name, aliases);
     }
 
     private static FunctionDefinition defineDummyUnaryFunction(UnresolvedFunction ur) {
@@ -306,8 +313,6 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.conditional.GreatestErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.conditional.LeastErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToAggregateMetricDoubleErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateRangeErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateRangeTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVectorErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersionErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersectionErrorTests is missing")

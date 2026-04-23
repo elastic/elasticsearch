@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
@@ -57,6 +58,9 @@ import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToInt
  */
 public class DateDiff extends EsqlConfigurationFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "DateDiff", DateDiff::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(DateDiff.class)
+        .ternaryConfig(DateDiff::new)
+        .name("date_diff");
 
     private final Expression unit;
     private final Expression startTimestamp;

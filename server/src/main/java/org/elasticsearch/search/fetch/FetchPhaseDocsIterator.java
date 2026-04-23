@@ -166,7 +166,7 @@ abstract class FetchPhaseDocsIterator {
         }
     }
 
-    private static int endReaderIdx(LeafReaderContext currentReaderContext, int index, DocIdToIndex[] docs) {
+    static int endReaderIdx(LeafReaderContext currentReaderContext, int index, DocIdToIndex[] docs) {
         int firstInNextReader = currentReaderContext.docBase + currentReaderContext.reader().maxDoc();
         int i = index + 1;
         while (i < docs.length) {
@@ -178,7 +178,7 @@ abstract class FetchPhaseDocsIterator {
         return i;
     }
 
-    private static int[] docIdsInLeaf(int index, int endReaderIdx, DocIdToIndex[] docs, int docBase) {
+    static int[] docIdsInLeaf(int index, int endReaderIdx, DocIdToIndex[] docs, int docBase) {
         int[] result = new int[endReaderIdx - index];
         int d = 0;
         for (int i = index; i < endReaderIdx; i++) {
@@ -188,7 +188,7 @@ abstract class FetchPhaseDocsIterator {
         return result;
     }
 
-    private static class DocIdToIndex implements Comparable<DocIdToIndex> {
+    static class DocIdToIndex implements Comparable<DocIdToIndex> {
         final int docId;
         final int index;
 

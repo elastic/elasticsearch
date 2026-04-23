@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
+import org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlFunction;
 import org.elasticsearch.xpack.esql.plan.physical.CompoundOutputEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
@@ -179,7 +180,8 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         UnresolvedAttribute.class,
         UnresolvedException.class,
         UnresolvedFunction.class,
-        UnresolvedNamedExpression.class
+        UnresolvedNamedExpression.class,
+        UnresolvedPromqlFunction.class
     );
 
     private final Class<T> subclass;
@@ -859,9 +861,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             int rootLength = root.toString().length() + 1;
 
             // load classes from jar files
-            // NIO FileSystem API is not used since it trips the SecurityManager
-            // https://bugs.openjdk.java.net/browse/JDK-8160798
-            // so iterate the jar "by hand"
+            // iterate the jar "by hand"
             if (path.endsWith(".jar") && path.contains(ESQL_CORE_JAR_LOCATION_SUBSTRING)) {
                 try (JarInputStream jar = jarStream(root)) {
                     JarEntry je = null;

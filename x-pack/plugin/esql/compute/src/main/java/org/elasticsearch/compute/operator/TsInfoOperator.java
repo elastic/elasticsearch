@@ -9,8 +9,12 @@ package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -27,6 +31,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 
@@ -185,6 +190,10 @@ public class TsInfoOperator implements Operator {
     private boolean finished = false;
     private boolean outputProduced = false;
 
+    private int pagesReceived;
+    private long rowsReceived;
+    private long rowsEmitted;
+
     private TsInfoOperator(
         Mode mode,
         BlockFactory blockFactory,
@@ -209,6 +218,8 @@ public class TsInfoOperator implements Operator {
 
     @Override
     public void addInput(Page page) {
+        pagesReceived++;
+        rowsReceived += page.getPositionCount();
         if (mode == Mode.FINAL) {
             addInputFinal(page);
         } else {
@@ -499,7 +510,9 @@ public class TsInfoOperator implements Operator {
             return createEmptyPage();
         }
 
-        return createOutputPageFromRows(mergeRowsBySignature(entriesByKey));
+        Page output = createOutputPageFromRows(mergeRowsBySignature(entriesByKey));
+        rowsEmitted = output.getPositionCount();
+        return output;
     }
 
     private Page createEmptyPage() {
@@ -584,7 +597,87 @@ public class TsInfoOperator implements Operator {
     }
 
     @Override
+    public Operator.Status status() {
+        return new Status(mode, pagesReceived, rowsReceived, rowsEmitted, entriesByKey.size());
+    }
+
+    @Override
     public String toString() {
         return "TsInfoOperator[mode=" + mode + "]";
+    }
+
+    public record Status(Mode mode, int pagesReceived, long rowsReceived, long rowsEmitted, int entriesAccumulated)
+        implements
+            Operator.Status {
+
+        public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+            Operator.Status.class,
+            "ts_info",
+            Status::new
+        );
+
+        private static final TransportVersion ESQL_TS_INFO_OPERATOR_STATUS = TransportVersion.fromName("esql_ts_info_operator_status");
+
+        Status(StreamInput in) throws IOException {
+            this(Mode.valueOf(in.readString()), in.readVInt(), in.readVLong(), in.readVLong(), in.readVInt());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(mode.name());
+            out.writeVInt(pagesReceived);
+            out.writeVLong(rowsReceived);
+            out.writeVLong(rowsEmitted);
+            out.writeVInt(entriesAccumulated);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return ENTRY.name;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("mode", mode);
+            builder.field("pages_received", pagesReceived);
+            builder.field("rows_received", rowsReceived);
+            builder.field("rows_emitted", rowsEmitted);
+            builder.field("entries_accumulated", entriesAccumulated);
+            return builder.endObject();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Status other = (Status) o;
+            return mode == other.mode
+                && pagesReceived == other.pagesReceived
+                && rowsReceived == other.rowsReceived
+                && rowsEmitted == other.rowsEmitted
+                && entriesAccumulated == other.entriesAccumulated;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(mode, pagesReceived, rowsReceived, rowsEmitted, entriesAccumulated);
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this);
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            assert false : "must not be called when overriding supportsVersion";
+            throw new UnsupportedOperationException("must not be called when overriding supportsVersion");
+        }
+
+        @Override
+        public boolean supportsVersion(TransportVersion version) {
+            return version.supports(ESQL_TS_INFO_OPERATOR_STATUS);
+        }
     }
 }

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.ExternalSliceQueue;
 
@@ -46,9 +47,11 @@ public record SourceOperatorContext(
     int maxBufferSize,
     int rowLimit,
     Executor executor,
+    @Nullable Executor fileReadExecutor,
     Map<String, Object> config,
     Map<String, Object> sourceMetadata,
     Object pushedFilter,
+    List<Expression> pushedExpressions,
     FileList fileList,
     @Nullable ExternalSplit split,
     Set<String> partitionColumnNames,
@@ -62,6 +65,7 @@ public record SourceOperatorContext(
         attributes = attributes != null ? List.copyOf(attributes) : List.of();
         config = config != null ? Map.copyOf(config) : Map.of();
         sourceMetadata = sourceMetadata != null ? Map.copyOf(sourceMetadata) : Map.of();
+        pushedExpressions = pushedExpressions != null ? List.copyOf(pushedExpressions) : List.of();
         partitionColumnNames = partitionColumnNames != null && partitionColumnNames.isEmpty() == false
             ? Collections.unmodifiableSet(new LinkedHashSet<>(partitionColumnNames))
             : Set.of();
@@ -100,9 +104,11 @@ public record SourceOperatorContext(
             maxBufferSize,
             FormatReader.NO_LIMIT,
             executor,
+            null,
             config,
             sourceMetadata,
             pushedFilter,
+            null,
             fileList,
             split,
             null,
@@ -133,9 +139,11 @@ public record SourceOperatorContext(
             maxBufferSize,
             FormatReader.NO_LIMIT,
             executor,
+            null,
             config,
             sourceMetadata,
             pushedFilter,
+            null,
             fileList,
             null,
             null,
@@ -165,9 +173,11 @@ public record SourceOperatorContext(
             maxBufferSize,
             FormatReader.NO_LIMIT,
             executor,
+            null,
             config,
             sourceMetadata,
             pushedFilter,
+            null,
             null,
             null,
             null,
@@ -195,8 +205,10 @@ public record SourceOperatorContext(
             maxBufferSize,
             FormatReader.NO_LIMIT,
             executor,
+            null,
             config,
             Map.of(),
+            null,
             null,
             null,
             null,
@@ -219,9 +231,12 @@ public record SourceOperatorContext(
         private int maxBufferSize = 10;
         private int rowLimit = FormatReader.NO_LIMIT;
         private Executor executor;
+        @Nullable
+        private Executor fileReadExecutor;
         private Map<String, Object> config;
         private Map<String, Object> sourceMetadata;
         private Object pushedFilter;
+        private List<Expression> pushedExpressions;
         private FileList fileList;
         private ExternalSplit split;
         private Set<String> partitionColumnNames;
@@ -268,6 +283,16 @@ public record SourceOperatorContext(
             return this;
         }
 
+        /**
+         * Optional executor for file (and similar) background reads. When set (e.g. to {@code generic}),
+         * async reads and slice-queue drain run here instead of on {@link #executor}, so producers blocked
+         * in buffer backpressure do not starve the {@code esql_worker} drivers that consume the buffer.
+         */
+        public Builder fileReadExecutor(Executor fileReadExecutor) {
+            this.fileReadExecutor = fileReadExecutor;
+            return this;
+        }
+
         public Builder config(Map<String, Object> config) {
             this.config = config;
             return this;
@@ -280,6 +305,11 @@ public record SourceOperatorContext(
 
         public Builder pushedFilter(Object pushedFilter) {
             this.pushedFilter = pushedFilter;
+            return this;
+        }
+
+        public Builder pushedExpressions(List<Expression> pushedExpressions) {
+            this.pushedExpressions = pushedExpressions;
             return this;
         }
 
@@ -318,9 +348,11 @@ public record SourceOperatorContext(
                 maxBufferSize,
                 rowLimit,
                 executor,
+                fileReadExecutor,
                 config,
                 sourceMetadata,
                 pushedFilter,
+                pushedExpressions,
                 fileList,
                 split,
                 partitionColumnNames,

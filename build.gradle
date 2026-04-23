@@ -349,7 +349,7 @@ allprojects {
       dependsOn project.getTasks().withType(JavaCompile.class)
     }
     // we run the packer script for all active branches. so we should be able to skip bwc here
-    if(project.path.startsWith(":distribution:bwc:")) {
+    if (project.path.startsWith(":distribution:bwc:")) {
       dependsOn project.tasks.matching { it.name == 'buildBwcLinuxTar' }
     }
     if (project.path.contains("fixture")) {
@@ -380,7 +380,7 @@ allprojects {
     }
 
     proj.tasks.addRule("Pattern: v<BWC_VERSION>#bwcTest$partString") { name ->
-      if(name.endsWith("#bwcTest$partString")) {
+      if (name.endsWith("#bwcTest$partString")) {
         proj.project.getTasks().register(name) {
           task -> task.dependsOn(proj.tasks.named { tskName -> tskName == (name - partString) })
         }
@@ -399,20 +399,25 @@ allprojects {
     if (project.path.startsWith(":x-pack:")) {
       if (project.path.contains("security") || project.path.contains(":ml")) {
         splitForCI(project, "Part4")
-      } else if (project.path.contains("smoke-test")) {
-        splitForCI(project, "Part6")
-      } else if (project.path == ":x-pack:plugin") {
-        splitForCI(project, "Part6")
-      } else if (project.path.contains(":eql") || project.path.contains(":sql")) {
+      } else if (project.path.contains(":esql-datasource") || project.path.contains(":esql-core")) {
+        splitForCI(project, "Part5")
+      } else if (project.path.contains(":esql:qa") && project.path.contains("multi-node")) {
+        splitForCI(project, "Part5")
+      } else if (project.path.contains(":esql:qa")) {
+        splitForCI(project, "Part3")
+      } else if (project.path.contains(":eql") || project.path.contains(":sql") || project.path.contains(":transform") ||
+          project.path.contains("multi-node") || project.path.contains(":inference")) {
         splitForCI(project, "Part5")
       } else if (project.path.contains("ql")) {
         splitForCI(project, "Part3")
-      } else if (project.path.contains("multi-node")) {
-        splitForCI(project, "Part5")
+      } else if (project.path == ":x-pack:plugin") {
+        splitForCI(project, "Part1")
       } else {
         splitForCI(project, "Part2")
       }
-    } else if(project.path.startsWith(":qa:")) {
+    } else if (project.path.startsWith(":qa:") || project.path.startsWith(":test:")) {
+      splitForCI(project, "Part6")
+    } else if (project.path.startsWith(":libs:")) {
       splitForCI(project, "Part6")
     } else {
       splitForCI(project, "Part1")

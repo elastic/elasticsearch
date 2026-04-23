@@ -871,7 +871,8 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             REPO_NAME,
             SNAP_NAME
         ).setWaitForCompletion(true).get();
-        assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
+        int totalShards = restoreSnapshotResponse.getRestoreInfo().totalShards();
+        assertThat(totalShards, greaterThan(0));
 
         ensureGreen();
 

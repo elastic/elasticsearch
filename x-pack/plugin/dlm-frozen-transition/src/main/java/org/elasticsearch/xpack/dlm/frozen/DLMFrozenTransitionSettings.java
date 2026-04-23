@@ -35,10 +35,10 @@ public class DLMFrozenTransitionSettings {
     }
 
     /**
-     * Registers the settings object to update dynamic settings from via the cluster service
+     * Registers this settings object with the cluster service to update its dynamic settings
      * @param clusterService Cluster settings to be registered to
      */
-    public void init(ClusterService clusterService) {
+    private void init(ClusterService clusterService) {
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(
                 DataStreamLifecycleErrorStore.DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING,

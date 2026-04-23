@@ -466,6 +466,11 @@ describe("generatePipeline", () => {
     expect(step.env!["BATCH_COMMAND_0"]).toContain("repeat-rest-test.sh");
     expect(step.env!["BATCH_COMMAND_1"]).toContain("repeat-rest-test.sh");
     expect(step.command).toContain("BUILDKITE_PARALLEL_JOB");
+    // The `$$` escape prevents Buildkite pipeline interpolation from trying to
+    // parse `${!VARNAME}` (bash indirect expansion) as a Buildkite variable,
+    // which fails with "Expected identifier to start with a letter, got !".
+    expect(step.command).toContain('$${!VARNAME}');
+    expect(step.command).not.toMatch(/[^$]\$\{!VARNAME\}/);
   });
 
   test("all test kinds appear in single group with unique keys", () => {

@@ -244,9 +244,13 @@ public class HollowShardsService extends AbstractLifecycleComponent {
         logger.debug(() -> "installing ingestion blocker for shard " + shardId + " due to " + reason);
 
         // We only install the blocker when all primary permits are held during primary relocation or when a hollow shard
-        // is recovering (before any ingestion is processed)
-        assert indexShard.state() == IndexShardState.RECOVERING || indexShard.getActiveOperationsCount() == IndexShard.OPERATIONS_BLOCKED
-            : "can only be done in post recovery or when all primary permits are blocked. current state is "
+        // is recovering (before any ingestion is processed). If shard is deleted concurrently with recovery we will remove
+        // the hollow shard in the end.
+        assert indexShard.state() == IndexShardState.CLOSED
+            || indexShard.state() == IndexShardState.RECOVERING
+            || indexShard.getActiveOperationsCount() == IndexShard.OPERATIONS_BLOCKED
+            : "can only be done in post recovery (with allowance for concurrent deletion) "
+                + "or when all primary permits are blocked. current state is "
                 + indexShard.state()
                 + " and active operations count "
                 + indexShard.getActiveOperationsCount()

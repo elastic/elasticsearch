@@ -91,6 +91,7 @@ public class AggregatorImplementer {
     private final boolean hasOnlyBlockArguments;
     private final boolean tryToUseVectors;
     private final boolean processNulls;
+    private final boolean needsWarnings;
 
     public AggregatorImplementer(
         Elements elements,
@@ -132,8 +133,12 @@ public class AggregatorImplementer {
         this.createParameters = init.getParameters()
             .stream()
             .map(Parameter::from)
-            .filter(f -> false == f.type().equals(BIG_ARRAYS) && false == f.type().equals(DRIVER_CONTEXT))
+            .filter(
+                f -> false == f.type().equals(BIG_ARRAYS) && false == f.type().equals(DRIVER_CONTEXT) && false == f.type().equals(WARNINGS)
+            )
             .toList();
+
+        this.needsWarnings = warnExceptions.isEmpty() == false || initHasWarnings();
 
         this.first = aggState.declaredType.isPrimitive()
             ? null
@@ -162,6 +167,10 @@ public class AggregatorImplementer {
         return createParameters;
     }
 
+    boolean initHasWarnings() {
+        return init.getParameters().stream().anyMatch(p -> TypeName.get(p.asType()).equals(WARNINGS));
+    }
+
     public static String capitalize(String s) {
         return Character.toUpperCase(s.charAt(0)) + s.substring(1);
     }
@@ -188,7 +197,7 @@ public class AggregatorImplementer {
                 .build()
         );
 
-        if (warnExceptions.isEmpty() == false) {
+        if (needsWarnings) {
             builder.addField(WARNINGS, "warnings", Modifier.PRIVATE, Modifier.FINAL);
         }
 
@@ -235,7 +244,7 @@ public class AggregatorImplementer {
 
     private MethodSpec ctor() {
         MethodSpec.Builder builder = MethodSpec.constructorBuilder();
-        if (warnExceptions.isEmpty() == false) {
+        if (needsWarnings) {
             builder.addParameter(WARNINGS, "warnings");
         }
         builder.addParameter(DRIVER_CONTEXT, "driverContext");
@@ -245,7 +254,7 @@ public class AggregatorImplementer {
             p.buildCtor(builder);
         }
 
-        if (warnExceptions.isEmpty() == false) {
+        if (needsWarnings) {
             builder.addStatement("this.warnings = warnings");
         }
         builder.addStatement("this.driverContext = driverContext");
@@ -255,10 +264,16 @@ public class AggregatorImplementer {
     }
 
     private CodeBlock initState() {
-        String initParametersCall = init.getParameters()
-            .stream()
-            .map(p -> TypeName.get(p.asType()).equals(BIG_ARRAYS) ? "driverContext.bigArrays()" : p.getSimpleName().toString())
-            .collect(joining(", "));
+        String initParametersCall = init.getParameters().stream().map(p -> {
+            TypeName type = TypeName.get(p.asType());
+            if (type.equals(BIG_ARRAYS)) {
+                return "driverContext.bigArrays()";
+            }
+            if (type.equals(WARNINGS)) {
+                return "warnings";
+            }
+            return p.getSimpleName().toString();
+        }).collect(joining(", "));
         CodeBlock.Builder builder = CodeBlock.builder();
         if (aggState.declaredType().isPrimitive()) {
             builder.add("new $T($T.$L($L))", aggState.type(), declarationType, init.getSimpleName(), initParametersCall);

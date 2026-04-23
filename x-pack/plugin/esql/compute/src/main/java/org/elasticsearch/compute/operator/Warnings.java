@@ -21,6 +21,11 @@ public class Warnings {
         public void registerException(Exception exception) {
             // this space intentionally left blank
         }
+
+        @Override
+        public void registerWarning(String message) {
+            // this space intentionally left blank
+        }
     };
 
     /**
@@ -118,6 +123,16 @@ public class Warnings {
             }
             // location needs to be added to the exception too, since the headers are deduplicated
             addWarning(location + exceptionClass.getName() + ": " + message);
+            addedWarnings++;
+        }
+    }
+
+    /**
+     * Register a custom warning message (not tied to an exception).
+     */
+    public void registerWarning(String message) {
+        if (addedWarnings < MAX_ADDED_WARNINGS) {
+            addWarning(location + message);
             addedWarnings++;
         }
     }

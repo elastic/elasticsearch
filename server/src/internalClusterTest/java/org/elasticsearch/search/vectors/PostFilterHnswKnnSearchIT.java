@@ -159,7 +159,7 @@ public class PostFilterHnswKnnSearchIT extends ESIntegTestCase {
      */
     private void indexFlatDocs(String indexName) {
         for (int i = 0; i < 20; i++) {
-            String tag = i < 16 ? "common" : "rare";
+            String tag = randomFloat() < .8f ? "common" : "rare";
             prepareIndex(indexName).setId(Integer.toString(i)).setSource(VECTOR_FIELD, new float[] { 1, 1, 1, i }, TAG_FIELD, tag).get();
         }
         forceMerge(true);
@@ -173,7 +173,7 @@ public class PostFilterHnswKnnSearchIT extends ESIntegTestCase {
      */
     private void indexNestedDocs(String indexName) {
         for (int parentId = 0; parentId < 10; parentId++) {
-            String tag = parentId < 8 ? "common" : "rare";
+            String tag = randomFloat() < .8f ? "common" : "rare";
             int childIdx0 = parentId * 2;
             int childIdx1 = parentId * 2 + 1;
             prepareIndex(indexName).setId("parent_" + parentId)

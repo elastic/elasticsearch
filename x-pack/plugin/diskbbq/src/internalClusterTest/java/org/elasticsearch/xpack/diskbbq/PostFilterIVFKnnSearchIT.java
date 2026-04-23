@@ -26,13 +26,12 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
-import static org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import static org.elasticsearch.license.DiskBBQLicensingIT.enableLicensing;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 
 @LuceneTestCase.SuppressCodecs("*")
 @ESTestCase.WithoutEntitlements
-public class PostFilterIvfKnnSearchIT extends ESIntegTestCase {
+public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
 
     private static final String VECTOR_FIELD = "vector";
     private static final String TAG_FIELD = "tag";
@@ -62,23 +61,21 @@ public class PostFilterIvfKnnSearchIT extends ESIntegTestCase {
         return Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/0")
-    public void testIvfFloat() throws IOException {
+    public void testIVFFloat() throws IOException {
         String indexName = "ivf_float_test";
-        createIvfIndex(indexName);
+        createIVFIndex(indexName);
         indexFlatDocs(indexName);
         assertPostFilterFlat(indexName);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/0")
-    public void testIvfFloatNested() throws IOException {
+    public void testIVFFloatNested() throws IOException {
         String indexName = "ivf_float_nested_test";
-        createIvfNestedIndex(indexName);
+        createIVFNestedIndex(indexName);
         indexNestedDocs(indexName);
         assertPostFilterNested(indexName);
     }
 
-    private void createIvfIndex(String indexName) throws IOException {
+    private void createIVFIndex(String indexName) throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
             .startObject("properties")
@@ -100,7 +97,7 @@ public class PostFilterIvfKnnSearchIT extends ESIntegTestCase {
         ensureGreen(indexName);
     }
 
-    private void createIvfNestedIndex(String indexName) throws IOException {
+    private void createIVFNestedIndex(String indexName) throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
             .startObject("properties")
@@ -145,7 +142,7 @@ public class PostFilterIvfKnnSearchIT extends ESIntegTestCase {
      */
     private void indexFlatDocs(String indexName) {
         for (int i = 0; i < 500; i++) {
-            String tag = i < 400 ? "common" : "rare";
+            String tag = randomFloat() < .8f ? "common" : "rare";
             prepareIndex(indexName).setId(Integer.toString(i)).setSource(VECTOR_FIELD, makeVector(i), TAG_FIELD, tag).get();
         }
         forceMerge(true);

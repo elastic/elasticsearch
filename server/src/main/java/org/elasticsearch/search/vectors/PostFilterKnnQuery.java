@@ -17,7 +17,8 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
-import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
@@ -44,8 +45,9 @@ import static org.elasticsearch.search.vectors.KnnQueryUtils.mergeResults;
 public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
 
     public static final float POST_FILTERING_THRESHOLD = 0.7f;
+    private static final Logger logger = LogManager.getLogger(PostFilterKnnQuery.class);
 
-    static final int MAX_ROUNDS = 5;
+    static final int MAX_ROUNDS = 3;
 
     private final PostFilterableKnnQuery innerQuery;
     private final Query filter;
@@ -68,13 +70,20 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
         var filterWeight = createFilterWeight(searcher, filter, field);
         // need to check if this is actually a valid candidate for post filtering
         var postFilterQuery = maybeCreatePostFilterQuery(searcher, filterWeight);
-        if (postFilterQuery == null) {
-            Query rewritten = ((Query) innerQuery).rewrite(searcher);
-            this.totalVectorOps = innerQuery.totalVectorOps();
-            return rewritten;
+        if (postFilterQuery != null) {
+            assert postFilterQuery instanceof PostFilterableKnnQuery
+                : "[createPostFilterQuery] should have generated a PostFilterableKnnQuery";
+            var rewritten = postFilterRewrite(searcher, (PostFilterableKnnQuery) postFilterQuery, filterWeight);
+            if (rewritten != null) {
+                return rewritten;
+            }
         }
-        assert postFilterQuery instanceof PostFilterableKnnQuery : "[createPostFilterQuery] should have generated a PostFilterableKnnQuery";
-        return postFilterRewrite(searcher, (PostFilterableKnnQuery) postFilterQuery, filterWeight);
+        // we fallback to the original query either when the filter does not meet the necessary selectivity
+        // or wehn after MAX_ROUNDS we still haven't been able to find any relevant results
+        Query rewritten = ((Query) innerQuery).rewrite(searcher);
+        // this will override any previous work. maybe we could increment instead?
+        this.totalVectorOps = innerQuery.totalVectorOps();
+        return rewritten;
     }
 
     private Query postFilterRewrite(IndexSearcher searcher, PostFilterableKnnQuery postFilterQuery, Weight filterWeight)
@@ -113,10 +122,18 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             }
             delegate = ((PostFilterableKnnQuery) delegate).createRetryQuery(searcher.getIndexReader(), seenDocs);
         }
-        this.totalVectorOps = vectorOps;
-        if (scoreDocs.length == 0) {
-            return Queries.NO_DOCS_INSTANCE;
+        // if after all rounds we still haven't been able to produce k results, we fallback to the original query
+        if (scoreDocs.length < k) {
+            logger.debug(
+                "falling back to original knn query as post filtering retrieved only ["
+                    + scoreDocs.length
+                    + "] results, less than the desired ["
+                    + k
+                    + "] results."
+            );
+            return null;
         }
+        this.totalVectorOps = vectorOps;
         if (k < scoreDocs.length) {
             scoreDocs = Arrays.copyOf(scoreDocs, k);
         }

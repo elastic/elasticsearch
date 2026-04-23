@@ -1,7 +1,6 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/path-settings-overview.html
-navigation_title: Path
 applies_to:
   stack: all
 ---

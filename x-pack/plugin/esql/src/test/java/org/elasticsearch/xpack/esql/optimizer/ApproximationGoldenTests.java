@@ -33,7 +33,7 @@ public class ApproximationGoldenTests extends GoldenTestCase {
         runGoldenTest("""
             SET approximation=false;
             FROM many_numbers
-              | STATS SUM(sv), MEDIAN(sv)
+              | STATS COUNT(sv), MEDIAN(sv)
             """, STAGES);
     }
 

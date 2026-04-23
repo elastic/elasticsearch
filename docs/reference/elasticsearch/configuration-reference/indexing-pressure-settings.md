@@ -12,7 +12,7 @@ Indexing documents into {{es}} introduces system load in the form of memory and 
 
 Indexing pressure can build up through external operations, such as indexing requests, or internal mechanisms, such as recoveries and {{ccr}}. If too much indexing work is introduced into the system, the cluster can become saturated. This can adversely impact other operations, such as search, cluster coordination, and background processing.
 
-To prevent these issues, {{es}} internally monitors indexing load. When the load exceeds certain limits, new indexing work is rejected
+To prevent these issues, {{es}} internally monitors indexing load. When the load exceeds certain limits, new indexing work is rejected.
 
 
 ## Indexing stages [indexing-stages]

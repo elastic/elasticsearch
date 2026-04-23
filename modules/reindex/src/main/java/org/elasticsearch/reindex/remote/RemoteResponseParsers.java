@@ -17,6 +17,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
+import org.elasticsearch.index.reindex.ReindexSourceSearchContextHelper;
 import org.elasticsearch.reindex.PaginatedHitSource.BasicHit;
 import org.elasticsearch.reindex.PaginatedHitSource.Hit;
 import org.elasticsearch.reindex.PaginatedHitSource.Response;
@@ -145,7 +146,12 @@ final class RemoteResponseParsers {
             } else {
                 reasonThrowable = (Throwable) reason;
             }
-            return new PaginatedSearchFailure(reasonThrowable, index, shardId, nodeId);
+            return new PaginatedSearchFailure(
+                ReindexSourceSearchContextHelper.maybeWrapReindexContextFailure(reasonThrowable),
+                index,
+                shardId,
+                nodeId
+            );
         }
     );
     static {
@@ -186,7 +192,15 @@ final class RemoteResponseParsers {
             int i = 0;
             Throwable catastrophicFailure = (Throwable) a[i++];
             if (catastrophicFailure != null) {
-                return new Response(false, singletonList(new PaginatedSearchFailure(catastrophicFailure)), 0, emptyList(), null);
+                return new Response(
+                    false,
+                    singletonList(
+                        new PaginatedSearchFailure(ReindexSourceSearchContextHelper.maybeWrapReindexContextFailure(catastrophicFailure))
+                    ),
+                    0,
+                    emptyList(),
+                    null
+                );
             }
             boolean timedOut = Boolean.TRUE.equals(a[i++]);
             String scroll = (String) a[i++];

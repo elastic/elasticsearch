@@ -58,6 +58,7 @@ import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.engine.UpdateNotSupportedException;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.index.reindex.ReindexSourceSearchContextLostException;
 import org.elasticsearch.index.seqno.RetentionLeaseAlreadyExistsException;
 import org.elasticsearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException;
 import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
@@ -388,6 +389,21 @@ public class ExceptionSerializationTests extends ESTestCase {
         SearchContextMissingException ex = serialize(new SearchContextMissingException(contextId), version);
         assertThat(ex.contextId().getId(), equalTo(contextId.getId()));
         assertThat(ex.contextId().getSessionId(), equalTo(contextId.getSessionId()));
+    }
+
+    public void testReindexSourceSearchContextLostException() throws IOException {
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion();
+        ShardSearchContextId contextId = new ShardSearchContextId(UUIDs.randomBase64UUID(), randomLong());
+        SearchContextMissingException missing = new SearchContextMissingException(contextId);
+        ReindexSourceSearchContextLostException original = new ReindexSourceSearchContextLostException(missing);
+        ReindexSourceSearchContextLostException ex = serialize(original, version);
+        assertThat(ex, instanceOf(ReindexSourceSearchContextLostException.class));
+        assertEquals("Reindex source search context is no longer available", ex.getMessage());
+        assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ex.status());
+        assertThat(ex.getCause(), instanceOf(SearchContextMissingException.class));
+        SearchContextMissingException cause = (SearchContextMissingException) ex.getCause();
+        assertThat(cause.contextId().getId(), equalTo(contextId.getId()));
+        assertThat(cause.contextId().getSessionId(), equalTo(contextId.getSessionId()));
     }
 
     public void testCircuitBreakingException() throws IOException {
@@ -883,6 +899,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(191, org.elasticsearch.action.fieldcaps.RemoteViewNotSupportedException.class);
         ids.put(192, org.elasticsearch.search.crossproject.InvalidProjectRoutingException.class);
         ids.put(193, org.elasticsearch.index.reindex.TaskRelocatedException.class);
+        ids.put(194, org.elasticsearch.index.reindex.ReindexSourceSearchContextLostException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

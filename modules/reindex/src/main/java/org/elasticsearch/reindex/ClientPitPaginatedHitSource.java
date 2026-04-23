@@ -21,6 +21,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
+import org.elasticsearch.index.reindex.ReindexSourceSearchContextHelper;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.index.reindex.ResumeInfo.PitWorkerResumeInfo;
 import org.elasticsearch.search.SearchHit;
@@ -134,7 +135,7 @@ public class ClientPitPaginatedHitSource extends PitPaginatedHitSource {
                 if (ExceptionsHelper.unwrap(e, EsRejectedExecutionException.class) != null) {
                     searchListener.onRejection(e);
                 } else {
-                    searchListener.onFailure(e);
+                    searchListener.onFailure((Exception) ReindexSourceSearchContextHelper.maybeWrapReindexContextFailure(e));
                 }
             }
         };
@@ -153,7 +154,14 @@ public class ClientPitPaginatedHitSource extends PitPaginatedHitSource {
             failures = new ArrayList<>(response.getShardFailures().length);
             for (ShardSearchFailure failure : response.getShardFailures()) {
                 String nodeId = failure.shard() == null ? null : failure.shard().getNodeId();
-                failures.add(new PaginatedSearchFailure(failure.getCause(), failure.index(), failure.shardId(), nodeId));
+                failures.add(
+                    new PaginatedSearchFailure(
+                        ReindexSourceSearchContextHelper.maybeWrapReindexContextFailure(failure.getCause()),
+                        failure.index(),
+                        failure.shardId(),
+                        nodeId
+                    )
+                );
             }
         }
         List<Hit> hits;

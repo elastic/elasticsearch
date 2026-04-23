@@ -19,7 +19,10 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
@@ -109,14 +112,21 @@ public class PushDownFilterAndLimitIntoUnionAll extends OptimizerRules.Parameter
         if (pushable.isEmpty()) {
             return filter; // nothing to push down
         }
-        // Push the filter down to each child of the UnionAll, the child of a UnionAll is always a project followed by an optional eval
-        // and then the real child, if there is unknown pattern, keep the filter and UnionAll plan unchanged
+        // Push the filter down to each child of the UnionAll. Child shapes handled:
+        // Project > Eval? > {EsRelation, Subquery} (subquery branches from the parser)
+        // EsRelation, ExternalRelation (direct leaves from DatasetRewriter)
+        // Any other shape → bail out, keep the filter above the UnionAll.
         List<LogicalPlan> newChildren = new ArrayList<>();
         boolean changed = false;
         for (LogicalPlan child : unionAll.children()) {
-            LogicalPlan newChild = child instanceof Project project
-                ? maybePushDownFilterPastProjectForUnionAllChild(pushable, project)
-                : null;
+            LogicalPlan newChild;
+            if (child instanceof Project project) {
+                newChild = maybePushDownFilterPastProjectForUnionAllChild(pushable, project);
+            } else if (child instanceof EsRelation || child instanceof ExternalRelation) {
+                newChild = maybePushDownFilterPastLeafForUnionAllChild(pushable, (LeafPlan) child);
+            } else {
+                newChild = null;
+            }
 
             if (newChild == null) {
                 // Unexpected pattern, keep plan unchanged without pushing down filters
@@ -175,6 +185,19 @@ public class PushDownFilterAndLimitIntoUnionAll extends OptimizerRules.Parameter
             return project;
         }
         return filterWithPlanAsChild(project, resolvedPushable);
+    }
+
+    /**
+     * Direct-leaf variant of {@link #maybePushDownFilterPastProjectForUnionAllChild}. Used for {@link EsRelation}
+     * and {@link ExternalRelation} children produced by {@code DatasetRewriter}, which don't carry a wrapping
+     * {@link Project}. The leaf's own {@code output()} supplies the attribute list for name-based filter remap.
+     */
+    private static LogicalPlan maybePushDownFilterPastLeafForUnionAllChild(List<Expression> pushable, LeafPlan leaf) {
+        List<Expression> resolvedPushable = resolvePushableAgainstOutput(pushable, leaf.output());
+        if (resolvedPushable == null) {
+            return leaf;
+        }
+        return filterWithPlanAsChild(leaf, resolvedPushable);
     }
 
     /**

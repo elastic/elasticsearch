@@ -68,12 +68,13 @@ public final class AsyncExternalSourceBuffer {
             return;
         }
         long pageBytes = page.ramBytesUsedByBlocks();
-        long prevBytes = bytesInBuffer.getAndAdd(pageBytes);
+        bytesInBuffer.addAndGet(pageBytes);
         queue.add(page);
         queueSize.incrementAndGet();
-        if (prevBytes == 0) {
-            notifyNotEmpty();
-        }
+        // Always notify: the conditional guard on prevBytes==0 previously caused a lost-wakeup race
+        // when a consumer drained and blocked on notEmptyFuture between our getAndAdd and queue.add.
+        // notifyNotEmpty() is a no-op when no listener is registered, so unconditional fire is cheap.
+        notifyNotEmpty();
         if (noMoreInputs) {
             // O(N) but acceptable because it only occurs with finish(), and the queue size should be very small.
             if (queue.removeIf(p -> p == page)) {
@@ -99,10 +100,11 @@ public final class AsyncExternalSourceBuffer {
         if (page != null) {
             queueSize.decrementAndGet();
             long pageBytes = page.ramBytesUsedByBlocks();
-            long prevBytes = bytesInBuffer.getAndAdd(-pageBytes);
-            if (prevBytes >= maxBufferBytes && (prevBytes - pageBytes) < maxBufferBytes) {
-                notifyNotFull();
-            }
+            bytesInBuffer.addAndGet(-pageBytes);
+            // Always notify: the previous threshold-crossing guard could miss a crossing because the
+            // producer's waitForSpace snapshot of bytesInBuffer can race with concurrent addPage calls,
+            // orphaning notFullFuture. notifyNotFull() is a no-op when no listener is registered.
+            notifyNotFull();
         }
         signalCompletionIfDrained();
         return page;

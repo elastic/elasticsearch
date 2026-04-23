@@ -72,8 +72,8 @@ public class DateUnitCount extends EsqlConfigurationFunction {
     )
     public DateUnitCount(
         Source source,
-        @Param(name = "to_unit", type = { "keyword" }, description = "The unit to count.") Expression toUnit,
-        @Param(name = "from_unit", type = { "keyword" }, description = "The enclosing container unit.") Expression fromUnit,
+        @Param(name = "to_unit", type = { "keyword", "text" }, description = "The unit to count.") Expression toUnit,
+        @Param(name = "from_unit", type = { "keyword", "text" }, description = "The enclosing container unit.") Expression fromUnit,
         @Param(name = "date", type = { "date", "date_nanos" }, description = "Date expression.") Expression date,
         Configuration configuration
     ) {

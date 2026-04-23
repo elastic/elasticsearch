@@ -6,4 +6,10 @@
 | --- | --- | --- | --- |
 | keyword | keyword | date | long |
 | keyword | keyword | date_nanos | long |
+| keyword | text | date | long |
+| keyword | text | date_nanos | long |
+| text | keyword | date | long |
+| text | keyword | date_nanos | long |
+| text | text | date | long |
+| text | text | date_nanos | long |
 

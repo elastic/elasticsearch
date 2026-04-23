@@ -51,6 +51,150 @@
       ],
       "variadic" : false,
       "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "to_unit",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "The unit to count."
+        },
+        {
+          "name" : "from_unit",
+          "type" : "text",
+          "optional" : false,
+          "description" : "The enclosing container unit."
+        },
+        {
+          "name" : "date",
+          "type" : "date",
+          "optional" : false,
+          "description" : "Date expression."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "to_unit",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "The unit to count."
+        },
+        {
+          "name" : "from_unit",
+          "type" : "text",
+          "optional" : false,
+          "description" : "The enclosing container unit."
+        },
+        {
+          "name" : "date",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Date expression."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "to_unit",
+          "type" : "text",
+          "optional" : false,
+          "description" : "The unit to count."
+        },
+        {
+          "name" : "from_unit",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "The enclosing container unit."
+        },
+        {
+          "name" : "date",
+          "type" : "date",
+          "optional" : false,
+          "description" : "Date expression."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "to_unit",
+          "type" : "text",
+          "optional" : false,
+          "description" : "The unit to count."
+        },
+        {
+          "name" : "from_unit",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "The enclosing container unit."
+        },
+        {
+          "name" : "date",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Date expression."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "to_unit",
+          "type" : "text",
+          "optional" : false,
+          "description" : "The unit to count."
+        },
+        {
+          "name" : "from_unit",
+          "type" : "text",
+          "optional" : false,
+          "description" : "The enclosing container unit."
+        },
+        {
+          "name" : "date",
+          "type" : "date",
+          "optional" : false,
+          "description" : "Date expression."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "to_unit",
+          "type" : "text",
+          "optional" : false,
+          "description" : "The unit to count."
+        },
+        {
+          "name" : "from_unit",
+          "type" : "text",
+          "optional" : false,
+          "description" : "The enclosing container unit."
+        },
+        {
+          "name" : "date",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Date expression."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
     }
   ],
   "examples" : [

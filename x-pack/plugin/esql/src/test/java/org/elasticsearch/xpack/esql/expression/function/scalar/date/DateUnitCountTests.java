@@ -45,71 +45,39 @@ public class DateUnitCountTests extends AbstractConfigurationFunctionTestCase {
         suppliers.addAll(generateTest("2020-02-15T12:34:56Z", 29, ZoneId.of("Z")));
         suppliers.addAll(generateTest("2019-02-15T12:34:56Z", 28, ZoneId.of("Z")));
         suppliers.addAll(generateTest("2024-03-31T22:00:00Z", 30, ZoneId.of("Europe/Paris")));
-        suppliers.add(
-            new TestCaseSupplier(
-                "Null date",
-                List.of(DataType.KEYWORD, DataType.KEYWORD, DataType.DATETIME),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(new BytesRef("day"), DataType.KEYWORD, "unit"),
-                        new TestCaseSupplier.TypedData(new BytesRef("month"), DataType.KEYWORD, "in_unit"),
-                        new TestCaseSupplier.TypedData(null, DataType.DATETIME, "date")
-                    ),
-                    Matchers.startsWith(
-                        "DateUnitCountMillisEvaluator[toUnit=Attribute[channel=0], "
-                            + "fromUnit=Attribute[channel=1], date=Attribute[channel=2], zoneId="
-                    ),
-                    DataType.LONG,
-                    equalTo(null)
-                )
-            )
-        );
-        return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     private static List<TestCaseSupplier> generateTest(String dateTime, long expectedCount, ZoneId zoneId) {
         long millis = Instant.parse(dateTime).toEpochMilli();
         long nanos = DateUtils.toNanoSeconds(millis);
-        return List.of(
-            new TestCaseSupplier(
-                expectedCount + " days per month - " + dateTime + " (millis) - " + zoneId,
-                List.of(DataType.KEYWORD, DataType.KEYWORD, DataType.DATETIME),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(new BytesRef("day"), DataType.KEYWORD, "unit"),
-                        new TestCaseSupplier.TypedData(new BytesRef("month"), DataType.KEYWORD, "in_unit"),
-                        new TestCaseSupplier.TypedData(millis, DataType.DATETIME, "date")
-                    ),
-                    Matchers.startsWith(
-                        "DateUnitCountMillisEvaluator[toUnit=Attribute[channel=0], "
-                            + "fromUnit=Attribute[channel=1], date=Attribute[channel=2], zoneId="
-                            + zoneId
-                            + "]"
-                    ),
-                    DataType.LONG,
-                    equalTo(expectedCount)
-                ).withConfiguration(TestCaseSupplier.TEST_SOURCE, configurationForTimezone(zoneId))
-            ),
-            new TestCaseSupplier(
-                expectedCount + " days per month - " + dateTime + " (nanos) - " + zoneId,
-                List.of(DataType.KEYWORD, DataType.KEYWORD, DataType.DATE_NANOS),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(new BytesRef("day"), DataType.KEYWORD, "unit"),
-                        new TestCaseSupplier.TypedData(new BytesRef("month"), DataType.KEYWORD, "in_unit"),
-                        new TestCaseSupplier.TypedData(nanos, DataType.DATE_NANOS, "date")
-                    ),
-                    Matchers.startsWith(
-                        "DateUnitCountNanosEvaluator[toUnit=Attribute[channel=0], "
-                            + "fromUnit=Attribute[channel=1], date=Attribute[channel=2], zoneId="
-                            + zoneId
-                            + "]"
-                    ),
-                    DataType.LONG,
-                    equalTo(expectedCount)
-                ).withConfiguration(TestCaseSupplier.TEST_SOURCE, configurationForTimezone(zoneId))
-            )
-        );
+        List<TestCaseSupplier> result = new ArrayList<>();
+        for (DataType ut1 : List.of(DataType.KEYWORD, DataType.TEXT)) {
+            for (DataType ut2 : List.of(DataType.KEYWORD, DataType.TEXT)) {
+                for (DataType dateType : List.of(DataType.DATETIME, DataType.DATE_NANOS)) {
+                    boolean isNanos = dateType == DataType.DATE_NANOS;
+                    long dateVal = isNanos ? nanos : millis;
+                    String suffix = dateTime + " " + ut1 + "/" + ut2 + "/" + dateType;
+                    result.add(
+                        new TestCaseSupplier(
+                            expectedCount + " days/month - " + suffix,
+                            List.of(ut1, ut2, dateType),
+                            () -> new TestCaseSupplier.TestCase(
+                                List.of(
+                                    new TestCaseSupplier.TypedData(new BytesRef("day"), ut1, "unit"),
+                                    new TestCaseSupplier.TypedData(new BytesRef("month"), ut2, "in_unit"),
+                                    new TestCaseSupplier.TypedData(dateVal, dateType, "date")
+                                ),
+                                Matchers.startsWith("DateUnitCount"),
+                                DataType.LONG,
+                                equalTo(expectedCount)
+                            ).withConfiguration(TestCaseSupplier.TEST_SOURCE, configurationForTimezone(zoneId))
+                        )
+                    );
+                }
+            }
+        }
+        return result;
     }
 
     public void testCountsAcrossSupportedContainerUnits() {

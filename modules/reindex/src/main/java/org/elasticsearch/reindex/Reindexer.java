@@ -349,8 +349,8 @@ public class Reindexer {
         if (searchRequest.source() != null && searchRequest.source().query() != null) {
             pitRequest.indexFilter(searchRequest.source().query());
         }
-        // Link Open PIT to the BulkByScrollTask (ParentTaskAssigningClient is only used after PIT opens). Needed for task cancellation,
-        // and so shard reader contexts record openedUnderReindexingTask for keep-alive reaper metrics.
+        // We need to track the parent task so that if the search context is closed within SearchService we can correctly identify
+        // reindexing tasks and emit the appropriate metrics
         pitRequest.setParentTask(clusterService.localNode().getId(), task.getId());
 
         // NB this is a local request, so we call the TransportAction rather than issuing a REST call

@@ -87,18 +87,20 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(union.children().get(1), instanceOf(UnresolvedExternalRelation.class));
     }
 
-    public void testMixedIndicesAndDatasetsRejected() {
+    public void testMixedIndicesAndDatasetsProduceUnionAll() {
         DataSource parent = dataSource("s3_parent", Map.of());
         Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
 
-        VerificationException ex = expectThrows(
-            VerificationException.class,
-            () -> DatasetRewriter.rewrite(relationOf("some_idx,logs"), project)
-        );
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("mixing indices and datasets"));
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("indices=[some_idx]"));
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("datasets=[logs]"));
+        LogicalPlan rewritten = DatasetRewriter.rewrite(relationOf("idx_a,logs,idx_b"), project);
+
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        UnionAll union = (UnionAll) rewritten;
+        assertThat(union.children(), hasSize(2));
+        assertThat(union.children().get(0), instanceOf(UnresolvedRelation.class));
+        UnresolvedRelation indexChild = (UnresolvedRelation) union.children().get(0);
+        assertThat(indexChild.indexPattern().indexPattern(), equalTo("idx_a,idx_b"));
+        assertThat(union.children().get(1), instanceOf(UnresolvedExternalRelation.class));
     }
 
     public void testUnknownParentDataSourceRejected() {

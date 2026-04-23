@@ -332,9 +332,7 @@ public class BundleChangelogsTask extends DefaultTask {
             String bcCommitterIso = committerIsoAtRef(bcRefForFilter);
             int before = parsed.size();
             parsed = parsed.stream()
-                .filter(
-                    p -> includeExternalChangelogForBuildCandidate(p.entry(), externalHead, bcCommitterIso, p.repoRelativePath())
-                )
+                .filter(p -> includeExternalChangelogForBuildCandidate(p.entry(), externalHead, bcCommitterIso, p.repoRelativePath()))
                 .collect(Collectors.toCollection(ArrayList::new));
             if (before != parsed.size()) {
                 LOGGER.info(

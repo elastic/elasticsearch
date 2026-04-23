@@ -78,12 +78,11 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
         ScoreDoc[] scoreDocs = new ScoreDoc[0];
         int[] seenDocs = new int[0];
         long vectorOps = 0;
+        Query delegate = innerQuery.createInnerQuery(searcher.getIndexReader(), seenDocs);
+        assert delegate instanceof PostFilterableKnnQuery;
         for (int round = 0; round < MAX_ROUNDS; round++) {
-            Query queryToRun = innerQuery.createInnerQuery(searcher.getIndexReader(), seenDocs);
-            TopDocs topDocs = searcher.search(queryToRun, Integer.MAX_VALUE);
-            if (queryToRun instanceof PostFilterableKnnQuery pfq) {
-                vectorOps += pfq.vectorOpsCount();
-            }
+            TopDocs topDocs = searcher.search(delegate, Integer.MAX_VALUE);
+            vectorOps += ((PostFilterableKnnQuery) delegate).vectorOpsCount();
 
             if (topDocs.scoreDocs.length == 0) {
                 break;
@@ -109,6 +108,7 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             if (scoreDocs.length >= k) {
                 break;
             }
+            delegate = ((PostFilterableKnnQuery) delegate).createInnerQuery(searcher.getIndexReader(), seenDocs);
         }
         this.totalVectorOps = vectorOps;
         if (scoreDocs.length == 0) {

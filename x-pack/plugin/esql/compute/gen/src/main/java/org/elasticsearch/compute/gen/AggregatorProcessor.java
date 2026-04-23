@@ -116,9 +116,8 @@ public class AggregatorProcessor implements Processor {
                 write(aggClass, "grouping aggregator", groupingAggregatorImplementer.sourceFile(), env);
             }
             if (implementer != null || groupingAggregatorImplementer != null) {
-                boolean hasWarnings = warnExceptionsTypes.isEmpty() == false
-                    || (implementer != null && implementer.initHasWarnings())
-                    || (groupingAggregatorImplementer != null && groupingAggregatorImplementer.initHasWarnings());
+                boolean hasWarnings = (implementer != null && implementer.hasWarningsObject())
+                    || (groupingAggregatorImplementer != null && groupingAggregatorImplementer.hasWarningsObject());
                 write(
                     aggClass,
                     "aggregator function supplier",

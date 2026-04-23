@@ -97,7 +97,6 @@ public class GroupingAggregatorImplementer {
     private final boolean hasOnlyBlockArguments;
     private final boolean allArgumentsSupportVectors;
     private final boolean processNulls;
-    private final boolean needsWarnings;
 
     public GroupingAggregatorImplementer(
         Elements elements,
@@ -157,8 +156,6 @@ public class GroupingAggregatorImplementer {
             )
             .collect(Collectors.toList());
 
-        this.needsWarnings = warnExceptions.isEmpty() == false || initHasWarnings();
-
         this.implementation = ClassName.get(
             elements.getPackageOf(declarationType).toString(),
             (declarationType.getSimpleName() + "GroupingAggregatorFunction").replace("AggregatorGroupingAggregator", "GroupingAggregator")
@@ -189,8 +186,8 @@ public class GroupingAggregatorImplementer {
         return createParameters;
     }
 
-    boolean initHasWarnings() {
-        return init.getParameters().stream().anyMatch(p -> TypeName.get(p.asType()).equals(WARNINGS));
+    boolean hasWarningsObject() {
+        return warnExceptions.isEmpty() == false || init.getParameters().stream().anyMatch(p -> TypeName.get(p.asType()).equals(WARNINGS));
     }
 
     public JavaFile sourceFile() {
@@ -215,7 +212,7 @@ public class GroupingAggregatorImplementer {
                 .build()
         );
         builder.addField(aggState.type(), "state", Modifier.PRIVATE, Modifier.FINAL);
-        if (needsWarnings) {
+        if (hasWarningsObject()) {
             builder.addField(WARNINGS, "warnings", Modifier.PRIVATE, Modifier.FINAL);
         }
         builder.addField(LIST_INTEGER, "channels", Modifier.PRIVATE, Modifier.FINAL);
@@ -266,7 +263,7 @@ public class GroupingAggregatorImplementer {
 
     private MethodSpec ctor() {
         MethodSpec.Builder builder = MethodSpec.constructorBuilder();
-        if (needsWarnings) {
+        if (hasWarningsObject()) {
             builder.addParameter(WARNINGS, "warnings");
         }
         builder.addParameter(LIST_INTEGER, "channels");
@@ -277,7 +274,7 @@ public class GroupingAggregatorImplementer {
             builder.addStatement("this.$N = $N", p.name(), p.name());
         }
 
-        if (needsWarnings) {
+        if (hasWarningsObject()) {
             builder.addStatement("this.warnings = warnings");
         }
         builder.addStatement("this.channels = channels");

@@ -91,7 +91,6 @@ public class AggregatorImplementer {
     private final boolean hasOnlyBlockArguments;
     private final boolean tryToUseVectors;
     private final boolean processNulls;
-    private final boolean needsWarnings;
 
     public AggregatorImplementer(
         Elements elements,
@@ -138,8 +137,6 @@ public class AggregatorImplementer {
             )
             .toList();
 
-        this.needsWarnings = warnExceptions.isEmpty() == false || initHasWarnings();
-
         this.first = aggState.declaredType.isPrimitive()
             ? null
             : optionalStaticMethod(
@@ -167,8 +164,8 @@ public class AggregatorImplementer {
         return createParameters;
     }
 
-    boolean initHasWarnings() {
-        return init.getParameters().stream().anyMatch(p -> TypeName.get(p.asType()).equals(WARNINGS));
+    boolean hasWarningsObject() {
+        return warnExceptions.isEmpty() == false || init.getParameters().stream().anyMatch(p -> TypeName.get(p.asType()).equals(WARNINGS));
     }
 
     public static String capitalize(String s) {
@@ -197,7 +194,7 @@ public class AggregatorImplementer {
                 .build()
         );
 
-        if (needsWarnings) {
+        if (hasWarningsObject()) {
             builder.addField(WARNINGS, "warnings", Modifier.PRIVATE, Modifier.FINAL);
         }
 
@@ -244,7 +241,7 @@ public class AggregatorImplementer {
 
     private MethodSpec ctor() {
         MethodSpec.Builder builder = MethodSpec.constructorBuilder();
-        if (needsWarnings) {
+        if (hasWarningsObject()) {
             builder.addParameter(WARNINGS, "warnings");
         }
         builder.addParameter(DRIVER_CONTEXT, "driverContext");
@@ -254,7 +251,7 @@ public class AggregatorImplementer {
             p.buildCtor(builder);
         }
 
-        if (needsWarnings) {
+        if (hasWarningsObject()) {
             builder.addStatement("this.warnings = warnings");
         }
         builder.addStatement("this.driverContext = driverContext");

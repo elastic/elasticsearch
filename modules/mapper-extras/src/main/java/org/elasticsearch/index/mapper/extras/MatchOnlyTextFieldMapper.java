@@ -890,7 +890,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         this.usesBinaryDocValuesForFallbackFields = builder.usesBinaryDocValuesForFallbackFields;
         this.docValuesParameters = builder.docValuesParameters.getValue();
         // match_only_text does not use doc values skippers
-        this.dvFactory = new DocValuesFieldFactory(this.docValuesParameters.multiValue(), false);
+        this.dvFactory = new DocValuesFieldFactory(this.docValuesParameters.multiValue(), false, this.indexCreatedVersion);
     }
 
     @Override
@@ -975,13 +975,11 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     }
 
     private void storeValueInFallbackField(String fallbackFieldName, BytesRef bytesRef, DocumentParserContext context) {
-        // pass IndexVersion since fallback fields used to use the IntegratedCounts format
-        dvFactory.addBinaryField(
+        dvFactory.addBinaryFieldLegacyEncodingAware(
             context.doc(),
             fallbackFieldName,
             bytesRef,
-            MultiValuedBinaryDocValuesField.ValueOrdering.SORTED,
-            indexCreatedVersion
+            MultiValuedBinaryDocValuesField.ValueOrdering.SORTED
         );
     }
 

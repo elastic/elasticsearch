@@ -31,10 +31,12 @@ public class DocValuesFieldFactory {
 
     private final MultiValue multiValue;
     private final boolean hasSkipper;
+    private final IndexVersion indexVersion;
 
-    public DocValuesFieldFactory(MultiValue multiValue, boolean hasSkipper) {
+    public DocValuesFieldFactory(MultiValue multiValue, boolean hasSkipper, IndexVersion indexVersion) {
         this.multiValue = multiValue;
         this.hasSkipper = hasSkipper;
+        this.indexVersion = indexVersion;
     }
 
     /**
@@ -70,18 +72,20 @@ public class DocValuesFieldFactory {
     }
 
     /**
-     * Adds a binary doc values field. For {@code multi_value=no}, creates a plain {@link BinaryDocValuesField} (single-valued,
-     * no companion {@code .counts} field). Otherwise, delegates to {@link MultiValuedBinaryDocValuesField#addToBinaryFieldInDoc}
-     * which handles the multi-valued encoding.
-     * <p>
-     * Use this overload for fields that historically stored {@link MultiValuedBinaryDocValuesField.IntegratedCount IntegratedCount} data
-     * (pre-{@link org.elasticsearch.index.IndexVersions#DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES}).
+     * Adds a binary doc values field using {@link #indexVersion} to select the on-disk encoding. Use this overload for fields that
+     * historically stored {@link MultiValuedBinaryDocValuesField.IntegratedCount IntegratedCount} data
+     * pre-{@link org.elasticsearch.index.IndexVersions#DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES}).
      */
-    public void addBinaryField(LuceneDocument doc, String name, BytesRef value, ValueOrdering ordering, IndexVersion indexVersion) {
+    public void addBinaryFieldLegacyEncodingAware(LuceneDocument doc, String name, BytesRef value, ValueOrdering ordering) {
+        addBinaryField(doc, name, value, ordering, indexVersion);
+    }
+
+    private void addBinaryField(LuceneDocument doc, String name, BytesRef value, ValueOrdering ordering, IndexVersion indexVersion) {
         if (multiValue.isSingleValued()) {
             doc.add(new BinaryDocValuesField(name, value));
         } else {
             MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(doc, name, value, ordering, indexVersion);
         }
     }
+
 }

@@ -1336,7 +1336,11 @@ public final class KeywordFieldMapper extends FieldMapper {
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
         this.indexed = builder.indexed.getValue();
         this.docValuesParameters = builder.docValuesParameters.getValue();
-        this.dvFactory = new DocValuesFieldFactory(docValuesParameters.multiValue(), fieldType().indexType.hasDocValuesSkipper());
+        this.dvFactory = new DocValuesFieldFactory(
+            docValuesParameters.multiValue(),
+            fieldType().indexType.hasDocValuesSkipper(),
+            builder.indexCreatedVersion
+        );
         this.indexOptions = builder.indexOptions.getValue();
         this.fieldType = freezeAndDeduplicateFieldType(fieldType);
         this.normalizerName = builder.normalizer.getValue();
@@ -1432,15 +1436,13 @@ public final class KeywordFieldMapper extends FieldMapper {
                 final String fieldName = fieldType().syntheticSourceFallbackFieldName();
 
                 if (storeIgnoredFieldsInBinaryDocValues) {
-                    // pass IndexVersion since fallback fields used to use the IntegratedCounts format
-                    dvFactory.addBinaryField(
+                    dvFactory.addBinaryFieldLegacyEncodingAware(
                         context.doc(),
                         fieldName,
                         bytesRef,
                         keepDuplicatesInBinaryDocValues()
                             ? MultiValuedBinaryDocValuesField.ValueOrdering.SORTED
-                            : MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE,
-                        indexCreatedVersion
+                            : MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
                     );
                 } else {
                     // otherwise for bwc, store the value in a stored fields like we used to

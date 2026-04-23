@@ -379,7 +379,7 @@ public class MultiValuedBinaryDocValuesFieldTests extends ESTestCase {
         BytesRef value = new BytesRef(randomAlphanumericOfLength(10));
 
         // when — use DocValuesFieldFactory which handles multi_value=no branching
-        DocValuesFieldFactory factory = new DocValuesFieldFactory(MultiValue.NO, false);
+        DocValuesFieldFactory factory = new DocValuesFieldFactory(MultiValue.NO, false, IndexVersion.current());
         factory.addBinaryField(doc, "field", value, ValueOrdering.SORTED_UNIQUE);
 
         // then — field is stored as a plain BinaryDocValuesField with the raw value

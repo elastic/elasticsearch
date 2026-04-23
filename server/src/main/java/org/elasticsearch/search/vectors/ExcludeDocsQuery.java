@@ -38,38 +38,47 @@ class ExcludeDocsQuery extends Query {
     private final Object readerContextId;
 
     ExcludeDocsQuery(int[] excludedDocs, IndexReader reader) {
-        this.excludedDocs = excludedDocs;
+        this.excludedDocs = Objects.requireNonNull(excludedDocs);
         this.readerContextId = reader.getContext().id();
     }
 
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
+        if (searcher.getIndexReader().getContext().id() != readerContextId) {
+            throw new IllegalStateException("This ExcludeDocsQuery was created by a different reader");
+        }
         return new Weight(this) {
             @Override
             public Explanation explain(LeafReaderContext context, int doc) {
-                return Explanation.match(0f, "exclude docs filter");
+                int globalDoc = doc + context.docBase;
+                if (Arrays.binarySearch(excludedDocs, globalDoc) >= 0) {
+                    return Explanation.noMatch("excluded doc");
+                }
+                return Explanation.match(0f, "not excluded");
             }
 
             @Override
             public ScorerSupplier scorerSupplier(LeafReaderContext context) {
-                if (excludedDocs == null) {
-                    return null;
-                }
                 int leafMaxDoc = context.reader().maxDoc();
                 int docBase = context.docBase;
                 int end = docBase + leafMaxDoc;
 
                 int from = Arrays.binarySearch(excludedDocs, docBase);
-                if (from < 0) from = -from - 1;
+                if (from < 0) {
+                    from = -from - 1;
+                }
                 int to = Arrays.binarySearch(excludedDocs, from, excludedDocs.length, end);
-                if (to < 0) to = -to - 1;
+                if (to < 0) {
+                    to = -to - 1;
+                }
 
+                int excludedCount = to - from;
                 FixedBitSet leafBits = new FixedBitSet(leafMaxDoc);
                 leafBits.set(0, leafMaxDoc);
                 for (int i = from; i < to; i++) {
                     leafBits.clear(excludedDocs[i] - docBase);
                 }
-                int cardinality = leafBits.cardinality();
+                int cardinality = leafMaxDoc - excludedCount;
                 if (cardinality == 0) {
                     return null;
                 }
@@ -87,7 +96,7 @@ class ExcludeDocsQuery extends Query {
 
     @Override
     public String toString(String field) {
-        return "ExcludeDocsQuery[excluded=" + Arrays.toString(excludedDocs) + "]";
+        return "ExcludeDocsQuery[count=" + excludedDocs.length + "]";
     }
 
     @Override

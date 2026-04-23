@@ -152,7 +152,7 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
             }
             IVFVectorsReader<?> ivfReader = IVFVectorsReader.getIVFReader(leaf.reader(), field);
             if (ivfReader != null) {
-                totalVectors += ivfReader.getVectorCount(field, sliceOrd);
+                totalVectors += ivfReader.getTotalVectorsForSlice(field, sliceOrd);
             } else {
                 FloatVectorValues fvv = leaf.reader().getFloatVectorValues(field);
                 if (fvv != null) {

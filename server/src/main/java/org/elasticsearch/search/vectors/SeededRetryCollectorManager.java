@@ -76,21 +76,20 @@ class SeededRetryCollectorManager implements KnnCollectorManager {
         int docBase = ctx.docBase;
         int maxDoc = ctx.reader().maxDoc();
 
-        // Binary search for the range of seedDocs falling in [docBase, docBase+maxDoc).
+        // binary search for the range of seedDocs falling in [docBase, docBase+maxDoc).
         // seedDocs is sorted, so this avoids allocating and scanning all seeds per leaf.
         int end = docBase + maxDoc;
         int fromIdx = Arrays.binarySearch(seedDocs, docBase);
-        if (fromIdx < 0) fromIdx = -fromIdx - 1;
+        if (fromIdx < 0) {
+            fromIdx = -fromIdx - 1;
+        }
         int toIdx = Arrays.binarySearch(seedDocs, fromIdx, seedDocs.length, end);
-        if (toIdx < 0) toIdx = -toIdx - 1;
+        if (toIdx < 0) {
+            toIdx = -toIdx - 1;
+        }
         int count = toIdx - fromIdx;
         if (count == 0) {
             return null;
-        }
-        // seedDocs is sorted, so localDocIds are already sorted after subtracting docBase
-        int[] localDocIds = new int[count];
-        for (int i = 0; i < count; i++) {
-            localDocIds[i] = seedDocs[fromIdx + i] - docBase;
         }
 
         // Map doc IDs to vector ordinals via the vector values iterator
@@ -102,7 +101,7 @@ class SeededRetryCollectorManager implements KnnCollectorManager {
         int ordCount = 0;
         int iterDoc = -1;
         for (int i = 0; i < count; i++) {
-            int docId = localDocIds[i];
+            int docId = seedDocs[fromIdx + i] - docBase;
             if (docId <= iterDoc) {
                 continue;
             }
@@ -138,18 +137,8 @@ class SeededRetryCollectorManager implements KnnCollectorManager {
                 if (idx >= finalCount) {
                     return NO_MORE_DOCS;
                 }
-                // Binary search since ordinals are sorted
-                int lo = Math.max(0, idx);
-                int hi = finalCount;
-                while (lo < hi) {
-                    int mid = (lo + hi) >>> 1;
-                    if (finalOrdinals[mid] < target) {
-                        lo = mid + 1;
-                    } else {
-                        hi = mid;
-                    }
-                }
-                idx = lo;
+                int pos = Arrays.binarySearch(finalOrdinals, Math.max(0, idx), finalCount, target);
+                idx = pos >= 0 ? pos : -pos - 1;
                 return docID();
             }
 

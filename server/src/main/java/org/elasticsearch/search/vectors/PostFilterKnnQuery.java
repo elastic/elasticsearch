@@ -159,9 +159,6 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PostFilterKnnQuery that = (PostFilterKnnQuery) o;
-        // Weight doesn't implement equals/hashCode, so use identity comparison.
-        // This is acceptable because this query is always rewritten before execution
-        // and never needs cache matching.
         return k == that.k
             && innerQuery.equals(that.innerQuery)
             && Objects.equals(filter, that.filter)

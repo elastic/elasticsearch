@@ -159,7 +159,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
      * This is consistent with the non-sliced path ({@code FloatVectorValues.size()}) and is
      * used for selectivity approximation, not for exact counts.
      */
-    public int getVectorCount(String field, int sliceOrd) throws IOException {
+    public int getTotalVectorsForSlice(String field, int sliceOrd) throws IOException {
         final FieldInfo fi = fieldInfos.fieldInfo(field);
         if (fi == null) {
             return 0;

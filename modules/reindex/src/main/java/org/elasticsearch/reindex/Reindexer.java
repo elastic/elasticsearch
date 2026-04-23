@@ -596,7 +596,7 @@ public class Reindexer {
     static ActionListener<ResumeBulkByScrollResponse> relocationResponseListenerWithMetrics(@Nullable final ReindexMetrics metrics) {
         return ActionListener.assertOnce(
             metrics == null ? ActionListener.noop() : ActionListener.wrap(resp -> metrics.recordRelocationSuccess(), e -> {
-                if (e instanceof TaskRelocatedException) {
+                if (e instanceof TaskCancelledException) {
                     // Failure metrics should represent genuine failures, task cancellation is expected from user operation,
                     // so skipping emitting metric
                     return;

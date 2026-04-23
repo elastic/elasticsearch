@@ -442,6 +442,13 @@ public class ReindexerTests extends ESTestCase {
         verifyNoMoreInteractions(metrics);
     }
 
+    public void testRelocationListenerDoesNotRecordFailureMetricForTaskCancelledException() {
+        final ReindexMetrics metrics = mock(ReindexMetrics.class);
+        final ActionListener<ResumeBulkByScrollResponse> listener = Reindexer.relocationResponseListenerWithMetrics(metrics);
+        listener.onFailure(new TaskCancelledException("task cancelled before relocation handoff could begin"));
+        verifyNoMoreInteractions(metrics);
+    }
+
     public void testRelocationListenerCalledForBothSuccessAndFailureFails() {
         final ReindexMetrics metrics = mock(ReindexMetrics.class);
         final ActionListener<ResumeBulkByScrollResponse> listener = Reindexer.relocationResponseListenerWithMetrics(metrics);

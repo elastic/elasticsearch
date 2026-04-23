@@ -10,12 +10,17 @@
 package org.elasticsearch.common;
 
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -266,6 +271,68 @@ public class StringsTests extends ESTestCase {
         assertThat(Strings.format1Decimals(100.0 / 3, "%"), equalTo("33.3%"));
     }
 
+    public void testToLimitedStringWithChunkedXContentUnderLimit() {
+        ChunkedToXContent chunkedToXContent = __ -> List.of(new TestToXContent(1, false), new TestToXContent(2, false)).iterator();
+
+        var result = Strings.toLimitedString(chunkedToXContent, 1024);
+
+        assertEquals("""
+            {"field1":"value1","field2":"value2"}""", result);
+    }
+
+    public void testToLimitedStringWithChunkedXContentOverLimit() {
+        ChunkedToXContent chunkedToXContent = __ -> IntStream.range(1, 1_000_000).mapToObj(i -> new TestToXContent(i, false)).iterator();
+
+        var result = Strings.toLimitedString(chunkedToXContent, 100);
+
+        assertEquals("""
+            {"field1":"value1","field2":"value2","field3":"value3","field4":"value4","field5":"value5","field6":""", result);
+    }
+
+    public void testToLimitedStringWithChunkedXContentObjectUnderLimit() {
+        ChunkedToXContentObject chunkedToXContentObject = __ -> List.of(new TestToXContent(1, true), new TestToXContent(2, true))
+            .iterator();
+
+        var result = Strings.toLimitedString(chunkedToXContentObject, 1024);
+
+        assertEquals("""
+            {"field1":"value1"} {"field2":"value2"}""", result);
+    }
+
+    public void testToLimitedStringWithChunkedXContentObjectOverLimit() {
+        ChunkedToXContentObject chunkedToXContentObject = __ -> IntStream.range(1, 1_000_000)
+            .mapToObj(i -> new TestToXContent(i, true))
+            .iterator();
+
+        var result = Strings.toLimitedString(chunkedToXContentObject, 100);
+
+        assertEquals(
+            "{\"field1\":\"value1\"} {\"field2\":\"value2\"} {\"field3\":\"value3\"} {\"field4\":\"value4\"} {\"field5\":\"value5\"} ",
+            result
+        );
+    }
+
+    public void testToLimitedStringPrettyHumanReadableOutput() {
+        ChunkedToXContent chunkedToXContent = __ -> List.of(new TestToXContent(1, false), new TestToXContent(2, false)).iterator();
+
+        var result = Strings.toLimitedString(chunkedToXContent, 1024, true, true);
+
+        assertEquals("""
+            {
+              "field1" : "this is a value number 1",
+              "field2" : "this is a value number 2"
+            }""", result);
+    }
+
+    public void testToLimitedStringException() {
+        ToXContent chunk = (b, p) -> { throw new IOException("boom!"); };
+        ChunkedToXContent chunkedToXContent = __ -> List.of(chunk).iterator();
+
+        var result = Strings.toLimitedString(chunkedToXContent, 1024, true, true);
+
+        assertThat(result, containsString("error building toString out of XContent:"));
+    }
+
     private static String lowercaseAsciiOnly(String s) {
         // explicitly lowercase just ascii characters
         StringBuilder sb = new StringBuilder(s);
@@ -276,5 +343,24 @@ public class StringsTests extends ESTestCase {
             }
         }
         return sb.toString();
+    }
+
+    private record TestToXContent(int counter, boolean isObject) implements ToXContent {
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            if (isObject) {
+                builder.startObject();
+            }
+            if (builder.humanReadable()) {
+                builder.field("field" + counter, "this is a value number " + counter);
+            } else {
+                builder.field("field" + counter, "value" + counter);
+            }
+            if (isObject) {
+                builder.endObject();
+            }
+            return builder;
+        }
     }
 }

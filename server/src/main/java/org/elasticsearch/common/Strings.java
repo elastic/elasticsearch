@@ -753,6 +753,54 @@ public class Strings {
     }
 
     /**
+     * Returns a {@link String} containing the JSON representation of the provided {@link ChunkedToXContent}. The content will be limited up
+     * to {@code maxBytes} bytes; if the limit happens to be in the middle of a UTF-8 character, {@code \uFFFD} will be printed out instead.
+     * The returned content is neither pretty-printed (see {@link XContentBuilder#prettyPrint()}), nor are the values printed in a
+     * human-readable way (see {@link XContentBuilder#humanReadable()}).
+     *
+     * @param chunkedToXContent A {@link ChunkedToXContent} instance to be serialized to JSON.
+     * @param maxBytes The maximum number of bytes after which the serialization will stop.
+     */
+    public static String toLimitedString(ChunkedToXContent chunkedToXContent, int maxBytes) {
+        return toLimitedString(chunkedToXContent, maxBytes, false, false);
+    }
+
+    /**
+     * Returns a {@link String} containing the JSON representation of the provided {@link ChunkedToXContent}. The content will be limited up
+     * to {@code maxBytes} bytes; if the limit happens to be in the middle of a UTF-8 character, {@code \uFFFD} will be printed out instead.
+     *
+     * @param chunkedToXContent A {@link ChunkedToXContent} instance to be serialized to JSON.
+     * @param maxBytes The maximum number of bytes after which the serialization will stop.
+     * @param pretty True if the content should be pretty-printed. Also see {@link XContentBuilder#prettyPrint()}.
+     * @param human True if the values should be printed in a human-readable way. Also see {@link XContentBuilder#humanReadable()}}.
+     */
+    public static String toLimitedString(ChunkedToXContent chunkedToXContent, int maxBytes, boolean pretty, boolean human) {
+        try {
+            final var limitedStream = new LimitedByteArrayOutputStream(maxBytes);
+            final var builder = createBuilder(pretty, human, limitedStream);
+
+            if (chunkedToXContent.isFragment()) {
+                builder.startObject();
+            }
+            final var chunks = chunkedToXContent.toXContentChunked(ToXContent.EMPTY_PARAMS);
+            while (chunks.hasNext()) {
+                chunks.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
+                builder.flush();
+                if (limitedStream.isOverLimit()) {
+                    break;
+                }
+            }
+            if (chunkedToXContent.isFragment()) {
+                builder.endObject();
+            }
+
+            return toString(builder);
+        } catch (IOException e) {
+            return exceptionToJsonString(e, pretty, human);
+        }
+    }
+
+    /**
      * Return a {@link String} that is the json representation of the provided {@link ToXContent}.
      * Wraps the output into an anonymous object if needed. The content is not pretty-printed
      * nor human readable.
@@ -763,7 +811,8 @@ public class Strings {
 
     /**
      * Return a {@link String} that is the json representation of the provided {@link ChunkedToXContent}.
-     * @deprecated don't add usages of this method, it will be removed eventually
+     * @deprecated don't add usages of this method, it will be removed eventually. Use {@link #toLimitedString(ChunkedToXContent, int)}
+     *             instead.
      * TODO: remove this method, it makes no sense to turn potentially very large chunked xcontent instances into a string
      */
     @Deprecated
@@ -808,7 +857,8 @@ public class Strings {
     /**
      * Return a {@link String} that is the json representation of the provided {@link ChunkedToXContent}.
      * Allows to control whether the outputted json needs to be pretty printed and human readable.
-     * @deprecated don't add usages of this method, it will be removed eventually
+     * @deprecated don't add usages of this method, it will be removed eventually. Use
+     *             {@link #toLimitedString(ChunkedToXContent, int, boolean, boolean)} instead.
      * TODO: remove this method, it makes no sense to turn potentially very large chunked xcontent instances into a string
      */
     @Deprecated
@@ -824,7 +874,7 @@ public class Strings {
      */
     public static String toString(ToXContent toXContent, ToXContent.Params params, boolean pretty, boolean human) {
         try {
-            XContentBuilder builder = createBuilder(pretty, human);
+            XContentBuilder builder = createBuilder(pretty, human, null);
             if (toXContent.isFragment()) {
                 builder.startObject();
             }
@@ -834,21 +884,25 @@ public class Strings {
             }
             return toString(builder);
         } catch (IOException e) {
-            try {
-                XContentBuilder builder = createBuilder(pretty, human);
-                builder.startObject();
-                builder.field("error", "error building toString out of XContent: " + e.getMessage());
-                builder.field("stack_trace", ExceptionsHelper.stackTrace(e));
-                builder.endObject();
-                return toString(builder);
-            } catch (IOException e2) {
-                throw new ElasticsearchException("cannot generate error message for deserialization", e);
-            }
+            return exceptionToJsonString(e, pretty, human);
         }
     }
 
-    private static XContentBuilder createBuilder(boolean pretty, boolean human) throws IOException {
-        XContentBuilder builder = JsonXContent.contentBuilder();
+    private static String exceptionToJsonString(Exception exception, boolean pretty, boolean human) {
+        try {
+            XContentBuilder builder = createBuilder(pretty, human, null);
+            builder.startObject();
+            builder.field("error", "error building toString out of XContent: " + exception.getMessage());
+            builder.field("stack_trace", ExceptionsHelper.stackTrace(exception));
+            builder.endObject();
+            return toString(builder);
+        } catch (IOException e) {
+            throw new ElasticsearchException("cannot generate error message for deserialization", exception);
+        }
+    }
+
+    private static XContentBuilder createBuilder(boolean pretty, boolean human, @Nullable OutputStream out) throws IOException {
+        XContentBuilder builder = out == null ? JsonXContent.contentBuilder() : new XContentBuilder(JsonXContent.jsonXContent, out);
         if (pretty) {
             builder.prettyPrint();
         }

@@ -1,0 +1,6 @@
+pr: 147320
+summary: Log fetch-snapshot-info failures from task cancellation at DEBUG
+area: Snapshot/Restore
+type: bug
+issues:
+ - 142785

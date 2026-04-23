@@ -1004,8 +1004,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         int[] assignments = kMeansResult.assignments();
         int[] soarAssignments = kMeansResult.soarAssignments();
         VectorSimilarityFunction sim = fieldInfo.getVectorSimilarityFunction();
-        // FIXME: do this for dot product and mip as well?
-        if (sim == VectorSimilarityFunction.COSINE) {
+        if (sim == VectorSimilarityFunction.COSINE || sim == VectorSimilarityFunction.DOT_PRODUCT || sim == VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT) {
             scaleCentroidsToAverageMagnitude(centroids, assignments, floatVectorValues);
         }
         return new CentroidAssignments(fieldInfo.getVectorDimension(), centroids, assignments, soarAssignments);

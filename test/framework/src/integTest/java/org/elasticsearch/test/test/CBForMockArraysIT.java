@@ -27,7 +27,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 
-/// Verifies that [MockBigArrays] and [org.elasticsearch.common.util.MockBytesRefRecycler] detect
+/// Verifies that [MockBigArrays] and [org.elasticsearch.common.util.TrackingBytesRefRecycler] detect
 /// unreleased allocations at teardown, using a plugin that simulates allocation without release.
 @ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1)
 public class CBForMockArraysIT extends ESIntegTestCase {

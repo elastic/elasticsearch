@@ -14,7 +14,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.RandomOffsetBytesRefRecycler;
+import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -96,7 +96,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
     private SecurityContext securityContext;
     private TokenService tokenService;
     private Client client;
-    private RandomOffsetBytesRefRecycler bytesRefRecycler;
+    private MockBytesRefRecycler bytesRefRecycler;
 
     @Before
     public void setupMocks() throws Exception {
@@ -140,7 +140,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
 
         securityContext = new SecurityContext(settings, threadContext);
 
-        bytesRefRecycler = new RandomOffsetBytesRefRecycler();
+        bytesRefRecycler = new MockBytesRefRecycler();
 
         tokenService = new TokenService(
             settings,

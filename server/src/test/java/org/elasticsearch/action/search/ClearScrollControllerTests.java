@@ -16,7 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.io.stream.RandomOffsetBytesRefRecycler;
+import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -228,7 +228,7 @@ public class ClearScrollControllerTests extends ESTestCase {
     }
 
     private static String buildScrollId(AtomicArray<SearchPhaseResult> array) {
-        try (var recycler = new RandomOffsetBytesRefRecycler()) {
+        try (var recycler = new MockBytesRefRecycler()) {
             return TransportSearchHelper.buildScrollId(array, recycler, true);
         }
     }

@@ -42,7 +42,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.RandomOffsetBytesRefRecycler;
+import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -158,7 +158,7 @@ public class TokenServiceTests extends ESTestCase {
         .build();
     private MockLicenseState licenseState;
     private SecurityContext securityContext;
-    private RandomOffsetBytesRefRecycler bytesRefRecycler;
+    private MockBytesRefRecycler bytesRefRecycler;
 
     @Before
     public void setupClient() {
@@ -239,7 +239,7 @@ public class TokenServiceTests extends ESTestCase {
             pre72OldNode = addAnother7071DataNode(this.clusterService);
         }
 
-        bytesRefRecycler = new RandomOffsetBytesRefRecycler();
+        bytesRefRecycler = new MockBytesRefRecycler();
     }
 
     private static DiscoveryNode addAnother7071DataNode(ClusterService clusterService) {

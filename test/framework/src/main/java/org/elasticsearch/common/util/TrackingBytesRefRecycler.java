@@ -24,27 +24,28 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.junit.Assert.assertTrue;
 
-/// A test-only [BytesRefRecycler] that similarly to [MockBigArrays],
-/// uses two forms of leak detection:
+/// A [Recycler] for [BytesRef] pages that similarly to [MockBigArrays], uses two forms of leak detection:
 ///
 /// - Circuit-breaker accounting: each [#obtain] call charges [PageCacheRecycler#BYTE_PAGE_SIZE] bytes against the
 ///   [CircuitBreaker] supplied at construction time, so that [org.elasticsearch.test.InternalTestCluster#ensureEstimatedStats]
 ///   catches unreleased pages in integration tests.
 /// - Active teardown tracking: outstanding page acquisitions are recorded in a static set. [#ensureAllPagesAreReleased]
 ///   fails the test if any pages were not returned, mirroring the `ACQUIRED_ARRAYS` pattern in [MockBigArrays].
-public class MockBytesRefRecycler extends BytesRefRecycler {
+public class TrackingBytesRefRecycler implements Recycler<BytesRef> {
 
     private static final Set<Object> ACQUIRED_PAGES = ConcurrentHashMap.newKeySet();
+
+    private final BytesRefRecycler delegate;
 
     @Nullable
     private final CircuitBreaker breaker;
 
-    public MockBytesRefRecycler(PageCacheRecycler recycler, @Nullable CircuitBreaker breaker) {
-        super(recycler);
+    public TrackingBytesRefRecycler(BytesRefRecycler delegate, @Nullable CircuitBreaker breaker) {
+        this.delegate = delegate;
         this.breaker = breaker;
     }
 
-    /// Asserts that all pages obtained through any [MockBytesRefRecycler] instance have been released.
+    /// Asserts that all pages obtained through any [TrackingBytesRefRecycler] instance have been released.
     public static void ensureAllPagesAreReleased() throws Exception {
         final Set<Object> masterCopy = new HashSet<>(ACQUIRED_PAGES);
         if (masterCopy.isEmpty() == false) {
@@ -62,7 +63,7 @@ public class MockBytesRefRecycler extends BytesRefRecycler {
 
     @Override
     public Recycler.V<BytesRef> obtain() {
-        final Recycler.V<BytesRef> page = super.obtain();
+        final Recycler.V<BytesRef> page = delegate.obtain();
         if (breaker != null) {
             breaker.addWithoutBreaking(PageCacheRecycler.BYTE_PAGE_SIZE);
         }
@@ -93,5 +94,10 @@ public class MockBytesRefRecycler extends BytesRefRecycler {
                 page.close();
             }
         };
+    }
+
+    @Override
+    public int pageSize() {
+        return delegate.pageSize();
     }
 }

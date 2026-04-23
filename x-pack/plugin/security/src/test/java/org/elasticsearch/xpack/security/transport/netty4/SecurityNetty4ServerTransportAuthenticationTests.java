@@ -17,8 +17,8 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.RandomOffsetBytesRefRecycler;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -329,7 +329,7 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
         InetSocketAddress remoteIngressTransportAddress = randomFrom(boundRemoteIngressAddresses).address();
         try (
             Socket socket = new MockSocket(remoteIngressTransportAddress.getAddress(), remoteIngressTransportAddress.getPort());
-            var recycler = new RandomOffsetBytesRefRecycler();
+            var recycler = new MockBytesRefRecycler();
             var out = new RecyclerBytesStreamOutput(recycler)
         ) {
             BytesReference bytesReference = OutboundHandler.serialize(

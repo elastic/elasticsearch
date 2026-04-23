@@ -30,7 +30,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.RandomOffsetBytesRefRecycler;
+import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -196,7 +196,7 @@ public class AuthenticationServiceTests extends ESTestCase {
     private InetSocketAddress remoteAddress;
     private OperatorPrivileges.OperatorPrivilegesService operatorPrivilegesService;
     private String concreteSecurityIndexName;
-    private RandomOffsetBytesRefRecycler bytesRefRecycler;
+    private MockBytesRefRecycler bytesRefRecycler;
 
     @Before
     @SuppressForbidden(reason = "Allow accessing localhost")
@@ -347,7 +347,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             MeterRegistry.NOOP,
             mock(FeatureService.class)
         );
-        bytesRefRecycler = new RandomOffsetBytesRefRecycler();
+        bytesRefRecycler = new MockBytesRefRecycler();
         tokenService = new TokenService(
             settings,
             Clock.systemUTC(),

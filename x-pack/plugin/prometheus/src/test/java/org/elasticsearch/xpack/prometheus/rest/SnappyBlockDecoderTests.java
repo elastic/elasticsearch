@@ -15,7 +15,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.io.stream.RandomOffsetBytesRefRecycler;
+import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.test.ESTestCase;
@@ -30,7 +30,7 @@ import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 
 public class SnappyBlockDecoderTests extends ESTestCase {
 
-    private final RandomOffsetBytesRefRecycler recycler = new RandomOffsetBytesRefRecycler();
+    private final MockBytesRefRecycler recycler = new MockBytesRefRecycler();
     private final SnappyBlockDecoder decoder = new SnappyBlockDecoder(recycler);
 
     @After
@@ -314,7 +314,7 @@ public class SnappyBlockDecoderTests extends ESTestCase {
     }
 
     public void testDecodeReleasesResourcesOnError() throws IOException {
-        var trackingRecycler = new RandomOffsetBytesRefRecycler();
+        var trackingRecycler = new MockBytesRefRecycler();
         var trackingDecoder = new SnappyBlockDecoder(trackingRecycler);
 
         // Stream claims 40000 bytes but only provides a 20000-byte literal.

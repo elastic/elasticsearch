@@ -271,6 +271,11 @@ public class ExternalSourceResolver {
             extMetadata = wrapAsExternalSourceMetadata(metadata, config);
         }
 
+        extMetadata = enrichWithFileCount(extMetadata, listing.fileCount());
+        if (listing.fileCount() > 1) {
+            extMetadata = markStatsAsPartial(extMetadata);
+        }
+
         PartitionMetadata partitionMetadata = listing.partitionMetadata();
         if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
             extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata);
@@ -567,6 +572,79 @@ public class ExternalSourceResolver {
                 + sources
                 + "]."
         );
+    }
+
+    /**
+     * Wraps the metadata to include a {@code _stats.file_count} field for observability.
+     */
+    static ExternalSourceMetadata enrichWithFileCount(ExternalSourceMetadata metadata, int fileCount) {
+        Map<String, Object> original = metadata.sourceMetadata();
+        Map<String, Object> enriched = original != null ? new HashMap<>(original) : new HashMap<>();
+        enriched.put(SourceStatisticsSerializer.STATS_FILE_COUNT, (long) fileCount);
+        Map<String, Object> finalMetadata = Map.copyOf(enriched);
+        return new ExternalSourceMetadata() {
+            @Override
+            public String location() {
+                return metadata.location();
+            }
+
+            @Override
+            public List<Attribute> schema() {
+                return metadata.schema();
+            }
+
+            @Override
+            public String sourceType() {
+                return metadata.sourceType();
+            }
+
+            @Override
+            public Map<String, Object> sourceMetadata() {
+                return finalMetadata;
+            }
+
+            @Override
+            public Map<String, Object> config() {
+                return metadata.config();
+            }
+        };
+    }
+
+    /**
+     * Wraps the metadata to include a {@code _stats.partial=true} flag, signaling that
+     * the statistics come from a single anchor file and do not cover the full multi-file dataset.
+     */
+    static ExternalSourceMetadata markStatsAsPartial(ExternalSourceMetadata metadata) {
+        Map<String, Object> original = metadata.sourceMetadata();
+        Map<String, Object> enriched = original != null ? new HashMap<>(original) : new HashMap<>();
+        enriched.put(SourceStatisticsSerializer.STATS_PARTIAL, Boolean.TRUE);
+        Map<String, Object> finalMetadata = Map.copyOf(enriched);
+        return new ExternalSourceMetadata() {
+            @Override
+            public String location() {
+                return metadata.location();
+            }
+
+            @Override
+            public List<Attribute> schema() {
+                return metadata.schema();
+            }
+
+            @Override
+            public String sourceType() {
+                return metadata.sourceType();
+            }
+
+            @Override
+            public Map<String, Object> sourceMetadata() {
+                return finalMetadata;
+            }
+
+            @Override
+            public Map<String, Object> config() {
+                return metadata.config();
+            }
+        };
     }
 
     static ExternalSourceMetadata enrichSchemaWithPartitionColumns(ExternalSourceMetadata metadata, PartitionMetadata partitionMetadata) {

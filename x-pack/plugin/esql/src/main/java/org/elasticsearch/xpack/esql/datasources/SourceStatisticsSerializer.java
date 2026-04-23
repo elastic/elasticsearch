@@ -28,6 +28,14 @@ public final class SourceStatisticsSerializer {
 
     public static final String STATS_ROW_COUNT = "_stats.row_count";
     public static final String STATS_SIZE_BYTES = "_stats.size_bytes";
+    /**
+     * When set to {@code true} in sourceMetadata, indicates that the statistics are derived
+     * from a single anchor file in a multi-file query (FIRST_FILE_WINS) and do not represent
+     * the full dataset. The aggregate pushdown rule must bail out instead of using these stats.
+     */
+    public static final String STATS_PARTIAL = "_stats.partial";
+    /** Number of files matched by the glob pattern; useful for observability and debugging. */
+    public static final String STATS_FILE_COUNT = "_stats.file_count";
     private static final String STATS_COL_PREFIX = "_stats.columns.";
     private static final String NULL_COUNT_SUFFIX = ".null_count";
     private static final String MIN_SUFFIX = ".min";

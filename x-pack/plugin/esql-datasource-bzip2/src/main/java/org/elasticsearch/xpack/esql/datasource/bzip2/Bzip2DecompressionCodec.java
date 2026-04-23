@@ -16,6 +16,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PushbackInputStream;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -86,10 +87,27 @@ public class Bzip2DecompressionCodec implements SplittableDecompressionCodec {
 
     @Override
     public InputStream decompress(InputStream raw) throws IOException {
+        // Validate the bzip2 header up front: BYBLOCK mode bit-scans for block magics and
+        // would silently produce zero output for non-bzip2 input, but callers expect an
+        // IOException for malformed/non-bzip2 streams.
+        PushbackInputStream pb = new PushbackInputStream(raw, 4);
+        byte[] hdr = new byte[4];
+        int read = 0;
+        while (read < 4) {
+            int n = pb.read(hdr, read, 4 - read);
+            if (n < 0) {
+                break;
+            }
+            read += n;
+        }
+        if (read < 4 || hdr[0] != 'B' || hdr[1] != 'Z' || hdr[2] != 'h' || hdr[3] < '1' || hdr[3] > '9') {
+            throw new IOException("Stream is not BZip2 formatted: missing 'BZh[1-9]' header");
+        }
+        pb.unread(hdr, 0, read);
         // BYBLOCK mode bit-scans for block magics and transparently skips end-of-stream /
         // next-member headers, so concatenated bzip2 files decompress as one logical stream.
         // The wrapper absorbs END_OF_BLOCK markers and exposes a plain InputStream.
-        return new ConcatenatedDecompressStream(new CBZip2InputStream(raw, CBZip2InputStream.ReadMode.BYBLOCK));
+        return new ConcatenatedDecompressStream(new CBZip2InputStream(pb, CBZip2InputStream.ReadMode.BYBLOCK));
     }
 
     /**
@@ -272,6 +290,12 @@ public class Bzip2DecompressionCodec implements SplittableDecompressionCodec {
 
         @Override
         public int read(byte[] buf, int off, int len) throws IOException {
+            // InputStream contract: a zero-length read returns 0, not -1. JDK's
+            // readAllBytes() probes with len == 0 once a buffer page is full and would
+            // otherwise treat -1 as EOF and stop after the first page.
+            if (len == 0) {
+                return 0;
+            }
             if (done) {
                 return -1;
             }
@@ -341,6 +365,12 @@ public class Bzip2DecompressionCodec implements SplittableDecompressionCodec {
 
         @Override
         public int read(byte[] buf, int off, int len) throws IOException {
+            // InputStream contract: a zero-length read returns 0, not -1. JDK's
+            // readAllBytes() probes with len == 0 once a buffer page is full and would
+            // otherwise treat -1 as EOF and stop after the first page.
+            if (len == 0) {
+                return 0;
+            }
             if (done) {
                 return -1;
             }

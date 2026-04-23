@@ -128,7 +128,7 @@ class DLMFrozenTransitionService extends AbstractDLMPeriodicMasterOnlyService {
             maxQueueSize,
             clusterService.getSettings(),
             transitionSettings,
-                    errorStore
+            errorStore
         );
     }
 

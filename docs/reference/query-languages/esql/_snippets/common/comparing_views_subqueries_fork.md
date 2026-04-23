@@ -6,7 +6,7 @@ There are many similarities and differences between them.
 ### High level definitions
 
 * `FORK` allows data coming from previous commands, like an initial `FROM index` command, to be processed in parallel in multiple different branches, each performing different commands on the same original data.
-* Subqueries maintain that parallel processing capability, but allow each branch to use a different source index, a different `FROM` command per branch.
+* Subqueries also enable parallel processing, but allow each branch to use a different source index with a different `FROM` command per branch.
 * Views are similar to subqueries, each view has its own `FROM` command, but views are hidden behind view definitions, acting as _virtual indexes_.
 
 ### Similarities

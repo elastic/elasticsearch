@@ -258,7 +258,7 @@ public class BulkByScrollTask extends CancellableTask {
 
     @Override
     protected Optional<OriginalTaskInfo> getOriginalTaskInfo() {
-        if (relocatedTask) {
+        if (relocatedTask && getParentTaskId().isSet() == false) { // children have no OriginalTaskInfo
             return Optional.of(new OriginalTaskInfo(relocationOrigin.originalTaskId(), relocationOrigin.originalStartTimeMillis()));
         } else {
             return Optional.empty();

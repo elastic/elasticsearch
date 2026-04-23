@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.function.inference.Embedding;
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
@@ -120,6 +121,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DayName;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.MonthName;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.Now;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeMax;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeMin;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeWithin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.IpPrefix;
@@ -367,7 +371,12 @@ public class EsqlFunctionRegistry {
     private static FunctionDefinition[][] functions() {
         return new FunctionDefinition[][] {
             // grouping functions
-            new FunctionDefinition[] { Bucket.DEFINITION, Categorize.DEFINITION, TBucket.DEFINITION, TimeSeriesWithout.DEFINITION },
+            new FunctionDefinition[] {
+                Bucket.DEFINITION,
+                Categorize.DEFINITION,
+                TBucket.DEFINITION,
+                TStep.DEFINITION,
+                TimeSeriesWithout.DEFINITION },
             // aggregate functions
             // since they declare two public constructors - one with filter (for nested where) and one without
             // use casting to disambiguate between the two
@@ -593,6 +602,7 @@ public class EsqlFunctionRegistry {
                 PercentileOverTime.DEFINITION,
                 // dense vector functions
                 TextEmbedding.DEFINITION,
+                Embedding.DEFINITION,
                 CosineSimilarity.DEFINITION,
                 DotProduct.DEFINITION,
                 L1Norm.DEFINITION,
@@ -608,9 +618,12 @@ public class EsqlFunctionRegistry {
                 Delay.DEFINITION,
                 // dense vector functions
                 Magnitude.DEFINITION,
+                // date_range functions
+                RangeMax.DEFINITION,
+                RangeMin.DEFINITION,
+                RangeWithin.DEFINITION,
                 ToDateRange.DEFINITION,
-                Sparkline.DEFINITION,
-                Embedding.DEFINITION } };
+                Sparkline.DEFINITION } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

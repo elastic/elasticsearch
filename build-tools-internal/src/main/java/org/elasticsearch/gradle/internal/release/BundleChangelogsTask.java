@@ -146,9 +146,7 @@ public class BundleChangelogsTask extends DefaultTask {
         }
 
         final String upstreamRemote = gitWrapper.getUpstream();
-        final String esBcRefForGit = (bcRef != null && bcRef.isBlank() == false)
-            ? resolveElasticsearchGitRef(bcRef, upstreamRemote)
-            : null;
+        final String esBcRefForGit = (bcRef != null && bcRef.isBlank() == false) ? resolveElasticsearchGitRef(bcRef, upstreamRemote) : null;
         Set<String> entriesFromBc = Set.of();
 
         var didCheckoutChangelogs = false;

@@ -47,6 +47,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
@@ -393,8 +394,19 @@ public class InternalEngine extends Engine {
             translog::getLastSyncedGlobalCheckpoint,
             lastMinRetainedSeqNo,
             engineConfig.getIndexSettings().getSoftDeleteRetentionOperations(),
-            engineConfig.retentionLeasesSupplier()
+            engineConfig.retentionLeasesSupplier(),
+            shouldRetainForPeerRecovery()
         );
+    }
+
+    /**
+     * Whether the soft deletes policy should retain operations for peer recovery. When {@code true} (the default), the policy considers
+     * the local checkpoint of the safe commit, retention leases, and retention operations to determine the min retained sequence number.
+     * Subclasses that don't support peer recovery (e.g. serverless) can override this to return {@code false} so that the min retained
+     * sequence number advances based solely on the global checkpoint, allowing the most aggressive reclamation of soft-deleted documents.
+     */
+    protected boolean shouldRetainForPeerRecovery() {
+        return true;
     }
 
     protected ElasticsearchIndexDeletionPolicy newIndexDeletionPolicy(
@@ -551,6 +563,8 @@ public class InternalEngine extends Engine {
                 // we can access segment_stats while a shard is still in the recovering state.
                 case "segments":
                 case SEGMENTS_STATS_SOURCE:
+                    // FieldInfos can be accessed before the external reader is fully warmed up.
+                case FIELD_HAS_VALUE_SOURCE:
                     break;
                 default:
                     assert externalReaderManager.isWarmedUp : "searcher was not warmed up yet for source[" + source + "]";
@@ -890,6 +904,7 @@ public class InternalEngine extends Engine {
         Get get,
         MappingLookup mappingLookup,
         DocumentParser documentParser,
+        SplitShardCountSummary splitShardCountSummary,
         Function<Searcher, Searcher> searcherWrapper
     ) {
         try (var ignored = acquireEnsureOpenRef()) {
@@ -899,7 +914,7 @@ public class InternalEngine extends Engine {
                 return result;
             } else {
                 // we expose what has been externally expose in a point in time snapshot via an explicit refresh
-                return getFromSearcher(get, acquireSearcher("get", SearcherScope.EXTERNAL, searcherWrapper), false);
+                return getFromSearcher(get, acquireSearcher("get", SearcherScope.EXTERNAL, splitShardCountSummary, searcherWrapper), false);
             }
         }
     }

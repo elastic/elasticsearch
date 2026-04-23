@@ -30,19 +30,28 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   compileOnly project(':server')
   compileOnly project(xpackModule('esql:compute'))
-  
+
   // Parquet format support - using parquet-hadoop-bundle to avoid jar hell from duplicate shaded classes
   implementation("org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}")
-  
-  // Hadoop dependencies - required at both compile time and runtime for Parquet operations.
-  // 
-  // The Hadoop Configuration class is needed because:
-  // 1. ParquetFileReader has method overloads that reference Configuration in their signatures
-  // 2. ParquetReadOptions.Builder() constructor creates HadoopParquetConfiguration internally,
-  //    which requires the Configuration class to be present even when using non-Hadoop code paths
-  // 3. parquet-hadoop-bundle includes shaded Parquet classes but not Hadoop Configuration
-  implementation("org.apache.hadoop:hadoop-client-api:${versions.hadoop}")
-  implementation("org.apache.hadoop:hadoop-client-runtime:${versions.hadoop}")
+
+  // Hadoop JARs are needed at compile time because parquet-hadoop-bundle's API surface
+  // references Hadoop types (Configuration, Path, FileInputFormat). At runtime, our
+  // PlainParquetReadOptions bypasses the Builder's unconditional loading of
+  // ParquetInputFormat/HadoopCodecs, and PlainParquetConfiguration/PlainCompressionCodecFactory
+  // bypass all Hadoop-dependent code paths in both the read and write paths.
+  compileOnly("org.apache.hadoop:hadoop-common:${versions.hadoop}") {
+    transitive = false
+  }
+  compileOnly("org.apache.hadoop:hadoop-mapreduce-client-core:${versions.hadoop}") {
+    transitive = false
+  }
+
+  // Compression libraries — inherited at runtime via extendedPlugins from
+  // esql-datasource-compression-libs; declared compileOnly so PlainCompressionCodecFactory
+  // can reference their classes at compile time.
+  compileOnly "io.airlift:aircompressor:${versions.aircompressor}"
+  compileOnly "com.github.luben:zstd-jni:${versions.zstdJni}"
+  compileOnly "org.xerial.snappy:snappy-java:${versions.snappyJava}"
 
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
@@ -51,78 +60,11 @@ dependencies {
 tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
   mapping from: /parquet-.*/, to: 'parquet'
-  mapping from: /hadoop-.*/, to: 'hadoop'
 }
 
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses()
   ignoreViolations(
-    // Hadoop internal uses sun.misc.Unsafe
-    'org.apache.hadoop.hdfs.shortcircuit.ShortCircuitShm',
-    'org.apache.hadoop.hdfs.shortcircuit.ShortCircuitShm$Slot',
-    'org.apache.hadoop.io.FastByteComparisons$LexicographicalComparerHolder$UnsafeComparer',
-    'org.apache.hadoop.io.FastByteComparisons$LexicographicalComparerHolder$UnsafeComparer$1',
-    'org.apache.hadoop.io.nativeio.NativeIO',
-    'org.apache.hadoop.service.launcher.InterruptEscalator',
-    'org.apache.hadoop.service.launcher.IrqHandler',
-    'org.apache.hadoop.util.SignalLogger$Handler',
-    // Hadoop shaded Guava uses sun.misc.Unsafe
-    'org.apache.hadoop.shaded.com.google.common.cache.Striped64',
-    'org.apache.hadoop.shaded.com.google.common.cache.Striped64$1',
-    'org.apache.hadoop.shaded.com.google.common.cache.Striped64$Cell',
-    'org.apache.hadoop.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
-    'org.apache.hadoop.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
-    'org.apache.hadoop.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-    'org.apache.hadoop.shaded.com.google.common.hash.Striped64',
-    'org.apache.hadoop.shaded.com.google.common.hash.Striped64$1',
-    'org.apache.hadoop.shaded.com.google.common.hash.Striped64$Cell',
-    'org.apache.hadoop.shaded.com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-    'org.apache.hadoop.shaded.com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
-    'org.apache.hadoop.shaded.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
-    'org.apache.hadoop.shaded.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
-    // Hadoop shaded Avro uses sun.misc.Unsafe
-    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe',
-    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeBooleanField',
-    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeByteField',
-    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeCachedField',
-    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeCharField',
-    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeCustomEncodedField',
-    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeDoubleField',
-    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeFloatField',
-    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeIntField',
-    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeLongField',
-    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeObjectField',
-    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeShortField',
-    // Hadoop shaded Curator Guava uses sun.misc.Unsafe
-    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.cache.Striped64',
-    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.cache.Striped64$1',
-    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.cache.Striped64$Cell',
-    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
-    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
-    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$3',
-    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.hash.Striped64',
-    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.hash.Striped64$1',
-    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.hash.Striped64$Cell',
-    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
-    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
-    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
-    'org.apache.hadoop.shaded.org.xbill.DNS.spi.DNSJavaNameServiceDescriptor',
-    // Hadoop thirdparty Protobuf uses sun.misc.Unsafe
-    'org.apache.hadoop.thirdparty.protobuf.MessageSchema',
-    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil',
-    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$1',
-    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$Android32MemoryAccessor',
-    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$Android64MemoryAccessor',
-    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$JvmMemoryAccessor',
-    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$MemoryAccessor',
-    // Hadoop thirdparty Guava uses sun.misc.Unsafe
-    'org.apache.hadoop.thirdparty.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
-    'org.apache.hadoop.thirdparty.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
-    'org.apache.hadoop.thirdparty.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-    'org.apache.hadoop.thirdparty.com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-    'org.apache.hadoop.thirdparty.com.google.common.util.concurrent.AbstractFutureState$UnsafeAtomicHelper',
     // Parquet shaded hashing uses sun.misc.Unsafe
     'shaded.parquet.net.openhft.hashing.HotSpotPrior7u6StringHash',
     'shaded.parquet.net.openhft.hashing.LongHashFunction',

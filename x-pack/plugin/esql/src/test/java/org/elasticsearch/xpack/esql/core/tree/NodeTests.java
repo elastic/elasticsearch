@@ -22,7 +22,6 @@ import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
-import java.util.StringJoiner;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -359,12 +358,16 @@ public class NodeTests extends ESTestCase {
         }
 
         @Override
-        public String nodeString(NodeStringFormat format) {
-            StringJoiner sj = new StringJoiner(",", nodeName() + "(", ")");
-            for (Dummy child : children()) {
-                sj.add(child.nodeString(format));
+        public void nodeString(StringBuilder sb, NodeStringFormat format) {
+            sb.append(nodeName()).append("(");
+            List<Dummy> kids = children();
+            for (int i = 0; i < kids.size(); i++) {
+                if (i > 0) {
+                    sb.append(",");
+                }
+                kids.get(i).nodeString(sb, format);
             }
-            return sj.toString();
+            sb.append(")");
         }
     }
 

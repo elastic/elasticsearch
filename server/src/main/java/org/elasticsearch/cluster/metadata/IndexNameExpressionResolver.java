@@ -322,6 +322,48 @@ public class IndexNameExpressionResolver {
         }).toList();
     }
 
+    public List<String> views(ProjectMetadata projectMetadata, IndicesOptions options, IndicesRequest request) {
+        Context context = new Context(
+            projectMetadata,
+            options,
+            System.currentTimeMillis(),
+            false,
+            false,
+            false,
+            false,
+            false,
+            getSystemIndexAccessLevel(),
+            getSystemIndexAccessPredicate(),
+            getNetNewSystemIndexPredicate()
+        );
+        final Collection<ResolvedExpression> expressions = resolveExpressionsToResources(context, request.indices());
+        return expressions.stream().map(ResolvedExpression::resource).filter(view -> {
+            IndexAbstraction ia = projectMetadata.getIndicesLookup().get(view);
+            return ia != null && Type.VIEW == ia.getType();
+        }).toList();
+    }
+
+    public List<String> datasets(ProjectMetadata projectMetadata, IndicesOptions options, IndicesRequest request) {
+        Context context = new Context(
+            projectMetadata,
+            options,
+            System.currentTimeMillis(),
+            false,
+            false,
+            false,
+            false,
+            false,
+            getSystemIndexAccessLevel(),
+            getSystemIndexAccessPredicate(),
+            getNetNewSystemIndexPredicate()
+        );
+        final Collection<ResolvedExpression> expressions = resolveExpressionsToResources(context, request.indices());
+        return expressions.stream().map(ResolvedExpression::resource).filter(dataset -> {
+            IndexAbstraction ia = projectMetadata.getIndicesLookup().get(dataset);
+            return ia != null && Type.DATASET == ia.getType();
+        }).toList();
+    }
+
     /**
      * Returns {@link IndexAbstraction} instance for the provided write request. This instance isn't fully resolved,
      * meaning that {@link IndexAbstraction#getWriteIndex()} should be invoked in order to get concrete write index.
@@ -616,8 +658,8 @@ public class IndexNameExpressionResolver {
         for (ResolvedExpression expression : expressions) {
             final IndexAbstraction indexAbstraction = indicesLookup.get(expression.resource());
             assert indexAbstraction != null;
-            if (indexAbstraction.getType() == Type.VIEW) {
-                // A view should not resolve to any concrete indices, go to the next one.
+            if (indexAbstraction.getType() == Type.VIEW || indexAbstraction.getType() == Type.DATASET) {
+                // Views and datasets do not resolve to any concrete indices, go to the next one.
                 continue;
             }
             if (context.isResolveToWriteIndex()) {
@@ -1322,15 +1364,16 @@ public class IndexNameExpressionResolver {
                         }
                     }
                 }
-            } else if (indexAbstraction != null && indexAbstraction.getType() == Type.VIEW) {
-                // currently there is nothing to resolve for a view in regard to search routing, so skip it
-                continue;
-            } else {
-                // Index
-                assert resolvedExpression.selector() == null || IndexComponentSelector.DATA.equals(resolvedExpression.selector())
-                    : "Concrete index is being resolved with a selector other than [data] which is illegal";
-                routings = collectRoutings(routings, paramRouting, norouting, resolvedExpression.resource());
-            }
+            } else if (indexAbstraction != null
+                && (indexAbstraction.getType() == Type.VIEW || indexAbstraction.getType() == Type.DATASET)) {
+                    // views and datasets have no routing to resolve, skip
+                    continue;
+                } else {
+                    // Index
+                    assert resolvedExpression.selector() == null || IndexComponentSelector.DATA.equals(resolvedExpression.selector())
+                        : "Concrete index is being resolved with a selector other than [data] which is illegal";
+                    routings = collectRoutings(routings, paramRouting, norouting, resolvedExpression.resource());
+                }
 
         }
         if (routings == null || routings.isEmpty()) {
@@ -1529,6 +1572,13 @@ public class IndexNameExpressionResolver {
                 throw notFoundException(name);
             }
         }
+        if (indexAbstraction.getType() == Type.DATASET && context.getOptions().indexAbstractionOptions().resolveDatasets() == false) {
+            if (ignoreUnavailable) {
+                return false;
+            } else {
+                throw notFoundException(name);
+            }
+        }
         if (context.options.allowSelectors()) {
             // Ensure that the selectors are present and that they are compatible with the abstractions they are used with
             assert selector != null : "Earlier logic should have parsed selectors or added the default selectors already";
@@ -1694,7 +1744,10 @@ public class IndexNameExpressionResolver {
                 : "selectors are enabled in this context, but a selector was not provided";
             List<ResolvedExpression> concreteIndices = resolveEmptyOrTrivialWildcard(context, selector);
 
-            if (context.includeDataStreams() == false && context.getOptions().ignoreAliases()) {
+            if (context.includeDataStreams() == false
+                && context.getOptions().ignoreAliases()
+                && context.getOptions().indexAbstractionOptions().resolveViews() == false
+                && context.getOptions().indexAbstractionOptions().resolveDatasets() == false) {
                 return concreteIndices;
             }
 
@@ -1703,9 +1756,13 @@ public class IndexNameExpressionResolver {
                 .getIndicesLookup()
                 .values()
                 .stream()
-                .filter(ia -> ia.getType() != Type.VIEW)
                 .filter(ia -> context.getOptions().expandWildcardsHidden() || ia.isHidden() == false)
-                .filter(ia -> shouldIncludeIfDataStream(ia, context) || shouldIncludeIfAlias(ia, context))
+                .filter(
+                    ia -> shouldIncludeIfDataStream(ia, context)
+                        || shouldIncludeIfAlias(ia, context)
+                        || shouldIncludeIfView(ia, context)
+                        || shouldIncludeIfDataset(ia, context)
+                )
                 .filter(ia -> ia.isSystem() == false || context.systemIndexAccessPredicate.test(ia.getName()))
                 .forEach(ia -> resolved.addAll(expandToOpenClosed(context, ia, selector)));
 
@@ -1719,6 +1776,14 @@ public class IndexNameExpressionResolver {
 
         private static boolean shouldIncludeIfAlias(IndexAbstraction ia, IndexNameExpressionResolver.Context context) {
             return context.getOptions().ignoreAliases() == false && ia.getType() == Type.ALIAS;
+        }
+
+        private static boolean shouldIncludeIfView(IndexAbstraction ia, IndexNameExpressionResolver.Context context) {
+            return context.getOptions().indexAbstractionOptions().resolveViews() && ia.getType() == Type.VIEW;
+        }
+
+        private static boolean shouldIncludeIfDataset(IndexAbstraction ia, IndexNameExpressionResolver.Context context) {
+            return context.getOptions().indexAbstractionOptions().resolveDatasets() && ia.getType() == Type.DATASET;
         }
 
         private static IndexMetadata.State excludeState(IndicesOptions options) {
@@ -1800,6 +1865,9 @@ public class IndexNameExpressionResolver {
             if (context.getOptions().indexAbstractionOptions().resolveViews() == false && indexAbstraction.getType() == Type.VIEW) {
                 return false;
             }
+            if (context.getOptions().indexAbstractionOptions().resolveDatasets() == false && indexAbstraction.getType() == Type.DATASET) {
+                return false;
+            }
             if (context.getOptions().ignoreAliases() && indexAbstraction.getType() == Type.ALIAS) {
                 return false;
             }
@@ -1853,6 +1921,10 @@ public class IndexNameExpressionResolver {
                 resources.add(new ResolvedExpression(indexAbstraction.getName(), selector));
             } else if (indexAbstraction.getType() == Type.VIEW) {
                 if (context.getOptions().indexAbstractionOptions().resolveViews()) {
+                    resources.add(new ResolvedExpression(indexAbstraction.getName(), selector));
+                }
+            } else if (indexAbstraction.getType() == Type.DATASET) {
+                if (context.getOptions().indexAbstractionOptions().resolveDatasets()) {
                     resources.add(new ResolvedExpression(indexAbstraction.getName(), selector));
                 }
             } else {

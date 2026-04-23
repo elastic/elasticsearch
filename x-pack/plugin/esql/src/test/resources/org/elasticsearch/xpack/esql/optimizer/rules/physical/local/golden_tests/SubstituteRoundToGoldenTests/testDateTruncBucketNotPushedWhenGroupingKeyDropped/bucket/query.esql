@@ -1,0 +1,3 @@
+from all_types
+| stats count(*), max(long) by x = bucket(date, 1 day)
+| drop x

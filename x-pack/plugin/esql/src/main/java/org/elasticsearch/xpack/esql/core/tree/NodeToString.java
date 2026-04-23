@@ -33,7 +33,7 @@ class NodeToString {
     StringBuilder treeString(Node<?> node, int depth) {
         indent(depth);
 
-        sb.append(node.nodeString(format));
+        node.nodeString(sb, format);
 
         List<? extends Node<?>> children = node.children();
         if (children.isEmpty() == false) {

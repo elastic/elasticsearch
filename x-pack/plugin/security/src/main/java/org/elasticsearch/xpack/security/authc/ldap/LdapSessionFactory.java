@@ -68,7 +68,7 @@ public class LdapSessionFactory extends SessionFactory {
     public void session(String username, SecureString password, ActionListener<LdapSession> listener) {
         try {
             new AbstractRunnable() {
-                final LDAPConnection connection = LdapUtils.privilegedConnect(serverSet::getConnection);
+                final LDAPConnection connection = serverSet.getConnection();
                 final byte[] passwordBytes = CharArrays.toUtf8Bytes(password.getChars());
                 Exception containerException = null;
                 int loopIndex = 0;

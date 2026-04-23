@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -56,9 +57,9 @@ public class EsqlLogContext extends QueryLoggerContext {
         AtomicInteger skippedShards = new AtomicInteger(0);
         AtomicInteger failedShards = new AtomicInteger(0);
         info.getClusters().forEach((alias, clusterInfo) -> {
-            successShards.addAndGet(clusterInfo.getSuccessfulShards());
-            skippedShards.addAndGet(clusterInfo.getSkippedShards());
-            failedShards.addAndGet(clusterInfo.getFailedShards());
+            successShards.addAndGet(Objects.requireNonNullElse(clusterInfo.getSuccessfulShards(), 0));
+            skippedShards.addAndGet(Objects.requireNonNullElse(clusterInfo.getSkippedShards(), 0));
+            failedShards.addAndGet(Objects.requireNonNullElse(clusterInfo.getFailedShards(), 0));
         });
         return new ShardInfo(successShards.get(), skippedShards.get(), failedShards.get());
     }

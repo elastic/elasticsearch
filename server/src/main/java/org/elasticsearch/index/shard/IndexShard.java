@@ -1340,8 +1340,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return new Engine.Delete(id, Uid.encodeId(id), seqNo, primaryTerm, version, versionType, origin, startTime, ifSeqNo, ifPrimaryTerm);
     }
 
-    public Engine.GetResult get(Engine.Get get) {
-        return innerGet(get, false, this::wrapSearcher);
+    public Engine.GetResult get(Engine.Get get, SplitShardCountSummary splitShardCountSummary) {
+        return innerGet(get, false, splitShardCountSummary, this::wrapSearcher);
     }
 
     /**
@@ -1351,8 +1351,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void mget(Consumer<MultiEngineGet> mgetter) {
         final MultiEngineGet mget = new MultiEngineGet(this::wrapSearcher) {
             @Override
-            public GetResult get(Engine.Get get) {
-                return innerGet(get, false, this::wrapSearchSearchWithCache);
+            public GetResult get(Engine.Get get, SplitShardCountSummary splitShardCountSummary) {
+                return innerGet(get, false, splitShardCountSummary, this::wrapSearchSearchWithCache);
             }
         };
         try {
@@ -1362,12 +1362,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    public Engine.GetResult getFromTranslog(Engine.Get get) {
+    public Engine.GetResult getFromTranslog(Engine.Get get, SplitShardCountSummary splitShardCountSummary) {
         assert get.realtime();
-        return innerGet(get, true, this::wrapSearcher);
+        return innerGet(get, true, splitShardCountSummary, this::wrapSearcher);
     }
 
-    private Engine.GetResult innerGet(Engine.Get get, boolean translogOnly, Function<Engine.Searcher, Engine.Searcher> searcherWrapper) {
+    private Engine.GetResult innerGet(
+        Engine.Get get,
+        boolean translogOnly,
+        SplitShardCountSummary splitShardCountSummary,
+        Function<Engine.Searcher, Engine.Searcher> searcherWrapper
+    ) {
         readAllowed();
         MappingLookup mappingLookup = mapperService.mappingLookup();
         if (mappingLookup.hasMappings() == false) {
@@ -1379,7 +1384,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (translogOnly) {
             return withEngine(engine -> engine.getFromTranslog(get, mappingLookup, mapperService.documentParser(), searcherWrapper));
         }
-        return withEngine(engine -> engine.get(get, mappingLookup, mapperService.documentParser(), searcherWrapper));
+        return withEngine(
+            engine -> engine.get(get, mappingLookup, mapperService.documentParser(), splitShardCountSummary, searcherWrapper)
+        );
     }
 
     /**
@@ -1789,6 +1796,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         markSearcherAccessed();
         final Engine engine = getEngine();
         return engine.acquireSearcherSupplier(this::wrapSearcher, scope, splitShardCountSummary);
+    }
+
+    /**
+     * Acquires a searcher used for external (client visible) operations.
+     * The searcher is aware of shard splits and will filter documents that have been moved to other shards
+     * according to the provided {@link SplitShardCountSummary}.
+     * @param splitShardCountSummary a summary of the shard routing state seen when the search request was created
+     * @return a searcher
+     */
+    public Engine.Searcher acquireExternalSearcher(String source, SplitShardCountSummary splitShardCountSummary) {
+        readAllowed();
+        markSearcherAccessed();
+        final Engine engine = getEngine();
+        return engine.acquireSearcher(source, Engine.SearcherScope.EXTERNAL, splitShardCountSummary, this::wrapSearcher);
     }
 
     public Engine.Searcher acquireSearcher(String source) {
@@ -4527,7 +4548,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         @Override
         public void afterRefresh(boolean didRefresh) {
-            if (enableFieldHasValue && (didRefresh || fieldInfos == null)) {
+            if (enableFieldHasValue && didRefresh) {
                 FIELD_INFOS.setRelease(IndexShard.this, loadFieldInfos());
             }
         }

@@ -64,6 +64,7 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
         @Param(
             name = "lhs",
             type = {
+                "aggregate_metric_double",
                 "boolean",
                 "cartesian_point",
                 "cartesian_shape",
@@ -87,6 +88,7 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
         @Param(
             name = "rhs",
             type = {
+                "aggregate_metric_double",
                 "boolean",
                 "cartesian_point",
                 "cartesian_shape",

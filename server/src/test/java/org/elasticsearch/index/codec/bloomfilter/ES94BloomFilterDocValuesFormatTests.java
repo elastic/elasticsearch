@@ -260,17 +260,17 @@ public class ES94BloomFilterDocValuesFormatTests extends ESTestCase {
     private void assertBloomFilterTestsPositiveForExistingDocs(IndexWriter writer, List<BytesRef> indexedIds) throws IOException {
         try (var directoryReader = StandardDirectoryReader.open(writer)) {
             for (LeafReaderContext leaf : directoryReader.leaves()) {
-                try (var bloomFilter = getBloomFilter(leaf)) {
-                    // the bloom filter reader is null only if the _id field is not stored during indexing
-                    assertThat(bloomFilter, is(not(nullValue())));
+                var bloomFilter = getBloomFilter(leaf);
+                // the bloom filter reader is null only if the _id field is not stored during indexing
+                assertThat(bloomFilter, is(not(nullValue())));
 
-                    for (BytesRef indexedId : indexedIds) {
-                        assertThat(bloomFilter.mayContainValue(IdFieldMapper.NAME, indexedId), is(true));
-                    }
-                    assertThat(bloomFilter.mayContainValue(IdFieldMapper.NAME, new BytesRef("random")), is(oneOf(true, false)));
-
-                    assertThat(bloomFilter.mayContainValue(IdFieldMapper.NAME, new BytesRef("12345")), is(oneOf(true, false)));
+                for (BytesRef indexedId : indexedIds) {
+                    assertThat(bloomFilter.mayContainValue(IdFieldMapper.NAME, indexedId), is(true));
                 }
+                assertThat(bloomFilter.mayContainValue(IdFieldMapper.NAME, new BytesRef("random")), is(oneOf(true, false)));
+
+                assertThat(bloomFilter.mayContainValue(IdFieldMapper.NAME, new BytesRef("12345")), is(oneOf(true, false)));
+
             }
 
             var storedFields = directoryReader.storedFields();

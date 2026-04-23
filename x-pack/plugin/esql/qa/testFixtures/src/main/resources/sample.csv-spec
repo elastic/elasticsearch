@@ -6,7 +6,7 @@
 row
 required_capability: sample_v3
 
-ROW x = 1 | SAMPLE .999999999
+ROW x = 1 | SAMPLE .9999999999999999
 ;
 
 x:integer
@@ -17,7 +17,7 @@ x:integer
 row and mv_expand
 required_capability: sample_v3
 
-ROW x = [1,2,3,4,5] | MV_EXPAND x | SAMPLE .999999999
+ROW x = [1,2,3,4,5] | MV_EXPAND x | SAMPLE .9999999999999999
 ;
 
 x:integer
@@ -47,12 +47,12 @@ required_capability: sample_v3
 
 FROM employees
   | SAMPLE 0.5
-  | WHERE emp_no > 10050 
+  | WHERE emp_no > 10030
   | STATS count = COUNT(), avg_emp_no = AVG(emp_no)
 ;
 
 count:long | avg_emp_no:double
-1..49      | 10051..10100
+1..69      | 10031..10100
 ;
 
 
@@ -60,13 +60,13 @@ after where
 required_capability: sample_v3
 
 FROM employees
-  | WHERE emp_no <= 10050 
+  | WHERE emp_no <= 10070
   | SAMPLE 0.5
   | STATS count = COUNT(), avg_emp_no = AVG(emp_no)
 ;
 
 count:long | avg_emp_no:double
-1..49      | 10001..10050
+1..69      | 10001..10070
 ;
 
 

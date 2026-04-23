@@ -18,6 +18,8 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
@@ -322,6 +324,15 @@ public class IndexingIT extends AbstractRollingUpgradeTestCase {
         indexSpec.array("routing_path", new String[] { "dim" });
         indexSpec.field("time_series.start_time", 1L);
         indexSpec.field("time_series.end_time", DateUtils.MAX_MILLIS_BEFORE_9999 - 1);
+
+        // Disable synthetic id if old cluster is in the version range that enables
+        // synthetic id behind feature flag. Otherwise, the index will change behavior
+        // once upgrade is finished and cause the test to fail.
+        IndexVersion oldClusterIndexVersion = getOldClusterIndexVersion();
+        if (oldClusterIndexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT)
+            && oldClusterIndexVersion.before(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD)) {
+            indexSpec.field("mapping.synthetic_id", "false");
+        }
         indexSpec.endObject().endObject();
         createIndex.setJsonEntity(Strings.toString(indexSpec.endObject()));
         client().performRequest(createIndex);

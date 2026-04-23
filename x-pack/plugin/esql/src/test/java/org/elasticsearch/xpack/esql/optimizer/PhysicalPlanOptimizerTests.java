@@ -215,7 +215,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.util.TestUtils.stripThrough;
-import static org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns.ALL_FIELDS_PROJECTED;
 import static org.elasticsearch.xpack.esql.parser.ExpressionBuilder.MAX_EXPRESSION_DEPTH;
 import static org.elasticsearch.xpack.esql.parser.LogicalPlanBuilder.MAX_QUERY_DEPTH;
 import static org.elasticsearch.xpack.esql.plan.physical.AbstractPhysicalPlanSerializationTests.randomEstimatedRowSize;
@@ -3793,20 +3792,20 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
+     * {@snippet lang="text":
      * LimitExec[1000[INTEGER],8]
-     * \_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS cnt#4],SINGLE,[$$cnt$count{r}#5, $$cnt$seen{r}#6],8]
-     *   \_MergeExec[[&lt;all-fields-projected&gt;{r$}#7]]
-     *     |_ExchangeExec[[&lt;all-fields-projected&gt;{r$}#7],false]
-     *     | \_ProjectExec[[&lt;all-fields-projected&gt;{r$}#7]]
-     *     |   \_EvalExec[[null[NULL] AS &lt;all-fields-projected&gt;#7]]
-     *     |     \_EsQueryExec[no_fields_index]
-     *     \_ExchangeExec[[&lt;all-fields-projected&gt;{r$}#8],false]
-     *       \_ProjectExec[[&lt;all-fields-projected&gt;{r$}#8]]
-     *         \_EvalExec[[null[NULL] AS &lt;all-fields-projected&gt;#8]]
-     *           \_EsQueryExec[no_fields_index]
+     * \_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count()#3],SINGLE,[$$count()$count{r}#4, $$count()$
+     * seen{r}#5],8]
+     *   \_MergeExec[[]]
+     *     |_ExchangeExec[[],false]
+     *     | \_ProjectExec[[]]
+     *     |   \_EsQueryExec[no_fields_index], ...]
+     *     \_ExchangeExec[[],false]
+     *       \_ProjectExec[[]]
+     *         \_EsQueryExec[no_fields_index], ...]
+     * }
      */
     public void testProjectAwayColumnsWithSubqueryCount() {
-        assumeTrue("Prune no-fields in subquery", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_PRUNE_NO_FIELDS.isEnabled());
         for (String count : List.of("count()", "count(*)", "count(1)")) {
             String query = LoggerMessageFormat.format(null, """
                 FROM no_fields_index, (FROM no_fields_index)
@@ -3817,22 +3816,15 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             LimitExec limit = as(plan, LimitExec.class);
             AggregateExec agg = as(limit.child(), AggregateExec.class);
             MergeExec merge = as(agg.child(), MergeExec.class);
-            assertEquals(1, merge.output().size());
-            Attribute attribute = merge.output().getFirst();
-            assertEquals(ALL_FIELDS_PROJECTED, attribute.name());
+            assertEquals(0, merge.output().size());
             assertEquals(2, merge.children().size());
 
             for (PhysicalPlan child : merge.children()) {
                 ExchangeExec exchange = as(child, ExchangeExec.class);
-                assertEquals(1, exchange.output().size());
-                Attribute attr = exchange.output().getFirst();
-                assertEquals(ALL_FIELDS_PROJECTED, attr.name());
+                assertEquals(0, exchange.output().size());
                 ProjectExec project = as(exchange.child(), ProjectExec.class);
-                assertEquals(1, project.projections().size());
-                NamedExpression namedExpression = project.projections().get(0);
-                assertEquals(ALL_FIELDS_PROJECTED, namedExpression.name());
-                EvalExec eval = as(project.child(), EvalExec.class);
-                EsQueryExec esQuery = as(eval.child(), EsQueryExec.class);
+                assertEquals(0, project.projections().size());
+                EsQueryExec esQuery = as(project.child(), EsQueryExec.class);
                 assertEquals("no_fields_index", esQuery.indexPattern());
             }
         }
@@ -9173,13 +9165,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expects optimized data node plan of
-     * <pre>{@code
+     * {@snippet lang="text":
      * TopN[[Order[name{r}#25,ASC,LAST], Order[emp_no{f}#14,ASC,LAST]],1000[INTEGER]]
      * \_Join[JoinConfig[type=LEFT OUTER, unionFields=[int{r}#4]]]
      *   |_Project[[..., long_noidx{f}#23, salary{f}#19]]
      *   | \_EsRelation[test][_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, ..]
      *   \_LocalRelation[[int{f}#24, name{f}#25],[...]]
-     * }</pre>
+     * }
      */
     @AwaitsFix(bugUrl = "lookup functionality is not yet implemented")
     public void testLookupThenTopN() {
@@ -10214,7 +10206,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
-     * <pre>{@code
+     * {@snippet lang="text":
      * ProjectExec[[c{r}#4, n{r}#6]]
      * \_LimitExec[3[INTEGER],null]
      *   \_ExchangeExec[[c{r}#4, n{r}#6],false]
@@ -10227,7 +10219,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *     \_Aggregate[[n{r}#6],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS c#4, n{r}#6]]
      *       \_StubRelation[[_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, gender{f}#11, hire_date{f}#16, job{f}#17, job.raw{f}#18, la
      * nguages{f}#12, last_name{f}#13, long_noidx{f}#19, salary{f}#14, n{r}#6]]<>]]
-     * }</pre>
+     * }
      */
     public void testInlineStatsGroupByNullFromEmployees() {
         assumeTrue("INLINE STATS must be enabled", INLINE_STATS.isEnabled());

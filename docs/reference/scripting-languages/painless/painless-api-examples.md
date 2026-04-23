@@ -186,8 +186,12 @@ Result ordering in the field contexts is not guaranteed.
   :   (Required, string) Document that’s temporarily indexed in-memory and accessible from the script.
 
   `index`
-  :   (Required, string) Index containing a mapping that’s compatible with the indexed document. You may specify a remote index by prefixing the index with the remote cluster alias. For example, `remote1:my_index` indicates that you want to execute the painless script against the "my_index" index on the "remote1" cluster. This request will be forwarded to the "remote1" cluster if you have [configured a connection](docs-content://deploy-manage/remote-clusters/remote-clusters-self-managed.md) to that remote cluster.
+  :   (Required, string) Index containing a mapping that’s compatible with the indexed document.
+  
+      {applies_to}`stack: ga` When using {{ccs}}, you can specify a remote index by prefixing the index with the remote cluster alias. For example, `remote1:my_index` indicates that you want to execute the painless script against the "my_index" index on the "remote1" cluster. This request will be forwarded to the "remote1" cluster if you have [configured a connection](docs-content://deploy-manage/remote-clusters/remote-clusters-self-managed.md) to that remote cluster.  
 
+      {applies_to}`serverless: preview` When [cross-project search](docs-content://explore-analyze/cross-project-search.md) (CPS) is enabled, an unqualified index name (for example, `logs`) targets the **origin project only**. Use `_origin:myindex` or `projectAlias:myindex` to target a specific project. [Project routing](docs-content://explore-analyze/cross-project-search/cross-project-search-project-routing.md) is not supported. 
+      
 ::::{note}
 Wildcards are not accepted in the index expression for this endpoint. The expression `*:myindex` will return the error "No such remote cluster" and the expression `logs*` or `remote1:logs*` will return the error "index not found".
 ::::

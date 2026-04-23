@@ -1297,7 +1297,6 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
     }
 
     public void testBulkIndexWithSeqNoDisabledPreservesRealSeqNo() throws Exception {
-        assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
         Settings settings = Settings.builder()
             .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)
             .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)

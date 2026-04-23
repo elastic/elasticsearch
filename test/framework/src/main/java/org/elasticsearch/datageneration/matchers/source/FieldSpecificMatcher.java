@@ -282,6 +282,14 @@ interface FieldSpecificMatcher {
             if (value instanceof Number n) {
                 return n;
             }
+            // Accept coercible numeric strings
+            if (value instanceof String s) {
+                try {
+                    return Double.parseDouble(s);
+                } catch (NumberFormatException e) {
+                    return null;
+                }
+            }
 
             return null;
         }
@@ -295,6 +303,18 @@ interface FieldSpecificMatcher {
                 .filter(Objects::nonNull)
                 .filter(v -> v instanceof Number == false)
                 .filter(v -> v instanceof String == false || ((String) v).isEmpty() == false)
+                // Exclude coercible numeric strings
+                .filter(v -> {
+                    if (v instanceof String s) {
+                        try {
+                            Double.parseDouble(s);
+                            return false;
+                        } catch (NumberFormatException e) {
+                            return true;
+                        }
+                    }
+                    return true;
+                })
                 .collect(Collectors.toSet());
         }
 
@@ -955,7 +975,7 @@ interface FieldSpecificMatcher {
         return getMappingParameter("null_value", actualMapping, expectedMapping);
     }
 
-    private static Object getMappingParameter(String name, Map<String, Object> actualMapping, Map<String, Object> expectedMapping) {
+    static Object getMappingParameter(String name, Map<String, Object> actualMapping, Map<String, Object> expectedMapping) {
         var actualValue = actualMapping.get(name);
         var expectedValue = expectedMapping.get(name);
         if (Objects.equals(actualValue, expectedValue) == false) {

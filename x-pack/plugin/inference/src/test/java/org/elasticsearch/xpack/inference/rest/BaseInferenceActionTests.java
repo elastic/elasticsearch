@@ -21,6 +21,7 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.InferenceContext;
+import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
@@ -32,6 +33,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
+import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.getDefaultTimeoutForTaskType;
+import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.resolveTimeoutForTaskType;
 import static org.elasticsearch.xpack.inference.rest.BaseInferenceAction.parseParams;
 import static org.elasticsearch.xpack.inference.rest.BaseInferenceAction.parseTimeout;
 import static org.elasticsearch.xpack.inference.rest.Paths.INFERENCE_ID;
@@ -39,6 +43,8 @@ import static org.elasticsearch.xpack.inference.rest.Paths.TASK_TYPE_OR_INFERENC
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class BaseInferenceActionTests extends RestActionTestCase {
 
@@ -62,7 +68,7 @@ public class BaseInferenceActionTests extends RestActionTestCase {
 
             @Override
             public List<Route> routes() {
-                return List.of(new Route(POST, route("{task_type_or_id}")));
+                return List.of(new Route(POST, route("{task_type_or_id}")), new Route(POST, route("{task_type_or_id}/{inference_id}")));
             }
         });
     }
@@ -101,19 +107,19 @@ public class BaseInferenceActionTests extends RestActionTestCase {
         assertThat(timeout, is(TimeValue.timeValueSeconds(4)));
     }
 
-    public void testParseTimeout_ReturnsDefaultTimeout() {
+    public void testParseTimeout_TimeoutNotSpecified_ReturnsPlaceholderTimeout() {
         var timeout = parseTimeout(RestRequestTests.contentRestRequest("{}", Map.of()));
 
-        assertThat(timeout, is(TimeValue.timeValueSeconds(30)));
+        assertThat(timeout, is(TIMEOUT_NOT_DETERMINED));
     }
 
-    public void testUsesDefaultTimeout() {
+    public void testUsesUndeterminedTimeout_WhenTimeoutIsNotSpecified() {
         SetOnce<Boolean> executeCalled = new SetOnce<>();
         verifyingClient.setExecuteVerifier(((actionType, actionRequest) -> {
             assertThat(actionRequest, instanceOf(InferenceActionProxy.Request.class));
 
             var request = (InferenceActionProxy.Request) actionRequest;
-            assertThat(request.getTimeout(), is(InferenceAction.Request.DEFAULT_TIMEOUT));
+            assertThat(request.getTimeout(), is(BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED));
 
             executeCalled.set(true);
             return createResponse();
@@ -230,6 +236,29 @@ public class BaseInferenceActionTests extends RestActionTestCase {
 
         dispatchRequest(inferenceRequest);
         assertThat(executeCalled.get(), equalTo(true));
+    }
+
+    public void testResolveTimeoutForTaskType_NullTimeout_ReturnsDefault() {
+        assertThat(resolveTimeoutForTaskType(TaskType.TEXT_EMBEDDING, null), is(TimeValue.timeValueSeconds(30)));
+        assertThat(resolveTimeoutForTaskType(TaskType.EMBEDDING, null), is(TimeValue.timeValueSeconds(30)));
+        assertThat(resolveTimeoutForTaskType(TaskType.SPARSE_EMBEDDING, null), is(TimeValue.timeValueSeconds(30)));
+        assertThat(resolveTimeoutForTaskType(TaskType.RERANK, null), is(TimeValue.timeValueSeconds(30)));
+        assertThat(resolveTimeoutForTaskType(TaskType.COMPLETION, null), is(TimeValue.timeValueSeconds(120)));
+        assertThat(resolveTimeoutForTaskType(TaskType.CHAT_COMPLETION, null), is(TimeValue.timeValueSeconds(120)));
+        assertThat(resolveTimeoutForTaskType(TaskType.ANY, null), is(TIMEOUT_NOT_DETERMINED));
+    }
+
+    public void testResolveTimeoutForTaskType_NonNullTimeout_ReturnsTimeout() {
+        var timeout = randomTimeValue();
+        for (TaskType taskType : TaskType.values()) {
+            assertThat(resolveTimeoutForTaskType(taskType, timeout), is(timeout));
+        }
+    }
+
+    public void testGetDefaultTimeoutForTaskType_ReturnsNonNull() {
+        for (TaskType taskType : TaskType.values()) {
+            assertThat(getDefaultTimeoutForTaskType(taskType), not(nullValue()));
+        }
     }
 
     static InferenceAction.Response createResponse() {

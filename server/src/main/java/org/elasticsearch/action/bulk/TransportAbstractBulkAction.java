@@ -272,15 +272,15 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
             project = state.metadata().getProject(projectId);
         }
 
-        Map<String, IngestService.Pipelines> resolvedPipelineCache = new HashMap<>();
+        final long pipelineResolutionTimeMillis = threadPool.absoluteTimeInMillis();
+        Map<PipelineCacheKey, IngestService.Pipelines> resolvedPipelineCache = new HashMap<>();
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
             IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
             if (indexRequest != null) {
                 if (indexRequest.isPipelineResolved() == false) {
                     var pipeline = resolvedPipelineCache.computeIfAbsent(
-                        indexRequest.index(),
-                        // TODO perhaps this should use `threadPool.absoluteTimeInMillis()`, but leaving as is for now.
-                        (index) -> IngestService.resolvePipelines(actionRequest, indexRequest, project, System.currentTimeMillis())
+                        new PipelineCacheKey(actionRequest.index(), indexRequest.index()),
+                        (index) -> IngestService.resolvePipelines(actionRequest, indexRequest, project, pipelineResolutionTimeMillis)
                     );
                     IngestService.setPipelineOnRequest(indexRequest, pipeline);
                 }
@@ -389,6 +389,8 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
      *     doesn't correspond to a data stream.
      */
     protected abstract Boolean resolveFailureStore(String indexName, ProjectMetadata metadata, long epochMillis);
+
+    private record PipelineCacheKey(String originalIndex, String embeddedIndex) {}
 
     /**
      * Retrieves the {@link IndexRequest} from the provided {@link DocWriteRequest} for index or upsert actions.  Upserts are

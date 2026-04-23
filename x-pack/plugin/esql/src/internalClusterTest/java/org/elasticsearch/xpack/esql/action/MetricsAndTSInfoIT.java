@@ -42,7 +42,7 @@ public class MetricsAndTSInfoIT extends AbstractEsqlIntegTestCase {
     @Before
     public void populateIndices() {
         Settings.Builder settings = Settings.builder().put("mode", "time_series").putList("routing_path", List.of("host", "cluster"));
-        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean()) {
+        if (randomBoolean()) {
             settings.put("index.codec", "default").put("index.number_of_replicas", 0).put(IndexSettings.SYNTHETIC_ID.getKey(), true);
         }
         {
@@ -66,7 +66,9 @@ public class MetricsAndTSInfoIT extends AbstractEsqlIntegTestCase {
                     "request_count",
                     "type=integer,time_series_metric=counter",
                     "extra-field-1",
-                    "type=keyword"
+                    "type=keyword",
+                    "extra-dimension-1",
+                    "type=keyword,time_series_dimension=true"
                 )
                 .get();
         }
@@ -91,7 +93,9 @@ public class MetricsAndTSInfoIT extends AbstractEsqlIntegTestCase {
                     "request_count",
                     "type=integer,time_series_metric=counter",
                     "extra-field-2",
-                    "type=keyword"
+                    "type=keyword",
+                    "extra-dimension-2",
+                    "type=keyword,time_series_dimension=true"
                 )
                 .get();
         }
@@ -149,29 +153,53 @@ public class MetricsAndTSInfoIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMetricsInfo() {
-        for (String index : List.of("index-1", "index-2", "index-1,index-2")) {
-            EsqlQueryRequest request = new EsqlQueryRequest();
-            request.query("TS " + index + " | METRICS_INFO");
-            if (canUseQueryPragmas()) {
-                request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1).build()));
-            }
-            try (var resp = run(request)) {
-                List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
-                assertThat(rows, not(empty()));
+        List<String> statements = List.of(
+            "| WHERE @timestamp > \"1970-01-01\" ",
+            "| EVAL t = to_long(@timestamp) | WHERE t > 0 ",
+            "| EVAL t = to_long(@timestamp)",
+            "| DROP @timestamp",
+            "| EVAL t = @timestamp | DROP @timestamp",
+            ""
+        );
+        for (var statement : statements) {
+            for (String index : List.of("index-1", "index-2", "index-1,index-2")) {
+                EsqlQueryRequest request = new EsqlQueryRequest();
+                request.query("TS " + index + statement + " | METRICS_INFO");
+                if (canUseQueryPragmas()) {
+                    request.pragmas(
+                        new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1).build())
+                    );
+                }
+                try (var resp = run(request)) {
+                    List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+                    assertThat(rows, not(empty()));
+                }
             }
         }
     }
 
     public void testTsInfo() {
-        for (String index : List.of("index-1", "index-2", "index-1,index-2")) {
-            EsqlQueryRequest request = new EsqlQueryRequest();
-            request.query("TS " + index + " | TS_INFO");
-            if (canUseQueryPragmas()) {
-                request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1).build()));
-            }
-            try (var resp = run(request)) {
-                List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
-                assertThat(rows, not(empty()));
+        List<String> statements = List.of(
+            "| WHERE @timestamp > \"1970-01-01\" ",
+            "| EVAL t = to_long(@timestamp) | WHERE t > 0 ",
+            "| EVAL t = to_long(@timestamp)",
+            "| DROP @timestamp",
+            "| EVAL t = @timestamp | DROP @timestamp",
+            ""
+        );
+        for (var statement : statements) {
+            for (String index : List.of("index-1", "index-2", "index-1,index-2")) {
+                EsqlQueryRequest request = new EsqlQueryRequest();
+                request.query("TS " + index + statement + " | TS_INFO");
+                if (canUseQueryPragmas()) {
+                    request.pragmas(
+                        new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1).build())
+                    );
+                }
+                try (var resp = run(request)) {
+                    List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+                    assertThat(rows, not(empty()));
+                }
             }
         }
     }

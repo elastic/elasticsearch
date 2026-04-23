@@ -26,9 +26,6 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.translog.TranslogStats;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -400,9 +397,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         assertBusy(() -> {
             IndicesStatsResponse stats = indicesAdmin().prepareStats(indexName).clear().setTranslog(true).get();
             assertThat(stats.getIndex(indexName), notNullValue());
-            logShardStatus(indexName);
             final var translogStats = stats.getIndex(indexName).getPrimaries().getTranslog();
-            logTranslogStats(translogStats, uncommittedTranslogOps);
             assertThat(translogStats.estimatedNumberOfOperations(), equalTo(uncommittedTranslogOps));
             assertThat(translogStats.getUncommittedOperations(), equalTo(uncommittedTranslogOps));
         });
@@ -417,41 +412,5 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         assertThat(stats.getIndex(indexName), notNullValue());
         assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().estimatedNumberOfOperations(), equalTo(0));
         assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().getUncommittedOperations(), equalTo(0));
-    }
-
-    /**
-     * @see <a href="https://github.com/elastic/elasticsearch/issues/146604">#146604</a>
-     */
-    private void logShardStatus(String indexName) {
-        final var index = internalCluster().clusterService().state().metadata().getProject().index(indexName).getIndex();
-        for (String nodeName : internalCluster().nodesInclude(indexName)) {
-            IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeName);
-            IndexService indexService = indicesService.indexServiceSafe(index);
-            for (IndexShard shard : indexService) {
-                if (shard.routingEntry().primary()) {
-                    logger.info(
-                        "Shard [{}] status: lastKnownGlobalCheckpoint={}, lastSyncedGlobalCheckpoint={}, "
-                            + "localCheckpoint={}, maxSeqNo={}",
-                        shard.shardId(),
-                        shard.getLastKnownGlobalCheckpoint(),
-                        shard.getLastSyncedGlobalCheckpoint(),
-                        shard.seqNoStats().getLocalCheckpoint(),
-                        shard.seqNoStats().getMaxSeqNo()
-                    );
-                }
-            }
-        }
-    }
-
-    /**
-     * @see <a href="https://github.com/elastic/elasticsearch/issues/146604">#146604</a>
-     */
-    private void logTranslogStats(TranslogStats translogStats, int uncommittedTranslogOps) {
-        logger.info(
-            "TranslogStats: estimatedOps={}, uncommittedOps={}, expected={}",
-            translogStats.estimatedNumberOfOperations(),
-            translogStats.getUncommittedOperations(),
-            uncommittedTranslogOps
-        );
     }
 }

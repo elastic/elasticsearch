@@ -488,11 +488,12 @@ public class PostFilterKnnQueryTests extends ESTestCase {
                 IndexSearcher searcher = newSearcher(reader);
                 Query filter = new TermQuery(new Term("tag", "common"));
                 int k = 20;
+                int numCands = 30;
                 ESKnnFloatVectorQuery innerQuery = new ESKnnFloatVectorQuery(
                     "vec",
                     new float[] { 0f, 20f },
                     k,
-                    10,
+                    numCands,
                     filter,
                     new KnnSearchStrategy.Hnsw(10)
                 );

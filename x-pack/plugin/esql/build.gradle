@@ -140,6 +140,8 @@ tasks.named("internalClusterTest").configure {
   // https://github.com/elastic/elasticsearch/issues/135009
   jvmArgs '-XX:-OmitStackTraceInFastThrow'
 
+  systemProperty 'es.esql_external_datasources_feature_flag_enabled', 'true'
+
   def injected = project.objects.newInstance(Injected)
   File snippetsFolder = file("build/testrun/internalClusterTest/temp/esql/_snippets")
   def snippetsDocFolder = file("${rootDir}/docs/reference/query-languages/esql/_snippets")

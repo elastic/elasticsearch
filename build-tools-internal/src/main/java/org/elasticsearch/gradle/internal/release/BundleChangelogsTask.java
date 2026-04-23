@@ -317,15 +317,11 @@ public class BundleChangelogsTask extends DefaultTask {
 
         List<ParsedExternalChangelog> parsed = new ArrayList<>();
         for (String filePath : files) {
-            try {
-                String content = gitWrapper.runCommand("git", "show", "FETCH_HEAD:" + filePath);
-                ChangelogEntry entry = ChangelogEntry.parse(content);
-                entry.setSourceRepo(source.sourceRepo());
-                applyExternalFilenamePrFallback(filePath, entry);
-                parsed.add(new ParsedExternalChangelog(filePath, entry));
-            } catch (Exception e) {
-                LOGGER.warn("Failed to parse external changelog {}: {}", filePath, e.getMessage());
-            }
+            String content = gitWrapper.runCommand("git", "show", "FETCH_HEAD:" + filePath);
+            ChangelogEntry entry = ChangelogEntry.parse(content);
+            entry.setSourceRepo(source.sourceRepo());
+            applyExternalFilenamePrFallback(filePath, entry);
+            parsed.add(new ParsedExternalChangelog(filePath, entry));
         }
 
         if (bcRefForFilter != null && bcRefForFilter.isBlank() == false) {

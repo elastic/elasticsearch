@@ -29,15 +29,13 @@ import java.util.stream.Stream;
 
 public class QuerySettings {
 
-    @Param(
-        name = "project_routing",
-        type = { "keyword" },
-        description = "A project routing expression, "
-            + "used to define which projects to route the query to. "
-            + "Only supported if Cross-Project Search is enabled."
-        // TODO add a link to CPS docs when available
-    )
-    @Example(file = "from", tag = "project-routing", description = "Routes the query to the specified project.")
+    @Param(name = "project_routing", type = { "keyword" }, description = """
+        Limits the scope of a [cross-project search (CPS)](/reference/query-languages/esql/esql-cross-serverless-projects.md) to \
+        specific projects before query execution, based on a \
+        [Lucene query expression](docs-content://explore-analyze/cross-project-search/cross-project-search-project-routing.md) \
+        evaluated against project tags. Excluded projects are not queried, which can reduce cost and latency. \
+        """)
+    @Example(file = "from", tag = "project-routing", description = "Route a query to a specific project by alias:")
     public static final QuerySettingDef<String> PROJECT_ROUTING = new QuerySettingDef<>(
         "project_routing",
         DataType.KEYWORD,
@@ -127,9 +125,8 @@ public class QuerySettings {
         name = "approximation",
         type = { "boolean", "map_param" },
         since = "9.4.0",
-        // TODO: make "query approximation" a link to an "Advanced workflows" page when that's ready.
-        description = "Enables query approximation if possible for the query. "
-            + "A boolean value `false` (default) disables query approximation and `true` enables it with "
+        description = "Enables [query approximation](/reference/query-languages/esql/esql-query-approximation.md) if possible for the "
+            + "query. A boolean value `false` (default) disables query approximation and `true` enables it with "
             + "default settings. Map values enable query approximation with custom settings."
     )
     @MapParam(

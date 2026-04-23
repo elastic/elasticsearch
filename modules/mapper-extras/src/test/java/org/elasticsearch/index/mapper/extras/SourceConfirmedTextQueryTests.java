@@ -40,12 +40,18 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.analysis.CannedTokenStream;
+import org.apache.lucene.tests.analysis.Token;
 import org.apache.lucene.tests.search.CheckHits;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.FieldTypeTestCase;
+import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -454,6 +460,64 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
             Occur.FILTER
         ).build();
         assertEquals(approximation, SourceConfirmedTextQuery.approximate(phrasePrefixQuery));
+    }
+
+    public void testBinaryDocValuesFieldFetcherIsLazy() throws Exception {
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(Lucene.STANDARD_ANALYZER))) {
+            Document doc = new Document();
+            doc.add(new TextField("body", "the quick brown fox", Store.YES));
+            w.addDocument(doc);
+
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                IndexSearcher searcher = newSearcher(reader);
+
+                // MatchOnlyTextFieldType with usesBinaryDocValues=true, which uses binaryDocValuesFieldFetcher.
+                // The index has no binary doc values (plain TextField), so any attempt to open them throws
+                // IllegalStateException. This lets us verify when the lazy fetcher actually opens doc values.
+                MatchOnlyTextFieldMapper.MatchOnlyTextFieldType ft = new MatchOnlyTextFieldMapper.MatchOnlyTextFieldType(
+                    "body",
+                    new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
+                    Lucene.STANDARD_ANALYZER,
+                    false,
+                    Collections.emptyMap(),
+                    false,
+                    false,
+                    null,
+                    false,
+                    IndexVersion.current(),
+                    true,
+                    true
+                );
+
+                // NOTE: "fox brown" has both terms in the index but in the wrong order. A boolean MUST
+                // conjunction with a nonexistent term forces the scorer to be created (ScorerSupplier.get()
+                // runs) but no doc survives. Without the lazy fix this would throw IllegalStateException
+                // because the eager binaryDocValuesFieldFetcher opens doc values in ScorerSupplier.get().
+                // With the fix, valueFetcher.apply() is never called and no exception is thrown.
+                Query phraseQuery = ft.phraseQuery(
+                    new CannedTokenStream(new Token("fox", 0, 3), new Token("brown", 4, 9)),
+                    0,
+                    true,
+                    FieldTypeTestCase.MOCK_CONTEXT
+                );
+                Query booleanQuery = new BooleanQuery.Builder().add(phraseQuery, Occur.MUST)
+                    .add(new TermQuery(new Term("body", "nonexistent")), Occur.MUST)
+                    .build();
+                assertEquals(0, searcher.count(booleanQuery));
+
+                // NOTE: "brown fox" matches the approximation AND the phrase order, so the confirmation
+                // phase calls valueFetcher.apply(docId), which lazily opens BinaryDocValues. Since the
+                // index has no binary doc values, this throws IllegalStateException, proving the lazy
+                // init fires only when a doc actually reaches the confirmation phase.
+                Query matchingQuery = ft.phraseQuery(
+                    new CannedTokenStream(new Token("brown", 0, 5), new Token("fox", 6, 9)),
+                    0,
+                    true,
+                    FieldTypeTestCase.MOCK_CONTEXT
+                );
+                expectThrows(IllegalStateException.class, () -> searcher.count(matchingQuery));
+            }
+        }
     }
 
     public void testEmptyIndex() throws Exception {

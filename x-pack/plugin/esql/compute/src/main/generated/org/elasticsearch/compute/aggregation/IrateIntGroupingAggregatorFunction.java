@@ -35,16 +35,13 @@ public final class IrateIntGroupingAggregatorFunction implements GroupingAggrega
 
   private final DriverContext driverContext;
 
-  private final boolean isDelta;
-
   private final boolean isDateNanos;
 
   IrateIntGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext,
-      boolean isDelta, boolean isDateNanos) {
-    this.isDelta = isDelta;
+      boolean isDateNanos) {
     this.isDateNanos = isDateNanos;
     this.channels = channels;
-    this.state = IrateIntAggregator.initGrouping(driverContext, isDelta, isDateNanos);
+    this.state = IrateIntAggregator.initGrouping(driverContext, isDateNanos);
     this.driverContext = driverContext;
   }
 

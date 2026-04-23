@@ -15,7 +15,6 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.junit.Assume;
 
@@ -238,7 +237,7 @@ public abstract class AbstractInferenceServiceTests extends AbstractInferenceSer
                 false,
                 new HashMap<>(),
                 InputType.INTERNAL_SEARCH,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 

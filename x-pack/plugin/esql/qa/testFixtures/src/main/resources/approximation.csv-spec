@@ -22,7 +22,7 @@
 
 
 No approximation
-required_capability: approximation_v6
+required_capability: approximation_v7
 request_stored: skip
 
 SET approximation=false\;
@@ -35,7 +35,7 @@ count:long
 
 
 No confidence intervals
-required_capability: approximation_v6
+required_capability: approximation_v7
 request_stored: skip
 
 SET approximation={"rows":10000, "confidence_level":null}\;
@@ -48,7 +48,7 @@ count:long     | sum:long
 
 
 Exact total row count
-required_capability: approximation_v6
+required_capability: approximation_v7
 request_stored: skip
 
 SET approximation={"rows":10000}\;
@@ -61,7 +61,7 @@ count:long | _approximation_confidence_interval(count):long | _approximation_cer
 
 
 Exact total single-valued field count
-required_capability: approximation_v6
+required_capability: approximation_v7
 request_stored: skip
 
 SET approximation={"rows":10000}\;
@@ -74,7 +74,7 @@ count:long | _approximation_confidence_interval(count):long | _approximation_cer
 
 
 Approximate total multi-valued field count
-required_capability: approximation_v6
+required_capability: approximation_v7
 request_stored: skip
 
 SET approximation={"rows":10000}\;
@@ -87,7 +87,7 @@ count:long       | _approximation_confidence_interval(count):long | _approximati
 
 
 Approximate stats on large single-valued data
-required_capability: approximation_v6
+required_capability: approximation_v7
 request_stored: skip
 
 SET approximation={"rows":10000}\;
@@ -100,7 +100,7 @@ count:long      | avg:double | sum:long            | _approximation_confidence_i
 
 
 Approximate stats on large multi-valued data
-required_capability: approximation_v6
+required_capability: approximation_v7
 request_stored: skip
 
 SET approximation=true\;
@@ -115,7 +115,7 @@ count:long       | avg:double | sum:long               | _approximation_confiden
 
 
 Exact stats on small single-valued data
-required_capability: approximation_v6
+required_capability: approximation_v7
 request_stored: skip
 
 SET approximation={"rows":10000}\;
@@ -130,7 +130,7 @@ count:long | avg:double | sum:long | _approximation_confidence_interval(count):l
 
 
 Exact stats on small multi-valued data
-required_capability: approximation_v6
+required_capability: approximation_v7
 request_stored: skip
 
 SET approximation={"rows":10000}\;
@@ -146,7 +146,7 @@ count:long | avg:double | sum:long | _approximation_confidence_interval(count):l
 
 
 Multiple total counts
-required_capability: approximation_v6
+required_capability: approximation_v7
 request_stored: skip
 
 SET approximation={"rows":10000}\;
@@ -159,7 +159,7 @@ count:long     | count2:long    | countValue:long  | _approximation_confidence_i
 
 
 Exact count with where on single-valued data
-required_capability: approximation_v6
+required_capability: approximation_v7
 request_stored: skip
 
 SET approximation={"rows":10000}\;
@@ -174,7 +174,7 @@ count:long | _approximation_confidence_interval(count):long | _approximation_cer
 
 
 Approximate stats with where on multi-valued data
-required_capability: approximation_v6
+required_capability: approximation_v7
 request_stored: skip
 
 SET approximation={"rows":10000}\;
@@ -190,7 +190,7 @@ count:long      | avg:double | sum:long               | _approximation_confidenc
 
 
 Approximate stats with stats where
-required_capability: approximation_v6
+required_capability: approximation_v7
 request_stored: skip
 
 SET approximation={"rows":10000, "confidence_level":0.85}\;
@@ -207,7 +207,7 @@ count:long      | avg:double | sum:long               | _approximation_confidenc
 
 
 Approximate stats with sample
-required_capability: approximation_v6
+required_capability: approximation_v7
 request_stored: skip
 
 SET approximation={"rows":10000,"confidence_level":0.85}\;
@@ -222,7 +222,7 @@ count:long     | avg:double | sum:long            | _approximation_confidence_in
 
 
 Approximate stats with commands before stats
-required_capability: approximation_v6
+required_capability: approximation_v7
 request_stored: skip
 
 SET approximation={"rows":10000}\;
@@ -247,7 +247,7 @@ count:long       | avg:double | sum:long               | _approximation_confiden
 
 
 Approximate stats with commands after stats
-required_capability: approximation_v6
+required_capability: approximation_v7
 request_stored: skip
 
 SET approximation={"rows":10000}\;
@@ -266,7 +266,7 @@ avg:double | avg2:double | _approximation_confidence_interval(avg):double | _app
 
 
 Approximate stats with dependent variables that have confidence interval
-required_capability: approximation_v6
+required_capability: approximation_v7
 request_stored: skip
 
 SET approximation={"rows":10000}\;
@@ -286,7 +286,7 @@ y:integer | plus1:double     | _approximation_confidence_interval(plus1):double 
 
 
 Approximate stats with dependent string variable
-required_capability: approximation_v6
+required_capability: approximation_v7
 request_stored: skip
 
 SET approximation={"rows":10000}\;
@@ -303,7 +303,7 @@ from_str:double
 
 
 Approximate stats with dependent multi-valued variable
-required_capability: approximation_v6
+required_capability: approximation_v7
 request_stored: skip
 
 SET approximation={"rows":10000}\;
@@ -319,7 +319,7 @@ sv:double
 
 
 Approximate stats by with zero variance
-required_capability: approximation_v6
+required_capability: approximation_v7
 request_stored: skip
 
 SET approximation={"rows":100000}\;
@@ -341,7 +341,7 @@ avg:double               | median:double | one:double | mv:integer | _approximat
 
 
 Approximate stats by on large single-valued data
-required_capability: approximation_v6
+required_capability: approximation_v7
 request_stored: skip
 
 SET approximation={"rows":10000}\;
@@ -361,7 +361,7 @@ count:long | sv:integer | _approximation_confidence_interval(count):long | _appr
 
 
 Approximate stats by on large multi-valued data
-required_capability: approximation_v6
+required_capability: approximation_v7
 request_stored: skip
 
 SET approximation={"rows":100000}\;
@@ -382,7 +382,7 @@ count:long | mv:integer | _approximation_confidence_interval(count):long | _appr
 
 
 Exact stats by on small single-valued data
-required_capability: approximation_v6
+required_capability: approximation_v7
 request_stored: skip
 
 SET approximation={"rows":10000}\;
@@ -402,7 +402,7 @@ count:long | sv:integer | _approximation_confidence_interval(count):long | _appr
 
 
 Exact stats by on small multi-valued data
-required_capability: approximation_v6
+required_capability: approximation_v7
 request_stored: skip
 
 SET approximation={"rows":10000}\;
@@ -423,7 +423,7 @@ count:long | mv:integer | _approximation_confidence_interval(count):long | _appr
 
 
 Approximate stats by on mixed data
-required_capability: approximation_v6
+required_capability: approximation_v7
 request_stored: skip
 
 SET approximation={"rows":10000}\;
@@ -436,7 +436,7 @@ count:long     | _approximation_confidence_interval(count):long | _approximation
 
 
 Overwrite approximated column
-required_capability: approximation_v6
+required_capability: approximation_v7
 request_stored: skip
 
 SET approximation=true\;
@@ -451,7 +451,7 @@ sum:integer
 
 
 User-generated approximation column name
-required_capability: approximation_v6
+required_capability: approximation_v7
 request_stored: skip
 
 SET approximation=true\;
@@ -470,7 +470,7 @@ sum:long | _approximation_confidence_interval(sum):long | _approximation_certifi
 
 
 Rename stats group key
-required_capability: approximation_v6
+required_capability: approximation_v7
 request_stored: skip
 
 SET approximation={"rows":10000}\;
@@ -484,7 +484,7 @@ count:long | key:integer | _approximation_confidence_interval(count):long | _app
 
 
 Filter all rows
-required_capability: approximation_v6
+required_capability: approximation_v7
 request_stored: skip
 
 SET approximation={"rows":10000}\;
@@ -498,7 +498,7 @@ median:double | _approximation_confidence_interval(median):double | _approximati
 
 
 Row with duplicate aggs
-required_capability: approximation_v6
+required_capability: approximation_v7
 request_stored: skip
 
 SET approximation={"rows":10000}\;
@@ -513,7 +513,7 @@ a:long | b:long | c:long | x:long | _approximation_confidence_interval(a):long |
 
 
 Duplicate aggs with grouping
-required_capability: approximation_v6
+required_capability: approximation_v7
 request_stored: skip
 
 SET approximation={"rows":10000}\;
@@ -528,7 +528,7 @@ median:double | p50:double | key:keyword | _approximation_confidence_interval(me
 
 
 Sum of nulls
-required_capability: approximation_v6
+required_capability: approximation_v7
 request_stored: skip
 
 SET approximation=true\;
@@ -544,7 +544,7 @@ null
 
 
 Approximated column is null
-required_capability: approximation_v6
+required_capability: approximation_v7
 request_stored: skip
 
 SET approximation=true\;
@@ -557,7 +557,7 @@ null     | null                                         | null
 
 
 Approximated column and null
-required_capability: approximation_v6
+required_capability: approximation_v7
 request_stored: skip
 
 SET approximation=true\;
@@ -570,7 +570,7 @@ sum:long            | sum_null:long | _approximation_confidence_interval(sum):lo
 
 
 Mv_expand after duplicate aggs
-required_capability: approximation_v6
+required_capability: approximation_v7
 request_stored: skip
 
 SET approximation={"rows":10000}\;
@@ -582,7 +582,7 @@ a:long         | b:long         | _approximation_confidence_interval(a):long | _
 
 
 Exact dense vector count
-required_capability: approximation_v6
+required_capability: approximation_v7
 request_stored: skip
 
 SET approximation={"rows":10000}\;
@@ -596,7 +596,7 @@ count_vectors:long | _approximation_confidence_interval(count_vectors):long | _a
 
 
 Count by date bucket
-required_capability: approximation_v6
+required_capability: approximation_v7
 request_stored: skip
 
 SET approximation=true\;
@@ -614,8 +614,162 @@ c:long  |           b:date        | _approximation_confidence_interval(c):long |
 ;
 
 
+Lookup join before stats
+required_capability: approximation_v7
+required_capability: approximation_lookup_join
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+| EVAL language_code = sv % 4 + 1
+| LOOKUP JOIN languages_lookup ON language_code
+| EVAL length = LENGTH(language_name)
+| STATS AVG(length)
+;
+
+AVG(length):double | _approximation_confidence_interval(AVG(length)):double | _approximation_certified(AVG(length)):boolean
+6.4..6.6           | [6.4..6.6,6.4..6.6]                                    | {any}
+;
+
+
+Lookup join after stats by
+required_capability: approximation_v7
+required_capability: approximation_lookup_join
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+    | EVAL language_code = sv % 4 + 1
+    | STATS count=COUNT() BY language_code
+    | LOOKUP JOIN languages_lookup ON language_code
+    | SORT language_name
+    | LIMIT 5
+;
+
+count:long   | language_code:integer | language_name:keyword | _approximation_confidence_interval(count):long | _approximation_certified(count):boolean
+40000..80000 | 1                     | English               | [40000..80000,40000..80000]                    | {any}
+40000..80000 | 2                     | French                | [40000..80000,40000..80000]                    | {any}
+40000..80000 | 4                     | German                | [40000..80000,40000..80000]                    | {any}
+40000..80000 | 3                     | Spanish               | [40000..80000,40000..80000]                    | {any}
+;
+
+
+Lookup join before and after stats by
+required_capability: approximation_v7
+required_capability: approximation_lookup_join
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+    | EVAL language_code = sv % 4 + 1
+    | LOOKUP JOIN languages_lookup ON language_code
+    | DROP language_code
+    | STATS avg=AVG(sv) BY language_name
+    | RENAME language_name AS original_language_name
+    | EVAL language_code = LENGTH(original_language_name) % 4 + 1
+    | LOOKUP JOIN languages_lookup ON language_code
+    | SORT original_language_name
+    | DROP language_code
+;
+
+avg:double | original_language_name:keyword | language_name:keyword | _approximation_confidence_interval(avg):double | _approximation_certified(avg):boolean
+440..490   | English                        | German                | [440..490,440..490]                            | {any}
+440..490   | French                         | Spanish               | [440..490,440..490]                            | {any}
+440..490   | German                         | Spanish               | [440..490,440..490]                            | {any}
+440..490   | Spanish                        | German                | [440..490,440..490]                            | {any}
+;
+
+
+Inline stats
+required_capability: approximation_v7
+required_capability: approximation_inline_stats
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+| KEEP sv
+| INLINE STATS AVG(sv)
+| SORT sv
+| LIMIT 5
+;
+
+sv:integer | AVG(sv):double | _approximation_confidence_interval(AVG(sv)):double | _approximation_certified(AVG(sv)):boolean
+1          | 440..490       | [440..490,440..490]                                | {any}
+2          | 440..490       | [440..490,440..490]                                | {any}
+2          | 440..490       | [440..490,440..490]                                | {any}
+3          | 440..490       | [440..490,440..490]                                | {any}
+3          | 440..490       | [440..490,440..490]                                | {any}
+;
+
+
+Inline stats and where
+required_capability: approximation_v7
+required_capability: approximation_inline_stats
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+| KEEP sv
+| WHERE sv >= 400
+| INLINE STATS SUM(sv)
+| SORT sv
+| LIMIT 401
+| SORT sv DESC
+| LIMIT 3
+;
+
+sv:integer | SUM(sv):long        | _approximation_confidence_interval(SUM(sv)):long | _approximation_certified(SUM(sv)):boolean
+401        | 80000000..110000000 | [80000000..110000000,80000000..110000000]        | {any}
+400        | 80000000..110000000 | [80000000..110000000,80000000..110000000]        | {any}
+400        | 80000000..110000000 | [80000000..110000000,80000000..110000000]        | {any}
+;
+
+
+Inline stats by
+required_capability: approximation_v7
+required_capability: approximation_inline_stats
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+| KEEP sv
+| INLINE STATS COUNT(), AVG(sv) BY sv
+| SORT sv DESC
+| LIMIT 3
+;
+
+COUNT():long | AVG(sv):double         | sv:integer |_approximation_confidence_interval(COUNT()):long | _approximation_certified(COUNT()):boolean | _approximation_confidence_interval(AVG(sv)):double | _approximation_certified(AVG(sv)):boolean
+100..2000    | 699.999999..700.000001 | 700        | [100..2000,100..2000]                           | {any}                                     | [699.999999..700.000001,699.999999..700.000001]    | {any}
+100..2000    | 699.999999..700.000001 | 700        | [100..2000,100..2000]                           | {any}                                     | [699.999999..700.000001,699.999999..700.000001]    | {any}
+100..2000    | 699.999999..700.000001 | 700        | [100..2000,100..2000]                           | {any}                                     | [699.999999..700.000001,699.999999..700.000001]    | {any}
+;
+
+
+Inline stats by and lookup join
+required_capability: approximation_v7
+required_capability: approximation_inline_stats
+required_capability: approximation_lookup_join
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+| KEEP sv
+| WHERE sv < 700
+| INLINE STATS SUM(sv) BY sv
+| EVAL language_code = sv % 4 + 1
+| LOOKUP JOIN languages_lookup ON language_code
+| SORT sv DESC
+| LIMIT 2
+;
+
+SUM(sv):long   | sv:integer | language_code:integer | language_name:keyword | _approximation_confidence_interval(SUM(sv)):long | _approximation_certified(SUM(sv)):boolean
+70000..1400000 | 699        | 4                     | German                | [70000..1400000,70000..1400000]                  | {any}
+70000..1400000 | 699        | 4                     | German                | [70000..1400000,70000..1400000]                  | {any}
+;
+
+
 Warn on no stats
-required_capability: approximation_v6
+required_capability: approximation_v7
 request_stored: skip
 
 SET approximation=true\;
@@ -634,7 +788,7 @@ sv:integer
 
 
 Warn on max
-required_capability: approximation_v6
+required_capability: approximation_v7
 request_stored: skip
 
 SET approximation=true\;
@@ -652,7 +806,7 @@ max:integer | sv:integer
 
 
 Example boolean for docs
-required_capability: approximation_v6
+required_capability: approximation_v7
 request_stored: skip
 
 // tag::approximationBooleanForDocs[]
@@ -672,7 +826,7 @@ sum:long | _approximation_confidence_interval(sum):long | _approximation_certifi
 
 
 Example map for docs
-required_capability: approximation_v6
+required_capability: approximation_v7
 request_stored: skip
 
 // tag::approximationMapForDocs[]

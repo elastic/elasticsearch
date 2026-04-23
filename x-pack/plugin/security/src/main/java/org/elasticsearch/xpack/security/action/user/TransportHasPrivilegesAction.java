@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.action.user;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -52,7 +51,13 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
         NativePrivilegeStore privilegeStore,
         SecurityContext context
     ) {
-        super(HasPrivilegesAction.NAME, transportService, actionFilters, HasPrivilegesRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(
+            HasPrivilegesAction.NAME,
+            transportService,
+            actionFilters,
+            HasPrivilegesRequest::new,
+            authorizationService.getAuthorizationExecutor()
+        );
         this.authorizationService = authorizationService;
         this.privilegeStore = privilegeStore;
         this.securityContext = context;

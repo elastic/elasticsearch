@@ -27,12 +27,11 @@ public class JinaAIRerankServiceSettings extends FilteredXContentObject implemen
     public static final String NAME = "jinaai_rerank_service_settings";
 
     public static JinaAIRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
+
+        var commonServiceSettings = JinaAIServiceSettings.fromMap(map, context, validationException);
 
         validationException.throwIfValidationErrorsExist();
-
-        var commonServiceSettings = JinaAIServiceSettings.fromMap(map, context);
-
         return new JinaAIRerankServiceSettings(commonServiceSettings);
     }
 
@@ -48,6 +47,17 @@ public class JinaAIRerankServiceSettings extends FilteredXContentObject implemen
 
     public JinaAIServiceSettings getCommonSettings() {
         return commonSettings;
+    }
+
+    @Override
+    public JinaAIRerankServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+
+        var updatedCommonServiceSettings = commonSettings.updateCommonServiceSettings(serviceSettings, validationException);
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new JinaAIRerankServiceSettings(updatedCommonServiceSettings);
     }
 
     @Override

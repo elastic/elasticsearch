@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
@@ -132,9 +131,16 @@ public class JinaAIService extends SenderService<JinaAIModel> implements Reranki
                     removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
                 );
             }
-            JinaAIModel model = createModel(
+            var model = retrieveModelCreatorFromMapOrThrow(
+                MODEL_CREATORS,
                 inferenceEntityId,
                 taskType,
+                NAME,
+                ConfigurationParseContext.REQUEST
+            ).createFromMaps(
+                inferenceEntityId,
+                taskType,
+                NAME,
                 serviceSettingsMap,
                 taskSettingsMap,
                 chunkingSettings,
@@ -152,27 +158,6 @@ public class JinaAIService extends SenderService<JinaAIModel> implements Reranki
         }
     }
 
-    private static JinaAIModel createModel(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> serviceSettings,
-        Map<String, Object> taskSettings,
-        ChunkingSettings chunkingSettings,
-        @Nullable Map<String, Object> secretSettings,
-        ConfigurationParseContext context
-    ) {
-        return retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceEntityId, taskType, NAME, context).createFromMaps(
-            inferenceEntityId,
-            taskType,
-            NAME,
-            serviceSettings,
-            taskSettings,
-            chunkingSettings,
-            secretSettings,
-            context
-        );
-    }
-
     @Override
     public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
         return retrieveModelCreatorFromMapOrThrow(
@@ -180,7 +165,7 @@ public class JinaAIService extends SenderService<JinaAIModel> implements Reranki
             config.getInferenceEntityId(),
             config.getTaskType(),
             config.getService(),
-            ConfigurationParseContext.PERSISTENT
+            ConfigurationParseContext.REQUEST
         ).createFromModelConfigurationsAndSecrets(config, secrets);
     }
 

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.jinaai;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -24,10 +25,19 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.settings.RateLimitSettings.REQUESTS_PER_MINUTE_FIELD;
+import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class JinaAIServiceSettingsTests extends AbstractBWCWireSerializationTestCase<JinaAIServiceSettings> {
+
+    private static final String TEST_MODEL_ID = "test-model";
+    private static final String INITIAL_TEST_MODEL_ID = "initial-model";
+
+    private static final int TEST_RATE_LIMIT = 500;
+    private static final int INITIAL_TEST_RATE_LIMIT = 100;
+    private static final int DEFAULT_RATE_LIMIT = 2000;
 
     public static JinaAIServiceSettings createRandom() {
         var model = randomAlphaOfLength(15);
@@ -35,52 +45,85 @@ public class JinaAIServiceSettingsTests extends AbstractBWCWireSerializationTest
         return new JinaAIServiceSettings(model, RateLimitSettingsTests.createRandom());
     }
 
-    public void testFromMap() {
-        var model = "model";
+    public void testFromMap_AllFields_CreatesSettingsCorrectly() {
+        var settingsMap = buildServiceSettingsMap(TEST_MODEL_ID, TEST_RATE_LIMIT);
+
         var serviceSettings = JinaAIServiceSettings.fromMap(
-            new HashMap<>(Map.of(ServiceFields.MODEL_ID, model)),
-            ConfigurationParseContext.REQUEST
+            settingsMap,
+            randomFrom(ConfigurationParseContext.values()),
+            new ValidationException()
         );
 
-        assertThat(serviceSettings, is(new JinaAIServiceSettings(model, null)));
+        assertThat(serviceSettings, is(new JinaAIServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT))));
     }
 
-    public void testFromMap_WithRateLimit() {
-        var model = "model";
+    public void testFromMap_OnlyMandatoryFields_UsesDefaultRateLimit_Success() {
+        var settingsMap = buildServiceSettingsMap(TEST_MODEL_ID, null);
+
         var serviceSettings = JinaAIServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    ServiceFields.MODEL_ID,
-                    model,
-                    RateLimitSettings.FIELD_NAME,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 3))
-                )
-            ),
-            ConfigurationParseContext.REQUEST
+            settingsMap,
+            randomFrom(ConfigurationParseContext.values()),
+            new ValidationException()
         );
 
-        assertThat(serviceSettings, is(new JinaAIServiceSettings(model, new RateLimitSettings(3))));
+        assertThat(serviceSettings, is(new JinaAIServiceSettings(TEST_MODEL_ID, new RateLimitSettings(DEFAULT_RATE_LIMIT))));
     }
 
-    public void testFromMap_WhenUsingModelId() {
-        var model = "model";
+    public void testFromMap_NoModelId_ThrowsValidationError() {
+        var settingsMap = buildServiceSettingsMap(null, TEST_RATE_LIMIT);
+
+        var validationException = new ValidationException();
         var serviceSettings = JinaAIServiceSettings.fromMap(
-            new HashMap<>(Map.of(ServiceFields.MODEL_ID, model)),
-            ConfigurationParseContext.PERSISTENT
+            settingsMap,
+            randomFrom(ConfigurationParseContext.values()),
+            validationException
         );
 
-        assertThat(serviceSettings, is(new JinaAIServiceSettings(model, null)));
+        assertThat(serviceSettings, is(nullValue()));
+        assertThat(validationException.validationErrors().size(), is(1));
+        assertThat(
+            validationException.validationErrors().getFirst(),
+            is(Strings.format("[service_settings] does not contain the required setting [%s]", ServiceFields.MODEL_ID))
+        );
     }
 
-    public void testXContent_WritesAllFields() throws IOException {
-        var entity = new JinaAIServiceSettings("model", new RateLimitSettings(1));
+    public void testUpdateCommonServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
+        var settingsMap = buildServiceSettingsMap(TEST_MODEL_ID, TEST_RATE_LIMIT);
+        var originalServiceSettings = new JinaAIServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT));
+        var validationException = new ValidationException();
+
+        var updatedServiceSettings = originalServiceSettings.updateCommonServiceSettings(settingsMap, validationException);
+
+        assertThat(updatedServiceSettings, is(new JinaAIServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT))));
+        assertThat(validationException.validationErrors(), is(empty()));
+    }
+
+    public void testUpdateCommonServiceSettings_EmptyMap_DoesNotChangeSettings() {
+        var originalServiceSettings = new JinaAIServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT));
+        var validationException = new ValidationException();
+
+        var serviceSettings = originalServiceSettings.updateCommonServiceSettings(new HashMap<>(), validationException);
+
+        assertThat(serviceSettings, is(originalServiceSettings));
+        assertThat(validationException.validationErrors(), is(empty()));
+    }
+
+    public void testToXContent_WritesAllValues() throws IOException {
+        var serviceSettings = new JinaAIServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT));
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        entity.toXContent(builder, null);
+        serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, is("""
-            {"model_id":"model","rate_limit":{"requests_per_minute":1}}"""));
+        var expected = stripWhitespace(Strings.format("""
+            {
+                "model_id": "%s",
+                "rate_limit": {
+                    "requests_per_minute": %d
+                }
+            }
+            """, TEST_MODEL_ID, TEST_RATE_LIMIT));
+        assertThat(xContentResult, is(expected));
     }
 
     @Override
@@ -106,13 +149,15 @@ public class JinaAIServiceSettingsTests extends AbstractBWCWireSerializationTest
         return new JinaAIServiceSettings(modelId, rateLimitSettings);
     }
 
-    public static Map<String, Object> getServiceSettingsMap(String model, @Nullable Integer requestsPerMinute) {
+    public static Map<String, Object> buildServiceSettingsMap(@Nullable String modelId, @Nullable Integer rateLimit) {
         var map = new HashMap<String, Object>();
 
-        map.put(ServiceFields.MODEL_ID, model);
+        if (modelId != null) {
+            map.put(ServiceFields.MODEL_ID, modelId);
+        }
 
-        if (requestsPerMinute != null) {
-            map.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(REQUESTS_PER_MINUTE_FIELD, requestsPerMinute)));
+        if (rateLimit != null) {
+            map.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, rateLimit)));
         }
 
         return map;

@@ -55,7 +55,7 @@ public class BaseJinaAIEmbeddingsServiceSettingsTests extends ESTestCase {
         @Nullable JinaAIEmbeddingType embeddingType,
         @Nullable Integer requestsPerMinute
     ) {
-        var map = JinaAIServiceSettingsTests.getServiceSettingsMap(modelName, requestsPerMinute);
+        var map = JinaAIServiceSettingsTests.buildServiceSettingsMap(modelName, requestsPerMinute);
         if (similarity != null) {
             map.put(SIMILARITY, similarity.toString());
         }

@@ -33,21 +33,22 @@ public class JinaAIServiceSettings extends FilteredXContentObject implements Ser
     // See https://jina.ai/contact-sales/#rate-limit
     public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(2_000);
 
-    public static JinaAIServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+    @Nullable
+    public static JinaAIServiceSettings fromMap(
+        Map<String, Object> map,
+        ConfigurationParseContext context,
+        ValidationException validationException
+    ) {
+        int initialValidationErrorCount = validationException.validationErrors().size();
 
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
-            map,
-            DEFAULT_RATE_LIMIT_SETTINGS,
-            validationException,
-            JinaAIService.NAME,
-            context
-        );
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, JinaAIService.NAME, context);
 
-        String modelId = extractRequiredString(map, ServiceFields.MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var modelId = extractRequiredString(map, ServiceFields.MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
-        validationException.throwIfValidationErrorsExist();
-
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
+            // new validation error occurred
+            return null;
+        }
         return new JinaAIServiceSettings(modelId, rateLimitSettings);
     }
 
@@ -64,11 +65,30 @@ public class JinaAIServiceSettings extends FilteredXContentObject implements Ser
             // URI is no longer part of service settings since it's only used for testing
             in.readOptionalString();
             // ModelID was incorrectly being serialized as optional
-            modelId = in.readOptionalString();
+            this.modelId = in.readOptionalString();
         } else {
-            modelId = in.readString();
+            this.modelId = in.readString();
         }
-        rateLimitSettings = new RateLimitSettings(in);
+        this.rateLimitSettings = new RateLimitSettings(in);
+    }
+
+    @Nullable
+    public JinaAIServiceSettings updateCommonServiceSettings(Map<String, Object> serviceSettings, ValidationException validationException) {
+        int initialValidationErrorCount = validationException.validationErrors().size();
+
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            JinaAIService.NAME,
+            ConfigurationParseContext.REQUEST
+        );
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
+            // new validation error occurred
+            return null;
+        }
+
+        return new JinaAIServiceSettings(this.modelId, extractedRateLimitSettings);
     }
 
     @Override

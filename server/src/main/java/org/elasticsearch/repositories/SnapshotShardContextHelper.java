@@ -36,6 +36,8 @@ import static org.elasticsearch.snapshots.SnapshotShardsService.getShardStateId;
 public class SnapshotShardContextHelper {
     public static final Logger logger = LogManager.getLogger(SnapshotShardContextHelper.class);
 
+    public static final Releasable NOOP_RELEASABLE = () -> {};
+
     private SnapshotShardContextHelper() {}
 
     public record SnapshotIndexCommitAndShardStateId(SnapshotIndexCommit snapshotIndexCommit, @Nullable String shardStateId) {}
@@ -128,25 +130,21 @@ public class SnapshotShardContextHelper {
     }
 
     /**
-     * Attempt to inc-ref on the snapshotIndexCommit. Returns a releasable that dec-refs when runs. Throws exception if inc-ref fails.
+     * Attempt to inc-ref on the snapshotIndexCommit. Returns a releasable that dec-refs when runs. It throws an exception
+     * (AssertionError in tests) if inc-ref fails and the shard snapshot is not aborted.
      */
     public static Releasable withSnapshotIndexCommitRef(
         ShardId shardId,
         SnapshotId snapshotId,
         SnapshotIndexCommit snapshotIndexCommit,
-        @Nullable IndexShardSnapshotStatus snapshotStatus // null if called on the primary node and snapshot runs on a different node
+        IndexShardSnapshotStatus snapshotStatus
     ) {
-        return withSnapshotIndexCommitRef(
-            shardId,
-            snapshotId,
-            snapshotIndexCommit,
-            snapshotStatus,
-            snapshotStatus == null ? null : () -> false
-        );
+        assert snapshotStatus != null : "snapshotStatus must be non-null or the other overload variant should be used";
+        return withSnapshotIndexCommitRef(shardId, snapshotId, snapshotIndexCommit, snapshotStatus, null);
     }
 
     /**
-     * Variant of {@link #withSnapshotIndexCommitRef(ShardId, SnapshotId, SnapshotIndexCommit, IndexShardSnapshotStatus)} that accepts
+     * Similar to {@link #withSnapshotIndexCommitRef(ShardId, SnapshotId, SnapshotIndexCommit, IndexShardSnapshotStatus)} but also takes
      * a BooleanSupplier indicating whether the primary shard has been relocated away from this node. When relocation during snapshot is
      * enabled, the commit may be released on the source node after its primary has relocated while the shard snapshot keeps running.
      * In that case the blobs referenced by the commit are kept alive by the new primary on the target node, so the read can still
@@ -159,8 +157,6 @@ public class SnapshotShardContextHelper {
         @Nullable IndexShardSnapshotStatus snapshotStatus, // null if called on the primary node and snapshot runs on a different node
         @Nullable BooleanSupplier isShardRelocated // null if relocation not supported or the commit is acquired on a different node
     ) {
-        assert (snapshotStatus == null) == (isShardRelocated == null)
-            : "snapshotStatus and isShardRelocated must either be both null or both non-null";
         maybeEnsureNotAborted(snapshotStatus); // check this first to avoid acquiring a ref when aborted even if refs are available
         if (snapshotIndexCommit.tryIncRef()) {
             return Releasables.releaseOnce(snapshotIndexCommit::decRef);
@@ -168,7 +164,7 @@ public class SnapshotShardContextHelper {
             assert snapshotStatus != null : "only snapshot running locally can receive concurrent abort notification at this stage";
             maybeEnsureNotAborted(snapshotStatus);
             if (isShardRelocated != null && isShardRelocated.getAsBoolean()) {
-                return () -> {};
+                return NOOP_RELEASABLE;
             }
             assert false : shardId + " commit released earlier with status " + snapshotStatus;
             throw new IndexShardSnapshotFailedException(shardId, "commit released while starting snapshot " + snapshotId);

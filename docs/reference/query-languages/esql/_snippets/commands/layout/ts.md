@@ -71,7 +71,7 @@ rows in the result may carry different dimension keys. For an example, refer to
 
 You can make this grouping explicit, or narrow it to a subset of dimensions, using the
 [`WITHOUT`](/reference/query-languages/esql/functions-operators/grouping-functions/without.md)
-grouping function in the `BY` clause ({applies_to}`stack: preview 9.4`):
+grouping function in the `BY` clause ({applies_to}`stack: ga 9.4`):
 
 - `BY WITHOUT(dim1, dim2, ...)` groups by **all** dimensions **except** those listed.
   See [Exclude dimensions with WITHOUT](#exclude-dimensions-with-without).
@@ -199,7 +199,7 @@ TS k8s
 ### Exclude dimensions with WITHOUT
 
 Use [`WITHOUT`](/reference/query-languages/esql/functions-operators/grouping-functions/without.md)
-({applies_to}`stack: preview 9.4`) in the `BY` clause to exclude specific dimensions from
+({applies_to}`stack: ga 9.4`) in the `BY` clause to exclude specific dimensions from
 the time series grouping. For example, group by every dimension except `pod`:
 
 ```esql

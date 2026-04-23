@@ -52,11 +52,10 @@ public class TimeSeriesWithout extends GroupingFunction.NonEvaluatableGroupingFu
 
     @FunctionInfo(
         returnType = "keyword",
-        preview = true,
         description = "Groups by all time-series dimensions except the specified ones. "
             + "When called with no arguments, groups by all dimensions. ",
         type = FunctionType.GROUPING,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4.0") },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") },
         examples = {
             @Example(
                 description = "Aggregate by every dimension except `pod`:",

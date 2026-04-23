@@ -33,7 +33,7 @@ import java.util.Objects;
  * Service settings for Groq chat completion models.
  * Groq reuses the OpenAI wire format, so this largely mirrors the OpenAI settings class
  * but applies Groq-specific defaults such as the base URL and rate limits documented in
- * <a href="https://console.groq.com/docs/rate-limits">Grok Documentation</a>.
+ * <a href="https://console.groq.com/docs/rate-limits">Groq Documentation</a>.
  */
 public class GroqChatCompletionServiceSettings extends FilteredXContentObject implements ServiceSettings, GroqRateLimitServiceSettings {
 

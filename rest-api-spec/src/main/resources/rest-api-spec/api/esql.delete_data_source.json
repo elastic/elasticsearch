@@ -2,7 +2,7 @@
   "esql.delete_data_source": {
     "documentation": {
       "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-data-source-delete",
-      "description": "Delete an ES|QL data source. Fails with 409 if any dataset references it."
+      "description": "Delete one or more ES|QL data sources. Fails with 409 if any dataset references them."
     },
     "stability": "experimental",
     "visibility": "public",
@@ -23,8 +23,8 @@
           ],
           "parts": {
             "name": {
-              "type": "string",
-              "description": "The name of the data source to delete"
+              "type": "list",
+              "description": "A comma-separated list of data sources to delete"
             }
           }
         }

@@ -68,10 +68,8 @@ public class InMemoryDataSourceServiceTests extends ESTestCase {
         assertEquals(Set.of("my_s3"), service.dataSourceNames());
     }
 
-    public void testReplaceEqualIsNoOp() {
+    public void testReplaceEqualSucceeds() {
         put("my_s3", "s3", null, Map.of("region", "us-east-1"));
-        // Second put with identical content should succeed without surfacing an error (the service
-        // short-circuits on an equal existing value — semantically a no-op).
         PlainActionFuture<AcknowledgedResponse> future = new PlainActionFuture<>();
         service.putDataSource(projectId, putRequest("my_s3", "s3", null, Map.of("region", "us-east-1")), future);
         assertTrue(future.actionGet().isAcknowledged());

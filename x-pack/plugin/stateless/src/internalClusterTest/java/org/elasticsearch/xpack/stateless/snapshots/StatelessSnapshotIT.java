@@ -17,14 +17,21 @@
 
 package org.elasticsearch.xpack.stateless.snapshots;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
+import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryPlugin;
@@ -33,13 +40,21 @@ import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+import org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotSettings.StatelessSnapshotEnabledStatus;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
+import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
+import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
+import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_TTL;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
@@ -47,6 +62,8 @@ import static org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTe
 import static org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotSettings.STATELESS_SNAPSHOT_ENABLED_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
 
@@ -241,6 +258,179 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
         final var indicesStatsResponse = safeGet(client().admin().indices().prepareStats(restoredIndexName).setDocs(true).execute());
         final long count = indicesStatsResponse.getIndices().get(restoredIndexName).getTotal().getDocs().getCount();
         assertThat(count, equalTo((long) nDocs));
+    }
+
+    public void testSnapshotFailsCleanlyWhenShardClosesDuringDisconnect() throws Exception {
+        final var settings = Settings.builder()
+            .put(STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(), StatelessSnapshotEnabledStatus.ENABLED)
+            .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
+            // Allow master to remove the disconnected node quickly
+            .put(FOLLOWER_CHECK_INTERVAL_SETTING.getKey(), "100ms")
+            .put(FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), "1")
+            .put(LEADER_CHECK_INTERVAL_SETTING.getKey(), "100ms")
+            .put(LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), "1")
+            .build();
+        final var masterNode = startMasterOnlyNode(settings);
+        final var indexNodeA = startIndexNode(settings);
+        final var indexNodeB = startIndexNode(settings);
+        ensureStableCluster(3);
+
+        final String indexName = randomIdentifier();
+        // Force one shard per node so we can address each node's primary independently below.
+        createIndex(indexName, indexSettings(2, 0).put(INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1).build());
+        ensureGreen(indexName);
+        indexAndMaybeFlush(indexName);
+        flush(indexName);
+
+        final var initialState = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
+        final IndexRoutingTable indexRoutingTable = initialState.routingTable(ProjectId.DEFAULT).index(indexName);
+        final var shard0NodeId = indexRoutingTable.shard(0).primaryShard().currentNodeId();
+        assertThat(shard0NodeId, not(equalTo(indexRoutingTable.shard(1).primaryShard().currentNodeId()))); // one shard per node
+        final var shard0Node = initialState.nodes().get(shard0NodeId).getName();
+        final var shard1Node = shard0Node.equals(indexNodeA) ? indexNodeB : indexNodeA;
+
+        final var repoName = randomRepoName();
+        createRepository(repoName, "fs");
+
+        // Block snapshots on initial metadata reads on each node so that we can exercise disconnection.
+        final var readStrategy = new BlockingMetadataReadStrategy(2);
+        setNodeRepositoryStrategy(shard0Node, readStrategy);
+        setNodeRepositoryStrategy(shard1Node, readStrategy);
+        final var snapshotFuture = client(masterNode).admin()
+            .cluster()
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap-during-disconnect")
+            .setIndices(indexName)
+            .setPartial(true)
+            .setWaitForCompletion(true)
+            .execute();
+        safeAwait(readStrategy.readObserved);
+
+        // Shard snapshot blocked, disconnect node hosting shard0
+        final var disruption = new NetworkDisruption(
+            new NetworkDisruption.TwoPartitions(Set.of(masterNode, shard1Node), Set.of(shard0Node)),
+            NetworkDisruption.DISCONNECT
+        );
+        internalCluster().setDisruptionScheme(disruption);
+        disruption.startDisrupting();
+        ensureStableCluster(2, masterNode);
+
+        // Reconnect the node, the shard snapshot should fail cleanly without AssertionError
+        disruption.stopDisrupting();
+        internalCluster().clearDisruptionScheme();
+        ensureStableCluster(3);
+
+        // Wait for the commit of shard0 to be released after re-join
+        final var snapshotsCommitService = internalCluster().getInstance(SnapshotsCommitService.class, shard0Node);
+        final var shardId0 = new ShardId(indexRoutingTable.getIndex(), 0);
+        assertBusy(() -> assertFalse(snapshotsCommitService.hasTrackingForShard(shardId0)));
+        readStrategy.proceed.countDown(); // resume the snapshot
+
+        final var response = safeGet(snapshotFuture);
+        assertThat(response.getSnapshotInfo(), notNullValue());
+    }
+
+    public void testSnapshotFailsCleanlyWhenShardClosesDuringRestart() {
+        final var settings = Settings.builder()
+            .put(STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(), StatelessSnapshotEnabledStatus.ENABLED)
+            .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
+            .build();
+        final var masterNode = startMasterOnlyNode(settings);
+        final var indexNode = startIndexNode(settings);
+        ensureStableCluster(2);
+
+        final String indexName = randomIdentifier();
+        createIndex(indexName, 1, 0);
+        ensureGreen(indexName);
+        indexAndMaybeFlush(indexName);
+        flush(indexName);
+
+        final var repoName = randomRepoName();
+        createRepository(repoName, "fs");
+
+        // A single node hosts shard 0, so we need only one blocking read
+        final var readStrategy = new BlockingMetadataReadStrategy(1);
+        setNodeRepositoryStrategy(indexNode, readStrategy);
+
+        // Issue snapshot request via master so that it is not interrupted
+        final var snapshotFuture = client(masterNode).admin()
+            .cluster()
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap-during-restart")
+            .setIndices(indexName)
+            .setPartial(true)
+            .setWaitForCompletion(true)
+            .execute();
+        safeAwait(readStrategy.readObserved);
+
+        // Stop the node and block it after IndicesService stopped so that we can resume the snapshot and ensure it fails cleanly
+        final var afterStopObserved = new CountDownLatch(1);
+        final var afterStopProceed = new CountDownLatch(1);
+        internalCluster().getInstance(IndicesService.class, indexNode).addLifecycleListener(new LifecycleListener() {
+            @Override
+            public void afterStop() {
+                afterStopObserved.countDown();
+                safeAwait(afterStopProceed);
+            }
+        });
+        final var snapshotsCommitService = internalCluster().getInstance(SnapshotsCommitService.class, indexNode);
+        final var shardId0 = new ShardId(resolveIndex(indexName), 0);
+
+        final var restartThread = new Thread(() -> {
+            try {
+                internalCluster().restartNode(indexNode);
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            }
+        }, "test-restart-node");
+        restartThread.start();
+
+        safeAwait(afterStopObserved); // Wait for IndicesService to stop
+        assertFalse(snapshotsCommitService.hasTrackingForShard(shardId0));
+        readStrategy.proceed.countDown(); // resume the snapshot task
+        final var response = safeGet(snapshotFuture);
+        afterStopProceed.countDown(); // unblock IndicesService#stop so restart can continue
+        safeJoin(restartThread);
+
+        assertThat(response.getSnapshotInfo(), notNullValue());
+    }
+
+    private class BlockingMetadataReadStrategy extends StatelessMockRepositoryStrategy {
+        final CountDownLatch readObserved;
+        final CountDownLatch proceed = new CountDownLatch(1);
+
+        BlockingMetadataReadStrategy(int numberOfReadsToBlock) {
+            this.readObserved = new CountDownLatch(numberOfReadsToBlock);
+        }
+
+        @Override
+        public InputStream blobContainerReadBlob(
+            CheckedSupplier<InputStream, IOException> originalSupplier,
+            OperationPurpose purpose,
+            String blobName
+        ) throws IOException {
+            maybeBlock(purpose);
+            return super.blobContainerReadBlob(originalSupplier, purpose, blobName);
+        }
+
+        @Override
+        public InputStream blobContainerReadBlob(
+            CheckedSupplier<InputStream, IOException> originalSupplier,
+            OperationPurpose purpose,
+            String blobName,
+            long position,
+            long length
+        ) throws IOException {
+            maybeBlock(purpose);
+            return super.blobContainerReadBlob(originalSupplier, purpose, blobName, position, length);
+        }
+
+        private void maybeBlock(OperationPurpose purpose) {
+            // Initial operation for each shard on each node is single threaded so that we can be sure each node counts down once
+            if (purpose == OperationPurpose.SNAPSHOT_METADATA && readObserved.getCount() > 0) {
+                logger.info("--> read observed");
+                readObserved.countDown();
+                safeAwait(proceed);
+            }
+        }
     }
 
     private int indexAndMaybeFlush(String indexName) {

@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.inference.services.ServiceComponents;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
@@ -58,13 +57,12 @@ public class HttpRequestSender implements Sender {
                 serviceComponents.threadPool()
             );
 
-            var startCompleted = new CountDownLatch(1);
             var executorServiceSettings = new RequestExecutorServiceSettings(serviceComponents.settings());
             executorServiceSettings.init(clusterService);
 
             var service = new RequestExecutorService(
                 serviceComponents.threadPool(),
-                startCompleted,
+                null,
                 executorServiceSettings,
                 requestSender
             );
@@ -139,14 +137,8 @@ public class HttpRequestSender implements Sender {
             // The manager must be started before the executor service. That way we guarantee that the http client
             // is ready prior to the service attempting to use the http client to send a request
             manager.start();
-            threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> {
-                try {
-                    service.start();
-                    startupNotifier.onResponse(null);
-                } catch (Exception ex) {
-                    startupNotifier.onFailure(ex);
-                }
-            });
+            service.start();
+            startupNotifier.onResponse(null);
         } catch (Exception ex) {
             startupNotifier.onFailure(ex);
         }

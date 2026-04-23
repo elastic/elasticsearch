@@ -328,8 +328,9 @@ public class AsyncConnectorSourceOperatorFactorySplitTests extends ESTestCase {
                 }
                 assertTrue("operator did not finish within timeout", operator.isFinished());
                 assertEquals("all 4 splits produced a page", 4, pages.size());
-                for (Page p : pages)
+                for (Page p : pages) {
                     p.releaseBlocks();
+                }
             }
 
             operator.close();

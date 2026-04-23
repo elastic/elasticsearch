@@ -2255,8 +2255,9 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 }
                 assertTrue("operator did not finish within timeout", operator.isFinished());
                 assertEquals("all 4 leaves produced a page", 4, pages.size());
-                for (Page p : pages)
+                for (Page p : pages) {
                     p.releaseBlocks();
+                }
             }
 
             operator.close();

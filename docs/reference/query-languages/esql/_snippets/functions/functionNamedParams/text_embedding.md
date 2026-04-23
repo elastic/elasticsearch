@@ -2,6 +2,6 @@
 
 ### Supported function named parameters
 
-`timeout` {applies_to}`stack: ga 9.4.1+, serverless: ga`
+`timeout` {applies_to}`{"stack": "ga 9.5+", "serverless": "ga"}`
 :   (keyword) Timeout for the inference request (e.g. "30s", "1m").
 

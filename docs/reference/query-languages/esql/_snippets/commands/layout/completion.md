@@ -55,7 +55,7 @@ Best practices:
 
 ::::{applies-switch}
 
-:::{applies-item} stack: ga 9.4.1+
+:::{applies-item} stack: ga 9.5+
 
 ```esql
 COMPLETION [column =] prompt WITH { "inference_id" : "my_inference_endpoint" [, "timeout" : "<timeout_duration>"] }
@@ -96,7 +96,7 @@ COMPLETION [column =] prompt WITH my_inference_endpoint
 :   The ID of the [inference endpoint](docs-content://explore-analyze/elastic-inference/inference-api.md) to use for the task.
     The inference endpoint must be configured with the `completion` task type.
 
-`timeout_duration` {applies_to}`stack: ga 9.4.1+, serverless: ga`
+`timeout_duration` {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga`
 :   (Optional) Timeout for the inference request (for example, `"30s"`, `"1m"`).
     If not specified, the default inference timeout applies. Use this to set a
     per-call timeout independent of the inference task timeout.
@@ -125,21 +125,28 @@ task type `completion`.
 ### Handling timeouts
 
 `COMPLETION` commands may time out when processing large datasets or complex prompts.
-The default timeout is 120 seconds, but you can increase this limit if necessary.
 
-You can set a per-call inference timeout using the `"timeout"` option in the `WITH` clause:
-  ```esql
-  COMPLETION answer = question WITH { "inference_id": "my_inference_endpoint", "timeout": "1m" }
-  ```
+::::{applies-switch}
+
+:::{applies-item} {"stack": "ga 9.5", "serverless": "ga"}
+
+The default timeout is 120 seconds.
+
+You can set per-call timeout using the `"timeout"` option in the `WITH` clause:
+```esql
+COMPLETION answer = question WITH { "inference_id": "my_inference_endpoint", "timeout": "1m" }
+```
 :::
 
-:::{applies-item} serverless:
-* Requires a manual override from Elastic Support because you cannot modify timeout settings directly
+:::{applies-item} {"stack": "preview 9.1.0, ga 9.4.0"}
+
+The timeout is 30 seconds by default.
+
 :::
 
 ::::
 
-If you don't want to increase the timeout limit, try the following:
+If you can't modify your timeout limits, try the following:
 
 * Reduce data volume with `LIMIT` or more selective filters before the `COMPLETION` command
 * Split complex operations into multiple simpler queries

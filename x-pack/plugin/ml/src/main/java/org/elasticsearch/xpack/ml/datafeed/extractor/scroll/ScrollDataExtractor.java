@@ -138,7 +138,10 @@ class ScrollDataExtractor implements DataExtractor {
         try {
             logger.debug("[{}] Search response was obtained", context.jobId);
             timingStatsReporter.reportSearchDuration(searchResponse.getTook());
-            lastLinkedClusterStates = DataExtractorUtils.extractLinkedClusterStates(searchResponse);
+            lastLinkedClusterStates = DataExtractorUtils.preferRicherLinkedClusterStates(
+                lastLinkedClusterStates,
+                DataExtractorUtils.extractLinkedClusterStates(searchResponse)
+            );
             scrollId = searchResponse.getScrollId();
             return processAndConsumeSearchHits(searchResponse.getHits());
         } finally {
@@ -256,7 +259,10 @@ class ScrollDataExtractor implements DataExtractor {
             }
             logger.debug("[{}] Search response was obtained", context.jobId);
             timingStatsReporter.reportSearchDuration(searchResponse.getTook());
-            lastLinkedClusterStates = DataExtractorUtils.extractLinkedClusterStates(searchResponse);
+            lastLinkedClusterStates = DataExtractorUtils.preferRicherLinkedClusterStates(
+                lastLinkedClusterStates,
+                DataExtractorUtils.extractLinkedClusterStates(searchResponse)
+            );
             scrollId = searchResponse.getScrollId();
             return processAndConsumeSearchHits(searchResponse.getHits());
         } finally {

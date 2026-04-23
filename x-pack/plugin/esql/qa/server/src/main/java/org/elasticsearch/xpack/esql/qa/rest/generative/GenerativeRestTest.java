@@ -136,8 +136,11 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "Time-series aggregations require direct use of @timestamp which was not found. If @timestamp was renamed in EVAL, "
             + "use the original @timestamp field instead.", // https://github.com/elastic/elasticsearch/pull/141196
 
-        // Ts-command errors awaiting fixes
-        "Output has changed from \\[.*\\] to \\[.*\\]" // https://github.com/elastic/elasticsearch/issues/134794
+        // _doc field unexpectedly appearing in output after FORK
+        "Output has changed from \\[.*\\] to \\[.*_doc.*\\]", // https://github.com/elastic/elasticsearch/issues/146856
+
+        // TopNOperator type mismatch in ValueExtractor
+        "Expected \\[.*\\] but was \\[.*\\].*ValueExtractor" // https://github.com/elastic/elasticsearch/issues/146850
     );
 
     public static final Set<Pattern> ALLOWED_ERROR_PATTERNS = ALLOWED_ERRORS.stream()
@@ -331,23 +334,35 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
 
     private record FailureContext(
         String errorMessage,
+        String normalizedErrorMessage,
         String query,
         List<CommandGenerator.CommandDescription> previousCommands,
         List<Column> currentSchema
     ) {
-        FailureContext {
-            previousCommands = previousCommands == null ? List.of() : previousCommands;
-            currentSchema = currentSchema == null ? List.of() : currentSchema;
+        FailureContext(
+            String errorMessage,
+            String query,
+            List<CommandGenerator.CommandDescription> previousCommands,
+            List<Column> currentSchema
+        ) {
+            this(
+                errorMessage,
+                errorMessage == null ? null : normalizeErrorMessage(errorMessage),
+                query,
+                previousCommands == null ? List.of() : previousCommands,
+                currentSchema == null ? List.of() : currentSchema
+            );
         }
     }
 
     private static final AllowedFailureRule[] ALLOWED_FAILURE_RULES = {
-        ctx -> isAllowedError(ctx.errorMessage),
-        ctx -> isUnmappedFieldError(ctx.errorMessage, ctx.query),
-        ctx -> isScalarTypeMismatchError(ctx.errorMessage),
-        ctx -> isFieldFullTextError(ctx.errorMessage, ctx.query, ctx.previousCommands, ctx.currentSchema),
-        ctx -> isFullTextAfterWhereBugs(ctx.errorMessage),
-        ctx -> isLenientFalseFailedToCreateFullTextQueryError(ctx.errorMessage, ctx.query), };
+        ctx -> matchesAllowedErrorPatterns(ctx.normalizedErrorMessage),
+        ctx -> isUnmappedFieldError(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isScalarTypeMismatchError(ctx.normalizedErrorMessage),
+        ctx -> isFieldFullTextError(ctx.normalizedErrorMessage, ctx.query, ctx.previousCommands, ctx.currentSchema),
+        ctx -> isFullTextAfterWhereBugs(ctx.normalizedErrorMessage),
+        ctx -> isLenientFalseFailedToCreateFullTextQueryError(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isTsOutputChangedError(ctx.normalizedErrorMessage, ctx.query), };
 
     private static boolean isAllowedFailure(FailureContext ctx) {
         if (ctx == null || ctx.errorMessage == null) {
@@ -420,8 +435,12 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         if (errorMessage == null) {
             return false;
         }
+        return matchesAllowedErrorPatterns(normalizeErrorMessage(errorMessage));
+    }
+
+    private static boolean matchesAllowedErrorPatterns(String normalizedErrorMessage) {
         for (Pattern allowedError : ALLOWED_ERROR_PATTERNS) {
-            if (isAllowedError(errorMessage, allowedError)) {
+            if (allowedError.matcher(normalizedErrorMessage).matches()) {
                 return true;
             }
         }
@@ -429,8 +448,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     }
 
     protected static boolean isAllowedError(String errorMessage, Pattern allowedPattern) {
-        String errorWithoutLineBreaks = normalizeErrorMessage(errorMessage);
-        return allowedPattern.matcher(errorWithoutLineBreaks).matches();
+        return allowedPattern.matcher(normalizeErrorMessage(errorMessage)).matches();
     }
 
     /**
@@ -482,8 +500,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      * These errors are acceptable since the generative tests may compose function calls with fields of these types.
      */
     private static boolean isScalarTypeMismatchError(String errorMessage) {
-        String errorWithoutLineBreaks = normalizeErrorMessage(errorMessage);
-        return SCALAR_TYPE_MISMATCH_PATTERN.matcher(errorWithoutLineBreaks).matches();
+        return SCALAR_TYPE_MISMATCH_PATTERN.matcher(errorMessage).matches();
     }
 
     private static final Pattern NOT_A_FIELD_FROM_INDEX_PATTERN = Pattern.compile(
@@ -678,8 +695,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         List<CommandGenerator.CommandDescription> previousCommands,
         List<Column> currentSchema
     ) {
-        String errorWithoutLineBreaks = normalizeErrorMessage(errorMessage);
-        Matcher m = NOT_A_FIELD_FROM_INDEX_PATTERN.matcher(errorWithoutLineBreaks);
+        Matcher m = NOT_A_FIELD_FROM_INDEX_PATTERN.matcher(errorMessage);
         if (m.matches() == false) {
             return false;
         }
@@ -712,8 +728,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      * See https://github.com/elastic/elasticsearch/issues/142710
      */
     static boolean isFullTextAfterWhereBugs(String errorMessage) {
-        String errorWithoutLineBreaks = normalizeErrorMessage(errorMessage);
-        return FULL_TEXT_AFTER_WHERE_PATTERN.matcher(errorWithoutLineBreaks).matches();
+        return FULL_TEXT_AFTER_WHERE_PATTERN.matcher(errorMessage).matches();
     }
 
     private static final Pattern MATCH_LENIENT_FALSE_PATTERN = Pattern.compile(
@@ -727,11 +742,27 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      * Work around a query-building failure in full-text functions when options include {@code {"lenient": false}}.
      */
     static boolean isLenientFalseFailedToCreateFullTextQueryError(String errorMessage, String query) {
-        String errorWithoutLineBreaks = normalizeErrorMessage(errorMessage);
-        if (errorWithoutLineBreaks.contains("failed to create query: For input string") == false) {
+        if (errorMessage.contains("failed to create query: For input string") == false) {
             return false;
         }
         return MATCH_LENIENT_FALSE_PATTERN.matcher(query).find() || QSTR_LENIENT_FALSE_PATTERN.matcher(query).find();
+    }
+
+    private static final Pattern TS_OUTPUT_CHANGED_PATTERN = Pattern.compile(
+        ".*Output has changed from \\[.*\\] to \\[.*\\].*",
+        Pattern.DOTALL
+    );
+
+    // https://github.com/elastic/elasticsearch/issues/134794
+    static boolean isTsOutputChangedError(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        if (TS_OUTPUT_CHANGED_PATTERN.matcher(errorMessage).matches() == false) {
+            return false;
+        }
+        String trimmed = query.trim().toUpperCase(Locale.ROOT);
+        return trimmed.startsWith("TS ");
     }
 
     @Override

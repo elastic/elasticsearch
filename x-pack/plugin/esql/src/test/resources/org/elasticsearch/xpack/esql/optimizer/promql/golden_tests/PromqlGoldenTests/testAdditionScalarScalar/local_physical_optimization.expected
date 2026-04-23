@@ -1,0 +1,11 @@
+ProjectExec[[sum{r}#0, step{r}#1]]
+\_EvalExec[[2.0[DOUBLE] AS sum#0]]
+  \_LimitExec[10000[INTEGER],null]
+    \_AggregateExec[[step{r}#1],[step{r}#1 AS step#1],SINGLE,[step{r}#1],null]
+      \_TimeSeriesAggregateExec[[_tsid{m}#2, step{r}#1],[step{r}#1],FINAL,[_tsid{m}#2, step{r}#1],null,BUCKET(@timestamp{f}#3,PT1H[TIME_DURATION]),BUCKET(@timestamp{f}#3,PT1H[TIME_DURATION]),false]
+        \_ExchangeExec[[_tsid{m}#2, step{r}#1],true]
+          \_TimeSeriesAggregateExec[[_tsid{m}#2, step{r}#1],[step{r}#1],INITIAL,[_tsid{m}#2, step{r}#1],8,BUCKET(@timestamp{f}#3,PT1H[TIME_DURATION]),BUCKET(@timestamp{f}#3,PT1H[TIME_DURATION]),false]
+            \_FieldExtractExec[_tsid{m}#2]<[],[],[]>
+              \_EvalExec[[BUCKET(@timestamp{f}#3,PT1H[TIME_DURATION]) AS step#1]]
+                \_FieldExtractExec[@timestamp{f}#3]<[],[],[]>
+                  \_EsQueryExec[k8s], indexMode[standard], [_doc{f}#4], limit[], sort[] estimatedRowSize[36] queryBuilderAndTags [[QueryBuilderAndTags[query=null, tags=[]]]]

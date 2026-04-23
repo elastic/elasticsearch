@@ -39,6 +39,10 @@ public class MasterFailoverIT extends ESRestTestCase {
 
     @ClassRule
     public static StatelessElasticsearchCluster cluster = StatelessElasticsearchCluster.local()
+        .module("stateless")
+        .module("stateless-master-failover")
+        .module("stateless-sigterm")
+        .module("secure-settings")
         .setting("xpack.ml.enabled", "false")
         .setting("xpack.watcher.enabled", "false")
         .user("admin-user", "x-pack-test-password")

@@ -51,6 +51,7 @@ public class StatelessDirectIORestIT extends ESRestTestCase {
 
     @ClassRule
     public static StatelessElasticsearchCluster cluster = StatelessElasticsearchCluster.local()
+        .module("stateless")
         .user("admin-user", "x-pack-test-password")
         .setting("xpack.ml.enabled", "false")
         .build();

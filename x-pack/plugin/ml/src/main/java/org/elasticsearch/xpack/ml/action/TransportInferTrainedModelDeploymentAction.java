@@ -19,6 +19,8 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -38,6 +40,8 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
     InferTrainedModelDeploymentAction.Request,
     InferTrainedModelDeploymentAction.Response,
     InferTrainedModelDeploymentAction.Response> {
+
+    private static final Logger logger = LogManager.getLogger(TransportInferTrainedModelDeploymentAction.class);
 
     private final ThreadPool threadPool;
 
@@ -72,6 +76,16 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
         } else if (failedNodeExceptions.isEmpty() == false) {
             throw failedNodeExceptions.get(0);
         } else if (tasks.isEmpty()) {
+            // Only warn about deployments with deployment IDs starting with '.' which are
+            // reserved for system-registered deployments (e.g., ElasticsearchInternalService's default
+            // ELSER/E5/rerank endpoints.
+            if (request.getId().startsWith(".")) {
+                logger.warn(
+                    "No deployment task found for system-registered deployment [{}] on any node when handling "
+                        + "inference request; assignment may be missing from cluster state",
+                    request.getId()
+                );
+            }
             throw new ElasticsearchStatusException(
                 "Unable to find model deployment task [{}] please stop and start the deployment or try again momentarily",
                 RestStatus.NOT_FOUND,

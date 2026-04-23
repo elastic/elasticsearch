@@ -417,7 +417,15 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             List<SplitRange> ranges = new ArrayList<>(rowGroups.size());
             for (BlockMetaData block : rowGroups) {
                 Map<String, Object> stats = buildRowGroupStats(block);
-                ranges.add(new SplitRange(block.getStartingPos(), block.getTotalByteSize(), stats));
+                // Use the compressed on-disk size for the SplitRange length: this value is fed to
+                // readRange() which builds a byte range end = startingPos + length for Parquet's
+                // withRange(rangeStart, rangeEnd) filter. That filter includes a row group when its
+                // starting position lies in the range, so the end must land at or before the next
+                // row group's starting position. getTotalByteSize() returns the uncompressed size
+                // (much larger than what is actually on disk), which would make adjacent ranges
+                // overlap in byte space and cause Parquet to select each row group from multiple
+                // splits, producing duplicate rows.
+                ranges.add(new SplitRange(block.getStartingPos(), block.getCompressedSize(), stats));
             }
             List<SplitRange> coalesced = coalesceRowGroupRanges(ranges, DEFAULT_ROW_GROUP_MACRO_SPLIT_TARGET_BYTES);
             return coalesced.size() < 2 ? ranges : coalesced;

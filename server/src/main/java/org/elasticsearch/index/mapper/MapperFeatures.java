@@ -15,7 +15,6 @@ import org.elasticsearch.features.NodeFeature;
 import java.util.Set;
 
 import static org.elasticsearch.index.mapper.RoutingFieldMapper.ROUTING_AS_DOC_VALUES;
-import static org.elasticsearch.index.mapper.RoutingFieldMapper.ROUTING_AS_DOC_VALUES;
 import static org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.FLATTENED_MAPPED_SUBFIELDS_FEATURE;
 import static org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.FLATTENED_PASSTHROUGH_FEATURE;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING;

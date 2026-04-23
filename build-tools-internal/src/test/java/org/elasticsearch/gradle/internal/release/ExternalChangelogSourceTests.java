@@ -56,6 +56,14 @@ public class ExternalChangelogSourceTests {
     }
 
     @Test
+    public void testResolveElasticsearchGitRef() {
+        assertThat(BundleChangelogsTask.resolveElasticsearchGitRef("main", "origin"), equalTo("origin/main"));
+        assertThat(BundleChangelogsTask.resolveElasticsearchGitRef("upstream/9.1", "origin"), equalTo("origin/9.1"));
+        assertThat(BundleChangelogsTask.resolveElasticsearchGitRef("abc1234567890", "origin"), equalTo("abc1234567890"));
+        assertThat(BundleChangelogsTask.resolveElasticsearchGitRef("feature/foo", "myremote"), equalTo("myremote/feature/foo"));
+    }
+
+    @Test
     public void testNormalizeBranchStripsPrefixes() {
         assertThat(BundleChangelogsTask.normalizeBranchForExternalFetch("main"), equalTo("main"));
         assertThat(BundleChangelogsTask.normalizeBranchForExternalFetch("9.3"), equalTo("9.3"));

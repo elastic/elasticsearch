@@ -40,6 +40,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -145,6 +146,9 @@ public class BundleChangelogsTask extends DefaultTask {
         }
 
         final String upstreamRemote = gitWrapper.getUpstream();
+        final String esBcRefForGit = (bcRef != null && bcRef.isBlank() == false)
+            ? resolveElasticsearchGitRef(bcRef, upstreamRemote)
+            : null;
         Set<String> entriesFromBc = Set.of();
 
         var didCheckoutChangelogs = false;
@@ -169,12 +173,7 @@ public class BundleChangelogsTask extends DefaultTask {
             // version file name.
             String versionRef;
             if (usingBcRef) {
-                versionRef = upstreamRemote + "/" + bcRef;
-                if (bcRef.contains("upstream/")) {
-                    versionRef = bcRef.replace("upstream/", upstreamRemote + "/");
-                } else if (bcRef.matches("^[0-9a-f]+$")) {
-                    versionRef = bcRef;
-                }
+                versionRef = Objects.requireNonNull(esBcRefForGit);
             } else {
                 versionRef = upstreamRemote + "/" + branch;
             }
@@ -200,13 +199,13 @@ public class BundleChangelogsTask extends DefaultTask {
                 // This specifically covers the case of a PR being merged into the BC with a missing changelog file, and the file added
                 // later.
                 var prNumber = f.getName().replace(".yaml", "");
-                var output = gitWrapper.runCommand("git", "log", bcRef, "--grep", "(#" + prNumber + ")");
+                var output = gitWrapper.runCommand("git", "log", esBcRefForGit, "--grep", "(#" + prNumber + ")");
                 return output.trim().isEmpty() == false;
             }).map(ChangelogEntry::parse).sorted(changelogEntryComparator()).collect(toList());
 
             // Fetch changelog entries from external repositories
             for (ExternalChangelogSource source : externalSources) {
-                List<ChangelogEntry> externalEntries = fetchExternalChangelogs(source, branch, usingBcRef ? bcRef : null);
+                List<ChangelogEntry> externalEntries = fetchExternalChangelogs(source, branch, esBcRefForGit);
                 if (externalEntries.isEmpty() == false) {
                     LOGGER.info("Adding {} entries from {}", externalEntries.size(), source.sourceRepo());
                     entries.addAll(externalEntries);
@@ -264,7 +263,8 @@ public class BundleChangelogsTask extends DefaultTask {
      * the parsed entries.
      * <p>
      * When {@code bcRefForFilter} is non-null (Elasticsearch {@code --bc-ref} is in use),
-     * entries are filtered like local post-BC YAML files: an entry is kept only if
+     * it must already be resolved for this repository (see {@link #resolveElasticsearchGitRef}).
+     * Entries are filtered like local post-BC YAML files: an entry is kept only if
      * {@code git log} on {@code bcRefForFilter} in this repository finds the PR, or
      * {@code git log} on the fetched external branch finds it in commits not newer than
      * the BC ref's committer date (so ml-cpp-only PRs can match without admitting merges
@@ -319,6 +319,7 @@ public class BundleChangelogsTask extends DefaultTask {
                 String content = gitWrapper.runCommand("git", "show", "FETCH_HEAD:" + filePath);
                 ChangelogEntry entry = ChangelogEntry.parse(content);
                 entry.setSourceRepo(source.sourceRepo());
+                applyExternalFilenamePrFallback(filePath, entry);
                 entries.add(entry);
             } catch (Exception e) {
                 LOGGER.warn("Failed to parse external changelog {}: {}", filePath, e.getMessage());
@@ -351,6 +352,8 @@ public class BundleChangelogsTask extends DefaultTask {
      * or in the fetched external repository history up to the BC ref's committer date (so
      * {@code git log externalTip --grep} alone cannot admit PRs merged after the BC on the
      * external branch).
+     * <p>
+     * Entries without a PR number cannot be checked against the BC cut and are excluded.
      */
     private boolean includeExternalChangelogForBuildCandidate(
         ChangelogEntry entry,
@@ -360,13 +363,50 @@ public class BundleChangelogsTask extends DefaultTask {
     ) {
         Integer pr = entry.getPr();
         if (pr == null) {
-            return true;
+            return false;
         }
         String grep = "(#" + pr + ")";
         if (gitLogHasGrep(bcRef, grep)) {
             return true;
         }
         return gitLogHasGrepUntil(externalTip, grep, bcCommitterIso);
+    }
+
+    /**
+     * If YAML omits {@code pr} but the changelog file is named like local ES entries
+     * ({@code N.yaml} with numeric {@code N}), set the PR so BC filtering matches
+     * {@code executeTask}'s local changelog behavior.
+     */
+    private static void applyExternalFilenamePrFallback(String repoRelativePath, ChangelogEntry entry) {
+        if (entry.getPr() != null) {
+            return;
+        }
+        int slash = repoRelativePath.lastIndexOf('/');
+        String baseName = slash >= 0 ? repoRelativePath.substring(slash + 1) : repoRelativePath;
+        if (baseName.endsWith(".yaml") == false) {
+            return;
+        }
+        String stem = baseName.substring(0, baseName.length() - ".yaml".length());
+        try {
+            entry.setPr(Integer.parseInt(stem));
+        } catch (NumberFormatException e) {
+            // leave unset; BC filtering will drop the entry if needed
+        }
+    }
+
+    /**
+     * Resolves {@code --bc-ref} / branch-style refs the same way as {@link #checkoutChangelogs}
+     * so {@code git show} / {@code git log} run against the configured upstream remote name
+     * instead of a literal {@code upstream/} remote that may not exist.
+     */
+    static String resolveElasticsearchGitRef(String ref, String upstreamRemote) {
+        if (ref.contains("upstream/")) {
+            return ref.replace("upstream/", upstreamRemote + "/");
+        }
+        if (ref.matches("^[0-9a-f]+$")) {
+            return ref;
+        }
+        return upstreamRemote + "/" + ref;
     }
 
     private boolean gitLogHasGrep(String ref, String grep) {

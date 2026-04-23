@@ -15,58 +15,44 @@ import org.apache.lucene.store.IndexInput;
 import java.io.IOException;
 
 /**
- * Reads numeric doc values for a single field during segment reading.
+ * Reads a single numeric field from a segment in two phases.
  *
- * <p>Each codec version provides its own implementation via
- * {@link AbstractTSDBDocValuesProducer#createNumericFieldReader}. The two levels are:
- * <ul>
- *   <li>Per-field: {@link #readField} reads the full numeric entry metadata</li>
- *   <li>Per-block: {@link Decoder#decodeBlock} and {@link Decoder#decodeOrdinals} decode
- *       individual blocks during iteration</li>
- * </ul>
- *
- * @see NumericFieldWriter
+ * <p>{@link #readFieldEntry} runs once per field at segment-open time and parses the field metadata
+ * (value counts, offsets, codec-specific header, DISI metadata) into a
+ * {@link AbstractTSDBDocValuesProducer.NumericEntry}. {@link #decoder()} returns the per-block
+ * {@link Decoder} that the iteration code drives during value access; the same decoder may be
+ * used for many blocks of the same field.
  */
 public interface NumericFieldReader {
 
     /**
-     * Reads the full numeric field metadata: value counts, ordinal detection,
-     * codec-specific header, offsets, and DISI.
+     * Parses the field metadata into {@code entry}.
      *
-     * @param meta              the metadata input stream
-     * @param entry             the numeric entry to populate
-     * @param numericBlockShift the block shift for numeric encoding
+     * @param meta              segment metadata input positioned at this field's header
+     * @param entry             entry to populate with the parsed metadata
+     * @param numericBlockShift block shift used to size the per-field block index
      */
-    void readField(IndexInput meta, AbstractTSDBDocValuesProducer.NumericEntry entry, int numericBlockShift) throws IOException;
+    void readFieldEntry(IndexInput meta, AbstractTSDBDocValuesProducer.NumericEntry entry, int numericBlockShift) throws IOException;
 
     /**
-     * Returns a decoder for per-block numeric value decoding.
+     * Returns the per-block decoder used to decode the field's value blocks.
      *
-     * @return a new decoder instance
+     * @return the block decoder
      */
     Decoder decoder();
 
     /**
-     * Per-block decoder for numeric values and ordinals.
+     * Decodes one block of numeric values.
      */
     interface Decoder {
 
         /**
-         * Decodes a block of numeric values.
+         * Decodes the next block from {@code input} into {@code values}.
          *
-         * @param input  the input to read compressed bytes from
-         * @param values the output array to fill with decoded values
-         * @param count  the number of values to decode
+         * @param input  data input positioned at the start of the block
+         * @param values output array to fill
+         * @param count  number of values in the block
          */
         void decodeBlock(DataInput input, long[] values, int count) throws IOException;
-
-        /**
-         * Decodes a block of ordinal values.
-         *
-         * @param input      the input to read compressed bytes from
-         * @param values     the output array to fill with decoded ordinal values
-         * @param bitsPerOrd the number of bits per ordinal
-         */
-        void decodeOrdinals(DataInput input, long[] values, int bitsPerOrd) throws IOException;
     }
 }

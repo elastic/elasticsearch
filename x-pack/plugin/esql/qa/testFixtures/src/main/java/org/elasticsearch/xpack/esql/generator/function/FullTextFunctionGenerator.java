@@ -24,6 +24,7 @@ import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.randomName;
+import static org.elasticsearch.xpack.esql.generator.command.source.FromGenerator.HAS_SUBQUERY;
 import static org.elasticsearch.xpack.esql.generator.command.source.FromGenerator.isFromSource;
 
 /**
@@ -56,6 +57,10 @@ public final class FullTextFunctionGenerator {
         }
         for (CommandGenerator.CommandDescription cmd : previousCommands) {
             if (FULL_TEXT_FORBIDDEN_AFTER_COMMANDS.contains(cmd.commandName())) {
+                return false;
+            }
+            // Full-text functions (match/match_phrase/qstr/kql) cannot follow a subquery in the source FROM.
+            if (Boolean.TRUE.equals(cmd.context().get(HAS_SUBQUERY))) {
                 return false;
             }
         }

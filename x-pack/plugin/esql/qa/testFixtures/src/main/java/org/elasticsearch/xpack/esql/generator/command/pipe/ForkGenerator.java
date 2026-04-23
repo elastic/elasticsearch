@@ -39,6 +39,10 @@ public class ForkGenerator implements CommandGenerator {
         // otherwise, most generated queries would only result in a validation error.
         // FORK also rejects any UnionAll/Subquery descendant ("FORK after subquery is not supported"),
         // so skip if any earlier command flagged that it produced a subquery.
+        // ESQL also forbids FORK from appearing inside a subquery body ("FORK inside subquery is not supported").
+        if (context.inSubquery()) {
+            return EMPTY_DESCRIPTION;
+        }
         StringBuilder completeCommand = new StringBuilder();
         for (CommandDescription command : previousCommands) {
             if (command.commandName().equals(FORK)) {

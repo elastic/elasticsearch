@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
 import org.elasticsearch.xpack.esql.generator.GenerationContext;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
-import org.elasticsearch.xpack.esql.generator.SubqueryBuilder;
+import org.elasticsearch.xpack.esql.generator.SubqueryGenerator;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
 import java.util.HashMap;
@@ -118,7 +118,7 @@ public class FromGenerator implements CommandGenerator {
                 result.append(",");
             }
             if (context.subqueryDepth() < MAX_SUBQUERY_DEPTH && randomDouble() < SUBQUERY_PROBABILITY) {
-                SubqueryBuilder.SubqueryResult sub = SubqueryBuilder.build(context, schema, executor);
+                SubqueryGenerator.SubqueryResult sub = SubqueryGenerator.build(context, schema, executor);
                 if (sub != null) {
                     result.append(sub.queryText());
                     hasSubquery = true;

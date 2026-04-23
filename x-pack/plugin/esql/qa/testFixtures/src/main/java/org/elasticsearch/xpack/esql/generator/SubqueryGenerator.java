@@ -18,23 +18,16 @@ import java.util.List;
  * inside a {@code FROM (...)} source list. Designed to be reusable by future call-sites such as
  * {@code WHERE col IN (subquery)}.
  * <p>
- * Generation is performed Fork-style: an inner {@link EsqlQueryGenerator.Executor} runs each
- * generated command incrementally and rejects any addition that throws or yields no schema, so
- * the returned query is guaranteed to execute successfully on its own.
- * <p>
- * v1 emits only the source command (a plain {@code FROM idx}, recursing through the same
- * {@link FromGenerator} so subqueries can themselves contain subqueries up to the depth cap).
- * Plugging in random pipe commands later is a matter of raising {@link #INNER_PIPE_DEPTH}.
+ *     Generation is performed using an inner {@link EsqlQueryGenerator.Executor} that runs each
+ *     generated command incrementally and rejects any addition that throws or yields no schema, so
+ *     the returned query is guaranteed to execute successfully on its own.
+ * </p>
  */
-public final class SubqueryBuilder {
+public final class SubqueryGenerator {
 
-    /**
-     * Number of pipe commands generated inside the subquery after the source. v1 keeps this at zero
-     * so the subquery is just {@code (FROM idx)}; raise to enable random downstream commands.
-     */
-    private static final int INNER_PIPE_DEPTH = 0;
+    private static final int INNER_PIPE_DEPTH = 5;
 
-    private SubqueryBuilder() {}
+    private SubqueryGenerator() {}
 
     public record SubqueryResult(String queryText, List<Column> outputSchema) {}
 

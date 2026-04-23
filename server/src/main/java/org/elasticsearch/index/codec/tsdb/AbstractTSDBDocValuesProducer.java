@@ -56,8 +56,12 @@ import java.io.IOException;
 import java.util.Arrays;
 
 /**
- * Abstract base class for TSDB doc values producers. Contains all shared wire-format reading logic.
- * Subclasses provide the numeric block decoding strategy.
+ * Base class for TSDB doc values producers.
+ *
+ * <p>Owns the wire-format reading for numeric, binary, sorted, sorted-numeric, and sorted-set
+ * doc values. Concrete subclasses construct this class with a {@link NumericBlockCodec} and an
+ * {@link OrdinalBlockCodec}; those codecs supply the per-field readers and decoders the wire-format
+ * code drives during segment open and value iteration.
  */
 public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
@@ -79,6 +83,9 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     private static final int DEFAULT_NUMERIC_BLOCK_SHIFT = 7;
     private final TSDBDocValuesFormatConfig formatConfig;
     private final DocOffsetsCodec.Decoder docOffsetsDecoder;
+    private final NumericBlockCodec numericCodec;
+    private final OrdinalBlockCodec ordinalCodec;
+    private NumericReadContext readContext;
 
     @SuppressWarnings("this-escape")
     protected AbstractTSDBDocValuesProducer(
@@ -88,9 +95,13 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         final String metaCodec,
         final String metaExtension,
         final TSDBDocValuesFormatConfig formatConfig,
-        final DocOffsetsCodec.Decoder docOffsetsDecoder
+        final DocOffsetsCodec.Decoder docOffsetsDecoder,
+        final NumericBlockCodec numericCodec,
+        final OrdinalBlockCodec ordinalCodec
     ) throws IOException {
         this.docOffsetsDecoder = docOffsetsDecoder;
+        this.numericCodec = numericCodec;
+        this.ordinalCodec = ordinalCodec;
         this.numerics = new IntObjectHashMap<>();
         this.binaries = new IntObjectHashMap<>();
         this.sorted = new IntObjectHashMap<>();
@@ -117,14 +128,15 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 version = CodecUtil.checkIndexHeader(
                     in,
                     metaCodec,
-                    formatConfig.versionStart(),
-                    formatConfig.versionCurrent(),
+                    TSDBDocValuesFormatConfig.VERSION_START,
+                    TSDBDocValuesFormatConfig.VERSION_CURRENT,
                     state.segmentInfo.getId(),
                     state.segmentSuffix
                 );
-                if (version >= formatConfig.versionLargeBlocks()) {
+                if (version >= TSDBDocValuesFormatConfig.VERSION_NUMERIC_LARGE_BLOCKS) {
                     blockShift = in.readByte();
                 }
+                this.readContext = new NumericReadContext(1 << blockShift, formatConfig);
                 readFields(in, state.fieldInfos, version, blockShift);
             } catch (Throwable exception) {
                 priorE = exception;
@@ -144,8 +156,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             final int version2 = CodecUtil.checkIndexHeader(
                 data,
                 dataCodec,
-                formatConfig.versionStart(),
-                formatConfig.versionCurrent(),
+                TSDBDocValuesFormatConfig.VERSION_START,
+                TSDBDocValuesFormatConfig.VERSION_CURRENT,
                 state.segmentInfo.getId(),
                 state.segmentSuffix
             );
@@ -170,6 +182,9 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
     protected AbstractTSDBDocValuesProducer(final AbstractTSDBDocValuesProducer original) {
         this.docOffsetsDecoder = original.docOffsetsDecoder;
+        this.numericCodec = original.numericCodec;
+        this.ordinalCodec = original.ordinalCodec;
+        this.readContext = original.readContext;
         this.numerics = original.numerics;
         this.binaries = original.binaries;
         this.sorted = original.sorted;
@@ -189,21 +204,6 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     }
 
     /**
-     * Creates a numeric field reader for the given entry.
-     *
-     * <p>Each codec version provides its own decoding strategy. The returned reader has two
-     * levels: {@link NumericFieldReader#readField} reads the full field metadata during
-     * segment init, and {@link NumericFieldReader#decoder()} provides a per-block decoder
-     * for iteration.
-     *
-     * @param entry            the numeric entry for this field
-     * @param numericBlockSize the number of values per numeric block
-     * @return a reader for this field
-     * @see NumericFieldReader
-     */
-    protected abstract NumericFieldReader createNumericFieldReader(NumericEntry entry, int numericBlockSize);
-
-    /**
      * Creates a copy of this producer for merge operations.
      *
      * <p>The returned instance shares the underlying {@link IndexInput} (via clone) but maintains
@@ -221,7 +221,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     @Override
     public NumericDocValues getNumeric(FieldInfo field) throws IOException {
         NumericEntry entry = numerics.get(field.number);
-        return getNumeric(entry, -1);
+        return getNumeric(entry, AbstractTSDBDocValuesConsumer.NO_MAX_ORD);
     }
 
     @Override
@@ -1719,7 +1719,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     @Override
     public SortedNumericDocValues getSortedNumeric(FieldInfo field) throws IOException {
         SortedNumericEntry entry = sortedNumerics.get(field.number);
-        return getSortedNumeric(entry, -1);
+        return getSortedNumeric(entry, AbstractTSDBDocValuesConsumer.NO_MAX_ORD);
     }
 
     @Override
@@ -1961,7 +1961,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
     private NumericEntry readNumeric(IndexInput meta, int numericBlockShift) throws IOException {
         final NumericEntry entry = new NumericEntry();
-        readNumeric(meta, entry, numericBlockShift);
+        readNumericField(meta, entry, numericBlockShift);
         return entry;
     }
 
@@ -1976,14 +1976,19 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         return new DocValuesSkipperEntry(offset, length, minValue, maxValue, docCount, maxDocID);
     }
 
-    private void readNumeric(IndexInput meta, NumericEntry entry, int numericBlockShift) throws IOException {
-        entry.fieldReader = createNumericFieldReader(entry, 1 << numericBlockShift);
-        entry.fieldReader.readField(meta, entry, numericBlockShift);
+    private void readNumericField(IndexInput meta, NumericEntry entry, int numericBlockShift) throws IOException {
+        entry.numericFieldReader = numericCodec.createReader(readContext);
+        entry.numericFieldReader.readFieldEntry(meta, entry, numericBlockShift);
+    }
+
+    private void readOrdinalField(IndexInput meta, NumericEntry entry, int numericBlockShift) throws IOException {
+        entry.ordinalFieldReader = ordinalCodec.createReader(readContext);
+        entry.ordinalFieldReader.readFieldEntry(meta, entry, numericBlockShift);
     }
 
     private BinaryEntry readBinary(IndexInput meta, int version) throws IOException {
         final BinaryDVCompressionMode compression;
-        if (version >= formatConfig.versionBinaryCompression()) {
+        if (version >= TSDBDocValuesFormatConfig.VERSION_BINARY_DV_COMPRESSION) {
             compression = BinaryDVCompressionMode.fromMode(meta.readByte());
         } else {
             compression = BinaryDVCompressionMode.NO_COMPRESS;
@@ -2035,15 +2040,24 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         return entry;
     }
 
-    private SortedNumericEntry readSortedNumeric(IndexInput meta, SortedNumericEntry entry, int numericBlockShift) throws IOException {
-        readNumeric(meta, entry, numericBlockShift);
+    private void readSortedNumeric(IndexInput meta, SortedNumericEntry entry, int numericBlockShift) throws IOException {
+        readNumericField(meta, entry, numericBlockShift);
         if (entry.numDocsWithField != entry.numValues) {
             entry.addressesOffset = meta.readLong();
             final int blockShift = meta.readVInt();
             entry.addressesMeta = DirectMonotonicReader.loadMeta(meta, entry.numDocsWithField + 1, blockShift);
             entry.addressesLength = meta.readLong();
         }
-        return entry;
+    }
+
+    private void readSortedOrdinal(IndexInput meta, SortedNumericEntry entry, int numericBlockShift) throws IOException {
+        readOrdinalField(meta, entry, numericBlockShift);
+        if (entry.numDocsWithField != entry.numValues) {
+            entry.addressesOffset = meta.readLong();
+            final int blockShift = meta.readVInt();
+            entry.addressesMeta = DirectMonotonicReader.loadMeta(meta, entry.numDocsWithField + 1, blockShift);
+            entry.addressesLength = meta.readLong();
+        }
     }
 
     private SortedEntry readSorted(int version, IndexInput meta, int numericBlockShift, int termsDictBlockLz4Shift, boolean primarySorted)
@@ -2051,9 +2065,9 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         SortedEntry entry = new SortedEntry();
         entry.ordsEntry = new NumericEntry();
         entry.termsDictEntry = new TermsDictEntry();
-        if (version >= formatConfig.versionPrefixPartitions()) {
+        if (version >= TSDBDocValuesFormatConfig.VERSION_PREFIX_PARTITIONS) {
             readTermDict(meta, entry.termsDictEntry, termsDictBlockLz4Shift);
-            readNumeric(meta, entry.ordsEntry, numericBlockShift);
+            readOrdinalField(meta, entry.ordsEntry, numericBlockShift);
             if (primarySorted && meta.readByte() == 1) {
                 PrefixPartitionedEntry partitioned = new PrefixPartitionedEntry();
                 partitioned.ordsEntry = entry.ordsEntry;
@@ -2064,7 +2078,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 return partitioned;
             }
         } else {
-            readNumeric(meta, entry.ordsEntry, numericBlockShift);
+            readOrdinalField(meta, entry.ordsEntry, numericBlockShift);
             readTermDict(meta, entry.termsDictEntry, termsDictBlockLz4Shift);
         }
         return entry;
@@ -2089,7 +2103,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 throw new CorruptIndexException("Invalid multiValued flag: " + multiValued, meta);
         }
         entry.ordsEntry = new SortedNumericEntry();
-        readSortedNumeric(meta, entry.ordsEntry, numericBlockShift);
+        readSortedOrdinal(meta, entry.ordsEntry, numericBlockShift);
         entry.termsDictEntry = new TermsDictEntry();
         readTermDict(meta, entry.termsDictEntry, termsDictBlockLz4Shift);
         return entry;
@@ -2118,6 +2132,22 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     @FunctionalInterface
     private interface NumericValues {
         long advance(long index) throws IOException;
+    }
+
+    @FunctionalInterface
+    private interface BlockDecoder {
+        void decode(DataInput input, long[] values) throws IOException;
+    }
+
+    private BlockDecoder blockDecoder(NumericEntry entry, long maxOrd) {
+        if (maxOrd != AbstractTSDBDocValuesConsumer.NO_MAX_ORD) {
+            final int bitsPerOrd = PackedInts.bitsRequired(maxOrd - 1);
+            final OrdinalFieldReader.Decoder decoder = entry.ordinalFieldReader.decoder();
+            return (input, values) -> decoder.decodeOrdinals(input, values, bitsPerOrd);
+        } else {
+            final NumericFieldReader.Decoder decoder = entry.numericFieldReader.decoder();
+            return (input, values) -> decoder.decodeBlock(input, values, numericBlockSize);
+        }
     }
 
     static final class SortedOrdinalReader {
@@ -2219,11 +2249,10 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         final DirectMonotonicReader indexReader = DirectMonotonicReader.getInstance(entry.indexMeta, indexSlice, merging);
         final IndexInput valuesData = data.slice("values", entry.valuesOffset, entry.valuesLength);
 
-        final int bitsPerOrd = maxOrd >= 0 ? PackedInts.bitsRequired(maxOrd - 1) : -1;
         if (entry.docsWithFieldOffset == -1) {
             // dense
             return new BaseDenseNumericValues(maxDoc) {
-                private final NumericFieldReader.Decoder decoder = entry.fieldReader.decoder();
+                private final BlockDecoder decoder = blockDecoder(entry, maxOrd);
                 private long currentBlockIndex = -1;
                 private final long[] currentBlock = new long[numericBlockSize];
                 private long lookaheadBlockIndex = -1;
@@ -2251,11 +2280,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                         valuesData.seek(indexReader.get(blockIndex));
                     }
                     currentBlockIndex = blockIndex;
-                    if (bitsPerOrd == -1) {
-                        decoder.decodeBlock(valuesData, currentBlock, numericBlockSize);
-                    } else {
-                        decoder.decodeOrdinals(valuesData, currentBlock, bitsPerOrd);
-                    }
+                    decoder.decode(valuesData, currentBlock);
                     return currentBlock[blockInIndex];
                 }
 
@@ -2291,11 +2316,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                                 valuesData.seek(indexReader.get(blockIndex));
                             }
                             currentBlockIndex = blockIndex;
-                            if (bitsPerOrd == -1) {
-                                decoder.decodeBlock(valuesData, currentBlock, numericBlockSize);
-                            } else {
-                                decoder.decodeOrdinals(valuesData, currentBlock, bitsPerOrd);
-                            }
+                            decoder.decode(valuesData, currentBlock);
                         }
 
                         int length = 1;
@@ -2328,11 +2349,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                         if (lookaheadBlockIndex + 1 != blockIndex) {
                             lookaheadData.seek(indexReader.get(blockIndex));
                         }
-                        if (bitsPerOrd == -1) {
-                            decoder.decodeBlock(lookaheadData, lookaheadBlock, numericBlockSize);
-                        } else {
-                            decoder.decodeOrdinals(lookaheadData, lookaheadBlock, bitsPerOrd);
-                        }
+                        decoder.decode(lookaheadData, lookaheadBlock);
                         lookaheadBlockIndex = blockIndex;
                     }
                     return lookaheadBlock[valueIndex];
@@ -2353,7 +2370,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 entry.numValues
             );
             return new BaseSparseNumericValues(disi) {
-                private final NumericFieldReader.Decoder decoder = entry.fieldReader.decoder();
+                private final BlockDecoder decoder = blockDecoder(entry, maxOrd);
                 private IndexedDISI lookAheadDISI;
                 private long currentBlockIndex = -1;
                 private final long[] currentBlock = new long[numericBlockSize];
@@ -2374,11 +2391,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                             valuesData.seek(indexReader.get(blockIndex));
                         }
                         currentBlockIndex = blockIndex;
-                        if (bitsPerOrd == -1) {
-                            decoder.decodeBlock(valuesData, currentBlock, numericBlockSize);
-                        } else {
-                            decoder.decodeOrdinals(valuesData, currentBlock, bitsPerOrd);
-                        }
+                        decoder.decode(valuesData, currentBlock);
                     }
                     return currentBlock[blockInIndex];
                 }
@@ -2440,7 +2453,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                                     valuesData.seek(indexReader.get(blockIndex));
                                 }
                                 currentBlockIndex = blockIndex;
-                                decoder.decodeBlock(valuesData, currentBlock, numericBlockSize);
+                                decoder.decode(valuesData, currentBlock);
                             }
                             final int count = Math.min(numericBlockSize - blockStartIndex, valueCount - i);
                             singletonLongBuilder.appendLongs(currentBlock, blockStartIndex, count);
@@ -2513,11 +2526,10 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         final DirectMonotonicReader indexReader = DirectMonotonicReader.getInstance(entry.indexMeta, indexSlice, merging);
 
         final IndexInput valuesData = data.slice("values", entry.valuesOffset, entry.valuesLength);
-        final int bitsPerOrd = maxOrd >= 0 ? PackedInts.bitsRequired(maxOrd - 1) : -1;
 
         final long[] currentBlockIndex = { -1 };
         final long[] currentBlock = new long[numericBlockSize];
-        final NumericFieldReader.Decoder decoder = entry.fieldReader.decoder();
+        final BlockDecoder decoder = blockDecoder(entry, maxOrd);
         return index -> {
             final long blockIndex = index >>> numericBlockShift;
             final int blockInIndex = (int) (index & numericBlockMask);
@@ -2526,11 +2538,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                     valuesData.seek(indexReader.get(blockIndex));
                 }
                 currentBlockIndex[0] = blockIndex;
-                if (bitsPerOrd == -1) {
-                    decoder.decodeBlock(valuesData, currentBlock, numericBlockSize);
-                } else {
-                    decoder.decodeOrdinals(valuesData, currentBlock, bitsPerOrd);
-                }
+                decoder.decode(valuesData, currentBlock);
             }
             return currentBlock[blockInIndex];
         };
@@ -2698,7 +2706,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         public long valuesOffset;
         public long valuesLength;
         public DirectMonotonicReader.Meta sortedOrdinals;
-        public NumericFieldReader fieldReader;
+        public NumericFieldReader numericFieldReader;
+        public OrdinalFieldReader ordinalFieldReader;
     }
 
     static class BinaryEntry {

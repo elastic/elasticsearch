@@ -22,7 +22,7 @@ package org.elasticsearch.index.codec.tsdb;
  * @param writePrefixPartitions      whether to write prefix-based partition metadata for the primary sort field
  */
 public record TSDBDocValuesFormatConfig(
-    VersionConfig version,
+    int version,
     TermsDictConfig termsDict,
     SkipIndexConfig skipIndex,
     NumericConfig numeric,
@@ -30,32 +30,6 @@ public record TSDBDocValuesFormatConfig(
     int directMonotonicBlockShift,
     boolean writePrefixPartitions
 ) {
-
-    /** @return minimum format version for header validation */
-    public int versionStart() {
-        return version.start();
-    }
-
-    /** @return format version to write in file headers */
-    public int versionCurrent() {
-        return version.current();
-    }
-
-    /** @return version at which large numeric blocks were introduced */
-    public int versionLargeBlocks() {
-        return version.largeBlocks();
-    }
-
-    /** @return version at which binary DV compression was introduced */
-    public int versionBinaryCompression() {
-        return version.binaryCompression();
-    }
-
-    /** @return version at which prefix partitions were introduced */
-    public int versionPrefixPartitions() {
-        return version.prefixPartitions();
-    }
-
     /** @return terms dict block mask */
     public int termsBlockLz4Mask() {
         return termsDict.blockLz4Mask();
@@ -127,15 +101,6 @@ public record TSDBDocValuesFormatConfig(
     }
 
     /**
-     * @param start              minimum format version for header validation
-     * @param current            format version to write in file headers
-     * @param largeBlocks        version at which large numeric blocks were introduced
-     * @param binaryCompression  version at which binary DV compression was introduced
-     * @param prefixPartitions   version at which prefix partitions were introduced
-     */
-    public record VersionConfig(int start, int current, int largeBlocks, int binaryCompression, int prefixPartitions) {}
-
-    /**
      * @param blockLz4Mask      terms dict block mask
      * @param blockLz4Shift     terms dict block shift
      * @param reverseIndexShift terms dict reverse index shift
@@ -169,4 +134,10 @@ public record TSDBDocValuesFormatConfig(
         boolean enablePerBlockCompression,
         BinaryDVCompressionMode compressionMode
     ) {}
+
+    public static final int VERSION_START = 0;
+    public static final int VERSION_BINARY_DV_COMPRESSION = 1;
+    public static final int VERSION_NUMERIC_LARGE_BLOCKS = 2;
+    public static final int VERSION_PREFIX_PARTITIONS = 4;
+    public static final int VERSION_CURRENT = VERSION_PREFIX_PARTITIONS;
 }

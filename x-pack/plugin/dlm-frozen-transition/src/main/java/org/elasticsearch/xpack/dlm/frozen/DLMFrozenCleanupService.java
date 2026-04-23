@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.dlm.frozen;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
@@ -16,32 +15,23 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.snapshots.SnapshotInfo;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 
-import java.io.Closeable;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
-import java.util.Set;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
+import java.util.Map;
+import java.util.Optional;
 
 import static org.elasticsearch.logging.LogManager.getLogger;
 
@@ -50,7 +40,7 @@ import static org.elasticsearch.logging.LogManager.getLogger;
  * (cloned indices and snapshots) and removes them. Thread pool is started when the node becomes
  * master and stopped when it loses mastership or the service is closed.
  */
-class DLMFrozenCleanupService implements ClusterStateListener, Closeable {
+class DLMFrozenCleanupService extends AbstractDLMPeriodicMasterOnlyService {
 
     static final Setting<TimeValue> POLL_INTERVAL_SETTING = Setting.timeSetting(
         "dlm.frozen_cleanup.poll_interval",
@@ -59,98 +49,30 @@ class DLMFrozenCleanupService implements ClusterStateListener, Closeable {
         Setting.Property.NodeScope
     );
     private static final Logger logger = getLogger(DLMFrozenCleanupService.class);
-
-    private final ClusterService clusterService;
     private final Client client;
-    private final AtomicBoolean isMaster = new AtomicBoolean(false);
-    private final AtomicBoolean closing = new AtomicBoolean(false);
-    private final TimeValue pollInterval;
-    private final long initialDelayMillis;
-    private ScheduledExecutorService schedulerThreadExecutor;
 
     DLMFrozenCleanupService(ClusterService clusterService, Client client) {
-        this(clusterService, client, POLL_INTERVAL_SETTING.get(clusterService.getSettings()).millis());
+        this(
+            clusterService,
+            client,
+            Math.min(TimeValue.timeValueMinutes(5).millis(), POLL_INTERVAL_SETTING.get(clusterService.getSettings()).millis())
+        );
     }
 
     // visible for testing
     DLMFrozenCleanupService(ClusterService clusterService, Client client, long initialDelayMillis) {
-        this.clusterService = clusterService;
+        super(clusterService, POLL_INTERVAL_SETTING.get(clusterService.getSettings()), initialDelayMillis);
         this.client = client;
-        this.pollInterval = POLL_INTERVAL_SETTING.get(clusterService.getSettings());
-        this.initialDelayMillis = initialDelayMillis;
-    }
-
-    /**
-     * Registers this service as a {@link ClusterStateListener} so that master election events trigger thread pool
-     * lifecycle. Must be called after construction to avoid publishing a self-reference from the constructor.
-     */
-    void init() {
-        clusterService.addListener(this);
     }
 
     @Override
-    public void clusterChanged(ClusterChangedEvent event) {
-        // wait for the cluster state to be recovered
-        if (closing.get() || event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
-            return;
-        }
-        var isNodeMaster = event.localNodeMaster();
-        if (isMaster.getAndSet(isNodeMaster) != isNodeMaster) {
-            if (isNodeMaster) {
-                startThreadPools();
-            } else {
-                stopThreadPools();
-            }
-        }
-    }
-
-    private void startThreadPools() {
-        synchronized (this) {
-            if (closing.get() == false) {
-                assert schedulerThreadExecutor == null : "previous executor existed but it should not";
-                schedulerThreadExecutor = Executors.newSingleThreadScheduledExecutor(
-                    EsExecutors.daemonThreadFactory(clusterService.getSettings(), "dlm-frozen-cleanup-scheduler")
-                );
-                schedulerThreadExecutor.scheduleWithFixedDelay(
-                    this::checkForOrphanedResources,
-                    initialDelayMillis,
-                    pollInterval.millis(),
-                    TimeUnit.MILLISECONDS
-                );
-            }
-        }
-    }
-
-    private void stopThreadPools() {
-        synchronized (this) {
-            if (schedulerThreadExecutor != null) {
-                schedulerThreadExecutor.shutdownNow();
-                schedulerThreadExecutor = null;
-            }
-        }
+    Runnable getScheduledTask() {
+        return this::checkForOrphanedResources;
     }
 
     @Override
-    public void close() {
-        synchronized (this) {
-            if (closing.compareAndSet(false, true)) {
-                clusterService.removeListener(this);
-                if (schedulerThreadExecutor != null) {
-                    ThreadPool.terminate(schedulerThreadExecutor, 10, TimeUnit.SECONDS);
-                    schedulerThreadExecutor = null;
-                }
-            }
-        }
-    }
-
-    // Visible for testing
-    boolean isSchedulerThreadRunning() {
-        return schedulerThreadExecutor != null && schedulerThreadExecutor.isShutdown() == false;
-    }
-
-    // Visible for testing
-    boolean isClosing() {
-        return closing.get();
+    String getSchedulerThreadName() {
+        return "dlm-frozen-cleanup";
     }
 
     /**
@@ -162,140 +84,190 @@ class DLMFrozenCleanupService implements ClusterStateListener, Closeable {
     // visible for testing
     void checkForOrphanedResources() {
         try {
-            checkForOrphanedClones();
-        } catch (Exception e) {
-            logger.warn("Error during DLM orphaned clone cleanup", e);
-        }
-
-        try {
-            checkForOrphanedSnapshots();
-        } catch (Exception e) {
-            logger.warn("Error during DLM orphaned snapshot cleanup", e);
-        }
-    }
-
-    private void checkForOrphanedClones() {
-        for (ProjectMetadata projectMetadata : clusterService.state().metadata().projects().values()) {
-            if (Thread.currentThread().isInterrupted() || closing.get()) {
-                return;
+            String defaultRepository = RepositoriesService.DEFAULT_REPOSITORY_SETTING.get(clusterService.state().metadata().settings());
+            if (defaultRepository.isEmpty()) {
+                logger.debug("No default repository configured, skipping snapshot cleanup");
+                defaultRepository = null;
             }
 
-            Set<String> projectIndexUUIDs = projectMetadata.indices()
-                .values()
-                .stream()
-                .map(IndexMetadata::getIndex)
-                .map(Index::getUUID)
-                .collect(Collectors.toSet());
-
-            List<Index> indicesToDelete = projectMetadata.indices()
-                .values()
-                .stream()
-                .filter(imd -> imd.getIndex().getName().startsWith(DLMConvertToFrozen.CLONE_INDEX_PREFIX))
-                .filter(im -> im.getResizeSourceIndex() != null)
-                .filter(im -> projectIndexUUIDs.contains(im.getResizeSourceIndex().getUUID()) == false)
-                .map(IndexMetadata::getIndex)
-                .toList();
-
-            // TODO: These deletes could be collected and issued as a single batched request in the
-            // future. Since orphaned clones are expected to be rare, individual deletes are sufficient for now.
-            for (Index index : indicesToDelete) {
-                if (Thread.currentThread().isInterrupted() || closing.get()) {
+            for (ProjectMetadata projectMetadata : clusterService.state().metadata().projects().values()) {
+                if (Thread.currentThread().isInterrupted() || isClosing()) {
                     return;
                 }
-                logger.info(
-                    "Source index [{}] for DLM-created clone [{}] no longer exists, deleting clone",
-                    index.getUUID(),
-                    index.getName()
-                );
-                deleteIndex(index.getName(), projectMetadata.id());
+
+                Collection<String> indicesToDelete = getOrphanedIndicesInProject(projectMetadata);
+
+                if (Thread.currentThread().isInterrupted() || isClosing()) {
+                    return;
+                }
+
+                Collection<String> snapshotsToDelete;
+                if (defaultRepository != null) {
+                    snapshotsToDelete = getOrphanedSnapshotsInProject(projectMetadata, defaultRepository);
+                } else {
+                    snapshotsToDelete = Collections.emptyList();
+                }
+
+                if (Thread.currentThread().isInterrupted() || isClosing()) {
+                    return;
+                }
+
+                if (indicesToDelete.isEmpty() == false) {
+                    deleteIndices(indicesToDelete, projectMetadata.id());
+                }
+
+                if (Thread.currentThread().isInterrupted() || isClosing()) {
+                    return;
+                }
+
+                if (snapshotsToDelete.isEmpty() == false) {
+                    deleteSnapshots(defaultRepository, snapshotsToDelete, projectMetadata.id());
+                }
             }
+        } catch (Exception e) {
+            logger.warn("Failed to clean up orphaned frozen transition artifacts", e);
         }
     }
 
-    private void checkForOrphanedSnapshots() {
-        String defaultRepository = RepositoriesService.DEFAULT_REPOSITORY_SETTING.get(clusterService.state().metadata().settings());
-        if (defaultRepository == null || defaultRepository.isEmpty()) {
-            logger.debug("No default repository configured, skipping snapshot cleanup");
-            return;
-        }
+    private Collection<String> getOrphanedIndicesInProject(ProjectMetadata projectMetadata) {
+        return projectMetadata.indices()
+            .values()
+            .stream()
+            .filter(indexMetadata -> DLMConvertToFrozen.DLM_CREATED_SETTING.get(indexMetadata.getSettings()))
+            .map(IndexMetadata::getIndex)
+            .map(Index::getName)
+            .filter(indexName -> isIndexOrphaned(indexName, projectMetadata))
+            .toList();
+    }
 
-        for (ProjectMetadata projectMetadata : clusterService.state().metadata().projects().values()) {
-            if (Thread.currentThread().isInterrupted() || closing.get()) {
-                return;
-            }
-            GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest(TimeValue.MAX_VALUE, defaultRepository).snapshots(
-                new String[] { DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + "*" }
-            );
-            PlainActionFuture<GetSnapshotsResponse> future = new PlainActionFuture<>();
+    private List<String> getOrphanedSnapshotsInProject(ProjectMetadata projectMetadata, String repositoryName) {
+        GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest(TimeValue.MAX_VALUE, repositoryName).snapshots(
+            new String[] { DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + "*" }
+        );
+        PlainActionFuture<GetSnapshotsResponse> future = new PlainActionFuture<>();
 
-            ProjectId projectId = projectMetadata.id();
+        ProjectId projectId = projectMetadata.id();
+
+        try {
             client.projectClient(projectId).admin().cluster().getSnapshots(getSnapshotsRequest, future);
 
-            try {
-                processSnapshots(future.get(), defaultRepository, projectId);
-            } catch (Exception e) {
-                if (e instanceof InterruptedException) {
-                    Thread.currentThread().interrupt();
+            GetSnapshotsResponse getSnapshotsResponse = future.get();
+
+            return getSnapshotsResponse.getSnapshots().stream().filter(snapshotInfo -> {
+                Map<String, Object> metadata = snapshotInfo.userMetadata();
+                if (metadata == null || Boolean.TRUE.equals(metadata.get(DLMConvertToFrozen.DLM_CREATED_METADATA_KEY)) == false) {
+                    return false;
                 }
-                logger.warn("Failed to list snapshots from repository [{}] in project [{}]", defaultRepository, projectId, e);
+
+                List<String> indices = snapshotInfo.indices();
+                if (indices.size() != 1) {
+                    return false;
+                }
+
+                return isIndexOrphaned(indices.getFirst(), projectMetadata);
+            }).map(s -> s.snapshotId().getName()).toList();
+
+        } catch (Exception e) {
+            if (e instanceof InterruptedException || ExceptionsHelper.unwrapCause(e) instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
             }
+            logger.warn("Failed to list snapshots from repository [{}] in project [{}]", repositoryName, projectId, e);
         }
+
+        return Collections.emptyList();
     }
 
-    private void processSnapshots(GetSnapshotsResponse response, String defaultRepository, ProjectId projectId) {
-        for (SnapshotInfo snapshotInfo : response.getSnapshots()) {
-            if (Thread.currentThread().isInterrupted() || closing.get()) {
-                return;
-            }
+    private boolean isIndexOrphaned(String indexName, ProjectMetadata projectMetadata) {
+        String indexToCheck = indexName;
 
-            // TODO: Snapshot checks
+        // If the index itself is part of the datastream, then it's not orphaned
+        if (isInADataStream(indexToCheck, projectMetadata)) {
+            return false;
         }
+
+        // Possibly resolve mounted snapshot to source index
+        indexToCheck = Optional.ofNullable(indexName)
+            .map(projectMetadata::index)
+            .map(IndexMetadata::getSettings)
+            .map(s -> s.get(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_INDEX_NAME_SETTING_KEY))
+            .orElse(indexToCheck);
+
+        // possibly resolve force merged index to source index
+        indexToCheck = Optional.ofNullable(projectMetadata.index(indexToCheck))
+            .map(IndexMetadata::getResizeSourceIndex)
+            .map(Index::getName)
+            .orElse(indexToCheck);
+
+        // Source index has been deleted
+        if (projectMetadata.index(indexToCheck) == null) {
+            return true;
+        }
+
+        // Is source index still in a valid datastream
+        return isInADataStream(indexToCheck, projectMetadata) == false;
     }
 
-    void deleteIndex(String indexToDelete, ProjectId projectId) {
-        DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(indexToDelete).indicesOptions(
+    /**
+     * Returns true if {@code indexName} resolves to an index that is part of a datastream
+     */
+    private static boolean isInADataStream(String indexName, ProjectMetadata projectMetadata) {
+        IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(indexName);
+        if (indexAbstraction == null) {
+            return false;
+        }
+        return indexAbstraction.getParentDataStream() != null;
+    }
+
+    private void deleteIndices(Collection<String> indicesToDelete, ProjectId projectId) {
+        DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(indicesToDelete.toArray(new String[0])).indicesOptions(
             DLMConvertToFrozen.IGNORE_MISSING_OPTIONS
         ).masterNodeTimeout(TimeValue.MAX_VALUE);
-        logger.debug("DLM cleanup issuing request to delete index [{}]", indexToDelete);
+
+        String indexNames = String.join(",", indicesToDelete);
+        logger.debug("DLM cleanup issuing request to delete indices [{}]", indexNames);
         try {
             AcknowledgedResponse resp = client.projectClient(projectId).admin().indices().delete(deleteIndexRequest).get();
             if (resp.isAcknowledged()) {
-                logger.info("DLM cleanup successfully deleted index [{}]", indexToDelete);
+                logger.info("DLM cleanup successfully deleted indices [{}]", indexNames);
             } else {
-                logger.warn("DLM cleanup failed to acknowledge deletion of index [{}]", indexToDelete);
+                logger.warn("DLM cleanup failed to acknowledge deletion of indices [{}]", indexNames);
             }
-        } catch (IndexNotFoundException e) {
-            logger.debug("Index [{}] was not found during DLM cleanup delete attempt, it may have already been deleted", indexToDelete);
         } catch (Exception e) {
-            logger.warn(Strings.format("DLM cleanup failed to delete index [%s]", indexToDelete), e);
+            logger.warn("DLM cleanup failed to delete indices [{}]", indexNames, e);
             if (e instanceof InterruptedException || ExceptionsHelper.unwrapCause(e) instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
         }
     }
 
-    private void deleteSnapshot(String repository, String snapshotName, ProjectId projectId) {
-        DeleteSnapshotRequest deleteSnapshotRequest = new DeleteSnapshotRequest(TimeValue.MAX_VALUE, repository, snapshotName);
-        logger.debug("DLM cleanup issuing request to delete snapshot [{}] from repository [{}]", snapshotName, repository);
-        var listener = new ActionListener<AcknowledgedResponse>() {
-            @Override
-            public void onResponse(AcknowledgedResponse resp) {
-                if (resp.isAcknowledged()) {
-                    logger.info("DLM cleanup successfully deleted snapshot [{}] from repository [{}]", snapshotName, repository);
-                } else {
-                    logger.warn(
-                        "DLM cleanup failed to acknowledge deletion of snapshot [{}] from repository [{}]",
-                        snapshotName,
-                        repository
-                    );
-                }
-            }
+    private void deleteSnapshots(String repository, Collection<String> snapshotNames, ProjectId projectId) {
+        DeleteSnapshotRequest deleteSnapshotRequest = new DeleteSnapshotRequest(
+            TimeValue.MAX_VALUE,
+            repository,
+            snapshotNames.toArray(new String[0])
+        );
 
-            @Override
-            public void onFailure(Exception e) {
-                logger.warn("DLM cleanup failed to delete snapshot [{}] from repository [{}]", snapshotName, repository, e);
+        String joinedSnapshotNames = String.join(",", snapshotNames);
+        logger.debug("DLM cleanup issuing request to delete snapshots [{}] from repository [{}]", joinedSnapshotNames, repository);
+        try {
+            PlainActionFuture<AcknowledgedResponse> future = new PlainActionFuture<>();
+            client.projectClient(projectId).admin().cluster().deleteSnapshot(deleteSnapshotRequest, future);
+            AcknowledgedResponse resp = future.get();
+            if (resp.isAcknowledged()) {
+                logger.info("DLM cleanup successfully deleted snapshots [{}] from repository [{}]", joinedSnapshotNames, repository);
+            } else {
+                logger.warn(
+                    "DLM cleanup failed to acknowledge deletion of snapshots [{}] from repository [{}]",
+                    joinedSnapshotNames,
+                    repository
+                );
             }
-        };
-        client.projectClient(projectId).admin().cluster().deleteSnapshot(deleteSnapshotRequest, listener);
+        } catch (Exception e) {
+            logger.warn("DLM cleanup failed to delete snapshots [{}] from repository [{}]", joinedSnapshotNames, repository, e);
+            if (e instanceof InterruptedException || ExceptionsHelper.unwrapCause(e) instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+        }
     }
+
 }

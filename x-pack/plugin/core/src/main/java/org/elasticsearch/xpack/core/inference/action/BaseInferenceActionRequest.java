@@ -40,10 +40,6 @@ public abstract class BaseInferenceActionRequest extends LegacyActionRequest {
      */
     public static final TimeValue TIMEOUT_NOT_DETERMINED = TimeValue.ZERO;
     /**
-     * A timeout to use in the (unexpected) case that the appropriate default timeout cannot be determined for a given task type
-     */
-    public static final TimeValue FALLBACK_TIMEOUT = TimeValue.THIRTY_SECONDS;
-    /**
      * The default timeout used for all task types prior to {@link BaseInferenceActionRequest#INFERENCE_REQUEST_PER_TASK_TIMEOUT_ADDED}
      */
     public static final TimeValue OLD_DEFAULT_TIMEOUT = TimeValue.THIRTY_SECONDS;

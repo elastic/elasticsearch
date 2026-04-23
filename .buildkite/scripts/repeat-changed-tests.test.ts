@@ -311,7 +311,7 @@ describe("generateBatchCommand", () => {
       { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "org.elasticsearch.index.IndexTests" },
     ];
     expect(generateBatchCommand(batch)).toBe(
-      ".ci/scripts/run-gradle.sh -Dtests.iters=100 :server:test --tests org.elasticsearch.index.IndexTests"
+      ".ci/scripts/run-gradle.sh -Dtests.iters=100 -Dtests.timeoutSuite=3600000! :server:test --tests org.elasticsearch.index.IndexTests"
     );
   });
 
@@ -321,7 +321,7 @@ describe("generateBatchCommand", () => {
       { gradleProject: ":libs:core", kind: "test", sourceSet: "test", fqcn: "org.elasticsearch.core.BarTests" },
     ];
     expect(generateBatchCommand(batch)).toBe(
-      ".ci/scripts/run-gradle.sh -Dtests.iters=100 :server:test :libs:core:test --tests org.elasticsearch.index.FooTests --tests org.elasticsearch.core.BarTests"
+      ".ci/scripts/run-gradle.sh -Dtests.iters=100 -Dtests.timeoutSuite=3600000! :server:test :libs:core:test --tests org.elasticsearch.index.FooTests --tests org.elasticsearch.core.BarTests"
     );
   });
 
@@ -331,7 +331,7 @@ describe("generateBatchCommand", () => {
       { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "org.elasticsearch.BarTests" },
     ];
     expect(generateBatchCommand(batch)).toBe(
-      ".ci/scripts/run-gradle.sh -Dtests.iters=100 :server:test --tests org.elasticsearch.FooTests --tests org.elasticsearch.BarTests"
+      ".ci/scripts/run-gradle.sh -Dtests.iters=100 -Dtests.timeoutSuite=3600000! :server:test --tests org.elasticsearch.FooTests --tests org.elasticsearch.BarTests"
     );
   });
 
@@ -345,7 +345,7 @@ describe("generateBatchCommand", () => {
       },
     ];
     expect(generateBatchCommand(batch)).toBe(
-      ".ci/scripts/run-gradle.sh -Dtests.iters=20 :server:internalClusterTest --tests org.elasticsearch.cluster.ClusterIT"
+      ".ci/scripts/run-gradle.sh -Dtests.iters=20 -Dtests.timeoutSuite=3600000! :server:internalClusterTest --tests org.elasticsearch.cluster.ClusterIT"
     );
   });
 
@@ -433,7 +433,7 @@ describe("generatePipeline", () => {
     expect(step.parallelism).toBeUndefined();
     expect(step.env).toBeUndefined();
     expect(step.command).toBe(
-      ".ci/scripts/run-gradle.sh -Dtests.iters=100 :server:test --tests org.elasticsearch.index.IndexTests"
+      ".ci/scripts/run-gradle.sh -Dtests.iters=100 -Dtests.timeoutSuite=3600000! :server:test --tests org.elasticsearch.index.IndexTests"
     );
     expect(step.timeout_in_minutes).toBe(60);
     expect(step.agents.provider).toBe("gcp");

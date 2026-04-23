@@ -145,9 +145,6 @@ tests:
 - class: org.elasticsearch.compute.aggregation.SumLongGroupingAggregatorFunctionTests
   method: testOverflowInGroupingProducesNullAndWarning
   issue: https://github.com/elastic/elasticsearch/issues/145438
-- class: org.elasticsearch.xpack.ml.integration.RegressionIT
-  method: testTwoJobsWithSameRandomizeSeedUseSameTrainingSet
-  issue: https://github.com/elastic/elasticsearch/issues/145519
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:spatial_shapes.convertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/145655
@@ -445,21 +442,12 @@ tests:
 - class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
   method: testBulkOperations {useLegacyFormat=false useSyntheticSource=true}
   issue: https://github.com/elastic/elasticsearch/issues/147177
-- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
-  method: testReplaceChildren {class org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison}
-  issue: https://github.com/elastic/elasticsearch/issues/147195
-- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
-  method: testTransform {class org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlFunction}
-  issue: https://github.com/elastic/elasticsearch/issues/147199
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=aggregations/terms_text_docvalues/Indexing disabled}
   issue: https://github.com/elastic/elasticsearch/issues/147200
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=index/100_field_name_length_limit/Test field name length limit array}
   issue: https://github.com/elastic/elasticsearch/issues/147205
-- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
-  method: testInfoParameters {class org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlFunction}
-  issue: https://github.com/elastic/elasticsearch/issues/147223
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:tstep.docs_tstep_by_one_hour_duration_as_string}
   issue: https://github.com/elastic/elasticsearch/issues/147228
@@ -481,36 +469,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:tstep.tstep_with_request_timestamp_bounds_only}
   issue: https://github.com/elastic/elasticsearch/issues/147228
-- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
-  method: testReplaceChildren {class org.elasticsearch.xpack.esql.plan.logical.TopNBy}
-  issue: https://github.com/elastic/elasticsearch/issues/147232
-- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
-  method: testReplaceChildren {class org.elasticsearch.xpack.esql.plan.logical.TopN}
-  issue: https://github.com/elastic/elasticsearch/issues/147233
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search.vectors/41_knn_search_byte_quantized_bfloat16/KNN Vector similarity search only}
   issue: https://github.com/elastic/elasticsearch/issues/147251
-- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
-  method: testReplaceChildren {class org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlFunction}
-  issue: https://github.com/elastic/elasticsearch/issues/147258
-- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
-  method: testTransform {class org.elasticsearch.xpack.esql.plan.physical.SubqueryExec}
-  issue: https://github.com/elastic/elasticsearch/issues/147270
-- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
-  method: testTransform {class org.elasticsearch.xpack.esql.plan.physical.OutputExec}
-  issue: https://github.com/elastic/elasticsearch/issues/147271
-- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
-  method: testTransform {class org.elasticsearch.xpack.esql.plan.physical.HashJoinExec}
-  issue: https://github.com/elastic/elasticsearch/issues/147272
-- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
-  method: testTransform {class org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec}
-  issue: https://github.com/elastic/elasticsearch/issues/147273
-- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
-  method: testReplaceChildren {class org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate}
-  issue: https://github.com/elastic/elasticsearch/issues/147280
-- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
-  method: testReplaceChildren {class org.elasticsearch.xpack.esql.plan.logical.OrderBy}
-  issue: https://github.com/elastic/elasticsearch/issues/147281
 
 # Examples:
 #

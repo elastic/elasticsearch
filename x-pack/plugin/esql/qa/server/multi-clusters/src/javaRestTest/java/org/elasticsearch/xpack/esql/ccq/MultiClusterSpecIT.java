@@ -81,8 +81,6 @@ import static org.mockito.Mockito.when;
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class MultiClusterSpecIT extends EsqlSpecTestCase {
-    private static final Version BACKWARD_WINDOWS_VERSION = Version.fromString("9.5.0");
-
     private static final Path CSV_DATA_PATH = CsvTestUtils.createCsvDataDirectory();
 
     static ElasticsearchCluster remoteCluster = Clusters.remoteCluster(CSV_DATA_PATH, LOGGING_CLUSTER_SETTINGS);
@@ -172,13 +170,6 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         // Check all capabilities on the local cluster first.
         super.shouldSkipTest(testName);
 
-        Version oldVersion = Version.min(Clusters.localClusterVersion(), Clusters.remoteClusterVersion());
-        CsvTestUtils.assumeFalseLogging(
-            "Backward window semantics are not supported on old CCS nodes",
-            oldVersion.before(BACKWARD_WINDOWS_VERSION)
-                && testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.FIX_IME_SERIES_WINDOW_BACKWARD.capabilityName())
-        );
-
         // Filter out capabilities that are required only on the local cluster and then check the remaining on the remote cluster.
         List<String> remoteCapabilities = testCase.requiredCapabilities.stream()
             .filter(c -> LOCAL_ONLY_INFERENCE_CAPABILITIES.contains(c) == false)
@@ -201,6 +192,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
                 dataLocation == DataLocation.REMOTE_ONLY
             );
         }
+        Version oldVersion = Version.min(Clusters.localClusterVersion(), Clusters.remoteClusterVersion());
         assumeTrue("Test " + testName + " is skipped on " + oldVersion, isEnabled(testName, instructions, oldVersion));
         if (testCase.requiredCapabilities.contains(INLINE_STATS.capabilityName())
             || testCase.requiredCapabilities.contains(JOIN_PLANNING_V1.capabilityName())) {

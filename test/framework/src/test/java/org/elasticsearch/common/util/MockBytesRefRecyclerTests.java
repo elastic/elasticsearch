@@ -9,7 +9,6 @@
 
 package org.elasticsearch.common.util;
 
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.containsString;
@@ -17,18 +16,10 @@ import static org.hamcrest.Matchers.containsString;
 public class MockBytesRefRecyclerTests extends ESTestCase {
 
     public void testDoubleReleaseThrows() {
-        final var recycler = new MockBytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoopCircuitBreaker("test"), false);
+        final var recycler = new MockBytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE, null);
         final var page = recycler.obtain();
         page.close();
         final var ex = expectThrows(IllegalStateException.class, page::close);
         assertThat(ex.getMessage(), containsString("Double release"));
-    }
-
-    public void testCheckBreakerRequiresNonNullBreaker() {
-        final var ex = expectThrows(
-            AssertionError.class,
-            () -> new MockBytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE, null, true)
-        );
-        assertThat(ex.getMessage(), containsString("breaker must be non-null"));
     }
 }

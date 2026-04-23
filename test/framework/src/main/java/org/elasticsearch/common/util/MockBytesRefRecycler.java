@@ -38,13 +38,10 @@ public class MockBytesRefRecycler extends BytesRefRecycler {
 
     @Nullable
     private final CircuitBreaker breaker;
-    private final boolean checkBreaker;
 
-    public MockBytesRefRecycler(PageCacheRecycler recycler, @Nullable CircuitBreaker breaker, boolean checkBreaker) {
+    public MockBytesRefRecycler(PageCacheRecycler recycler, @Nullable CircuitBreaker breaker) {
         super(recycler);
-        assert breaker != null || checkBreaker == false : "breaker must be non-null when checkBreaker is true";
         this.breaker = breaker;
-        this.checkBreaker = checkBreaker;
     }
 
     /// Asserts that all pages obtained through any [MockBytesRefRecycler] instance have been released.
@@ -66,7 +63,7 @@ public class MockBytesRefRecycler extends BytesRefRecycler {
     @Override
     public Recycler.V<BytesRef> obtain() {
         final Recycler.V<BytesRef> page = super.obtain();
-        if (checkBreaker) {
+        if (breaker != null) {
             breaker.addWithoutBreaking(PageCacheRecycler.BYTE_PAGE_SIZE);
         }
         final Object key = new Object();
@@ -89,7 +86,7 @@ public class MockBytesRefRecycler extends BytesRefRecycler {
                 if (originalRelease.compareAndSet(null, new AssertionError()) == false) {
                     throw new IllegalStateException("Double release. Original release attached as cause", originalRelease.get());
                 }
-                if (checkBreaker) {
+                if (breaker != null) {
                     breaker.addWithoutBreaking(-PageCacheRecycler.BYTE_PAGE_SIZE);
                 }
                 ACQUIRED_PAGES.remove(key);

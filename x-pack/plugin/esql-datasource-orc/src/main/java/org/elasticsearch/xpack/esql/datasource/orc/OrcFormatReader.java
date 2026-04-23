@@ -41,9 +41,11 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
@@ -164,6 +166,7 @@ public class OrcFormatReader implements RangeAwareFormatReader {
             long nullCount = rowCount - totalValues;
             Object minVal = extractOrcMin(cs);
             Object maxVal = extractOrcMax(cs);
+            long bytesOnDisk = cs.getBytesOnDisk();
 
             columnStats.put(name, new SourceStatistics.ColumnStatistics() {
                 @Override
@@ -184,6 +187,11 @@ public class OrcFormatReader implements RangeAwareFormatReader {
                 @Override
                 public Optional<Object> maxValue() {
                     return Optional.ofNullable(maxVal);
+                }
+
+                @Override
+                public OptionalLong sizeInBytes() {
+                    return bytesOnDisk > 0 ? OptionalLong.of(bytesOnDisk) : OptionalLong.empty();
                 }
             });
         }
@@ -273,8 +281,8 @@ public class OrcFormatReader implements RangeAwareFormatReader {
 
     private static Map<String, Object> buildStripeStats(StripeInformation stripe, StripeStatistics stats, TypeDescription schema) {
         Map<String, Object> map = new HashMap<>();
-        map.put("_stats.row_count", stripe.getNumberOfRows());
-        map.put("_stats.size_bytes", stripe.getLength());
+        map.put(SourceStatisticsSerializer.STATS_ROW_COUNT, stripe.getNumberOfRows());
+        map.put(SourceStatisticsSerializer.STATS_SIZE_BYTES, stripe.getLength());
         List<String> fieldNames = schema.getFieldNames();
         List<TypeDescription> children = schema.getChildren();
         ColumnStatistics[] colStats = stats.getColumnStatistics();
@@ -290,14 +298,17 @@ public class OrcFormatReader implements RangeAwareFormatReader {
             }
             long totalValues = cs.getNumberOfValues();
             long nullCount = stripe.getNumberOfRows() - totalValues;
-            map.put("_stats.columns." + colName + ".null_count", nullCount);
+            map.put(SourceStatisticsSerializer.columnNullCountKey(colName), nullCount);
+            if (cs.getBytesOnDisk() > 0) {
+                map.put(SourceStatisticsSerializer.columnSizeBytesKey(colName), cs.getBytesOnDisk());
+            }
             Object minVal = extractOrcMin(cs);
             Object maxVal = extractOrcMax(cs);
             if (minVal != null) {
-                map.put("_stats.columns." + colName + ".min", minVal);
+                map.put(SourceStatisticsSerializer.columnMinKey(colName), minVal);
             }
             if (maxVal != null) {
-                map.put("_stats.columns." + colName + ".max", maxVal);
+                map.put(SourceStatisticsSerializer.columnMaxKey(colName), maxVal);
             }
         }
         return Map.copyOf(map);
@@ -421,6 +432,11 @@ public class OrcFormatReader implements RangeAwareFormatReader {
             return pushedExpressions.toSearchArgument(schema);
         }
         return null;
+    }
+
+    @Override
+    public FilterPushdownSupport filterPushdownSupport() {
+        return new OrcFilterPushdownSupport();
     }
 
     @Override

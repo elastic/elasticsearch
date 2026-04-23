@@ -540,6 +540,7 @@ public class ReindexerTests extends ESTestCase {
         final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
         reindexer.execute(task, request, mock(Client.class), future);
 
+        assertTrue(future.isDone());
         verify(taskResultsService).storeResult(any(TaskResult.class), any());
     }
 
@@ -618,11 +619,10 @@ public class ReindexerTests extends ESTestCase {
         final AtomicInteger closeCount = new AtomicInteger(0);
         final ActionListener<BulkByScrollResponse> delegate = spy(ActionListener.noop());
         final BytesReference pitId = new BytesArray("pit-id");
-        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(
-            pitId,
-            delegate,
-            id -> closeCount.incrementAndGet()
-        );
+        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(pitId, delegate, (id, done) -> {
+            closeCount.incrementAndGet();
+            done.onResponse(null);
+        });
 
         wrapped.onResponse(reindexResponseWithResumeInfo());
 
@@ -637,11 +637,10 @@ public class ReindexerTests extends ESTestCase {
         final AtomicInteger closeCount = new AtomicInteger(0);
         final ActionListener<BulkByScrollResponse> delegate = spy(ActionListener.noop());
         final BytesReference pitId = new BytesArray("pit-id");
-        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(
-            pitId,
-            delegate,
-            id -> closeCount.incrementAndGet()
-        );
+        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(pitId, delegate, (id, done) -> {
+            closeCount.incrementAndGet();
+            done.onResponse(null);
+        });
 
         wrapped.onFailure(new TaskRelocatedException());
 
@@ -656,11 +655,32 @@ public class ReindexerTests extends ESTestCase {
         final AtomicInteger closeCount = new AtomicInteger(0);
         final ActionListener<BulkByScrollResponse> delegate = spy(ActionListener.noop());
         final BytesReference pitId = new BytesArray("pit-id");
-        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(
-            pitId,
-            delegate,
-            id -> closeCount.incrementAndGet()
-        );
+        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(pitId, delegate, (id, done) -> {
+            closeCount.incrementAndGet();
+            done.onResponse(null);
+        });
+
+        wrapped.onResponse(reindexResponseWithBulkAndSearchFailures(null, null));
+
+        verify(delegate).onResponse(any());
+        assertThat(closeCount.get(), equalTo(1));
+    }
+
+    /**
+     * When shutdown requested relocation but the task completes in place (empty resume info), the PIT must still close.
+     */
+    public void testWrapListenerWithClosePitClosesOnNormalCompletionWhileRelocationRequested() {
+        final AtomicInteger closeCount = new AtomicInteger(0);
+        final ActionListener<BulkByScrollResponse> delegate = spy(ActionListener.noop());
+        final BytesReference pitId = new BytesArray("pit-id");
+        final BulkByScrollTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
+        task.setWorker(Float.POSITIVE_INFINITY, 0);
+        task.requestRelocation();
+
+        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(pitId, delegate, (id, done) -> {
+            closeCount.incrementAndGet();
+            done.onResponse(null);
+        }, task, () -> false);
 
         wrapped.onResponse(reindexResponseWithBulkAndSearchFailures(null, null));
 
@@ -676,11 +696,10 @@ public class ReindexerTests extends ESTestCase {
         final BytesReference latestPitId = new BytesArray("latest-pit-id");
         final BytesReference[] closedPitId = new BytesReference[1];
         final ActionListener<BulkByScrollResponse> delegate = spy(ActionListener.noop());
-        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(
-            initialPitId,
-            delegate,
-            id -> closedPitId[0] = id
-        );
+        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(initialPitId, delegate, (id, done) -> {
+            closedPitId[0] = id;
+            done.onResponse(null);
+        });
 
         wrapped.onResponse(reindexResponseWithPitId(latestPitId));
 
@@ -695,11 +714,10 @@ public class ReindexerTests extends ESTestCase {
         final BytesReference initialPitId = new BytesArray("initial-pit-id");
         final BytesReference[] closedPitId = new BytesReference[1];
         final ActionListener<BulkByScrollResponse> delegate = spy(ActionListener.noop());
-        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(
-            initialPitId,
-            delegate,
-            id -> closedPitId[0] = id
-        );
+        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(initialPitId, delegate, (id, done) -> {
+            closedPitId[0] = id;
+            done.onResponse(null);
+        });
 
         wrapped.onResponse(reindexResponseWithBulkAndSearchFailures(null, null));
 
@@ -714,13 +732,10 @@ public class ReindexerTests extends ESTestCase {
         final AtomicInteger closeCount = new AtomicInteger(0);
         final ActionListener<BulkByScrollResponse> delegate = spy(ActionListener.noop());
         final BytesReference pitId = new BytesArray("pit-id");
-        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(
-            pitId,
-            delegate,
-            id -> closeCount.incrementAndGet(),
-            null,
-            () -> true
-        );
+        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(pitId, delegate, (id, done) -> {
+            closeCount.incrementAndGet();
+            done.onResponse(null);
+        }, null, () -> true);
 
         wrapped.onResponse(reindexResponseWithBulkAndSearchFailures(null, null));
 
@@ -735,11 +750,10 @@ public class ReindexerTests extends ESTestCase {
         final AtomicInteger closeCount = new AtomicInteger(0);
         final ActionListener<BulkByScrollResponse> delegate = spy(ActionListener.noop());
         final BytesReference pitId = new BytesArray("pit-id");
-        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(
-            pitId,
-            delegate,
-            id -> closeCount.incrementAndGet()
-        );
+        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(pitId, delegate, (id, done) -> {
+            closeCount.incrementAndGet();
+            done.onResponse(null);
+        });
 
         wrapped.onFailure(new RuntimeException("other failure"));
 
@@ -758,13 +772,10 @@ public class ReindexerTests extends ESTestCase {
         task.setWorker(Float.POSITIVE_INFINITY, 0);
         // Do not call requestRelocation() - task.isRelocationRequested() is false
 
-        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(
-            pitId,
-            delegate,
-            id -> closeCount.incrementAndGet(),
-            task,
-            () -> false
-        );
+        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(pitId, delegate, (id, done) -> {
+            closeCount.incrementAndGet();
+            done.onResponse(null);
+        }, task, () -> false);
 
         wrapped.onFailure(new RuntimeException("other failure"));
 
@@ -784,13 +795,10 @@ public class ReindexerTests extends ESTestCase {
         task.setWorker(Float.POSITIVE_INFINITY, 0);
         task.requestRelocation();
 
-        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(
-            pitId,
-            delegate,
-            id -> closeCount.incrementAndGet(),
-            task,
-            () -> true
-        );
+        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(pitId, delegate, (id, done) -> {
+            closeCount.incrementAndGet();
+            done.onResponse(null);
+        }, task, () -> true);
 
         wrapped.onFailure(new TaskCancelledException("cancelled during relocation"));
 
@@ -1259,6 +1267,12 @@ public class ReindexerTests extends ESTestCase {
                 }
             };
             try {
+                final ClusterService clusterService = mock(ClusterService.class);
+                final DiscoveryNode localNode = DiscoveryNodeUtils.builder("local-node").build();
+                when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
+                when(clusterService.localNode()).thenReturn(localNode);
+                when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+
                 final ProjectResolver projectResolver = mock(ProjectResolver.class);
                 when(projectResolver.getProjectState(any())).thenReturn(ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID));
 
@@ -1689,6 +1703,7 @@ public class ReindexerTests extends ESTestCase {
             final DiscoveryNode localNode = DiscoveryNodeUtils.builder("local-node").build();
             when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
             when(clusterService.localNode()).thenReturn(localNode);
+            when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
 
             final ProjectResolver projectResolver = mock(ProjectResolver.class);
             when(projectResolver.getProjectState(any())).thenReturn(ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID));
@@ -1833,6 +1848,12 @@ public class ReindexerTests extends ESTestCase {
                 }
             };
             try {
+                final ClusterService clusterService = mock(ClusterService.class);
+                final DiscoveryNode localNode = DiscoveryNodeUtils.builder("local-node").build();
+                when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
+                when(clusterService.localNode()).thenReturn(localNode);
+                when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+
                 final ProjectResolver projectResolver = mock(ProjectResolver.class);
                 when(projectResolver.getProjectState(any())).thenReturn(ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID));
 
@@ -1903,6 +1924,12 @@ public class ReindexerTests extends ESTestCase {
                 }
             };
             try {
+                final ClusterService clusterService = mock(ClusterService.class);
+                final DiscoveryNode localNode = DiscoveryNodeUtils.builder("local-node").build();
+                when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
+                when(clusterService.localNode()).thenReturn(localNode);
+                when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+
                 final ProjectResolver projectResolver = mock(ProjectResolver.class);
                 when(projectResolver.getProjectState(any())).thenReturn(ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID));
 
@@ -1971,6 +1998,12 @@ public class ReindexerTests extends ESTestCase {
                 }
             };
             try {
+                final ClusterService clusterService = mock(ClusterService.class);
+                final DiscoveryNode localNode = DiscoveryNodeUtils.builder("local-node").build();
+                when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
+                when(clusterService.localNode()).thenReturn(localNode);
+                when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+
                 final ProjectResolver projectResolver = mock(ProjectResolver.class);
                 when(projectResolver.getProjectState(any())).thenReturn(ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID));
 
@@ -2039,6 +2072,12 @@ public class ReindexerTests extends ESTestCase {
                 }
             };
             try {
+                final ClusterService clusterService = mock(ClusterService.class);
+                final DiscoveryNode localNode = DiscoveryNodeUtils.builder("local-node").build();
+                when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
+                when(clusterService.localNode()).thenReturn(localNode);
+                when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+
                 final ProjectResolver projectResolver = mock(ProjectResolver.class);
                 when(projectResolver.getProjectState(any())).thenReturn(ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID));
 
@@ -2117,7 +2156,7 @@ public class ReindexerTests extends ESTestCase {
                     return;
                 }
                 if (path.contains("_pit") && "DELETE".equals(method)) {
-                    exchange.sendResponseHeaders(200, -1);
+                    respondJson(exchange, 200, "{}");
                     return;
                 }
                 exchange.sendResponseHeaders(404, -1);
@@ -2145,6 +2184,7 @@ public class ReindexerTests extends ESTestCase {
             DiscoveryNode localNode = DiscoveryNodeUtils.builder("local-node").build();
             when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
             when(clusterService.localNode()).thenReturn(localNode);
+            when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
 
             ProjectResolver projectResolver = mock(ProjectResolver.class);
             when(projectResolver.getProjectState(any())).thenReturn(ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID));
@@ -2266,8 +2306,10 @@ public class ReindexerTests extends ESTestCase {
     public void testCloseRestClientAndRunLogsWhenCloseThrows() throws IOException {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.generic()).thenReturn(DIRECT_EXECUTOR_SERVICE);
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         Reindexer reindexer = new Reindexer(
-            clusterServiceMock(),
+            clusterService,
             mock(ProjectResolver.class),
             mock(Client.class),
             threadPool,
@@ -2759,13 +2801,22 @@ public class ReindexerTests extends ESTestCase {
         TransportService transportService,
         TaskResultsService taskResultsService
     ) {
+        return reindexerWithRelocation(clusterService, transportService, taskResultsService, mock(Client.class));
+    }
+
+    private static Reindexer reindexerWithRelocation(
+        ClusterService clusterService,
+        TransportService transportService,
+        TaskResultsService taskResultsService,
+        Client searchClient
+    ) {
         final ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.generic()).thenReturn(mock(ExecutorService.class));
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         return new Reindexer(
             clusterService,
             mock(ProjectResolver.class),
-            mock(Client.class),
+            searchClient,
             threadPool,
             mock(ScriptService.class),
             mock(ReindexSslConfig.class),

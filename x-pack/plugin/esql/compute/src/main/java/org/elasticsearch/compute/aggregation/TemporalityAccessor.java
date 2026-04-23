@@ -52,6 +52,17 @@ public class TemporalityAccessor {
     }
 
     /**
+     * Creates an accessor for the given temporality block that throws {@link InvalidTemporalityException}
+     * when an unrecognized temporality value is encountered.
+     *
+     * @param temporalityBlock the block containing temporality values as BytesRef strings ("cumulative" or "delta")
+     * @param defaultTemporality the temporality to use for null values
+     */
+    public static TemporalityAccessor create(BytesRefBlock temporalityBlock, Temporality defaultTemporality) {
+        return create(temporalityBlock, defaultTemporality, v -> { throw new InvalidTemporalityException(v); });
+    }
+
+    /**
      * Creates an accessor for the given temporality block, automatically selecting the most efficient access mode.
      *
      * @param temporalityBlock the block containing temporality values as BytesRef strings ("cumulative" or "delta")

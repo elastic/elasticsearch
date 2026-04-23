@@ -475,6 +475,9 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=index/100_field_name_length_limit/Test field name length limit array}
   issue: https://github.com/elastic/elasticsearch/issues/147205
+- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
+  method: testInfoParameters {class org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlFunction}
+  issue: https://github.com/elastic/elasticsearch/issues/147223
 
 # Examples:
 #

@@ -11,13 +11,13 @@ There are many similarities and differences between them.
 
 ### Similarities
 
-All three mechanisms will process the entire set of query definitions at query time, resulting in an up-to-date response when source indexes are changed and the query is re-run.
-Columns from the results of multiple branches are merged into the main query, expanding the table of results, and inserting `null` values if any branch has different columns than the others.
-Complex processing commands can be used inside both views and subqueries, as detailed in the [description of subqueries](/reference/query-languages/esql/esql-subquery.md#description).
-In theory, none of these techniques are capable of supporting nested branching (ie. subqueries within subqueries, or `FORK` within subqueries, etc.), however views do support this to some extent, as detailed below.
-All of these approaches to parallel processing are bound by the same maximum branch count of 8.
+* **Dynamic execution.** All three mechanisms will process the entire set of query definitions at query time, resulting in an up-to-date response when source indexes are changed and the query is re-run.
+* **Union of columns.** Columns from the results of multiple branches are merged into the main query, expanding the table of results, and inserting `null` values if any branch has different columns than the others.
+* **Supported commands.** Complex processing commands can be used inside both views and subqueries, as detailed in the [description of subqueries](/reference/query-languages/esql/esql-subquery.md#description).
+* **No nested branching.** Nested branching is generally not supported, but views can work around this limitation through query compaction.
+* **Maximum branch count.** All of these approaches to parallel processing are bound by the same maximum branch count of 8.
 
-### Differences with FORK
+### FORK differences
 
 The `FORK` command never includes a `FROM` command, and relies entirely on an existing query to provide the incoming columns.
 This also means that all branches will receive identical incoming data, the same columns and the same rows.

@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -544,7 +543,7 @@ public class BooleanFieldMapper extends FieldMapper {
         this.dvFactory = new DocValuesFieldFactory(
             docValuesParameters.multiValue(),
             fieldType().indexType.hasDocValuesSkipper(),
-            IndexVersion.current()
+            builder.indexSettings.getIndexVersionCreated()
         );
         this.script = builder.script.get();
         this.scriptValues = builder.scriptValues();

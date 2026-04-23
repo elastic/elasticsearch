@@ -1,6 +1,7 @@
 area: Reindex
-issues:
- - 146741
+issues: []
 pr: 147254
-summary: Fixes a bug in AbstractAsyncBulkByScrollAction which removed the scroll parameter from the search request when the request was sliced, and max docs <= scroll size 
+summary: "Fixes a bug in AbstractAsyncBulkByScrollAction which removed the scroll\
+  \ parameter from the search request when the request was sliced, and max docs <=\
+  \ scroll size"
 type: bug

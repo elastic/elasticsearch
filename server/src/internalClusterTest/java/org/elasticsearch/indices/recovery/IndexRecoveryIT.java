@@ -271,7 +271,10 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
      */
     private void unthrottleRecovery() {
         updateClusterSettings(
-            ensureNoThrottlingOnNodeSettings().put(RecoverySettings.INDICES_RECOVERY_CHUNK_SIZE.getKey(), RecoverySettings.DEFAULT_CHUNK_SIZE)
+            ensureNoThrottlingOnNodeSettings().put(
+                RecoverySettings.INDICES_RECOVERY_CHUNK_SIZE.getKey(),
+                RecoverySettings.DEFAULT_CHUNK_SIZE
+            )
         );
     }
 
@@ -2083,11 +2086,10 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
     }
 
     private CreateSnapshotResponse createSnapshot(String indexName) {
-        final var createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(
-            TEST_REQUEST_TIMEOUT,
-            REPO_NAME,
-            SNAP_NAME
-        ).setWaitForCompletion(true).setIndices(indexName).get();
+        final var createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO_NAME, SNAP_NAME)
+            .setWaitForCompletion(true)
+            .setIndices(indexName)
+            .get();
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
         assertThat(
             createSnapshotResponse.getSnapshotInfo().successfulShards(),

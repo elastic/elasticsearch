@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.inference.services.cohere.request.v2;
 
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.external.request.DenseEmbeddingRequest;
 import org.elasticsearch.xpack.inference.services.cohere.CohereAccount;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceFields;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType;
@@ -22,12 +24,13 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
-public class CohereV2EmbeddingsRequest extends CohereRequest {
+public class CohereV2EmbeddingsRequest extends CohereRequest implements DenseEmbeddingRequest {
 
     private final List<String> input;
     private final InputType inputType;
     private final CohereEmbeddingsTaskSettings taskSettings;
     private final CohereEmbeddingType embeddingType;
+    private final TaskType taskType;
 
     public CohereV2EmbeddingsRequest(List<String> input, InputType inputType, CohereEmbeddingsModel embeddingsModel) {
         super(
@@ -41,6 +44,7 @@ public class CohereV2EmbeddingsRequest extends CohereRequest {
         this.inputType = Optional.ofNullable(inputType).orElse(InputType.SEARCH); // inputType is required in v2
         taskSettings = embeddingsModel.getTaskSettings();
         embeddingType = embeddingsModel.getServiceSettings().getEmbeddingType();
+        taskType = embeddingsModel.getTaskType();
     }
 
     @Override
@@ -65,5 +69,10 @@ public class CohereV2EmbeddingsRequest extends CohereRequest {
         }
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public TaskType getTaskType() {
+        return taskType;
     }
 }

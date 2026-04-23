@@ -52,6 +52,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 public class FileSplitProviderTests extends ESTestCase {
 
     private final FileSplitProvider provider = new FileSplitProvider();
@@ -1138,6 +1145,45 @@ public class FileSplitProviderTests extends ESTestCase {
 
         assertEquals("Only pathA should survive partition + filter-column pruning", 1, splits.size());
         assertEquals(pathA, ((FileSplit) splits.get(0)).path());
+    }
+
+    public void testStorageObjectForSplit_wholeFileUsesRangeWrapper() {
+        StoragePath path = StoragePath.of("file:///tmp/x.ndjson.gz");
+        StorageObject delegate = mock(StorageObject.class);
+        StorageProvider storage = mock(StorageProvider.class);
+        when(storage.newObject(path)).thenReturn(delegate);
+        FileSplit split = new FileSplit("file", path, 0, 42L, ".gz", Map.of(), Map.of());
+        StorageObject got = FileSplitProvider.storageObjectForSplit(storage, split);
+        assertThat(got, instanceOf(RangeStorageObject.class));
+        RangeStorageObject range = (RangeStorageObject) got;
+        assertEquals(0, range.offset());
+        assertEquals(42L, range.length());
+        verify(storage).newObject(path);
+        verify(storage, never()).newObject(eq(path), eq(42L));
+    }
+
+    public void testStorageObjectForSplit_firstMacroSegmentUsesRangeWrapper() {
+        StoragePath path = StoragePath.of("file:///tmp/x.ndjson.bz2");
+        StorageObject delegate = mock(StorageObject.class);
+        StorageProvider storage = mock(StorageProvider.class);
+        when(storage.newObject(path)).thenReturn(delegate);
+        Map<String, Object> cfg = Map.of(FileSplitProvider.FIRST_SPLIT_KEY, "true");
+        FileSplit split = new FileSplit("file", path, 0, 10L, ".bz2", cfg, Map.of());
+        StorageObject got = FileSplitProvider.storageObjectForSplit(storage, split);
+        assertThat(got, instanceOf(RangeStorageObject.class));
+        verify(storage).newObject(path);
+        verify(storage, never()).newObject(eq(path), eq(10L));
+    }
+
+    public void testStorageObjectForSplit_positiveOffsetUsesRangeWrapper() {
+        StoragePath path = StoragePath.of("file:///tmp/x.ndjson");
+        StorageObject delegate = mock(StorageObject.class);
+        StorageProvider storage = mock(StorageProvider.class);
+        when(storage.newObject(path)).thenReturn(delegate);
+        FileSplit split = new FileSplit("file", path, 7, 10L, ".ndjson", Map.of(), Map.of());
+        StorageObject got = FileSplitProvider.storageObjectForSplit(storage, split);
+        assertThat(got, instanceOf(RangeStorageObject.class));
+        verify(storage).newObject(path);
     }
 
     // -- helpers --

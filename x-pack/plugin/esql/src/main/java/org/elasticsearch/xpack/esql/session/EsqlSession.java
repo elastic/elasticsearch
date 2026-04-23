@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.approximation.Approximation;
+import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -60,7 +61,9 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor;
+import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
@@ -369,7 +372,7 @@ public class EsqlSession {
                                 p,
                                 finalConfiguration,
                                 foldContext,
-                                Approximation.create(p, configuration.approximationSettings()),
+                                new Holder<Approximation>(),
                                 minimumVersion,
                                 planTimeProfile,
                                 l
@@ -412,7 +415,7 @@ public class EsqlSession {
         LogicalPlan optimizedPlan,
         Configuration configuration,
         FoldContext foldContext,
-        Approximation approximation,
+        Holder<Approximation> approximation,
         TransportVersion minimumVersion,
         PlanTimeProfile planTimeProfile,
         ActionListener<Result> listener
@@ -549,7 +552,7 @@ public class EsqlSession {
         LogicalPlan optimizedPlan,
         Configuration configuration,
         FoldContext foldContext,
-        Approximation approximation,
+        Holder<Approximation> approximation,
         PlanRunner runner,
         EsqlExecutionInfo executionInfo,
         EsqlQueryRequest request,
@@ -558,7 +561,7 @@ public class EsqlSession {
         ActionListener<Result> listener
     ) {
         var subPlansResults = new HashSet<LocalRelation>();
-        var subPlan = firstSubPlan(optimizedPlan, approximation, subPlansResults);
+        var subPlan = firstSubPlan(optimizedPlan, configuration, approximation, subPlansResults);
 
         // TODO: merge into one method
         if (subPlan != null) {
@@ -598,26 +601,46 @@ public class EsqlSession {
         Runnable cleanup
     ) {};
 
-    private SubPlanAndCallback firstSubPlan(LogicalPlan optimizedPlan, Approximation approximation, Set<LocalRelation> subPlansResults) {
-        if (approximation != null) {
-            LogicalPlan subPlan = approximation.firstSubPlan();
+    private SubPlanAndCallback firstSubPlan(
+        LogicalPlan mainPlan,
+        Configuration configuration,
+        Holder<Approximation> approximation,
+        Set<LocalRelation> subPlansResults
+    ) {
+        SubPlanAndCallback subPlanAndCallback = null;
+
+        // InlineJoin must be first, because approximation may need to approximate a subplan of it.
+        InlineJoin.LogicalPlanTuple subPlans = InlineJoin.firstSubPlan(mainPlan, subPlansResults);
+        if (subPlans != null) {
+            AtomicReference<Page> localRelationPage = new AtomicReference<>();
+            subPlanAndCallback = new SubPlanAndCallback(subPlans.stubReplacedSubPlan(), result -> {
+                // Translate the subquery into a separate, coordinator based plan and the results 'broadcasted' as a local relation
+                LocalRelation resultWrapper = resultToPlan(subPlans.stubReplacedSubPlan().source(), result);
+                localRelationPage.set(resultWrapper.supplier().get());
+                subPlansResults.add(resultWrapper);
+                return InlineJoin.newMainPlan(mainPlan, subPlans, resultWrapper);
+            }, () -> releaseLocalRelationBlocks(localRelationPage));
+        }
+
+        LogicalPlan plan = subPlanAndCallback != null ? subPlanAndCallback.subPlan : mainPlan;
+        if (ApproximationPlan.is(plan)) {
+            if (approximation.get() == null) {
+                approximation.set(new Approximation(plan, configuration.approximationSettings()));
+            }
+            LogicalPlan subPlan = approximation.get().firstSubPlan();
             if (subPlan != null) {
-                return new SubPlanAndCallback(subPlan, approximation::newMainPlan, () -> {});
+                subPlanAndCallback = new SubPlanAndCallback(subPlan, result -> {
+                    Double sampleProbability = approximation.get().processResult(result);
+                    if (sampleProbability != null) {
+                        return ApproximationPlan.substituteSampleProbability(mainPlan, sampleProbability);
+                    } else {
+                        return mainPlan;
+                    }
+                }, () -> {});
             }
         }
 
-        InlineJoin.LogicalPlanTuple subPlans = InlineJoin.firstSubPlan(optimizedPlan, subPlansResults);
-        if (subPlans == null) {
-            return null;
-        }
-        AtomicReference<Page> localRelationPage = new AtomicReference<>();
-        return new SubPlanAndCallback(subPlans.stubReplacedSubPlan(), result -> {
-            // Translate the subquery into a separate, coordinator based plan and the results 'broadcasted' as a local relation
-            LocalRelation resultWrapper = resultToPlan(subPlans.stubReplacedSubPlan().source(), result);
-            localRelationPage.set(resultWrapper.supplier().get());
-            subPlansResults.add(resultWrapper);
-            return InlineJoin.newMainPlan(optimizedPlan, subPlans, resultWrapper);
-        }, () -> releaseLocalRelationBlocks(localRelationPage));
+        return subPlanAndCallback;
     }
 
     private void executeSubPlan(
@@ -626,7 +649,7 @@ public class EsqlSession {
         SubPlanAndCallback subPlan,
         Configuration configuration,
         FoldContext foldContext,
-        Approximation approximation,
+        Holder<Approximation> approximation,
         EsqlExecutionInfo executionInfo,
         PlanRunner runner,
         EsqlQueryRequest request,
@@ -648,7 +671,7 @@ public class EsqlSession {
                 LogicalPlan newMainPlan = subPlan.newMainPlan.apply(result);
 
                 // look for the next inlinejoin plan
-                var newSubPlan = firstSubPlan(newMainPlan, approximation, subPlansResults);
+                var newSubPlan = firstSubPlan(newMainPlan, configuration, approximation, subPlansResults);
 
                 if (newSubPlan == null) {// run the final "main" plan
                     executionInfo.finishSubPlans();
@@ -858,6 +881,13 @@ public class EsqlSession {
             unmappedResolution == UnmappedResolution.LOAD
         ).withMinimumTransportVersion(localClusterMinimumVersion);
         String description = requestFilter == null ? "the only attempt without filter" : "first attempt with filter";
+        // Extract timestamp bounds eagerly from the request filter so they can be threaded through to the analyzer,
+        // even when index resolution is retried without the filter (e.g. because the filter covers an empty time range).
+        // Extraction uses configuration::absoluteStartedTimeInMillis (fixed at request start), so it is safe to do here.
+        TimestampBounds timestampBounds = QueryDslTimestampBoundsExtractor.extractTimestampBounds(
+            requestFilter,
+            configuration::absoluteStartedTimeInMillis
+        );
 
         resolveIndicesAndAnalyze(
             parsed,
@@ -866,6 +896,7 @@ public class EsqlSession {
             executionInfo,
             description,
             requestFilter,
+            timestampBounds,
             preAnalysis,
             result,
             logicalPlanListener
@@ -879,6 +910,7 @@ public class EsqlSession {
         EsqlExecutionInfo executionInfo,
         String description,
         QueryBuilder requestFilter,
+        TimestampBounds timestampBounds,
         PreAnalyzer.PreAnalysis preAnalysis,
         PreAnalysisResult result,
         ActionListener<Versioned<LogicalPlan>> logicalPlanListener
@@ -963,7 +995,18 @@ public class EsqlSession {
                     }));
             })
             .<Versioned<LogicalPlan>>andThen((l, r) -> {
-                analyzeWithRetry(parsed, unmappedResolution, configuration, executionInfo, description, requestFilter, preAnalysis, r, l);
+                analyzeWithRetry(
+                    parsed,
+                    unmappedResolution,
+                    configuration,
+                    executionInfo,
+                    description,
+                    requestFilter,
+                    timestampBounds,
+                    preAnalysis,
+                    r,
+                    l
+                );
             })
             .addListener(logicalPlanListener);
     }
@@ -1479,6 +1522,7 @@ public class EsqlSession {
         EsqlExecutionInfo executionInfo,
         String description,
         QueryBuilder requestFilter,
+        TimestampBounds timestampBounds,
         PreAnalyzer.PreAnalysis preAnalysis,
         PreAnalysisResult result,
         ActionListener<Versioned<LogicalPlan>> listener
@@ -1496,7 +1540,7 @@ public class EsqlSession {
             }
             TimeSpanMarker analysisProfile = executionInfo.queryProfile().analysis();
             analysisProfile.start();
-            LogicalPlan plan = analyzedPlan(parsed, unmappedResolution, configuration, result, executionInfo, requestFilter);
+            LogicalPlan plan = analyzedPlan(parsed, unmappedResolution, configuration, result, executionInfo, timestampBounds);
             analysisProfile.stop();
             LOGGER.debug("Analyzed plan ({}):\n{}", description, plan);
             // the analysis succeeded from the first attempt, irrespective if it had a filter or not, just continue with the planning
@@ -1516,6 +1560,7 @@ public class EsqlSession {
                     executionInfo,
                     "second attempt, without filter",
                     null,
+                    timestampBounds,
                     preAnalysis,
                     result,
                     listener
@@ -1543,17 +1588,9 @@ public class EsqlSession {
         Configuration configuration,
         PreAnalysisResult r,
         EsqlExecutionInfo executionInfo,
-        QueryBuilder requestFilter
+        TimestampBounds timestampBounds
     ) throws Exception {
         handleFieldCapsFailures(configuration.allowPartialResults(), executionInfo, r.indexResolution());
-        var timestampBounds = QueryDslTimestampBoundsExtractor.extractTimestampBounds(
-            requestFilter,
-            // Resolve date math against the query start time. If this uses the wall clock during planning instead,
-            // filters like [@timestamp >= now-5m AND @timestamp <= now] drift relative to Configuration.now(), so inferred
-            // timestamp bounds can shift within one request and misanchor TBUCKET/TSTEP bucketing.
-            // TODO: support nanos resolution for date_nanos fields
-            configuration::absoluteStartedTimeInMillis
-        );
         AnalyzerContext analyzerContext = new AnalyzerContext(
             configuration,
             functionRegistry,

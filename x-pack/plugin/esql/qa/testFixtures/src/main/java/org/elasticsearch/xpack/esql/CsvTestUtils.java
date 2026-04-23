@@ -694,6 +694,7 @@ public final class CsvTestUtils {
         ),
         IP_RANGE(InetAddresses::parseCidr, BytesRef.class),
         JSON(s -> s == null ? null : new BytesRef(s), BytesRef.class),
+        // DATE_RANGE literals are parsed in UTC only; TODO: support other zones in CSV specs (similar to DATETIME).
         DATE_RANGE(s -> EsqlDataTypeConverter.parseDateRange(s, ZoneOffset.UTC), LongRangeBlockBuilder.LongRange.class),
         VERSION(v -> new org.elasticsearch.xpack.versionfield.Version(v).toBytesRef(), BytesRef.class),
         NULL(s -> s, Void.class),

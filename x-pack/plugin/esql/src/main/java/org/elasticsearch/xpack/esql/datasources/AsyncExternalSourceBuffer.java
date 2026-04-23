@@ -7,16 +7,20 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Thread-safe buffer for async external source data.
@@ -44,7 +48,8 @@ public final class AsyncExternalSourceBuffer {
     private final Object notEmptyLock = new Object();
     private SubscribableListener<Void> notEmptyFuture = null;
 
-    private final Object notFullLock = new Object();
+    private final ReentrantLock notFullLock = new ReentrantLock();
+    private final Condition notFullCondition = notFullLock.newCondition();
     private SubscribableListener<Void> notFullFuture = null;
 
     private final SubscribableListener<Void> completionFuture = new SubscribableListener<>();
@@ -104,14 +109,23 @@ public final class AsyncExternalSourceBuffer {
                 notifyNotFull();
             }
         }
-        if (page == null && noMoreInputs && queueSize.get() == 0) {
-            if (failure != null) {
-                completionFuture.onFailure(new Exception(failure));
-            } else {
-                completionFuture.onResponse(null);
-            }
-        }
+        signalCompletionIfDrained();
         return page;
+    }
+
+    /**
+     * Completes {@link #completionFuture} once the queue is drained and no more input is expected.
+     * Safe to call repeatedly; no-ops if completion was already signaled.
+     */
+    private void signalCompletionIfDrained() {
+        if (noMoreInputs == false || queueSize.get() != 0 || completionFuture.isDone()) {
+            return;
+        }
+        if (failure != null) {
+            completionFuture.onFailure(new Exception(failure));
+        } else {
+            completionFuture.onResponse(null);
+        }
     }
 
     private void notifyNotEmpty() {
@@ -127,9 +141,13 @@ public final class AsyncExternalSourceBuffer {
 
     private void notifyNotFull() {
         final SubscribableListener<Void> toNotify;
-        synchronized (notFullLock) {
+        notFullLock.lock();
+        try {
             toNotify = notFullFuture;
             notFullFuture = null;
+            notFullCondition.signalAll();
+        } finally {
+            notFullLock.unlock();
         }
         if (toNotify != null) {
             toNotify.onResponse(null);
@@ -144,7 +162,8 @@ public final class AsyncExternalSourceBuffer {
         if (bytesInBuffer.get() < maxBufferBytes || noMoreInputs) {
             return Operator.NOT_BLOCKED;
         }
-        synchronized (notFullLock) {
+        notFullLock.lock();
+        try {
             if (bytesInBuffer.get() < maxBufferBytes || noMoreInputs) {
                 return Operator.NOT_BLOCKED;
             }
@@ -152,6 +171,8 @@ public final class AsyncExternalSourceBuffer {
                 notFullFuture = new SubscribableListener<>();
             }
             return new IsBlockedResult(notFullFuture, "async external source buffer full");
+        } finally {
+            notFullLock.unlock();
         }
     }
 
@@ -168,7 +189,8 @@ public final class AsyncExternalSourceBuffer {
         if (bytesInBuffer.get() < maxBufferBytes || noMoreInputs) {
             return SubscribableListener.newSucceeded(null);
         }
-        synchronized (notFullLock) {
+        notFullLock.lock();
+        try {
             if (bytesInBuffer.get() < maxBufferBytes || noMoreInputs) {
                 return SubscribableListener.newSucceeded(null);
             }
@@ -176,6 +198,34 @@ public final class AsyncExternalSourceBuffer {
                 notFullFuture = new SubscribableListener<>();
             }
             return notFullFuture;
+        } finally {
+            notFullLock.unlock();
+        }
+    }
+
+    /**
+     * Blocks the producer (same condition as {@link #waitForSpace()}) on the same not-full lock
+     * used to install {@code notFullFuture} until there is capacity, {@link #noMoreInputs} is set,
+     * or the wait times out. Used by {@link ExternalSourceDrainUtils} instead of
+     * {@code PlainActionFuture} or {@code SubscribableListener} + latches.
+     */
+    public void awaitSpaceForProducer(TimeValue timeout) {
+        long remainingNanos = timeout.nanos();
+        notFullLock.lock();
+        try {
+            while (bytesInBuffer.get() >= maxBufferBytes && noMoreInputs == false) {
+                if (remainingNanos <= 0) {
+                    throw new ElasticsearchTimeoutException("timeout waiting for async external source buffer space");
+                }
+                try {
+                    remainingNanos = notFullCondition.awaitNanos(remainingNanos);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("Interrupted while waiting for buffer space", e);
+                }
+            }
+        } finally {
+            notFullLock.unlock();
         }
     }
 
@@ -217,21 +267,21 @@ public final class AsyncExternalSourceBuffer {
         }
         notifyNotEmpty();
         notifyNotFull(); // wake producers so they observe noMoreInputs and exit
-        if (drainingPages || queueSize.get() == 0) {
-            if (failure != null) {
-                completionFuture.onFailure(new Exception(failure));
-            } else {
-                completionFuture.onResponse(null);
-            }
-        }
+        signalCompletionIfDrained();
     }
 
     /**
      * Mark the buffer as failed. Called when the background reader encounters an error.
+     * <p>
+     * Queued pages are retained so the driver can drain them before {@link AsyncExternalSourceOperator}
+     * surfaces the failure via {@link org.elasticsearch.compute.operator.SourceOperator#getOutput()}.
      */
     public void onFailure(Throwable t) {
         this.failure = t;
-        finish(true);
+        noMoreInputs = true;
+        notifyNotEmpty();
+        notifyNotFull();
+        signalCompletionIfDrained();
     }
 
     public boolean isFinished() {

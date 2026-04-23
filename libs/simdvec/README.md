@@ -20,8 +20,16 @@ libs/simdvec/
 │   ├── src/vec/headers/    #     Shared and platform-specific headers
 │   ├── Makefile            #     Cross-compilation build (all platforms)
 │   └── Dockerfile.cross-toolchain
-└── build.gradle            # Gradle build config (multi-release JAR, JDK 21 test task)
+└── build.gradle            # Gradle build config (multi-release JAR, JDK 21 coverage)
 ```
+
+### Related code in other modules
+
+- **`libs/native`** — Low-level Panama FFI bindings
+  - `VectorLibrary.java` — interface declaring native function signatures
+  - `JdkVectorLibrary.java` — Panama implementation, loads `libvec`
+  - `VectorSimilarityFunctions.java` — public facade
+  - FFI-level tests for vector scoring functions
 
 ## Native code tiers
 
@@ -45,9 +53,9 @@ The native kernels cover single-pair and bulk scoring for:
 
 ## Building the native library
 
-The native library is built via the `Makefile` in `native/`. For cross-compilation
-of all three platform binaries (darwin-aarch64, linux-aarch64, linux-x64), use
-the Docker-based toolchain:
+The native library is built via the `Makefile` in `native/`. For
+cross-compilation of all three platform binaries (darwin-aarch64,
+linux-aarch64, linux-x64), use the Docker-based toolchain:
 
 ```bash
 # Build the cross-compilation toolchain image
@@ -63,6 +71,16 @@ For local development on the current platform:
 cd native
 make local       # builds for the host platform
 make install     # copies the binary where Gradle tests expect it
+```
+
+`make install` places the library in
+`libs/native/libraries/build/platform/<os>-<arch>/` so that Gradle tests can
+use it instead of fetching from Artifactory. Set `LOCAL_VEC_BINARY_OS=true` to
+skip the Artifactory download:
+
+```bash
+make install
+LOCAL_VEC_BINARY_OS=true ./gradlew :libs:simdvec:test
 ```
 
 ## Testing

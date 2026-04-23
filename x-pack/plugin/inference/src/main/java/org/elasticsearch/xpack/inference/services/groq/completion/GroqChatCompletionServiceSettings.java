@@ -32,8 +32,8 @@ import java.util.Objects;
 /**
  * Service settings for Groq chat completion models.
  * Groq reuses the OpenAI wire format, so this largely mirrors the OpenAI settings class
- * but applies Groq-specific defaults such as the base URL and rate limits documented at
- * https://console.groq.com/docs/rate-limits.
+ * but applies Groq-specific defaults such as the base URL and rate limits documented in
+ * <a href="https://console.groq.com/docs/rate-limits">Grok Documentation</a>.
  */
 public class GroqChatCompletionServiceSettings extends FilteredXContentObject implements ServiceSettings, GroqRateLimitServiceSettings {
 
@@ -103,8 +103,20 @@ public class GroqChatCompletionServiceSettings extends FilteredXContentObject im
             GroqService.NAME,
             ConfigurationParseContext.REQUEST
         );
+        var extractedOrganizationId = ServiceUtils.extractOptionalString(
+            serviceSettings,
+            OpenAiServiceFields.ORGANIZATION,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+
         validationException.throwIfValidationErrorsExist();
-        return new GroqChatCompletionServiceSettings(this.modelId, this.uri, this.organizationId, extractedRateLimitSettings);
+        return new GroqChatCompletionServiceSettings(
+            this.modelId,
+            this.uri,
+            extractedOrganizationId != null ? extractedOrganizationId : this.organizationId,
+            extractedRateLimitSettings
+        );
     }
 
     @Override

@@ -99,7 +99,7 @@ public class GroqChatCompletionServiceSettingsTests extends AbstractWireSerializ
                 new GroqChatCompletionServiceSettings(
                     INITIAL_TEST_MODEL_ID,
                     INITIAL_TEST_URI,
-                    INITIAL_TEST_ORGANIZATION_ID,
+                    TEST_ORGANIZATION_ID,
                     new RateLimitSettings(TEST_RATE_LIMIT)
                 )
             )
@@ -151,7 +151,7 @@ public class GroqChatCompletionServiceSettingsTests extends AbstractWireSerializ
     protected GroqChatCompletionServiceSettings createTestInstance() {
         String modelId = randomAlphaOfLength(8);
         URI uri = randomBoolean() ? URI.create("https://api.groq.com/" + randomAlphaOfLength(5)) : null;
-        String organizationId = randomBoolean() ? randomAlphaOfLength(6) : null;
+        String organizationId = randomAlphaOfLengthOrNull(6);
         RateLimitSettings rateLimitSettings = RateLimitSettingsTests.createRandom();
         return new GroqChatCompletionServiceSettings(modelId, uri, organizationId, rateLimitSettings);
     }
@@ -166,7 +166,7 @@ public class GroqChatCompletionServiceSettingsTests extends AbstractWireSerializ
         switch (between(0, 3)) {
             case 0 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(8));
             case 1 -> uri = randomValueOtherThan(uri, () -> URI.create("https://api.groq.com/" + randomAlphaOfLength(6)));
-            case 2 -> organizationId = randomValueOtherThan(organizationId, () -> randomAlphaOfLength(5));
+            case 2 -> organizationId = randomValueOtherThan(organizationId, () -> randomAlphaOfLengthOrNull(5));
             case 3 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
             default -> throw new AssertionError("Unsupported branch");
         }

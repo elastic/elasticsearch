@@ -30,6 +30,38 @@ public class DateRangeDocValuesLoaderTests extends ESTestCase {
     private static final String FIELD_NAME = "test_date_range";
 
     /**
+     * Verifies that a document with multiple stored ranges produces a multi-value entry in the loaded
+     * block, with each range represented as a half-open [from, to) interval.
+     */
+    public void testMultipleRangesProducesMultiValueEntry() throws IOException {
+        // encodeLongRanges sorts by from then to, so [1000,2000] comes before [3000,4000].
+        var twoRanges = BinaryRangeUtil.encodeLongRanges(
+            Set.of(
+                new RangeFieldMapper.Range(RangeType.DATE, 1000L, 2000L, true, true),
+                new RangeFieldMapper.Range(RangeType.DATE, 3000L, 4000L, true, true)
+            )
+        );
+
+        try (Directory dir = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), dir)) {
+            iw.addDocument(List.of(new BinaryDocValuesField(FIELD_NAME, twoRanges)));
+            iw.forceMerge(1);
+
+            try (DirectoryReader dr = iw.getReader()) {
+                LeafReaderContext ctx = getOnlyLeafReader(dr).getContext();
+                var loader = new DateRangeDocValuesLoader(FIELD_NAME);
+                try (var reader = loader.columnAtATimeReader(ctx).apply(newLimitedBreaker(ByteSizeValue.ofMb(1)))) {
+                    var block = (TestBlock) reader.read(TestBlock.factory(), TestBlock.docs(0), 0, false);
+
+                    assertThat(block.size(), equalTo(1));
+                    // Both ranges stored as inclusive [from, to] are converted to half-open [from, to+1).
+                    // The from-values and to-values are each collected into a list for the multi-value position.
+                    assertThat(block.get(0), equalTo(List.of(List.of(1000L, 3000L), List.of(2001L, 4001L))));
+                }
+            }
+        }
+    }
+
+    /**
      * Verifies that a document whose binary doc value encodes zero ranges produces a null entry in the
      * loaded block rather than silently skipping the position, which would cause the block to have
      * fewer positions than expected and trigger a sanity-check failure in ValuesSourceReaderOperator.

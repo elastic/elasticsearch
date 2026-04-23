@@ -34,28 +34,15 @@ import java.util.Optional;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredSecureString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
+import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings.API_KEY;
 
 /**
- * Design notes:
- * This provider tries to match the OpenAI, so we'll design around that as well.
- *
- * Task Type:
- * - Chat Completion
- *
- * Service Settings:
- * - api_key
- * - model
- * - url
- *
- * Task Settings:
- * - nothing?
- *
- * Rate Limiting:
- * - The website claims to want unlimited, so we're setting it as MAX_INT per minute?
+ * Model implementation for DeepSeek's chat completion service.
+ * This class is responsible for holding the configuration and secrets necessary to make requests to DeepSeek's chat completion API,
+ * as well as defining the rate limiting settings for those requests.
  */
 public class DeepSeekChatCompletionModel extends Model {
     // Per-node rate limit group and settings, limiting the outbound requests this node can make to INTEGER.MAX_VALUE per minute.
@@ -71,6 +58,18 @@ public class DeepSeekChatCompletionModel extends Model {
         return List.of(new NamedWriteableRegistry.Entry(ServiceSettings.class, DeepSeekServiceSettings.NAME, DeepSeekServiceSettings::new));
     }
 
+    /**
+     * Creates a new {@link DeepSeekChatCompletionModel} from the given input parameters,
+     * validating the presence and format of required fields in the service settings map.
+     * @param inferenceEntityId the inference entity ID
+     * @param taskType the task type
+     * @param service the service name
+     * @param serviceSettingsMap a map of service settings,
+     *                           expected to contain the required fields for configuring a DeepSeek chat completion model,
+     *                           which will be validated and extracted to build the model's configuration and secrets
+     * @return the created {@link DeepSeekChatCompletionModel} if validation succeeds,
+     * or an exception is thrown if validation fails due to missing or invalid fields in the service settings map
+     */
     public static DeepSeekChatCompletionModel createFromNewInput(
         String inferenceEntityId,
         TaskType taskType,
@@ -79,26 +78,32 @@ public class DeepSeekChatCompletionModel extends Model {
     ) {
         var validationException = new ValidationException();
 
-        var model = extractRequiredString(serviceSettingsMap, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var uri = createOptionalUri(
-            extractOptionalString(serviceSettingsMap, URL, ModelConfigurations.SERVICE_SETTINGS, validationException)
-        );
+        var serviceSettings = buildAndValidateDeepSeekServiceSettings(serviceSettingsMap, validationException);
         var secureApiToken = extractRequiredSecureString(
             serviceSettingsMap,
-            "api_key",
+            API_KEY,
             ModelConfigurations.SERVICE_SETTINGS,
             validationException
         );
 
         validationException.throwIfValidationErrorsExist();
 
-        var serviceSettings = new DeepSeekServiceSettings(model, uri);
         var taskSettings = new EmptyTaskSettings();
         var secretSettings = new DefaultSecretSettings(secureApiToken);
         var modelConfigurations = new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings);
         return new DeepSeekChatCompletionModel(serviceSettings, secretSettings, modelConfigurations, new ModelSecrets(secretSettings));
     }
 
+    /**
+     * Creates a {@link DeepSeekChatCompletionModel} from the given configuration and secrets maps,
+     * validating the presence and format of required fields.
+     * @param inferenceEntityId the inference entity ID
+     * @param taskType the task type
+     * @param service the service name
+     * @param serviceSettingsMap the service settings map
+     * @param secrets the secrets map
+     * @return the created {@link DeepSeekChatCompletionModel}
+     */
     public static DeepSeekChatCompletionModel readFromStorage(
         String inferenceEntityId,
         TaskType taskType,
@@ -107,15 +112,9 @@ public class DeepSeekChatCompletionModel extends Model {
         Map<String, Object> secrets
     ) {
         var validationException = new ValidationException();
-
-        var model = extractRequiredString(serviceSettingsMap, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var uri = createOptionalUri(
-            extractOptionalString(serviceSettingsMap, "url", ModelConfigurations.SERVICE_SETTINGS, validationException)
-        );
-
+        var serviceSettings = buildAndValidateDeepSeekServiceSettings(serviceSettingsMap, validationException);
         validationException.throwIfValidationErrorsExist();
 
-        var serviceSettings = new DeepSeekServiceSettings(model, uri);
         var taskSettings = new EmptyTaskSettings();
         var secretSettings = DefaultSecretSettings.fromMap(secrets);
         var modelConfigurations = new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings);
@@ -162,6 +161,32 @@ public class DeepSeekChatCompletionModel extends Model {
         return RATE_LIMIT_SETTINGS;
     }
 
+    /**
+     * Builds a {@link DeepSeekServiceSettings} object from the given service settings map, validating required fields and formats.
+     * @param serviceSettings the service settings map
+     * @param validationException the validation exception to accumulate any validation errors
+     * @return a {@link DeepSeekServiceSettings} object if validation succeeds,
+     * or null if validation fails (with errors added to the validationException)
+     */
+    @Nullable
+    private static DeepSeekServiceSettings buildAndValidateDeepSeekServiceSettings(
+        Map<String, Object> serviceSettings,
+        ValidationException validationException
+    ) {
+        int initialValidationErrorCount = validationException.validationErrors().size();
+        var model = extractRequiredString(serviceSettings, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var uri = extractOptionalUri(serviceSettings, URL, validationException);
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
+            return null;
+        }
+        return new DeepSeekServiceSettings(model, uri);
+    }
+
+    /**
+     * Service settings for DeepSeek's chat completion model, containing the model ID and an optional custom URI for the API endpoint.
+     * @param modelId the DeepSeek model ID to use for chat completion requests
+     * @param uri an optional custom URI for the DeepSeek chat completion API endpoint; if not provided, the default URI will be used
+     */
     public record DeepSeekServiceSettings(String modelId, URI uri) implements ServiceSettings {
         private static final String NAME = "deep_seek_service_settings";
         private static final TransportVersion ML_INFERENCE_DEEPSEEK = TransportVersion.fromName("ml_inference_deepseek");
@@ -209,6 +234,17 @@ public class DeepSeekChatCompletionModel extends Model {
                 builder.field(URL, uri.toString());
             }
             return builder.endObject();
+        }
+
+        /**
+         * DeepSeek service settings are immutable, so this method simply returns the current instance without applying any updates.
+         * @param serviceSettings a map with the new service settings
+         * @return the current instance of {@link DeepSeekServiceSettings}, since the settings are immutable and cannot be updated
+         */
+        @Override
+        public DeepSeekServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+            // DeepSeek service settings don't have any mutable fields
+            return this;
         }
     }
 }

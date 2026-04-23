@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.Model;
@@ -40,6 +39,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelDeploymentAction;
@@ -170,8 +170,14 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
                     ActionListener<Model> updateModelListener = listener.delegateFailureAndWrap(
                         (delegate, verifiedModel) -> modelRegistry.updateModelTransaction(verifiedModel, existingParsedModel, delegate)
                     );
-                    ModelValidatorBuilder.buildModelValidator(mergedParsedModel.getTaskType(), service.get())
-                        .validate(service.get(), mergedParsedModel, TimeValue.THIRTY_SECONDS, updateModelListener);
+                    var taskType = mergedParsedModel.getTaskType();
+                    ModelValidatorBuilder.buildModelValidator(taskType, service.get())
+                        .validate(
+                            service.get(),
+                            mergedParsedModel,
+                            BaseInferenceActionRequest.getDefaultTimeoutForTaskType(taskType),
+                            updateModelListener
+                        );
                 }
             })
             .<ModelConfigurations>andThen((listener, didUpdate) -> {

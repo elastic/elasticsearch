@@ -221,9 +221,11 @@ public abstract class AbstractAsyncBulkByScrollAction<
         }
 
         /*
-         * Do not open scroll if max docs <= scroll size and not resuming on version conflicts
+         * Do not open scroll if max docs <= scroll size and not resuming on version conflicts.
+         * Sliced searches must keep their scroll. Slicing without a scroll fails SearchRequest validation.
          */
-        if (mainRequest.getMaxDocs() != MAX_DOCS_ALL_MATCHES
+        if (sourceBuilder.slice() == null
+            && mainRequest.getMaxDocs() != MAX_DOCS_ALL_MATCHES
             && mainRequest.getMaxDocs() <= preparedSearchRequest.source().size()
             && mainRequest.isAbortOnVersionConflict()) {
             preparedSearchRequest.scroll(null);

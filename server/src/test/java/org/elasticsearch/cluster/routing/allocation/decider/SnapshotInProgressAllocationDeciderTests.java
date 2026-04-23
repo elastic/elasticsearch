@@ -17,10 +17,10 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
@@ -195,13 +195,9 @@ public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
                 Sets.addToCopy(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, setting)
             )
         );
-        final var routingAllocation = new RoutingAllocation(
-            new AllocationDeciders(List.of(decoupledDecider)),
-            makeClusterState(shardId, SnapshotsInProgress.ShardState.INIT),
-            ClusterInfo.EMPTY,
-            SnapshotShardSizeInfo.EMPTY,
-            randomNonNegativeLong()
-        );
+        final var routingAllocation = TestRoutingAllocationFactory.forClusterState(
+            makeClusterState(shardId, SnapshotsInProgress.ShardState.INIT)
+        ).allocationDeciders(decoupledDecider).build();
         routingAllocation.setDebugMode(RoutingAllocation.DebugMode.ON);
 
         final var decision = decoupledDecider.canAllocate(

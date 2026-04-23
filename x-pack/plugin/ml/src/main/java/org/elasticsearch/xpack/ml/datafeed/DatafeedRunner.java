@@ -276,6 +276,7 @@ public class DatafeedRunner {
             return null;
         }
         ProblemTracker pt = holder.problemTracker;
+        DatafeedJob dj = holder.datafeedJob;
         return new GetDatafeedRunningStateAction.Response.DatafeedProblemStats(
             pt.getExtractionFailureCount(),
             pt.getExtractionFailureFirstTime(),
@@ -283,7 +284,10 @@ public class DatafeedRunner {
             pt.getAnalysisFailureFirstTime(),
             pt.getEmptyDataCount(),
             pt.isAnalysisFailureFatal(),
-            (int) Math.min(holder.datafeedJob.getDelayedDataBucketCount(), Integer.MAX_VALUE)
+            (int) Math.min(dj.getDelayedDataBucketCount(), Integer.MAX_VALUE),
+            dj.getDelayedDataFirstOccurrence(),
+            dj.getLastDelayedDataMissingCount(),
+            dj.getLastDelayedDataBucketEndMs()
         );
     }
 

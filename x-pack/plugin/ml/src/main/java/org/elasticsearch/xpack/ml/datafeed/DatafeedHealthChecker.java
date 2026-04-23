@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.AnomalyDetectionHealth;
 import org.elasticsearch.xpack.core.ml.job.AnomalyDetectionHealthIssue;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -44,7 +45,7 @@ public final class DatafeedHealthChecker {
         ASSIGNMENT_FAILED("assignment_failed", "Failed to assign datafeed to a node", HealthStatus.RED),
         DATA_EXTRACTION_ERROR("data_extraction_error", "Data extraction error", HealthStatus.YELLOW),
         DATA_ANALYSIS_ERROR("data_analysis_error", "Data analysis error", HealthStatus.YELLOW),
-        DATA_DELAY("data_delay", "Datafeed is delayed", HealthStatus.YELLOW),
+        DATA_DELAY("data_delay", "Datafeed is experiencing delayed data ingestion", HealthStatus.YELLOW),
         EMPTY_DATA("empty_data", "Datafeed has not received data for some time", HealthStatus.YELLOW);
 
         final String type;
@@ -146,9 +147,9 @@ public final class DatafeedHealthChecker {
                 issues.add(new AnomalyDetectionHealthIssue(
                     IssueType.DATA_DELAY.type,
                     IssueType.DATA_DELAY.title,
-                    null,
+                    delayedDataDetails(problemStats),
                     delayedCount,
-                    null
+                    problemStats.getDelayedDataFirstOccurrence()
                 ));
                 maxStatus = max(maxStatus, IssueType.DATA_DELAY.severity);
             }
@@ -158,6 +159,20 @@ public final class DatafeedHealthChecker {
             return AnomalyDetectionHealth.GREEN;
         }
         return new AnomalyDetectionHealth(maxStatus, issues);
+    }
+
+    private static String delayedDataDetails(DatafeedProblemStats problemStats) {
+        long missingCount = problemStats.getLastDelayedDataMissingCount();
+        long bucketEndMs = problemStats.getLastDelayedDataBucketEndMs();
+        if (missingCount <= 0 || bucketEndMs <= 0) {
+            return null;
+        }
+        return missingCount
+            + " document"
+            + (missingCount == 1 ? "" : "s")
+            + " missing. Latest affected bucket ended at "
+            + Instant.ofEpochMilli(bucketEndMs)
+            + ". Consider increasing query_delay.";
     }
 
     private static HealthStatus max(HealthStatus a, HealthStatus b) {

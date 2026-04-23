@@ -85,6 +85,9 @@ class DatafeedJob {
     private volatile boolean haveEverSeenData;
     private volatile long consecutiveDelayedDataBuckets;
     private volatile boolean hasDelayedData;
+    private volatile Instant delayedDataFirstOccurrence;
+    private volatile long lastDelayedDataMissingCount;
+    private volatile long lastDelayedDataBucketEndMs;
     private volatile SearchInterval searchInterval;
 
     DatafeedJob(
@@ -165,6 +168,21 @@ class DatafeedJob {
      */
     public long getDelayedDataBucketCount() {
         return hasDelayedData ? consecutiveDelayedDataBuckets + 1 : 0;
+    }
+
+    /** @return timestamp of the first delayed data detection in the current streak, or {@code null} if no delayed data. */
+    public Instant getDelayedDataFirstOccurrence() {
+        return delayedDataFirstOccurrence;
+    }
+
+    /** @return total number of missing documents detected in the last check, or {@code 0} if no delayed data. */
+    public long getLastDelayedDataMissingCount() {
+        return lastDelayedDataMissingCount;
+    }
+
+    /** @return epoch-millisecond end time of the last affected bucket, or {@code 0} if no delayed data. */
+    public long getLastDelayedDataBucketEndMs() {
+        return lastDelayedDataBucketEndMs;
     }
 
     Long runLookBack(long startTime, Long endTime) throws Exception {
@@ -252,11 +270,20 @@ class DatafeedJob {
             this.lastDataCheckTimeMs = this.currentTimeSupplier.get();
             List<BucketWithMissingData> missingDataBuckets = delayedDataDetector.detectMissingData(latestFinalBucketEndTimeMs);
             this.hasDelayedData = missingDataBuckets.isEmpty() == false;
-            if (missingDataBuckets.isEmpty() == false) {
+            if (missingDataBuckets.isEmpty()) {
+                this.delayedDataFirstOccurrence = null;
+                this.lastDelayedDataMissingCount = 0;
+                this.lastDelayedDataBucketEndMs = 0;
+            } else {
+                if (this.delayedDataFirstOccurrence == null) {
+                    this.delayedDataFirstOccurrence = Instant.now();
+                }
                 long totalRecordsMissing = missingDataBuckets.stream().mapToLong(BucketWithMissingData::getMissingDocumentCount).sum();
                 Bucket lastBucket = missingDataBuckets.get(missingDataBuckets.size() - 1).getBucket();
                 // Get the end of the last bucket and make it milliseconds
                 Date endTime = new Date((lastBucket.getEpoch() + lastBucket.getBucketSpan()) * 1000);
+                this.lastDelayedDataMissingCount = totalRecordsMissing;
+                this.lastDelayedDataBucketEndMs = endTime.getTime();
 
                 String msg = Messages.getMessage(
                     Messages.JOB_AUDIT_DATAFEED_MISSING_DATA,

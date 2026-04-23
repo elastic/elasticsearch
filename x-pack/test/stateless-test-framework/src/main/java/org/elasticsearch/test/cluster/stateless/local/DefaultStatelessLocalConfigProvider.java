@@ -37,14 +37,22 @@ public class DefaultStatelessLocalConfigProvider implements LocalClusterConfigPr
 
     @Override
     public void apply(LocalClusterSpecBuilder<?> builder) {
-        builder.distribution(DistributionType.DEFAULT)
+        // Stateless self-managed tests run against the INTEG_TEST distribution plus explicit modules per test
+        // (rather than the DEFAULT distribution) because:
+        // 1. Until the stateless code is moved to the public elasticsearch repo, the upstream DEFAULT
+        // distribution does not include all plugins that ship with our serverless distribution.
+        // 2. Pinning modules explicitly keeps the task graph small and stable: test inputs don't change
+        // every time an unrelated plugin's code changes.
+        // 3. Each test's required modules are declared in the build, making module dependencies explicit
+        // instead of implicitly pulling in "everything".
+        builder.distribution(DistributionType.INTEG_TEST)
             .keystore("bootstrap.password", "x-pack-test-password")
+            .setting("stateless.enabled", "true")
             .setting("stateless.object_store.type", "fs")
             .setting("stateless.object_store.bucket", "stateless")
             .setting("stateless.object_store.base_path", "base_path")
-            .setting("ingest.geoip.downloader.enabled", "false")
-            .setting("telemetry.agent.disable_send", "true")
             .feature(FeatureFlag.TIME_SERIES_MODE);
+
         if (addDefaultNodes) {
             builder.withNode(node("index", "[master,remote_cluster_client,ingest,index]"))
                 .withNode(node("search", "[remote_cluster_client,search]"));

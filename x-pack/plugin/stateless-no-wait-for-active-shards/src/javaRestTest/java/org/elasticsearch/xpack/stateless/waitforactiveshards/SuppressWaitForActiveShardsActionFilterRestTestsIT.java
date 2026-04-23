@@ -35,7 +35,11 @@ import java.io.IOException;
 public class SuppressWaitForActiveShardsActionFilterRestTestsIT extends ESRestTestCase {
 
     @Rule
-    public StatelessElasticsearchCluster cluster = StatelessElasticsearchCluster.local().user("admin-user", "x-pack-test-password").build();
+    public StatelessElasticsearchCluster cluster = StatelessElasticsearchCluster.local()
+        .module("stateless")
+        .module("stateless-no-wait-for-active-shards")
+        .user("admin-user", "x-pack-test-password")
+        .build();
 
     @Override
     protected Settings restClientSettings() {

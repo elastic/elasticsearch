@@ -8,7 +8,7 @@
 # License v3.0 only", or the "Server Side Public License, v 1".
 #
 
-# Builds libesql_parquet_rs for all platforms and uploads the artifact to Artifactory.
+# Builds libes_parquet_rs for all platforms and uploads the artifact to Artifactory.
 #
 # All three targets (Darwin aarch64, Linux aarch64, Linux x64) are cross-compiled
 # inside a Docker container. Can be run on any host with Docker.
@@ -50,7 +50,7 @@ ARTIFACTORY_REPOSITORY="${ARTIFACTORY_REPOSITORY:-https://artifactory.elastic.de
 TEMP=$(mktemp -d)
 
 if [ "$UPLOAD" = true ]; then
-  if curl -sS -I --fail --location "${ARTIFACTORY_REPOSITORY}/org/elasticsearch/esql-parquet-rs/${VERSION}/esql-parquet-rs-${VERSION}.zip" > /dev/null 2>&1; then
+  if curl -sS -I --fail --location "${ARTIFACTORY_REPOSITORY}/org/elasticsearch/es-parquet-rs/${VERSION}/es-parquet-rs-${VERSION}.zip" > /dev/null 2>&1; then
     echo "Error: Artifacts already exist for version '${VERSION}'. Bump version before republishing."
     exit 1;
   fi
@@ -66,16 +66,16 @@ docker run --rm \
 mkdir -p "$TEMP/darwin-aarch64"
 mkdir -p "$TEMP/linux-aarch64"
 mkdir -p "$TEMP/linux-x64"
-cp build/darwin-aarch64/libesql_parquet_rs.dylib "$TEMP/darwin-aarch64/"
-cp build/linux-aarch64/libesql_parquet_rs.so     "$TEMP/linux-aarch64/"
-cp build/linux-x64/libesql_parquet_rs.so         "$TEMP/linux-x64/"
+cp build/darwin-aarch64/libes_parquet_rs.dylib "$TEMP/darwin-aarch64/"
+cp build/linux-aarch64/libes_parquet_rs.so     "$TEMP/linux-aarch64/"
+cp build/linux-x64/libes_parquet_rs.so         "$TEMP/linux-x64/"
 
 if [ "$UPLOAD" = true ]; then
   echo 'Uploading to Artifactory...'
-  (cd "$TEMP" && zip -rq - .) | curl -sSf -X PUT -H "X-JFrog-Art-Api: ${ARTIFACTORY_API_KEY}" --data-binary @- --location "${ARTIFACTORY_REPOSITORY}/org/elasticsearch/esql-parquet-rs/${VERSION}/esql-parquet-rs-${VERSION}.zip"
+  (cd "$TEMP" && zip -rq - .) | curl -sSf -X PUT -H "X-JFrog-Art-Api: ${ARTIFACTORY_API_KEY}" --data-binary @- --location "${ARTIFACTORY_REPOSITORY}/org/elasticsearch/es-parquet-rs/${VERSION}/es-parquet-rs-${VERSION}.zip"
   rm -rf "$TEMP"
 else
-  ZIP="$(pwd)/esql-parquet-rs-${VERSION}-local.zip"
+  ZIP="$(pwd)/es-parquet-rs-${VERSION}-local.zip"
   (cd "$TEMP" && zip -rq "$ZIP" .)
   rm -rf "$TEMP"
   echo "Local build complete. Artifact: $ZIP"

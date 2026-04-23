@@ -8,7 +8,7 @@
 # License v3.0 only", or the "Server Side Public License, v 1".
 #
 
-# Builds and pushes the Rust cross-compilation toolchain image for esql-parquet-rs.
+# Builds and pushes the Rust cross-compilation toolchain image for es-parquet-rs.
 # Run this script when Rust versions or target triples need updating.
 #
 # Increment VERSION when building a new image.

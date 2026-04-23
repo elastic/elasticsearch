@@ -25,7 +25,7 @@ import static java.lang.foreign.ValueLayout.JAVA_LONG;
 import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
 
 /**
- * Panama FFI bindings to the Rust esql_parquet_rs shared library for Parquet operations.
+ * Panama FFI bindings to the Rust es_parquet_rs shared library for Parquet operations.
  */
 public final class JdkParquetRsLibrary implements ParquetRsLibrary {
 
@@ -38,8 +38,8 @@ public final class JdkParquetRsLibrary implements ParquetRsLibrary {
     private static final MethodHandle getSchemaFFI$mh;
 
     static {
-        LoaderHelper.loadLibrary("esql_parquet_rs");
-        logger.info("Loaded esql_parquet_rs native library");
+        LoaderHelper.loadLibrary("es_parquet_rs");
+        logger.info("Loaded es_parquet_rs native library");
 
         lastError$mh = downcallHandle("pqrs_last_error", FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT));
         getStatistics$mh = downcallHandle("pqrs_get_statistics", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, ADDRESS, ADDRESS));

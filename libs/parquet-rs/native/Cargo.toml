@@ -1,5 +1,5 @@
 [package]
-name = "esql-parquet-rs"
+name = "es-parquet-rs"
 version = "0.1.0"
 edition = "2024"
 

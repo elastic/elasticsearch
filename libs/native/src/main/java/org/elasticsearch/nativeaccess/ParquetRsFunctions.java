@@ -14,7 +14,7 @@ import org.elasticsearch.nativeaccess.lib.ParquetRsLibrary;
 import java.io.IOException;
 
 /**
- * Public-facing Java API for Parquet operations backed by the Rust {@code esql_parquet_rs}
+ * Public-facing Java API for Parquet operations backed by the Rust {@code es_parquet_rs}
  * native library, accessed via Panama FFI.
  *
  * <p> All methods delegate to the low-level {@link ParquetRsLibrary} bindings and translate

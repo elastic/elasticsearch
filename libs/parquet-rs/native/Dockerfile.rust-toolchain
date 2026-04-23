@@ -7,7 +7,7 @@
 # License v3.0 only", or the "Server Side Public License, v 1".
 #
 
-# Cross-compilation toolchain image for esql-parquet-rs.
+# Cross-compilation toolchain image for es-parquet-rs.
 # Contains Rust stable with targets for Darwin aarch64 (via rust-lld),
 # Linux aarch64, and Linux x64 (via GCC cross-compilers).
 #

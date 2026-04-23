@@ -10,7 +10,7 @@
 package org.elasticsearch.nativeaccess.lib;
 
 /**
- * Low-level FFI interface to the Rust esql_parquet_rs shared library for Parquet operations.
+ * Low-level FFI interface to the Rust es_parquet_rs shared library for Parquet operations.
  */
 public non-sealed interface ParquetRsLibrary extends NativeLibrary {
 

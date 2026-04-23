@@ -5,10 +5,10 @@
 # your election, the "Elastic License 2.0", the "GNU Affero General Public
 # License v3.0 only", or the "Server Side Public License, v 1".
 
-# Builds libesql_parquet_rs for all three targets:
-#   build/darwin-aarch64/libesql_parquet_rs.dylib  (rust-lld, -undefined dynamic_lookup)
-#   build/linux-aarch64/libesql_parquet_rs.so      (GCC cross-compiler)
-#   build/linux-x64/libesql_parquet_rs.so          (GCC cross-compiler)
+# Builds libes_parquet_rs for all three targets:
+#   build/darwin-aarch64/libes_parquet_rs.dylib  (rust-lld, -undefined dynamic_lookup)
+#   build/linux-aarch64/libes_parquet_rs.so      (GCC cross-compiler)
+#   build/linux-x64/libes_parquet_rs.so          (GCC cross-compiler)
 #
 # All targets can be cross-compiled from Linux inside the Docker toolchain
 # container. The Darwin target uses rust-lld with -undefined dynamic_lookup
@@ -48,7 +48,7 @@ else ifeq ($(UNAME_S),Linux)
   endif
 endif
 
-LIB_NAME = libesql_parquet_rs.$(LIB_EXT)
+LIB_NAME = libes_parquet_rs.$(LIB_EXT)
 CARGO_OUTPUT = target/release/$(LIB_NAME)
 INSTALL_DIR = ../../native/libraries/build/platform/$(PLATFORM_DIR)
 
@@ -58,9 +58,9 @@ TARGET_DARWIN  = aarch64-apple-darwin
 TARGET_LIN_ARM = aarch64-unknown-linux-gnu
 TARGET_LIN_X64 = x86_64-unknown-linux-gnu
 
-OUT_DARWIN  = build/darwin-aarch64/libesql_parquet_rs.dylib
-OUT_LIN_ARM = build/linux-aarch64/libesql_parquet_rs.so
-OUT_LIN_X64 = build/linux-x64/libesql_parquet_rs.so
+OUT_DARWIN  = build/darwin-aarch64/libes_parquet_rs.dylib
+OUT_LIN_ARM = build/linux-aarch64/libes_parquet_rs.so
+OUT_LIN_X64 = build/linux-x64/libes_parquet_rs.so
 
 .PHONY: local install darwin linux all clean
 
@@ -93,7 +93,7 @@ $(OUT_DARWIN): | $(DARWIN_SYSROOT)
 	CARGO_TARGET_AARCH64_APPLE_DARWIN_RUSTFLAGS="-C link-arg=-undefined -C link-arg=dynamic_lookup -C link-arg=-L$(DARWIN_SYSROOT)/lib -C link-arg=-F$(DARWIN_SYSROOT)/Frameworks" \
 	  $(CARGO) build --release --target $(TARGET_DARWIN)
 	mkdir -p $(dir $@)
-	cp target/$(TARGET_DARWIN)/release/libesql_parquet_rs.dylib $@
+	cp target/$(TARGET_DARWIN)/release/libes_parquet_rs.dylib $@
 
 $(DARWIN_SYSROOT):
 	@mkdir -p $@/lib $@/Frameworks/CoreFoundation.framework
@@ -122,14 +122,14 @@ $(OUT_LIN_ARM):
 	CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER="aarch64-linux-gnu-gcc" \
 	  $(CARGO) build --release --target $(TARGET_LIN_ARM)
 	mkdir -p $(dir $@)
-	cp target/$(TARGET_LIN_ARM)/release/libesql_parquet_rs.so $@
+	cp target/$(TARGET_LIN_ARM)/release/libes_parquet_rs.so $@
 	aarch64-linux-gnu-strip --strip-unneeded $@
 
 $(OUT_LIN_X64):
 	CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER="x86_64-linux-gnu-gcc" \
 	  $(CARGO) build --release --target $(TARGET_LIN_X64)
 	mkdir -p $(dir $@)
-	cp target/$(TARGET_LIN_X64)/release/libesql_parquet_rs.so $@
+	cp target/$(TARGET_LIN_X64)/release/libes_parquet_rs.so $@
 	x86_64-linux-gnu-strip --strip-unneeded $@
 
 # --- all: build everything ---

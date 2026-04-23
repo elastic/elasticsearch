@@ -35,7 +35,7 @@ repositories {
     filter {
       includeModule("org.elasticsearch", "zstd")
       includeModule("org.elasticsearch", "vec")
-      includeModule("org.elasticsearch", "esql-parquet-rs")
+      includeModule("org.elasticsearch", "es-parquet-rs")
     }
   }
 }
@@ -61,7 +61,7 @@ dependencies {
   }
   // See `libs/parquet-rs/native/Makefile` for local builds
   if (System.getenv("LOCAL_PQRS_BINARY") == null){
-    libs "org.elasticsearch:esql-parquet-rs:${pqrsVersion}@zip"
+    libs "org.elasticsearch:es-parquet-rs:${pqrsVersion}@zip"
   }
 }
 

@@ -262,15 +262,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeUnmappedLoadIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/145900
-- class: org.elasticsearch.xpack.esql.qa.single_node.PushExpressionToLoadIT
-  method: testRoundToLong
-  issue: https://github.com/elastic/elasticsearch/issues/146614
-- class: org.elasticsearch.xpack.esql.qa.single_node.PushExpressionToLoadIT
-  method: testRoundToLongExactMatch
-  issue: https://github.com/elastic/elasticsearch/issues/146615
-- class: org.elasticsearch.xpack.esql.optimizer.ApproximationGoldenTests
-  method: testApproximationDisabled
-  issue: https://github.com/elastic/elasticsearch/issues/146564
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testReindexFailsWhenPitRelocationFails
   issue: https://github.com/elastic/elasticsearch/issues/146650

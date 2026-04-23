@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
+import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.ServiceComponentsTests;
@@ -87,7 +88,7 @@ public class AzureOpenAiEmbeddingsActionTests extends ESTestCase {
         );
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
+            HttpRequestSenderTests.startSynchronously(sender);
 
             String responseJson = """
                 {

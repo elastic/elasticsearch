@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
+import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
@@ -91,7 +92,7 @@ public class IbmWatsonxEmbeddingsActionTests extends ESTestCase {
         var senderFactory = new HttpRequestSender.Factory(createWithEmptySettings(threadPool), clientManager, mockClusterServiceEmpty());
 
         try (var sender = senderFactory.createSender()) {
-            sender.startSynchronously();
+            HttpRequestSenderTests.startSynchronously(sender);
 
             String responseJson = """
                     {

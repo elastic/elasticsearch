@@ -83,7 +83,7 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = HttpRequestSenderTests.createSender(senderFactory)) {
-            sender.startSynchronously();
+            HttpRequestSenderTests.startSynchronously(sender);
 
             String responseJson = """
                 {
@@ -167,7 +167,7 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = HttpRequestSenderTests.createSender(senderFactory)) {
-            sender.startSynchronously();
+            HttpRequestSenderTests.startSynchronously(sender);
 
             String responseJson = """
                 {

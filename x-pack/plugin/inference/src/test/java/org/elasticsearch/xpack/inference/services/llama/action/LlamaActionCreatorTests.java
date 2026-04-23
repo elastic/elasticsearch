@@ -79,7 +79,7 @@ public class LlamaActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
+            HttpRequestSenderTests.startSynchronously(sender);
 
             String responseJson = """
                 {
@@ -115,7 +115,7 @@ public class LlamaActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, settings);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
+            HttpRequestSenderTests.startSynchronously(sender);
 
             String responseJson = """
                 [
@@ -147,7 +147,7 @@ public class LlamaActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
+            HttpRequestSenderTests.startSynchronously(sender);
 
             String responseJson = """
                 {
@@ -203,7 +203,7 @@ public class LlamaActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, settings);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
+            HttpRequestSenderTests.startSynchronously(sender);
 
             String responseJson = """
                 {

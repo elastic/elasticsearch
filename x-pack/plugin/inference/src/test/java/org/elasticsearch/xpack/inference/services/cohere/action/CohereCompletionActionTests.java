@@ -78,7 +78,7 @@ public class CohereCompletionActionTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = HttpRequestSenderTests.createSender(senderFactory)) {
-            sender.startSynchronously();
+            HttpRequestSenderTests.startSynchronously(sender);
 
             String responseJson = """
                 {
@@ -231,7 +231,7 @@ public class CohereCompletionActionTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = HttpRequestSenderTests.createSender(senderFactory)) {
-            sender.startSynchronously();
+            HttpRequestSenderTests.startSynchronously(sender);
 
             String responseJson = """
                 {

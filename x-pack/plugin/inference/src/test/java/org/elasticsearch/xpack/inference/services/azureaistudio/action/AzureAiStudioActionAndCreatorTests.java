@@ -89,7 +89,7 @@ public class AzureAiStudioActionAndCreatorTests extends ESTestCase {
         final var serviceComponents = getServiceComponents();
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
+            HttpRequestSenderTests.startSynchronously(sender);
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(testEmbeddingsTokenResponseJson));
 
@@ -128,7 +128,7 @@ public class AzureAiStudioActionAndCreatorTests extends ESTestCase {
         final var serviceComponents = getServiceComponents();
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
+            HttpRequestSenderTests.startSynchronously(sender);
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(testCompletionTokenResponseJson));
             final var webserverUrl = getUrl(webServer);
@@ -165,7 +165,7 @@ public class AzureAiStudioActionAndCreatorTests extends ESTestCase {
         final var serviceComponents = getServiceComponents();
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
+            HttpRequestSenderTests.startSynchronously(sender);
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(testRerankTokenResponseJson));
             final var webserverUrl = getUrl(webServer);

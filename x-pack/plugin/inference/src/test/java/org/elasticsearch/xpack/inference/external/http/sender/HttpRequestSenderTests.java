@@ -9,10 +9,12 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.apache.http.HttpHeaders;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
@@ -83,6 +85,7 @@ public class HttpRequestSenderTests extends ESTestCase {
     private ThreadPool threadPool;
     private HttpClientManager clientManager;
     private final AtomicReference<Thread> threadRef = new AtomicReference<>();
+    private CountDownLatch blockStartLatch;
 
     @Before
     public void init() throws Exception {
@@ -90,10 +93,14 @@ public class HttpRequestSenderTests extends ESTestCase {
         threadPool = createThreadPool(inferenceUtilityExecutors());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
         threadRef.set(null);
+        blockStartLatch = new CountDownLatch(1);
     }
 
     @After
     public void shutdown() throws IOException, InterruptedException {
+        // Unblock any service.start() calls blocked on blockStartLatch before terminating the pool
+        blockStartLatch.countDown();
+
         if (threadRef.get() != null) {
             threadRef.get().join(TEST_REQUEST_TIMEOUT.millis());
         }
@@ -120,9 +127,9 @@ public class HttpRequestSenderTests extends ESTestCase {
         var senderFactory = new HttpRequestSender.Factory(createWithEmptySettings(threadPool), mockManager, mockClusterServiceEmpty());
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-            sender.startSynchronously();
-            sender.startSynchronously();
+            startSynchronously(sender);
+            startSynchronously(sender);
+            startSynchronously(sender);
         }
 
         verify(mockManager, times(1)).start();
@@ -137,7 +144,7 @@ public class HttpRequestSenderTests extends ESTestCase {
 
     public void testStart_ThrowsExceptionWaitingForStartToComplete_WhenAnErrorOccurs() throws IOException {
         var mockManager = createMockHttpClientManager();
-        doThrow(new Error("failed")).when(mockManager).start();
+        doThrow(new ElasticsearchException("failed")).when(mockManager).start();
 
         var senderFactory = new HttpRequestSender.Factory(
             ServiceComponentsTests.createWithEmptySettings(threadPool),
@@ -146,31 +153,38 @@ public class HttpRequestSenderTests extends ESTestCase {
         );
 
         try (var sender = senderFactory.createSender()) {
-            var exception = expectThrows(Error.class, sender::startSynchronously);
+            var exception = expectThrows(ElasticsearchException.class, () -> startSynchronously(sender));
 
             assertThat(exception.getMessage(), is("failed"));
         }
     }
 
-    public void testStartSync_ThrowsServiceUnavailableWhenStartupTimesOut() {
+    public void testStartSync_ThrowsServiceUnavailableWhenStartupTimesOut() throws Exception {
         var mockManager = createMockHttpClientManager();
 
-        // Use a latch that is never counted down to simulate a hung startup
-        var latch = new CountDownLatch(1);
-        var sender = new HttpRequestSender(threadPool, mockManager, mock(RequestSender.class), mock(RequestExecutor.class), latch);
+        // Block service.start() to simulate a hung startup; blockStartLatch is counted down in @After
+        var mockService = mock(RequestExecutor.class);
+        doAnswer(invocation -> {
+            blockStartLatch.await();
+            return null;
+        }).when(mockService).start();
+        var sender = new HttpRequestSender(threadPool, mockManager, mock(RequestSender.class), mockService);
 
-        var exception = expectThrows(ElasticsearchStatusException.class, () -> sender.startSynchronously(TimeValue.timeValueMillis(1)));
-
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> startSynchronously(sender, TimeValue.timeValueMillis(1)));
         assertThat(exception.getMessage(), is("Http sender startup did not complete in time"));
         assertThat(exception.status(), is(RestStatus.SERVICE_UNAVAILABLE));
     }
 
-    public void testStartAsync_ThrowsServiceUnavailableWhenStartupTimesOut() {
+    public void testStartAsync_ThrowsServiceUnavailableWhenStartupTimesOut() throws Exception {
         var mockManager = createMockHttpClientManager();
 
-        // Use a latch that is never counted down to simulate a hung startup
-        var latch = new CountDownLatch(1);
-        var sender = new HttpRequestSender(threadPool, mockManager, mock(RequestSender.class), mock(RequestExecutor.class), latch);
+        // Block service.start() to simulate a hung startup; blockStartLatch is counted down in @After
+        var mockService = mock(RequestExecutor.class);
+        doAnswer(invocation -> {
+            blockStartLatch.await();
+            return null;
+        }).when(mockService).start();
+        var sender = new HttpRequestSender(threadPool, mockManager, mock(RequestSender.class), mockService);
 
         var listener = new PlainActionFuture<Void>();
         // Pass a very short timeout so the test doesn't hang
@@ -216,7 +230,7 @@ public class HttpRequestSenderTests extends ESTestCase {
                 PlainActionFuture<Void> listener = new PlainActionFuture<>();
                 listenerList.add(listener);
                 sender.startAsynchronously(listener, null);
-                sender.startSynchronously();
+                startSynchronously(sender);
             }
 
             for (int i = 0; i < asyncCalls; i++) {
@@ -363,25 +377,19 @@ public class HttpRequestSenderTests extends ESTestCase {
     }
 
     public void testConcurrentSend_OnlyStartsOnce() throws Exception {
-        // We need at least 2 utility threads because the first is used to by the startAsynchronous() method, and the second is
-        // used to start the RequestExecutor
+        // With the non-blocking startup design, even a single utility thread is sufficient.
+        // We use 2 here to exercise concurrent scheduling more realistically.
         final var maxUtilityThreads = 2;
         final var maxResponseThreads = 2;
         try (var smallThreadPool = createThreadPool(inferenceUtilityExecutors(maxUtilityThreads, maxResponseThreads))) {
             var mockManager = createMockHttpClientManager();
-            var latch = new CountDownLatch(1);
-            // Count down the latch when manager.start() is called so startup completes immediately
-            doAnswer(invocation -> {
-                latch.countDown();
-                return null;
-            }).when(mockManager).start();
             var mockService = mock(RequestExecutor.class);
             doAnswer(invocation -> {
                 ActionListener<InferenceServiceResults> listener = invocation.getArgument(3);
                 listener.onFailure(new ElasticsearchStatusException("test", RestStatus.SERVICE_UNAVAILABLE));
                 return null;
             }).when(mockService).execute(any(), any(), any(), any());
-            var sender = new HttpRequestSender(smallThreadPool, mockManager, mock(RequestSender.class), mockService, latch);
+            var sender = new HttpRequestSender(smallThreadPool, mockManager, mock(RequestSender.class), mockService);
 
             // Use more threads than the utility thread pool size
             final var threadCountMinimum = maxUtilityThreads + 2;
@@ -421,19 +429,13 @@ public class HttpRequestSenderTests extends ESTestCase {
     }
 
     public void testConcurrentSendWithoutQueuing_OnlyStartsOnce() throws Exception {
-        // We need at least 2 utility threads because the first is used to by the startAsynchronous() method, and the second is
-        // used to start the RequestExecutor
+        // With the non-blocking startup design, even a single utility thread is sufficient.
+        // We use 2 here to exercise concurrent scheduling more realistically.
         final var maxUtilityThreads = 2;
         final var maxResponseThreads = 2;
         try (var smallThreadPool = createThreadPool(inferenceUtilityExecutors(maxUtilityThreads, maxResponseThreads))) {
             var mockManager = createMockHttpClientManager();
-            var latch = new CountDownLatch(1);
-            // Count down the latch when manager.start() is called so startup completes immediately
-            doAnswer(invocation -> {
-                latch.countDown();
-                return null;
-            }).when(mockManager).start();
-            var sender = new HttpRequestSender(smallThreadPool, mockManager, mock(RequestSender.class), mock(RequestExecutor.class), latch);
+            var sender = new HttpRequestSender(smallThreadPool, mockManager, mock(RequestSender.class), mock(RequestExecutor.class));
 
             // Use more threads than the utility thread pool size
             final var threadCountMinimum = maxUtilityThreads + 2;
@@ -450,13 +452,7 @@ public class HttpRequestSenderTests extends ESTestCase {
                 final var threadName = "send-without-queuing-thread-" + i;
                 threads.add(new Thread(() -> {
                     safeAwait(barrier);
-                    sender.sendWithoutQueuing(
-                        mock(Logger.class),
-                        request,
-                        mock(ResponseHandler.class),
-                        ONE_NANOSECOND,
-                        future
-                    );
+                    sender.sendWithoutQueuing(mock(Logger.class), request, mock(ResponseHandler.class), ONE_NANOSECOND, future);
                 }, threadName));
             }
 
@@ -520,5 +516,16 @@ public class HttpRequestSenderTests extends ESTestCase {
 
     public static Sender createSender(HttpRequestSender.Factory factory) {
         return factory.createSender();
+    }
+
+    public static void startSynchronously(Sender sender) {
+        startSynchronously(sender, TEST_REQUEST_TIMEOUT);
+    }
+
+    public static void startSynchronously(Sender sender, TimeValue timeout) {
+        var listener = new TestPlainActionFuture<Void>();
+        sender.startAsynchronously(listener, timeout);
+        // Always wait with TEST_REQUEST_TIMEOUT so the per-caller timeout fires first when one is set.
+        listener.actionGet(TEST_REQUEST_TIMEOUT);
     }
 }

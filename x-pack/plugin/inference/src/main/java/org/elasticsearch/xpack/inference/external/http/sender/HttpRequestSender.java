@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.action.support.ListenerTimeouts;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.Nullable;
@@ -30,7 +31,6 @@ import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
@@ -69,13 +69,7 @@ public class HttpRequestSender implements Sender {
                 requestSender
             );
 
-            httpRequestSender = new HttpRequestSender(
-                serviceComponents.threadPool(),
-                httpClientManager,
-                requestSender,
-                service,
-                startCompleted
-            );
+            httpRequestSender = new HttpRequestSender(serviceComponents.threadPool(), httpClientManager, requestSender, service);
         }
 
         public Sender createSender() {
@@ -83,15 +77,11 @@ public class HttpRequestSender implements Sender {
         }
     }
 
-    private static final TimeValue DEFAULT_STARTUP_TIMEOUT = TimeValue.THIRTY_SECONDS;
-
     private final ThreadPool threadPool;
     private final HttpClientManager manager;
     private final AtomicBoolean startInitiated = new AtomicBoolean(false);
-    private final AtomicBoolean startCompleted = new AtomicBoolean(false);
     private final RequestSender requestSender;
     private final RequestExecutor service;
-    private final CountDownLatch startCompletedLatch;
     private final SubscribableListener<Void> startupNotifier = new SubscribableListener<>();
 
     // Visible for testing
@@ -99,80 +89,77 @@ public class HttpRequestSender implements Sender {
         ThreadPool threadPool,
         HttpClientManager httpClientManager,
         RequestSender requestSender,
-        RequestExecutor service,
-        CountDownLatch startCompletedLatch
+        RequestExecutor service
     ) {
         this.threadPool = Objects.requireNonNull(threadPool);
         this.manager = Objects.requireNonNull(httpClientManager);
         this.requestSender = Objects.requireNonNull(requestSender);
         this.service = Objects.requireNonNull(service);
-        this.startCompletedLatch = Objects.requireNonNull(startCompletedLatch);
     }
 
     /**
      * Start various internal services asynchronously. This is required before sending requests.
      * All callers (including concurrent ones) are notified via {@code listener} when startup completes
      * or fails, without blocking any thread pool threads while waiting.
+     * <p>
+     * If {@code timeout} is non-null, the caller's listener is individually wrapped with that timeout.
+     * A per-caller timeout never poisons the shared startup state — subsequent callers can still
+     * succeed once startup completes. Only a real failure (e.g. {@code manager.start()} or
+     * {@code service.start()} throwing) permanently fails all pending listeners.
      *
-     * @param timeout the maximum time to wait for startup to complete; if {@code null} a default {@link #DEFAULT_STARTUP_TIMEOUT} is used.
+     * @param timeout if non-null, the maximum time this specific caller will wait for startup;
+     *                other callers are unaffected if this caller's timeout fires.
      */
     @Override
     public void startAsynchronously(ActionListener<Void> listener, @Nullable TimeValue timeout) {
         if (startInitiated.compareAndSet(false, true)) {
-            var effectiveTimeout = timeout != null ? timeout : DEFAULT_STARTUP_TIMEOUT;
-            threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> startInternal(effectiveTimeout));
+            threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(this::startInternal);
         }
+        // Preserve context before wrapping with timeout so both the normal completion path and
+        // the timeout action restore the original thread context when notifying the caller.
+        var contextPreservedListener = ContextPreservingActionListener.wrapPreservingContext(listener, threadPool.getThreadContext());
+        var wrappedListener = timeout != null
+            ? ListenerTimeouts.wrapWithTimeout(
+                threadPool,
+                timeout,
+                threadPool.executor(UTILITY_THREAD_POOL_NAME),
+                contextPreservedListener,
+                ignored -> contextPreservedListener.onFailure(
+                    new ElasticsearchStatusException("Http sender startup did not complete in time", RestStatus.SERVICE_UNAVAILABLE)
+                )
+            )
+            : contextPreservedListener;
         // All callers — first and concurrent — register here. SubscribableListener fires immediately
         // if startup is already done, otherwise queues the listener until startInternal completes.
-        startupNotifier.addListener(ContextPreservingActionListener.wrapPreservingContext(listener, threadPool.getThreadContext()));
+        startupNotifier.addListener(wrappedListener);
     }
 
-    private void startInternal(TimeValue timeout) {
+    private void startInternal() {
         try {
             // The manager must be started before the executor service. That way we guarantee that the http client
             // is ready prior to the service attempting to use the http client to send a request
             manager.start();
-            threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(service::start);
-            waitForStartToComplete(timeout);
-            startCompleted.set(true);
-            startupNotifier.onResponse(null);
+            threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> {
+                try {
+                    service.start();
+                    startupNotifier.onResponse(null);
+                } catch (Exception ex) {
+                    startupNotifier.onFailure(ex);
+                }
+            });
         } catch (Exception ex) {
             startupNotifier.onFailure(ex);
         }
     }
 
     /**
-     * Start various internal services. This is required before sending requests.
+     * Start various internal services synchronously. This is required before sending requests.
      *
-     * NOTE: This method blocks until the startup is complete.
+     * @deprecated use {@link #startAsynchronously(ActionListener, TimeValue)} instead
      */
     @Override
     public void startSynchronously() {
-        startSynchronously(DEFAULT_STARTUP_TIMEOUT);
-    }
-
-    // Default for testing
-    void startSynchronously(TimeValue timeout) {
-        if (startInitiated.compareAndSet(false, true)) {
-            startInternal(timeout);
-        }
-        // Handle the case where start*() was already called by another thread and startup is still in progress
-        if (startCompleted.get() == false) {
-            waitForStartToComplete(timeout);
-        }
-    }
-
-    private void waitForStartToComplete(TimeValue timeout) {
-        try {
-            if (startCompletedLatch.await(timeout.getMillis(), TimeUnit.MILLISECONDS) == false) {
-                throw new ElasticsearchStatusException("Http sender startup did not complete in time", RestStatus.SERVICE_UNAVAILABLE);
-            }
-        } catch (InterruptedException e) {
-            throw new ElasticsearchStatusException(
-                "Http sender interrupted while waiting for startup to complete",
-                RestStatus.SERVICE_UNAVAILABLE
-            );
-        }
+        throw new UnsupportedOperationException("synchronous startup is not supported; use startAsynchronously() instead");
     }
 
     @Override

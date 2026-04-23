@@ -115,7 +115,7 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
+            HttpRequestSenderTests.startSynchronously(sender);
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(TWO_RESULTS_RESPONSE_JSON));
 
@@ -148,7 +148,7 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
+            HttpRequestSenderTests.startSynchronously(sender);
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(TWO_RESULTS_RESPONSE_JSON));
 
@@ -183,7 +183,7 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
+            HttpRequestSenderTests.startSynchronously(sender);
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(TWO_RESULTS_RESPONSE_JSON));
 
@@ -219,7 +219,7 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
+            HttpRequestSenderTests.startSynchronously(sender);
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(TWO_RESULTS_RESPONSE_JSON));
 
@@ -247,7 +247,7 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, NO_RETRY_SETTINGS);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
+            HttpRequestSenderTests.startSynchronously(sender);
 
             String responseJson = """
                 {

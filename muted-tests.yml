@@ -466,6 +466,15 @@ tests:
 - class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
   method: testReplaceChildren {class org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison}
   issue: https://github.com/elastic/elasticsearch/issues/147195
+- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
+  method: testTransform {class org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlFunction}
+  issue: https://github.com/elastic/elasticsearch/issues/147199
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=aggregations/terms_text_docvalues/Indexing disabled}
+  issue: https://github.com/elastic/elasticsearch/issues/147200
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=index/100_field_name_length_limit/Test field name length limit array}
+  issue: https://github.com/elastic/elasticsearch/issues/147205
 
 # Examples:
 #

@@ -32,6 +32,7 @@ import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
@@ -177,6 +178,45 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             null,
             null
         );
+    }
+
+    public SearchResponse(
+        SearchResponseSections searchResponseSections,
+        String scrollId,
+        int totalShards,
+        int successfulShards,
+        int skippedShards,
+        long tookInMillis,
+        ShardSearchFailure[] shardFailures,
+        Clusters clusters,
+        BytesReference pointInTimeId,
+        SearchSourceBuilder source,
+        String[] indices
+    ) {
+        this(
+            searchResponseSections.hits,
+            searchResponseSections.aggregations,
+            searchResponseSections.suggest,
+            searchResponseSections.timedOut,
+            searchResponseSections.terminatedEarly,
+            searchResponseSections.profileResults,
+            searchResponseSections.numReducePhases,
+            scrollId,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            tookInMillis,
+            shardFailures,
+            clusters,
+            pointInTimeId,
+            searchResponseSections.transferTopHitsToRelease(),
+            searchResponseSections.transferCompletionOptionHitsToRelease()
+        );
+        this.timeRangeFilterFromMillis = searchResponseSections.timeRangeFilterFromMillis;
+        if (this.profileResults != null) {
+            this.profileResults.setOriginalSource(source);
+            this.profileResults.setRequestIndices(indices);
+        }
     }
 
     public SearchResponse(

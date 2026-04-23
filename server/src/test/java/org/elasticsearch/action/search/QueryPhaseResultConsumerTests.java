@@ -69,10 +69,6 @@ import java.util.function.Supplier;
 import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNotSame;
-import static org.junit.Assert.assertNull;
 import static org.mockito.Mockito.mock;
 
 public class QueryPhaseResultConsumerTests extends ESTestCase {

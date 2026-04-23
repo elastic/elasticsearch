@@ -55,15 +55,12 @@ import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.usage.SearchUsage;
 import org.elasticsearch.usage.SearchUsageHolder;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -2226,20 +2223,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     /**
-     * Returns a deep copy by serializing this builder to JSON and parsing it back with the given named XContent registry.
-     */
-    public static SearchSourceBuilder copySearchSourceViaXContent(SearchSourceBuilder source, NamedXContentRegistry namedXContentRegistry)
-        throws IOException {
-        var bytes = XContentHelper.toXContent(source, XContentType.JSON, ToXContent.EMPTY_PARAMS, true);
-        XContentParserConfiguration config = XContentParserConfiguration.EMPTY.withRegistry(namedXContentRegistry);
-        try (XContentParser parser = XContentType.JSON.xContent().createParser(config, bytes.streamInput())) {
-            return new SearchSourceBuilder().parseXContent(parser, true, COPY_PARSE_ALL_FEATURES_SUPPORTED);
-        }
-    }
-
-    /**
      * TEMPORARY shallow snapshot for coordinator {@code profile.request} metadata.
-     * Avoids {@link #copySearchSourceViaXContent} which cannot round-trip internal-only query clauses
+     * Avoids copying via XContent (see {@link #toString(Params)}) which cannot round-trip internal-only query clauses
      * (for example {@code rank_docs_query}). Prefer restoring a safe deep copy once XContent parsing
      * covers all query types that can appear after rewrite.
      */

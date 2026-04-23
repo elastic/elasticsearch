@@ -1257,9 +1257,9 @@ public class InternalEngine extends Engine {
                 reservedDocs = plan.reservedDocs;
 
                 final IndexResult indexResult;
-                if (plan.earlyResultOnPreFlightError.isPresent()) {
+                if (plan.earlyResultOnPreflightError.isPresent()) {
                     assert index.origin() == Operation.Origin.PRIMARY : index.origin();
-                    indexResult = plan.earlyResultOnPreFlightError.get();
+                    indexResult = plan.earlyResultOnPreflightError.get();
                     assert indexResult.getResultType() == Result.Type.FAILURE : indexResult.getResultType();
                 } else {
                     // generate or register sequence number
@@ -1461,9 +1461,9 @@ public class InternalEngine extends Engine {
                 Index index = subBatchOps[i];
                 IndexingStrategy plan = plans[i];
 
-                if (plan.earlyResultOnPreFlightError.isPresent()) {
+                if (plan.earlyResultOnPreflightError.isPresent()) {
                     assert index.origin() == Operation.Origin.PRIMARY : index.origin();
-                    IndexResult indexResult = plan.earlyResultOnPreFlightError.get();
+                    IndexResult indexResult = plan.earlyResultOnPreflightError.get();
                     allResults[subBatchIdx + i] = indexResult;
                     assert indexResult.getResultType() == Result.Type.FAILURE : indexResult.getResultType();
                     continue;
@@ -1807,7 +1807,7 @@ public class InternalEngine extends Engine {
         final boolean indexIntoLucene;
         final boolean addStaleOpToLucene;
         final int reservedDocs;
-        final Optional<IndexResult> earlyResultOnPreFlightError;
+        final Optional<IndexResult> earlyResultOnPreflightError;
 
         private IndexingStrategy(
             boolean currentNotFoundOrDeleted,
@@ -1816,16 +1816,16 @@ public class InternalEngine extends Engine {
             boolean addStaleOpToLucene,
             long versionForIndexing,
             int reservedDocs,
-            IndexResult earlyResultOnPreFlightError
+            IndexResult earlyResultOnPreflightError
         ) {
             assert useLuceneUpdateDocument == false || indexIntoLucene
                 : "use lucene update is set to true, but we're not indexing into lucene";
-            assert (indexIntoLucene && earlyResultOnPreFlightError != null) == false
+            assert (indexIntoLucene && earlyResultOnPreflightError != null) == false
                 : Strings.format(
                     "can only index into lucene or have a preflight result but not both."
-                        + " indexIntoLucene: %s, earlyResultOnPreFlightError: %s",
+                        + " indexIntoLucene: %s, earlyResultOnPreflightError: %s",
                     indexIntoLucene,
-                    earlyResultOnPreFlightError
+                    earlyResultOnPreflightError
                 );
             assert reservedDocs == 0 || indexIntoLucene || addStaleOpToLucene : reservedDocs;
             this.currentNotFoundOrDeleted = currentNotFoundOrDeleted;
@@ -1834,9 +1834,9 @@ public class InternalEngine extends Engine {
             this.indexIntoLucene = indexIntoLucene;
             this.addStaleOpToLucene = addStaleOpToLucene;
             this.reservedDocs = reservedDocs;
-            this.earlyResultOnPreFlightError = earlyResultOnPreFlightError == null
+            this.earlyResultOnPreflightError = earlyResultOnPreflightError == null
                 ? Optional.empty()
-                : Optional.of(earlyResultOnPreFlightError);
+                : Optional.of(earlyResultOnPreflightError);
         }
 
         static IndexingStrategy optimizedAppendOnly(long versionForIndexing, int reservedDocs) {

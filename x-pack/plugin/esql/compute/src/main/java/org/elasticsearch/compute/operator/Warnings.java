@@ -144,7 +144,7 @@ public class Warnings {
 
     /**
      * Register a custom warning message (not tied to an exception).
-     * Even if the very same warning is registered multiple times, it will be only emitted once.
+     * Even if the very same warning is registered multiple times, it will only be emitted once.
      * This method therefore caches the emitted message and should not be called with non-constant messages!
      */
     public void registerWarning(String message) {

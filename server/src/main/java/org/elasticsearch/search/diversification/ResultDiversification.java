@@ -28,19 +28,17 @@ public abstract class ResultDiversification<C extends ResultDiversificationConte
 
     public abstract RankDoc[] diversify(RankDoc[] docs) throws IOException;
 
-    protected float getFloatVectorComparisonScore(
+    public static float getVectorComparisonScore(
         VectorSimilarityFunction similarityFunction,
         VectorData thisDocVector,
         VectorData comparisonVector
     ) {
-        return similarityFunction.compare(thisDocVector.floatVector(), comparisonVector.floatVector());
-    }
+        if (thisDocVector.isStringVector() || comparisonVector.isStringVector()) {
+            throw new IllegalStateException("string vectors should be decoded before comparison");
+        }
 
-    protected float getByteVectorComparisonScore(
-        VectorSimilarityFunction similarityFunction,
-        VectorData thisDocVector,
-        VectorData comparisonVector
-    ) {
-        return similarityFunction.compare(thisDocVector.byteVector(), comparisonVector.byteVector());
+        return thisDocVector.isFloat()
+            ? similarityFunction.compare(thisDocVector.asFloatVector(), comparisonVector.asFloatVector())
+            : similarityFunction.compare(thisDocVector.asByteVector(), comparisonVector.asByteVector());
     }
 }

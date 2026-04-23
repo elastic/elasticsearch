@@ -1,0 +1,306 @@
+###############################################
+# Tests for non-multiple and window-smaller-than-bucket combos
+# Uses the ts_window dataset with controlled
+# data at 1-minute intervals:
+#   dim a: val[m] = m + 1  (1..30)
+#   dim b: val[m] = (m+1)*10  (10..300)
+#   counter_val: cumulative sum of val
+# Timestamps: 2024-01-01T00:00..00:29
+###############################################
+
+###############################################
+# Window smaller than bucket: handled by WindowFilter
+# (TranslateTimeSeriesAggregate skips internal bucket changes)
+###############################################
+
+sum_over_time_window_smaller_than_bucket_2m_window_5m_bucket
+required_capability: ts_command_v0
+required_capability: time_series_window_smaller_than_bucket
+
+TS ts_window
+| STATS s = sum(sum_over_time(val, 2m)) BY dim, time_bucket = TBUCKET(5minute)
+| SORT time_bucket, dim
+| LIMIT 20;
+
+s:long | dim:keyword | time_bucket:datetime
+9      | a           | 2024-01-01T00:00:00.000Z
+90     | b           | 2024-01-01T00:00:00.000Z
+19     | a           | 2024-01-01T00:05:00.000Z
+190    | b           | 2024-01-01T00:05:00.000Z
+29     | a           | 2024-01-01T00:10:00.000Z
+290    | b           | 2024-01-01T00:10:00.000Z
+39     | a           | 2024-01-01T00:15:00.000Z
+390    | b           | 2024-01-01T00:15:00.000Z
+49     | a           | 2024-01-01T00:20:00.000Z
+490    | b           | 2024-01-01T00:20:00.000Z
+59     | a           | 2024-01-01T00:25:00.000Z
+590    | b           | 2024-01-01T00:25:00.000Z
+;
+
+max_over_time_window_smaller_than_bucket_2m_window_5m_bucket
+required_capability: ts_command_v0
+required_capability: time_series_window_smaller_than_bucket
+
+TS ts_window
+| STATS mx = sum(max_over_time(val, 2m)) BY dim, time_bucket = TBUCKET(5minute)
+| SORT time_bucket, dim
+| LIMIT 20;
+
+mx:long | dim:keyword | time_bucket:datetime
+5      | a           | 2024-01-01T00:00:00.000Z
+50     | b           | 2024-01-01T00:00:00.000Z
+10     | a           | 2024-01-01T00:05:00.000Z
+100    | b           | 2024-01-01T00:05:00.000Z
+15     | a           | 2024-01-01T00:10:00.000Z
+150    | b           | 2024-01-01T00:10:00.000Z
+20     | a           | 2024-01-01T00:15:00.000Z
+200    | b           | 2024-01-01T00:15:00.000Z
+25     | a           | 2024-01-01T00:20:00.000Z
+250    | b           | 2024-01-01T00:20:00.000Z
+30     | a           | 2024-01-01T00:25:00.000Z
+300    | b           | 2024-01-01T00:25:00.000Z
+;
+
+###############################################
+# Non-multiple window/bucket combos (GCD-based sub-bucketing)
+###############################################
+
+sum_over_time_non_multiple_7m_window_5m_bucket
+required_capability: ts_command_v0
+required_capability: time_series_window_non_multiple
+
+TS ts_window
+| STATS s = sum(sum_over_time(val, 7m)) BY dim, time_bucket = TBUCKET(5minute)
+| SORT time_bucket, dim
+| LIMIT 20;
+
+s:long | dim:keyword | time_bucket:datetime
+28     | a           | 2024-01-01T00:00:00.000Z
+280    | b           | 2024-01-01T00:00:00.000Z
+63     | a           | 2024-01-01T00:05:00.000Z
+630    | b           | 2024-01-01T00:05:00.000Z
+98     | a           | 2024-01-01T00:10:00.000Z
+980    | b           | 2024-01-01T00:10:00.000Z
+133    | a           | 2024-01-01T00:15:00.000Z
+1330   | b           | 2024-01-01T00:15:00.000Z
+168    | a           | 2024-01-01T00:20:00.000Z
+1680   | b           | 2024-01-01T00:20:00.000Z
+140    | a           | 2024-01-01T00:25:00.000Z
+1400   | b           | 2024-01-01T00:25:00.000Z
+;
+
+
+sum_over_time_non_multiple_8m_window_6m_bucket
+required_capability: ts_command_v0
+required_capability: time_series_window_non_multiple
+
+TS ts_window
+| STATS s = sum(sum_over_time(val, 8m)) BY dim, time_bucket = TBUCKET(6minute)
+| SORT time_bucket, dim
+| LIMIT 20;
+
+s:long | dim:keyword | time_bucket:datetime
+36     | a           | 2024-01-01T00:00:00.000Z
+360    | b           | 2024-01-01T00:00:00.000Z
+84     | a           | 2024-01-01T00:06:00.000Z
+840    | b           | 2024-01-01T00:06:00.000Z
+132    | a           | 2024-01-01T00:12:00.000Z
+1320   | b           | 2024-01-01T00:12:00.000Z
+180    | a           | 2024-01-01T00:18:00.000Z
+1800   | b           | 2024-01-01T00:18:00.000Z
+165    | a           | 2024-01-01T00:24:00.000Z
+1650   | b           | 2024-01-01T00:24:00.000Z
+;
+
+avg_over_time_non_multiple_7m_window_5m_bucket
+required_capability: ts_command_v0
+required_capability: time_series_window_non_multiple
+
+TS ts_window
+| STATS a = sum(avg_over_time(val, 7m)) BY dim, time_bucket = TBUCKET(5minute)
+| SORT time_bucket, dim
+| LIMIT 20;
+
+a:double | dim:keyword | time_bucket:datetime
+4.0      | a           | 2024-01-01T00:00:00.000Z
+40.0     | b           | 2024-01-01T00:00:00.000Z
+9.0      | a           | 2024-01-01T00:05:00.000Z
+90.0     | b           | 2024-01-01T00:05:00.000Z
+14.0     | a           | 2024-01-01T00:10:00.000Z
+140.0    | b           | 2024-01-01T00:10:00.000Z
+19.0     | a           | 2024-01-01T00:15:00.000Z
+190.0    | b           | 2024-01-01T00:15:00.000Z
+24.0     | a           | 2024-01-01T00:20:00.000Z
+240.0    | b           | 2024-01-01T00:20:00.000Z
+28.0     | a           | 2024-01-01T00:25:00.000Z
+280.0    | b           | 2024-01-01T00:25:00.000Z
+;
+
+count_over_time_non_multiple_7m_window_5m_bucket
+required_capability: ts_command_v0
+required_capability: time_series_window_non_multiple
+
+TS ts_window
+| STATS c = sum(count_over_time(val, 7m)) BY dim, time_bucket = TBUCKET(5minute)
+| SORT time_bucket, dim
+| LIMIT 20;
+
+c:long | dim:keyword | time_bucket:datetime
+7      | a           | 2024-01-01T00:00:00.000Z
+7      | b           | 2024-01-01T00:00:00.000Z
+7      | a           | 2024-01-01T00:05:00.000Z
+7      | b           | 2024-01-01T00:05:00.000Z
+7      | a           | 2024-01-01T00:10:00.000Z
+7      | b           | 2024-01-01T00:10:00.000Z
+7      | a           | 2024-01-01T00:15:00.000Z
+7      | b           | 2024-01-01T00:15:00.000Z
+7      | a           | 2024-01-01T00:20:00.000Z
+7      | b           | 2024-01-01T00:20:00.000Z
+5      | a           | 2024-01-01T00:25:00.000Z
+5      | b           | 2024-01-01T00:25:00.000Z
+;
+
+max_over_time_non_multiple_7m_window_5m_bucket
+required_capability: ts_command_v0
+required_capability: time_series_window_non_multiple
+
+TS ts_window
+| STATS mx = sum(max_over_time(val, 7m)) BY dim, time_bucket = TBUCKET(5minute)
+| SORT time_bucket, dim
+| LIMIT 20;
+
+mx:long | dim:keyword | time_bucket:datetime
+7       | a           | 2024-01-01T00:00:00.000Z
+70      | b           | 2024-01-01T00:00:00.000Z
+12      | a           | 2024-01-01T00:05:00.000Z
+120     | b           | 2024-01-01T00:05:00.000Z
+17      | a           | 2024-01-01T00:10:00.000Z
+170     | b           | 2024-01-01T00:10:00.000Z
+22      | a           | 2024-01-01T00:15:00.000Z
+220     | b           | 2024-01-01T00:15:00.000Z
+27      | a           | 2024-01-01T00:20:00.000Z
+270     | b           | 2024-01-01T00:20:00.000Z
+30      | a           | 2024-01-01T00:25:00.000Z
+300     | b           | 2024-01-01T00:25:00.000Z
+;
+
+min_over_time_non_multiple_7m_window_5m_bucket
+required_capability: ts_command_v0
+required_capability: time_series_window_non_multiple
+
+TS ts_window
+| STATS mn = sum(min_over_time(val, 7m)) BY dim, time_bucket = TBUCKET(5minute)
+| SORT time_bucket, dim
+| LIMIT 20;
+
+mn:long | dim:keyword | time_bucket:datetime
+1       | a           | 2024-01-01T00:00:00.000Z
+10      | b           | 2024-01-01T00:00:00.000Z
+6       | a           | 2024-01-01T00:05:00.000Z
+60      | b           | 2024-01-01T00:05:00.000Z
+11      | a           | 2024-01-01T00:10:00.000Z
+110     | b           | 2024-01-01T00:10:00.000Z
+16      | a           | 2024-01-01T00:15:00.000Z
+160     | b           | 2024-01-01T00:15:00.000Z
+21      | a           | 2024-01-01T00:20:00.000Z
+210     | b           | 2024-01-01T00:20:00.000Z
+26      | a           | 2024-01-01T00:25:00.000Z
+260     | b           | 2024-01-01T00:25:00.000Z
+;
+
+sum_over_time_non_multiple_with_trange
+required_capability: ts_command_v0
+required_capability: time_series_window_non_multiple
+
+TS ts_window
+| WHERE TRANGE("2024-01-01T00:05:00.000Z", "2024-01-01T00:20:00.000Z")
+| STATS s = sum(sum_over_time(val, 7m)) BY dim, time_bucket = TBUCKET(5minute)
+| SORT time_bucket, dim
+| LIMIT 10;
+
+s:long | dim:keyword | time_bucket:datetime
+57     | a           | 2024-01-01T00:05:00.000Z
+570    | b           | 2024-01-01T00:05:00.000Z
+98     | a           | 2024-01-01T00:10:00.000Z
+980    | b           | 2024-01-01T00:10:00.000Z
+111    | a           | 2024-01-01T00:15:00.000Z
+1110   | b           | 2024-01-01T00:15:00.000Z
+21     | a           | 2024-01-01T00:20:00.000Z
+210    | b           | 2024-01-01T00:20:00.000Z
+;
+
+sum_over_time_non_multiple_single_dim_filter
+required_capability: ts_command_v0
+required_capability: time_series_window_non_multiple
+
+TS ts_window
+| WHERE dim == "a"
+| STATS s = sum(sum_over_time(val, 7m)) BY dim, time_bucket = TBUCKET(5minute)
+| SORT time_bucket
+| LIMIT 10;
+
+s:long | dim:keyword | time_bucket:datetime
+28     | a           | 2024-01-01T00:00:00.000Z
+63     | a           | 2024-01-01T00:05:00.000Z
+98     | a           | 2024-01-01T00:10:00.000Z
+133    | a           | 2024-01-01T00:15:00.000Z
+168    | a           | 2024-01-01T00:20:00.000Z
+140    | a           | 2024-01-01T00:25:00.000Z
+;
+
+sum_over_time_exact_multiple_baseline
+required_capability: ts_command_v0
+required_capability: time_series_window_v1
+
+TS ts_window
+| STATS s = sum(sum_over_time(val, 10m)) BY dim, time_bucket = TBUCKET(5minute)
+| SORT time_bucket, dim
+| LIMIT 20;
+
+s:long | dim:keyword | time_bucket:datetime
+55     | a           | 2024-01-01T00:00:00.000Z
+550    | b           | 2024-01-01T00:00:00.000Z
+105    | a           | 2024-01-01T00:05:00.000Z
+1050   | b           | 2024-01-01T00:05:00.000Z
+155    | a           | 2024-01-01T00:10:00.000Z
+1550   | b           | 2024-01-01T00:10:00.000Z
+205    | a           | 2024-01-01T00:15:00.000Z
+2050   | b           | 2024-01-01T00:15:00.000Z
+255    | a           | 2024-01-01T00:20:00.000Z
+2550   | b           | 2024-01-01T00:20:00.000Z
+140    | a           | 2024-01-01T00:25:00.000Z
+1400   | b           | 2024-01-01T00:25:00.000Z
+;
+
+###############################################
+# Rate tests with non-multiple windows
+# rate() computes the per-second increase of a
+# counter metric, with interpolation at bucket
+# boundaries.
+###############################################
+
+rate_non_multiple_avg_rate_7m_window_5m_bucket
+required_capability: ts_command_v0
+required_capability: time_series_window_non_multiple
+required_capability: rate_with_interpolation
+
+TS ts_window
+| STATS r = avg(rate(counter_val, 7m)) BY dim, time_bucket = TBUCKET(5minute)
+| EVAL r = ROUND(r, 6)
+| SORT time_bucket, dim
+| LIMIT 20;
+
+dim:keyword | time_bucket:datetime     | r:double
+a           | 2024-01-01T00:00:00.000Z | 0.068878
+b           | 2024-01-01T00:00:00.000Z | 0.688776
+a           | 2024-01-01T00:05:00.000Z | 0.145408
+b           | 2024-01-01T00:05:00.000Z | 1.454082
+a           | 2024-01-01T00:10:00.000Z | 0.221939
+b           | 2024-01-01T00:10:00.000Z | 2.219388
+a           | 2024-01-01T00:15:00.000Z | 0.298469
+b           | 2024-01-01T00:15:00.000Z | 2.984694
+a           | 2024-01-01T00:20:00.000Z | 0.375
+b           | 2024-01-01T00:20:00.000Z | 3.75
+a           | 2024-01-01T00:25:00.000Z | 0.298571
+b           | 2024-01-01T00:25:00.000Z | 2.985714     
+;

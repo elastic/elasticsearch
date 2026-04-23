@@ -24,7 +24,7 @@ import java.io.IOException;
 /**
  * A query that matches on all documents.
  */
-public class MatchAllQueryBuilder extends AbstractQueryBuilder<MatchAllQueryBuilder> {
+public class MatchAllQueryBuilder extends LeafQueryBuilder<MatchAllQueryBuilder> {
     public static final String NAME = "match_all";
 
     public MatchAllQueryBuilder() {}
@@ -64,7 +64,7 @@ public class MatchAllQueryBuilder extends AbstractQueryBuilder<MatchAllQueryBuil
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) {
-        return Queries.newMatchAllQuery();
+        return Queries.ALL_DOCS_INSTANCE;
     }
 
     @Override

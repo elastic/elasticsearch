@@ -22,8 +22,6 @@ import org.elasticsearch.xpack.inference.services.googlevertexai.response.Google
 import java.util.concurrent.Flow;
 import java.util.function.Function;
 
-import static org.elasticsearch.core.Strings.format;
-
 public class GoogleVertexAiResponseHandler extends BaseResponseHandler {
 
     static final String GOOGLE_VERTEX_AI_UNAVAILABLE = "The Google Vertex AI service may be temporarily overloaded or down";
@@ -66,10 +64,6 @@ public class GoogleVertexAiResponseHandler extends BaseResponseHandler {
         } else {
             throw new RetryException(false, buildError(UNSUCCESSFUL, request, result));
         }
-    }
-
-    private static String resourceNotFoundError(Request request) {
-        return format("Resource not found at [%s]", request.getURI());
     }
 
     @Override

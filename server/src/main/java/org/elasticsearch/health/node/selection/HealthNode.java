@@ -19,9 +19,28 @@ import org.elasticsearch.tasks.TaskId;
 
 import java.util.Map;
 
-/**
- * Main component used for selecting the health node of the cluster
- */
+/// A persistent task that designates a single node in the cluster as the "health node". The health node is
+/// responsible for aggregating per-node health information reported by
+/// [LocalHealthMonitor][org.elasticsearch.health.node.LocalHealthMonitor] instances running on every node:
+///
+/// - [DiskHealthInfo][org.elasticsearch.health.node.DiskHealthInfo]
+/// - [RepositoriesHealthInfo][org.elasticsearch.health.node.RepositoriesHealthInfo]
+/// - [DataStreamLifecycleHealthInfo][org.elasticsearch.health.node.DataStreamLifecycleHealthInfo]
+/// - [FileSettingsHealthInfo][org.elasticsearch.health.node.FileSettingsHealthInfo]
+///
+/// The aggregated data is held in the [HealthInfoCache][org.elasticsearch.health.node.HealthInfoCache] on the
+/// health node and consumed by health indicator services.
+///
+/// The health node also logs nodes health periodically via the
+/// [HealthPeriodicLogger][org.elasticsearch.health.HealthPeriodicLogger].
+///
+/// The lifecycle of this task is managed by [HealthNodeTaskExecutor].
+///
+/// @see HealthNodeTaskExecutor
+/// @see org.elasticsearch.health.node.HealthInfoCache
+/// @see org.elasticsearch.health.node.LocalHealthMonitor
+/// @see org.elasticsearch.health.HealthPeriodicLogger
+///
 public class HealthNode extends AllocatedPersistentTask {
 
     public static final String TASK_NAME = "health-node";

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.support.master;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -79,11 +78,7 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
     protected MasterNodeRequest(StreamInput in) throws IOException {
         super(in);
         masterNodeTimeout = in.readTimeValue();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            masterTerm = in.readVLong();
-        } else {
-            masterTerm = 0L;
-        }
+        masterTerm = in.readVLong();
     }
 
     @Override
@@ -93,9 +88,7 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
         assert masterTerm <= newMasterTerm : masterTerm + " vs " + newMasterTerm;
         super.writeTo(out);
         out.writeTimeValue(masterNodeTimeout);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            out.writeVLong(newMasterTerm);
-        } // else no protection against routing loops in older versions
+        out.writeVLong(newMasterTerm);
     }
 
     private long getNewMasterTerm(StreamOutput out) {

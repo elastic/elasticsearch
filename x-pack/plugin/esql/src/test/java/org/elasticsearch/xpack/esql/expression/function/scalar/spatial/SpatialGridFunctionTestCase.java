@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.license.License;
@@ -162,7 +162,7 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
         assumeTrue("Expected a BytesRef, but got " + spatialObj.getClass(), spatialObj instanceof BytesRef);
         BytesRef wkb = (BytesRef) spatialObj;
         try (
-            EvalOperator.ExpressionEvaluator eval = evaluator(
+            ExpressionEvaluator eval = evaluator(
                 build(Source.EMPTY, List.of(new Literal(Source.EMPTY, wkb, GEO_POINT), new Literal(Source.EMPTY, precision, INTEGER)))
             ).get(driverContext());
             Block block = eval.eval(row(List.of(wkb, precision)))
@@ -177,7 +177,7 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
         assumeTrue("Expected a BytesRef, but got " + spatialObj.getClass(), spatialObj instanceof BytesRef);
         BytesRef wkb = (BytesRef) spatialObj;
         try (
-            EvalOperator.ExpressionEvaluator eval = evaluator(
+            ExpressionEvaluator eval = evaluator(
                 build(
                     Source.EMPTY,
                     List.of(

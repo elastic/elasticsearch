@@ -52,9 +52,9 @@ import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.MetricRecorder;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.TelemetryProvider.NoopTelemetryProvider;
 import org.elasticsearch.telemetry.metric.Instrument;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -82,6 +82,7 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.telemetry.InstrumentType.LONG_ASYNC_COUNTER;
 import static org.elasticsearch.telemetry.InstrumentType.LONG_GAUGE;
+import static org.elasticsearch.telemetry.RecordingMeterRegistry.measures;
 import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForNodePEMFiles;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -161,12 +162,7 @@ public class SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests extends 
         settingsSet.add(Netty4Plugin.SETTING_HTTP_NETTY_TLS_HANDSHAKES_MAX_DELAYED);
         final var clusterSettings = new ClusterSettings(settings, Set.copyOf(settingsSet));
 
-        final var telemetryProvider = new TelemetryProvider() {
-            @Override
-            public Tracer getTracer() {
-                return Tracer.NOOP;
-            }
-
+        final var telemetryProvider = new NoopTelemetryProvider() {
             @Override
             public MeterRegistry getMeterRegistry() {
                 return meterRegistry;
@@ -954,11 +950,7 @@ public class SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests extends 
         String name,
         int expectedValue
     ) {
-        assertEquals(
-            name,
-            List.of((long) expectedValue),
-            metricRecorder.getMeasurements(instrumentType, name).stream().map(Measurement::getLong).toList()
-        );
+        assertThat(name, metricRecorder.getMeasurements(instrumentType, name), measures(expectedValue));
     }
 
     private static final Logger logger = LogManager.getLogger(SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests.class);

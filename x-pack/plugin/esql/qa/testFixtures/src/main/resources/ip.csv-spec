@@ -297,6 +297,23 @@ s:keyword | ip:ip
 // end::to_ip_leading_zeros_octal-result[]
 ;
 
+convertFromStringLeadingZerosInvalidIpAddress
+required_capability: fix_to_ip_leading_zeros_octal
+ROW 
+  input = "192.400.168.1"
+| EVAL octal = TO_IP(input, {"leading_zeros":"octal"})
+| EVAL decimal = TO_IP(input, {"leading_zeros":"decimal"})
+| EVAL reject = TO_IP(input, {"leading_zeros":"reject"})
+;
+warningRegex:evaluation of \[TO_IP\(input, \{\\\"leading_zeros\\\":\\\"octal\\\"\}\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:evaluation of \[TO_IP\(input, \{\\\"leading_zeros\\\":\\\"decimal\\\"\}\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:evaluation of \[TO_IP\(input, \{\\\"leading_zeros\\\":\\\"reject\\\"\}\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: '192.400.168.1' is not an IP string literal.
+
+input:keyword | octal:ip | decimal:ip | reject:ip
+192.400.168.1 | null     | null       | null
+;
+
 convertFromStringFancy
 required_capability: to_ip_leading_zeros
 FROM logs
@@ -496,22 +513,6 @@ epsilon      | fe80::cae2:65ff:fece:fec1                              | fe80::ca
 epsilon      | [fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0] | [fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]
 ;
 
-mvSlice
-required_capability: mv_sort
-
-from hosts
-| where host == "epsilon"
-| eval a1 = mv_slice(ip1, 0, 1)
-| keep host, ip1, a1
-| sort host, ip1
-| limit 5;
-
-host:keyword | ip1:ip                                                 | a1:ip
-epsilon      | [127.0.0.1, 127.0.0.2, 127.0.0.3]                      | [127.0.0.1, 127.0.0.2]
-epsilon      | fe80::cae2:65ff:fece:fec1                              | fe80::cae2:65ff:fece:fec1
-epsilon      | [fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0] | [fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]
-;
-
 mvZip
 required_capability: mv_sort
 
@@ -570,6 +571,39 @@ required_capability: agg_values
                 127.0.0.1 | beta
 [fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1, fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0] | epsilon
 fe80::cae2:65ff:fece:feb9 | gamma
+;
+
+valuesGroupedMvMin
+required_capability: agg_values
+
+  FROM hosts
+| EVAL host=SUBSTRING(host, 0, 1)
+| STATS ip0=MV_MIN(VALUES(ip0)) BY host
+| SORT host
+;
+
+                   ip0:ip | host:keyword
+                      ::1 | a
+                127.0.0.1 | b
+fe80::cae2:65ff:fece:feb9 | e
+fe80::cae2:65ff:fece:feb9 | g
+;
+
+valuesGroupedMvMax
+required_capability: agg_values
+
+  FROM hosts
+| EVAL host=SUBSTRING(host, 0, 1)
+| STATS ip0=MV_MAX(VALUES(ip0)) BY host
+| SORT host
+;
+
+                   ip0:ip | host:keyword
+                127.0.0.1 | a
+                127.0.0.1 | b
+fe82::cae2:65ff:fece:fec0 | e
+fe80::cae2:65ff:fece:feb9 | g
+
 ;
 
 implictCastingEqual
@@ -730,6 +764,32 @@ ip4:ip  | a:ip | b:ip | c:ip
 1.2.3.4 | null | null | null
 ;
 
+ipPrefixV6MultipleRowsDifferentLengthsRow
+required_capability: fn_ip_prefix_fix_dirty_scratch_leak
+ROW ip = ["::1", "::ffff:ffff:ffff:ffff", "::1"]::ip
+| MV_EXPAND ip
+| EVAL v6_prefix = CASE(ip == "::1", 72, 80)
+| EVAL prefix = IP_PREFIX(ip, 32, v6_prefix);
+
+ip:ip                 | v6_prefix:integer | prefix:ip
+::1                   | 72                | ::
+::ffff:ffff:ffff:ffff | 80                | ::ffff:0:0:0
+::1                   | 72                | ::
+;
+
+ipPrefixV4MultipleRowsDifferentLengthsRow
+required_capability: fn_ip_prefix_fix_dirty_scratch_leak
+ROW ip = ["0.0.0.0", "123.123.123.123", "0.0.0.0"]::ip
+| MV_EXPAND ip
+| EVAL v4_prefix = CASE(ip == "0.0.0.0", 16, 24)
+| EVAL prefix = IP_PREFIX(ip, v4_prefix, 128);
+
+ip:ip           | v4_prefix:integer | prefix:ip
+0.0.0.0         | 16                | 0.0.0.0
+123.123.123.123 | 24                | 123.123.123.0
+0.0.0.0         | 16                | 0.0.0.0
+;
+
 networkDirectionSimple
 required_capability: network_direction
 
@@ -822,4 +882,68 @@ warning:Line 2:20: java.lang.IllegalArgumentException: 'invalid_network' is not 
 
 ip0:ip      |ip1:ip    |direction:keyword
 127.0.0.1   |8.8.8.8   |null
+;
+
+mvMinRow
+  ROW ip=["192.168.0.1", "10.10.0.1"]::IP
+| EVAL ip=MV_MIN(ip)
+;
+
+  ip:ip
+10.10.0.1
+;
+
+mvMaxRow
+  ROW ip=["192.168.0.1", "10.10.0.1"]::IP
+| EVAL ip=MV_MAX(ip)
+;
+
+  ip:ip
+192.168.0.1
+;
+
+groupMv
+  FROM hosts
+| STATS COUNT(*) BY ip0=ip0
+| SORT ip0 ASC
+;
+
+COUNT(*):long | ip0:ip
+1             | ::1
+4             | 127.0.0.1
+3             | fe80::cae2:65ff:fece:feb9
+1             | fe80::cae2:65ff:fece:fec0
+1             | fe80::cae2:65ff:fece:fec1
+1             | fe81::cae2:65ff:fece:feb9
+1             | fe82::cae2:65ff:fece:fec0
+1             | null
+;
+
+groupMvMin
+  FROM hosts
+| STATS COUNT(*) BY ip0=MV_MIN(ip0)
+| SORT ip0 ASC
+;
+
+COUNT(*):long | ip0:ip
+1             | ::1
+4             | 127.0.0.1
+3             | fe80::cae2:65ff:fece:feb9
+1             | fe81::cae2:65ff:fece:feb9
+1             | null
+;
+
+groupMvMax
+  FROM hosts
+| STATS COUNT(*) BY ip0=MV_MAX(ip0)
+| SORT ip0 ASC
+;
+
+COUNT(*):long | ip0:ip
+1             | ::1
+4             | 127.0.0.1
+2             | fe80::cae2:65ff:fece:feb9
+1             | fe80::cae2:65ff:fece:fec1
+1             | fe82::cae2:65ff:fece:fec0
+1             | null
 ;

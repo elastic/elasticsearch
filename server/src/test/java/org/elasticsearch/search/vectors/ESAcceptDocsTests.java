@@ -23,12 +23,11 @@ import java.io.IOException;
 public class ESAcceptDocsTests extends ESTestCase {
 
     public void testAcceptAllDocs() throws IOException {
-        ESAcceptDocs acceptDocs = ESAcceptDocs.ESAcceptDocsAll.INSTANCE;
+        ESAcceptDocs acceptDocs = new ESAcceptDocs.ESAcceptDocsAll();
         assertEquals(0L, acceptDocs.approximateCost());
         assertEquals(0L, acceptDocs.cost());
         assertNull(acceptDocs.iterator());
         assertNull(acceptDocs.bits());
-        assertNull(acceptDocs.getBitSet());
     }
 
     public void testFromScorerSupplier() throws IOException {

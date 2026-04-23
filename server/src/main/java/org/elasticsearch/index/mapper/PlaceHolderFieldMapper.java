@@ -62,10 +62,10 @@ public class PlaceHolderFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected void merge(FieldMapper in, Conflicts conflicts, MapperMergeContext mapperMergeContext) {
-            assert in instanceof PlaceHolderFieldMapper;
-            unknownParams.putAll(((PlaceHolderFieldMapper) in).unknownParams);
-            super.merge(in, conflicts, mapperMergeContext);
+        protected void mergeFromBuilder(FieldMapper.Builder incoming, Conflicts conflicts, MapperMergeContext mergeContext) {
+            assert incoming instanceof PlaceHolderFieldMapper.Builder;
+            unknownParams.putAll(((PlaceHolderFieldMapper.Builder) incoming).unknownParams);
+            super.mergeFromBuilder(incoming, conflicts, mergeContext);
         }
 
         @Override
@@ -85,6 +85,11 @@ public class PlaceHolderFieldMapper extends FieldMapper {
         @Override
         protected Parameter<?>[] getParameters() {
             return EMPTY_PARAMETERS;
+        }
+
+        @Override
+        public String contentType() {
+            return type;
         }
 
         @Override

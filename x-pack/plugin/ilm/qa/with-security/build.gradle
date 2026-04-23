@@ -1,9 +1,0 @@
-apply plugin: 'elasticsearch.internal-java-rest-test'
-
-dependencies {
-  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
-
-  clusterModules project(':modules:analysis-common')
-  clusterModules project(xpackModule('ilm'))
-  clusterModules project(xpackModule('ccr'))
-}

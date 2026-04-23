@@ -1,0 +1,421 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.datasource.azure;
+
+import com.azure.identity.DefaultAzureCredentialBuilder;
+import com.azure.storage.blob.BlobAsyncClient;
+import com.azure.storage.blob.BlobClient;
+import com.azure.storage.blob.BlobContainerClient;
+import com.azure.storage.blob.BlobServiceAsyncClient;
+import com.azure.storage.blob.BlobServiceClient;
+import com.azure.storage.blob.BlobServiceClientBuilder;
+import com.azure.storage.blob.models.BlobItem;
+import com.azure.storage.blob.models.BlobRange;
+import com.azure.storage.blob.models.BlobStorageException;
+import com.azure.storage.blob.models.ListBlobsOptions;
+import com.azure.storage.common.StorageSharedKeyCredential;
+
+import org.elasticsearch.xpack.esql.datasources.StorageEntry;
+import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+
+import java.io.IOException;
+import java.time.Instant;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Locale;
+import java.util.NoSuchElementException;
+
+/**
+ * StorageProvider implementation for Azure Blob Storage.
+ * <p>
+ * Supports the {@code wasbs://} and {@code wasb://} URI schemes.
+ * URI format: {@code wasbs://account.blob.core.windows.net/container/path/to/blob}
+ * <ul>
+ *   <li>host: account.blob.core.windows.net (account name is first segment)</li>
+ *   <li>path: /container/path/to/blob (first segment = container, remainder = blob name)</li>
+ * </ul>
+ * <p>
+ * Maintains both a sync {@link BlobServiceClient} and an async {@link BlobServiceAsyncClient},
+ * built from the same {@link BlobServiceClientBuilder} (same pattern as {@code repository-azure}'s
+ * {@code AzureClientProvider}). Both clients share credentials, endpoint, and HTTP pipeline config.
+ * <ul>
+ *   <li><b>Sync client</b> — used for streaming reads ({@code openInputStream} returns a live
+ *       {@code InputStream}), metadata ({@code getProperties}), existence checks, and listing.
+ *       These are inherently blocking or return streaming results.</li>
+ *   <li><b>Async client</b> — used for {@code readBytesAsync} range reads in
+ *       {@link AzureStorageObject} via {@code BlobAsyncClient.downloadWithResponse}. Reactor
+ *       Netty handles concurrent range reads without blocking a thread per request.</li>
+ * </ul>
+ * <p>
+ * The async dependencies ({@code azure-core-http-netty}, Reactor Netty, Netty) are already
+ * bundled in this plugin's classloader. Versions are aligned with {@code repository-azure}.
+ * <p>
+ * Authentication can be provided via connection string, account+key, SAS token,
+ * or DefaultAzureCredential when no explicit credentials are configured.
+ */
+public final class AzureStorageProvider implements StorageProvider {
+
+    private record Clients(BlobServiceClient sync, BlobServiceAsyncClient async) {}
+
+    private volatile Clients clients;
+    private final AzureConfiguration config;
+
+    public AzureStorageProvider(AzureConfiguration config) {
+        this.config = config;
+        if (config != null && (config.hasCredentials() || config.isAnonymous())) {
+            BlobServiceClientBuilder builder = configureBlobServiceClientBuilder(config, null);
+            this.clients = new Clients(builder.buildClient(), builder.buildAsyncClient());
+        }
+    }
+
+    /**
+     * Constructor for testing with a pre-built BlobServiceClient.
+     */
+    public AzureStorageProvider(BlobServiceClient blobServiceClient) {
+        this.config = null;
+        this.clients = new Clients(blobServiceClient, null);
+    }
+
+    private Clients clients(String accountFromPath) {
+        Clients c = clients;
+        if (c != null) {
+            return c;
+        }
+        synchronized (this) {
+            if (clients == null) {
+                BlobServiceClientBuilder builder = configureBlobServiceClientBuilder(config, accountFromPath);
+                clients = new Clients(builder.buildClient(), builder.buildAsyncClient());
+            }
+        }
+        return clients;
+    }
+
+    private static BlobServiceClientBuilder configureBlobServiceClientBuilder(AzureConfiguration config, String accountFromPath) {
+        BlobServiceClientBuilder builder = new BlobServiceClientBuilder();
+
+        if (config != null && config.isAnonymous()) {
+            String account = accountFromPath;
+            if (account == null && config.account() != null) {
+                account = config.account();
+            }
+            if (config.endpoint() != null && config.endpoint().isEmpty() == false) {
+                builder.endpoint(config.endpoint());
+            } else if (account != null) {
+                builder.endpoint("https://" + account + ".blob.core.windows.net");
+            } else {
+                throw new IllegalStateException(
+                    "Anonymous Azure access requires an endpoint or account from the path "
+                        + "(wasbs://account.blob.core.windows.net/...) or WITH (endpoint = '...')"
+                );
+            }
+        } else if (config != null && config.hasCredentials()) {
+            if (config.connectionString() != null && config.connectionString().isEmpty() == false) {
+                builder.connectionString(config.connectionString());
+                if (config.endpoint() != null && config.endpoint().isEmpty() == false) {
+                    builder.endpoint(config.endpoint());
+                }
+            } else if (config.account() != null && config.key() != null) {
+                StorageSharedKeyCredential credential = new StorageSharedKeyCredential(config.account(), config.key());
+                String endpoint = config.endpoint();
+                if (endpoint == null || endpoint.isEmpty()) {
+                    endpoint = "https://" + config.account() + ".blob.core.windows.net";
+                }
+                builder.endpoint(endpoint).credential(credential);
+            } else if (config.sasToken() != null && config.sasToken().isEmpty() == false && config.account() != null) {
+                String endpoint = config.endpoint();
+                if (endpoint == null || endpoint.isEmpty()) {
+                    endpoint = "https://" + config.account() + ".blob.core.windows.net";
+                }
+                builder.endpoint(endpoint).sasToken(config.sasToken());
+            } else {
+                throw new IllegalStateException("Azure credentials require connection_string, (account + key), or (account + sas_token)");
+            }
+        } else {
+            String account = accountFromPath;
+            if (account == null && config != null && config.account() != null) {
+                account = config.account();
+            }
+            if (account == null) {
+                throw new IllegalStateException(
+                    "Azure DefaultAzureCredential requires account from path (wasbs://account.blob.core.windows.net/...) or config"
+                );
+            }
+            String endpoint = config != null && config.endpoint() != null && config.endpoint().isEmpty() == false
+                ? config.endpoint()
+                : "https://" + account + ".blob.core.windows.net";
+            builder.endpoint(endpoint).credential(new DefaultAzureCredentialBuilder().build());
+        }
+
+        return builder;
+    }
+
+    @Override
+    public StorageObject newObject(StoragePath path) {
+        validateAzureScheme(path);
+        ParsedPath parsed = parsePath(path);
+        String account = extractAccountFromHost(parsed.host);
+        Clients c = clients(account);
+        BlobClient blobClient = c.sync().getBlobContainerClient(parsed.container).getBlobClient(parsed.blobName);
+        BlobAsyncClient blobAsyncClient = resolveAsyncClient(c, parsed);
+        return new AzureStorageObject(blobClient, blobAsyncClient, parsed.container, parsed.blobName, path);
+    }
+
+    @Override
+    public StorageObject newObject(StoragePath path, long length) {
+        validateAzureScheme(path);
+        ParsedPath parsed = parsePath(path);
+        String account = extractAccountFromHost(parsed.host);
+        Clients c = clients(account);
+        BlobClient blobClient = c.sync().getBlobContainerClient(parsed.container).getBlobClient(parsed.blobName);
+        BlobAsyncClient blobAsyncClient = resolveAsyncClient(c, parsed);
+        return new AzureStorageObject(blobClient, blobAsyncClient, parsed.container, parsed.blobName, path, length);
+    }
+
+    @Override
+    public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
+        validateAzureScheme(path);
+        ParsedPath parsed = parsePath(path);
+        String account = extractAccountFromHost(parsed.host);
+        Clients c = clients(account);
+        BlobClient blobClient = c.sync().getBlobContainerClient(parsed.container).getBlobClient(parsed.blobName);
+        BlobAsyncClient blobAsyncClient = resolveAsyncClient(c, parsed);
+        return new AzureStorageObject(blobClient, blobAsyncClient, parsed.container, parsed.blobName, path, length, lastModified);
+    }
+
+    private static BlobAsyncClient resolveAsyncClient(Clients c, ParsedPath parsed) {
+        BlobServiceAsyncClient async = c.async();
+        if (async == null) {
+            return null;
+        }
+        return async.getBlobContainerAsyncClient(parsed.container).getBlobAsyncClient(parsed.blobName);
+    }
+
+    @Override
+    public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
+        validateAzureScheme(prefix);
+        ParsedPath parsed = parsePathForListing(prefix);
+        String account = extractAccountFromHost(parsed.host);
+        BlobContainerClient containerClient = clients(account).sync().getBlobContainerClient(parsed.container);
+        ListBlobsOptions options = new ListBlobsOptions().setPrefix(parsed.blobName);
+        Iterable<BlobItem> blobItems = recursive
+            ? containerClient.listBlobs(options, null)
+            : containerClient.listBlobsByHierarchy("/", options, null);
+        return new AzureStorageIterator(blobItems, prefix, parsed.container);
+    }
+
+    @Override
+    public boolean exists(StoragePath path) throws IOException {
+        validateAzureScheme(path);
+        ParsedPath parsed = parsePath(path);
+        String account = extractAccountFromHost(parsed.host);
+        BlobClient blobClient = clients(account).sync().getBlobContainerClient(parsed.container).getBlobClient(parsed.blobName);
+        try {
+            return blobClient.exists();
+        } catch (Exception e) {
+            if (e instanceof BlobStorageException bse && bse.getStatusCode() == 403) {
+                return existsViaRangeGet(blobClient, path);
+            }
+            throw new IOException("Failed to check existence of " + path + credentialHint(), e);
+        }
+    }
+
+    private boolean existsViaRangeGet(BlobClient blobClient, StoragePath path) throws IOException {
+        try (var stream = blobClient.openInputStream(new BlobRange(0, 1L), null)) {
+            return true;
+        } catch (Exception e) {
+            if (e instanceof BlobStorageException bse && bse.getStatusCode() == 404) {
+                return false;
+            }
+            throw new IOException("Failed to check existence of " + path + " (properties denied, range GET also failed)", e);
+        }
+    }
+
+    private String credentialHint() {
+        if (config == null || (config.isAnonymous() == false && config.hasCredentials() == false)) {
+            return ". If accessing a public container, use WITH (auth = 'none'). "
+                + "Otherwise, provide credentials via WITH (account = '...', key = '...') or set Azure environment variables";
+        }
+        return "";
+    }
+
+    @Override
+    public List<String> supportedSchemes() {
+        return List.of("wasbs", "wasb");
+    }
+
+    @Override
+    public void close() throws IOException {
+        Clients c = clients;
+        clients = null;
+        if (c != null) {
+            try {
+                closeHttpClient(c.sync().getHttpPipeline().getHttpClient());
+            } catch (Exception e) {
+                throw new IOException("Failed to close Azure BlobServiceClient", e);
+            } finally {
+                if (c.async() != null) {
+                    try {
+                        closeHttpClient(c.async().getHttpPipeline().getHttpClient());
+                    } catch (Exception e) {
+                        throw new IOException("Failed to close Azure BlobServiceAsyncClient", e);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Close the underlying HttpClient if it implements AutoCloseable.
+     * BlobServiceClient does not implement Closeable; the default NettyAsyncHttpClient
+     * does not either, so this is typically a no-op. We attempt close when possible so
+     * that custom HttpClient implementations or future SDK versions that support close
+     * will be properly cleaned up. For full resource cleanup (like repository-azure),
+     * the client would need to be built with a custom ConnectionProvider.
+     */
+    private static void closeHttpClient(com.azure.core.http.HttpClient httpClient) throws Exception {
+        if (httpClient instanceof AutoCloseable closeable) {
+            closeable.close();
+        }
+    }
+
+    private static void validateAzureScheme(StoragePath path) {
+        String scheme = path.scheme().toLowerCase(Locale.ROOT);
+        if (scheme.equals("wasbs") == false && scheme.equals("wasb") == false) {
+            throw new IllegalArgumentException("AzureStorageProvider only supports wasbs:// and wasb:// schemes, got: " + scheme);
+        }
+    }
+
+    private static String extractAccountFromHost(String host) {
+        if (host == null || host.isEmpty()) {
+            throw new IllegalArgumentException("Invalid Azure host: " + host);
+        }
+        int dot = host.indexOf('.');
+        return dot > 0 ? host.substring(0, dot) : host;
+    }
+
+    /**
+     * Parse path for object access: wasbs://account.blob.core.windows.net/container/path/to/blob
+     * host = account.blob.core.windows.net -> account is first segment
+     * path = /container/path/to/blob -> container = first segment, blob name = path/to/blob
+     */
+    private static ParsedPath parsePath(StoragePath path) {
+        String host = path.host();
+        String pathStr = path.path();
+        if (pathStr.startsWith(StoragePath.PATH_SEPARATOR)) {
+            pathStr = pathStr.substring(1);
+        }
+        if (pathStr.isEmpty()) {
+            throw new IllegalArgumentException("Invalid Azure path: container and blob name required: " + path);
+        }
+        int firstSlash = pathStr.indexOf(StoragePath.PATH_SEPARATOR);
+        String container;
+        String blobName;
+        if (firstSlash < 0) {
+            container = pathStr;
+            blobName = "";
+        } else {
+            container = pathStr.substring(0, firstSlash);
+            blobName = pathStr.substring(firstSlash + 1);
+        }
+        if (container.isEmpty()) {
+            throw new IllegalArgumentException("Invalid Azure path: container is required: " + path);
+        }
+        return new ParsedPath(host, container, blobName);
+    }
+
+    /**
+     * Parse path for listing: prefix may end with / or a glob pattern.
+     */
+    private static ParsedPath parsePathForListing(StoragePath path) {
+        ParsedPath parsed = parsePath(path);
+        String prefix = parsed.blobName;
+        if (prefix.isEmpty() == false && prefix.endsWith(StoragePath.PATH_SEPARATOR) == false) {
+            prefix += StoragePath.PATH_SEPARATOR;
+        }
+        return new ParsedPath(parsed.host, parsed.container, prefix);
+    }
+
+    private record ParsedPath(String host, String container, String blobName) {}
+
+    private static final class AzureStorageIterator implements StorageIterator {
+        private final Iterable<BlobItem> blobItems;
+        private final StoragePath basePath;
+        private final String container;
+        private final String scheme;
+
+        private Iterator<BlobItem> iterator;
+        private BlobItem current;
+
+        AzureStorageIterator(Iterable<BlobItem> blobItems, StoragePath basePath, String container) {
+            this.blobItems = blobItems;
+            this.basePath = basePath;
+            this.container = container;
+            this.scheme = basePath.scheme();
+        }
+
+        @Override
+        public boolean hasNext() {
+            try {
+                if (iterator == null) {
+                    iterator = blobItems.iterator();
+                }
+                if (current != null) {
+                    return true;
+                }
+                while (iterator.hasNext()) {
+                    BlobItem item = iterator.next();
+                    if (Boolean.TRUE.equals(item.isPrefix())) {
+                        continue;
+                    }
+                    String name = item.getName();
+                    if (name != null && name.endsWith(StoragePath.PATH_SEPARATOR) == false) {
+                        current = item;
+                        return true;
+                    }
+                }
+                return false;
+            } catch (Exception e) {
+                String msg = (e instanceof BlobStorageException bse && bse.getStatusCode() == 403)
+                    ? "Access denied listing blobs in container ["
+                        + container
+                        + "]. "
+                        + "Verify that the configured credentials have listing permission on this container, "
+                        + "or use exact file paths instead of glob patterns."
+                    : "Failed to list blobs in container [" + container + "]";
+                throw new RuntimeException(msg, e);
+            }
+        }
+
+        @Override
+        public StorageEntry next() {
+            if (hasNext() == false) {
+                throw new NoSuchElementException();
+            }
+            BlobItem item = current;
+            current = null;
+            String fullPath = scheme + StoragePath.SCHEME_SEPARATOR + basePath.host() + StoragePath.PATH_SEPARATOR + container
+                + StoragePath.PATH_SEPARATOR + item.getName();
+            StoragePath objectPath = StoragePath.of(fullPath);
+            Instant lastModified = item.getProperties() != null && item.getProperties().getLastModified() != null
+                ? item.getProperties().getLastModified().toInstant()
+                : null;
+            long size = item.getProperties() != null && item.getProperties().getContentLength() != null
+                ? item.getProperties().getContentLength()
+                : 0L;
+            return new StorageEntry(objectPath, size, lastModified);
+        }
+
+        @Override
+        public void close() throws IOException {
+            // No resources to close
+        }
+    }
+}

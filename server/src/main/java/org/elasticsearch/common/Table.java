@@ -21,12 +21,12 @@ import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyMap;
 
-public class Table {
+public final class Table {
 
     private List<Cell> headers = new ArrayList<>();
-    private List<List<Cell>> rows = new ArrayList<>();
-    private Map<String, List<Cell>> map = new HashMap<>();
-    private Map<String, Cell> headerMap = new HashMap<>();
+    private final List<List<Cell>> rows = new ArrayList<>();
+    private final Map<String, List<Cell>> map = new HashMap<>();
+    private final Map<String, Cell> headerMap = new HashMap<>();
     private List<Cell> currentCells;
     private boolean inHeaders = false;
     private boolean withTime = false;
@@ -201,7 +201,7 @@ public class Table {
         return headerAliasMap;
     }
 
-    public static class Cell {
+    public static final class Cell {
         public final Object value;
         public final Map<String, String> attr;
 

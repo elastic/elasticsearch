@@ -16,10 +16,8 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
 import org.junit.Before;
 
@@ -95,23 +93,31 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClus
         String modelId = "trained-model-full-cluster-restart";
 
         if (isRunningAgainstOldCluster()) {
+            assumeTrue(
+                "PyTorch model deployment inference is not reliably supported before 8.3.0",
+                getOldClusterTestVersion().onOrAfter("8.3.0")
+            );
             createTrainedModel(modelId);
             putModelDefinition(modelId);
             putVocabulary(List.of("these", "are", "my", "words"), modelId);
             startDeployment(modelId);
-            assertInfer(modelId);
+            assertBusy(() -> {
+                try {
+                    assertInfer(modelId);
+                } catch (ResponseException e) {
+                    throw new AssertionError("Inference failed on old cluster", e);
+                }
+            }, 90, TimeUnit.SECONDS);
         } else {
             ensureHealth(".ml-inference-*,.ml-config*", (request -> {
                 request.addParameter("wait_for_status", "yellow");
-                request.addParameter("timeout", "70s");
+                request.addParameter("timeout", "120s");
             }));
             waitForDeploymentStarted(modelId);
             assertBusy(() -> {
                 try {
                     assertInfer(modelId);
                 } catch (ResponseException e) {
-                    // assertBusy only loops on AssertionErrors, so we have
-                    // to convert failure status exceptions to these
                     throw new AssertionError("Inference failed", e);
                 }
             }, 90, TimeUnit.SECONDS);
@@ -122,7 +128,12 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClus
     @SuppressWarnings("unchecked")
     private void waitForDeploymentStarted(String modelId) throws Exception {
         assertBusy(() -> {
-            var response = getTrainedModelStats(modelId);
+            Response response;
+            try {
+                response = getTrainedModelStats(modelId);
+            } catch (ResponseException e) {
+                throw new AssertionError("Model stats not available yet", e);
+            }
             Map<String, Object> map = entityAsMap(response);
             List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("trained_model_stats");
             assertThat(stats, hasSize(1));
@@ -186,30 +197,14 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClus
     }
 
     private Response startDeployment(String modelId, String waitForState) throws IOException {
-        String inferenceThreadParamName = "threads_per_allocation";
-        String modelThreadParamName = "number_of_allocations";
-        String compatibleHeader = null;
-        if (isRunningAgainstOldCluster()) {
-            compatibleHeader = compatibleMediaType(XContentType.VND_JSON, RestApiVersion.V_8);
-            inferenceThreadParamName = "inference_threads";
-            modelThreadParamName = "model_threads";
-        }
-
         Request request = new Request(
             "POST",
             "/_ml/trained_models/"
                 + modelId
                 + "/deployment/_start?timeout=40s&wait_for="
                 + waitForState
-                + "&"
-                + inferenceThreadParamName
-                + "=1&"
-                + modelThreadParamName
-                + "=1"
+                + "&threads_per_allocation=1&number_of_allocations=1"
         );
-        if (compatibleHeader != null) {
-            request.setOptions(request.getOptions().toBuilder().addHeader("Accept", compatibleHeader).build());
-        }
         request.setOptions(request.getOptions().toBuilder().setWarningsHandler(PERMISSIVE).build());
         var response = client().performRequest(request);
         assertOK(response);

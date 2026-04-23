@@ -78,7 +78,7 @@ public class InternalAggregationsTests extends ESTestCase {
 
         InternalAggregations reduced = InternalAggregations.topLevelReduce(
             List.of(s1, s2),
-            new AggregationReduceContext.ForFinal(null, null, () -> false, builders, b -> {})
+            new AggregationReduceContext.ForFinal(null, null, () -> false, builders, b -> {}, null)
         );
         assertThat(f1Reduced.get(), equalTo(1L));
         assertThat(f2Reduced.get(), equalTo(2L));

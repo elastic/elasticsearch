@@ -54,9 +54,7 @@ class TSDataGenerationHelper {
         // Making a list-to-set-to-list to ensure uniqueness.
         this.numDocs = numDocs;
         var maxAttributes = (int) Math.sqrt(numDocs);
-        List<String> tempAttributeSet = List.copyOf(
-            Set.copyOf(ESTestCase.randomList(1, maxAttributes, () -> ESTestCase.randomAlphaOfLengthBetween(3, 30)))
-        );
+        List<String> tempAttributeSet = ESTestCase.randomList(1, maxAttributes, () -> ESTestCase.randomAlphaOfLengthBetween(3, 30));
         var maxTimeSeries = (int) Math.sqrt(numDocs);
         var minTimeSeries = Math.max(1, maxTimeSeries / 4);
         numTimeSeries = ESTestCase.randomIntBetween(minTimeSeries, maxTimeSeries);

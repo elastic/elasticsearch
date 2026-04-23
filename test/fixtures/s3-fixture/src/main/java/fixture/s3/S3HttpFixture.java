@@ -13,6 +13,7 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -27,11 +28,15 @@ import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiPredicate;
+import java.util.function.Supplier;
 
 import static fixture.aws.AwsCredentialsUtils.ANY_REGION;
 import static fixture.aws.AwsCredentialsUtils.checkAuthorization;
 import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
 import static fixture.aws.AwsFixtureUtils.getLocalFixtureAddress;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.startsWith;
 
 public class S3HttpFixture extends ExternalResource {
 
@@ -44,23 +49,32 @@ public class S3HttpFixture extends ExternalResource {
     private final String bucket;
     private final String basePath;
     private final BiPredicate<String, String> authorizationPredicate;
+    private final Supplier<S3ConsistencyModel> consistencyModel;
 
-    public S3HttpFixture(boolean enabled) {
-        this(enabled, "bucket", "base_path_integration_tests", fixedAccessKey("s3_test_access_key", ANY_REGION, "s3"));
+    public S3HttpFixture(boolean enabled, Supplier<S3ConsistencyModel> consistencyModel) {
+        this(enabled, "bucket", "base_path_integration_tests", consistencyModel, fixedAccessKey("s3_test_access_key", ANY_REGION, "s3"));
     }
 
-    public S3HttpFixture(boolean enabled, String bucket, String basePath, BiPredicate<String, String> authorizationPredicate) {
+    public S3HttpFixture(
+        boolean enabled,
+        String bucket,
+        String basePath,
+        Supplier<S3ConsistencyModel> consistencyModel,
+        BiPredicate<String, String> authorizationPredicate
+    ) {
         this.enabled = enabled;
         this.bucket = bucket;
         this.basePath = basePath;
         this.authorizationPredicate = authorizationPredicate;
+        this.consistencyModel = consistencyModel;
     }
 
     protected HttpHandler createHandler() {
-        return new S3HttpHandler(bucket, basePath) {
+        return new S3HttpHandler(bucket, basePath, consistencyModel.get()) {
             @Override
             public void handle(final HttpExchange exchange) throws IOException {
                 try {
+                    assertThat(exchange.getRequestHeaders().get("user-agent"), contains(startsWith("elasticsearch/")));
                     if (checkAuthorization(authorizationPredicate, exchange)) {
                         super.handle(exchange);
                     }
@@ -74,7 +88,8 @@ public class S3HttpFixture extends ExternalResource {
     }
 
     public String getAddress() {
-        return "http://" + server.getAddress().getHostString() + ":" + server.getAddress().getPort();
+        String host = InetAddresses.toUriString(server.getAddress().getAddress());
+        return "http://" + host + ":" + server.getAddress().getPort();
     }
 
     public void stop(int delay) {

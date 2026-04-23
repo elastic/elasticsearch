@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
@@ -348,8 +350,7 @@ public abstract class AbstractCrossClusterTestCase extends AbstractMultiClusters
     }
 
     protected EsqlQueryResponse runQuery(String query, Boolean ccsMetadataInResponse) {
-        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
-        request.query(query);
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest(query);
         request.pragmas(AbstractEsqlIntegTestCase.randomPragmas());
         request.profile(randomInt(5) == 2);
         request.columnar(randomBoolean());
@@ -375,5 +376,28 @@ public abstract class AbstractCrossClusterTestCase extends AbstractMultiClusters
 
     protected static String randomStats() {
         return INLINE_STATS_SUPPORTS_REMOTE.isEnabled() ? randomFrom("STATS", "INLINE STATS") : "STATS";
+    }
+
+    protected static void assertCCSExecutionInfoDetails(EsqlExecutionInfo executionInfo) {
+        assertNotNull(executionInfo);
+        assertThat(executionInfo.overallTook().millis(), greaterThanOrEqualTo(0L));
+        assertTrue(executionInfo.isCrossClusterSearch());
+        List<EsqlExecutionInfo.Cluster> clusters = executionInfo.clusterAliases().stream().map(executionInfo::getCluster).toList();
+
+        for (EsqlExecutionInfo.Cluster cluster : clusters) {
+            assertThat(cluster.getTook().millis(), greaterThanOrEqualTo(0L));
+            assertThat(cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+            assertThat(cluster.getSkippedShards(), equalTo(0));
+            assertThat(cluster.getFailedShards(), equalTo(0));
+        }
+    }
+
+    protected void setupAlias(String clusterAlias, String indexName, String aliasName) {
+        Client client = client(clusterAlias);
+        IndicesAliasesRequestBuilder indicesAliasesRequestBuilder = client.admin()
+            .indices()
+            .prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(indexName).alias(aliasName));
+        assertAcked(client.admin().indices().aliases(indicesAliasesRequestBuilder.request()));
     }
 }

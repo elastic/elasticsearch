@@ -42,7 +42,9 @@ public class GoogleCloudStoragePluginTests extends ESTestCase {
                 "gcs.client.*.token_uri",
                 "gcs.client.*.proxy.type",
                 "gcs.client.*.proxy.host",
-                "gcs.client.*.proxy.port"
+                "gcs.client.*.proxy.port",
+                "gcs.client.*.max_retries",
+                "gcs.client.*.megabytes_copied_per_chunk"
             ),
             settings.stream().map(Setting::getKey).toList()
         );

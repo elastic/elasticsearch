@@ -14,17 +14,3 @@ Conditional functions return one of their arguments by evaluating in an if-else 
 
 :::{include} ../_snippets/lists/conditional-functions-and-expressions.md
 :::
-
-
-:::{include} ../_snippets/functions/layout/case.md
-:::
-
-:::{include} ../_snippets/functions/layout/coalesce.md
-:::
-
-:::{include} ../_snippets/functions/layout/greatest.md
-:::
-
-:::{include} ../_snippets/functions/layout/least.md
-:::
-

@@ -1,0 +1,5 @@
+area: Infra/Plugins
+issues: []
+pr: 142550
+summary: "[Fleet] Add OpAMP field mappings to fleet-agents"
+type: enhancement

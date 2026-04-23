@@ -9,28 +9,24 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.ingest.DropProcessor;
+import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineProcessor;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 import static java.util.Map.entry;
 
@@ -43,6 +39,7 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
         return Map.ofEntries(
             entry(AppendProcessor.TYPE, new AppendProcessor.Factory(parameters.scriptService)),
             entry(BytesProcessor.TYPE, new BytesProcessor.Factory()),
+            entry(CefProcessor.TYPE, new CefProcessor.Factory(parameters.scriptService)),
             entry(CommunityIdProcessor.TYPE, new CommunityIdProcessor.Factory()),
             entry(ConvertProcessor.TYPE, new ConvertProcessor.Factory()),
             entry(CsvProcessor.TYPE, new CsvProcessor.Factory()),
@@ -76,7 +73,19 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
             entry(TrimProcessor.TYPE, new TrimProcessor.Factory()),
             entry(URLDecodeProcessor.TYPE, new URLDecodeProcessor.Factory()),
             entry(UppercaseProcessor.TYPE, new UppercaseProcessor.Factory()),
-            entry(UriPartsProcessor.TYPE, new UriPartsProcessor.Factory())
+            entry(UriPartsProcessor.TYPE, new UriPartsProcessor.Factory()),
+            entry(UserAgentProcessor.TYPE, new UserAgentProcessor.Factory(parameters.userAgentParserRegistry))
+        );
+    }
+
+    @Override
+    public Map<String, UnaryOperator<Metadata.ProjectCustom>> getProjectCustomMetadataUpgraders() {
+        return Map.of(
+            IngestMetadata.TYPE,
+            ingestMetadata -> ((IngestMetadata) ingestMetadata).maybeUpgradeProcessors(
+                UserAgentProcessor.TYPE,
+                UserAgentProcessor::maybeUpgradeConfig
+            )
         );
     }
 
@@ -87,13 +96,7 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
 
     @Override
     public List<RestHandler> getRestHandlers(
-        Settings settings,
-        NamedWriteableRegistry namedWriteableRegistry,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
+        RestHandlersServices restHandlersServices,
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {

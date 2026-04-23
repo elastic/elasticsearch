@@ -32,7 +32,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-public class Grok extends RegexExtract implements TelemetryAware {
+public class Grok extends RegexExtract implements TelemetryAware, SortPreserving {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Grok", Grok::readFrom);
 
     public record Parser(String pattern, org.elasticsearch.grok.Grok grok) {
@@ -68,6 +68,11 @@ public class Grok extends RegexExtract implements TelemetryAware {
         @Override
         public int hashCode() {
             return Objects.hash(pattern);
+        }
+
+        @Override
+        public String toString() {
+            return "Parser[pattern=" + pattern + "]";
         }
     }
 

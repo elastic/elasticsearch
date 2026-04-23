@@ -88,6 +88,19 @@ public class RdnFieldExtractorTests extends ESTestCase {
         assertThat(result, is(nullValue()));
     }
 
+    public void testSeqLengthOutOfSignedIntRange() {
+        byte[] malformedBytes = {
+            (byte) 48,   // SEQUENCE
+            (byte) 0x84, // Length byte indicating (1) long form with (2) 4 data bytes
+            (byte) 0xFF,
+            (byte) 0xFF,
+            (byte) 0xFF,
+            (byte) 0xFF };
+
+        String result = RdnFieldExtractor.extract(malformedBytes, OID_CN);
+        assertThat(result, is(nullValue()));
+    }
+
     public void testExtractWithSpecialCharacters() {
         assertExtractions("CN=Test\\, User, OU=R\\+D, O=Elastic\\\\Co", Map.of(OID_CN, "Test, User", OID_OU, "R+D", OID_O, "Elastic\\Co"));
     }

@@ -19,9 +19,11 @@ public class SamlAttributesTests extends SamlTestCase {
         final String nameFormat = randomFrom(NameID.TRANSIENT, NameID.PERSISTENT, NameID.EMAIL);
         final String nameId = randomIdentifier();
         final String session = randomAlphaOfLength(16);
+        final String inResponseTo = randomAlphanumericOfLength(16);
         final SamlAttributes attributes = new SamlAttributes(
             new SamlNameId(nameFormat, nameId, null, null, null),
             session,
+            inResponseTo,
             List.of(
                 new SamlAttributes.SamlAttribute("urn:oid:0.9.2342.19200300.100.1.1", null, List.of("peter.ng")),
                 new SamlAttributes.SamlAttribute("urn:oid:2.5.4.3", "name", List.of("Peter Ng")),
@@ -46,6 +48,8 @@ public class SamlAttributesTests extends SamlTestCase {
                     + ("NameId(" + nameFormat + ")=" + nameId)
                     + ")["
                     + session
+                    + "]["
+                    + inResponseTo
                     + "]{["
                     + "urn:oid:0.9.2342.19200300.100.1.1=[peter.ng](len=1)"
                     + ", "

@@ -64,6 +64,11 @@ public class NonDynamicFieldMapperTests extends NonDynamicFieldMapperTestCase {
             }
 
             @Override
+            public String contentType() {
+                return "non_dynamic";
+            }
+
+            @Override
             public NonDynamicFieldMapper build(MapperBuilderContext context) {
                 return new NonDynamicFieldMapper(leafName(), new TextFieldMapper.TextFieldType(leafName(), false, true, meta.getValue()));
             }

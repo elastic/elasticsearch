@@ -84,7 +84,6 @@ class TopFloatAggregator {
             sort.collect(value, groupId);
         }
 
-        @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             blocks[offset] = toBlock(driverContext.blockFactory(), selected);
         }

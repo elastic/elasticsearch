@@ -153,8 +153,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         pauseMaintenanceService();
         ensureAllSearchContextsReleased();
 
-        internalCluster().restartNode(node.getName(), new InternalTestCluster.RestartCallback() {
-        });
+        internalCluster().restartNode(node.getName(), new InternalTestCluster.RestartCallback() {});
         unpauseMaintenanceService();
         ensureYellow(ASYNC_RESULTS_INDEX, indexName);
     }

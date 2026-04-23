@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.search;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -45,11 +44,11 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
     public RestSubmitAsyncSearchAction(
         SearchUsageHolder searchUsageHolder,
         Predicate<NodeFeature> clusterSupportsFeature,
-        Settings settings
+        CrossProjectModeDecider crossProjectModeDecider
     ) {
         this.searchUsageHolder = searchUsageHolder;
         this.clusterSupportsFeature = clusterSupportsFeature;
-        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
+        this.crossProjectModeDecider = crossProjectModeDecider;
     }
 
     @Override
@@ -72,7 +71,6 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
         boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
         if (crossProjectEnabled) {
             submit.getSearchRequest().setCcsMinimizeRoundtrips(true);
-            submit.getSearchRequest().setProjectRouting(request.param("project_routing"));
         }
 
         IntConsumer setSize = size -> submit.getSearchRequest().source().size(size);

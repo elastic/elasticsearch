@@ -13,23 +13,23 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Decay}.
+ * {@link ExpressionEvaluator} implementation for {@link Decay}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class DecayDateNanosEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class DecayDateNanosEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DecayDateNanosEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator value;
+  private final ExpressionEvaluator value;
 
   private final long origin;
 
@@ -45,9 +45,8 @@ public final class DecayDateNanosEvaluator implements EvalOperator.ExpressionEva
 
   private Warnings warnings;
 
-  public DecayDateNanosEvaluator(Source source, EvalOperator.ExpressionEvaluator value, long origin,
-      long scale, long offset, double decay, Decay.DecayFunction decayFunction,
-      DriverContext driverContext) {
+  public DecayDateNanosEvaluator(Source source, ExpressionEvaluator value, long origin, long scale,
+      long offset, double decay, Decay.DecayFunction decayFunction, DriverContext driverContext) {
     this.source = source;
     this.value = value;
     this.origin = origin;
@@ -129,20 +128,15 @@ public final class DecayDateNanosEvaluator implements EvalOperator.ExpressionEva
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory value;
+    private final ExpressionEvaluator.Factory value;
 
     private final long origin;
 
@@ -154,8 +148,8 @@ public final class DecayDateNanosEvaluator implements EvalOperator.ExpressionEva
 
     private final Decay.DecayFunction decayFunction;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory value, long origin,
-        long scale, long offset, double decay, Decay.DecayFunction decayFunction) {
+    public Factory(Source source, ExpressionEvaluator.Factory value, long origin, long scale,
+        long offset, double decay, Decay.DecayFunction decayFunction) {
       this.source = source;
       this.value = value;
       this.origin = origin;

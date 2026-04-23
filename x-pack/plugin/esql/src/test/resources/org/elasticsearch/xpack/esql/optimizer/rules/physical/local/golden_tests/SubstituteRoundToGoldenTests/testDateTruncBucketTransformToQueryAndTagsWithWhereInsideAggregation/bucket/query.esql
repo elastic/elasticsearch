@@ -1,0 +1,2 @@
+from all_types
+| stats count(*) where long > 10 by x = bucket(date, 1 day)

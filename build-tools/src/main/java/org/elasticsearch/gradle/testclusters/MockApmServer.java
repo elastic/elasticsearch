@@ -9,6 +9,8 @@
 
 package org.elasticsearch.gradle.testclusters;
 
+import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -89,6 +91,7 @@ public class MockApmServer {
         }
         InetSocketAddress addr = new InetSocketAddress("0.0.0.0", 0);
         HttpServer server = HttpServer.create(addr, 10);
+        server.createContext("/v1/metrics", new OtlpMetricsHandler());
         server.createContext("/", new RootHandler());
         server.start();
         instance = server;
@@ -114,8 +117,26 @@ public class MockApmServer {
     }
 
     class RootHandler implements HttpHandler {
+        // checked by APM agent to identify the APM server version to adjust its behavior accordingly
+        private static final String FAKE_VERSION = """
+            {
+              "build_date": "2021-12-18T19:59:06Z",
+              "build_sha": "24fe620eeff5a19e2133c940c7e5ce1ceddb1445",
+              "publish_ready": true,
+              "version": "9.0.0"
+            }
+            """;
+
         public void handle(HttpExchange t) {
             try {
+                if ("GET".equals(t.getRequestMethod()) && "/".equals(t.getRequestURI().getPath())) {
+                    t.sendResponseHeaders(200, FAKE_VERSION.length());
+                    try (OutputStream os = t.getResponseBody()) {
+                        os.write(FAKE_VERSION.getBytes());
+                    }
+                    return;
+                }
+
                 InputStream body = t.getRequestBody();
                 if (metricFilter == null && transactionFilter == null) {
                     logRequestBody(body);
@@ -189,6 +210,32 @@ public class MockApmServer {
                     }
                 }
             }
+        }
+    }
+
+    class OtlpMetricsHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange t) throws IOException {
+            byte[] bytes = t.getRequestBody().readAllBytes();
+            ExportMetricsServiceRequest metrics = ExportMetricsServiceRequest.parseFrom(bytes);
+            for (var resourceMetrics : metrics.getResourceMetricsList()) {
+                var samples = new ArrayList<String>();
+                for (var scopeMetrics : resourceMetrics.getScopeMetricsList()) {
+                    for (var metric : scopeMetrics.getMetricsList()) {
+                        String name = metric.getName();
+                        if (metricFilter != null && metricFilter.matcher(name).matches() == false) {
+                            continue;
+                        }
+                        samples.add(metric.toString());
+                    }
+                }
+                if (samples.isEmpty() == false) {
+                    logger.lifecycle("OTLP Metricset:\n{}", String.join("\n", samples));
+                }
+            }
+
+            t.sendResponseHeaders(200, 0);
+            t.getResponseBody().close();
         }
     }
 }

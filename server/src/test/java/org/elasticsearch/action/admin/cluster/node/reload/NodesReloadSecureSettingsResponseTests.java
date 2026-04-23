@@ -30,8 +30,13 @@ public class NodesReloadSecureSettingsResponseTests extends ESTestCase {
     public static List<Object[]> parameters() {
         List<Object[]> parameters = new ArrayList<>();
 
-        TransportVersion current = TransportVersion.current();
-        TransportVersion[] versions = { current, TransportVersionUtils.getPreviousVersion(current) };
+        TransportVersion target = NodesReloadSecureSettingsResponse.NodeResponse.KEYSTORE_DETAILS;
+        TransportVersion previous = TransportVersionUtils.getPreviousVersion(target);
+        TransportVersion higher = TransportVersionUtils.allReleasedVersions().higher(target);
+
+        TransportVersion[] versions = higher != null
+            ? new TransportVersion[] { target, previous, higher }
+            : new TransportVersion[] { target, previous };
         Exception[] exceptions = { null, new ElasticsearchException("test error") };
         String[][] settingNamesCases = { null, {}, { "setting1", "setting2" } };
         String[] paths = { null, "/keystore" };

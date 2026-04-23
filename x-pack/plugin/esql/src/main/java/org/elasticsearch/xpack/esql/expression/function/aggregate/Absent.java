@@ -16,9 +16,11 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -35,8 +37,9 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * The function that checks for the absence of a field in the output result.
  * An absence means that the input expression does not yield a non-null value.
  */
-public class Absent extends AggregateFunction implements SurrogateExpression {
+public class Absent extends AggregateFunction implements SurrogateExpression, AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Absent", Absent::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Absent.class).unary(Absent::new).name("absent");
 
     @FunctionInfo(
         returnType = "boolean",
@@ -68,19 +71,23 @@ public class Absent extends AggregateFunction implements SurrogateExpression {
                 "cartesian_shape",
                 "date",
                 "date_nanos",
+                "dense_vector",
                 "double",
                 "geo_point",
                 "geo_shape",
                 "geohash",
                 "geotile",
                 "geohex",
+                "histogram",
                 "integer",
                 "ip",
                 "keyword",
                 "long",
                 "text",
                 "unsigned_long",
-                "version" },
+                "version",
+                "exponential_histogram",
+                "tdigest" },
             description = "Expression that outputs values to be checked for absence."
         ) Expression field
     ) {
@@ -129,10 +136,10 @@ public class Absent extends AggregateFunction implements SurrogateExpression {
     protected TypeResolution resolveType() {
         return isType(
             field(),
-            dt -> dt.isCounter() == false && dt != DataType.DENSE_VECTOR,
+            dt -> dt.isCounter() == false && dt != DataType.DATE_RANGE,
             sourceText(),
             DEFAULT,
-            "any type except counter types or dense_vector"
+            "any type except counter types or date_range"
         );
     }
 

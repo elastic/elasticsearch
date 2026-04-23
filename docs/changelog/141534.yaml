@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 141075
+pr: 141534
+summary: Fixes bug that prevented retrieving _inference_fields via _source_includes
+type: bug

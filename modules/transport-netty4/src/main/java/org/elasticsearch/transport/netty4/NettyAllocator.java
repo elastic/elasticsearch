@@ -26,7 +26,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.util.Arrays;
@@ -170,11 +169,8 @@ public class NettyAllocator {
         };
     }
 
-    @SuppressForbidden(
-        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
-    )
     private static boolean useG1GC() {
-        return Boolean.parseBoolean(JvmInfo.jvmInfo().useG1GC());
+        return Booleans.parseBooleanLenient(JvmInfo.jvmInfo().useG1GC(), false);
     }
 
     public static void logAllocatorDescriptionIfNeeded() {

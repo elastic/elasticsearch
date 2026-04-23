@@ -1,0 +1,25 @@
+{
+  "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
+  "type" : "scalar_conversion",
+  "name" : "scalar",
+  "description" : "Returns the sample value of a single-element instant vector as a scalar. If the input vector does not have exactly one element, scalar returns NaN.",
+  "signatures" : [
+    {
+      "params" : [
+        {
+          "name" : "v",
+          "type" : "instant_vector",
+          "optional" : false,
+          "description" : "Instant vector input."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "scalar"
+    }
+  ],
+  "examples" : [
+    "scalar(sum(http_requests_total))"
+  ],
+  "preview" : true,
+  "snapshot_only" : false
+}

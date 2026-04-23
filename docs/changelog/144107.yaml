@@ -1,0 +1,5 @@
+area: Inference
+issues: []
+pr: 144107
+summary: "[Inference API] Fix NPE in multimodal check"
+type: bug

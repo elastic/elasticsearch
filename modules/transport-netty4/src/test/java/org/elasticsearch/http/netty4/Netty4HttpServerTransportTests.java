@@ -676,8 +676,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
 
                     @Override
                     protected void initChannel(SocketChannel ch) {
-                        ch.pipeline().addLast(new ChannelHandlerAdapter() {
-                        });
+                        ch.pipeline().addLast(new ChannelHandlerAdapter() {});
 
                     }
                 })

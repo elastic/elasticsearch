@@ -6,13 +6,22 @@ stack: ga
 `ENRICH` enables you to add data from existing indices as new columns using an
 enrich policy.
 
-**Syntax**
+::::{tip}
+Consider using `LOOKUP JOIN` instead of `ENRICH` for your use case.
+
+Learn more:
+
+- [`LOOKUP JOIN` overview](/reference/query-languages/esql/esql-lookup-join.md)
+- [`LOOKUP JOIN` command reference](/reference/query-languages/esql/commands/lookup-join.md)
+::::
+
+## Syntax
 
 ```esql
 ENRICH policy [ON match_field] [WITH [new_name1 = ]field1, [new_name2 = ]field2, ...]
 ```
 
-**Parameters**
+## Parameters
 
 `policy`
 :   The name of the enrich policy.
@@ -38,16 +47,17 @@ ENRICH policy [ON match_field] [WITH [new_name1 = ]field1, [new_name2 = ]field2,
     enrich field is renamed.
 
 `new_nameX`
-:   Enables you to change the name of the column that’s added for each of the enrich
+:   Enables you to change the name of the column that's added for each of the enrich
     fields. Defaults to the enrich field name.
     If a column has the same name as the new name, it will be discarded.
     If a name (new or original) occurs more than once, only the rightmost duplicate
     creates a new column.
 
-**Description**
+## Description
 
 `ENRICH` enables you to add data from existing indices as new columns using an
-enrich policy. Refer to [Data enrichment](/reference/query-languages/esql/esql-enrich-data.md)
+enrich policy.
+Refer to [Data enrichment](/reference/query-languages/esql/esql-enrich-data.md)
 for information about setting up a policy.
 
 :::{image} /reference/query-languages/images/esql-enrich.png
@@ -58,25 +68,30 @@ for information about setting up a policy.
 Before you can use `ENRICH`, you need to [create and execute an enrich policy](/reference/query-languages/esql/esql-enrich-data.md#esql-set-up-enrich-policy).
 ::::
 
+In case of name collisions, the newly created columns will override existing columns.
 
-**Examples**
+## Examples
 
-The following example uses the `languages_policy` enrich policy to add a new
-column for each enrich field defined in the policy. The match is performed using
-the `match_field` defined in the [enrich policy](/reference/query-languages/esql/esql-enrich-data.md#esql-enrich-policy) and
-requires that the input table has a column with the same name (`language_code`
-in this example). `ENRICH` will look for records in th
-[enrich index](/reference/query-languages/esql/esql-enrich-data.md#esql-enrich-index)
-based on the match field value.
+The following examples show common `ENRICH` patterns.
+
+### Use the default match field
+
+`ENRICH` looks for records in the [enrich index](/reference/query-languages/esql/esql-enrich-data.md#esql-enrich-index)
+using the `match_field` defined in the [enrich policy](/reference/query-languages/esql/esql-enrich-data.md#esql-enrich-policy).
+The input table must have a column with the same name (`language_code` in this example):
 
 :::{include} ../examples/enrich.csv-spec/enrich.md
 :::
+
+### Match on a different field using ON
 
 To use a column with a different name than the `match_field` defined in the
 policy as the match field, use `ON <column-name>`:
 
 :::{include} ../examples/enrich.csv-spec/enrich_on.md
 :::
+
+### Select specific enrich fields using WITH
 
 By default, each of the enrich fields defined in the policy is added as a
 column. To explicitly select the enrich fields that are added, use
@@ -85,10 +100,9 @@ column. To explicitly select the enrich fields that are added, use
 :::{include} ../examples/enrich.csv-spec/enrich_with.md
 :::
 
-You can rename the columns that are added using `WITH new_name=<field1>`:
+### Rename enrich fields using WITH
+
+Rename the columns that are added using `WITH new_name=<field1>`:
 
 :::{include} ../examples/enrich.csv-spec/enrich_rename.md
 :::
-
-In case of name collisions, the newly created columns will override existing
-columns.

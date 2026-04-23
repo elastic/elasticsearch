@@ -50,6 +50,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.FileAlreadyExistsException;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
@@ -61,6 +62,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.MAX_RESTORE_BYTES_PER_SEC;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.MAX_SNAPSHOT_BYTES_PER_SEC;
@@ -156,19 +158,31 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
             blobStore.setMaxTotalBlobSize(request.getMaxTotalDataSize().getBytes());
         }
 
+        if (randomBoolean()) {
+            request.checkOverwriteProtection(randomBoolean());
+        }
+
         request.timeout(SAFE_AWAIT_TIMEOUT);
         final RepositoryAnalyzeAction.Response response = safeAwait(l -> client().execute(RepositoryAnalyzeAction.INSTANCE, request, l));
 
         assertThat(blobStore.currentPath, nullValue());
 
-        assertNoThrottling(response);
+        assertResponseSummaryFields(request, response);
     }
 
-    static void assertNoThrottling(RepositoryAnalyzeAction.Response response) {
+    static void assertResponseSummaryFields(RepositoryAnalyzeAction.Request request, RepositoryAnalyzeAction.Response response) {
         try {
             final var responseMap = convertToMap(response);
-            assertEquals(Strings.toString(response), 0, (int) ObjectPath.eval("summary.write.total_throttled_nanos", responseMap));
-            assertEquals(Strings.toString(response), 0, (int) ObjectPath.eval("summary.read.total_throttled_nanos", responseMap));
+            final var responseString = Strings.toString(response);
+            assertThat(responseString, ObjectPath.eval("summary.write.count", responseMap), equalTo(request.getBlobCount()));
+
+            // extraordinarily unlikely but in theory up to half of the writes could be copies, and each of those writes could attempt the
+            // copy early, fail with a NoSuchFileException, and thus not attempt to read the copy, so we can only assert this:
+            final var minReadCount = request.getBlobCount() / 2;
+            assertThat(responseString, ObjectPath.eval("summary.read.count", responseMap), greaterThanOrEqualTo(minReadCount));
+
+            assertThat(responseString, ObjectPath.eval("summary.write.total_throttled_nanos", responseMap), equalTo(0));
+            assertThat(responseString, ObjectPath.eval("summary.read.total_throttled_nanos", responseMap), equalTo(0));
         } catch (IOException e) {
             fail(e);
         }
@@ -334,6 +348,7 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         private final AtomicLong totalBytesWritten = new AtomicLong();
         private final Map<String, BytesRegister> registers = ConcurrentCollections.newConcurrentMap();
         private final AtomicBoolean firstRegisterRead = new AtomicBoolean(true);
+        private final AtomicLong prefixListCallCount = new AtomicLong();
 
         private final Object registerMutex = new Object();
         private long contendedRegisterValue = 0L;
@@ -457,8 +472,8 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
             throws IOException {
 
             final byte[] existingBlob = blobs.get(blobName);
-            if (failIfAlreadyExists) {
-                assertNull("blob [" + blobName + "] must not exist", existingBlob);
+            if (failIfAlreadyExists && existingBlob != null) {
+                throw new FileAlreadyExistsException(blobName);
             }
             final int existingSize = existingBlob == null ? 0 : existingBlob.length;
 
@@ -468,10 +483,17 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
             try {
                 final byte[] contents = inputStream.readAllBytes();
                 assertThat((long) contents.length, equalTo(blobSize));
-                blobs.put(blobName, contents);
-                assertThat(blobs.size(), lessThanOrEqualTo(maxBlobCount));
+                if (failIfAlreadyExists) {
+                    final var previousContents = blobs.putIfAbsent(blobName, contents);
+                    if (previousContents != null) {
+                        throw new FileAlreadyExistsException(blobName);
+                    }
+                } else {
+                    blobs.put(blobName, contents);
+                }
+                assertThat(blobs.keySet().toString(), blobs.size(), lessThanOrEqualTo(maxBlobCount + 1 /* overwrite-check blob */));
                 final long currentTotal = totalBytesWritten.addAndGet(blobSize - existingSize);
-                assertThat(currentTotal, lessThanOrEqualTo(maxTotalBlobSize));
+                assertThat(currentTotal, lessThanOrEqualTo(maxTotalBlobSize + maxBlobSize /* max size of overwrite-check blob */));
             } finally {
                 writeSemaphore.release();
             }
@@ -498,6 +520,11 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         @Override
         public DeleteResult delete(OperationPurpose purpose) {
             assertPurpose(purpose);
+            assertThat(
+                "listBlobsByPrefix was never called by RepositoryAnalyzeAction, so verifyPrefixListing was never called",
+                prefixListCallCount.get(),
+                greaterThanOrEqualTo(1L)
+            );
             synchronized (registerMutex) {
                 assertThat(contendedRegisterValue, equalTo(expectedRegisterOperationCount));
                 assertThat(uncontendedRegisterValue, greaterThanOrEqualTo(expectedRegisterOperationCount));
@@ -531,6 +558,7 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         @Override
         public Map<String, BlobMetadata> listBlobsByPrefix(OperationPurpose purpose, String blobNamePrefix) {
             assertPurpose(purpose);
+            prefixListCallCount.incrementAndGet();
             final Map<String, BlobMetadata> blobMetadataByName = listBlobs(purpose);
             blobMetadataByName.keySet().removeIf(s -> s.startsWith(blobNamePrefix) == false);
             return blobMetadataByName;
@@ -594,7 +622,7 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
                         contendedRegisterValue = updatedValue;
                     }
                 } else {
-                    assertEquals(expected, witness); // uncontended writes always succeed
+                    assertThat(witness, equalBytes(expected)); // uncontended writes always succeed
                     assertNotEquals(expected, updated); // uncontended register sees only updates
                     if (updated.length() != 0) {
                         final var updatedValue = longFromBytes(updated);

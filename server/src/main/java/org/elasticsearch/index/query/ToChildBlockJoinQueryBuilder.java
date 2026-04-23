@@ -26,7 +26,7 @@ import java.util.Objects;
  * A query returns child documents whose parent matches the provided query.
  * This query is used only for internal purposes and is not exposed to a user.
  */
-public class ToChildBlockJoinQueryBuilder extends AbstractQueryBuilder<ToChildBlockJoinQueryBuilder> {
+public class ToChildBlockJoinQueryBuilder extends LeafQueryBuilder<ToChildBlockJoinQueryBuilder> {
     public static final String NAME = "to_child_block_join";
 
     private static final TransportVersion TO_CHILD_BLOCK_JOIN_QUERY = TransportVersion.fromName("to_child_block_join_query");

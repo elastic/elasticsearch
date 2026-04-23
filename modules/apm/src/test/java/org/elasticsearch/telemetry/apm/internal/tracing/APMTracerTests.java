@@ -109,9 +109,7 @@ public class APMTracerTests extends ESTestCase {
         apmTracer.startTrace(traceContext, TRACEABLE1, "name1_discard", null);
 
         assertThat(traceContext.getTransient(Task.APM_TRACE_CONTEXT), nullValue());
-        // the root span (transaction) is tracked
-        assertThat(apmTracer.getSpans(), aMapWithSize(1));
-        assertThat(apmTracer.getSpans(), hasKey(TRACEABLE1.getSpanId()));
+        assertThat(apmTracer.getSpans(), anEmptyMap());
     }
 
     /**

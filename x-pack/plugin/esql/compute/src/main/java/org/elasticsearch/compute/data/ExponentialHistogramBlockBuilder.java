@@ -8,21 +8,17 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.exponentialhistogram.CompressedExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.BucketIterator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
-import org.elasticsearch.exponentialhistogram.ZeroBucket;
 import org.elasticsearch.index.mapper.BlockLoader;
-
-import java.io.IOException;
 
 public final class ExponentialHistogramBlockBuilder implements ExponentialHistogramBlock.Builder {
 
     private final DoubleBlock.Builder minimaBuilder;
     private final DoubleBlock.Builder maximaBuilder;
     private final DoubleBlock.Builder sumsBuilder;
-    private final LongBlock.Builder valueCountsBuilder;
+    private final DoubleBlock.Builder valueCountsBuilder;
     private final DoubleBlock.Builder zeroThresholdsBuilder;
     private final BytesRefBlock.Builder encodedHistogramsBuilder;
 
@@ -32,7 +28,7 @@ public final class ExponentialHistogramBlockBuilder implements ExponentialHistog
         DoubleBlock.Builder minimaBuilder = null;
         DoubleBlock.Builder maximaBuilder = null;
         DoubleBlock.Builder sumsBuilder = null;
-        LongBlock.Builder valueCountsBuilder = null;
+        DoubleBlock.Builder valueCountsBuilder = null;
         DoubleBlock.Builder zeroThresholdsBuilder = null;
         BytesRefBlock.Builder encodedHistogramsBuilder = null;
         boolean success = false;
@@ -40,7 +36,7 @@ public final class ExponentialHistogramBlockBuilder implements ExponentialHistog
             minimaBuilder = blockFactory.newDoubleBlockBuilder(estimatedSize);
             maximaBuilder = blockFactory.newDoubleBlockBuilder(estimatedSize);
             sumsBuilder = blockFactory.newDoubleBlockBuilder(estimatedSize);
-            valueCountsBuilder = blockFactory.newLongBlockBuilder(estimatedSize);
+            valueCountsBuilder = blockFactory.newDoubleBlockBuilder(estimatedSize);
             zeroThresholdsBuilder = blockFactory.newDoubleBlockBuilder(estimatedSize);
             encodedHistogramsBuilder = blockFactory.newBytesRefBlockBuilder(estimatedSize);
             this.minimaBuilder = minimaBuilder;
@@ -80,7 +76,7 @@ public final class ExponentialHistogramBlockBuilder implements ExponentialHistog
     }
 
     @Override
-    public BlockLoader.LongBuilder valueCounts() {
+    public BlockLoader.DoubleBuilder valueCounts() {
         return valueCountsBuilder;
     }
 
@@ -94,47 +90,63 @@ public final class ExponentialHistogramBlockBuilder implements ExponentialHistog
         return encodedHistogramsBuilder;
     }
 
+    @Override
     public ExponentialHistogramBlockBuilder append(ExponentialHistogram histogram) {
-        assert histogram != null;
-        // TODO: fix performance and correctness before using in production code
-        // The current implementation encodes the histogram into the format we use for storage on disk
-        // This format is optimized for minimal memory usage at the cost of encoding speed
-        // In addition, it only support storing the zero threshold as a double value, which is lossy when merging histograms
-        // We should add a dedicated encoding when building a block from computed histograms which do not originate from doc values
-        // That encoding should be optimized for speed and support storing the zero threshold as (scale, index) pair
-        ZeroBucket zeroBucket = histogram.zeroBucket();
+        ExponentialHistogramArrayBlock.EncodedHistogramData data = ExponentialHistogramArrayBlock.encode(histogram);
+        doAppend(data);
+        return this;
+    }
 
-        BytesStreamOutput encodedBytes = new BytesStreamOutput();
-        try {
-            CompressedExponentialHistogram.writeHistogramBytes(
-                encodedBytes,
-                histogram.scale(),
-                histogram.negativeBuckets().iterator(),
-                histogram.positiveBuckets().iterator()
-            );
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to encode histogram", e);
-        }
-        if (Double.isNaN(histogram.min())) {
+    /**
+     * Append histogram components directly to the block builder.
+     * This bypasses materializing an {@link ExponentialHistogram} instance and encodes buckets directly.
+     */
+    @Override
+    public ExponentialHistogramBlockBuilder append(
+        int scale,
+        BucketIterator negativeBuckets,
+        BucketIterator positiveBuckets,
+        double zeroThreshold,
+        long zeroCount,
+        long count,
+        double sum,
+        double min,
+        double max
+    ) {
+        ExponentialHistogramArrayBlock.EncodedHistogramData data = ExponentialHistogramArrayBlock.encode(
+            scale,
+            negativeBuckets,
+            positiveBuckets,
+            zeroThreshold,
+            zeroCount,
+            count,
+            sum,
+            min,
+            max
+        );
+        doAppend(data);
+        return this;
+    }
+
+    private void doAppend(ExponentialHistogramArrayBlock.EncodedHistogramData encodedHistogram) {
+        valueCountsBuilder.appendDouble(encodedHistogram.count());
+        if (Double.isNaN(encodedHistogram.min())) {
             minimaBuilder.appendNull();
         } else {
-            minimaBuilder.appendDouble(histogram.min());
+            minimaBuilder.appendDouble(encodedHistogram.min());
         }
-        if (Double.isNaN(histogram.max())) {
+        if (Double.isNaN(encodedHistogram.max())) {
             maximaBuilder.appendNull();
         } else {
-            maximaBuilder.appendDouble(histogram.max());
+            maximaBuilder.appendDouble(encodedHistogram.max());
         }
-        if (histogram.valueCount() == 0) {
-            assert histogram.sum() == 0.0 : "Empty histogram should have sum 0.0 but was " + histogram.sum();
+        if (Double.isNaN(encodedHistogram.sum())) {
             sumsBuilder.appendNull();
         } else {
-            sumsBuilder.appendDouble(histogram.sum());
+            sumsBuilder.appendDouble(encodedHistogram.sum());
         }
-        valueCountsBuilder.appendLong(histogram.valueCount());
-        zeroThresholdsBuilder.appendDouble(zeroBucket.zeroThreshold());
-        encodedHistogramsBuilder.appendBytesRef(encodedBytes.bytes().toBytesRef());
-        return this;
+        zeroThresholdsBuilder.appendDouble(encodedHistogram.zeroThreshold());
+        encodedHistogramsBuilder.appendBytesRef(encodedHistogram.encodedHistogram());
     }
 
     /**
@@ -144,8 +156,8 @@ public final class ExponentialHistogramBlockBuilder implements ExponentialHistog
      * @param input the input to deserialize from
      */
     public void deserializeAndAppend(ExponentialHistogramBlock.SerializedInput input) {
-        long valueCount = input.readLong();
-        valueCountsBuilder.appendLong(valueCount);
+        double valueCount = input.readDouble();
+        valueCountsBuilder.appendDouble(valueCount);
         zeroThresholdsBuilder.appendDouble(input.readDouble());
         if (valueCount > 0) {
             sumsBuilder.appendDouble(input.readDouble());
@@ -164,7 +176,7 @@ public final class ExponentialHistogramBlockBuilder implements ExponentialHistog
         DoubleBlock minima = null;
         DoubleBlock maxima = null;
         DoubleBlock sums = null;
-        LongBlock valueCounts = null;
+        DoubleBlock valueCounts = null;
         DoubleBlock zeroThresholds = null;
         BytesRefBlock encodedHistograms = null;
         boolean success = false;

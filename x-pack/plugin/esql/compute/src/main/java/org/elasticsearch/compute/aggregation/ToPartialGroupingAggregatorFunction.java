@@ -85,11 +85,20 @@ public class ToPartialGroupingAggregatorFunction implements GroupingAggregatorFu
     }
 
     @Override
-    public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
+    public PreparedForEvaluation prepareEvaluateIntermediate(IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+        return (blocks, offset, selectedInPage) -> evaluate(blocks, offset, selectedInPage, ctx);
+    }
+
+    @Override
+    public PreparedForEvaluation prepareEvaluateFinal(IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+        return (blocks, offset, selectedInPage) -> evaluate(blocks, offset, selectedInPage, ctx);
+    }
+
+    private void evaluate(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evaluationContext) {
         final Block[] partialBlocks = new Block[delegate.intermediateBlockCount()];
         boolean success = false;
         try {
-            delegate.evaluateIntermediate(partialBlocks, 0, selected);
+            delegate.prepareEvaluateIntermediate(selected, evaluationContext).evaluate(partialBlocks, 0, selected);
             blocks[offset] = new CompositeBlock(partialBlocks);
             success = true;
         } finally {
@@ -97,11 +106,6 @@ public class ToPartialGroupingAggregatorFunction implements GroupingAggregatorFu
                 Releasables.close(partialBlocks);
             }
         }
-    }
-
-    @Override
-    public void evaluateFinal(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evaluationContext) {
-        evaluateIntermediate(blocks, offset, selected);
     }
 
     @Override

@@ -9,13 +9,14 @@
 
 package org.elasticsearch.script.mustache;
 
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
@@ -39,9 +40,9 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
     private final boolean allowExplicitIndex;
     private final CrossProjectModeDecider crossProjectModeDecider;
 
-    public RestMultiSearchTemplateAction(Settings settings) {
+    public RestMultiSearchTemplateAction(Settings settings, CrossProjectModeDecider crossProjectModeDecider) {
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
-        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
+        this.crossProjectModeDecider = crossProjectModeDecider;
     }
 
     @Override
@@ -60,9 +61,13 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
     }
 
     @Override
-    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         MultiSearchTemplateRequest multiRequest = parseRequest(request, allowExplicitIndex);
-        return channel -> client.execute(MustachePlugin.MULTI_SEARCH_TEMPLATE_ACTION, multiRequest, new RestToXContentListener<>(channel));
+        return channel -> client.execute(
+            MustachePlugin.MULTI_SEARCH_TEMPLATE_ACTION,
+            multiRequest,
+            new RestRefCountedChunkedToXContentListener<>(channel)
+        );
     }
 
     /**
@@ -70,12 +75,17 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
      */
     public MultiSearchTemplateRequest parseRequest(RestRequest restRequest, boolean allowExplicitIndex) throws IOException {
         boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
+        MultiSearchTemplateRequest multiRequest = new MultiSearchTemplateRequest();
+
         if (crossProjectEnabled) {
-            // accept but drop project_routing param until fully supported
-            restRequest.param("project_routing");
+            multiRequest.setProjectRouting(restRequest.param("project_routing"));
+            multiRequest.indicesOptions(
+                IndicesOptions.builder(multiRequest.indicesOptions())
+                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                    .build()
+            );
         }
 
-        MultiSearchTemplateRequest multiRequest = new MultiSearchTemplateRequest();
         if (restRequest.hasParam("max_concurrent_searches")) {
             multiRequest.maxConcurrentSearchRequests(restRequest.paramAsInt("max_concurrent_searches", 0));
         }
@@ -86,6 +96,24 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
             allowExplicitIndex,
             (searchRequest, bytes) -> {
                 SearchTemplateRequest searchTemplateRequest = SearchTemplateRequest.fromXContent(bytes);
+                /*
+                 * For multisearch requests, project_routing could appear within the request body as:
+                 * {"project_routing": ...}
+                 * {"id": ...}
+                 *
+                 * In such cases, it is picked up by MultiSearchRequest#readMultiLineFormat() and is associated with the
+                 * SearchRequest object that represents the corresponding msearch request. However, it could also erroneously
+                 * appear as:
+                 * {...}
+                 * {"project_routing": ..., "id": ...}
+                 *
+                 * This is because, the same parser is shared between _msearch/template and _search/template and the above
+                 * format is valid only for the latter. For this reason, we need to explicitly check if project_routing got
+                 * associated with the SearchTemplateRequest instead of SearchRequest and error out if needed.
+                 */
+                if (searchTemplateRequest.getProjectRouting() != null) {
+                    throw new IllegalArgumentException("Unknown key for a VALUE_STRING in [project_routing]");
+                }
                 if (searchTemplateRequest.getScript() != null) {
                     searchTemplateRequest.setRequest(searchRequest);
                     multiRequest.add(searchTemplateRequest);
@@ -94,7 +122,9 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
                 }
                 RestSearchAction.validateSearchRequest(restRequest, searchRequest);
             },
-            Optional.of(crossProjectEnabled)
+            (k, v, r) -> false,
+            Optional.of(crossProjectEnabled),
+            multiRequest.getProjectRouting()
         );
         return multiRequest;
     }

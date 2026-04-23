@@ -7,16 +7,13 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql.selector;
 
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
 
-import java.util.List;
 import java.util.Objects;
 
 import static java.util.Collections.emptyList;
@@ -39,7 +36,7 @@ import static java.util.Collections.emptyList;
  * The literal selector produces a single-value vector with no labels, allowing
  * literals to participate in vector operations and binary expressions.
  */
-public class LiteralSelector extends Selector {
+public final class LiteralSelector extends Selector {
     private final Literal literal;
 
     public LiteralSelector(Source source, Literal literal) {
@@ -85,26 +82,13 @@ public class LiteralSelector extends Selector {
         return Objects.equals(literal, that.literal);
     }
 
-    /**
-     * LiteralSelector outputs three columns representing a scalar vector:
-     * 0. labels - Empty (no labels for scalar values)
-     * 1. timestamp - The evaluation timestamp
-     * 2. value - The literal scalar value
-     */
-    @Override
-    public List<Attribute> output() {
-        if (output == null) {
-            output = List.of(
-                new ReferenceAttribute(source(), "promql$labels", DataType.KEYWORD),
-                new ReferenceAttribute(source(), "promql$timestamp", DataType.DATETIME),
-                new ReferenceAttribute(source(), "promql$value", DataType.DOUBLE)
-            );
-        }
-        return output;
-    }
-
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), literal);
+    }
+
+    @Override
+    public PromqlDataType returnType() {
+        return PromqlDataType.SCALAR;
     }
 }

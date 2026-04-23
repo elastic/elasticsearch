@@ -40,7 +40,9 @@ import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction.Response;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformParsingContext;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
+import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.transforms.TransformNodes;
 import org.elasticsearch.xpack.transform.transforms.TransformTask;
 
@@ -64,6 +66,7 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
 
     private final ClusterService clusterService;
     private final Client client;
+    private final TransformParsingContext transformParsingContext;
 
     @Inject
     public TransportGetTransformAction(
@@ -71,11 +74,15 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
         ActionFilters actionFilters,
         ClusterService clusterService,
         Client client,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        TransformServices transformServices
     ) {
         super(GetTransformAction.NAME, transportService, actionFilters, Request::new, client, xContentRegistry);
         this.clusterService = clusterService;
         this.client = client;
+        this.transformParsingContext = new TransformParsingContext(
+            transformServices.crossProjectModeDecider().crossProjectEnabled() && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()
+        );
     }
 
     @Override
@@ -126,7 +133,7 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
 
     @Override
     protected TransformConfig parse(XContentParser parser) {
-        return TransformConfig.fromXContent(parser, null, true);
+        return TransformConfig.fromXContent(parser, null, true, transformParsingContext);
     }
 
     @Override

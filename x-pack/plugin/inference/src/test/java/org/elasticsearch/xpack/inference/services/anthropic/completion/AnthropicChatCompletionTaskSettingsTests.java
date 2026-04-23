@@ -29,15 +29,17 @@ public class AnthropicChatCompletionTaskSettingsTests extends AbstractBWCWireSer
         var initialSettings = createRandom();
         var newSettings = createRandom();
         AnthropicChatCompletionTaskSettings updatedSettings = (AnthropicChatCompletionTaskSettings) initialSettings.updatedTaskSettings(
-            Map.of(
-                AnthropicServiceFields.MAX_TOKENS,
-                newSettings.maxTokens(),
-                AnthropicServiceFields.TEMPERATURE_FIELD,
-                newSettings.temperature(),
-                AnthropicServiceFields.TOP_P_FIELD,
-                newSettings.topP(),
-                AnthropicServiceFields.TOP_K_FIELD,
-                newSettings.topK()
+            new HashMap<>(
+                Map.of(
+                    AnthropicServiceFields.MAX_TOKENS,
+                    newSettings.maxTokens(),
+                    AnthropicServiceFields.TEMPERATURE_FIELD,
+                    newSettings.temperature(),
+                    AnthropicServiceFields.TOP_P_FIELD,
+                    newSettings.topP(),
+                    AnthropicServiceFields.TOP_K_FIELD,
+                    newSettings.topK()
+                )
             )
         );
 

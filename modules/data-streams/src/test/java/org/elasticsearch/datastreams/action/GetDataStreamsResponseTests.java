@@ -154,7 +154,7 @@ public class GetDataStreamsResponseTests extends ESTestCase {
                 .setGeneration(3)
                 .setAllowCustomRouting(true)
                 .setIndexMode(IndexMode.STANDARD)
-                .setLifecycle(DataStreamLifecycle.createDataLifecycle(false, null, null, null))
+                .setLifecycle(DataStreamLifecycle.dataLifecycleBuilder().enabled(false).build())
                 .setDataStreamOptions(DataStreamOptions.FAILURE_STORE_ENABLED)
                 .setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(failureStores).build())
                 .build();

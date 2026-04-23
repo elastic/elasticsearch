@@ -16,9 +16,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.Example;
-import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
-import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
 import java.util.List;
@@ -43,7 +40,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLo
 public class ToLong extends AbstractConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToLong", ToLong::new);
 
-    private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
+    static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(LONG, (source, fieldEval) -> fieldEval),
         Map.entry(DATETIME, (source, fieldEval) -> fieldEval),
         Map.entry(DATE_NANOS, (source, fieldEval) -> fieldEval),
@@ -60,45 +57,7 @@ public class ToLong extends AbstractConvertFunction {
         Map.entry(GEOHEX, (source, fieldEval) -> fieldEval)
     );
 
-    @FunctionInfo(
-        returnType = "long",
-        description = """
-            Converts an input value to a long value. If the input parameter is of a date type,
-            its value will be interpreted as milliseconds since the {wikipedia}/Unix_time[Unix epoch], converted to long.
-            Boolean `true` will be converted to long `1`, `false` to `0`.""",
-        examples = @Example(file = "ints", tag = "to_long-str", explanation = """
-            Note that in this example, the last conversion of the string isn’t possible.
-            When this happens, the result is a `null` value. In this case a _Warning_ header is added to the response.
-            The header will provide information on the source of the failure:
-
-            `"Line 1:113: evaluation of [TO_LONG(str3)] failed, treating result as null. Only first 20 failures recorded."`
-
-            A following header will contain the failure reason and the offending value:
-
-            `"java.lang.NumberFormatException: For input string: \"foo\""`""")
-    )
-    public ToLong(
-        Source source,
-        @Param(
-            name = "field",
-            type = {
-                "boolean",
-                "date",
-                "date_nanos",
-                "keyword",
-                "text",
-                "double",
-                "long",
-                "unsigned_long",
-                "integer",
-                "counter_integer",
-                "counter_long",
-                "geohash",
-                "geotile",
-                "geohex" },
-            description = "Input value. The input can be a single- or multi-valued column or an expression."
-        ) Expression field
-    ) {
+    public ToLong(Source source, Expression field) {
         super(source, field);
     }
 

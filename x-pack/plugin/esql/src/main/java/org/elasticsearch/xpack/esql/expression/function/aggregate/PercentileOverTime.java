@@ -7,40 +7,59 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
+import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.util.List;
 
 /**
  * Similar to {@link Percentile}, but it is used to calculate the percentile value over a time series of values from the given field.
  */
-public class PercentileOverTime extends TimeSeriesAggregateFunction {
+public class PercentileOverTime extends TimeSeriesAggregateFunction implements OnlySurrogateExpression, ToAggregator {
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(PercentileOverTime.class)
+        .binary(PercentileOverTime::new)
+        .name("percentile_over_time");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .withinSeriesOverTimeBinary(PromqlFunctionDefinition.QUANTILE, PercentileOverTime::new)
+        .description("Returns the φ-quantile (0 ≤ φ ≤ 1) of the values in the specified time range.")
+        .example("quantile_over_time(0.5, http_requests_total[1h])")
+        .name("quantile_over_time");
+
     @FunctionInfo(
         returnType = "double",
-        description = "Calculates the percentile over time of a numeric field.",
+        description = "Calculates the percentile over time of a field.",
         type = FunctionType.TIME_SERIES_AGGREGATE,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") },
-        preview = true,
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") },
         examples = { @Example(file = "k8s-timeseries", tag = "percentile_over_time") }
     )
     public PercentileOverTime(
         Source source,
         @Param(
-            name = "number",
-            type = { "double", "integer", "long" },
-            description = "Expression that outputs values to calculate the percentile of."
+            name = "field",
+            type = { "double", "integer", "long", "exponential_histogram", "tdigest" },
+            description = "the metric field to calculate the value for"
         ) Expression field,
-        @Param(name = "percentile", type = { "double", "integer", "long" }) Expression percentile
+        @Param(
+            name = "percentile",
+            type = { "double", "integer", "long" },
+            description = "the percentile value to compute (between 0 and 100)"
+        ) Expression percentile
     ) {
         this(source, field, Literal.TRUE, NO_WINDOW, percentile);
     }
@@ -75,6 +94,16 @@ public class PercentileOverTime extends TimeSeriesAggregateFunction {
     @Override
     public PercentileOverTime withFilter(Expression filter) {
         return new PercentileOverTime(source(), field(), filter, window(), children().get(3));
+    }
+
+    @Override
+    public Expression surrogate() {
+        return perTimeSeriesAggregation();
+    }
+
+    @Override
+    public AggregatorFunctionSupplier supplier() {
+        return ((ToAggregator) perTimeSeriesAggregation()).supplier();
     }
 
     @Override

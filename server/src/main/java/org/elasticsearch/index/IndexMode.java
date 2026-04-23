@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -598,7 +597,7 @@ public enum IndexMode {
      * Parse a string into an {@link IndexMode}.
      */
     public static IndexMode fromString(String value) {
-        return switch (value) {
+        return switch (value.toLowerCase(Locale.ROOT)) {
             case "standard" -> IndexMode.STANDARD;
             case "time_series" -> IndexMode.TIME_SERIES;
             case "logsdb" -> IndexMode.LOGSDB;
@@ -611,6 +610,15 @@ public enum IndexMode {
                     + "]"
             );
         };
+    }
+
+    /**
+     * Retrieves the `index.mode` setting and parses it to {@link IndexMode}. When missing, it defaults to standard.
+     * Note: This should be used only in cases where it is not relevant to validate the index settings.
+     */
+    public static IndexMode fromIndexSettingsWithoutValidation(Settings settings) {
+        String indexModeLabel = settings.get(IndexSettings.MODE.getKey());
+        return indexModeLabel == null ? IndexMode.STANDARD : IndexMode.fromString(indexModeLabel);
     }
 
     public static IndexMode readFrom(StreamInput in) throws IOException {
@@ -629,7 +637,7 @@ public enum IndexMode {
             case STANDARD -> 0;
             case TIME_SERIES -> 1;
             case LOGSDB -> 2;
-            case LOOKUP -> out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0) ? 3 : 0;
+            case LOOKUP -> 3;
         };
         out.writeByte((byte) code);
     }

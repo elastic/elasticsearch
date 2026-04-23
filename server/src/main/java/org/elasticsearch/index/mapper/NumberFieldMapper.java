@@ -36,6 +36,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -45,9 +46,17 @@ import org.elasticsearch.index.fielddata.SourceValueFetcherSortedNumericIndexFie
 import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.blockloader.docvalues.DoublesBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.IntsBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxDoublesFromDocValuesBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxIntsFromDocValuesBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxLongsFromDocValuesBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinDoublesFromDocValuesBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinIntsFromDocValuesBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinLongsFromDocValuesBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.RoundToLongsFromDocValuesBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.LongFieldScript;
@@ -96,10 +105,19 @@ public class NumberFieldMapper extends FieldMapper {
         return (NumberFieldMapper) in;
     }
 
+    public static final DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new DocValuesParameter.Values(
+        true,
+        DocValuesParameter.Values.Cardinality.LOW,
+        DocValuesParameter.Values.MultiValue.SORTED
+    );
+
     public static final class Builder extends FieldMapper.DimensionBuilder {
 
         private final Parameter<Boolean> indexed;
-        private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
+        private final DocValuesParameter docValuesParameters = DocValuesParameter.sorted(
+            DEFAULT_DOC_VALUES_PARAMS,
+            m -> toType(m).docValuesParameters()
+        );
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
 
         private final Parameter<Explicit<Boolean>> ignoreMalformed;
@@ -129,6 +147,10 @@ public class NumberFieldMapper extends FieldMapper {
 
         private final ScriptCompiler scriptCompiler;
         private final NumberType type;
+
+        public NumberType type() {
+            return type;
+        }
 
         private boolean allowMultipleValues = true;
         private final IndexSettings indexSettings;
@@ -167,7 +189,7 @@ public class NumberFieldMapper extends FieldMapper {
                 XContentBuilder::field,
                 Objects::toString
             ).acceptsNull();
-            this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension, hasDocValues::get);
+            this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension, () -> docValuesParameters.get().enabled());
             this.indexed = Parameter.indexParam(m -> toType(m).indexed, () -> {
                 if (useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
                     return false;
@@ -181,15 +203,15 @@ public class NumberFieldMapper extends FieldMapper {
             });
 
             this.metric = TimeSeriesParams.metricParam(m -> toType(m).metricType, MetricType.GAUGE, MetricType.COUNTER).addValidator(v -> {
-                if (v != null && hasDocValues.getValue() == false) {
+                if (v != null && docValuesParameters.getValue().enabled() == false) {
                     throw new IllegalArgumentException(
-                        "Field [" + TimeSeriesParams.TIME_SERIES_METRIC_PARAM + "] requires that [" + hasDocValues.name + "] is true"
+                        "Field [" + TimeSeriesParams.TIME_SERIES_METRIC_PARAM + "] requires that [" + docValuesParameters.name + "] is true"
                     );
                 }
             }).precludesParameters(dimension);
 
             this.script.precludesParameters(ignoreMalformed, coerce, nullValue);
-            addScriptValidation(script, indexed, hasDocValues);
+            addScriptValidation(script, indexed, () -> docValuesParameters.getValue().enabled());
         }
 
         Builder nullValue(Number number) {
@@ -207,8 +229,14 @@ public class NumberFieldMapper extends FieldMapper {
             return this;
         }
 
+        public Builder index(boolean index) {
+            this.indexed.setValue(index);
+            return this;
+        }
+
+        @Deprecated
         public Builder docValues(boolean hasDocValues) {
-            this.hasDocValues.setValue(hasDocValues);
+            this.docValuesParameters.setValue(hasDocValues ? DEFAULT_DOC_VALUES_PARAMS : DocValuesParameter.Values.DISABLED);
             return this;
         }
 
@@ -216,10 +244,16 @@ public class NumberFieldMapper extends FieldMapper {
             if (indexSettings.getIndexVersionCreated().isLegacyIndexVersion()) {
                 return IndexType.archivedPoints();
             }
-            if (indexed.get() == false && hasDocValues.get() && useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
-                return IndexType.skippers();
+            if (indexed.get() == false && docValuesParameters.get().enabled()) {
+                if (useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
+                    return IndexType.skippers();
+                }
+                if (indexSettings.useDocValuesSkipper()
+                    && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.STANDARD_INDEXES_USE_SKIPPERS)) {
+                    return IndexType.skippers();
+                }
             }
-            return IndexType.points(indexed.get(), hasDocValues.get());
+            return IndexType.points(indexed.get(), docValuesParameters.get().enabled());
         }
 
         private FieldValues<Number> scriptValues() {
@@ -252,7 +286,7 @@ public class NumberFieldMapper extends FieldMapper {
         protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] {
                 indexed,
-                hasDocValues,
+                docValuesParameters,
                 stored,
                 ignoreMalformed,
                 coerce,
@@ -262,6 +296,11 @@ public class NumberFieldMapper extends FieldMapper {
                 meta,
                 dimension,
                 metric };
+        }
+
+        @Override
+        public String contentType() {
+            return type.typeName();
         }
 
         @Override
@@ -276,7 +315,7 @@ public class NumberFieldMapper extends FieldMapper {
             String offsetsFieldName = getOffsetsFieldName(
                 context,
                 indexSettings.sourceKeepMode(),
-                hasDocValues.getValue(),
+                docValuesParameters.getValue().enabled(),
                 stored.getValue(),
                 this,
                 indexSettings.getIndexVersionCreated(),
@@ -334,13 +373,19 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termQuery(String field, Object value, boolean isIndexed) {
+            public Query termQuery(String field, Object value, IndexType indexType) {
                 float v = parseToFloat(value);
                 if (Float.isFinite(HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(v))) == false) {
                     return Queries.newMatchNoDocsQuery("Value [" + value + "] is out of range");
                 }
 
-                if (isIndexed) {
+                if (indexType.hasPoints()) {
+                    if (indexType.hasDocValues()) {
+                        return new IndexOrDocValuesQuery(
+                            HalfFloatPoint.newExactQuery(field, v),
+                            SortedNumericDocValuesField.newSlowExactQuery(field, HalfFloatPoint.halfFloatToSortableShort(v))
+                        );
+                    }
                     return HalfFloatPoint.newExactQuery(field, v);
                 } else {
                     return SortedNumericDocValuesField.newSlowExactQuery(field, HalfFloatPoint.halfFloatToSortableShort(v));
@@ -487,6 +532,21 @@ public class NumberFieldMapper extends FieldMapper {
             ) {
                 return floatingPointBlockLoaderFromFallbackSyntheticSource(this, fieldName, nullValue, coerce, blContext);
             }
+
+            @Override
+            BlockLoader blockLoaderFromDocValuesMvMin(String fieldName) {
+                return new MvMinDoublesFromDocValuesBlockLoader(fieldName, l -> HalfFloatPoint.sortableShortToHalfFloat((short) l));
+            }
+
+            @Override
+            BlockLoader blockLoaderFromDocValuesMvMax(String fieldName) {
+                return new MvMaxDoublesFromDocValuesBlockLoader(fieldName, l -> HalfFloatPoint.sortableShortToHalfFloat((short) l));
+            }
+
+            @Override
+            BlockLoader blockLoaderFromDocValuesRoundTo(String fieldName, long[] points) {
+                throw new UnsupportedOperationException("ROUND_TO not supported for half_float");
+            }
         },
         FLOAT("float", NumericType.FLOAT) {
             @Override
@@ -533,13 +593,14 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termQuery(String field, Object value, boolean isIndexed) {
+            public Query termQuery(String field, Object value, IndexType indexType) {
                 float v = parseToFloat(value);
                 if (Float.isFinite(v) == false) {
                     return new MatchNoDocsQuery("Value [" + value + "] is out of range");
                 }
-
-                if (isIndexed) {
+                if (indexType.hasPoints() && indexType.hasDocValues()) {
+                    return FloatField.newExactQuery(field, v);
+                } else if (indexType.hasPoints()) {
                     return FloatPoint.newExactQuery(field, v);
                 } else {
                     return SortedNumericDocValuesField.newSlowExactQuery(field, NumericUtils.floatToSortableInt(v));
@@ -685,6 +746,21 @@ public class NumberFieldMapper extends FieldMapper {
             ) {
                 return floatingPointBlockLoaderFromFallbackSyntheticSource(this, fieldName, nullValue, coerce, blContext);
             }
+
+            @Override
+            BlockLoader blockLoaderFromDocValuesMvMin(String fieldName) {
+                return new MvMinDoublesFromDocValuesBlockLoader(fieldName, l -> NumericUtils.sortableIntToFloat((int) l));
+            }
+
+            @Override
+            BlockLoader blockLoaderFromDocValuesMvMax(String fieldName) {
+                return new MvMaxDoublesFromDocValuesBlockLoader(fieldName, l -> NumericUtils.sortableIntToFloat((int) l));
+            }
+
+            @Override
+            BlockLoader blockLoaderFromDocValuesRoundTo(String fieldName, long[] points) {
+                throw new UnsupportedOperationException("ROUND_TO not supported for float");
+            }
         },
         DOUBLE("double", NumericType.DOUBLE) {
             @Override
@@ -715,13 +791,14 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termQuery(String field, Object value, boolean isIndexed) {
+            public Query termQuery(String field, Object value, IndexType indexType) {
                 double v = objectToDouble(value);
                 if (Double.isFinite(v) == false) {
                     return Queries.newMatchNoDocsQuery("Value [" + value + "] has a decimal part");
                 }
-
-                if (isIndexed) {
+                if (indexType.hasPoints() && indexType.hasDocValues()) {
+                    return DoubleField.newExactQuery(field, v);
+                } else if (indexType.hasPoints()) {
                     return DoublePoint.newExactQuery(field, v);
                 } else {
                     return SortedNumericDocValuesField.newSlowExactQuery(field, NumericUtils.doubleToSortableLong(v));
@@ -849,6 +926,21 @@ public class NumberFieldMapper extends FieldMapper {
             ) {
                 return floatingPointBlockLoaderFromFallbackSyntheticSource(this, fieldName, nullValue, coerce, blContext);
             }
+
+            @Override
+            BlockLoader blockLoaderFromDocValuesMvMin(String fieldName) {
+                return new MvMinDoublesFromDocValuesBlockLoader(fieldName, NumericUtils::sortableLongToDouble);
+            }
+
+            @Override
+            BlockLoader blockLoaderFromDocValuesMvMax(String fieldName) {
+                return new MvMaxDoublesFromDocValuesBlockLoader(fieldName, NumericUtils::sortableLongToDouble);
+            }
+
+            @Override
+            BlockLoader blockLoaderFromDocValuesRoundTo(String fieldName, long[] points) {
+                throw new UnsupportedOperationException("ROUND_TO not supported for double");
+            }
         },
         BYTE("byte", NumericType.BYTE) {
             @Override
@@ -884,12 +976,12 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termQuery(String field, Object value, boolean isIndexed) {
+            public Query termQuery(String field, Object value, IndexType indexType) {
                 if (isOutOfRange(value)) {
                     return new MatchNoDocsQuery("Value [" + value + "] is out of range");
                 }
 
-                return INTEGER.termQuery(field, value, isIndexed);
+                return INTEGER.termQuery(field, value, indexType);
             }
 
             @Override
@@ -978,6 +1070,21 @@ public class NumberFieldMapper extends FieldMapper {
                 return integerBlockLoaderFromFallbackSyntheticSource(this, fieldName, nullValue, coerce, blContext);
             }
 
+            @Override
+            BlockLoader blockLoaderFromDocValuesMvMin(String fieldName) {
+                return new MvMinIntsFromDocValuesBlockLoader(fieldName);
+            }
+
+            @Override
+            BlockLoader blockLoaderFromDocValuesMvMax(String fieldName) {
+                return new MvMaxIntsFromDocValuesBlockLoader(fieldName);
+            }
+
+            @Override
+            BlockLoader blockLoaderFromDocValuesRoundTo(String fieldName, long[] points) {
+                throw new UnsupportedOperationException("ROUND_TO not supported for byte");
+            }
+
             private boolean isOutOfRange(Object value) {
                 double doubleValue = objectToDouble(value);
                 return doubleValue < Byte.MIN_VALUE || doubleValue > Byte.MAX_VALUE;
@@ -1013,11 +1120,11 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termQuery(String field, Object value, boolean isIndexed) {
+            public Query termQuery(String field, Object value, IndexType indexType) {
                 if (isOutOfRange(value)) {
                     return Queries.newMatchNoDocsQuery("Value [" + value + "] is out of range");
                 }
-                return INTEGER.termQuery(field, value, isIndexed);
+                return INTEGER.termQuery(field, value, indexType);
             }
 
             @Override
@@ -1106,6 +1213,21 @@ public class NumberFieldMapper extends FieldMapper {
                 return integerBlockLoaderFromFallbackSyntheticSource(this, fieldName, nullValue, coerce, blContext);
             }
 
+            @Override
+            BlockLoader blockLoaderFromDocValuesMvMin(String fieldName) {
+                return new MvMinIntsFromDocValuesBlockLoader(fieldName);
+            }
+
+            @Override
+            BlockLoader blockLoaderFromDocValuesMvMax(String fieldName) {
+                return new MvMaxIntsFromDocValuesBlockLoader(fieldName);
+            }
+
+            @Override
+            BlockLoader blockLoaderFromDocValuesRoundTo(String fieldName, long[] points) {
+                throw new UnsupportedOperationException("ROUND_TO not supported for short");
+            }
+
             private boolean isOutOfRange(Object value) {
                 double doubleValue = objectToDouble(value);
                 return doubleValue < Short.MIN_VALUE || doubleValue > Short.MAX_VALUE;
@@ -1144,7 +1266,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termQuery(String field, Object value, boolean isIndexed) {
+            public Query termQuery(String field, Object value, IndexType indexType) {
                 if (hasDecimalPart(value)) {
                     return Queries.newMatchNoDocsQuery("Value [" + value + "] has a decimal part");
                 }
@@ -1154,8 +1276,9 @@ public class NumberFieldMapper extends FieldMapper {
                     return Queries.newMatchNoDocsQuery("Value [" + value + "] is out of range");
                 }
                 int v = parse(value, true);
-
-                if (isIndexed) {
+                if (indexType.hasPoints() && indexType.hasDocValues()) {
+                    return IntField.newExactQuery(field, v);
+                } else if (indexType.hasPoints()) {
                     return IntPoint.newExactQuery(field, v);
                 } else {
                     return SortedNumericDocValuesField.newSlowExactQuery(field, v);
@@ -1205,7 +1328,7 @@ public class NumberFieldMapper extends FieldMapper {
                     boolean lowerTermHasDecimalPart = hasDecimalPart(lowerTerm);
                     if ((lowerTermHasDecimalPart == false && includeLower == false) || (lowerTermHasDecimalPart && signum(lowerTerm) > 0)) {
                         if (l == Integer.MAX_VALUE) {
-                            return new MatchNoDocsQuery();
+                            return Queries.NO_DOCS_INSTANCE;
                         }
                         ++l;
                     }
@@ -1215,7 +1338,7 @@ public class NumberFieldMapper extends FieldMapper {
                     boolean upperTermHasDecimalPart = hasDecimalPart(upperTerm);
                     if ((upperTermHasDecimalPart == false && includeUpper == false) || (upperTermHasDecimalPart && signum(upperTerm) < 0)) {
                         if (u == Integer.MIN_VALUE) {
-                            return new MatchNoDocsQuery();
+                            return Queries.NO_DOCS_INSTANCE;
                         }
                         --u;
                     }
@@ -1311,6 +1434,21 @@ public class NumberFieldMapper extends FieldMapper {
             ) {
                 return integerBlockLoaderFromFallbackSyntheticSource(this, fieldName, nullValue, coerce, blContext);
             }
+
+            @Override
+            BlockLoader blockLoaderFromDocValuesMvMin(String fieldName) {
+                return new MvMinIntsFromDocValuesBlockLoader(fieldName);
+            }
+
+            @Override
+            BlockLoader blockLoaderFromDocValuesMvMax(String fieldName) {
+                return new MvMaxIntsFromDocValuesBlockLoader(fieldName);
+            }
+
+            @Override
+            BlockLoader blockLoaderFromDocValuesRoundTo(String fieldName, long[] points) {
+                throw new UnsupportedOperationException("ROUND_TO not supported for integer");
+            }
         },
         LONG("long", NumericType.LONG) {
             @Override
@@ -1337,7 +1475,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termQuery(String field, Object value, boolean isIndexed) {
+            public Query termQuery(String field, Object value, IndexType indexType) {
                 if (hasDecimalPart(value)) {
                     return Queries.newMatchNoDocsQuery("Value [" + value + "] has a decimal part");
                 }
@@ -1346,7 +1484,9 @@ public class NumberFieldMapper extends FieldMapper {
                 }
 
                 long v = parse(value, true);
-                if (isIndexed) {
+                if (indexType.hasPoints() && indexType.hasDocValues()) {
+                    return LongField.newExactQuery(field, v);
+                } else if (indexType.hasPoints()) {
                     return LongPoint.newExactQuery(field, v);
                 } else {
                     return SortedNumericDocValuesField.newSlowExactQuery(field, v);
@@ -1488,13 +1628,28 @@ public class NumberFieldMapper extends FieldMapper {
                 return new FallbackSyntheticSourceBlockLoader(
                     reader,
                     fieldName,
-                    IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings().getIndexVersionCreated())
+                    IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings())
                 ) {
                     @Override
                     public Builder builder(BlockFactory factory, int expectedCount) {
                         return factory.longs(expectedCount);
                     }
                 };
+            }
+
+            @Override
+            BlockLoader blockLoaderFromDocValuesMvMin(String fieldName) {
+                return new MvMinLongsFromDocValuesBlockLoader(fieldName);
+            }
+
+            @Override
+            BlockLoader blockLoaderFromDocValuesMvMax(String fieldName) {
+                return new MvMaxLongsFromDocValuesBlockLoader(fieldName);
+            }
+
+            @Override
+            BlockLoader blockLoaderFromDocValuesRoundTo(String fieldName, long[] points) {
+                return new RoundToLongsFromDocValuesBlockLoader(fieldName, points);
             }
 
             private boolean isOutOfRange(Object value) {
@@ -1532,7 +1687,7 @@ public class NumberFieldMapper extends FieldMapper {
             return parser;
         }
 
-        public abstract Query termQuery(String field, Object value, boolean isIndexed);
+        public abstract Query termQuery(String field, Object value, IndexType indexType);
 
         public abstract Query termsQuery(String field, Collection<?> values);
 
@@ -1703,7 +1858,7 @@ public class NumberFieldMapper extends FieldMapper {
                 boolean lowerTermHasDecimalPart = hasDecimalPart(lowerTerm);
                 if ((lowerTermHasDecimalPart == false && includeLower == false) || (lowerTermHasDecimalPart && signum(lowerTerm) > 0)) {
                     if (l == Long.MAX_VALUE) {
-                        return new MatchNoDocsQuery();
+                        return Queries.NO_DOCS_INSTANCE;
                     }
                     ++l;
                 }
@@ -1713,7 +1868,7 @@ public class NumberFieldMapper extends FieldMapper {
                 boolean upperTermHasDecimalPart = hasDecimalPart(upperTerm);
                 if ((upperTermHasDecimalPart == false && includeUpper == false) || (upperTermHasDecimalPart && signum(upperTerm) < 0)) {
                     if (u == Long.MIN_VALUE) {
-                        return new MatchNoDocsQuery();
+                        return Queries.NO_DOCS_INSTANCE;
                     }
                     --u;
                 }
@@ -1746,13 +1901,18 @@ public class NumberFieldMapper extends FieldMapper {
 
         abstract void writeValue(XContentBuilder builder, long longValue) throws IOException;
 
-        SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fieldName, String fieldSimpleName, boolean ignoreMalformed) {
-            return new SortedNumericDocValuesSyntheticFieldLoader(fieldName, fieldSimpleName, ignoreMalformed) {
-                @Override
-                public void writeValue(XContentBuilder b, long value) throws IOException {
-                    NumberType.this.writeValue(b, value);
-                }
-            };
+        SourceLoader.SyntheticFieldLoader syntheticFieldLoader(
+            String fieldName,
+            String fieldSimpleName,
+            boolean ignoreMalformed,
+            IndexVersion indexVersion
+        ) {
+            var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
+            layers.add(new SortedNumericDocValuesSyntheticFieldLoaderLayer(fieldName, NumberType.this::writeValue));
+            if (ignoreMalformed) {
+                layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fieldName, indexVersion));
+            }
+            return new CompositeSyntheticFieldLoader(fieldSimpleName, fieldName, layers);
         }
 
         abstract BlockLoader blockLoaderFromDocValues(String fieldName);
@@ -1765,6 +1925,12 @@ public class NumberFieldMapper extends FieldMapper {
             boolean coerce,
             MappedFieldType.BlockLoaderContext blContext
         );
+
+        abstract BlockLoader blockLoaderFromDocValuesMvMin(String fieldName);
+
+        abstract BlockLoader blockLoaderFromDocValuesMvMax(String fieldName);
+
+        abstract BlockLoader blockLoaderFromDocValuesRoundTo(String fieldName, long[] points);
 
         // All values that fit into integer are returned as integers
         private static BlockLoader integerBlockLoaderFromFallbackSyntheticSource(
@@ -1787,7 +1953,7 @@ public class NumberFieldMapper extends FieldMapper {
             return new FallbackSyntheticSourceBlockLoader(
                 reader,
                 fieldName,
-                IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings().getIndexVersionCreated())
+                IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings())
             ) {
                 @Override
                 public Builder builder(BlockFactory factory, int expectedCount) {
@@ -1817,7 +1983,7 @@ public class NumberFieldMapper extends FieldMapper {
             return new FallbackSyntheticSourceBlockLoader(
                 reader,
                 fieldName,
-                IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings().getIndexVersionCreated())
+                IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings())
             ) {
                 @Override
                 public Builder builder(BlockFactory factory, int expectedCount) {
@@ -1871,7 +2037,7 @@ public class NumberFieldMapper extends FieldMapper {
                     // Malformed value, skip it
                 }
             }
-        };
+        }
     }
 
     public static class NumberFieldType extends SimpleMappedFieldType {
@@ -1935,6 +2101,23 @@ public class NumberFieldMapper extends FieldMapper {
             this(name, type, IndexType.points(isIndexed, true), false, true, null, Collections.emptyMap(), null, false, null, null, false);
         }
 
+        public NumberFieldType(String name, NumberType type, boolean isIndexed, boolean hasDocValues) {
+            this(
+                name,
+                type,
+                IndexType.points(isIndexed, hasDocValues),
+                false,
+                true,
+                null,
+                Collections.emptyMap(),
+                null,
+                false,
+                null,
+                null,
+                false
+            );
+        }
+
         @Override
         public String typeName() {
             return type.name;
@@ -1976,7 +2159,7 @@ public class NumberFieldMapper extends FieldMapper {
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
-            return type.termQuery(name(), value, indexType.hasPoints());
+            return type.termQuery(name(), value, indexType);
         }
 
         @Override
@@ -2021,9 +2204,21 @@ public class NumberFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
-                return type.blockLoaderFromDocValues(name());
+                BlockLoaderFunctionConfig cfg = blContext.blockLoaderFunctionConfig();
+                if (cfg == null) {
+                    return type.blockLoaderFromDocValues(name());
+                }
+                return switch (cfg.function()) {
+                    case MV_MAX -> type.blockLoaderFromDocValuesMvMax(name());
+                    case MV_MIN -> type.blockLoaderFromDocValuesMvMin(name());
+                    case AMD_COUNT, AMD_DEFAULT, AMD_MAX, AMD_MIN, AMD_SUM -> type.blockLoaderFromDocValues(name());
+                    case ROUND_TO -> type.blockLoaderFromDocValuesRoundTo(name(), ((BlockLoaderFunctionConfig.RoundToLongs) cfg).points());
+                    default -> throw new UnsupportedOperationException("unknown fusion config [" + cfg.function() + "]");
+                };
             }
-
+            if (blContext.blockLoaderFunctionConfig() != null) {
+                throw new UnsupportedOperationException("function fusing only supported for doc values");
+            }
             // Multi fields don't have fallback synthetic source.
             if (isSyntheticSource && blContext.parentField(name()) == null) {
                 return type.blockLoaderFromFallbackSyntheticSource(name(), nullValue, coerce, blContext);
@@ -2034,6 +2229,18 @@ public class NumberFieldMapper extends FieldMapper {
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
             return type.blockLoaderFromSource(sourceValueFetcher(blContext.sourcePaths(name()), blContext.indexSettings()), lookup);
+        }
+
+        @Override
+        public boolean supportsBlockLoaderConfig(BlockLoaderFunctionConfig config, FieldExtractPreference preference) {
+            if (hasDocValues() && (preference != FieldExtractPreference.STORED || isSyntheticSource)) {
+                return switch (config.function()) {
+                    case AMD_MIN, AMD_MAX, AMD_SUM, AMD_COUNT, AMD_DEFAULT, MV_MAX, MV_MIN -> true;
+                    case ROUND_TO -> type == NumberType.LONG && indexType.hasDocValuesSkipper();
+                    default -> false;
+                };
+            }
+            return false;
         }
 
         @Override
@@ -2139,7 +2346,7 @@ public class NumberFieldMapper extends FieldMapper {
 
     private final NumberType type;
     private final boolean indexed;
-    private final boolean hasDocValues;
+    private final DocValuesParameter.Values docValuesParameters;
     private final boolean stored;
     private final Explicit<Boolean> ignoreMalformed;
     private final Explicit<Boolean> coerce;
@@ -2155,6 +2362,9 @@ public class NumberFieldMapper extends FieldMapper {
 
     private final IndexSettings indexSettings;
 
+    // cached to avoid lookup overhead
+    private final NumberFieldType fieldType;
+
     private NumberFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
@@ -2166,7 +2376,7 @@ public class NumberFieldMapper extends FieldMapper {
         super(simpleName, mappedFieldType, builderParams);
         this.type = builder.type;
         this.indexed = builder.indexed.getValue();
-        this.hasDocValues = builder.hasDocValues.getValue();
+        this.docValuesParameters = builder.docValuesParameters.getValue();
         this.stored = builder.stored.getValue();
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.coerce = builder.coerce.getValue();
@@ -2180,6 +2390,9 @@ public class NumberFieldMapper extends FieldMapper {
         this.isSyntheticSource = isSyntheticSource;
         this.offsetsFieldName = offsetsFieldName;
         this.indexSettings = builder.indexSettings;
+
+        // this is basically just an inlined version of `(NumberFieldType) super.fieldType()`
+        this.fieldType = (NumberFieldType) mappedFieldType;
     }
 
     boolean coerce() {
@@ -2191,9 +2404,13 @@ public class NumberFieldMapper extends FieldMapper {
         return ignoreMalformed.value();
     }
 
+    public DocValuesParameter.Values docValuesParameters() {
+        return docValuesParameters;
+    }
+
     @Override
     public NumberFieldType fieldType() {
-        return (NumberFieldType) super.fieldType();
+        return fieldType;
     }
 
     @Override
@@ -2207,7 +2424,7 @@ public class NumberFieldMapper extends FieldMapper {
 
     @Override
     protected String contentType() {
-        return fieldType().type.typeName();
+        return fieldType.type.typeName();
     }
 
     @Override
@@ -2220,7 +2437,7 @@ public class NumberFieldMapper extends FieldMapper {
                 context.addIgnoredField(mappedFieldType.name());
                 if (isSyntheticSource) {
                     // Save a copy of the field so synthetic source can load it
-                    context.doc().add(IgnoreMalformedStoredValues.storedField(fullPath(), context.parser()));
+                    IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), context.parser());
                 }
                 return;
             } else {
@@ -2230,7 +2447,7 @@ public class NumberFieldMapper extends FieldMapper {
         if (value != null) {
             indexValue(context, value);
         } else {
-            value = fieldType().nullValue;
+            value = fieldType.nullValue;
         }
         if (offsetsFieldName != null && context.isImmediateParentAnArray() && context.canAddIgnoredField()) {
             if (value != null) {
@@ -2257,13 +2474,27 @@ public class NumberFieldMapper extends FieldMapper {
         if (currentToken == Token.VALUE_NULL) {
             return nullValue;
         }
-        if (coerce() && currentToken == Token.VALUE_STRING && parser.textLength() == 0) {
+        final boolean coerce = coerce();
+        if (coerce && currentToken == Token.VALUE_STRING && parser.textLength() == 0) {
             return nullValue;
         }
         if (currentToken == Token.START_OBJECT) {
             throw new IllegalArgumentException("Cannot parse object as number");
         }
-        return type.parse(parser, coerce());
+        // Switch avoids megamorphic virtual dispatch on the NumberType enum (visible in flamegraphs for bulk indexing).
+        return switch (type) {
+            case BYTE -> {
+                int value = parser.intValue(coerce);
+                if (value < Byte.MIN_VALUE || value > Byte.MAX_VALUE) {
+                    throw new IllegalArgumentException("Value [" + value + "] is out of range for a byte");
+                }
+                yield (byte) value;
+            }
+            case SHORT -> parser.shortValue(coerce);
+            case INTEGER -> parser.intValue(coerce);
+            case LONG -> parser.longValue(coerce);
+            default -> type.parse(parser, coerce);
+        };
     }
 
     /**
@@ -2272,22 +2503,66 @@ public class NumberFieldMapper extends FieldMapper {
      * fields that want to share the behavior of numeric fields.
      */
     public void indexValue(DocumentParserContext context, Number numericValue) {
-        if (dimension && numericValue != null) {
-            context.getRoutingFields().addLong(fieldType().name(), numericValue.longValue());
-        }
-        fieldType().type.addFields(context.doc(), fieldType().name(), numericValue, fieldType().indexType, stored);
+        final String name = fieldType.name();
+        final LuceneDocument doc = context.doc();
 
-        if (false == allowMultipleValues && (indexed || hasDocValues || stored)) {
+        if (dimension) {
+            context.getRoutingFields().addLong(name, numericValue.longValue());
+        }
+
+        // Switch avoids megamorphic virtual dispatch on the NumberType enum (visible in flamegraphs for bulk indexing).
+        switch (type) {
+            case BYTE, SHORT, INTEGER -> addIntFields(doc, name, numericValue.intValue());
+            case LONG -> addLongFields(doc, name, numericValue.longValue());
+            default -> type.addFields(doc, name, numericValue, fieldType.indexType, stored);
+        }
+
+        if (false == allowMultipleValues && (indexed || docValuesParameters.enabled() || stored)) {
             // the last field is the current field, Add to the key map, so that we can validate if it has been added
-            List<IndexableField> fields = context.doc().getFields();
-            IndexableField last = fields.get(fields.size() - 1);
-            assert last.name().equals(fieldType().name())
-                : "last field name [" + last.name() + "] mis match field name [" + fieldType().name() + "]";
-            context.doc().onlyAddKey(fieldType().name(), fields.get(fields.size() - 1));
+            List<IndexableField> fields = doc.getFields();
+            final IndexableField last = fields.getLast();
+            assert last.name().equals(name) : "last field name [" + last.name() + "] mis match field name [" + name + "]";
+            doc.onlyAddKey(name, last);
         }
 
-        if (hasDocValues == false && (stored || indexed)) {
-            context.addToFieldNames(fieldType().name());
+        if (docValuesParameters.enabled() == false && (stored || indexed)) {
+            context.addToFieldNames(name);
+        }
+    }
+
+    private void addIntFields(LuceneDocument document, String name, int i) {
+        final var indexType = fieldType.indexType();
+        if (indexType.hasPoints() && indexType.hasDocValues()) {
+            document.add(new IntField(name, i, Field.Store.NO));
+        } else if (indexType.hasDocValues()) {
+            if (indexType.hasDocValuesSkipper()) {
+                document.add(SortedNumericDocValuesField.indexedField(name, i));
+            } else {
+                document.add(new SortedNumericDocValuesField(name, i));
+            }
+        } else if (indexType.hasPoints()) {
+            document.add(new IntPoint(name, i));
+        }
+        if (stored) {
+            document.add(new StoredField(name, i));
+        }
+    }
+
+    private void addLongFields(LuceneDocument document, String name, long l) {
+        final var indexType = fieldType.indexType();
+        if (indexType.hasPoints() && indexType.hasDocValues()) {
+            document.add(new LongField(name, l, Field.Store.NO));
+        } else if (indexType.hasDocValues()) {
+            if (indexType.hasDocValuesSkipper()) {
+                document.add(SortedNumericDocValuesField.indexedField(name, l));
+            } else {
+                document.add(new SortedNumericDocValuesField(name, l));
+            }
+        } else if (indexType.hasPoints()) {
+            document.add(new LongPoint(name, l));
+        }
+        if (stored) {
+            document.add(new StoredField(name, l));
         }
     }
 
@@ -2334,17 +2609,17 @@ public class NumberFieldMapper extends FieldMapper {
             var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
             layers.add(new SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer(fullPath(), offsetsFieldName, type::writeValue));
             if (ignoreMalformed.value()) {
-                layers.add(new CompositeSyntheticFieldLoader.MalformedValuesLayer(fullPath()));
+                layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
             }
             return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
         } else {
-            return type.syntheticFieldLoader(fullPath(), leafName(), ignoreMalformed.value());
+            return type.syntheticFieldLoader(fullPath(), leafName(), ignoreMalformed.value(), indexSettings.getIndexVersionCreated());
         }
     }
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        if (hasDocValues) {
+        if (docValuesParameters.enabled()) {
             return new SyntheticSourceSupport.Native(this::docValuesSyntheticFieldLoader);
         }
 

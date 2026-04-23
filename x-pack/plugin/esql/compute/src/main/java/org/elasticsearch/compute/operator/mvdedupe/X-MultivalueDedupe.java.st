@@ -10,10 +10,8 @@ package org.elasticsearch.compute.operator.mvdedupe;
 import org.apache.lucene.util.ArrayUtil;
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.util.BytesRefHash;
-$else$
-import org.elasticsearch.common.util.LongHash;
 $endif$
+import org.elasticsearch.common.util.$Hash$Table;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
@@ -28,8 +26,8 @@ import org.elasticsearch.compute.data.LongBlock;
 $else$
 import org.elasticsearch.compute.data.$Type$Block;
 import org.elasticsearch.compute.data.IntBlock;
-
 $endif$
+
 import java.util.Arrays;
 
 /**
@@ -222,11 +220,7 @@ $endif$
      * their hashes. This block is suitable for passing as the grouping block
      * to a {@link GroupingAggregatorFunction}.
      */
-$if(BytesRef)$
-    public MultivalueDedupe.HashResult hashAdd(BlockFactory blockFactory, BytesRefHash hash) {
-$else$
-    public MultivalueDedupe.HashResult hashAdd(BlockFactory blockFactory, LongHash hash) {
-$endif$
+    public MultivalueDedupe.HashResult hashAdd(BlockFactory blockFactory, $Hash$Table hash) {
         try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount())) {
             boolean sawNull = false;
             for (int p = 0; p < block.getPositionCount(); p++) {
@@ -264,11 +258,7 @@ $endif$
      * Dedupe values and build an {@link IntBlock} of their hashes. This block is
      * suitable for passing as the grouping block to a {@link GroupingAggregatorFunction}.
      */
-$if(BytesRef)$
-    public IntBlock hashLookup(BlockFactory blockFactory, BytesRefHash hash) {
-$else$
-    public IntBlock hashLookup(BlockFactory blockFactory, LongHash hash) {
-$endif$
+    public IntBlock hashLookup(BlockFactory blockFactory, $Hash$Table hash) {
         try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
@@ -490,11 +480,7 @@ $endif$
     /**
      * Writes an already deduplicated {@link #work} to a hash.
      */
-$if(BytesRef)$
-    private void hashAddUniquedWork(BytesRefHash hash, IntBlock.Builder builder) {
-$else$
-    private void hashAddUniquedWork(LongHash hash, IntBlock.Builder builder) {
-$endif$
+    private void hashAddUniquedWork($Hash$Table hash, IntBlock.Builder builder) {
         if (w == 1) {
             hashAdd(builder, hash, work[0]);
             return;
@@ -509,11 +495,7 @@ $endif$
     /**
      * Writes a sorted {@link #work} to a hash, skipping duplicates.
      */
-$if(BytesRef)$
-    private void hashAddSortedWork(BytesRefHash hash, IntBlock.Builder builder) {
-$else$
-    private void hashAddSortedWork(LongHash hash, IntBlock.Builder builder) {
-$endif$
+    private void hashAddSortedWork($Hash$Table hash, IntBlock.Builder builder) {
         if (w == 1) {
             hashAdd(builder, hash, work[0]);
             return;
@@ -533,11 +515,7 @@ $endif$
     /**
      * Looks up an already deduplicated {@link #work} to a hash.
      */
-$if(BytesRef)$
-    private void hashLookupUniquedWork(BytesRefHash hash, IntBlock.Builder builder) {
-$else$
-    private void hashLookupUniquedWork(LongHash hash, IntBlock.Builder builder) {
-$endif$
+    private void hashLookupUniquedWork($Hash$Table hash, IntBlock.Builder builder) {
         if (w == 1) {
             hashLookupSingle(builder, hash, work[0]);
             return;
@@ -596,11 +574,7 @@ $endif$
     /**
      * Looks up a sorted {@link #work} to a hash, skipping duplicates.
      */
-$if(BytesRef)$
-    private void hashLookupSortedWork(BytesRefHash hash, IntBlock.Builder builder) {
-$else$
-    private void hashLookupSortedWork(LongHash hash, IntBlock.Builder builder) {
-$endif$
+    private void hashLookupSortedWork($Hash$Table hash, IntBlock.Builder builder) {
         if (w == 1) {
             hashLookupSingle(builder, hash, work[0]);
             return;
@@ -721,11 +695,7 @@ $if(BytesRef)$
     }
 $endif$
 
-$if(BytesRef)$
-    private void hashAdd(IntBlock.Builder builder, BytesRefHash hash, BytesRef v) {
-$else$
-    private void hashAdd(IntBlock.Builder builder, LongHash hash, $type$ v) {
-$endif$
+    private void hashAdd(IntBlock.Builder builder, $Hash$Table hash, $type$ v) {
 $if(double)$
         appendFound(builder, hash.add(Double.doubleToLongBits(v)));
 $else$
@@ -733,11 +703,7 @@ $else$
 $endif$
     }
 
-$if(BytesRef)$
-    private long hashLookup(BytesRefHash hash, BytesRef v) {
-$else$
-    private long hashLookup(LongHash hash, $type$ v) {
-$endif$
+    private long hashLookup($Hash$Table hash, $type$ v) {
 $if(double)$
         return hash.find(Double.doubleToLongBits(v));
 $else$
@@ -745,11 +711,7 @@ $else$
 $endif$
     }
 
-$if(BytesRef)$
-    private void hashLookupSingle(IntBlock.Builder builder, BytesRefHash hash, BytesRef v) {
-$else$
-    private void hashLookupSingle(IntBlock.Builder builder, LongHash hash, $type$ v) {
-$endif$
+    private void hashLookupSingle(IntBlock.Builder builder, $Hash$Table hash, $type$ v) {
         long found = hashLookup(hash, v);
         if (found >= 0) {
             appendFound(builder, found);

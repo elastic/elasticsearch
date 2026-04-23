@@ -16,10 +16,15 @@
         {
           "path": "/_project/tags",
           "methods": [
-            "GET"
+            "GET",
+            "POST"
           ]
         }
       ]
+    },
+    "body": {
+      "required": false,
+      "description": "A query using project metadata tags used to filter which projects are returned in the response, such as _alias:_origin or _alias:*pr*."
     }
   }
 }

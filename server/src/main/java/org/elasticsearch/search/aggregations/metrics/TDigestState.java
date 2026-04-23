@@ -10,7 +10,6 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -173,10 +172,8 @@ public class TDigestState implements Releasable, Accountable {
 
     public static void write(TDigestState state, StreamOutput out) throws IOException {
         out.writeDouble(state.compression);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            out.writeString(state.type.toString());
-            out.writeVLong(state.tdigest.size());
-        }
+        out.writeString(state.type.toString());
+        out.writeVLong(state.tdigest.size());
 
         out.writeVInt(state.centroidCount());
         for (Centroid centroid : state.centroids()) {
@@ -202,12 +199,8 @@ public class TDigestState implements Releasable, Accountable {
         try {
             breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "tdigest-state-read");
             try {
-                if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-                    state = new TDigestState(breaker, Type.valueOf(in.readString()), compression);
-                    size = in.readVLong();
-                } else {
-                    state = new TDigestState(breaker, Type.valueForHighAccuracy(), compression);
-                }
+                state = new TDigestState(breaker, Type.valueOf(in.readString()), compression);
+                size = in.readVLong();
             } finally {
                 if (state == null) {
                     breaker.addWithoutBreaking(-SHALLOW_SIZE);
@@ -318,6 +311,68 @@ public class TDigestState implements Releasable, Accountable {
 
     public final Collection<Centroid> centroids() {
         return tdigest.centroids();
+    }
+
+    /**
+     * An {@link Iterator} that lets you go through the centroids deduplicated and in ascending order by mean.
+     * @return An iterator over deduplicated centroids.
+     */
+    public final Iterator<Centroid> uniqueCentroids() {
+        Iterator<Centroid> centroids = centroids().iterator();
+        return new Iterator<>() {
+            double value = Double.NaN;
+            long count = 0;
+
+            {
+                if (centroids.hasNext()) {
+                    setNext(centroids.next());
+                }
+            }
+
+            @Override
+            public boolean hasNext() {
+                return Double.isNaN(value) == false;
+            }
+
+            @Override
+            public Centroid next() {
+                // Return the last value
+                if (centroids.hasNext() == false) {
+                    return getLast();
+                }
+                Centroid centroid = centroids.next();
+                while (Double.compare(centroid.mean(), value) == 0) {
+                    count += centroid.count();
+                    if (centroids.hasNext() == false) {
+                        return getLast();
+                    }
+                    centroid = centroids.next();
+                }
+                return getAndSetNext(centroid);
+            }
+
+            private Centroid getLast() {
+                Centroid centroid = new Centroid(value, count);
+                value = Double.NaN;
+                return centroid;
+            }
+
+            private Centroid getAndSetNext(Centroid centroid) {
+                Centroid current = new Centroid(value, count);
+                setNext(centroid);
+                return current;
+            }
+
+            private void setNext(Centroid centroid) {
+                value = centroid.mean();
+                count = centroid.count();
+            }
+
+            @Override
+            public void remove() {
+                throw new UnsupportedOperationException("Default operation");
+            }
+        };
     }
 
     public final int centroidCount() {

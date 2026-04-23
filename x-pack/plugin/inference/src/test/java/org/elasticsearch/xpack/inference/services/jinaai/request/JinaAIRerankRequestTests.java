@@ -12,6 +12,7 @@ import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.jinaai.rerank.JinaAIRerankModelTests;
 
 import java.io.IOException;
@@ -33,7 +34,7 @@ public class JinaAIRerankRequestTests extends ESTestCase {
         var modelId = "model";
 
         var request = createRequest(query, input, modelId, null, null, null);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -57,7 +58,7 @@ public class JinaAIRerankRequestTests extends ESTestCase {
         var modelId = "model";
 
         var request = createRequest(query, input, modelId, topN, Boolean.FALSE, taskSettingsTopN);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -81,7 +82,7 @@ public class JinaAIRerankRequestTests extends ESTestCase {
         var modelId = "model";
 
         var request = createRequest(query, input, modelId, null, null, null);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -112,7 +113,7 @@ public class JinaAIRerankRequestTests extends ESTestCase {
         @Nullable Boolean returnDocuments,
         @Nullable Integer taskSettingsTopN
     ) {
-        var rerankModel = JinaAIRerankModelTests.createModel(API_KEY, modelId, taskSettingsTopN);
+        var rerankModel = JinaAIRerankModelTests.createModel(modelId, API_KEY, taskSettingsTopN);
         return new JinaAIRerankRequest(query, List.of(input), returnDocuments, topN, rerankModel);
 
     }

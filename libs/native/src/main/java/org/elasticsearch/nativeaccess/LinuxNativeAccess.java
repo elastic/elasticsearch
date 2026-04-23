@@ -17,7 +17,7 @@ import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 
 import java.util.Map;
 
-class LinuxNativeAccess extends PosixNativeAccess {
+public class LinuxNativeAccess extends PosixNativeAccess {
 
     private static final int STATX_BLOCKS = 0x400; /* Want/got stx_blocks */
 

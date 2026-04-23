@@ -15,6 +15,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.openshiftai.embeddings.OpenShiftAiEmbeddingsModelTests;
 
@@ -56,7 +57,7 @@ public class OpenShiftAiEmbeddingsRequestTests extends ESTestCase {
 
     private void testCreateRequest_Success(Integer dimensions, boolean dimensionsSetByUser, Integer expectedDimensions) throws IOException {
         var request = createRequest(dimensions, dimensionsSetByUser);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
         var httpPost = validateRequestUrlAndContentType(httpRequest);
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
@@ -68,7 +69,7 @@ public class OpenShiftAiEmbeddingsRequestTests extends ESTestCase {
 
     public void testCreateRequest_NoModel_Success() throws IOException {
         var request = createRequest(null, false, null);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
         var httpPost = validateRequestUrlAndContentType(httpRequest);
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
@@ -83,7 +84,7 @@ public class OpenShiftAiEmbeddingsRequestTests extends ESTestCase {
         var request = createRequest(null, false);
         var truncatedRequest = request.truncate();
 
-        var httpRequest = truncatedRequest.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(truncatedRequest);
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();

@@ -17,6 +17,7 @@ import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.Scheduler;
+import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -164,6 +165,8 @@ public interface Processor {
 
         public final MatcherWatchdog matcherWatchdog;
 
+        public final UserAgentParserRegistry userAgentParserRegistry;
+
         public Parameters(
             Environment env,
             ScriptService scriptService,
@@ -174,7 +177,8 @@ public interface Processor {
             IngestService ingestService,
             Client client,
             Consumer<Runnable> genericExecutor,
-            MatcherWatchdog matcherWatchdog
+            MatcherWatchdog matcherWatchdog,
+            UserAgentParserRegistry userAgentParserRegistry
         ) {
             this.env = env;
             this.scriptService = scriptService;
@@ -186,6 +190,7 @@ public interface Processor {
             this.client = client;
             this.genericExecutor = genericExecutor;
             this.matcherWatchdog = matcherWatchdog;
+            this.userAgentParserRegistry = userAgentParserRegistry;
         }
     }
 }

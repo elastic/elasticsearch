@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -16,6 +17,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -1909,6 +1911,314 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         operator.close();
     }
 
+    // ===== Multi-driver concurrent tests with real DriverContext and backpressure =====
+
+    /**
+     * Concurrent sanity check for the slice-queue path: multiple producer drivers processing
+     * many splits (including {@link CoalescedSplit} entries with multiple leaves) from a shared
+     * {@link ExternalSliceQueue} with real {@link DriverContext} async-action tracking and a
+     * real thread pool. Verifies that {@code waitForAsyncActions} completes for every driver
+     * and no splits are dropped or double-read.
+     * <p>
+     * Parameters are randomized to vary timing across repeated runs.
+     */
+    public void testSliceQueueMultiDriverRealContextManyBackpressuredSplits() throws Exception {
+        int driverCount = randomIntBetween(2, 6);
+        int pagesPerSplit = randomIntBetween(3, 8);
+        int bufferSize = randomIntBetween(1, 3);
+
+        int plainSplitCount = randomIntBetween(10, 30);
+        int coalescedCount = randomIntBetween(5, 15);
+        int leafCounter = 0;
+        List<ExternalSplit> queueEntries = new ArrayList<>();
+        for (int i = 0; i < plainSplitCount; i++) {
+            queueEntries.add(
+                new FileSplit("test", StoragePath.of("s3://bucket/rg" + leafCounter++ + ".parquet"), 0, 100, "parquet", Map.of(), Map.of())
+            );
+        }
+        for (int i = 0; i < coalescedCount; i++) {
+            int leavesInCoalesced = randomIntBetween(2, 3);
+            List<ExternalSplit> children = new ArrayList<>();
+            for (int c = 0; c < leavesInCoalesced; c++) {
+                children.add(
+                    new FileSplit(
+                        "test",
+                        StoragePath.of("s3://bucket/rg" + leafCounter++ + ".parquet"),
+                        0,
+                        100,
+                        "parquet",
+                        Map.of(),
+                        Map.of()
+                    )
+                );
+            }
+            queueEntries.add(new CoalescedSplit("test", children));
+        }
+        int totalLeaves = leafCounter;
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(queueEntries);
+
+        AtomicInteger totalReadCount = new AtomicInteger(0);
+        FormatReader formatReader = new MultiPageFormatReader(totalReadCount, pagesPerSplit);
+        StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
+
+        StoragePath path = StoragePath.of("s3://bucket/rg0.parquet");
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "value",
+                new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+
+        // Producer executor is separate from consumer threads to avoid thread starvation
+        ExecutorService producerExec = Executors.newFixedThreadPool(driverCount, EsExecutors.daemonThreadFactory("test", "sq-producer"));
+        try {
+            SourceOperator[] operators = new SourceOperator[driverCount];
+            DriverContext[] contexts = new DriverContext[driverCount];
+            AtomicInteger pageCount = new AtomicInteger(0);
+            Thread[] consumers = new Thread[driverCount];
+
+            for (int d = 0; d < driverCount; d++) {
+                DriverContext ctx = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TEST_BLOCK_FACTORY, null);
+                contexts[d] = ctx;
+                AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+                    storageProvider,
+                    formatReader,
+                    path,
+                    attributes,
+                    100,
+                    bufferSize,
+                    producerExec,
+                    null,
+                    null,
+                    null,
+                    sliceQueue
+                );
+                operators[d] = factory.get(ctx);
+            }
+
+            for (int d = 0; d < driverCount; d++) {
+                final int driverIdx = d;
+                consumers[d] = new Thread(() -> {
+                    try {
+                        while (operators[driverIdx].isFinished() == false) {
+                            Page page = operators[driverIdx].getOutput();
+                            if (page != null) {
+                                pageCount.incrementAndGet();
+                                page.releaseBlocks();
+                            } else {
+                                Thread.sleep(1);
+                            }
+                        }
+                    } catch (Exception e) {
+                        throw new AssertionError("Consumer " + driverIdx + " failed", e);
+                    }
+                });
+                consumers[d].start();
+            }
+
+            for (int d = 0; d < driverCount; d++) {
+                consumers[d].join(TimeUnit.SECONDS.toMillis(15));
+                assertFalse("Consumer thread " + d + " should have completed", consumers[d].isAlive());
+            }
+
+            for (int d = 0; d < driverCount; d++) {
+                contexts[d].finish();
+                PlainActionFuture<Void> asyncFuture = new PlainActionFuture<>();
+                contexts[d].waitForAsyncActions(asyncFuture);
+                asyncFuture.actionGet(TimeValue.timeValueSeconds(10));
+            }
+
+            assertEquals("All leaves should be read", totalLeaves, totalReadCount.get());
+            assertEquals("Total pages should be totalLeaves * pagesPerSplit", totalLeaves * pagesPerSplit, pageCount.get());
+
+            for (SourceOperator op : operators) {
+                op.close();
+            }
+        } finally {
+            producerExec.shutdown();
+            assertTrue(producerExec.awaitTermination(15, TimeUnit.SECONDS));
+        }
+    }
+
+    /**
+     * Failure-injection test for the slice-queue path with a real {@link DriverContext}: a
+     * format reader that throws after producing a few pages. Verifies that
+     * {@code waitForAsyncActions} still completes (i.e., {@code removeAsyncAction} fires on
+     * the error path), which is the property the single-completion-listener refactor guarantees.
+     */
+    public void testSliceQueueMidStreamFailureCompletesAsyncActions() throws Exception {
+        int goodSplits = randomIntBetween(2, 5);
+        int totalSplits = goodSplits + randomIntBetween(2, 5);
+        int pagesPerSplit = randomIntBetween(3, 6);
+
+        List<ExternalSplit> splits = new ArrayList<>();
+        for (int i = 0; i < totalSplits; i++) {
+            splits.add(new FileSplit("test", StoragePath.of("s3://bucket/s" + i + ".parquet"), 0, 100, "parquet", Map.of(), Map.of()));
+        }
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(splits);
+
+        AtomicInteger readCount = new AtomicInteger(0);
+        FormatReader formatReader = new FailAfterNReadsFormatReader(readCount, goodSplits, pagesPerSplit);
+        StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
+
+        StoragePath path = StoragePath.of("s3://bucket/s0.parquet");
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "value",
+                new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+
+        ExecutorService realExec = Executors.newFixedThreadPool(2, EsExecutors.daemonThreadFactory("test", "fail-test"));
+        try {
+            DriverContext ctx = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TEST_BLOCK_FACTORY, null);
+            AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+                storageProvider,
+                formatReader,
+                path,
+                attributes,
+                100,
+                2,
+                realExec,
+                null,
+                null,
+                null,
+                sliceQueue
+            );
+            SourceOperator operator = factory.get(ctx);
+
+            List<Page> pages = new ArrayList<>();
+            Exception operatorError = null;
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(15);
+            while (operator.isFinished() == false && System.nanoTime() < deadline) {
+                try {
+                    Page page = operator.getOutput();
+                    if (page != null) {
+                        pages.add(page);
+                    } else {
+                        Thread.sleep(1);
+                    }
+                } catch (Exception e) {
+                    operatorError = e;
+                    break;
+                }
+            }
+            assertNotNull("Operator should propagate the injected read failure", operatorError);
+
+            ctx.finish();
+            PlainActionFuture<Void> asyncFuture = new PlainActionFuture<>();
+            ctx.waitForAsyncActions(asyncFuture);
+            asyncFuture.actionGet(TimeValue.timeValueSeconds(10));
+
+            for (Page p : pages) {
+                p.releaseBlocks();
+            }
+            operator.close();
+        } finally {
+            realExec.shutdown();
+            assertTrue(realExec.awaitTermination(15, TimeUnit.SECONDS));
+        }
+    }
+
+    /**
+     * Concurrent sanity check for the multi-file path: multiple producer drivers processing
+     * files from a resolved {@link FileList} with real {@link DriverContext} async-action
+     * tracking. Verifies that {@code waitForAsyncActions} completes for every driver.
+     */
+    public void testMultiFileMultiDriverRealContextBackpressure() throws Exception {
+        int driverCount = randomIntBetween(2, 4);
+        int fileCount = randomIntBetween(4, 10);
+        int pagesPerFile = randomIntBetween(3, 8);
+        int bufferSize = randomIntBetween(1, 3);
+
+        List<StorageEntry> entries = new ArrayList<>();
+        for (int i = 0; i < fileCount; i++) {
+            entries.add(new StorageEntry(StoragePath.of("s3://bucket/f" + i + ".parquet"), 100 * (i + 1), Instant.EPOCH));
+        }
+        FileList fileList = GlobExpander.fileListOf(entries, "s3://bucket/*.parquet");
+
+        AtomicInteger totalReadCount = new AtomicInteger(0);
+        FormatReader formatReader = new MultiPageFormatReader(totalReadCount, pagesPerFile);
+        StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
+
+        StoragePath path = StoragePath.of("s3://bucket/f0.parquet");
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "value",
+                new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+
+        ExecutorService producerExec = Executors.newFixedThreadPool(driverCount, EsExecutors.daemonThreadFactory("test", "mf-producer"));
+        try {
+            SourceOperator[] operators = new SourceOperator[driverCount];
+            DriverContext[] contexts = new DriverContext[driverCount];
+            AtomicInteger pageCount = new AtomicInteger(0);
+            Thread[] consumers = new Thread[driverCount];
+
+            for (int d = 0; d < driverCount; d++) {
+                DriverContext ctx = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TEST_BLOCK_FACTORY, null);
+                contexts[d] = ctx;
+                AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+                    storageProvider,
+                    formatReader,
+                    path,
+                    attributes,
+                    100,
+                    bufferSize,
+                    producerExec,
+                    fileList
+                );
+                operators[d] = factory.get(ctx);
+            }
+
+            for (int d = 0; d < driverCount; d++) {
+                final int driverIdx = d;
+                consumers[d] = new Thread(() -> {
+                    try {
+                        while (operators[driverIdx].isFinished() == false) {
+                            Page page = operators[driverIdx].getOutput();
+                            if (page != null) {
+                                pageCount.incrementAndGet();
+                                page.releaseBlocks();
+                            } else {
+                                Thread.sleep(1);
+                            }
+                        }
+                    } catch (Exception e) {
+                        throw new AssertionError("Consumer " + driverIdx + " failed", e);
+                    }
+                });
+                consumers[d].start();
+            }
+
+            for (int d = 0; d < driverCount; d++) {
+                consumers[d].join(TimeUnit.SECONDS.toMillis(15));
+                assertFalse("Consumer thread " + d + " should have completed", consumers[d].isAlive());
+            }
+
+            for (int d = 0; d < driverCount; d++) {
+                contexts[d].finish();
+                PlainActionFuture<Void> asyncFuture = new PlainActionFuture<>();
+                contexts[d].waitForAsyncActions(asyncFuture);
+                asyncFuture.actionGet(TimeValue.timeValueSeconds(10));
+            }
+
+            assertEquals(fileCount * driverCount, totalReadCount.get());
+            assertEquals(fileCount * pagesPerFile * driverCount, pageCount.get());
+
+            for (SourceOperator op : operators) {
+                op.close();
+            }
+        } finally {
+            producerExec.shutdown();
+            assertTrue(producerExec.awaitTermination(15, TimeUnit.SECONDS));
+        }
+    }
+
     // ===== Helpers =====
 
     private static CloseableIterator<Page> emptyIterator() {
@@ -2467,6 +2777,66 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     /**
      * Test async format reader that returns empty pages via async callback.
      */
+    /**
+     * Format reader that succeeds for the first N reads (returning multiple pages each),
+     * then throws an IOException on the (N+1)th read. Used to test error-path cleanup.
+     */
+    private static class FailAfterNReadsFormatReader implements FormatReader {
+        private final AtomicInteger readCount;
+        private final int failAfter;
+        private final int pagesPerRead;
+
+        FailAfterNReadsFormatReader(AtomicInteger readCount, int failAfter, int pagesPerRead) {
+            this.readCount = readCount;
+            this.failAfter = failAfter;
+            this.pagesPerRead = pagesPerRead;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return null;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            int call = readCount.incrementAndGet();
+            if (call > failAfter) {
+                throw new IOException("Injected read failure on call " + call);
+            }
+            return new CloseableIterator<>() {
+                private int remaining = pagesPerRead;
+
+                @Override
+                public boolean hasNext() {
+                    return remaining > 0;
+                }
+
+                @Override
+                public Page next() {
+                    if (remaining <= 0) throw new NoSuchElementException();
+                    remaining--;
+                    return createTestPage();
+                }
+
+                @Override
+                public void close() {}
+            };
+        }
+
+        @Override
+        public String formatName() {
+            return "test-fail-after-n";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".parquet");
+        }
+
+        @Override
+        public void close() {}
+    }
+
     private static class TestAsyncFormatReader implements FormatReader {
         @Override
         public SourceMetadata metadata(StorageObject object) {

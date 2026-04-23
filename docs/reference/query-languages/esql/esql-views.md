@@ -92,7 +92,7 @@ Views have certain limitations:
 * Cross-cluster search:
   * Remote views in CCS are not allowed (ie. `FROM cluster:view` will only match remote indexes with the name `view`. If a remote view is found, the query will fail).
   * If a remote index matches a local view name, the query will fail.
-* Serverless and Cross-project search
+* Serverless and Cross-project search:
   * Views are currently disabled in serverless
   * The plan to enable views in serverless will include limitations:
     * Remote views in CPS will not be allowed (ie. `FROM view` will only match origin project views, and if linked project views with that name are found, the query will fail).

@@ -92,17 +92,21 @@ public class RatedSearchHitTests extends ESTestCase {
 
     public void testXContentRoundtrip() throws IOException {
         RatedSearchHit testItem = randomRatedSearchHit();
+        RatedSearchHit parsedItem = null;
         try {
             XContentType xContentType = randomFrom(XContentType.values());
             BytesReference originalBytes = toShuffledXContent(testItem, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
             try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-                RatedSearchHit parsedItem = parseInstance(parser);
+                parsedItem = parseInstance(parser);
                 assertNotSame(testItem, parsedItem);
                 assertEquals(testItem, parsedItem);
                 assertEquals(testItem.hashCode(), parsedItem.hashCode());
             }
         } finally {
             releasePooledSearchHitCompletely(testItem.getSearchHit());
+            if (parsedItem != null) {
+                releasePooledSearchHitCompletely(parsedItem.getSearchHit());
+            }
         }
     }
 

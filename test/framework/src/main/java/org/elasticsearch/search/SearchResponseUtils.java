@@ -430,6 +430,12 @@ public enum SearchResponseUtils {
         if (hits != null) {
             hits.decRef();
         }
+        if (suggest != null) {
+            List<SearchHit> completionHits = suggest.collectCompletionOptionHits(false);
+            if (completionHits != null) {
+                completionHits.forEach(SearchHit::decRef);
+            }
+        }
         return searchResponse;
     }
 

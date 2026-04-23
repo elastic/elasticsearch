@@ -95,7 +95,7 @@ public class BundleChangelogsTask extends DefaultTask {
         option = "bc-ref",
         description = "A source ref, typically the sha of a BC, that should be used to source PRs for changelog entries. "
             + "The actual content of the changelogs will come from the 'branch' ref. "
-            + "You should generally always use bc-ref."
+            + "You should generally always use bc-ref. Blank or whitespace-only values are ignored."
     )
     public void setBcRef(String ref) {
         this.bcRef = ref;
@@ -151,7 +151,7 @@ public class BundleChangelogsTask extends DefaultTask {
 
         var didCheckoutChangelogs = false;
         try {
-            var usingBcRef = bcRef != null && bcRef.isEmpty() == false;
+            var usingBcRef = bcRef != null && bcRef.isBlank() == false;
             if (usingBcRef) {
                 // Check out all the changelogs that existed at the time of the BC
                 checkoutChangelogs(gitWrapper, upstreamRemote, bcRef);

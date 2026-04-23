@@ -385,7 +385,7 @@ public class ServerCliTests extends CommandTestCase {
     }
 
     private KeystoreSecureSettingsLoader setupMockKeystoreLoader() {
-        var loader = new KeystoreSecureSettingsLoader(new KeyStoreLoader());
+        var loader = new KeystoreSecureSettingsLoader();
         this.mockSecureSettingsLoader = loader;
         return loader;
     }
@@ -497,7 +497,7 @@ public class ServerCliTests extends CommandTestCase {
                 return mockSecureSettingsLoader;
             }
             var loader = super.secureSettingsLoader(processInfo);
-            return loader instanceof KeyStoreLoader ksl ? new KeystoreSecureSettingsLoader(ksl) : loader;
+            return loader instanceof KeyStoreLoader ? new KeystoreSecureSettingsLoader() : loader;
         }
 
         @Override
@@ -556,20 +556,15 @@ public class ServerCliTests extends CommandTestCase {
         }
     }
 
-    static class KeystoreSecureSettingsLoader implements SecureSettingsLoader {
-        private final KeyStoreLoader delegate;
+    static class KeystoreSecureSettingsLoader extends KeyStoreLoader {
         boolean loaded = false;
         LoadedSecrets secrets = null;
         String password = null;
         boolean bootstrapped = false;
 
-        KeystoreSecureSettingsLoader(KeyStoreLoader delegate) {
-            this.delegate = delegate;
-        }
-
         @Override
         public LoadedSecrets load(Environment environment, Terminal terminal) throws Exception {
-            var result = delegate.load(environment, terminal);
+            var result = super.load(environment, terminal);
             loaded = true;
             secrets = result;
             password = result.password().get().toString();
@@ -583,12 +578,7 @@ public class ServerCliTests extends CommandTestCase {
             if (inFipsJvm() && (password == null || password.isEmpty())) {
                 return KeyStoreWrapper.create();
             }
-            return delegate.bootstrap(environment, password);
-        }
-
-        @Override
-        public boolean supportsSecurityAutoConfiguration() {
-            return delegate.supportsSecurityAutoConfiguration();
+            return super.bootstrap(environment, password);
         }
     }
 }

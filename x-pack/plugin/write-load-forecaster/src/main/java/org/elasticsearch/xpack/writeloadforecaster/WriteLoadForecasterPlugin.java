@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -45,13 +46,6 @@ public class WriteLoadForecasterPlugin extends Plugin implements ClusterPlugin {
         Setting.Property.IndexScope
     );
 
-    public static final Setting<Boolean> CLUSTER_INFO_WRITE_LOAD_FORECASTER_ENABLED_SETTING = Setting.boolSetting(
-        "cluster_info_write_load_forecaster.enabled",
-        false,
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope
-    );
-
     public WriteLoadForecasterPlugin() {}
 
     protected boolean hasValidLicense() {
@@ -60,7 +54,7 @@ public class WriteLoadForecasterPlugin extends Plugin implements ClusterPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(MAX_INDEX_AGE_SETTING, OVERRIDE_WRITE_LOAD_FORECAST_SETTING, CLUSTER_INFO_WRITE_LOAD_FORECASTER_ENABLED_SETTING);
+        return List.of(MAX_INDEX_AGE_SETTING, OVERRIDE_WRITE_LOAD_FORECAST_SETTING);
     }
 
     @Override
@@ -110,7 +104,7 @@ public class WriteLoadForecasterPlugin extends Plugin implements ClusterPlugin {
             this.clusterInfoService.addListener(this::onNewClusterInfo);
 
             clusterSettings.initializeAndWatch(
-                CLUSTER_INFO_WRITE_LOAD_FORECASTER_ENABLED_SETTING,
+                WriteLoadConstraintSettings.CLUSTER_INFO_WRITE_LOAD_FORECASTER_ENABLED_SETTING,
                 clusterInfoForecasterEnabled -> handleChangedWriteLoadForecaster(clusterInfoForecasterEnabled)
             );
         }

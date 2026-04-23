@@ -107,6 +107,9 @@ final class FileSourceFactory implements ExternalSourceFactory {
             }
 
             StorageObject storageObject = provider.newObject(storagePath);
+            if (storageObject.exists() == false) {
+                throw new IOException("File does not exist: " + location);
+            }
             FormatReader reader = resolveFormatReader(storagePath.objectName(), config).withConfig(config);
             return reader.metadata(storageObject);
         } catch (IOException e) {
@@ -163,7 +166,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 context.sliceQueue(),
                 errorPolicy,
                 context.parsingParallelism(),
-                null,
                 pushedExpressions,
                 pushdownSupport
             );

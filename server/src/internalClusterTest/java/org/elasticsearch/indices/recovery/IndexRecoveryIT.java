@@ -740,8 +740,11 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             .getStore()
             .size();
 
-        logger.info("--> starting node B with default settings");
-        final String nodeB = internalCluster().startNode();
+        logger.info("--> starting node B");
+        final String nodeB = internalCluster().startNode(
+            // Ensure that the target node has a high enough recovery max bytes per second to avoid any throttling
+            Settings.builder().put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "200mb")
+        );
 
         long chunkSize = Math.max(1, shardSize.getBytes() / 10);
         logger.info(

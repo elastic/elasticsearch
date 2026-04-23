@@ -673,6 +673,7 @@ public class SynonymsManagementAPIService {
         DeleteByQueryRequest dbqRequest = new DeleteByQueryRequest(SYNONYMS_ALIAS_NAME).setQuery(
             QueryBuilders.termQuery(SYNONYMS_SET_FIELD, synonymSetId)
         ).setRefresh(true).setIndicesOptions(IndicesOptions.fromOptions(true, true, false, false));
+        dbqRequest.setConflicts("proceed");
 
         client.execute(DeleteByQueryAction.INSTANCE, dbqRequest, listener);
     }

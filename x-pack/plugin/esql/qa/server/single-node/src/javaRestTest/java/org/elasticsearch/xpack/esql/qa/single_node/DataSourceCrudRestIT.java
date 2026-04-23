@@ -30,7 +30,12 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
-/** End-to-end REST coverage for the CRUD API against a cluster with {@code esql-datasource-s3} loaded. */
+/**
+ * End-to-end REST coverage for the CRUD API against a cluster with {@code esql-datasource-s3}
+ * loaded. Exercises the HTTP layer: status codes, secret masking on the wire, validator error
+ * shape. Scenarios needing direct ClusterService access (gateway persistence, race coordination)
+ * live in {@link org.elasticsearch.xpack.esql.datasources.datasource.DataSourceCrudIT}.
+ */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class DataSourceCrudRestIT extends ESRestTestCase {
 

@@ -1,0 +1,617 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.stateless.lucene;
+
+import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.blobcache.BlobCacheMetrics;
+import org.elasticsearch.blobcache.BlobCacheUtils;
+import org.elasticsearch.blobcache.common.ByteRange;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.blobcache.shared.SharedBytes;
+import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.LuceneFilesExtensions;
+import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.TestUtils;
+import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
+import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
+import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
+import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
+import org.elasticsearch.xpack.stateless.commits.BlobLocation;
+import org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+import org.elasticsearch.xpack.stateless.test.FakeStatelessNode;
+
+import java.io.BufferedInputStream;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.SequenceInputStream;
+import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.blobcache.BlobCacheUtils.toIntBytes;
+import static org.elasticsearch.xpack.stateless.commits.BlobLocationTestUtils.createBlobLocation;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
+
+public class SearchDirectoryTests extends ESTestCase {
+
+    @Override
+    public String[] tmpPaths() {
+        // cache requires a single data path
+        return new String[] { createTempDir().toAbsolutePath().toString() };
+    }
+
+    private FakeStatelessNode createFakeStatelessNode(ByteSizeValue regionSize, ByteSizeValue cacheSize) throws IOException {
+        return createFakeStatelessNode(regionSize, cacheSize, originalCacheBlobReader -> new CacheBlobReader() {
+            @Override
+            public ByteRange getRange(long position, int length, long remainingFileLength) {
+                var start = BlobCacheUtils.toPageAlignedSize(Math.max(position - SharedBytes.PAGE_SIZE + 1L, 0L));
+                var end = BlobCacheUtils.toPageAlignedSize(position + length);
+                return ByteRange.of(start, end);
+            }
+
+            @Override
+            public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
+                originalCacheBlobReader.getRangeInputStream(position, length, listener);
+            }
+        }, originalBlobContainer -> originalBlobContainer);
+    }
+
+    private FakeStatelessNode createFakeStatelessNode(
+        ByteSizeValue regionSize,
+        ByteSizeValue cacheSize,
+        Function<CacheBlobReader, CacheBlobReader> objectStoreCacheBlobReaderWrapper,
+        Function<BlobContainer, BlobContainer> blobContainerWrapper
+    ) throws IOException {
+        return new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
+                    .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
+                    .build();
+            }
+
+            @Override
+            protected SearchDirectory createSearchDirectory(
+                StatelessSharedBlobCacheService sharedCacheService,
+                ShardId shardId,
+                CacheBlobReaderService cacheBlobReaderService,
+                MutableObjectStoreUploadTracker objectStoreUploadTracker
+            ) {
+                var customCacheBlobReaderService = new CacheBlobReaderService(nodeSettings, sharedCacheService, client, threadPool) {
+                    @Override
+                    protected CacheBlobReader getObjectStoreCacheBlobReader(
+                        BlobContainer blobContainer,
+                        String blobName,
+                        long cacheRangeSize,
+                        Executor fetchExecutor
+                    ) {
+                        var originalCacheBlobReader = super.getObjectStoreCacheBlobReader(
+                            blobContainer,
+                            blobName,
+                            cacheRangeSize,
+                            fetchExecutor
+                        );
+                        return objectStoreCacheBlobReaderWrapper.apply(originalCacheBlobReader);
+                    }
+                };
+                return super.createSearchDirectory(
+                    sharedCacheService,
+                    shardId,
+                    customCacheBlobReaderService,
+                    MutableObjectStoreUploadTracker.ALWAYS_UPLOADED
+                );
+            }
+
+            @Override
+            protected StatelessSharedBlobCacheService createCacheService(
+                NodeEnvironment nodeEnvironment,
+                Settings settings,
+                ThreadPool threadPool,
+                MeterRegistry MeterRegistry
+            ) {
+                StatelessSharedBlobCacheService statelessSharedBlobCacheService = new StatelessSharedBlobCacheService(
+                    nodeEnvironment,
+                    settings,
+                    threadPool,
+                    BlobCacheMetrics.NOOP,
+                    new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
+                ) {
+                    @Override
+                    protected boolean assertOffsetsWithinFileLength(long offset, long length, long fileLength) {
+                        // this test tries to read beyond the file length
+                        return true;
+                    }
+                };
+                statelessSharedBlobCacheService.assertInvariants();
+                return statelessSharedBlobCacheService;
+            }
+
+            @Override
+            public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+                return blobContainerWrapper.apply(innerContainer);
+            }
+        };
+    }
+
+    public void testStatelessDirectory() throws IOException {
+        try (Directory directory = StatelessDirectoryFactory.create(LuceneTestCase.createTempDir().toAbsolutePath())) {
+            // It's important to close the IndexOutput so the necessary metadata gets updated
+            try (var output = directory.createOutput("vectors", IOContext.DEFAULT)) {
+                output.writeInt(12);
+            }
+
+            var input = directory.openInput("vectors", IOContext.DEFAULT);
+            var value = input.readInt();
+            assertThat(value, equalTo(12));
+            input.close();
+        }
+    }
+
+    /**
+     * Test that BlobCacheIndexInput can be read from the cache while the blob in object store keeps growing in size.
+     *
+     * In production, the batched compound commits are expanded in cache by appending compound commits. For simplicity, this test appends
+     * Lucene files instead.
+     */
+    public void testExpandingCacheRegions() throws Exception {
+        var regionSize = ByteSizeValue.ofBytes(SharedBytes.PAGE_SIZE * randomLongBetween(1L, 4L)); // regions are 4kb..16kb
+        var cacheSize = ByteSizeValue.ofBytes(regionSize.getBytes() * 100L); // 100 regions
+
+        logger.debug("--> using cache size [{}] with region size [{}]", cacheSize, regionSize);
+        try (var node = createFakeStatelessNode(regionSize, cacheSize)) {
+            final var primaryTerm = randomLongBetween(1L, 10L);
+            final var indexDirectory = IndexDirectory.unwrapDirectory(node.indexingStore.directory());
+            final var searchDirectory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
+            final var blobContainer = searchDirectory.getBlobContainer(primaryTerm);
+            final int minFileSize = CodecUtil.footerLength();
+
+            final String blobName = StatelessCompoundCommit.blobNameFromGeneration(1L);
+            long blobLength = 0L;
+            long generation = 0L;
+
+            final var files = new ArrayList<ChecksummedFile>();
+            StatelessSharedBlobCacheService.CacheFile previousCacheFile = null;
+            ChecksummedFile previousFile = null;
+            IndexInput previousInput = null;
+            long previousBlobLength = 0L;
+
+            final int cacheSizeInBytes = toIntBytes(cacheSize.getBytes());
+            final long regionSizeInBytes = regionSize.getBytes();
+
+            // This test tries to avoid evictions by not fully writing the cache and leaves at least 1 free region:
+            // this is important because we use tryRead() later to check that a region has been expanded.
+            while (blobLength <= cacheSizeInBytes - regionSizeInBytes * 2) {
+                // always leave a region free in cache
+                int fileLength = randomIntBetween(minFileSize, toIntBytes(cacheSizeInBytes - regionSizeInBytes - blobLength));
+                var fileName = randomIdentifier();
+                var fileOffset = blobLength;
+
+                logger.debug("--> write file [{}] of length [{}]", fileName, fileLength);
+                try (var output = indexDirectory.createOutput(fileName, IOContext.DEFAULT)) {
+                    byte[] randomBytes = randomByteArrayOfLength(fileLength - minFileSize);
+                    output.writeBytes(randomBytes, randomBytes.length);
+                    CodecUtil.writeFooter(output);
+                }
+
+                logger.debug("--> compute checksum of file [{}]", fileName);
+                long fileChecksum;
+                try (var input = indexDirectory.openInput(fileName, IOContext.DEFAULT)) {
+                    fileChecksum = CodecUtil.retrieveChecksum(input);
+                }
+
+                final var fileLengthPlusPadding = BlobCacheUtils.toPageAlignedSize(fileLength);
+                blobLength += fileLengthPlusPadding;
+
+                logger.debug(
+                    "--> add file [{}] of length [{}] to blob [{}] of length [{}] at offset [{}]",
+                    fileName,
+                    fileLength,
+                    blobName,
+                    blobLength,
+                    fileOffset
+                );
+
+                var file = new ChecksummedFile(fileName, fileLength, fileOffset, fileChecksum, blobLength);
+                files.add(file);
+
+                logger.debug("--> now overwrite blob with [{}] files in object store", files.size());
+                var stream = new ChecksummedFilesInputStream(node.indexingShardPath.resolveIndex(), List.copyOf(files));
+                blobContainer.writeBlob(OperationPurpose.INDICES, blobName, stream, blobLength, false);
+                assertThat(stream.bytesRead, equalTo(blobLength));
+
+                logger.debug("--> update commit with file [{}]", fileName);
+                // bypass index directory so that files remain on disk and can be read again by ChecksumedFilesInputStream
+                searchDirectory.updateCommit(
+                    new StatelessCompoundCommit(
+                        node.shardId,
+                        new PrimaryTermAndGeneration(primaryTerm, generation),
+                        1L,
+                        node.node.getId(),
+                        files.stream()
+                            .collect(
+                                Collectors.toUnmodifiableMap(
+                                    ChecksummedFile::fileName,
+                                    f -> createBlobLocation(primaryTerm, 1L, f.fileOffset, f.fileLength)
+                                )
+                            ),
+                        blobLength,
+                        files.stream().map(ChecksummedFile::fileName).collect(Collectors.toSet()),
+                        0L,
+                        InternalFilesReplicatedRanges.EMPTY,
+                        Map.of(),
+                        null
+                    )
+                );
+                generation += 1L;
+
+                if (previousCacheFile != null && randomBoolean()) {
+                    assertBusyCacheFile(previousCacheFile, previousFile, blobName, previousBlobLength);
+                }
+
+                logger.debug("--> open file [{}] from cache", fileName);
+                var input = searchDirectory.openInput(file.fileName(), IOContext.DEFAULT);
+                assertThat(input, instanceOf(BlobCacheIndexInput.class));
+
+                logger.debug("--> now fully read file [{}] from cache and verify its checksum", file.fileName());
+                CodecUtil.checksumEntireFile(input);
+                assertThat(CodecUtil.retrieveChecksum(input), equalTo(file.fileChecksum()));
+
+                logger.debug("--> verify cache file");
+                var cacheFile = BlobStoreCacheDirectoryTestUtils.getCacheFile((BlobCacheIndexInput) input);
+                assertBusyCacheFile(cacheFile, file, blobName, blobLength);
+
+                if (previousFile != null) {
+                    try {
+                        ByteBuffer buffer = ByteBuffer.allocate(1);
+                        logger.debug("--> verify previous file [{}] checksum again from cache", previousFile.fileName());
+                        CodecUtil.checksumEntireFile(previousInput);
+                        assertThat(CodecUtil.retrieveChecksum(previousInput), equalTo(previousFile.fileChecksum()));
+
+                        logger.debug("--> verify previous cache file");
+                        assertBusyCacheFile(previousCacheFile, previousFile, blobName, blobLength);
+
+                        var length = BlobCacheUtils.toPageAlignedSize(previousFile.fileOffset() + previousFile.fileLength());
+                        assertThat(length, equalTo(file.fileOffset()));
+                        assertThat(length, lessThan(blobLength));
+
+                        logger.debug("--> verify that previous cache file ending region has been expanded");
+                        assertTrue(
+                            "Data is available beyond previous cache file's length",
+                            previousCacheFile.tryRead(buffer, previousCacheFile.getLength())
+                        );
+                        buffer.clear();
+                    } finally {
+                        IOUtils.close(previousInput);
+                    }
+                }
+
+                previousBlobLength = blobLength;
+                previousCacheFile = cacheFile;
+                previousInput = input;
+                previousFile = file;
+            }
+            assertThat(indexDirectory.getBlobStoreCacheDirectory().getCacheService().getStats().evictCount(), equalTo(0L));
+        }
+    }
+
+    private static void assertBusyCacheFile(
+        StatelessSharedBlobCacheService.CacheFile cacheFile,
+        ChecksummedFile file,
+        String blobName,
+        long blobLength
+    ) throws Exception {
+        // There is a race between cacheFile.tryRead() and the thread that completes the writing of the last region in cache, potentially
+        // making tryRead() not work the first time, so we use assertBusy to retry.
+        //
+        // The race is between the completion of the gap to fill, which updates the SparseFileTracker's {@code complete} volatile field when
+        // the last range is completed, and the tryRead() method that uses SparseFileTracker's {@code checkAvailable} method that also reads
+        // the {@code complete} volatile field.
+        assertBusy(() -> {
+            assertThat("Cache key refers to the single blob", cacheFile.getCacheKey().fileName(), equalTo(blobName));
+
+            ByteBuffer buffer = ByteBuffer.allocate(1);
+            long position = file.fileOffset();
+            assertThat("File's offset is page aligned", position % SharedBytes.PAGE_SIZE, equalTo(0L));
+            assertTrue("File's first byte is available in cache", cacheFile.tryRead(buffer, position));
+            buffer.clear();
+
+            position = file.fileOffset() + file.fileLength() - 1L;
+            assertTrue("File's last byte is available in cache", cacheFile.tryRead(buffer, position));
+            buffer.clear();
+
+            position = blobLength - 1L;
+            assertTrue("Blob's last region byte (including padding) is available cache", cacheFile.tryRead(buffer, position));
+            buffer.clear();
+        });
+    }
+
+    public void testGetHighestOffsetSegmentInfos() throws IOException {
+        try (var node = createFakeStatelessNode(ByteSizeValue.ofBytes(4096), ByteSizeValue.ofBytes(4096))) {
+            final var searchDirectory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
+            {
+                assertEquals(0, searchDirectory.getHighestOffsetSegmentInfos().size());
+            }
+
+            {
+                searchDirectory.retainFiles(Set.of());
+                List<BlobLocation> blobLocations = createBlobLocations("blob1", 5);
+                searchDirectory.updateCommit(
+                    createCommit(
+                        searchDirectory.shardId,
+                        blobLocations,
+                        List.of(
+                            randomAlphaOfLength(10),
+                            randomAlphaOfLength(10),
+                            randomAlphaOfLength(10),
+                            randomAlphaOfLength(10),
+                            // last file is the segment info so the last location should be returned
+                            randomAlphaOfLength(10) + LuceneFilesExtensions.SI.getExtension()
+                        )
+                    )
+                );
+                Collection<BlobFileRanges> blobFilesAndHighesRanges = searchDirectory.getHighestOffsetSegmentInfos();
+                assertEquals(1, blobFilesAndHighesRanges.size());
+                BlobFileRanges range = blobFilesAndHighesRanges.iterator().next();
+                assertEquals("blob1", range.blobName());
+                assertEquals(blobLocations.getLast().offset(), range.blobLocation().offset());
+            }
+
+            {
+                searchDirectory.retainFiles(Set.of());
+                Map<String, BlobLocation> expectedLocations = new HashMap<>();
+
+                int numBlobs = randomIntBetween(2, 10);
+                for (int i = 0; i < numBlobs; i++) {
+                    String blobName = "blob_" + i;
+                    List<BlobLocation> blobLocations = createBlobLocations(blobName, 5);
+                    expectedLocations.put(blobName, blobLocations.getFirst());
+                    searchDirectory.updateCommit(
+                        createCommit(
+                            searchDirectory.shardId,
+                            blobLocations,
+                            List.of(
+                                randomAlphaOfLength(10) + LuceneFilesExtensions.SI.getExtension(),
+                                randomAlphaOfLength(10),
+                                randomAlphaOfLength(10),
+                                randomAlphaOfLength(10),
+                                randomAlphaOfLength(10)
+                            )
+                        )
+                    );
+                }
+                Collection<BlobFileRanges> highestOffsetBlobRanges = searchDirectory.getHighestOffsetSegmentInfos();
+                assertEquals(expectedLocations.size(), highestOffsetBlobRanges.size());
+                for (BlobFileRanges range : highestOffsetBlobRanges) {
+                    assertEquals(expectedLocations.get(range.blobName()).offset(), range.blobLocation().offset());
+                }
+            }
+        }
+    }
+
+    public void testUpdateCommitWithReplicatedContent() throws IOException {
+        var regionSize = ByteSizeValue.ofBytes(4096);
+        var readPosition = new AtomicLong(-1L);
+        try (
+            var node = createFakeStatelessNode(
+                ByteSizeValue.ofBytes(4096),
+                ByteSizeValue.ofBytes(4096),
+                originalCacheBlobReader -> new CacheBlobReader() {
+                    @Override
+                    public ByteRange getRange(long position, int length, long remainingFileLength) {
+                        readPosition.set(position);
+                        return originalCacheBlobReader.getRange(position, length, remainingFileLength);
+                    }
+
+                    @Override
+                    public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
+                        originalCacheBlobReader.getRangeInputStream(position, length, listener);
+                    }
+                },
+                originalBlobContainer -> new FilterBlobContainer(originalBlobContainer) {
+                    @Override
+                    protected BlobContainer wrapChild(BlobContainer child) {
+                        return child;
+                    }
+
+                    @Override
+                    public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) {
+                        return new InputStream() {
+                            private long remaining = length;
+
+                            @Override
+                            public int read() {
+                                if (remaining == 0) {
+                                    return -1;
+                                } else {
+                                    remaining -= 1;
+                                    return 1;
+                                }
+                            }
+                        };
+                    }
+                }
+            )
+        ) {
+            final var searchDirectory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
+            BlobFile blobFile = new BlobFile("stateless_commit_1", new PrimaryTermAndGeneration(1, 1));
+            var compoundCommit = TestUtils.getCommitWithInternalFilesReplicatedRanges(
+                searchDirectory.shardId,
+                blobFile,
+                "_na_",
+                0,
+                regionSize.getBytes()
+            );
+            var blobFileRanges = BlobFileRanges.computeBlobFileRanges(true, compoundCommit, 0L, compoundCommit.internalFiles());
+            searchDirectory.updateCommit(compoundCommit, blobFileRanges);
+            List<String> fileNames = new ArrayList<>(blobFileRanges.keySet());
+            Collections.shuffle(fileNames, random());
+            for (String fileName : fileNames) {
+                // caching avoids some reads that we're interested in asserting in this test
+                node.sharedCacheService.forceEvict(fileCacheKey -> true);
+                assertTrue(searchDirectory.containsFile(fileName));
+                // do some read from the beginning
+                try (var inputStream = searchDirectory.openInput(fileName, IOContext.DEFAULT)) {
+                    inputStream.readByte();
+                }
+                // assert that the read position is "redirected" to the location of the replicated content
+                assertThat(readPosition.get(), equalTo(blobFileRanges.get(fileName).locationOfFirstReplicatedContents()));
+            }
+        }
+    }
+
+    private static StatelessCompoundCommit createCommit(ShardId shardId, List<BlobLocation> commitLocations, List<String> files) {
+        Map<String, BlobLocation> commitFiles = new HashMap<>(commitLocations.size(), 1.0f);
+        for (int i = 0; i < commitLocations.size(); i++) {
+            commitFiles.put(files.get(i), commitLocations.get(i));
+        }
+        return new StatelessCompoundCommit(
+            shardId,
+            new PrimaryTermAndGeneration(1L, 1L),
+            1L,
+            "_na_",
+            commitFiles,
+            commitFiles.values().stream().mapToLong(BlobLocation::fileLength).sum(),
+            commitFiles.keySet(),
+            0L,
+            InternalFilesReplicatedRanges.EMPTY,
+            Map.of(),
+            null
+        );
+    }
+
+    private List<BlobLocation> createBlobLocations(String blobName, int n) {
+        List<BlobLocation> locations = new ArrayList<>();
+        int offset = randomIntBetween(0, 500);  // model some initial offset in the File
+        int length = randomIntBetween(10, 200);  // some small file length initially
+        for (int i = 0; i < n; i++) {
+            locations.add(new BlobLocation(new BlobFile(blobName, new PrimaryTermAndGeneration(1, -1)), offset, length));
+            offset += length;
+            // randomly increase next file length a bit
+            length += randomIntBetween(50, 200);
+        }
+        return locations;
+    }
+
+    private record ChecksummedFile(String fileName, long fileLength, long fileOffset, long fileChecksum, long blobLength) {}
+
+    private static class ChecksummedFilesInputStream extends InputStream {
+
+        private final Iterator<ChecksummedFile> iterator;
+        private final Path directory;
+
+        private InputStream current;
+        private long bytesRead;
+
+        private ChecksummedFilesInputStream(Path directory, List<ChecksummedFile> commitsFiles) {
+            this.iterator = commitsFiles.iterator();
+            this.directory = directory;
+        }
+
+        private InputStream nextStream() {
+            var next = iterator.next();
+            try {
+                InputStream stream = new BufferedInputStream(Files.newInputStream(directory.resolve(next.fileName())));
+                // check if some padding bytes are needed, and if so add them now
+                int padding = Math.toIntExact(next.blobLength() - next.fileLength() - next.fileOffset());
+                if (padding > 0) {
+                    byte[] bytes = new byte[padding];
+                    Arrays.fill(bytes, (byte) 0);
+                    stream = new SequenceInputStream(stream, new ByteArrayInputStream(bytes));
+                }
+                return stream;
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        }
+
+        private void closeStreamAndNullify() throws IOException {
+            try {
+                IOUtils.close(current);
+            } finally {
+                current = null;
+            }
+        }
+
+        @Override
+        public int read() throws IOException {
+            if (current == null) {
+                if (iterator.hasNext() == false) {
+                    return -1;
+                }
+                current = nextStream();
+            }
+            int read = current.read();
+            if (read == -1) {
+                closeStreamAndNullify();
+                return read();
+            }
+            bytesRead += 1;
+            return read;
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            if (current == null) {
+                if (iterator.hasNext() == false) {
+                    return -1;
+                }
+                current = nextStream();
+            }
+            int read = current.read(b, off, len);
+            if (read == -1) {
+                closeStreamAndNullify();
+                return read(b, off, len);
+            }
+            bytesRead += read;
+            return read;
+        }
+
+        @Override
+        public void close() throws IOException {
+            closeStreamAndNullify();
+        }
+    }
+}

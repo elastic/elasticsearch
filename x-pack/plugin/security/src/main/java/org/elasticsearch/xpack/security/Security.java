@@ -1274,7 +1274,7 @@ public class Security extends Plugin
         cacheInvalidatorRegistry.validate();
 
         if (PrimaryEncryptionKeyService.PRIMARY_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled()) {
-            PrimaryEncryptionKeyService.create(clusterService, projectResolver, featureService);
+            components.add(PrimaryEncryptionKeyService.create(clusterService, projectResolver, featureService));
         }
 
         setClosableAndReloadableComponents(components);

@@ -178,23 +178,8 @@ column with the dimension key/value pairs. Note how the `qa` cluster rows only c
 `cluster` and `pod` keys, while the `prod` and `staging` rows also include `region` —
 only the dimensions that actually exist for a given time series appear in `_timeseries`:
 
-```esql
-TS k8s
-| STATS avg = avg_over_time(network.cost)
-| SORT avg DESC
-```
-
-| avg:double | _timeseries:keyword |
-| --- | --- |
-| 8.375 | `{"cluster":"prod","pod":"three","region":["eu","us"]}` |
-| 7.262931034482759 | `{"cluster":"qa","pod":"one"}` |
-| 6.870689655172414 | `{"cluster":"qa","pod":"two"}` |
-| 6.635416666666667 | `{"cluster":"qa","pod":"three"}` |
-| 6.46875 | `{"cluster":"staging","pod":"two","region":"us"}` |
-| 5.869791666666667 | `{"cluster":"staging","pod":"three","region":"us"}` |
-| 5.586956521739131 | `{"cluster":"prod","pod":"one","region":["eu","us"]}` |
-| 5.1826923076923075 | `{"cluster":"staging","pod":"one","region":"us"}` |
-| 4.0703125 | `{"cluster":"prod","pod":"two","region":["eu","us"]}` |
+::::{include} ../examples/k8s-timeseries.csv-spec/docsGroupByAllImplicitly.md
+::::
 
 ### Exclude dimensions with WITHOUT
 
@@ -202,28 +187,16 @@ Use [`WITHOUT`](/reference/query-languages/esql/functions-operators/grouping-fun
 ({applies_to}`stack: ga 9.4`) in the `BY` clause to exclude specific dimensions from
 the time series grouping. For example, group by every dimension except `pod`:
 
-```esql
-TS k8s
-| STATS total_cost = sum(network.cost) BY WITHOUT(pod)
-| SORT total_cost
-```
-
-| total_cost:double | _timeseries:keyword |
-| --- | --- |
-| 15.875 | `{"cluster":"staging","region":"us"}` |
-| 18.625 | `{"cluster":"prod","region":["eu","us"]}` |
-| 26.5 | `{"cluster":"qa"}` |
+::::{include} ../examples/k8s-timeseries-without.csv-spec/docsWithoutSingleDimension.md
+::::
 
 `WITHOUT` can be combined with
 [`TBUCKET`](/reference/query-languages/esql/functions-operators/grouping-functions/tbucket.md)
 to add a time bucket to the grouping — useful for producing per-interval aggregates
 across the surviving dimensions:
 
-```esql
-TS k8s
-| STATS total_cost = sum(network.cost) BY WITHOUT(pod), tbucket = TBUCKET(1 hour)
-| SORT total_cost
-```
+::::{include} ../examples/k8s-timeseries-without.csv-spec/docsWithoutWithTbucket.md
+::::
 
 Passing no arguments (`WITHOUT()`) is equivalent to grouping by all dimensions — the same
 as omitting the `BY` clause entirely. Refer to the

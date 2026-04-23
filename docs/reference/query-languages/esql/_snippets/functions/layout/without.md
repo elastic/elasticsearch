@@ -58,53 +58,20 @@ is used without a `BY` clause. Refer to
 Aggregate by every dimension except `pod`. Results are grouped per unique
 `(cluster, region)` combination:
 
-```esql
-TS k8s
-| STATS total_cost = sum(network.cost) BY WITHOUT(pod)
-| SORT total_cost
-```
-
-| total_cost:double | _timeseries:keyword |
-| --- | --- |
-| 15.875 | `{"cluster":"staging","region":"us"}` |
-| 18.625 | `{"cluster":"prod","region":["eu","us"]}` |
-| 26.5 | `{"cluster":"qa"}` |
+::::{include} ../../commands/examples/k8s-timeseries-without.csv-spec/docsWithoutSingleDimension.md
+::::
 
 ### Exclude multiple dimensions
 
 Exclude both `pod` and `region`; grouping collapses to `cluster`:
 
-```esql
-TS k8s
-| STATS total_cost = sum(network.cost) BY WITHOUT(pod, region)
-| SORT total_cost
-```
-
-| total_cost:double | _timeseries:keyword |
-| --- | --- |
-| 15.875 | `{"cluster":"staging"}` |
-| 18.625 | `{"cluster":"prod"}` |
-| 26.5 | `{"cluster":"qa"}` |
+::::{include} ../../commands/examples/k8s-timeseries-without.csv-spec/docsWithoutMultipleDimensions.md
+::::
 
 ### Group by all dimensions (empty WITHOUT)
 
 `WITHOUT()` explicitly groups by every dimension — equivalent to the implicit "group by
 all" behavior when no `BY` clause is specified:
 
-```esql
-TS k8s
-| STATS total_cost = sum(network.cost) BY WITHOUT()
-| SORT total_cost
-```
-
-| total_cost:double | _timeseries:keyword |
-| --- | --- |
-| 0.0 | `{"cluster":"prod","pod":"three","region":["eu","us"]}` |
-| 1.75 | `{"cluster":"staging","pod":"two","region":"us"}` |
-| 4.625 | `{"cluster":"staging","pod":"one","region":"us"}` |
-| 6.25 | `{"cluster":"qa","pod":"one"}` |
-| 7.875 | `{"cluster":"prod","pod":"one","region":["eu","us"]}` |
-| 9.375 | `{"cluster":"qa","pod":"two"}` |
-| 9.5 | `{"cluster":"staging","pod":"three","region":"us"}` |
-| 10.75 | `{"cluster":"prod","pod":"two","region":["eu","us"]}` |
-| 10.875 | `{"cluster":"qa","pod":"three"}` |
+::::{include} ../../commands/examples/k8s-timeseries-without.csv-spec/docsWithoutEmpty.md
+::::

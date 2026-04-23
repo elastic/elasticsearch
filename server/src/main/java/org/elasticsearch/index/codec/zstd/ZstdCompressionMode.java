@@ -82,12 +82,7 @@ public class ZstdCompressionMode extends CompressionMode {
                 CloseableByteBuffer src = nativeAccess.newConfinedBuffer(srcLen);
                 CloseableByteBuffer dest = nativeAccess.newConfinedBuffer(compressBound)
             ) {
-
-                while (buffersInput.position() < buffersInput.length()) {
-                    final int numBytes = Math.min(copyBuffer.length, (int) (buffersInput.length() - buffersInput.position()));
-                    buffersInput.readBytes(copyBuffer, 0, numBytes);
-                    src.buffer().put(copyBuffer, 0, numBytes);
-                }
+                buffersInput.readBytes(src.buffer(), srcLen);
                 src.buffer().flip();
 
                 final int compressedLen = zstd.compress(dest, src, level);

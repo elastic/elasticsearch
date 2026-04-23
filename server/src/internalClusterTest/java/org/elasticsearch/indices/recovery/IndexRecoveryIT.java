@@ -546,8 +546,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         final String nodeA = internalCluster().startNode();
 
         logger.info("--> create index on node: {}", nodeA);
-        final ByteSizeValue shardSize = createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT_1, REPLICA_COUNT_0).getShards()[0]
-            .getStats()
+        final ByteSizeValue shardSize = createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT_1, REPLICA_COUNT_0).getShards()[0].getStats()
             .getStore()
             .size();
 
@@ -578,7 +577,15 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         List<RecoveryState> nodeBRecoveryStates = findRecoveriesForTargetNode(nodeB, recoveryStates);
         assertThat(nodeBRecoveryStates, hasSize(1));
 
-        assertRecoveryState(nodeARecoveryStates.getFirst(), 0, RecoverySource.EmptyStoreRecoverySource.INSTANCE, true, Stage.DONE, null, nodeA);
+        assertRecoveryState(
+            nodeARecoveryStates.getFirst(),
+            0,
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+            true,
+            Stage.DONE,
+            null,
+            nodeA
+        );
         validateIndexRecoveryState(nodeARecoveryStates.getFirst().getIndex());
 
         assertOnGoingRecoveryState(nodeBRecoveryStates.getFirst(), 0, PeerRecoverySource.INSTANCE, true, nodeA, nodeB);
@@ -705,11 +712,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
     }
 
     private static List<RecoveryState> getRecoveryStates(String indexName) {
-        return indicesAdmin()
-            .prepareRecoveries(indexName)
-            .get()
-            .shardRecoveryStates()
-            .get(indexName);
+        return indicesAdmin().prepareRecoveries(indexName).get().shardRecoveryStates().get(indexName);
     }
 
     /**
@@ -723,8 +726,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         final String nodeA = internalCluster().startNode();
 
         logger.info("--> creating index on node A");
-        final ByteSizeValue shardSize = createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT_1, REPLICA_COUNT_0).getShards()[0]
-            .getStats()
+        final ByteSizeValue shardSize = createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT_1, REPLICA_COUNT_0).getShards()[0].getStats()
             .getStore()
             .size();
 
@@ -795,8 +797,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         final String nodeA = internalCluster().startNode(ensureNoThrottlingSettings());
 
         logger.info("--> creating index on node A");
-        final ByteSizeValue shardSize = createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT_1, REPLICA_COUNT_0).getShards()[0]
-            .getStats()
+        final ByteSizeValue shardSize = createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT_1, REPLICA_COUNT_0).getShards()[0].getStats()
             .getStore()
             .size();
 
@@ -867,10 +868,11 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         indicesAdmin().prepareClose(INDEX_NAME).get();
 
         logger.info("--> restore");
-        final RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin()
-            .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, REPO_NAME, SNAP_NAME)
-            .setWaitForCompletion(true)
-            .get();
+        final RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            REPO_NAME,
+            SNAP_NAME
+        ).setWaitForCompletion(true).get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
         ensureGreen();
@@ -899,10 +901,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
     }
 
     private List<RecoveryState> findRecoveriesForTargetNode(String nodeName, List<RecoveryState> recoveryStates) {
-        return recoveryStates
-            .stream()
-            .filter(recoveryState -> nodeName.equals(recoveryState.getTargetNode().getName()))
-            .toList();
+        return recoveryStates.stream().filter(recoveryState -> nodeName.equals(recoveryState.getTargetNode().getName())).toList();
     }
 
     private IndicesStatsResponse createAndPopulateIndex(String name, int nodeCount, int shardCount, int replicaCount) {
@@ -1273,11 +1272,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         ensureGreen(indexName);
 
         // noinspection OptionalGetWithoutIsPresent because it fails the test if absent
-        final RecoveryState recoveryState = getRecoveryStates(indexName)
-            .stream()
-            .filter(rs -> rs.getPrimary() == false)
-            .findFirst()
-            .get();
+        final RecoveryState recoveryState = getRecoveryStates(indexName).stream().filter(rs -> rs.getPrimary() == false).findFirst().get();
         assertThat(recoveryState.getIndex().totalFileCount(), greaterThan(0));
     }
 
@@ -1346,11 +1341,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         ensureGreen(indexName);
 
         // noinspection OptionalGetWithoutIsPresent because it fails the test if absent
-        final RecoveryState recoveryState = getRecoveryStates(indexName)
-            .stream()
-            .filter(rs -> rs.getPrimary() == false)
-            .findFirst()
-            .get();
+        final RecoveryState recoveryState = getRecoveryStates(indexName).stream().filter(rs -> rs.getPrimary() == false).findFirst().get();
         assertThat(recoveryState.getIndex().totalFileCount(), greaterThan(0));
     }
 
@@ -1479,11 +1470,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         ensureGreen(indexName);
 
         // noinspection OptionalGetWithoutIsPresent because it fails the test if absent
-        final RecoveryState recoveryState = getRecoveryStates(indexName)
-            .stream()
-            .filter(rs -> rs.getPrimary() == false)
-            .findFirst()
-            .get();
+        final RecoveryState recoveryState = getRecoveryStates(indexName).stream().filter(rs -> rs.getPrimary() == false).findFirst().get();
         assertThat(recoveryState.getIndex().totalFileCount(), greaterThan(0));
     }
 
@@ -1523,11 +1510,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         final long maxSeqNoAfterRecovery = primary.seqNoStats().getMaxSeqNo();
 
         // noinspection OptionalGetWithoutIsPresent because it fails the test if absent
-        final RecoveryState recoveryState = getRecoveryStates(indexName)
-            .stream()
-            .filter(rs -> rs.getPrimary() == false)
-            .findFirst()
-            .get();
+        final RecoveryState recoveryState = getRecoveryStates(indexName).stream().filter(rs -> rs.getPrimary() == false).findFirst().get();
         assertThat(
             (long) recoveryState.getTranslog().recoveredOperations(),
             lessThanOrEqualTo(maxSeqNoAfterRecovery - maxSeqNoBeforeRecovery)
@@ -2105,11 +2088,11 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
     }
 
     private CreateSnapshotResponse createSnapshot(String indexName) {
-        final CreateSnapshotResponse createSnapshotResponse = clusterAdmin()
-            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO_NAME, SNAP_NAME)
-            .setWaitForCompletion(true)
-            .setIndices(indexName)
-            .get();
+        final CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            REPO_NAME,
+            SNAP_NAME
+        ).setWaitForCompletion(true).setIndices(indexName).get();
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
         assertThat(
             createSnapshotResponse.getSnapshotInfo().successfulShards(),

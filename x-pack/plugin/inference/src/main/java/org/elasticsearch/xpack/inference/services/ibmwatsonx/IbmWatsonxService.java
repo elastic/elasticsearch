@@ -188,7 +188,7 @@ public class IbmWatsonxService extends SenderService<IbmWatsonxModel> implements
             config.getInferenceEntityId(),
             config.getTaskType(),
             config.getService(),
-            ConfigurationParseContext.PERSISTENT
+            ConfigurationParseContext.REQUEST
         ).createFromModelConfigurationsAndSecrets(config, secrets);
     }
 

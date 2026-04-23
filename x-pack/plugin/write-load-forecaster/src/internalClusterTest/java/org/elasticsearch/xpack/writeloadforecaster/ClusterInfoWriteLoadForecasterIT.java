@@ -169,7 +169,7 @@ public class ClusterInfoWriteLoadForecasterIT extends ESIntegTestCase {
         updateClusterSettings(
             Settings.builder()
                 .put(settings)
-                .put(WriteLoadForecasterPlugin.CLUSTER_INFO_WRITE_LOAD_FORECASTER_ENABLED_SETTING.getKey(), true)
+                .put(WriteLoadConstraintSettings.CLUSTER_INFO_WRITE_LOAD_FORECASTER_ENABLED_SETTING.getKey(), true)
         );
 
         // simulate a hotspot on one of them, and see a shard move to the lowest one
@@ -340,7 +340,7 @@ public class ClusterInfoWriteLoadForecasterIT extends ESIntegTestCase {
                 utilizationThresholdPercent + "%"
             )
             .put(BalancedShardsAllocator.WRITE_LOAD_BALANCE_FACTOR_SETTING.getKey(), 1.0f)
-            .put(WriteLoadForecasterPlugin.CLUSTER_INFO_WRITE_LOAD_FORECASTER_ENABLED_SETTING.getKey(), false)
+            .put(WriteLoadConstraintSettings.CLUSTER_INFO_WRITE_LOAD_FORECASTER_ENABLED_SETTING.getKey(), false)
             .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_SHARD_WRITE_LOAD_TYPE_SETTING.getKey(), "RECENT")
             .build();
         return settings;

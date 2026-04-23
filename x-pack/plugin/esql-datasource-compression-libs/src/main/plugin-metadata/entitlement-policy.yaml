@@ -1,2 +1,5 @@
 ALL-UNNAMED:
   - load_native_libraries
+  - files:
+    - path: "/lib/ld-musl-x86_64.so.1"
+      mode: "read"

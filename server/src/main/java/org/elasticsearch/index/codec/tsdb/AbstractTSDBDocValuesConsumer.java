@@ -53,10 +53,12 @@ import java.util.List;
 import static org.elasticsearch.index.codec.tsdb.DocValuesConsumerUtil.compatibleWithOptimizedMerge;
 
 /**
- * Abstract base class for TSDB doc values consumers. Owns the shared wire-format logic
- * for writing numeric, binary, sorted, sorted-numeric, and sorted-set doc values.
- * Concrete subclasses provide the numeric encoding strategy via
- * {@link #createNumericFieldWriter(NumericWriteContext)}.
+ * Base class for TSDB doc values consumers.
+ *
+ * <p>Owns the wire-format writing for numeric, binary, sorted, sorted-numeric, and sorted-set
+ * doc values. Concrete subclasses construct this class with a {@link NumericBlockCodec} and an
+ * {@link OrdinalBlockCodec}; those codecs supply the per-field writers and encoders the wire-format
+ * code drives during segment write.
  */
 public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
 
@@ -76,6 +78,30 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
     /** Index block shift sentinel indicating ordinal range encoding. */
     public static final int INDEX_ORDINAL_RANGE = -2;
 
+    /**
+     * Sentinel passed as {@code maxOrd} to mark a field as numeric (no ordinal stream).
+     * Ordinal fields pass their actual maximum ordinal value, which is always non-negative.
+     */
+    public static final long NO_MAX_ORD = -1L;
+
+    /**
+     * Callback that receives the number of doc values per document during the field write loop.
+     *
+     * <p>The write loop in {@link TSDBDocValuesBlockWriter} calls {@link #accept} once per
+     * document with that document's value count. Implementations accumulate these counts to
+     * build the per-doc offset table that multi-valued fields (sorted-numeric, sorted-set)
+     * need to locate the values for a given document.
+     *
+     * @see OffsetsAccumulator
+     */
+    @FunctionalInterface
+    public interface DocValueCountConsumer {
+        /**
+         * @param docValueCount number of doc values for the current document
+         */
+        void accept(int docValueCount) throws IOException;
+    }
+
     final Directory dir;
     final IOContext context;
     IndexOutput data, meta;
@@ -91,6 +117,9 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
     final long[] skipIndexJumpLengthPerLevel;
     private final DocOffsetsCodec.Encoder docOffsetsEncoder;
     private final SortedFieldObserverFactory sortedFieldObserverFactory;
+    private final NumericBlockCodec numericCodec;
+    private final OrdinalBlockCodec ordinalCodec;
+    private final NumericWriteContext writeContext;
 
     /**
      * Construct a new consumer that writes doc values in the TSDB wire format.
@@ -104,6 +133,8 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
      * @param formatConfig                format-specific configuration for this codec version
      * @param docOffsetsEncoder           encoder for doc offsets in compressed binary blocks
      * @param sortedFieldObserverFactory  factory for creating observers during sorted field writes
+     * @param numericCodec                codec for numeric doc values (NUMERIC and SORTED_NUMERIC)
+     * @param ordinalCodec                codec for ordinal doc values (SORTED and SORTED_SET)
      */
     @SuppressWarnings("this-escape")
     protected AbstractTSDBDocValuesConsumer(
@@ -115,11 +146,15 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
         final String metaExtension,
         final TSDBDocValuesFormatConfig formatConfig,
         final DocOffsetsCodec.Encoder docOffsetsEncoder,
-        final SortedFieldObserverFactory sortedFieldObserverFactory
+        final SortedFieldObserverFactory sortedFieldObserverFactory,
+        final NumericBlockCodec numericCodec,
+        final OrdinalBlockCodec ordinalCodec
     ) throws IOException {
         this.state = state;
         this.docOffsetsEncoder = docOffsetsEncoder;
         this.sortedFieldObserverFactory = sortedFieldObserverFactory;
+        this.numericCodec = numericCodec;
+        this.ordinalCodec = ordinalCodec;
         this.termsDictBuffer = new byte[1 << 14];
         this.dir = state.directory;
         this.primarySortFieldNumber = AbstractTSDBDocValuesProducer.primarySortFieldNumber(state.segmentInfo, state.fieldInfos);
@@ -133,15 +168,37 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
         try {
             final String dataName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, dataExtension);
             data = state.directory.createOutput(dataName, state.context);
-            CodecUtil.writeIndexHeader(data, dataCodec, formatConfig.versionCurrent(), state.segmentInfo.getId(), state.segmentSuffix);
+            CodecUtil.writeIndexHeader(
+                data,
+                dataCodec,
+                TSDBDocValuesFormatConfig.VERSION_CURRENT,
+                state.segmentInfo.getId(),
+                state.segmentSuffix
+            );
 
             final String metaName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, metaExtension);
             meta = state.directory.createOutput(metaName, state.context);
-            CodecUtil.writeIndexHeader(meta, metaCodec, formatConfig.versionCurrent(), state.segmentInfo.getId(), state.segmentSuffix);
+            CodecUtil.writeIndexHeader(
+                meta,
+                metaCodec,
+                TSDBDocValuesFormatConfig.VERSION_CURRENT,
+                state.segmentInfo.getId(),
+                state.segmentSuffix
+            );
             meta.writeByte((byte) formatConfig.numericBlockShift());
 
             maxDoc = state.segmentInfo.maxDoc();
             this.enableOptimizedMerge = enableOptimizedMerge;
+            this.writeContext = new NumericWriteContext(
+                meta,
+                data,
+                dir,
+                context,
+                maxDoc,
+                numericBlockSize,
+                primarySortFieldNumber,
+                formatConfig
+            );
             success = true;
         } finally {
             if (success == false) {
@@ -181,19 +238,6 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
         return jumpLengths;
     }
 
-    /**
-     * Creates a numeric field writer for this segment.
-     *
-     * <p>Each codec version provides its own encoding strategy. The returned writer owns the
-     * full numeric field lifecycle: stats, ordinal detection, codec-specific metadata,
-     * block encoding, offsets, and DISI.
-     *
-     * @param ctx the shared write context for this segment
-     * @return a writer for numeric fields
-     * @see NumericFieldWriter
-     */
-    protected abstract NumericFieldWriter createNumericFieldWriter(NumericWriteContext ctx);
-
     @Override
     public void addNumericField(final FieldInfo field, final DocValuesProducer valuesProducer) throws IOException {
         meta.writeInt(field.number);
@@ -207,34 +251,27 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
         if (field.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE) {
             writeSkipIndex(field, producer);
         }
-        writeField(field, producer, -1, null, numericBlockSize, null);
+        writeNumericField(field, producer, null);
     }
 
-    private long[] writeField(
+    private DocValueFieldCountStats writeNumericField(
+        final FieldInfo field,
+        final TsdbDocValuesProducer valuesSource,
+        final OffsetsAccumulator offsetsAccumulator
+    ) throws IOException {
+        return numericCodec.createWriter(writeContext)
+            .writeField(field, valuesSource, offsetsAccumulator != null ? offsetsAccumulator::addDoc : null, null);
+    }
+
+    private DocValueFieldCountStats writeOrdinalField(
         final FieldInfo field,
         final TsdbDocValuesProducer valuesSource,
         long maxOrd,
         final OffsetsAccumulator offsetsAccumulator,
-        int blockSize,
         final SortedFieldObserver sortedFieldObserver
     ) throws IOException {
-        final NumericWriteContext ctx = new NumericWriteContext(
-            meta,
-            data,
-            dir,
-            context,
-            maxDoc,
-            blockSize,
-            primarySortFieldNumber,
-            formatConfig
-        );
-        return createNumericFieldWriter(ctx).writeField(
-            field,
-            valuesSource,
-            maxOrd,
-            offsetsAccumulator != null ? offsetsAccumulator::addDoc : null,
-            sortedFieldObserver
-        );
+        return ordinalCodec.createWriter(writeContext)
+            .writeField(field, valuesSource, maxOrd, offsetsAccumulator != null ? offsetsAccumulator::addDoc : null, sortedFieldObserver);
     }
 
     @Override
@@ -474,7 +511,7 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
                 data,
                 blockAddressesStart,
                 metaCodecName,
-                formatConfig.versionCurrent(),
+                TSDBDocValuesFormatConfig.VERSION_CURRENT,
                 formatConfig.directMonotonicBlockShift()
             );
         }
@@ -620,7 +657,7 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
         final int maxOrd = sorted.getValueCount();
         addTermsDict(DocValues.singleton(sorted), observer);
         observer.prepareForDocs();
-        writeField(field, producer, maxOrd, null, numericBlockSize, observer);
+        writeOrdinalField(field, producer, maxOrd, null, observer);
         if (primarySortFieldNumber == field.number) {
             meta.writeByte(observer != SortedFieldObserver.NOOP ? (byte) 1 : (byte) 0);
         }
@@ -770,23 +807,51 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
     public void addSortedNumericField(final FieldInfo field, final DocValuesProducer valuesProducer) throws IOException {
         meta.writeInt(field.number);
         meta.writeByte(SORTED_NUMERIC);
-        writeSortedNumericField(field, new TsdbDocValuesProducer(valuesProducer), -1);
+        writeSortedNumericField(field, new TsdbDocValuesProducer(valuesProducer));
     }
 
-    private void writeSortedNumericField(final FieldInfo field, final TsdbDocValuesProducer valuesSource, long maxOrd) throws IOException {
+    private void writeSortedNumericField(final FieldInfo field, final TsdbDocValuesProducer valuesSource) throws IOException {
         if (field.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE) {
             writeSkipIndex(field, valuesSource);
         }
-        if (maxOrd > -1) {
-            meta.writeByte((byte) 1); // multiValued (1 = multiValued)
-        }
+        writeEntry(field, valuesSource, accumulator -> writeNumericField(field, valuesSource, accumulator));
+    }
 
-        final int blockSize = numericBlockSize;
+    private void writeSortedSetMultiValueField(final FieldInfo field, final TsdbDocValuesProducer valuesSource, long maxOrd)
+        throws IOException {
+        if (field.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE) {
+            writeSkipIndex(field, valuesSource);
+        }
+        meta.writeByte((byte) 1); // multiValued (1 = multiValued)
+        writeEntry(field, valuesSource, accumulator -> writeOrdinalField(field, valuesSource, maxOrd, accumulator, null));
+    }
+
+    /**
+     * Writes one field's doc values and returns its {@link DocValueFieldCountStats}.
+     *
+     * <p>Multi-valued fields need a per-doc address table so the reader can locate each
+     * document's values. Building this table requires knowing the value count per document.
+     * During merges, re-iterating the merge-sorted values to collect these counts is
+     * expensive, so an {@link OffsetsAccumulator} is passed to collect them in a single
+     * pass. This callback isolates the part that differs between numeric and ordinal
+     * writing, while {@link #writeEntry} owns the shared logic: deciding whether an
+     * accumulator is needed and building the address table.
+     *
+     * <p>{@link #writeEntry} calls {@link #write} with a non-null accumulator during
+     * optimized merges when the field is multi-valued, or {@code null} otherwise.
+     */
+    @FunctionalInterface
+    private interface DocValueWriter {
+        DocValueFieldCountStats write(OffsetsAccumulator accumulator) throws IOException;
+    }
+
+    private void writeEntry(final FieldInfo field, final TsdbDocValuesProducer valuesSource, final DocValueWriter docValueWriter)
+        throws IOException {
         if (valuesSource.mergeStats.supported()) {
             int numDocsWithField = valuesSource.mergeStats.sumNumDocsWithField();
             long numValues = valuesSource.mergeStats.sumNumValues();
             if (numDocsWithField == numValues) {
-                writeField(field, valuesSource, maxOrd, null, blockSize, null);
+                docValueWriter.write(null);
             } else {
                 assert numValues > numDocsWithField;
                 try (
@@ -798,17 +863,15 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
                         formatConfig.directMonotonicBlockShift()
                     )
                 ) {
-                    writeField(field, valuesSource, maxOrd, accumulator, blockSize, null);
+                    docValueWriter.write(accumulator);
                     accumulator.build(meta, data);
                 }
             }
         } else {
-            long[] stats = writeField(field, valuesSource, maxOrd, null, blockSize, null);
-            int numDocsWithField = Math.toIntExact(stats[0]);
-            long numValues = stats[1];
-            assert numValues >= numDocsWithField;
+            DocValueFieldCountStats stats = docValueWriter.write(null);
+            assert stats.numValues() >= stats.numDocsWithField();
 
-            if (numValues > numDocsWithField) {
+            if (stats.numValues() > stats.numDocsWithField()) {
                 long start = data.getFilePointer();
                 meta.writeLong(start);
                 meta.writeVInt(formatConfig.directMonotonicBlockShift());
@@ -816,7 +879,7 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
                 final DirectMonotonicWriter addressesWriter = DirectMonotonicWriter.getInstance(
                     meta,
                     data,
-                    numDocsWithField + 1L,
+                    stats.numDocsWithField() + 1L,
                     formatConfig.directMonotonicBlockShift()
                 );
                 long addr = 0;
@@ -891,7 +954,7 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
 
         SortedSetDocValues values = valuesProducer.getSortedSet(field);
         long maxOrd = values.getValueCount();
-        writeSortedNumericField(field, new TsdbDocValuesProducer(source.mergeStats) {
+        writeSortedSetMultiValueField(field, new TsdbDocValuesProducer(source.mergeStats) {
             @Override
             public SortedNumericDocValues getSortedNumeric(final FieldInfo field) throws IOException {
                 SortedSetDocValues values = valuesProducer.getSortedSet(field);

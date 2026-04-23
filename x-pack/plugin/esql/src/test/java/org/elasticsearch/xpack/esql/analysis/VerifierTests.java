@@ -747,15 +747,32 @@ public class VerifierTests extends ESTestCase {
     public void testBucketOnlyInAggs() {
         defaultAnalyzer().error(
             "FROM test | WHERE ABS(BUCKET(emp_no, 100.)) > 0",
-            equalTo("1:23: cannot use grouping function [BUCKET(emp_no, 100.)] outside of a STATS command")
+            equalTo("1:23: cannot use grouping function [BUCKET(emp_no, 100.)] outside of a STATS or LIMIT BY command")
         );
         defaultAnalyzer().error(
             "FROM test | EVAL 3 + BUCKET(emp_no, 100.)",
-            equalTo("1:22: cannot use grouping function [BUCKET(emp_no, 100.)] outside of a STATS command")
+            equalTo("1:22: cannot use grouping function [BUCKET(emp_no, 100.)] outside of a STATS or LIMIT BY command")
         );
         defaultAnalyzer().error(
             "FROM test | SORT BUCKET(emp_no, 100.)",
-            equalTo("1:18: cannot use grouping function [BUCKET(emp_no, 100.)] outside of a STATS command")
+            equalTo("1:18: cannot use grouping function [BUCKET(emp_no, 100.)] outside of a STATS or LIMIT BY command")
+        );
+    }
+
+    public void testBucketAllowedInLimitBy() {
+        // Bare evaluatable grouping function as the LIMIT BY key.
+        defaultAnalyzer().query("FROM test | LIMIT 1 BY BUCKET(emp_no, 100.)");
+        // Wrapped in a scalar expression.
+        defaultAnalyzer().query("FROM test | LIMIT 1 BY BUCKET(emp_no, 100.) + 1");
+        // Combined with a regular field grouping.
+        defaultAnalyzer().query("FROM test | LIMIT 1 BY BUCKET(emp_no, 100.), languages");
+    }
+
+    public void testCategorizeNotAllowedInLimitBy() {
+        // Stateful grouping functions still require a STATS context.
+        defaultAnalyzer().error(
+            "FROM test | LIMIT 1 BY CATEGORIZE(first_name)",
+            equalTo("1:24: cannot use grouping function [CATEGORIZE(first_name)] outside of a STATS command")
         );
     }
 
@@ -3777,11 +3794,44 @@ public class VerifierTests extends ESTestCase {
         );
         fullText().error(
             "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_words\": -1})",
-            equalTo("1:29: 'num_words' option must be a positive integer, found [-1]")
+            equalTo("1:29: 'num_words' option must be a non-negative integer, found [-1]")
         );
         fullText().error(
-            "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_words\": 0})",
-            equalTo("1:29: 'num_words' option must be a positive integer, found [0]")
+            "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"encoder\": \"xml\"})",
+            equalTo("1:29: 'encoder' option must be 'default' or 'html', found [xml]")
+        );
+        fullText().error(
+            "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"pre_tag\": \"<b>\"})",
+            equalTo("1:29: 'pre_tag', 'post_tag', and 'encoder' options require 'highlight' to be true")
+        );
+        fullText().error(
+            "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"post_tag\": \"</b>\"})",
+            equalTo("1:29: 'pre_tag', 'post_tag', and 'encoder' options require 'highlight' to be true")
+        );
+        fullText().error(
+            "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"highlight\": false, \"encoder\": \"html\"})",
+            equalTo("1:29: 'pre_tag', 'post_tag', and 'encoder' options require 'highlight' to be true")
+        );
+        fullText().error(
+            "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"highlight\": 123})",
+            equalTo(
+                "1:29: Invalid option [highlight] in [TOP_SNIPPETS(body, \"query\", {\"highlight\": 123})], "
+                    + "cannot cast [123] to [boolean]"
+            )
+        );
+        fullText().error(
+            "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_snippets\": true})",
+            equalTo(
+                "1:29: Invalid option [num_snippets] in [TOP_SNIPPETS(body, \"query\", {\"num_snippets\": true})], "
+                    + "cannot cast [true] to [integer]"
+            )
+        );
+        fullText().error(
+            "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_words\": true})",
+            equalTo(
+                "1:29: Invalid option [num_words] in [TOP_SNIPPETS(body, \"query\", {\"num_words\": true})], "
+                    + "cannot cast [true] to [integer]"
+            )
         );
     }
 

@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
@@ -166,7 +167,19 @@ public class ExternalSourceResolver {
 
         SourceMetadata metadata = resolveSingleSource(path, config);
         ExternalSourceMetadata extMetadata = wrapAsExternalSourceMetadata(metadata, config);
-        return new ExternalSourceResolution.ResolvedSource(extMetadata, FileList.UNRESOLVED);
+        /*
+         * A concrete one-entry FileList is required so {@link org.elasticsearch.xpack.esql.datasources.FileSplitProvider}
+         * can discover block-aligned splits for compressed files (e.g. .json.bz2). UNRESOLVED lists skip split discovery,
+         * which forces coordinator execution down paths that never see per-split byte ranges and yields incorrect counts.
+         */
+        StoragePath storagePath = StoragePath.of(path);
+        StorageProvider provider = resolveProvider(storagePath, config);
+        StorageObject object = provider.newObject(storagePath);
+        FileList singletonList = GlobExpander.fileListOf(
+            List.of(new StorageEntry(storagePath, object.length(), object.lastModified())),
+            path
+        );
+        return new ExternalSourceResolution.ResolvedSource(extMetadata, singletonList);
     }
 
     private ExternalSourceResolution.ResolvedSource resolveMultiFileSource(
@@ -181,9 +194,11 @@ public class ExternalSourceResolver {
 
         if (schemaResolution != FormatReader.SchemaResolution.FIRST_FILE_WINS) {
             StorageProvider provider = resolveProvider(storagePath, config);
+            int maxDiscoveredFiles = ExternalSourceSettings.MAX_DISCOVERED_FILES.get(settings);
+            int maxGlobExpansion = ExternalSourceSettings.MAX_GLOB_EXPANSION.get(settings);
             FileList raw = path.indexOf(',') >= 0
-                ? GlobExpander.expandCommaSeparated(path, provider, hints, hivePartitioning)
-                : GlobExpander.expandGlob(path, provider, hints, hivePartitioning);
+                ? GlobExpander.expandCommaSeparated(path, provider, hints, hivePartitioning, maxDiscoveredFiles, maxGlobExpansion)
+                : GlobExpander.expandGlob(path, provider, hints, hivePartitioning, maxDiscoveredFiles, maxGlobExpansion);
             if (raw.fileCount() == 0) {
                 throw new IllegalArgumentException("Glob pattern matched no files: " + path);
             }
@@ -226,7 +241,10 @@ public class ExternalSourceResolver {
             SchemaCacheKey schemaKey = SchemaCacheKey.build(anchorPath.toString(), anchorMtime, formatType, config);
             SchemaCacheEntry schemaEntry = cacheService.getOrComputeSchema(schemaKey, k -> {
                 SourceMetadata meta = resolveSingleSource(anchorPath.toString(), config);
-                return SchemaCacheEntry.from(meta.schema(), meta.sourceType(), meta.location(), meta.sourceMetadata());
+                Map<String, Object> enrichedMeta = meta.statistics()
+                    .map(stats -> SourceStatisticsSerializer.embedStatistics(meta.sourceMetadata(), stats))
+                    .orElse(meta.sourceMetadata());
+                return SchemaCacheEntry.from(meta.schema(), meta.sourceType(), meta.location(), enrichedMeta);
             });
             List<Attribute> schema = schemaEntry.toAttributes();
             extMetadata = buildMetadataFromCache(schemaEntry, schema, config);
@@ -251,7 +269,9 @@ public class ExternalSourceResolver {
         StoragePath storagePath
     ) throws Exception {
         StorageProvider provider = resolveProvider(storagePath, config);
-        return GlobExpander.expandAndCompact(path, provider, hints, hivePartitioning, storagePath);
+        int maxDiscoveredFiles = ExternalSourceSettings.MAX_DISCOVERED_FILES.get(settings);
+        int maxGlobExpansion = ExternalSourceSettings.MAX_GLOB_EXPANSION.get(settings);
+        return GlobExpander.expandAndCompact(path, provider, hints, hivePartitioning, storagePath, maxDiscoveredFiles, maxGlobExpansion);
     }
 
     private StorageProvider resolveProvider(StoragePath storagePath, Map<String, Object> config) {
@@ -406,6 +426,9 @@ public class ExternalSourceResolver {
     ) {
         Map<String, Object> mergedConfig = mergeConfigs(referenceMeta.config(), queryConfig);
         List<Attribute> schema = List.copyOf(unifiedSchema);
+        Map<String, Object> enrichedSourceMetadata = referenceMeta.statistics()
+            .map(stats -> SourceStatisticsSerializer.embedStatistics(referenceMeta.sourceMetadata(), stats))
+            .orElse(referenceMeta.sourceMetadata());
         return new ExternalSourceMetadata() {
             @Override
             public String location() {
@@ -424,7 +447,7 @@ public class ExternalSourceResolver {
 
             @Override
             public Map<String, Object> sourceMetadata() {
-                return referenceMeta.sourceMetadata();
+                return enrichedSourceMetadata;
             }
 
             @Override
@@ -591,14 +614,14 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Validates that datasource plugins export ReferenceAttribute only.
+     * Validates that data source plugins export ReferenceAttribute only.
      * Called when receiving schema from any plugin (FormatReader, TableCatalog, Connector).
      */
     private static void validateSchemaUsesOnlyReferenceAttributes(List<Attribute> schema) {
         for (Attribute attr : schema) {
             if (attr instanceof ReferenceAttribute == false) {
                 throw new IllegalArgumentException(
-                    "Datasource schema must contain only ReferenceAttribute, but found "
+                    "Data source schema must contain only ReferenceAttribute, but found "
                         + attr.getClass().getSimpleName()
                         + " for column ["
                         + attr.name()
@@ -613,6 +636,10 @@ public class ExternalSourceResolver {
 
         if (metadata instanceof ExternalSourceMetadata extMetadata) {
             if (extMetadata.config() != null && extMetadata.config().isEmpty() == false) {
+                // Stats are embedded into sourceMetadata() below for the general path; for
+                // ExternalSourceMetadata instances that already carry config (e.g. Iceberg),
+                // their factory is responsible for populating sourceMetadata() — statistics()
+                // is typically empty so there is nothing extra to embed.
                 return extMetadata;
             }
         }
@@ -629,6 +656,10 @@ public class ExternalSourceResolver {
         } else {
             mergedConfig = queryConfig;
         }
+
+        Map<String, Object> enrichedSourceMetadata = metadata.statistics()
+            .map(stats -> SourceStatisticsSerializer.embedStatistics(metadata.sourceMetadata(), stats))
+            .orElse(metadata.sourceMetadata());
 
         return new ExternalSourceMetadata() {
             @Override
@@ -648,7 +679,7 @@ public class ExternalSourceResolver {
 
             @Override
             public Map<String, Object> sourceMetadata() {
-                return metadata.sourceMetadata();
+                return enrichedSourceMetadata;
             }
 
             @Override

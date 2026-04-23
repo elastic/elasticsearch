@@ -30,7 +30,7 @@ class RequestTask implements RejectableTask {
         ActionListener<InferenceServiceResults> listener
     ) {
         this.requestCreator = Objects.requireNonNull(requestCreator);
-        this.timedListener = new TimedListener<>(timeout, listener, threadPool);
+        this.timedListener = new TimedListener<>(timeout, listener, threadPool, requestCreator.inferenceEntityId());
         this.inferenceInputs = Objects.requireNonNull(inferenceInputs);
     }
 

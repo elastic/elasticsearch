@@ -9,19 +9,36 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
+import java.util.Arrays;
+
 public record CentroidAssignments(
     int numCentroids,
     float[][] centroids,
     int[] assignments,
     int[] overspillAssignments,
-    float[] globalCentroid
+    float[] globalCentroid,
+    CentroidSlices centroidSlices
 ) {
 
     public CentroidAssignments(int dims, float[][] centroids, int[] assignments, int[] overspillAssignments) {
-        this(centroids.length, centroids, assignments, overspillAssignments, computeGlobalCentroid(dims, centroids));
+        this(centroids.length, centroids, assignments, overspillAssignments, computeGlobalCentroid(dims, centroids), null);
         assert assignments.length == overspillAssignments.length || overspillAssignments.length == 0
             : "assignments and overspillAssignments must have the same length";
 
+    }
+
+    public CentroidAssignments(
+        int dims,
+        float[][] centroids,
+        int[] assignments,
+        int[] overspillAssignments,
+        CentroidSlices centroidSlices
+    ) {
+        this(centroids.length, centroids, assignments, overspillAssignments, computeGlobalCentroid(dims, centroids), centroidSlices);
+        assert assignments.length == overspillAssignments.length || overspillAssignments.length == 0
+            : "assignments and overspillAssignments must have the same length";
+        assert centroidSlices == null || Arrays.stream(centroidSlices.sliceNumVectors()).sum() == assignments.length;
+        assert centroidSlices == null || CentroidSlices.assertSliceOffsets(centroidSlices.sliceOffsets(), numCentroids);
     }
 
     private static float[] computeGlobalCentroid(int dims, float[][] centroids) {

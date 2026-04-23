@@ -19,7 +19,7 @@ import org.elasticsearch.xcontent.XContentType;
 /**
  * Implementation of {@link PaginatedHitSource.Hit} that wraps a {@link SearchHit} from a local
  * {@link org.elasticsearch.client.internal.Client} search. Shared by scroll-based and PIT-based
- * paginated hit sources.
+ * paginated hit sources. Callers must invoke {@link #release()} when the hit is no longer needed.
  */
 
 class ClientHit implements PaginatedHitSource.Hit {
@@ -27,8 +27,9 @@ class ClientHit implements PaginatedHitSource.Hit {
     private final BytesReference source;
 
     ClientHit(SearchHit delegate) {
-        this.delegate = delegate.asUnpooled(); // TODO: use pooled version here
-        source = this.delegate.hasSource() ? this.delegate.getSourceRef() : null;
+        delegate.mustIncRef();
+        this.delegate = delegate;
+        source = delegate.hasSource() ? delegate.getSourceRef() : null;
     }
 
     @Override
@@ -79,5 +80,10 @@ class ClientHit implements PaginatedHitSource.Hit {
     private <T> T fieldValue(String fieldName) {
         DocumentField field = delegate.field(fieldName);
         return field == null ? null : field.getValue();
+    }
+
+    @Override
+    public void release() {
+        delegate.decRef();
     }
 }

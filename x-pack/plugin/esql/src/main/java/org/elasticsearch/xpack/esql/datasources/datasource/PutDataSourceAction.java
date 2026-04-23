@@ -43,22 +43,32 @@ public class PutDataSourceAction extends ActionType<AcknowledgedResponse> {
         private static final ParseField DESCRIPTION = new ParseField("description");
         private static final ParseField SETTINGS = new ParseField("settings");
 
+        /** Context for {@link #PARSER}: fields not in the request body (come from URL path + headers). */
+        public record ParseContext(String name, TimeValue masterNodeTimeout, TimeValue ackTimeout) {}
+
         @SuppressWarnings("unchecked")
-        private static ConstructingObjectParser<Request, Void> bodyParser(TimeValue masterNodeTimeout, TimeValue ackTimeout, String name) {
-            ConstructingObjectParser<Request, Void> parser = new ConstructingObjectParser<>(
-                "esql_put_data_source",
-                false,
-                args -> new Request(masterNodeTimeout, ackTimeout, name, (String) args[0], (String) args[1], (Map<String, Object>) args[2])
-            );
-            parser.declareString(ConstructingObjectParser.constructorArg(), TYPE);
-            parser.declareString(ConstructingObjectParser.optionalConstructorArg(), DESCRIPTION);
-            parser.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), SETTINGS);
-            return parser;
+        private static final ConstructingObjectParser<Request, ParseContext> PARSER = new ConstructingObjectParser<>(
+            "esql_put_data_source",
+            false,
+            (args, ctx) -> new Request(
+                ctx.masterNodeTimeout(),
+                ctx.ackTimeout(),
+                ctx.name(),
+                (String) args[0],
+                (String) args[1],
+                (Map<String, Object>) args[2]
+            )
+        );
+
+        static {
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), TYPE);
+            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), DESCRIPTION);
+            PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), SETTINGS);
         }
 
         public static Request fromXContent(XContentParser parser, TimeValue masterNodeTimeout, TimeValue ackTimeout, String name)
             throws IOException {
-            return bodyParser(masterNodeTimeout, ackTimeout, name).parse(parser, null);
+            return PARSER.parse(parser, new ParseContext(name, masterNodeTimeout, ackTimeout));
         }
 
         private final String name;
@@ -105,8 +115,6 @@ public class PutDataSourceAction extends ActionType<AcknowledgedResponse> {
             if (Strings.hasText(name) == false) {
                 return addValidationError("data source name is missing", null);
             }
-            // Reuse index/alias name rules so data source names stay safe for any namespace they might
-            // later share with indices — conservative even though they live in their own ProjectCustom today.
             try {
                 MetadataCreateIndexService.validateIndexOrAliasName(
                     name,
@@ -120,6 +128,13 @@ public class PutDataSourceAction extends ActionType<AcknowledgedResponse> {
             }
             if (Strings.hasText(type) == false) {
                 validationException = addValidationError("data source type is missing or empty", validationException);
+            } else if (type.toLowerCase(Locale.ROOT).equals(type) == false) {
+                validationException = addValidationError("invalid data source type [" + type + "], must be lowercase", validationException);
+            } else if (type.chars().anyMatch(Character::isWhitespace)) {
+                validationException = addValidationError(
+                    "invalid data source type [" + type + "], must not contain whitespace",
+                    validationException
+                );
             }
             return validationException;
         }

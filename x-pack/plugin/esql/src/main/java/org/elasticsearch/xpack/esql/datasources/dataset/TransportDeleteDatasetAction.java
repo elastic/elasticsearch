@@ -21,6 +21,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Arrays;
+
 public class TransportDeleteDatasetAction extends AcknowledgedTransportMasterNodeProjectAction<DeleteDatasetAction.Request> {
     private final DatasetService datasetService;
 
@@ -57,7 +59,7 @@ public class TransportDeleteDatasetAction extends AcknowledgedTransportMasterNod
             state.projectId(),
             request.masterNodeTimeout(),
             request.ackTimeout(),
-            java.util.Arrays.asList(request.names()),
+            Arrays.asList(request.names()),
             listener
         );
     }

@@ -51,31 +51,34 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
         private static final ParseField DESCRIPTION = new ParseField("description");
         private static final ParseField SETTINGS = new ParseField("settings");
 
+        /** Context for {@link #PARSER}: fields not in the request body (come from URL path + headers). */
+        public record ParseContext(String name, TimeValue masterNodeTimeout, TimeValue ackTimeout) {}
+
         @SuppressWarnings("unchecked")
-        private static ConstructingObjectParser<Request, Void> bodyParser(TimeValue masterNodeTimeout, TimeValue ackTimeout, String name) {
-            ConstructingObjectParser<Request, Void> parser = new ConstructingObjectParser<>(
-                "esql_put_dataset",
-                false,
-                args -> new Request(
-                    masterNodeTimeout,
-                    ackTimeout,
-                    name,
-                    (String) args[0],
-                    (String) args[1],
-                    (String) args[2],
-                    (Map<String, Object>) args[3]
-                )
-            );
-            parser.declareString(ConstructingObjectParser.constructorArg(), DATA_SOURCE);
-            parser.declareString(ConstructingObjectParser.constructorArg(), RESOURCE);
-            parser.declareString(ConstructingObjectParser.optionalConstructorArg(), DESCRIPTION);
-            parser.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), SETTINGS);
-            return parser;
+        private static final ConstructingObjectParser<Request, ParseContext> PARSER = new ConstructingObjectParser<>(
+            "esql_put_dataset",
+            false,
+            (args, ctx) -> new Request(
+                ctx.masterNodeTimeout(),
+                ctx.ackTimeout(),
+                ctx.name(),
+                (String) args[0],
+                (String) args[1],
+                (String) args[2],
+                (Map<String, Object>) args[3]
+            )
+        );
+
+        static {
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), DATA_SOURCE);
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), RESOURCE);
+            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), DESCRIPTION);
+            PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), SETTINGS);
         }
 
         public static Request fromXContent(XContentParser parser, TimeValue masterNodeTimeout, TimeValue ackTimeout, String name)
             throws IOException {
-            return bodyParser(masterNodeTimeout, ackTimeout, name).parse(parser, null);
+            return PARSER.parse(parser, new ParseContext(name, masterNodeTimeout, ackTimeout));
         }
 
         private final String name;

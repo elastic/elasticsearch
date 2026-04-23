@@ -17,14 +17,14 @@ import org.elasticsearch.cluster.metadata.DataSource;
 import org.elasticsearch.cluster.metadata.DataSourceMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /** Local transport handler for {@link GetDataSourceAction}. */
@@ -58,15 +58,15 @@ public class TransportGetDataSourceAction extends TransportLocalProjectMetadataA
     ) {
         final DataSourceMetadata metadata = DataSourceMetadata.get(project.metadata());
         final String[] requested = request.names();
-        final List<DataSource> hits = new ArrayList<>();
-        if (requested == null || requested.length == 0 || matchesAll(requested)) {
-            hits.addAll(metadata.dataSources().values());
+        final LinkedHashMap<String, DataSource> hits = new LinkedHashMap<>();
+        if (Strings.isAllOrWildcard(requested)) {
+            hits.putAll(metadata.dataSources());
         } else {
             for (String pattern : requested) {
                 if (Regex.isSimpleMatchPattern(pattern)) {
                     for (Map.Entry<String, DataSource> entry : metadata.dataSources().entrySet()) {
                         if (Regex.simpleMatch(pattern, entry.getKey())) {
-                            hits.add(entry.getValue());
+                            hits.putIfAbsent(entry.getKey(), entry.getValue());
                         }
                     }
                 } else {
@@ -75,20 +75,11 @@ public class TransportGetDataSourceAction extends TransportLocalProjectMetadataA
                         listener.onFailure(new ResourceNotFoundException("data source [" + pattern + "] not found"));
                         return;
                     }
-                    hits.add(ds);
+                    hits.putIfAbsent(pattern, ds);
                 }
             }
         }
-        listener.onResponse(new GetDataSourceAction.Response(hits));
-    }
-
-    private static boolean matchesAll(String[] names) {
-        for (String n : names) {
-            if ("*".equals(n) || "_all".equals(n)) {
-                return true;
-            }
-        }
-        return false;
+        listener.onResponse(new GetDataSourceAction.Response(hits.values()));
     }
 
     @Override

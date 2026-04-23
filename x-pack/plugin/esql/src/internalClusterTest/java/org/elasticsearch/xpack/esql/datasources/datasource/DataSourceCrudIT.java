@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.DataSource;
 import org.elasticsearch.cluster.metadata.DataSourceSetting;
 import org.elasticsearch.cluster.metadata.Dataset;
+import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
@@ -35,6 +36,7 @@ import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.view.PutViewAction;
 
 import java.nio.file.Path;
 import java.util.Collection;
@@ -54,7 +56,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -321,7 +322,7 @@ public class DataSourceCrudIT extends ESIntegTestCase {
 
         assertAcked(deleteFuture.get(30, TimeUnit.SECONDS));
 
-        ExecutionException putErr = expectThrows(ExecutionException.class, () -> putFuture.get(30, TimeUnit.SECONDS));
+        expectThrows(ExecutionException.class, () -> putFuture.get(30, TimeUnit.SECONDS));
         Throwable rootCause = rootCauseOf(putFuture);
         assertThat(
             "dataset PUT's task-level re-check should fail with ResourceNotFoundException",
@@ -333,7 +334,6 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         // Final state: parent gone, dataset never landed.
         expectDataSourceMissing(dsName);
         expectDatasetMissing(datasetName);
-        assertThat(putErr, notNullValue());
     }
 
     public void testIndexCreationCollidesWithDataset() throws Exception {
@@ -386,6 +386,86 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         expectDatasetMissing(datasetName);
 
         assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(parentDsName)));
+    }
+
+    public void testUnknownTypeRejected() {
+        PutDataSourceAction.Request req = new PutDataSourceAction.Request(
+            TEST_TIMEOUT,
+            TEST_TIMEOUT,
+            "bad_ds",
+            "unknown-type",
+            null,
+            new HashMap<>()
+        );
+        ExecutionException err = expectThrows(ExecutionException.class, () -> client().execute(PutDataSourceAction.INSTANCE, req).get());
+        assertThat(err.getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(err.getCause().getMessage(), containsString("unknown data source type [unknown-type]"));
+        expectDataSourceMissing("bad_ds");
+    }
+
+    public void testDatasetParentMissing() {
+        ExecutionException err = expectThrows(
+            ExecutionException.class,
+            () -> client().execute(PutDatasetAction.INSTANCE, putDatasetRequest("orphan", "ghost_parent", "test://x/", Map.of())).get()
+        );
+        assertThat(err.getCause(), instanceOf(ResourceNotFoundException.class));
+        assertThat(err.getCause().getMessage(), containsString("data source [ghost_parent] not found"));
+        expectDatasetMissing("orphan");
+    }
+
+    public void testDatasetCollidesWithExistingIndex() throws Exception {
+        final String name = "preexisting_index";
+        final String dsName = "collision_parent_idx";
+        assertAcked(client().execute(TransportCreateIndexAction.TYPE, new CreateIndexRequest(name)).get(30, TimeUnit.SECONDS));
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest(dsName, Map.of("region", "us-east-1"))));
+
+        ExecutionException err = expectThrows(
+            ExecutionException.class,
+            () -> client().execute(PutDatasetAction.INSTANCE, putDatasetRequest(name, dsName, "test://x/", Map.of())).get()
+        );
+        assertThat(err.getCause(), instanceOf(IllegalStateException.class));
+        assertThat(err.getCause().getMessage(), containsString("names need to be unique"));
+
+        assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
+    }
+
+    public void testDatasetCollidesWithExistingView() throws Exception {
+        final String name = "preexisting_view";
+        final String dsName = "collision_parent_view";
+        assertAcked(
+            client().execute(PutViewAction.INSTANCE, new PutViewAction.Request(TEST_TIMEOUT, TEST_TIMEOUT, new View(name, "FROM some_idx")))
+                .get(30, TimeUnit.SECONDS)
+        );
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest(dsName, Map.of("region", "us-east-1"))));
+
+        ExecutionException err = expectThrows(
+            ExecutionException.class,
+            () -> client().execute(PutDatasetAction.INSTANCE, putDatasetRequest(name, dsName, "test://x/", Map.of())).get()
+        );
+        assertThat(err.getCause(), instanceOf(IllegalStateException.class));
+        assertThat(err.getCause().getMessage(), containsString("names need to be unique"));
+
+        assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
+    }
+
+    public void testDeleteDataSourceRejectedWithDependents() throws Exception {
+        final String dsName = "parent_with_deps";
+        final String datasetName = "dependent_ds";
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest(dsName, Map.of("region", "us-east-1"))));
+        assertAcked(client().execute(PutDatasetAction.INSTANCE, putDatasetRequest(datasetName, dsName, "test://x/", Map.of())));
+
+        ExecutionException err = expectThrows(
+            ExecutionException.class,
+            () -> client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)).get()
+        );
+        assertThat(err.getCause(), instanceOf(ElasticsearchStatusException.class));
+        ElasticsearchStatusException ese = (ElasticsearchStatusException) err.getCause();
+        assertEquals(RestStatus.CONFLICT, ese.status());
+        assertThat(ese.getMessage(), containsString("referenced by datasets [" + datasetName + "]"));
+
+        // Clean up — dataset first, then parent.
+        assertAcked(client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest(datasetName)));
+        assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
     }
 
     // Request builders + assertions

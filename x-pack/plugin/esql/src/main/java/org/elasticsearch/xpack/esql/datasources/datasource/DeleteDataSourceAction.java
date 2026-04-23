@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.esql.datasources.datasource;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,15 +27,11 @@ public class DeleteDataSourceAction extends ActionType<AcknowledgedResponse> {
     public static final DeleteDataSourceAction INSTANCE = new DeleteDataSourceAction();
     public static final String NAME = EsqlDataSourceActionNames.ESQL_DELETE_DATA_SOURCE_ACTION_NAME;
 
-    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.builder()
-        .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
-        .build();
-
     private DeleteDataSourceAction() {
         super(NAME);
     }
 
-    public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest.Replaceable {
+    public static class Request extends AcknowledgedRequest<Request> {
         private String[] names;
 
         public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String[] names) {
@@ -66,22 +60,6 @@ public class DeleteDataSourceAction extends ActionType<AcknowledgedResponse> {
 
         public String[] names() {
             return names;
-        }
-
-        @Override
-        public String[] indices() {
-            return names;
-        }
-
-        @Override
-        public IndicesRequest indices(String... indices) {
-            this.names = indices;
-            return this;
-        }
-
-        @Override
-        public IndicesOptions indicesOptions() {
-            return DEFAULT_INDICES_OPTIONS;
         }
 
         @Override

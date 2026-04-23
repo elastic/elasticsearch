@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.datasources.dataset;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -41,16 +40,12 @@ public class RestGetDatasetAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         final GetDatasetAction.Request req = new GetDatasetAction.Request(RestUtils.getMasterNodeTimeout(request));
         final String[] requested = Strings.splitStringByCommaToArray(request.param("name"));
-        req.indices(isGetAll(requested) ? new String[] { "*" } : requested);
+        req.indices(Strings.isAllOrWildcard(requested) ? new String[] { "*" } : requested);
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
             GetDatasetAction.INSTANCE,
             req,
             new RestToXContentListener<>(channel)
         );
-    }
-
-    private static boolean isGetAll(String[] requested) {
-        return requested.length == 0 || requested[0].equals(Metadata.ALL);
     }
 
     @Override

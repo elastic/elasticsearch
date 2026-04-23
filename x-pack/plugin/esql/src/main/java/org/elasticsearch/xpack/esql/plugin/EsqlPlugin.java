@@ -290,9 +290,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             .getClusterSettings()
             .addSettingsUpdateConsumer(ExternalSourceCacheSettings.CACHE_ENABLED, cacheService::setEnabled);
 
-        // CRUD-time validators (one per data source type). Collected once at plugin construction; DataSourceService
-        // dispatches by type, DatasetService uses them to validate dataset settings against the parent data source's
-        // type. Duplicate type registrations are a configuration error — fail fast.
         Map<String, DataSourceValidator> crudValidators = new HashMap<>();
         for (DataSourcePlugin p : allDataSourcePlugins) {
             p.datasourceValidators(settings).forEach((type, v) -> {

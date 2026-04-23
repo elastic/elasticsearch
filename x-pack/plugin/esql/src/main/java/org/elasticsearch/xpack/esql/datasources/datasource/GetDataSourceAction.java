@@ -41,7 +41,7 @@ public class GetDataSourceAction extends ActionType<GetDataSourceAction.Response
 
         public Request(TimeValue masterNodeTimeout, String[] names) {
             super(masterNodeTimeout);
-            this.names = names;
+            this.names = Objects.requireNonNull(names, "names cannot be null");
         }
 
         public String[] names() {
@@ -96,8 +96,6 @@ public class GetDataSourceAction extends ActionType<GetDataSourceAction.Response
                 if (ds.description() != null) {
                     builder.field("description", ds.description());
                 }
-                // Settings routed through toPresentationMap(): secret values surface as the masked sentinel
-                // ("::es_redacted::"), non-secret values as plaintext. Safe for REST responses.
                 builder.field("settings", ds.toPresentationMap());
                 builder.endObject();
             }

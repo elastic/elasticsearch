@@ -97,8 +97,6 @@ public class PutDatasetActionRequestTests extends AbstractWireSerializingTestCas
         };
     }
 
-    // -- validate() ------------------------------------------------------------------------------
-
     public void testValidateAcceptsCleanRequest() {
         Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "my_ds", "parent", "s3://bucket/path", null, Map.of());
         assertThat(r.validate(), nullValue());
@@ -159,8 +157,6 @@ public class PutDatasetActionRequestTests extends AbstractWireSerializingTestCas
         assertThat(r.validate(), nullValue());
         assertThat(r.rawSettings(), notNullValue());
     }
-
-    // -- helpers ---------------------------------------------------------------------------------
 
     private static String randomName() {
         return randomAlphaOfLengthBetween(1, 20).toLowerCase(Locale.ROOT);

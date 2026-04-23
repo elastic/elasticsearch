@@ -6,21 +6,23 @@
 # License v3.0 only", or the "Server Side Public License, v 1".
 
 # Builds libesql_parquet_rs for all three targets:
-#   build/darwin-aarch64/libesql_parquet_rs.dylib  (native macOS build)
-#   build/linux-aarch64/libesql_parquet_rs.so      (GCC cross-compiler in Docker)
-#   build/linux-x64/libesql_parquet_rs.so          (GCC cross-compiler in Docker)
+#   build/darwin-aarch64/libesql_parquet_rs.dylib  (rust-lld, -undefined dynamic_lookup)
+#   build/linux-aarch64/libesql_parquet_rs.so      (GCC cross-compiler)
+#   build/linux-x64/libesql_parquet_rs.so          (GCC cross-compiler)
+#
+# All targets can be cross-compiled from Linux inside the Docker toolchain
+# container. The Darwin target uses rust-lld with -undefined dynamic_lookup
+# so that framework symbols (CoreFoundation, etc.) are resolved by dyld at
+# load time, avoiding the need for the macOS SDK.
 #
 # Usage:
 #   make local       - build for the current platform
 #   make install     - build and copy to the platform directory used by Gradle tests
-#   make darwin      - build the Darwin binary (run on macOS)
-#   make linux       - cross-compile both Linux targets (run inside Docker)
-#   make all         - build all targets (darwin natively, then linux in Docker)
+#   make darwin      - cross-compile the Darwin binary (via rust-lld)
+#   make linux       - cross-compile both Linux targets (via GCC)
+#   make all         - build all three targets
 #   make clean       - remove build artifacts
 #
-# The Darwin binary must be built on macOS (cross-compilation from Linux
-# requires the macOS SDK due to framework dependencies like CoreFoundation).
-# The Linux binaries are cross-compiled inside a Docker container.
 # See publish_pqrs_binaries.sh for the full build-and-publish workflow.
 
 CARGO = cargo
@@ -52,6 +54,7 @@ INSTALL_DIR = ../../native/libraries/build/platform/$(PLATFORM_DIR)
 
 # --- Cross-compilation targets ---
 
+TARGET_DARWIN  = aarch64-apple-darwin
 TARGET_LIN_ARM = aarch64-unknown-linux-gnu
 TARGET_LIN_X64 = x86_64-unknown-linux-gnu
 
@@ -70,15 +73,46 @@ install: local
 	mkdir -p $(INSTALL_DIR)
 	cp $(CARGO_OUTPUT) $(INSTALL_DIR)/$(LIB_NAME)
 
-# --- darwin: build on macOS natively ---
+# --- darwin: cross-compile via rust-lld ---
+# Uses -undefined dynamic_lookup so framework symbols (CoreFoundation, etc.)
+# are resolved by macOS dyld at load time rather than requiring the SDK at
+# link time.
+#
+# The linker still needs to *find* the libraries that rustc passes (-lc, -lm,
+# -lSystem, -framework CoreFoundation), even though all symbols are deferred.
+# We generate minimal Apple TBD (text-based definition) stubs under
+# build/.darwin-sysroot/ — empty YAML files that tell the linker "this library
+# exists" without providing any code or symbol definitions.
+
+DARWIN_SYSROOT = $(CURDIR)/build/.darwin-sysroot
 
 darwin: $(OUT_DARWIN)
 
-$(OUT_DARWIN):
-	$(CARGO) build --release
+$(OUT_DARWIN): | $(DARWIN_SYSROOT)
+	CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER="rust-lld" \
+	CARGO_TARGET_AARCH64_APPLE_DARWIN_RUSTFLAGS="-C link-arg=-undefined -C link-arg=dynamic_lookup -C link-arg=-L$(DARWIN_SYSROOT)/lib -C link-arg=-F$(DARWIN_SYSROOT)/Frameworks" \
+	  $(CARGO) build --release --target $(TARGET_DARWIN)
 	mkdir -p $(dir $@)
-	cp target/release/libesql_parquet_rs.dylib $@
-	strip -x $@
+	cp target/$(TARGET_DARWIN)/release/libesql_parquet_rs.dylib $@
+
+$(DARWIN_SYSROOT):
+	@mkdir -p $@/lib $@/Frameworks/CoreFoundation.framework
+	@for lib in libc libm libiconv libSystem; do \
+	  printf '%s\n' \
+	    '--- !tapi-tbd' \
+	    'tbd-version: 4' \
+	    'targets: [ arm64-macos ]' \
+	    "install-name: /usr/lib/$${lib}.dylib" \
+	    'exports: []' \
+	    '...' > $@/lib/$${lib}.tbd; \
+	done
+	@printf '%s\n' \
+	  '--- !tapi-tbd' \
+	  'tbd-version: 4' \
+	  'targets: [ arm64-macos ]' \
+	  'install-name: /System/Library/Frameworks/CoreFoundation.framework/CoreFoundation' \
+	  'exports: []' \
+	  '...' > $@/Frameworks/CoreFoundation.framework/CoreFoundation.tbd
 
 # --- linux: cross-compile both Linux targets (inside Docker) ---
 
@@ -99,9 +133,8 @@ $(OUT_LIN_X64):
 	x86_64-linux-gnu-strip --strip-unneeded $@
 
 # --- all: build everything ---
-# Darwin is built natively on the host (must be macOS).
-# Linux targets are cross-compiled inside Docker.
-# publish_pqrs_binaries.sh orchestrates both steps.
+# All three targets are cross-compiled inside the Docker toolchain container.
+# See publish_pqrs_binaries.sh for the full workflow.
 
 all: darwin linux
 

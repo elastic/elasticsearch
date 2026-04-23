@@ -8,14 +8,14 @@
 #
 
 # Cross-compilation toolchain image for esql-parquet-rs.
-# Contains Rust stable with Linux cross-compilation targets (aarch64 and x64).
-# The Darwin binary must be built natively on macOS — see publish_pqrs_binaries.sh.
+# Contains Rust stable with targets for Darwin aarch64 (via rust-lld),
+# Linux aarch64, and Linux x64 (via GCC cross-compilers).
 #
 # To build locally:
 #   ./build_rust_toolchain_image.sh --local
 #
 # To use:
-#   docker run --rm -v $(pwd):/workspace -w /workspace <image> make linux
+#   docker run --rm -v $(pwd):/workspace -w /workspace <image> make all
 
 FROM debian:bookworm-slim
 
@@ -39,6 +39,7 @@ ENV RUSTUP_HOME=/usr/local/rustup \
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
     | sh -s -- -y --default-toolchain stable --profile minimal \
     && rustup target add \
+        aarch64-apple-darwin \
         aarch64-unknown-linux-gnu \
         x86_64-unknown-linux-gnu \
     && rm -rf /usr/local/cargo/registry /usr/local/cargo/git

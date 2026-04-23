@@ -10,8 +10,8 @@
 
 # Builds libesql_parquet_rs for all platforms and uploads the artifact to Artifactory.
 #
-# Must be run on macOS (for the Darwin native build). Linux targets are
-# cross-compiled inside a Docker container.
+# All three targets (Darwin aarch64, Linux aarch64, Linux x64) are cross-compiled
+# inside a Docker container. Can be run on any host with Docker.
 #
 # Usage:
 #   ./publish_pqrs_binaries.sh                       # build and upload to Artifactory
@@ -56,21 +56,12 @@ if [ "$UPLOAD" = true ]; then
   fi
 fi
 
-# Darwin must be built natively on macOS
-if [ "$(uname -s)" != "Darwin" ]; then
-  echo "Error: This script must be run on macOS (Darwin binary requires native build)."
-  exit 1
-fi
-
-echo 'Building Darwin binary (native)...'
-make darwin
-
-echo 'Building Linux binaries (cross-compile in Docker)...'
+echo 'Building all binaries (cross-compile in Docker)...'
 docker run --rm \
   -v "$(pwd)":/workspace \
   -w /workspace \
   "$TOOLCHAIN_IMAGE" \
-  make linux
+  make all
 
 mkdir -p "$TEMP/darwin-aarch64"
 mkdir -p "$TEMP/linux-aarch64"

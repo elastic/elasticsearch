@@ -118,6 +118,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateParse;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateUnitCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DayName;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.MonthName;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.Now;
@@ -371,12 +372,7 @@ public class EsqlFunctionRegistry {
     private static FunctionDefinition[][] functions() {
         return new FunctionDefinition[][] {
             // grouping functions
-            new FunctionDefinition[] {
-                Bucket.DEFINITION,
-                Categorize.DEFINITION,
-                TBucket.DEFINITION,
-                TStep.DEFINITION,
-                TimeSeriesWithout.DEFINITION },
+            new FunctionDefinition[] { Bucket.DEFINITION, Categorize.DEFINITION, TBucket.DEFINITION, TimeSeriesWithout.DEFINITION },
             // aggregate functions
             // since they declare two public constructors - one with filter (for nested where) and one without
             // use casting to disambiguate between the two
@@ -479,6 +475,7 @@ public class EsqlFunctionRegistry {
                 DateFormat.DEFINITION,
                 DateParse.DEFINITION,
                 DateTrunc.DEFINITION,
+                DateUnitCount.DEFINITION,
                 DayName.DEFINITION,
                 MonthName.DEFINITION,
                 Now.DEFINITION,
@@ -616,6 +613,8 @@ public class EsqlFunctionRegistry {
                 // The delay() function is for debug/snapshot environments only and should never be enabled in a non-snapshot build.
                 // This is an experimental function and can be removed without notice.
                 Delay.DEFINITION,
+                // TSTEP is new enough that we only want to expose it on snapshot builds for now.
+                TStep.DEFINITION,
                 // dense vector functions
                 Magnitude.DEFINITION,
                 // date_range functions

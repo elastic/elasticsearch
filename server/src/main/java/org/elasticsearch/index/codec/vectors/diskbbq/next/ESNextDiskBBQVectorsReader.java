@@ -422,7 +422,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
                 long postingListOffset = centroids.readLong();
                 long postingListLength = centroids.readLong();
                 // NO_ORDINAL indicates that the global centroid should be used for query quantization
-                return new PostingMetadata(postingListOffset, postingListLength, NO_ORDINAL, score);
+                return new PostingMetadata(postingListOffset, postingListLength, centroidOrd, NO_ORDINAL, score);
             }
         };
     }
@@ -539,7 +539,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
                 long postingListOffset = centroids.readLong();
                 long postingListLength = centroids.readLong();
                 int parentOrd = centroids.readInt();
-                return new PostingMetadata(postingListOffset, postingListLength, parentOrd, score);
+                return new PostingMetadata(postingListOffset, postingListLength, centroidOrdinal, parentOrd, score);
             }
 
             private long nextCentroid() throws IOException {

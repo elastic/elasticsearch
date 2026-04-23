@@ -385,7 +385,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         } else {
             approximateCost = esAcceptDocs == null ? acceptDocs.cost() : esAcceptDocs.approximateCost();
         }
-        float percentFiltered = Math.max(0f, Math.min(1f, approximateCost / numVectors));
+        float percentFiltered = Math.clamp(approximateCost / numVectors, 0f, 1f);
         int k = knnCollector.k();
         int numCands = k;
         float visitRatio = dynamicVisitRatio;
@@ -440,13 +440,13 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             && (maxVectorVisited > expectedDocs || knnCollector.minCompetitiveSimilarity() == Float.NEGATIVE_INFINITY)) {
             PostingMetadata postingMetadata = centroidPrefetchingIterator.nextPosting();
             // skip centroids that were visited in a previous retry round
-            if (ivfStrategy != null && ivfStrategy.shouldSkipCentroid(postingMetadata.queryCentroidOrdinal())) {
+            if (ivfStrategy != null && ivfStrategy.shouldSkipCentroid(postingMetadata.centroidOrdinal())) {
                 continue;
             }
             expectedDocs += scorer.resetPostingsScorer(postingMetadata);
             actualDocs += scorer.visit(knnCollector);
             if (ivfStrategy != null) {
-                ivfStrategy.markCentroidVisited(postingMetadata.queryCentroidOrdinal());
+                ivfStrategy.markCentroidVisited(postingMetadata.centroidOrdinal());
             }
             if (knnCollector.getSearchStrategy() != null) {
                 knnCollector.getSearchStrategy().nextVectorsBlock();
@@ -459,13 +459,13 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             float expectedScored = Math.min(2 * filteredVectors * unfilteredRatioVisited, expectedDocs / 2f);
             while (centroidPrefetchingIterator.hasNext() && (actualDocs < expectedScored || actualDocs < knnCollector.k())) {
                 PostingMetadata postingMetadata = centroidPrefetchingIterator.nextPosting();
-                if (ivfStrategy != null && ivfStrategy.shouldSkipCentroid(postingMetadata.queryCentroidOrdinal())) {
+                if (ivfStrategy != null && ivfStrategy.shouldSkipCentroid(postingMetadata.centroidOrdinal())) {
                     continue;
                 }
                 scorer.resetPostingsScorer(postingMetadata);
                 actualDocs += scorer.visit(knnCollector);
                 if (ivfStrategy != null) {
-                    ivfStrategy.markCentroidVisited(postingMetadata.queryCentroidOrdinal());
+                    ivfStrategy.markCentroidVisited(postingMetadata.centroidOrdinal());
                 }
                 if (knnCollector.getSearchStrategy() != null) {
                     knnCollector.getSearchStrategy().nextVectorsBlock();
@@ -491,7 +491,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
     }
 
     private static double logScale(double value, double log1pMax) {
-        return Math.max(0.0, Math.min(1.0, Math.log1p(value) / log1pMax));
+        return Math.clamp(Math.log1p(value) / log1pMax, 0.0, 1.0);
     }
 
     /**

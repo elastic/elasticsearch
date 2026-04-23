@@ -16,6 +16,4 @@ module org.elasticsearch.mapper.extras {
     requires org.apache.lucene.queries;
 
     exports org.elasticsearch.index.mapper.extras;
-
-    provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.index.mapper.extras.MapperExtrasFeatures;
 }

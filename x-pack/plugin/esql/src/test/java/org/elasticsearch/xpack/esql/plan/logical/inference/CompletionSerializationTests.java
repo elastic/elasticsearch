@@ -30,9 +30,10 @@ public class CompletionSerializationTests extends AbstractLogicalPlanSerializati
             randomChild(0),
             randomInferenceId(),
             randomRowLimit(),
-                randomTimeout(), randomPrompt(),
+            randomPrompt(),
             randomAttribute(),
-            randomTaskSettings()
+            randomTaskSettings(),
+            randomTimeout()
         );
     }
 
@@ -55,7 +56,7 @@ public class CompletionSerializationTests extends AbstractLogicalPlanSerializati
             case 5 -> taskSettings = randomValueOtherThan(taskSettings, this::randomTaskSettings);
             case 6 -> timeout = randomValueOtherThan(timeout, this::randomTimeout);
         }
-        return new Completion(instance.source(), child, inferenceId, rowLimit, timeout, prompt, targetField, taskSettings);
+        return new Completion(instance.source(), child, inferenceId, rowLimit, prompt, targetField, taskSettings, timeout);
     }
 
     private TimeValue randomTimeout() {

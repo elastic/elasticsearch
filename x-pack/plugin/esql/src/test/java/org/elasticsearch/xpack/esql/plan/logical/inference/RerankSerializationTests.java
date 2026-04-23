@@ -34,9 +34,10 @@ public class RerankSerializationTests extends AbstractLogicalPlanSerializationTe
             child,
             string(randomIdentifier()),
             randomRowLimit(),
-                randomTimeout(), string(randomIdentifier()),
+            string(randomIdentifier()),
             randomFields(),
-            scoreAttribute()
+            scoreAttribute(),
+            randomTimeout()
         );
     }
 
@@ -57,7 +58,7 @@ public class RerankSerializationTests extends AbstractLogicalPlanSerializationTe
             case 4 -> fields = randomValueOtherThan(fields, this::randomFields);
             case 5 -> timeout = randomValueOtherThan(timeout, this::randomTimeout);
         }
-        return new Rerank(instance.source(), child, inferenceId, rowLimit, timeout, queryText, fields, instance.scoreAttribute());
+        return new Rerank(instance.source(), child, inferenceId, rowLimit, queryText, fields, instance.scoreAttribute(), timeout);
     }
 
     private TimeValue randomTimeout() {

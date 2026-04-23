@@ -311,7 +311,7 @@ public class LlamaService extends SenderService<LlamaModel> {
             config.getInferenceEntityId(),
             config.getTaskType(),
             config.getService(),
-            ConfigurationParseContext.PERSISTENT
+            ConfigurationParseContext.REQUEST
         ).createFromModelConfigurationsAndSecrets(config, secrets);
     }
 

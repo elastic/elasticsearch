@@ -1,15 +1,11 @@
-plugins {
-    id("elasticsearch.internal-es-plugin")
-    id("elasticsearch.internal-cluster-test")
-}
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-    name = "secure-settings"
-    description = "Secure Settings module for stateless Elasticsearch"
-    classname = "org.elasticsearch.xpack.stateless.settings.secure.SecureSettingsPlugin"
-    extendedPlugins = listOf("x-pack-core")
-    // Stateless-only for now, but likely going to change
-    deploymentTarget = "STATELESS_ONLY"
+    name = 'secure-settings'
+    description = 'Secure Settings module for stateless Elasticsearch'
+    classname = 'org.elasticsearch.xpack.stateless.settings.secure.SecureSettingsPlugin'
+    extendedPlugins = ['x-pack-core']
 }
 
 configurations {
@@ -21,8 +17,7 @@ configurations {
 }
 
 dependencies {
-    compileOnly(xpackModule("core"))
-    testImplementation(testArtifact("org.elasticsearch:server"))
-    testImplementation(xpackModule("core"))
+    compileOnly project(':x-pack:plugin:core')
+    testImplementation testArtifact(project(':server'))
+    testImplementation project(':x-pack:plugin:core')
 }
-

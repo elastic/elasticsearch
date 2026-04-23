@@ -12,11 +12,13 @@ import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequ
 import org.elasticsearch.action.admin.cluster.repositories.put.TransportPutRepositoryAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
+import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.blobcache.BlobCachePlugin;
@@ -146,6 +148,27 @@ public class DLMFrozenTransitionIT extends ESIntegTestCase {
         } catch (Exception e) {
             logger.warn("Failed to clear default repository setting during cleanup", e);
         }
+        try {
+            client().execute(
+                DeleteDataStreamAction.INSTANCE,
+                new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { DATA_STREAM_NAME })
+            ).actionGet();
+        } catch (Exception e) {
+            logger.warn("Failed to delete data stream during cleanup", e);
+        }
+        try {
+            client().execute(
+                TransportDeleteComposableIndexTemplateAction.TYPE,
+                new TransportDeleteComposableIndexTemplateAction.Request(TEMPLATE_NAME)
+            ).actionGet();
+        } catch (Exception e) {
+            logger.warn("Failed to delete composable index template during cleanup", e);
+        }
+        try {
+            client().admin().cluster().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, REPO_NAME).get();
+        } catch (Exception e) {
+            logger.warn("Failed to delete repository during cleanup", e);
+        }
     }
 
     /**
@@ -195,12 +218,14 @@ public class DLMFrozenTransitionIT extends ESIntegTestCase {
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build()
         );
-        client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
+        assertAcked(client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet());
 
-        client().execute(
-            CreateDataStreamAction.INSTANCE,
-            new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, DATA_STREAM_NAME)
-        ).actionGet();
+        assertAcked(
+            client().execute(
+                CreateDataStreamAction.INSTANCE,
+                new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, DATA_STREAM_NAME)
+            ).actionGet()
+        );
 
         // --- Index a doc to trigger rollover so gen-1 becomes a non-write index ---
         BulkRequest bulkRequest = new BulkRequest();
@@ -229,7 +254,6 @@ public class DLMFrozenTransitionIT extends ESIntegTestCase {
 
         // --- Advance the clock past the frozen_after threshold ---
         now.set(clock.millis() + TimeValue.timeValueDays(1).millis());
-        dlmServices.forEach(svc -> svc.setNowSupplier(now::get));
 
         // --- Step 1: Wait for DLM to mark the index for frozen conversion ---
         assertBusy(() -> {
@@ -254,17 +278,7 @@ public class DLMFrozenTransitionIT extends ESIntegTestCase {
         assertBusy(() -> {
             ClusterStateResponse resp = admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get();
             var projectMetadata = resp.getState().metadata().getProject(Metadata.DEFAULT_PROJECT_ID);
-
-            // Verify the frozen index exists
-            IndexMetadata frozenMeta = projectMetadata.index(expectedFrozenIndexName);
-            assertThat("Frozen index [" + expectedFrozenIndexName + "] should exist", frozenMeta, notNullValue());
-
-            // Verify it was created by DLM (has the dlm.frozen.created setting)
-            assertThat(
-                "Frozen index should have the DLM-created setting",
-                DLMConvertToFrozen.DLM_CREATED_SETTING.get(frozenMeta.getSettings()),
-                is(true)
-            );
+            assertThat("Project metadata should not be null", projectMetadata, notNullValue());
 
             // Verify the frozen index is now part of the data stream
             GetDataStreamAction.Response dsResp = client().execute(
@@ -278,19 +292,29 @@ public class DLMFrozenTransitionIT extends ESIntegTestCase {
             assertThat("Frozen index should be in the data stream's backing indices", frozenInDataStream, is(true));
 
             // Verify the original index has been cleaned up (removed from cluster state)
-            IndexMetadata originalMeta = projectMetadata.index(candidateIndex);
-            assertThat("Original index [" + candidateIndex + "] should have been deleted", originalMeta, nullValue());
+            assertThat(
+                "Original index [" + candidateIndex + "] should have been deleted",
+                projectMetadata.index(candidateIndex),
+                nullValue()
+            );
 
             // Verify the clone index has been cleaned up
             String cloneIndexName = DLMConvertToFrozen.CLONE_INDEX_PREFIX + candidateIndex;
-            IndexMetadata cloneMeta = projectMetadata.index(cloneIndexName);
-            assertThat("Clone index [" + cloneIndexName + "] should have been deleted", cloneMeta, nullValue());
-
+            assertThat("Clone index [" + cloneIndexName + "] should have been deleted", projectMetadata.index(cloneIndexName), nullValue());
             // Verify the original index is no longer in the data stream
             boolean originalInDataStream = backingIndices.stream().anyMatch(idx -> idx.getName().equals(candidateIndex));
             assertThat("Original index should no longer be in the data stream", originalInDataStream, is(false));
 
             logger.info("--> frozen conversion fully verified for index [{}] -> [{}]", candidateIndex, expectedFrozenIndexName);
+            // Verify the frozen index exists and was created by DLM
+            IndexMetadata frozenMeta = projectMetadata.index(expectedFrozenIndexName);
+            assertThat("Frozen index [" + expectedFrozenIndexName + "] should exist", frozenMeta, notNullValue());
+            assertThat(
+                "Frozen index should have the DLM-created setting",
+                DLMConvertToFrozen.DLM_CREATED_SETTING.get(frozenMeta.getSettings()),
+                is(true)
+            );
+
         }, 300, TimeUnit.SECONDS);
 
         logger.info("--> end-to-end DLM frozen transition test completed successfully");

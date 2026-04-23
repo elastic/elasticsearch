@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
+import java.time.Instant;
 import java.util.Objects;
 
 /**
@@ -37,6 +38,11 @@ class ProblemTracker {
     private volatile int emptyDataCount;
     private final long numberOfSearchesInADay;
 
+    private volatile int extractionFailureCount;
+    private volatile Instant extractionFailureFirstTime;
+    private volatile int analysisFailureCount;
+    private volatile Instant analysisFailureFirstTime;
+
     ProblemTracker(AnomalyDetectionAuditor auditor, String jobId, long numberOfSearchesInADay) {
         this.auditor = Objects.requireNonNull(auditor);
         this.jobId = Objects.requireNonNull(jobId);
@@ -44,20 +50,30 @@ class ProblemTracker {
     }
 
     /**
-     * Reports as analysis problem if it is different than the last seen problem
+     * Reports as analysis problem if it is different than the last seen problem.
+     * Increments the cumulative analysis failure counter used by health reporting.
      *
      * @param error the exception
      */
     public void reportAnalysisProblem(DatafeedJob.AnalysisProblemException error) {
+        if (analysisFailureFirstTime == null) {
+            analysisFailureFirstTime = Instant.now();
+        }
+        analysisFailureCount++;
         reportProblem(Messages.JOB_AUDIT_DATAFEED_DATA_ANALYSIS_ERROR, ExceptionsHelper.unwrapCause(error).getMessage());
     }
 
     /**
-     * Reports as extraction problem if it is different than the last seen problem
+     * Reports as extraction problem if it is different than the last seen problem.
+     * Increments the cumulative extraction failure counter used by health reporting.
      *
      * @param error the exception
      */
     public void reportExtractionProblem(DatafeedJob.ExtractionProblemException error) {
+        if (extractionFailureFirstTime == null) {
+            extractionFailureFirstTime = Instant.now();
+        }
+        extractionFailureCount++;
         reportProblem(Messages.JOB_AUDIT_DATAFEED_DATA_EXTRACTION_ERROR, ExceptionsHelper.findSearchExceptionRootCause(error).getMessage());
     }
 
@@ -91,6 +107,10 @@ class ProblemTracker {
             auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_DATA_SEEN_AGAIN));
         }
         emptyDataCount = 0;
+        extractionFailureCount = 0;
+        extractionFailureFirstTime = null;
+        analysisFailureCount = 0;
+        analysisFailureFirstTime = null;
     }
 
     public boolean hasProblems() {
@@ -98,7 +118,9 @@ class ProblemTracker {
     }
 
     /**
-     * Issues a recovery message if appropriate and prepares for next report
+     * Issues a recovery message if appropriate and prepares for next report.
+     * Note: extraction/analysis failure counters are intentionally NOT reset here —
+     * they accumulate across cycles and are only reset on successful data receipt.
      */
     public void finishReport() {
         if (hasProblems == false && hadProblems) {
@@ -107,5 +129,30 @@ class ProblemTracker {
 
         hadProblems = hasProblems;
         hasProblems = false;
+    }
+
+    /** @return cumulative number of data extraction failures since the last successful data receipt. */
+    public int getExtractionFailureCount() {
+        return extractionFailureCount;
+    }
+
+    /** @return timestamp of the first extraction failure in the current streak, or {@code null} if none. */
+    public Instant getExtractionFailureFirstTime() {
+        return extractionFailureFirstTime;
+    }
+
+    /** @return cumulative number of data analysis failures since the last successful data receipt. */
+    public int getAnalysisFailureCount() {
+        return analysisFailureCount;
+    }
+
+    /** @return timestamp of the first analysis failure in the current streak, or {@code null} if none. */
+    public Instant getAnalysisFailureFirstTime() {
+        return analysisFailureFirstTime;
+    }
+
+    /** @return number of consecutive empty data cycles since the last non-empty result. */
+    public int getEmptyDataCount() {
+        return emptyDataCount;
     }
 }

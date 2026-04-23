@@ -733,14 +733,15 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                     // reasonable to say real-time running hasn't started yet. The state will quickly
                     // change once the datafeed runner gets going and determines where the datafeed is up
                     // to.
-                    return new GetDatafeedRunningStateAction.Response.RunningState(endTime == null, false, null);
+                    return new GetDatafeedRunningStateAction.Response.RunningState(endTime == null, false, null, null);
                 }
             }
             return new GetDatafeedRunningStateAction.Response.RunningState(
                 endTime == null,
                 datafeedRunner.finishedLookBack(this),
                 datafeedRunner.getSearchInterval(this),
-                datafeedRunner.getCrossClusterStats(this)
+                datafeedRunner.getCrossClusterStats(this),
+                datafeedRunner.getProblemStats(this)
             );
         }
     }

@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.job.JobHealthChecker;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
@@ -165,7 +166,8 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
                     node,
                     assignmentExplanation,
                     openTime,
-                    timingStats
+                    timingStats,
+                    JobHealthChecker.checkJob(jobState, node, assignmentExplanation, modelSizeStats)
                 );
                 listener.onResponse(new QueryPage<>(Collections.singletonList(jobStats), 1, Job.RESULTS_FIELD));
             }, listener::onFailure);
@@ -232,7 +234,8 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
                                             null,
                                             assignmentExplanation,
                                             null,
-                                            timingStats
+                                            timingStats,
+                                            JobHealthChecker.checkJob(jobState, null, assignmentExplanation, modelSizeStats)
                                         )
                                     );
                                     if (counter.decrementAndGet() == 0) {

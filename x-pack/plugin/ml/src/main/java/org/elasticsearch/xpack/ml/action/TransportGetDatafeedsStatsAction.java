@@ -21,12 +21,17 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedRunningStateAction;
+import org.elasticsearch.xpack.core.ml.action.GetDatafeedRunningStateAction.Response.RunningState;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction.Request;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction.Response;
+import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction.Response.DatafeedStats;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
+import org.elasticsearch.xpack.core.ml.job.AnomalyDetectionHealth;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedHealthChecker;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
@@ -71,10 +76,11 @@ public class TransportGetDatafeedsStatsAction extends HandledTransportAction<Req
         final Response.Builder responseBuilder = new Response.Builder();
         final TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
 
-        // 5. Build response
+        // 5. Build response, then enrich each DatafeedStats with a computed health field
         ActionListener<GetDatafeedRunningStateAction.Response> runtimeStateListener = ActionListener.wrap(runtimeStateResponse -> {
             responseBuilder.setDatafeedRuntimeState(runtimeStateResponse);
-            listener.onResponse(responseBuilder.build(tasksInProgress, state));
+            Response rawResponse = responseBuilder.build(tasksInProgress, state);
+            listener.onResponse(enrichWithHealth(rawResponse));
         }, listener::onFailure);
 
         // 4. Grab runtime state
@@ -125,5 +131,32 @@ public class TransportGetDatafeedsStatsAction extends HandledTransportAction<Req
             parentTaskId,
             expandIdsListener
         );
+    }
+
+    /**
+     * Rebuilds each {@link DatafeedStats} in the response with a computed {@code health} field.
+     * Health is derived from the stats already assembled (state, node, running state, problem stats).
+     */
+    private static Response enrichWithHealth(Response rawResponse) {
+        List<DatafeedStats> enriched = rawResponse.getResponse().results().stream().map(stats -> {
+            RunningState runningState = stats.getRunningState();
+            AnomalyDetectionHealth health = DatafeedHealthChecker.checkDatafeed(
+                stats.getDatafeedState(),
+                stats.getNode(),
+                stats.getAssignmentExplanation(),
+                runningState != null ? runningState.getSearchInterval() : null,
+                runningState != null ? runningState.getProblemStats() : null
+            );
+            return new DatafeedStats(
+                stats.getDatafeedId(),
+                stats.getDatafeedState(),
+                stats.getNode(),
+                stats.getAssignmentExplanation(),
+                stats.getTimingStats(),
+                runningState,
+                health
+            );
+        }).collect(Collectors.toList());
+        return new Response(new QueryPage<>(enriched, enriched.size(), DatafeedConfig.RESULTS_FIELD));
     }
 }

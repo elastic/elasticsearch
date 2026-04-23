@@ -22,9 +22,11 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
+import org.elasticsearch.xpack.core.ml.job.AnomalyDetectionHealth;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
@@ -55,6 +57,7 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
     private static final String ASSIGNMENT_EXPLANATION = "assignment_explanation";
     private static final String OPEN_TIME = "open_time";
     private static final String TIMING_STATS = "timing_stats";
+    private static final String HEALTH = "health";
 
     private GetJobsStatsAction() {
         super(NAME);
@@ -148,6 +151,9 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
     public static class Response extends BaseTasksResponse implements ToXContentObject {
 
         public static class JobStats implements ToXContentObject, Writeable {
+
+            private static final TransportVersion ML_JOB_STATS_HEALTH = TransportVersion.fromName("ml_job_stats_health");
+
             private final String jobId;
             private final DataCounts dataCounts;
             @Nullable
@@ -163,6 +169,8 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
             private final String assignmentExplanation;
             @Nullable
             private final TimingStats timingStats;
+            @Nullable
+            private final AnomalyDetectionHealth health;
 
             public JobStats(
                 String jobId,
@@ -173,7 +181,8 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
                 @Nullable DiscoveryNode node,
                 @Nullable String assignmentExplanation,
                 @Nullable TimeValue openTime,
-                @Nullable TimingStats timingStats
+                @Nullable TimingStats timingStats,
+                @Nullable AnomalyDetectionHealth health
             ) {
                 this.jobId = Objects.requireNonNull(jobId);
                 this.dataCounts = Objects.requireNonNull(dataCounts);
@@ -184,6 +193,7 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
                 this.assignmentExplanation = assignmentExplanation;
                 this.openTime = openTime;
                 this.timingStats = timingStats;
+                this.health = health;
             }
 
             public JobStats(StreamInput in) throws IOException {
@@ -196,6 +206,11 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
                 openTime = in.readOptionalTimeValue();
                 forecastStats = in.readOptionalWriteable(ForecastStats::new);
                 timingStats = in.readOptionalWriteable(TimingStats::new);
+                if (in.getTransportVersion().supports(ML_JOB_STATS_HEALTH)) {
+                    health = in.readOptionalWriteable(AnomalyDetectionHealth::new);
+                } else {
+                    health = null;
+                }
             }
 
             public String getJobId() {
@@ -232,6 +247,11 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
 
             public TimingStats getTimingStats() {
                 return timingStats;
+            }
+
+            @Nullable
+            public AnomalyDetectionHealth getHealth() {
+                return health;
             }
 
             @Override
@@ -282,6 +302,9 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
                         new MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_CALCULATED_FIELDS, "true"))
                     );
                 }
+                if (health != null) {
+                    builder.field(HEALTH, health);
+                }
                 return builder;
             }
 
@@ -296,6 +319,9 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
                 out.writeOptionalTimeValue(openTime);
                 out.writeOptionalWriteable(forecastStats);
                 out.writeOptionalWriteable(timingStats);
+                if (out.getTransportVersion().supports(ML_JOB_STATS_HEALTH)) {
+                    out.writeOptionalWriteable(health);
+                }
             }
 
             @Override
@@ -309,7 +335,8 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
                     node,
                     assignmentExplanation,
                     openTime,
-                    timingStats
+                    timingStats,
+                    health
                 );
             }
 
@@ -330,7 +357,8 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
                     && Objects.equals(this.node, other.node)
                     && Objects.equals(this.assignmentExplanation, other.assignmentExplanation)
                     && Objects.equals(this.openTime, other.openTime)
-                    && Objects.equals(this.timingStats, other.timingStats);
+                    && Objects.equals(this.timingStats, other.timingStats)
+                    && Objects.equals(this.health, other.health);
             }
         }
 

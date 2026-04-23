@@ -26,6 +26,7 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
+import org.elasticsearch.xpack.core.ml.action.GetDatafeedRunningStateAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.CrossClusterSearchStatsSnapshot;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
@@ -263,6 +264,25 @@ public class DatafeedRunner {
     public CrossClusterSearchStatsSnapshot getCrossClusterStats(TransportStartDatafeedAction.DatafeedTask task) {
         Holder holder = runningDatafeedsOnThisNode.get(task.getAllocationId());
         return holder == null ? null : holder.datafeedJob.getCrossClusterSearchStats().snapshot();
+    }
+
+    /**
+     * Returns a snapshot of the datafeed's current problem counters for health reporting purposes,
+     * or {@code null} if the datafeed is not yet running on this node.
+     */
+    public GetDatafeedRunningStateAction.Response.DatafeedProblemStats getProblemStats(TransportStartDatafeedAction.DatafeedTask task) {
+        Holder holder = runningDatafeedsOnThisNode.get(task.getAllocationId());
+        if (holder == null) {
+            return null;
+        }
+        ProblemTracker pt = holder.problemTracker;
+        return new GetDatafeedRunningStateAction.Response.DatafeedProblemStats(
+            pt.getExtractionFailureCount(),
+            pt.getExtractionFailureFirstTime(),
+            pt.getAnalysisFailureCount(),
+            pt.getAnalysisFailureFirstTime(),
+            pt.getEmptyDataCount()
+        );
     }
 
     // Important: Holder must be created and assigned to DatafeedTask before setting state to started,

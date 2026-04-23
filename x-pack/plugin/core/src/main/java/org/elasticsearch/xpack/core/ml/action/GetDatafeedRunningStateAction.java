@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.CrossClusterSearchStatsSnapshot;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -81,9 +82,104 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
 
     public static class Response extends BaseTasksResponse {
 
+        /**
+         * Snapshot of failure counters from a running datafeed's {@code ProblemTracker}.
+         * Used by {@code DatafeedHealthChecker} to compute the datafeed {@code health} field
+         * without requiring an additional round-trip to the ML node.
+         */
+        public static class DatafeedProblemStats implements Writeable {
+
+            private final int extractionFailureCount;
+            @Nullable
+            private final Instant extractionFailureFirstTime;
+            private final int analysisFailureCount;
+            @Nullable
+            private final Instant analysisFailureFirstTime;
+            private final int emptyDataCount;
+
+            public DatafeedProblemStats(
+                int extractionFailureCount,
+                @Nullable Instant extractionFailureFirstTime,
+                int analysisFailureCount,
+                @Nullable Instant analysisFailureFirstTime,
+                int emptyDataCount
+            ) {
+                this.extractionFailureCount = extractionFailureCount;
+                this.extractionFailureFirstTime = extractionFailureFirstTime;
+                this.analysisFailureCount = analysisFailureCount;
+                this.analysisFailureFirstTime = analysisFailureFirstTime;
+                this.emptyDataCount = emptyDataCount;
+            }
+
+            public DatafeedProblemStats(StreamInput in) throws IOException {
+                this.extractionFailureCount = in.readVInt();
+                this.extractionFailureFirstTime = in.readOptionalInstant();
+                this.analysisFailureCount = in.readVInt();
+                this.analysisFailureFirstTime = in.readOptionalInstant();
+                this.emptyDataCount = in.readVInt();
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                out.writeVInt(extractionFailureCount);
+                out.writeOptionalInstant(extractionFailureFirstTime);
+                out.writeVInt(analysisFailureCount);
+                out.writeOptionalInstant(analysisFailureFirstTime);
+                out.writeVInt(emptyDataCount);
+            }
+
+            public int getExtractionFailureCount() {
+                return extractionFailureCount;
+            }
+
+            @Nullable
+            public Instant getExtractionFailureFirstTime() {
+                return extractionFailureFirstTime;
+            }
+
+            public int getAnalysisFailureCount() {
+                return analysisFailureCount;
+            }
+
+            @Nullable
+            public Instant getAnalysisFailureFirstTime() {
+                return analysisFailureFirstTime;
+            }
+
+            public int getEmptyDataCount() {
+                return emptyDataCount;
+            }
+
+            @Override
+            public boolean equals(Object o) {
+                if (this == o) return true;
+                if (o == null || getClass() != o.getClass()) return false;
+                DatafeedProblemStats that = (DatafeedProblemStats) o;
+                return extractionFailureCount == that.extractionFailureCount
+                    && analysisFailureCount == that.analysisFailureCount
+                    && emptyDataCount == that.emptyDataCount
+                    && Objects.equals(extractionFailureFirstTime, that.extractionFailureFirstTime)
+                    && Objects.equals(analysisFailureFirstTime, that.analysisFailureFirstTime);
+            }
+
+            @Override
+            public int hashCode() {
+                return Objects.hash(
+                    extractionFailureCount,
+                    extractionFailureFirstTime,
+                    analysisFailureCount,
+                    analysisFailureFirstTime,
+                    emptyDataCount
+                );
+            }
+        }
+
         public static class RunningState implements Writeable, ToXContentObject {
 
             private static final TransportVersion CROSS_CLUSTER_STATS_ADDED = TransportVersion.fromName("ml_datafeed_cross_cluster_stats");
+            private static final TransportVersion DATAFEED_RUNNING_STATE_PROBLEM_STATS = TransportVersion.fromName(
+                "ml_datafeed_running_state_problem_stats"
+            );
 
             private final boolean realTimeConfigured;
             private final boolean realTimeRunning;
@@ -94,20 +190,25 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
             @Nullable
             private final CrossClusterSearchStatsSnapshot crossClusterStats;
 
+            @Nullable
+            private final DatafeedProblemStats problemStats;
+
             public RunningState(boolean realTimeConfigured, boolean realTimeRunning, @Nullable SearchInterval searchInterval) {
-                this(realTimeConfigured, realTimeRunning, searchInterval, null);
+                this(realTimeConfigured, realTimeRunning, searchInterval, null, null);
             }
 
             public RunningState(
                 boolean realTimeConfigured,
                 boolean realTimeRunning,
                 @Nullable SearchInterval searchInterval,
-                @Nullable CrossClusterSearchStatsSnapshot crossClusterStats
+                @Nullable CrossClusterSearchStatsSnapshot crossClusterStats,
+                @Nullable DatafeedProblemStats problemStats
             ) {
                 this.realTimeConfigured = realTimeConfigured;
                 this.realTimeRunning = realTimeRunning;
                 this.searchInterval = searchInterval;
                 this.crossClusterStats = crossClusterStats;
+                this.problemStats = problemStats;
             }
 
             public RunningState(StreamInput in) throws IOException {
@@ -118,6 +219,11 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
                     this.crossClusterStats = in.readOptionalWriteable(CrossClusterSearchStatsSnapshot::new);
                 } else {
                     this.crossClusterStats = null;
+                }
+                if (in.getTransportVersion().supports(DATAFEED_RUNNING_STATE_PROBLEM_STATS)) {
+                    this.problemStats = in.readOptionalWriteable(DatafeedProblemStats::new);
+                } else {
+                    this.problemStats = null;
                 }
             }
 
@@ -134,12 +240,13 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
                 return realTimeConfigured == that.realTimeConfigured
                     && realTimeRunning == that.realTimeRunning
                     && Objects.equals(searchInterval, that.searchInterval)
-                    && Objects.equals(crossClusterStats, that.crossClusterStats);
+                    && Objects.equals(crossClusterStats, that.crossClusterStats)
+                    && Objects.equals(problemStats, that.problemStats);
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(realTimeConfigured, realTimeRunning, searchInterval, crossClusterStats);
+                return Objects.hash(realTimeConfigured, realTimeRunning, searchInterval, crossClusterStats, problemStats);
             }
 
             @Override
@@ -149,6 +256,9 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
                 out.writeOptionalWriteable(searchInterval);
                 if (out.getTransportVersion().supports(CROSS_CLUSTER_STATS_ADDED)) {
                     out.writeOptionalWriteable(crossClusterStats);
+                }
+                if (out.getTransportVersion().supports(DATAFEED_RUNNING_STATE_PROBLEM_STATS)) {
+                    out.writeOptionalWriteable(problemStats);
                 }
             }
 
@@ -162,6 +272,24 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
                 }
                 builder.endObject();
                 return builder;
+            }
+
+            public boolean isRealTimeConfigured() {
+                return realTimeConfigured;
+            }
+
+            public boolean isRealTimeRunning() {
+                return realTimeRunning;
+            }
+
+            @Nullable
+            public SearchInterval getSearchInterval() {
+                return searchInterval;
+            }
+
+            @Nullable
+            public DatafeedProblemStats getProblemStats() {
+                return problemStats;
             }
         }
 

@@ -19,6 +19,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.core.ml.action.GetDatafeedRunningStateAction.Resp
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
+import org.elasticsearch.xpack.core.ml.job.AnomalyDetectionHealth;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
@@ -53,6 +55,7 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
     private static final String TIMING_STATS = "timing_stats";
     private static final String RUNNING_STATE = "running_state";
     private static final String REMOTE_CLUSTER_STATS = "remote_cluster_stats";
+    private static final String HEALTH = "health";
 
     private GetDatafeedsStatsAction() {
         super(NAME);
@@ -126,6 +129,8 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
 
         public static class DatafeedStats implements ToXContentObject, Writeable {
 
+            private static final TransportVersion ML_DATAFEED_STATS_HEALTH = TransportVersion.fromName("ml_datafeed_stats_health");
+
             private final String datafeedId;
             private final DatafeedState datafeedState;
             @Nullable
@@ -136,6 +141,8 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
             private final DatafeedTimingStats timingStats;
             @Nullable
             private final RunningState runningState;
+            @Nullable
+            private final AnomalyDetectionHealth health;
 
             public DatafeedStats(
                 String datafeedId,
@@ -143,7 +150,8 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
                 @Nullable DiscoveryNode node,
                 @Nullable String assignmentExplanation,
                 @Nullable DatafeedTimingStats timingStats,
-                @Nullable RunningState runningState
+                @Nullable RunningState runningState,
+                @Nullable AnomalyDetectionHealth health
             ) {
                 this.datafeedId = Objects.requireNonNull(datafeedId);
                 this.datafeedState = Objects.requireNonNull(datafeedState);
@@ -151,6 +159,7 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
                 this.assignmentExplanation = assignmentExplanation;
                 this.timingStats = timingStats;
                 this.runningState = runningState;
+                this.health = health;
             }
 
             DatafeedStats(StreamInput in) throws IOException {
@@ -160,6 +169,11 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
                 assignmentExplanation = in.readOptionalString();
                 timingStats = in.readOptionalWriteable(DatafeedTimingStats::new);
                 runningState = in.readOptionalWriteable(RunningState::new);
+                if (in.getTransportVersion().supports(ML_DATAFEED_STATS_HEALTH)) {
+                    health = in.readOptionalWriteable(AnomalyDetectionHealth::new);
+                } else {
+                    health = null;
+                }
             }
 
             public String getDatafeedId() {
@@ -184,6 +198,11 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
 
             public RunningState getRunningState() {
                 return runningState;
+            }
+
+            @Nullable
+            public AnomalyDetectionHealth getHealth() {
+                return health;
             }
 
             @Override
@@ -223,6 +242,9 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
                         builder.field(REMOTE_CLUSTER_STATS, runningState.getCrossClusterStats());
                     }
                 }
+                if (health != null) {
+                    builder.field(HEALTH, health);
+                }
                 builder.endObject();
                 return builder;
             }
@@ -235,11 +257,14 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
                 out.writeOptionalString(assignmentExplanation);
                 out.writeOptionalWriteable(timingStats);
                 out.writeOptionalWriteable(runningState);
+                if (out.getTransportVersion().supports(ML_DATAFEED_STATS_HEALTH)) {
+                    out.writeOptionalWriteable(health);
+                }
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(datafeedId, datafeedState, node, assignmentExplanation, timingStats, runningState);
+                return Objects.hash(datafeedId, datafeedState, node, assignmentExplanation, timingStats, runningState, health);
             }
 
             @Override
@@ -256,7 +281,8 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
                     && Objects.equals(this.node, other.node)
                     && Objects.equals(this.assignmentExplanation, other.assignmentExplanation)
                     && Objects.equals(this.runningState, other.runningState)
-                    && Objects.equals(this.timingStats, other.timingStats);
+                    && Objects.equals(this.timingStats, other.timingStats)
+                    && Objects.equals(this.health, other.health);
             }
 
             public static Builder builder(String datafeedId) {
@@ -270,6 +296,7 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
                 private String assignmentExplanation;
                 private DatafeedTimingStats timingStats;
                 private RunningState runningState;
+                private AnomalyDetectionHealth health;
 
                 private Builder(String datafeedId) {
                     this.datafeedId = datafeedId;
@@ -304,8 +331,13 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
                     return this;
                 }
 
+                private Builder setHealth(AnomalyDetectionHealth health) {
+                    this.health = health;
+                    return this;
+                }
+
                 private DatafeedStats build() {
-                    return new DatafeedStats(datafeedId, datafeedState, node, assignmentExplanation, timingStats, runningState);
+                    return new DatafeedStats(datafeedId, datafeedState, node, assignmentExplanation, timingStats, runningState, health);
                 }
             }
         }

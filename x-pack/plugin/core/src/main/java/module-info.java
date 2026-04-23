@@ -121,6 +121,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.ml.inference.trainedmodel;
     exports org.elasticsearch.xpack.core.ml.inference.utils;
     exports org.elasticsearch.xpack.core.ml.inference;
+    exports org.elasticsearch.xpack.core.ml.job;
     exports org.elasticsearch.xpack.core.ml.job.config;
     exports org.elasticsearch.xpack.core.ml.job.groups;
     exports org.elasticsearch.xpack.core.ml.job.messages;

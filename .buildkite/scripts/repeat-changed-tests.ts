@@ -250,7 +250,7 @@ export function generatePipeline(tests: ClassifiedTest[]): Pipeline {
       for (let i = 0; i < batchCommands.length; i++) {
         env[`BATCH_COMMAND_${i}`] = batchCommands[i];
       }
-      step.command = 'VARNAME="BATCH_COMMAND_${BUILDKITE_PARALLEL_JOB}"; eval "${!VARNAME}"';
+      step.command = 'VARNAME="BATCH_COMMAND_${BUILDKITE_PARALLEL_JOB}"; eval "$${!VARNAME}"';
       step.parallelism = totalBatches;
       step.env = env;
     }

@@ -1,0 +1,8 @@
+steps:
+  - group: "repeat-changed-tests"
+    steps:
+      - label: "detect changed tests"
+        command: |
+          npm install -g bun@1.0.4
+          bun .buildkite/scripts/repeat-changed-tests.ts
+        timeout_in_minutes: 10

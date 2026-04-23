@@ -28,11 +28,15 @@ import org.elasticsearch.index.query.QueryRewriteAsyncAction;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryRewriteRemoteAsyncAction;
 import org.elasticsearch.index.search.QueryParserHelper;
+import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
@@ -53,6 +57,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
 import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction.GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV;
 
 public final class InferenceQueryUtils {
@@ -517,14 +522,34 @@ public final class InferenceQueryUtils {
 
         @Override
         protected void execute(Client client, ActionListener<Map<FullyQualifiedInferenceId, InferenceResults>> listener) {
-            List<InferenceAction.Request> inferenceRequests = generateInferenceRequests();
-            GroupedActionListener<Tuple<FullyQualifiedInferenceId, InferenceResults>> gal = createLocalInferenceGroupedActionListener(
-                listener,
-                inferenceRequests.size()
+            GroupedActionListener<Tuple<String, TaskType>> getModelGrouped = new GroupedActionListener<>(
+                inferenceIds.size(),
+                listener.delegateFailureAndWrap((l, modelResponses) -> {
+                    GroupedActionListener<Tuple<FullyQualifiedInferenceId, InferenceResults>> inferenceGrouped =
+                        createLocalInferenceGroupedActionListener(l, modelResponses.size());
+                    for (Tuple<String, TaskType> idAndTaskType : modelResponses) {
+                        executeInferenceRequest(idAndTaskType.v1(), idAndTaskType.v2(), client, inferenceGrouped);
+                    }
+                })
             );
 
-            for (InferenceAction.Request inferenceRequest : inferenceRequests) {
-                executeInferenceRequest(inferenceRequest, client, gal);
+            for (String inferenceId : inferenceIds) {
+                executeAsyncWithOrigin(
+                    client,
+                    ML_ORIGIN,
+                    GetInferenceModelAction.INSTANCE,
+                    new GetInferenceModelAction.Request(inferenceId, TaskType.ANY),
+                    getModelGrouped.delegateFailureAndWrap((l, response) -> {
+                        var endpoints = response.getEndpoints();
+                        if (endpoints.size() > 1) {
+                            throw new IllegalStateException(
+                                endpoints.size() + " inference endpoints found for inference ID [" + inferenceId + "]"
+                            );
+                        }
+                        TaskType taskType = endpoints.getFirst().getTaskType();
+                        l.onResponse(Tuple.tuple(inferenceId, taskType));
+                    })
+                );
             }
         }
 
@@ -540,48 +565,57 @@ public final class InferenceQueryUtils {
                 && Objects.equals(clusterAlias, other.clusterAlias);
         }
 
-        private List<InferenceAction.Request> generateInferenceRequests() {
-            return inferenceIds.stream()
-                .map(
-                    i -> new InferenceAction.Request(
-                        TaskType.ANY,
-                        i,
+        private void executeInferenceRequest(
+            String inferenceId,
+            TaskType taskType,
+            Client client,
+            GroupedActionListener<Tuple<FullyQualifiedInferenceId, InferenceResults>> gal
+        ) {
+            FullyQualifiedInferenceId fullyQualifiedInferenceId = new FullyQualifiedInferenceId(clusterAlias, inferenceId);
+
+            ActionListener<InferenceAction.Response> responseListener = gal.delegateFailureAndWrap((l, response) -> {
+                InferenceResults inferenceResults = validateAndConvertInferenceResults(
+                    response.getResults(),
+                    fullyQualifiedInferenceId.inferenceId()
+                );
+                l.onResponse(Tuple.tuple(fullyQualifiedInferenceId, inferenceResults));
+            });
+
+            switch (taskType) {
+                case TEXT_EMBEDDING, SPARSE_EMBEDDING -> executeAsyncWithOrigin(
+                    client,
+                    ML_ORIGIN,
+                    InferenceAction.INSTANCE,
+                    new InferenceAction.Request(
+                        taskType,
+                        inferenceId,
                         null,
                         null,
                         null,
                         List.of(query),
                         Map.of(),
                         InputType.INTERNAL_SEARCH,
-                        null,
+                        TIMEOUT_NOT_DETERMINED,
                         false
-                    )
-                )
-                .toList();
-        }
-
-        private void executeInferenceRequest(
-            InferenceAction.Request inferenceRequest,
-            Client client,
-            GroupedActionListener<Tuple<FullyQualifiedInferenceId, InferenceResults>> gal
-        ) {
-            FullyQualifiedInferenceId fullyQualifiedInferenceId = new FullyQualifiedInferenceId(
-                clusterAlias,
-                inferenceRequest.getInferenceEntityId()
-            );
-
-            executeAsyncWithOrigin(
-                client,
-                ML_ORIGIN,
-                InferenceAction.INSTANCE,
-                inferenceRequest,
-                gal.delegateFailureAndWrap((l, inferenceActionResponse) -> {
-                    InferenceResults inferenceResults = validateAndConvertInferenceResults(
-                        inferenceActionResponse.getResults(),
-                        fullyQualifiedInferenceId.inferenceId()
-                    );
-                    l.onResponse(Tuple.tuple(fullyQualifiedInferenceId, inferenceResults));
-                })
-            );
+                    ),
+                    responseListener
+                );
+                case EMBEDDING -> executeAsyncWithOrigin(
+                    client,
+                    ML_ORIGIN,
+                    EmbeddingAction.INSTANCE,
+                    new EmbeddingAction.Request(
+                        inferenceId,
+                        taskType,
+                        new EmbeddingRequest(List.of(new InferenceStringGroup(query)), InputType.INTERNAL_SEARCH, Map.of()),
+                        TIMEOUT_NOT_DETERMINED
+                    ),
+                    responseListener
+                );
+                default -> gal.onFailure(
+                    new IllegalArgumentException("The [" + taskType + "] task type is not supported on inference fields")
+                );
+            }
         }
     }
 

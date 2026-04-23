@@ -2,8 +2,8 @@
 
 ## Supported types
 
-| step | result |
-| --- | --- |
-| time_duration | date |
-| time_duration | date_nanos |
+| step | from | to | result |
+| --- | --- | --- | --- |
+| time_duration | | | date |
+| time_duration | | | date_nanos |
 

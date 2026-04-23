@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.TimestampBoundsAware;
+import org.elasticsearch.xpack.esql.expression.function.TwoOptionalArguments;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -62,9 +63,11 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
         OnlySurrogateExpression,
         TimestampAware,
         TimestampBoundsAware.OfExpression,
+        TwoOptionalArguments,
         ConfigurationFunction {
     public static final String NAME = "TStep";
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(TStep.class).binaryConfig(TStep::new).name("tstep");
+
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(TStep.class).quaternaryConfig(TStep::new).name("tstep");
 
     private final Configuration configuration;
     private final Expression step;
@@ -83,8 +86,11 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
             which aligns buckets to calendar boundaries, `TSTEP` always buckets at the fixed interval increments in UTC timezone.
             Each `bucket` label is rendered as the upper boundary of the half-open interval `(timestamp - step, timestamp]`.
 
-            Provide a [`@timestamp` range](docs-content://explore-analyze/query-filter/languages/esql-kibana.md#_standard_time_filter)
-            in the request query filter; that range's start anchors the grid. `TSTEP` cannot be used together with `TRANGE`.""",
+            In the one-argument form, provide a
+            [`@timestamp` range](docs-content://explore-analyze/query-filter/languages/esql-kibana.md#_standard_time_filter)
+            in the request query filter; that range's start anchors the grid.
+            In the three-argument form, supply explicit `from` and `to` bounds directly; these take precedence over any
+            request `@timestamp` filter. `TSTEP` cannot be used together with `TRANGE`.""",
         examples = {
             @Example(
                 description = """
@@ -96,31 +102,26 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
                     Boundaries are generated as `range_start + n * step` (UTC), and each bucket
                     represents `(bucket_end - step, bucket_end]`."""
             ),
-            @Example(
-                description = "The same query with the step passed as a string literal:",
-                file = "tstep",
-                tag = "docsTStepByOneHourDurationAsString"
-            ) },
+            @Example(description = "The same query with explicit bounds:", file = "tstep", tag = "docsTStepExplicitBounds") },
         type = FunctionType.GROUPING
     )
-    public TStep(Source source, @Param(name = "step", type = { "time_duration" }, description = """
-        Fixed bucket width in UTC. Bucket boundaries are spaced by `step` from the start of the `@timestamp` range
-        in the request query filter.""") Expression step, Expression timestamp, Configuration configuration) {
-        this(source, step, null, null, timestamp, configuration);
-    }
-
-    /**
-     * Full constructor including optional bounds merged from the request {@code @timestamp} filter during analysis.
-     */
     public TStep(
         Source source,
-        Expression step,
-        @Nullable Expression start,
-        @Nullable Expression end,
+        @Param(name = "step", type = { "time_duration" }, description = """
+            Fixed bucket width in UTC. Bucket boundaries are spaced by `step` from the start of the time range.""") Expression step,
+        @Param(
+            name = "from",
+            type = { "date", "date_nanos", "keyword" },
+            description = """
+                Start of the time range that anchors the step grid. Required together with `to`.""",
+            optional = true
+        ) @Nullable Expression start,
+        @Param(name = "to", type = { "date", "date_nanos", "keyword" }, description = """
+            End of the time range. Required together with `from`.""", optional = true) @Nullable Expression end,
         Expression timestamp,
         Configuration configuration
     ) {
-        super(source, fields(step, start, end, timestamp));
+        super(source, Bucket.fields(step, timestamp, start, end));
         this.step = step;
         this.start = start;
         this.end = end;
@@ -128,11 +129,8 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
         this.configuration = configuration;
     }
 
-    private static List<Expression> fields(Expression step, @Nullable Expression start, @Nullable Expression end, Expression timestamp) {
-        if (start == null && end == null) {
-            return List.of(step, timestamp);
-        }
-        return List.of(step, start, end, timestamp);
+    public TStep(Source source, Expression step, Expression timestamp, Configuration configuration) {
+        this(source, step, null, null, timestamp, configuration);
     }
 
     @Override
@@ -152,7 +150,7 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
 
     @Override
     public boolean needsTimestampBounds() {
-        return step.resolved() && (start == null || end == null);
+        return step.resolved() && (start == null && end == null);
     }
 
     @Override
@@ -164,9 +162,14 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
 
     @Override
     public void postAnalysisVerification(Failures failures) {
-        if (step.resolved() && (start == null || end == null)) {
+        if (step.resolved() && start == null && end == null) {
             failures.add(
-                Failure.fail(this, "[{}] requires a `@timestamp` range in the request query filter to anchor the step grid", sourceText())
+                Failure.fail(
+                    this,
+                    "[{}] requires either a `@timestamp` range in the request query filter"
+                        + " or explicit `from` and `to` parameters to anchor the step grid",
+                    sourceText()
+                )
             );
         }
     }
@@ -214,9 +217,14 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
         if (resolution.unresolved()) {
             return resolution;
         }
+        if (start != null && end == null) {
+            return new TypeResolution(
+                org.elasticsearch.common.Strings.format("[%s] requires both 'from' and 'to' arguments, or neither", sourceText())
+            );
+        }
         if (start != null) {
             resolution = resolution.and(isStringOrDateBound(start, SECOND));
-            if (resolution.unresolved() || end == null) {
+            if (resolution.unresolved()) {
                 return resolution;
             }
             return resolution.and(isStringOrDateBound(end, THIRD));
@@ -245,13 +253,9 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() == 2) {
-            return new TStep(source(), newChildren.get(0), null, null, newChildren.get(1), configuration);
-        }
-        if (newChildren.size() == 4) {
-            return new TStep(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3), configuration);
-        }
-        throw new IllegalArgumentException("expected 2 or 4 children but got [" + newChildren.size() + "]");
+        Expression start = newChildren.size() > 2 ? newChildren.get(2) : null;
+        Expression end = newChildren.size() > 3 ? newChildren.get(3) : null;
+        return new TStep(source(), newChildren.get(0), start, end, newChildren.get(1), configuration);
     }
 
     @Override
@@ -292,7 +296,7 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
         }
 
         if ((start != null && start.foldable()) == false) {
-            throw new EsqlIllegalArgumentException("TStep requires a start bound");
+            throw new EsqlIllegalArgumentException(NAME + " requires a start bound");
         }
 
         var folded = start.fold(foldContext);
@@ -310,7 +314,7 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
 
     @Override
     public String toString() {
-        return "TStep{step=" + step + ", start=" + start + ", end=" + end + "}";
+        return NAME + "{step=" + step + ", start=" + start + ", end=" + end + "}";
     }
 
     @Override

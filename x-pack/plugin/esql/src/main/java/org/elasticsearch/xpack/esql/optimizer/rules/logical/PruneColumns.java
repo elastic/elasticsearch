@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -222,12 +221,6 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
 
     // TODO: see ResolveUnmapped#patchFork comment
     private static LogicalPlan pruneColumnsInFork(Fork fork, AttributeSet.Builder used) {
-
-        // exit early for UnionAll
-        if (fork instanceof UnionAll) {
-            return fork;
-        }
-
         // prune the output attributes of fork based on usage from the rest of the plan
         boolean forkOutputChanged = false;
         AttributeSet.Builder builder = AttributeSet.builder();

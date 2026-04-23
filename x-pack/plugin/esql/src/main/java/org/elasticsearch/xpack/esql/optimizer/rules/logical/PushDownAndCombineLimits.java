@@ -17,13 +17,13 @@ import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -107,11 +107,6 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
     }
 
     private static LogicalPlan maybePushDownLimitToFork(Limit limit, Fork fork, LogicalOptimizerContext ctx) {
-        // TODO: there's no reason why UnionAll should not benefit from this optimization
-        if (fork instanceof UnionAll) {
-            return limit;
-        }
-
         List<LogicalPlan> newForkChildren = new ArrayList<>();
         boolean changed = false;
 
@@ -125,6 +120,12 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
     }
 
     private static LogicalPlan maybePushDownLimitToForkBranch(Limit limit, LogicalPlan forkBranch, LogicalOptimizerContext ctx) {
+        // For direct leaf branches (e.g. EsRelation / ExternalRelation in UnionAll from heterogeneous FROM),
+        // wrap the leaf in a Limit so source-level pushdown (PushLimitToSource, PushLimitIntoExternalSource)
+        // can take over. The outer Limit above the UnionAll remains to constrain the combined output.
+        if (forkBranch instanceof LeafPlan) {
+            return new Limit(forkBranch.source(), limit.limit(), forkBranch);
+        }
         if (forkBranch instanceof UnaryPlan == false) {
             return forkBranch;
         }

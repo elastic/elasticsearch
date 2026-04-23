@@ -165,8 +165,6 @@ public class ExternalSourceResolver {
             return resolveMultiFileSource(path, config, hints, hivePartitioning);
         }
 
-        SourceMetadata metadata = resolveSingleSource(path, config);
-        ExternalSourceMetadata extMetadata = wrapAsExternalSourceMetadata(metadata, config);
         /*
          * A concrete one-entry FileList is required so {@link org.elasticsearch.xpack.esql.datasources.FileSplitProvider}
          * can discover block-aligned splits for compressed files (e.g. .json.bz2). UNRESOLVED lists skip split discovery,
@@ -174,7 +172,30 @@ public class ExternalSourceResolver {
          */
         StoragePath storagePath = StoragePath.of(path);
         StorageProvider provider = resolveProvider(storagePath, config);
-        StorageObject object = provider.newObject(storagePath);
+
+        ExternalSourceMetadata extMetadata;
+        StorageObject object;
+        if (isCacheable(provider)) {
+            // Stat the file first (cheap HEAD/stat) to get mtime for the cache key.
+            object = provider.newObject(storagePath);
+            long mtime = object.lastModified().toEpochMilli();
+            String formatType = detectFormatType(storagePath);
+            SchemaCacheKey schemaKey = SchemaCacheKey.build(storagePath.toString(), mtime, formatType, config);
+            SchemaCacheEntry schemaEntry = cacheService.getOrComputeSchema(schemaKey, k -> {
+                SourceMetadata meta = resolveSingleSource(path, config);
+                Map<String, Object> enrichedMeta = meta.statistics()
+                    .map(stats -> SourceStatisticsSerializer.embedStatistics(meta.sourceMetadata(), stats))
+                    .orElse(meta.sourceMetadata());
+                return SchemaCacheEntry.from(meta.schema(), meta.sourceType(), meta.location(), enrichedMeta);
+            });
+            List<Attribute> schema = schemaEntry.toAttributes();
+            extMetadata = buildMetadataFromCache(schemaEntry, schema, config);
+        } else {
+            SourceMetadata metadata = resolveSingleSource(path, config);
+            extMetadata = wrapAsExternalSourceMetadata(metadata, config);
+            object = provider.newObject(storagePath);
+        }
+
         FileList singletonList = GlobExpander.fileListOf(
             List.of(new StorageEntry(storagePath, object.length(), object.lastModified())),
             path
@@ -189,11 +210,11 @@ public class ExternalSourceResolver {
         boolean hivePartitioning
     ) throws Exception {
         StoragePath storagePath = StoragePath.of(path);
+        StorageProvider provider = resolveProvider(storagePath, config);
 
         FormatReader.SchemaResolution schemaResolution = parseSchemaResolution(config);
 
         if (schemaResolution != FormatReader.SchemaResolution.FIRST_FILE_WINS) {
-            StorageProvider provider = resolveProvider(storagePath, config);
             int maxDiscoveredFiles = ExternalSourceSettings.MAX_DISCOVERED_FILES.get(settings);
             int maxGlobExpansion = ExternalSourceSettings.MAX_GLOB_EXPANSION.get(settings);
             FileList raw = path.indexOf(',') >= 0
@@ -205,20 +226,17 @@ public class ExternalSourceResolver {
             return resolveMultiFileWithReconciliation(raw, config, schemaResolution);
         }
 
-        boolean cacheable = cacheService != null
-            && cacheService.isEnabled()
-            && "http".equals(storagePath.scheme()) == false
-            && "https".equals(storagePath.scheme()) == false;
+        boolean cacheable = isCacheable(provider);
 
         FileList listing;
         if (cacheable) {
             ListingCacheKey listingKey = ListingCacheKey.build(storagePath.scheme(), storagePath.host(), storagePath.path(), config);
             listing = cacheService.getOrComputeListing(
                 listingKey,
-                k -> expandAndCompact(path, config, hints, hivePartitioning, storagePath)
+                k -> expandAndCompact(path, provider, hints, hivePartitioning, storagePath)
             );
         } else {
-            listing = expandAndCompact(path, config, hints, hivePartitioning, storagePath);
+            listing = expandAndCompact(path, provider, hints, hivePartitioning, storagePath);
         }
 
         if (listing.fileCount() == 0) {
@@ -241,7 +259,10 @@ public class ExternalSourceResolver {
             SchemaCacheKey schemaKey = SchemaCacheKey.build(anchorPath.toString(), anchorMtime, formatType, config);
             SchemaCacheEntry schemaEntry = cacheService.getOrComputeSchema(schemaKey, k -> {
                 SourceMetadata meta = resolveSingleSource(anchorPath.toString(), config);
-                return SchemaCacheEntry.from(meta.schema(), meta.sourceType(), meta.location(), meta.sourceMetadata());
+                Map<String, Object> enrichedMeta = meta.statistics()
+                    .map(stats -> SourceStatisticsSerializer.embedStatistics(meta.sourceMetadata(), stats))
+                    .orElse(meta.sourceMetadata());
+                return SchemaCacheEntry.from(meta.schema(), meta.sourceType(), meta.location(), enrichedMeta);
             });
             List<Attribute> schema = schemaEntry.toAttributes();
             extMetadata = buildMetadataFromCache(schemaEntry, schema, config);
@@ -260,15 +281,23 @@ public class ExternalSourceResolver {
 
     private FileList expandAndCompact(
         String path,
-        Map<String, Object> config,
+        StorageProvider provider,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         boolean hivePartitioning,
         StoragePath storagePath
     ) throws Exception {
-        StorageProvider provider = resolveProvider(storagePath, config);
         int maxDiscoveredFiles = ExternalSourceSettings.MAX_DISCOVERED_FILES.get(settings);
         int maxGlobExpansion = ExternalSourceSettings.MAX_GLOB_EXPANSION.get(settings);
         return GlobExpander.expandAndCompact(path, provider, hints, hivePartitioning, storagePath, maxDiscoveredFiles, maxGlobExpansion);
+    }
+
+    /**
+     * Returns {@code true} when the schema cache can be consulted for the given provider.
+     * Providers that do not support stable metadata (e.g. HTTP) are excluded because
+     * mtime-based cache invalidation is not reliable for them.
+     */
+    private boolean isCacheable(StorageProvider provider) {
+        return cacheService != null && cacheService.isEnabled() && provider.supportsStableMetadata();
     }
 
     private StorageProvider resolveProvider(StoragePath storagePath, Map<String, Object> config) {
@@ -423,6 +452,9 @@ public class ExternalSourceResolver {
     ) {
         Map<String, Object> mergedConfig = mergeConfigs(referenceMeta.config(), queryConfig);
         List<Attribute> schema = List.copyOf(unifiedSchema);
+        Map<String, Object> enrichedSourceMetadata = referenceMeta.statistics()
+            .map(stats -> SourceStatisticsSerializer.embedStatistics(referenceMeta.sourceMetadata(), stats))
+            .orElse(referenceMeta.sourceMetadata());
         return new ExternalSourceMetadata() {
             @Override
             public String location() {
@@ -441,7 +473,7 @@ public class ExternalSourceResolver {
 
             @Override
             public Map<String, Object> sourceMetadata() {
-                return referenceMeta.sourceMetadata();
+                return enrichedSourceMetadata;
             }
 
             @Override
@@ -630,6 +662,10 @@ public class ExternalSourceResolver {
 
         if (metadata instanceof ExternalSourceMetadata extMetadata) {
             if (extMetadata.config() != null && extMetadata.config().isEmpty() == false) {
+                // Stats are embedded into sourceMetadata() below for the general path; for
+                // ExternalSourceMetadata instances that already carry config (e.g. Iceberg),
+                // their factory is responsible for populating sourceMetadata() — statistics()
+                // is typically empty so there is nothing extra to embed.
                 return extMetadata;
             }
         }
@@ -646,6 +682,10 @@ public class ExternalSourceResolver {
         } else {
             mergedConfig = queryConfig;
         }
+
+        Map<String, Object> enrichedSourceMetadata = metadata.statistics()
+            .map(stats -> SourceStatisticsSerializer.embedStatistics(metadata.sourceMetadata(), stats))
+            .orElse(metadata.sourceMetadata());
 
         return new ExternalSourceMetadata() {
             @Override
@@ -665,7 +705,7 @@ public class ExternalSourceResolver {
 
             @Override
             public Map<String, Object> sourceMetadata() {
-                return metadata.sourceMetadata();
+                return enrichedSourceMetadata;
             }
 
             @Override

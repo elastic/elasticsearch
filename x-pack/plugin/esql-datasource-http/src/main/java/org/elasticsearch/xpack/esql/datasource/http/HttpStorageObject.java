@@ -134,6 +134,9 @@ public final class HttpStorageObject implements StorageObject {
         if (cachedLength == null) {
             fetchMetadata();
         }
+        if (cachedExists != null && cachedExists == false) {
+            throw new IOException("Object not found: " + path);
+        }
         return cachedLength;
     }
 
@@ -141,6 +144,9 @@ public final class HttpStorageObject implements StorageObject {
     public Instant lastModified() throws IOException {
         if (cachedLastModified == null) {
             fetchMetadata();
+        }
+        if (cachedExists != null && cachedExists == false) {
+            throw new IOException("Object not found: " + path);
         }
         return cachedLastModified;
     }

@@ -9,8 +9,10 @@
 
 package org.elasticsearch.inference;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
@@ -18,16 +20,20 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.inference.DataType.TEXT;
+import static org.elasticsearch.inference.InferenceString.EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED;
 import static org.elasticsearch.inference.InferenceStringGroup.CONTENT_FIELD;
 import static org.elasticsearch.inference.InferenceStringGroup.containsNonTextEntry;
 import static org.elasticsearch.inference.InferenceStringGroup.indexContainingMultipleInferenceStrings;
 import static org.elasticsearch.inference.InferenceStringGroup.toInferenceStringList;
 import static org.elasticsearch.inference.InferenceStringGroup.toStringList;
-import static org.elasticsearch.inference.InferenceStringTests.TEST_IMAGE_DATA_URI;
+import static org.elasticsearch.inference.InferenceStringTests.TEST_DATA_URI;
+import static org.elasticsearch.test.BWCVersions.DEFAULT_BWC_VERSIONS;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -44,7 +50,7 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
     }
 
     public void testSingleInferenceStringConstructor() {
-        InferenceString inferenceString = new InferenceString(DataType.IMAGE, DataFormat.BASE64, TEST_IMAGE_DATA_URI);
+        InferenceString inferenceString = new InferenceString(DataType.IMAGE, DataFormat.BASE64, TEST_DATA_URI);
         var input = new InferenceStringGroup(inferenceString);
         assertThat(input.inferenceStrings(), contains(inferenceString));
         assertThat(input.containsNonTextEntry(), is(true));
@@ -52,7 +58,7 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
     }
 
     public void testInferenceStringListConstructor() {
-        InferenceString inferenceString1 = new InferenceString(DataType.IMAGE, DataFormat.BASE64, TEST_IMAGE_DATA_URI);
+        InferenceString inferenceString1 = new InferenceString(DataType.IMAGE, DataFormat.BASE64, TEST_DATA_URI);
         InferenceString inferenceString2 = new InferenceString(TEXT, DataFormat.TEXT, "a string");
         var input = new InferenceStringGroup(List.of(inferenceString1, inferenceString2));
         assertThat(input.inferenceStrings(), contains(inferenceString1, inferenceString2));
@@ -192,6 +198,42 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
             inputs.add(new InferenceStringGroup("a_string"));
         }
         return inputs;
+    }
+
+    // Versions before EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED throw an exception when serializing audio, video or pdf content
+    // Those are tested in testAudioVideoPdfAreNotBackwardsCompatible
+    @Override
+    protected Collection<TransportVersion> bwcVersions() {
+        return super.bwcVersions().stream().filter(version -> version.supports(EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED)).toList();
+    }
+
+    public void testAudioVideoPdfAreNotBackwardsCompatible() throws IOException {
+        var unsupportedVersions = DEFAULT_BWC_VERSIONS.stream()
+            .filter(Predicate.not(version -> version.supports(EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED)))
+            .toList();
+        for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
+            var testInstance = createTestInstance();
+            for (var unsupportedVersion : unsupportedVersions) {
+                var containsNewFormat = testInstance.inferenceStrings().stream().anyMatch(InferenceStringTests::isAudioVideoOrPdf);
+                if (containsNewFormat) {
+                    var statusException = assertThrows(
+                        ElasticsearchStatusException.class,
+                        () -> copyWriteable(testInstance, getNamedWriteableRegistry(), instanceReader(), unsupportedVersion)
+                    );
+                    assertThat(statusException.status(), is(RestStatus.BAD_REQUEST));
+                    assertThat(
+                        statusException.getMessage(),
+                        is(
+                            "Cannot send an inference request with audio, video or pdf inputs to an older node. "
+                                + "Please wait until all nodes are upgraded before using audio, video or pdf inputs"
+                        )
+                    );
+                } else {
+                    // If the instance doesn't contain audio, video or pdf inputs, assert that it can still be serialized
+                    assertBwcSerialization(testInstance, unsupportedVersion);
+                }
+            }
+        }
     }
 
     @Override

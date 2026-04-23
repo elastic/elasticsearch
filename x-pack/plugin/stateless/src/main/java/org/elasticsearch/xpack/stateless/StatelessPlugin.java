@@ -78,7 +78,6 @@ import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.health.HealthIndicatorService;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProvider;
@@ -483,7 +482,6 @@ public class StatelessPlugin extends Plugin
     private final SetOnce<TranslogReplicator> translogReplicator = new SetOnce<>();
     private final SetOnce<TranslogRecoveryMetrics> translogReplicatorMetrics = new SetOnce<>();
     private final SetOnce<HollowShardsMetrics> hollowShardMetrics = new SetOnce<>();
-    private final SetOnce<TimeSeriesOCCMetrics> timeSeriesOccMetrics = new SetOnce<>();
     private final SetOnce<StatelessElectionStrategy> electionStrategy = new SetOnce<>();
     private final SetOnce<StoreHeartbeatService> storeHeartbeatService = new SetOnce<>();
     // protected for testing
@@ -836,10 +834,6 @@ public class StatelessPlugin extends Plugin
             hollowShardMetrics,
             HollowShardsMetrics.from(services.telemetryProvider().getMeterRegistry(), this::amountOfHollowableShards)
         );
-        if (hasIndexRole) {
-            setAndGet(this.timeSeriesOccMetrics, new TimeSeriesOCCMetrics(services.telemetryProvider().getMeterRegistry()));
-            components.add(timeSeriesOccMetrics.get());
-        }
         components.add(hollowShardMetrics.get());
         components.add(new StatelessComponents(translogReplicator, objectStoreService));
         setAndGet(this.bccHeaderReadExecutor, new BCCHeaderReadExecutor(threadPool));
@@ -1303,9 +1297,6 @@ public class StatelessPlugin extends Plugin
         if (hasIndexRole) {
             indexModule.addIndexEventListener(shardsMappingSizeCollector.get());
             indexModule.addIndexOperationListener(new StatelessIndexingOperationListener(hollowShardsService.get()));
-            if (indexModule.indexSettings().getMode() == IndexMode.TIME_SERIES) {
-                indexModule.addIndexOperationListener(timeSeriesOccMetrics.get());
-            }
             indexModule.addIndexEventListener(new IndexEventListener() {
 
                 @Override

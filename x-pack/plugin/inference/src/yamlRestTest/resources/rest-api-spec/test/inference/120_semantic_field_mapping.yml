@@ -44,14 +44,15 @@ setup:
       search:
         index: test-semantic-field-index
         body:
-          knn:
-            field: my_field
-            query_vector_builder:
-              embedding:
-                inference_id: embedding-inference-id
-                input: "the quick brown fox"
-            k: 1
-            num_candidates: 10
+          query:
+            knn:
+              field: my_field
+              k: 1
+              num_candidates: 10
+              query_vector_builder:
+                embedding:
+                  inference_id: embedding-inference-id
+                  input: "the quick brown fox"
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "1" }

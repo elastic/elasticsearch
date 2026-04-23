@@ -1,3 +1,4 @@
+mod cache;
 mod filter;
 mod jni_utils;
 mod metadata;

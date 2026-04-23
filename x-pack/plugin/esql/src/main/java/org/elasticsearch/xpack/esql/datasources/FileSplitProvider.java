@@ -369,7 +369,7 @@ public class FileSplitProvider implements SplitProvider {
 
         FormatReader reader;
         try {
-            reader = FormatNameResolver.resolveReader(config, filePath.objectName(), formatRegistry);
+            reader = FormatNameResolver.resolveReader(config, filePath.objectName(), formatRegistry).withConfig(config);
         } catch (Exception e) {
             return false;
         }

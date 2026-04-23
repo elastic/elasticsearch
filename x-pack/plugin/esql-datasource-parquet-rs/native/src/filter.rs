@@ -402,7 +402,7 @@ fn evaluate_filter(expr: &FilterExpr, batch: &RecordBatch) -> arrow::error::Resu
                     return Ok(arrow::compute::is_null(col.as_ref())?);
                 }
             }
-            Ok(BooleanArray::from(vec![true; num_rows]))
+            Ok(BooleanArray::from(vec![false; num_rows]))
         }
         FilterExpr::IsNotNull(inner) => {
             if let FilterExpr::Column(name) = inner.as_ref() {
@@ -410,7 +410,7 @@ fn evaluate_filter(expr: &FilterExpr, batch: &RecordBatch) -> arrow::error::Resu
                     return Ok(arrow::compute::is_not_null(col.as_ref())?);
                 }
             }
-            Ok(BooleanArray::from(vec![true; num_rows]))
+            Ok(BooleanArray::from(vec![false; num_rows]))
         }
         FilterExpr::InList(col_expr, items) => {
             if let FilterExpr::Column(name) = col_expr.as_ref() {
@@ -418,14 +418,14 @@ fn evaluate_filter(expr: &FilterExpr, batch: &RecordBatch) -> arrow::error::Resu
                     return eval_in_list(col, items, num_rows);
                 }
             }
-            Ok(BooleanArray::from(vec![true; num_rows]))
+            Ok(BooleanArray::from(vec![false; num_rows]))
         }
         FilterExpr::Like(col_expr, pattern, ci) => eval_like(col_expr, pattern, batch, num_rows, false, *ci),
         FilterExpr::NotLike(col_expr, pattern, ci) => eval_like(col_expr, pattern, batch, num_rows, true, *ci),
         FilterExpr::StartsWith(col_expr, prefix, upper) => {
             eval_starts_with(col_expr, prefix, upper.as_deref(), batch, num_rows)
         }
-        _ => Ok(BooleanArray::from(vec![true; num_rows])),
+        _ => Ok(BooleanArray::from(vec![false; num_rows])),
     }
 }
 
@@ -508,7 +508,7 @@ fn eval_comparison(
             }
         }
     }
-    Ok(BooleanArray::from(vec![true; num_rows]))
+    Ok(BooleanArray::from(vec![false; num_rows]))
 }
 
 fn eval_in_list(
@@ -558,7 +558,7 @@ fn eval_like(
             }
         }
     }
-    Ok(BooleanArray::from(vec![true; num_rows]))
+    Ok(BooleanArray::from(vec![false; num_rows]))
 }
 
 /// Try to interpret a column as a StringArray, converting from BinaryArray if needed.
@@ -606,7 +606,7 @@ fn eval_starts_with(
             return Ok(BooleanArray::from(results));
         }
     }
-    Ok(BooleanArray::from(vec![true; num_rows]))
+    Ok(BooleanArray::from(vec![false; num_rows]))
 }
 
 

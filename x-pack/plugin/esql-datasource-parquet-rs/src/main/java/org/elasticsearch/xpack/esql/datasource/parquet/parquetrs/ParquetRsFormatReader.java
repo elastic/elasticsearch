@@ -34,11 +34,15 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
+import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.arrow.ArrowToEsql;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
+import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
@@ -48,12 +52,14 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.OptionalLong;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -62,7 +68,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Uses the Arrow C Data Interface for zero-copy transfer of RecordBatches from Rust.
  * Arrow vectors are converted to ESQL blocks via {@link ArrowToBlockConverter}.
  */
-public class ParquetRsFormatReader implements FormatReader {
+public class ParquetRsFormatReader implements RangeAwareFormatReader {
 
     private static final Logger logger = LogManager.getLogger(ParquetRsFormatReader.class);
 
@@ -74,6 +80,13 @@ public class ParquetRsFormatReader implements FormatReader {
      */
     private final List<Expression> pushedExpressions;
     private final String configJson;
+    /**
+     * Per-file cache of native {@code ArrowReaderMetadata} handles loaded via
+     * {@link ParquetRsBridge#loadArrowMetadata}. Eliminates the per-split footer round-trip on remote
+     * storage (S3 / GCS / Azure) — the footer is fetched once and reused for all splits of the same
+     * file. Handles are freed in {@link #close()}.
+     */
+    private final ConcurrentHashMap<String, Long> metadataHandleCache = new ConcurrentHashMap<>();
 
     public ParquetRsFormatReader(BlockFactory blockFactory) {
         this(blockFactory, List.of(), null);
@@ -251,6 +264,53 @@ public class ParquetRsFormatReader implements FormatReader {
         }
     }
 
+    private static Map<String, DataType> columnTypes(List<Attribute> schema) {
+        Map<String, DataType> types = new HashMap<>();
+        for (Attribute attr : schema) {
+            types.put(attr.name(), attr.dataType());
+        }
+        return types;
+    }
+
+    /** Fills split stats from native row-group column tuples; matches {@code ParquetFormatReader#buildRowGroupStats} keys. */
+    private void putRowGroupColumnStatistics(Map<String, Object> stats, String[] flat, Map<String, DataType> types) {
+        for (int i = 0; i + 4 < flat.length; i += 5) {
+            String colName = flat[i];
+            if (Strings.isEmpty(colName)) {
+                continue;
+            }
+            String uncompressedBytes = flat[i + 1];
+            String ncStr = flat[i + 2];
+            String minStr = flat[i + 3];
+            String maxStr = flat[i + 4];
+
+            if (Strings.isEmpty(uncompressedBytes) == false) {
+                try {
+                    stats.put(SourceStatisticsSerializer.columnSizeBytesKey(colName), Long.parseLong(uncompressedBytes));
+                } catch (NumberFormatException e) {
+                    logger.debug("Ignoring bad chunk uncompressed size stat for column [{}]", colName, e);
+                }
+            }
+            if (Strings.isEmpty(ncStr) == false) {
+                try {
+                    stats.put(SourceStatisticsSerializer.columnNullCountKey(colName), Long.parseLong(ncStr));
+                } catch (NumberFormatException e) {
+                    logger.debug("Ignoring bad null count stat for column [{}]", colName, e);
+                }
+            }
+
+            DataType dt = types.get(colName);
+            Object minVal = parseStatValue(minStr, dt);
+            if (minVal != null) {
+                stats.put(SourceStatisticsSerializer.columnMinKey(colName), minVal);
+            }
+            Object maxVal = parseStatValue(maxStr, dt);
+            if (maxVal != null) {
+                stats.put(SourceStatisticsSerializer.columnMaxKey(colName), maxVal);
+            }
+        }
+    }
+
     @Override
     public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
         NativeLibLoader.ensureLoaded();
@@ -287,6 +347,167 @@ public class ParquetRsFormatReader implements FormatReader {
         }
     }
 
+    // --- RangeAwareFormatReader ---
+
+    /** Set to false to disable range-aware splitting and use the single-driver path for benchmarking. */
+    static final boolean RANGE_AWARE = true;
+
+    static final long DEFAULT_ROW_GROUP_MACRO_SPLIT_TARGET_BYTES = 32L * 1024 * 1024;
+
+    @Override
+    public List<SplitRange> discoverSplitRanges(StorageObject object) throws IOException {
+        if (RANGE_AWARE == false) {
+            return List.of();
+        }
+        NativeLibLoader.ensureLoaded();
+        String path = resolveReadPath(object);
+
+        Map<String, DataType> columnTypes = columnTypes(importSchema(path));
+
+        Object[] pair = ParquetRsBridge.discoverRowGroupSplits(path, configJson);
+        if (pair == null || pair.length != 2) {
+            return List.of();
+        }
+        if ((pair[0] instanceof long[]) == false) {
+            return List.of();
+        }
+        long[] quads = (long[]) pair[0];
+        if (quads.length == 0 || quads.length % 4 != 0) {
+            return List.of();
+        }
+        int numRowGroups = quads.length / 4;
+
+        String[][] rgColumnStrings = null;
+        if (pair[1] instanceof String[][]) {
+            rgColumnStrings = (String[][]) pair[1];
+            if (rgColumnStrings.length != numRowGroups) {
+                rgColumnStrings = null;
+            }
+        }
+
+        List<SplitRange> ranges = new ArrayList<>(numRowGroups);
+        for (int rg = 0; rg < numRowGroups; rg++) {
+            long offset = quads[rg * 4];
+            long compressedLen = quads[rg * 4 + 1];
+            long rowCount = quads[rg * 4 + 2];
+            long rgUncompressed = quads[rg * 4 + 3];
+
+            Map<String, Object> stats = new HashMap<>(8);
+            stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, rowCount);
+            stats.put(SourceStatisticsSerializer.STATS_SIZE_BYTES, rgUncompressed);
+
+            if (rgColumnStrings != null) {
+                String[] flat = rgColumnStrings[rg];
+                if (flat != null) {
+                    putRowGroupColumnStatistics(stats, flat, columnTypes);
+                }
+            }
+            ranges.add(new SplitRange(offset, compressedLen, stats));
+        }
+
+        if (numRowGroups == 1) {
+            return List.copyOf(ranges);
+        }
+
+        List<SplitRange> coalesced = coalesceRowGroupRanges(ranges, DEFAULT_ROW_GROUP_MACRO_SPLIT_TARGET_BYTES);
+        return coalesced.size() < 2 ? ranges : coalesced;
+    }
+
+    @Override
+    public CloseableIterator<Page> readRange(StorageObject object, RangeReadContext context) throws IOException {
+        NativeLibLoader.ensureLoaded();
+        long rangeStart = context.rangeStart();
+        long rangeEnd = context.rangeEnd();
+        List<String> projectedColumns = context.projectedColumns();
+        int batchSize = context.batchSize();
+        String path = resolveReadPath(object);
+        String[] columns = projectedColumns != null && projectedColumns.isEmpty() == false ? projectedColumns.toArray(new String[0]) : null;
+        long metaHandle = metadataHandleCache.computeIfAbsent(path, p -> ParquetRsBridge.loadArrowMetadata(p, configJson));
+        long filterHandle = 0;
+        long readerHandle = 0;
+        try {
+            if (pushedExpressions.isEmpty() == false) {
+                filterHandle = ParquetRsFilterPushdownSupport.translateExpressions(pushedExpressions);
+            }
+            readerHandle = ParquetRsBridge.openReaderForRange(
+                path,
+                columns,
+                batchSize,
+                -1,
+                filterHandle,
+                configJson,
+                rangeStart,
+                rangeEnd,
+                metaHandle
+            );
+            ParquetRsBatchIterator iterator = new ParquetRsBatchIterator(readerHandle, blockFactory);
+            readerHandle = 0;
+            return iterator;
+        } finally {
+            if (filterHandle != 0) {
+                ParquetRsBridge.freeExpr(filterHandle);
+            }
+            if (readerHandle != 0) {
+                ParquetRsBridge.closeReader(readerHandle);
+            }
+        }
+    }
+
+    static List<SplitRange> coalesceRowGroupRanges(List<SplitRange> rowGroupRanges, long targetBytes) {
+        if (rowGroupRanges == null || rowGroupRanges.size() <= 1) {
+            return List.of();
+        }
+        if (targetBytes <= 0) {
+            return List.copyOf(rowGroupRanges);
+        }
+
+        List<SplitRange> sorted = new ArrayList<>(rowGroupRanges);
+        sorted.sort(Comparator.comparingLong(SplitRange::offset));
+
+        List<SplitRange> out = new ArrayList<>();
+        long groupStart = -1;
+        long groupEnd = -1;
+        List<Map<String, Object>> pendingStats = new ArrayList<>();
+
+        for (SplitRange range : sorted) {
+            long start = range.offset();
+            long length = range.length();
+            long end = start + length;
+
+            if (length >= targetBytes) {
+                if (groupStart >= 0) {
+                    out.add(new SplitRange(groupStart, groupEnd - groupStart, SourceStatisticsSerializer.mergeStatistics(pendingStats)));
+                    pendingStats.clear();
+                }
+                out.add(new SplitRange(start, length, range.statistics()));
+                groupStart = -1;
+                groupEnd = -1;
+                continue;
+            }
+
+            if (groupStart < 0) {
+                groupStart = start;
+                groupEnd = end;
+            } else {
+                groupEnd = Math.max(groupEnd, end);
+            }
+            pendingStats.add(range.statistics());
+
+            if (groupEnd - groupStart >= targetBytes) {
+                out.add(new SplitRange(groupStart, groupEnd - groupStart, SourceStatisticsSerializer.mergeStatistics(pendingStats)));
+                groupStart = -1;
+                groupEnd = -1;
+                pendingStats.clear();
+            }
+        }
+
+        if (groupStart >= 0) {
+            out.add(new SplitRange(groupStart, groupEnd - groupStart, SourceStatisticsSerializer.mergeStatistics(pendingStats)));
+        }
+
+        return out;
+    }
+
     @Override
     public String formatName() {
         return FormatNameResolver.FORMAT_PARQUET_RS;
@@ -299,9 +520,12 @@ public class ParquetRsFormatReader implements FormatReader {
 
     @Override
     public void close() {
-        // No long-lived native resources at the reader level: the native FilterExpr is allocated
-        // and freed inside read(), and the per-batch iterator owns its own openReader handle.
-        // Matches ParquetFormatReader#close / OrcFormatReader#close.
+        if (metadataHandleCache.isEmpty() == false) {
+            for (long handle : metadataHandleCache.values()) {
+                ParquetRsBridge.freeArrowMetadata(handle);
+            }
+            metadataHandleCache.clear();
+        }
     }
 
     private static String resolveReadPath(StorageObject object) {

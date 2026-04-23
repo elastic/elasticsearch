@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock, Mutex};
 
 use object_store::ObjectStore;
 use object_store::aws::AmazonS3Builder;
@@ -30,6 +30,21 @@ impl StorageConfig {
     pub fn get(&self, key: &str) -> Option<&str> {
         self.map.get(key).map(|s| s.as_str())
     }
+
+    /// Stable string encoding connection-identity fields used as a store cache key.
+    /// Fields that affect which remote endpoint/auth are included; per-request options are not.
+    pub fn connection_key(&self) -> String {
+        const IDENTITY_FIELDS: &[&str] = &[
+            "access_key", "account", "account_key", "account_name", "auth",
+            "credentials", "endpoint", "key", "region", "sas_token",
+        ];
+        let mut parts: Vec<String> = IDENTITY_FIELDS
+            .iter()
+            .filter_map(|k| self.map.get(*k).map(|v| format!("{}={}", k, v)))
+            .collect();
+        parts.sort();
+        parts.join(";")
+    }
 }
 
 /// Returns true if the URI targets Azure Blob Storage, which does not support
@@ -40,33 +55,111 @@ pub fn needs_file_size_hint(uri: &str) -> bool {
     uri.starts_with("az://") || uri.starts_with("abfss://") || uri.starts_with("wasbs://")
 }
 
+/// Process-wide cache of `ObjectStore` instances keyed by bucket+config identity.
+///
+/// Building a new `AmazonS3` (or equivalent) creates a fresh `reqwest::Client` with
+/// an empty connection pool. Sharing one store instance across all splits of a query —
+/// and across queries — means the connection pool (including warm TLS sessions) is
+/// reused rather than rebuilt for every split, eliminating repeated TLS handshakes to
+/// the same S3 endpoint.
+static STORE_CACHE: LazyLock<Mutex<HashMap<String, Arc<dyn ObjectStore>>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+/// Returns the cache key for a remote store: `scheme://bucket-or-host[/container]|connection_key`.
+///
+/// The path component (object key) is excluded so that all objects in the same bucket
+/// share one store entry. For Azure the first path segment (container name) is included
+/// because `MicrosoftAzureBuilder` is per-container.
+fn store_cache_key(uri: &str, config: &StorageConfig) -> String {
+    let after_scheme = uri.find("://").map(|i| i + 3).unwrap_or(0);
+    let rest = &uri[after_scheme..];
+
+    let prefix_len = if uri.starts_with("az://") || uri.starts_with("abfss://") || uri.starts_with("wasbs://") {
+        // Azure: include host + first path segment (container).
+        rest.find('/').map(|host_slash| {
+            let after_host = &rest[host_slash + 1..];
+            host_slash + 1 + after_host.find('/').unwrap_or(after_host.len())
+        }).unwrap_or(rest.len())
+    } else {
+        // S3, GCS, HTTP: host (bucket) only.
+        rest.find('/').unwrap_or(rest.len())
+    };
+
+    format!("{}|{}", &uri[..after_scheme + prefix_len], config.connection_key())
+}
+
+/// Returns a cached or newly built store for remote URIs; local paths always get a fresh store.
+fn get_or_build_store(
+    uri: &str,
+    config: &StorageConfig,
+    build: impl FnOnce() -> Result<Arc<dyn ObjectStore>, Box<dyn std::error::Error + Send + Sync>>,
+) -> Result<(Arc<dyn ObjectStore>, object_store::path::Path), Box<dyn std::error::Error + Send + Sync>> {
+    let path = object_path_from_uri(uri)?;
+    let key = store_cache_key(uri, config);
+
+    {
+        let guard = STORE_CACHE.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(store) = guard.get(&key) {
+            return Ok((Arc::clone(store), path));
+        }
+    }
+
+    let store = build()?;
+    let mut guard = STORE_CACHE.lock().unwrap_or_else(|e| e.into_inner());
+    let store = guard.entry(key).or_insert(store);
+    Ok((Arc::clone(store), path))
+}
+
+/// Extracts the object path portion from a URI (everything after scheme://host[/container]/).
+fn object_path_from_uri(uri: &str) -> Result<object_store::path::Path, Box<dyn std::error::Error + Send + Sync>> {
+    if uri.starts_with("s3://") || uri.starts_with("gs://") {
+        let url = Url::parse(uri)?;
+        let key = url.path().trim_start_matches('/');
+        return Ok(object_store::path::Path::from(key));
+    }
+    if uri.starts_with("az://") || uri.starts_with("abfss://") || uri.starts_with("wasbs://") {
+        let url = Url::parse(uri)?;
+        let path = url.path().trim_start_matches('/');
+        let key = path.split_once('/').map(|(_, k)| k).unwrap_or(path);
+        return Ok(object_store::path::Path::from(key));
+    }
+    if uri.starts_with("http://") || uri.starts_with("https://") {
+        let url = Url::parse(uri)?;
+        let key = url.path().trim_start_matches('/');
+        return Ok(object_store::path::Path::from(key));
+    }
+    // Local
+    let normalized = uri.strip_prefix('/').unwrap_or(uri);
+    Ok(object_store::path::Path::from(normalized))
+}
+
 /// Resolves a URI into an ObjectStore + object path based on the scheme.
+/// Remote stores (S3, GCS, Azure, HTTP) are cached process-wide to share connection pools.
 pub fn resolve_store(
     uri: &str,
     config: &StorageConfig,
 ) -> Result<(Arc<dyn ObjectStore>, object_store::path::Path), Box<dyn std::error::Error + Send + Sync>>
 {
     if uri.starts_with("s3://") {
-        resolve_s3(uri, config)
+        get_or_build_store(uri, config, || build_s3(uri, config))
     } else if uri.starts_with("az://") || uri.starts_with("abfss://") || uri.starts_with("wasbs://") {
-        resolve_azure(uri, config)
+        get_or_build_store(uri, config, || build_azure(uri, config))
     } else if uri.starts_with("gs://") {
-        resolve_gcs(uri, config)
+        get_or_build_store(uri, config, || build_gcs(uri, config))
     } else if uri.starts_with("http://") || uri.starts_with("https://") {
-        resolve_http(uri)
+        get_or_build_store(uri, config, || build_http(uri))
     } else {
         resolve_local(uri)
     }
 }
 
-fn resolve_s3(
+fn build_s3(
     uri: &str,
     config: &StorageConfig,
-) -> Result<(Arc<dyn ObjectStore>, object_store::path::Path), Box<dyn std::error::Error + Send + Sync>>
+) -> Result<Arc<dyn ObjectStore>, Box<dyn std::error::Error + Send + Sync>>
 {
     let url = Url::parse(uri)?;
     let bucket = url.host_str().ok_or("missing bucket in S3 URL")?;
-    let key = url.path().trim_start_matches('/');
 
     let mut builder = AmazonS3Builder::new().with_bucket_name(bucket);
     if let Some(v) = config.get("endpoint") {
@@ -96,15 +189,15 @@ fn resolve_s3(
         builder = builder.with_region("us-east-1");
     }
 
-    Ok((Arc::new(builder.build()?), object_store::path::Path::from(key)))
+    Ok(Arc::new(builder.build()?))
 }
 
 /// Parses `wasbs://` / `abfss://` / `az://` Azure URLs.
 /// Format: `wasbs://ACCOUNT.blob.core.windows.net/CONTAINER/path/to/object`
-fn resolve_azure(
+fn build_azure(
     uri: &str,
     config: &StorageConfig,
-) -> Result<(Arc<dyn ObjectStore>, object_store::path::Path), Box<dyn std::error::Error + Send + Sync>>
+) -> Result<Arc<dyn ObjectStore>, Box<dyn std::error::Error + Send + Sync>>
 {
     let url = Url::parse(uri)?;
     let host = url.host_str().ok_or("missing host in Azure URL")?;
@@ -112,7 +205,7 @@ fn resolve_azure(
     let account_from_url = host.split('.').next().filter(|s| s.is_empty() == false);
 
     let path = url.path().trim_start_matches('/');
-    let (container, key) = path.split_once('/')
+    let (container, _key) = path.split_once('/')
         .ok_or("missing container/key in Azure URL path")?;
 
     let mut builder = MicrosoftAzureBuilder::new().with_container_name(container);
@@ -138,17 +231,16 @@ fn resolve_azure(
         builder = builder.with_sas_authorization(pairs);
     }
 
-    Ok((Arc::new(builder.build()?), object_store::path::Path::from(key)))
+    Ok(Arc::new(builder.build()?))
 }
 
-fn resolve_gcs(
+fn build_gcs(
     uri: &str,
     config: &StorageConfig,
-) -> Result<(Arc<dyn ObjectStore>, object_store::path::Path), Box<dyn std::error::Error + Send + Sync>>
+) -> Result<Arc<dyn ObjectStore>, Box<dyn std::error::Error + Send + Sync>>
 {
     let url = Url::parse(uri)?;
     let bucket = url.host_str().ok_or("missing bucket in GCS URL")?;
-    let key = url.path().trim_start_matches('/');
 
     let mut builder = GoogleCloudStorageBuilder::new().with_bucket_name(bucket);
     if let Some(v) = config.get("endpoint") {
@@ -158,12 +250,12 @@ fn resolve_gcs(
         builder = builder.with_service_account_key(v);
     }
 
-    Ok((Arc::new(builder.build()?), object_store::path::Path::from(key)))
+    Ok(Arc::new(builder.build()?))
 }
 
-fn resolve_http(
+fn build_http(
     uri: &str,
-) -> Result<(Arc<dyn ObjectStore>, object_store::path::Path), Box<dyn std::error::Error + Send + Sync>>
+) -> Result<Arc<dyn ObjectStore>, Box<dyn std::error::Error + Send + Sync>>
 {
     let url = Url::parse(uri)?;
     let host = url.host_str().ok_or("missing host in HTTP URL")?;
@@ -171,13 +263,12 @@ fn resolve_http(
         Some(port) => format!("{}://{}:{}", url.scheme(), host, port),
         None => format!("{}://{}", url.scheme(), host),
     };
-    let key = url.path().trim_start_matches('/');
     let options = object_store::ClientOptions::new().with_allow_http(true);
     let store = HttpBuilder::new()
         .with_url(&base)
         .with_client_options(options)
         .build()?;
-    Ok((Arc::new(store), object_store::path::Path::from(key)))
+    Ok(Arc::new(store))
 }
 
 fn resolve_local(

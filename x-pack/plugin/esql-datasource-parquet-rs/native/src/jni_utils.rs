@@ -23,3 +23,4 @@ pub fn extract_storage_config(
         None => Ok(StorageConfig::empty()),
     }
 }
+

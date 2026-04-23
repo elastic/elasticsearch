@@ -52,6 +52,38 @@ final class ParquetRsBridge {
     /** Returns a human-readable description of the reader's scan plan (pushed filter, projection, row groups, etc.). */
     static native String getReaderPlan(long handle);
 
+    /**
+     * Opens a reader that only reads row groups assigned to {@code [rangeStart, rangeEnd)} by parquet-mr-style
+     * split logic: inclusion iff {@code startingPos + compressedSize / 2} lies in that half-open interval
+     * (matches Java {@code ParquetFormatReader} / {@code filterBlocksByRange}).
+     *
+     * @param metaHandle opaque handle returned by {@link #loadArrowMetadata}, or {@code 0} to fetch the
+     *                   footer inline. When non-zero the per-split footer round-trip is skipped.
+     */
+    static native long openReaderForRange(
+        String filePath,
+        String[] projectedColumns,
+        int batchSize,
+        long limit,
+        long filterHandle,
+        String configJson,
+        long rangeStart,
+        long rangeEnd,
+        long metaHandle
+    );
+
+    /**
+     * Fetches and caches the Parquet footer (Arrow metadata) for a file.
+     * <p>
+     * Returns an opaque handle that must be freed via {@link #freeArrowMetadata} when no longer needed.
+     * Pass it to {@link #openReaderForRange} as {@code metaHandle} to avoid re-fetching the footer on
+     * every split — especially important for remote storage (S3 / GCS / Azure).
+     */
+    static native long loadArrowMetadata(String filePath, String configJson);
+
+    /** Frees a metadata handle previously returned by {@link #loadArrowMetadata}. */
+    static native void freeArrowMetadata(long handle);
+
     // ---- Metadata ----
 
     /**
@@ -66,6 +98,22 @@ final class ParquetRsBridge {
 
     /** Returns column statistics as [name0, nullCount0, min0, max0, name1, ...]. Empty string = absent. */
     static native String[] getColumnStatistics(String filePath, String configJson);
+
+    /**
+     * Footprint split discovery after a single Parquet footer read from the native reader.
+     * <p>
+     * Returns {@code Object[2]}:
+     * <ul>
+     *   <li>Index 0: {@code long[]} with {@code offset, compressedLength, rowCount, rowGroupUncompressedBytes}
+     *       per row group (four values repeated).</li>
+     *   <li>Index 1: {@code String[][]} — one inner array per row group: a flat sequence
+     *       {@code name, chunkUncompressedSize, nullCount, min, max} per logical column chunk
+     *       (when Parquet exposes no typed statistics on the JNI side, {@code min}/{@code max} are empty).
+     *       </li>
+     * </ul>
+     *
+     */
+    static native Object[] discoverRowGroupSplits(String filePath, String configJson);
 
     // ---- Filter expression building ----
     //

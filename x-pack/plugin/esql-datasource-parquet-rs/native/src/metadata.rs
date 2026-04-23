@@ -3,7 +3,7 @@ use std::ptr;
 use super::ASYNC_RUNTIME;
 use super::filter::StatValue;
 use super::jni_utils::{jni_err, extract_storage_config};
-use super::store::{resolve_store, needs_file_size_hint};
+use super::store::{needs_file_size_hint, resolve_store, StorageConfig};
 use object_store::ObjectStoreExt;
 use arrow::ffi;
 use jni::{EnvUnowned, jni_str};
@@ -12,9 +12,9 @@ use jni::objects::{JClass, JObject, JString};
 use jni::sys::jlong;
 use parquet::arrow::parquet_to_arrow_schema;
 use parquet::arrow::arrow_reader::{ArrowReaderMetadata, ArrowReaderOptions};
+use parquet::file::metadata::PageIndexPolicy;
 use parquet::arrow::async_reader::ParquetObjectReader;
-
-use super::store::StorageConfig;
+use parquet::file::metadata::{ColumnChunkMetaData, RowGroupMetaData};
 
 type MetadataError = Box<dyn std::error::Error + Send + Sync>;
 
@@ -22,6 +22,9 @@ fn load_metadata(
     file_path: &str,
     config: &StorageConfig,
 ) -> Result<std::sync::Arc<parquet::file::metadata::ParquetMetaData>, MetadataError> {
+    if let Some(cached) = super::cache::get(file_path) {
+        return Ok(cached.metadata().clone());
+    }
     let (store, object_path) = resolve_store(file_path, config)?;
     ASYNC_RUNTIME.block_on(async {
         let mut reader = ParquetObjectReader::new(store.clone(), object_path.clone());
@@ -31,9 +34,10 @@ fn load_metadata(
         }
         let arrow_meta = ArrowReaderMetadata::load_async(
             &mut reader,
-            ArrowReaderOptions::new(),
+            ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Required),
         )
         .await?;
+        super::cache::insert(file_path.to_string(), arrow_meta.clone());
         Ok(arrow_meta.metadata().clone())
     })
 }
@@ -124,6 +128,32 @@ fn read_column_statistics_from_metadata(
     }
 
     Ok(columns)
+}
+
+fn row_group_column_flat_strings(metadata: &parquet::file::metadata::ParquetMetaData, rg_idx: usize) -> Vec<String> {
+    let rg = metadata.row_group(rg_idx);
+    let num_cols = rg.num_columns();
+    let mut flat = Vec::with_capacity(num_cols * 5);
+    for col_idx in 0..num_cols {
+        let col = rg.column(col_idx);
+        let column_name = col.column_path().string();
+        flat.push(column_name);
+        flat.push(col.uncompressed_size().to_string());
+        if let Some(stats) = col.statistics() {
+            let nc = stats.null_count_opt().map(|n| n.to_string()).unwrap_or_else(|| "0".to_string());
+            let (min_v, max_v) = extract_stats(stats);
+            let min_s = min_v.map(|v| v.to_string()).unwrap_or_default();
+            let max_s = max_v.map(|v| v.to_string()).unwrap_or_default();
+            flat.push(nc);
+            flat.push(min_s);
+            flat.push(max_s);
+        } else {
+            flat.push(String::new());
+            flat.push(String::new());
+            flat.push(String::new());
+        }
+    }
+    flat
 }
 
 fn extract_stats(stats: &parquet::file::statistics::Statistics) -> (Option<StatValue>, Option<StatValue>) {
@@ -238,4 +268,100 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parq
         Ok(arr.into_raw())
     })
     .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+/// Single footer read for range-aware split discovery. Returns `Object[2]`:
+/// element 0 is `long[]` with `[offset, compressedLen, rowCount, rgUncompressedBytes]` per row group;
+/// element 1 is `String[][]` — one `String[]` per row group holding a flat sequence
+/// `[name, columnUncompressedBytes, nullCount, min, max]` per column.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parquetrs_ParquetRsBridge_discoverRowGroupSplits<'local>(
+    mut env: EnvUnowned<'local>,
+    _class: JClass<'local>,
+    file_path: JString<'local>,
+    config_json: JString<'local>,
+) -> jni::objects::JObjectArray<'local> {
+    env.with_env(|env| -> JniResult<jni::objects::JObjectArray<'local>> {
+        let path = file_path.try_to_string(env)?;
+        let config = extract_storage_config(env, &config_json)?;
+        let metadata = load_metadata(&path, &config).map_err(jni_err)?;
+
+        let num_rg = metadata.num_row_groups();
+        let mut quads = Vec::with_capacity(num_rg * 4);
+        for rg_idx in 0..num_rg {
+            let rg = metadata.row_group(rg_idx);
+            let offset = row_group_offset(rg);
+            let compressed_len = rg.compressed_size();
+            let row_count = rg.num_rows();
+            let rg_uncompressed = rg.total_byte_size();
+            quads.push(offset);
+            quads.push(compressed_len);
+            quads.push(row_count);
+            quads.push(rg_uncompressed);
+        }
+
+        let mut per_rg_strings: Vec<Vec<String>> = Vec::with_capacity(num_rg);
+        for rg_idx in 0..num_rg {
+            per_rg_strings.push(row_group_column_flat_strings(&metadata, rg_idx));
+        }
+
+        let quad_arr = env.new_long_array(quads.len())?;
+        quad_arr.set_region(env, 0, &quads)?;
+
+        let string_class = env.find_class(jni_str!("java/lang/String"))?;
+        let string_row_class = env.find_class(jni_str!("[Ljava/lang/String;"))?;
+        let row_arr = env.new_object_array(num_rg as i32, string_row_class, JObject::null())?;
+        for (i, row) in per_rg_strings.into_iter().enumerate() {
+            let inner = env.new_object_array(row.len() as i32, &string_class, JObject::null())?;
+            for (j, s) in row.into_iter().enumerate() {
+                let js = env.new_string(s)?;
+                env.set_object_array_element(&inner, j, js)?;
+            }
+            env.set_object_array_element(&row_arr, i, inner)?;
+        }
+
+        let object_class = env.find_class(jni_str!("java/lang/Object"))?;
+        let out = env.new_object_array(2, object_class, JObject::null())?;
+        env.set_object_array_element(&out, 0, quad_arr)?;
+        env.set_object_array_element(&out, 1, row_arr)?;
+        Ok(out)
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+/// Starting file offset of one column chunk, matching parquet-java [`ColumnChunkMetaData#getStartingPos`][cg]:
+/// dictionary page when present and preceding the first data page, otherwise [`ColumnChunkMetaData::data_page_offset`].
+///
+/// Do **not** use deprecated thrift [`ColumnChunkMetaData::file_offset`] alone: newer writers commonly set it to `0`
+/// and expose real offsets only via nested column metadata (`data_page_offset` / `dictionary_page_offset`).
+/// Taking `file_offset` as row-group start collapses every row group to ``[0, length)``-style splits
+/// (`SplitRange` / ES `ExternalSource`), overlapping Java's disjoint ranges and inflating aggregates.
+///
+/// [cg]: https://github.com/apache/parquet-java/blob/master/parquet-hadoop/src/main/java/org/apache/parquet/hadoop/metadata/ColumnChunkMetaData.java
+fn column_chunk_starting_pos(col: &ColumnChunkMetaData) -> i64 {
+    match col.dictionary_page_offset() {
+        Some(dict) if dict > 0 && dict < col.data_page_offset() => dict,
+        _ => col.data_page_offset(),
+    }
+}
+
+/// File byte offset of a row group used for split discovery and midpoint assignment.
+///
+/// Matches Apache Parquet Java [`BlockMetaData#getStartingPos()`][j], which delegates to
+/// [`ColumnChunkMetaData#getStartingPos`][cg] on the first column in schema order.
+///
+/// [j]: https://github.com/apache/parquet-java/blob/master/parquet-hadoop/src/main/java/org/apache/parquet/hadoop/metadata/BlockMetaData.java
+/// [cg]: https://github.com/apache/parquet-java/blob/master/parquet-hadoop/src/main/java/org/apache/parquet/hadoop/metadata/ColumnChunkMetaData.java
+pub(crate) fn row_group_offset(rg: &RowGroupMetaData) -> i64 {
+    if rg.num_columns() == 0 {
+        return rg.file_offset().unwrap_or(0);
+    }
+    column_chunk_starting_pos(rg.column(0))
+}
+
+/// Byte midpoint used to assign row groups to a split `[range_start, range_end)`. Matches
+/// Java `ParquetFormatReader#filterBlocksByRange` / parquet-mr `ParquetInputFormat` assignment
+/// (`starting_pos + compressed_size / 2` within the half-open range).
+pub(crate) fn row_group_range_assignment_midpoint(rg: &RowGroupMetaData) -> i64 {
+    row_group_offset(rg) + rg.compressed_size() / 2
 }

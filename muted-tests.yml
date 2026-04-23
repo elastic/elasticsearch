@@ -288,18 +288,21 @@ tests:
 - class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
   method: testReplaceChildren {class org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec}
   issue: https://github.com/elastic/elasticsearch/issues/147164
-- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
-  method: testBulkOperations {useLegacyFormat=true useSyntheticSource=true}
-  issue: https://github.com/elastic/elasticsearch/issues/147169
 - class: org.elasticsearch.xpack.prometheus.PrometheusMetadataRestIT
   method: testMultipleEntriesForSameMetricAcrossStreams
   issue: https://github.com/elastic/elasticsearch/issues/147170
 - class: org.elasticsearch.xpack.security.operator.OperatorPrivilegesIT
   method: testNonOperatorUserCanCallAnalyzeRepositoryAPI
   issue: https://github.com/elastic/elasticsearch/issues/147171
-- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
-  method: testBulkOperations {useLegacyFormat=false useSyntheticSource=true}
-  issue: https://github.com/elastic/elasticsearch/issues/147177
+- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
+  method: testReplaceChildren {class org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison}
+  issue: https://github.com/elastic/elasticsearch/issues/147195
+- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
+  method: testTransform {class org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlFunction}
+  issue: https://github.com/elastic/elasticsearch/issues/147199
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=aggregations/terms_text_docvalues/Indexing disabled}
+  issue: https://github.com/elastic/elasticsearch/issues/147200
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=index/100_field_name_length_limit/Test field name length limit array}
   issue: https://github.com/elastic/elasticsearch/issues/147205

@@ -143,12 +143,12 @@ public final class LocalStorageObject implements StorageObject {
 
     private void fetchMetadata() throws IOException {
         if (Files.exists(filePath)) {
-            cachedExists = true;
+            cachedExists = Boolean.TRUE;
             BasicFileAttributes attrs = Files.readAttributes(filePath, BasicFileAttributes.class);
             cachedLength = attrs.size();
             cachedLastModified = attrs.lastModifiedTime().toInstant();
         } else {
-            cachedExists = false;
+            cachedExists = Boolean.FALSE;
             cachedLength = 0L;
             cachedLastModified = null;
         }

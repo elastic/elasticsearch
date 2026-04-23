@@ -39,6 +39,12 @@ public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory {
             BoxplotAggregator::new,
             true
         );
+        builder.register(
+            BoxplotAggregationBuilder.REGISTRY_KEY,
+            AnalyticsValuesSourceType.EXPONENTIAL_HISTOGRAM,
+            ExponentialHistogramBoxplotAggregator::new,
+            true
+        );
     }
 
     BoxplotAggregatorFactory(

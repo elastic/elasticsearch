@@ -17,7 +17,7 @@ import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.gen.Types;
 
 import java.util.List;
-import java.util.Objects;
+import java.util.function.Consumer;
 
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.ArrayType;
@@ -25,7 +25,6 @@ import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 
 import static org.elasticsearch.compute.gen.Methods.getMethod;
-import static org.elasticsearch.compute.gen.Types.BYTES_REF;
 import static org.elasticsearch.compute.gen.Types.blockType;
 import static org.elasticsearch.compute.gen.Types.vectorType;
 import static org.elasticsearch.compute.gen.argument.StandardArgument.isBlockType;
@@ -93,16 +92,16 @@ public interface Argument {
         return name() + "Offset";
     }
 
+    default ClassName scratchType() {
+        return Types.scratchType(type().toString());
+    }
+
     default String scratchName() {
-        if (isBytesRef() == false) {
-            throw new IllegalStateException("can't build scratch for non-BytesRef");
+        if (scratchType() == null) {
+            throw new IllegalStateException("can't build scratch for " + type());
         }
 
         return name() + "Scratch";
-    }
-
-    default boolean isBytesRef() {
-        return Objects.equals(type(), BYTES_REF);
     }
 
     String name();
@@ -118,6 +117,13 @@ public interface Argument {
      * Block or Vector, but for fixed fields will be the original fixed type.
      */
     TypeName dataType(boolean blockStyle);
+
+    /**
+     * False if and only if there is a block backing this parameter and that block does not support access as a vector. Otherwise true.
+     */
+    default boolean supportsVectorReadAccess() {
+        return true;
+    }
 
     /**
      * The parameter passed to the real evaluation function
@@ -166,11 +172,11 @@ public interface Argument {
     void closeEvalToBlock(MethodSpec.Builder builder);
 
     /**
-     * Emits code to check if this parameter is a vector or a block, and to
-     * call the block flavored evaluator if this is a block. Noop if the
-     * parameter is {@link Fixed}.
+     * Emits code to call {@code onBlock} if this is parameter is a block.
+     * @param onAllNull If this is non-null then this method emits code to call this
+     *                  if all values in the block are null
      */
-    void resolveVectors(MethodSpec.Builder builder, String... invokeBlockEval);
+    void resolveVectors(MethodSpec.Builder builder, Consumer<MethodSpec.Builder> onBlock, Consumer<MethodSpec.Builder> onAllNull);
 
     /**
      * Create any scratch structures needed by {@code eval}.
@@ -198,7 +204,7 @@ public interface Argument {
      */
     default void read(MethodSpec.Builder builder, String accessor, String firstParam) {
         String params = firstParam;
-        if (isBytesRef()) {
+        if (scratchType() != null) {
             params += ", " + scratchName();
         }
         builder.addStatement("$T $L = $L.$L($L)", type(), valueName(), accessor, getMethod(type()), params);
@@ -212,6 +218,30 @@ public interface Argument {
         ClassName parameterType = blockStyle ? blockType(typeName) : vectorType(typeName);
         String parameterName = blockStyle ? blockName() : vectorName();
         builder.addParameter(parameterType, parameterName);
+    }
+
+    /**
+     * Adds a block to read the value at the current position, and to skip calling the aggregator if the value is zeroed.
+     */
+    default void addContinueIfPositionHasNoValueBlock(MethodSpec.Builder builder) {
+        builder.addStatement("int $LValueCount = $L.getValueCount(p)", name(), blockName());
+        builder.beginControlFlow("if ($LValueCount == 0)", name());
+        builder.addStatement("continue");
+        builder.endControlFlow();
+    }
+
+    /**
+     * Starts the loop needed to process this argument's values when passed as a block.
+     */
+    default void startBlockProcessingLoop(MethodSpec.Builder builder) {
+        throw new UnsupportedOperationException("can't build raw block for " + type());
+    }
+
+    /**
+     * Ends the loop needed to process this argument's values when passed as a block.
+     */
+    default void endBlockProcessingLoop(MethodSpec.Builder builder) {
+        throw new UnsupportedOperationException("can't end block for " + type());
     }
 
     /**

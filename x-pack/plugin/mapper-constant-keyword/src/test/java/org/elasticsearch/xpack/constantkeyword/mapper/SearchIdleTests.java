@@ -96,7 +96,6 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, idleIndexShardsCount)
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
                 .build(),
-            "doc",
             "constant_keyword",
             "type=constant_keyword,value=constant_value1",
             "keyword",
@@ -109,7 +108,6 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, activeIndexShardsCount)
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
                 .build(),
-            "doc",
             "constant_keyword",
             "type=constant_keyword,value=constant_value2",
             "keyword",
@@ -161,7 +159,6 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, idleIndexShardsCount)
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
                 .build(),
-            "doc",
             "constant_keyword",
             "type=constant_keyword,value=constant_value1",
             "keyword",
@@ -174,7 +171,6 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, activeIndexShardsCount)
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
                 .build(),
-            "doc",
             "constant_keyword",
             "type=constant_keyword,value=constant_value2",
             "keyword",
@@ -228,7 +224,6 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, idleIndexShardsCount)
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
                 .build(),
-            "doc",
             "constant_keyword",
             "type=constant_keyword,value=constant",
             "keyword",
@@ -241,7 +236,6 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, activeIndexShardsCount)
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
                 .build(),
-            "doc",
             "constant_keyword",
             "type=constant_keyword,value=constant",
             "keyword",
@@ -292,7 +286,6 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, idleIndexShardsCount)
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
                 .build(),
-            "doc",
             "constant_keyword",
             "type=constant_keyword,value=test1_value"
         );
@@ -303,7 +296,6 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, activeIndexShardsCount)
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
                 .build(),
-            "doc",
             "constant_keyword",
             "type=constant_keyword,value=test2_value"
         );

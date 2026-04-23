@@ -11,9 +11,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -69,7 +68,7 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction {
      * Base evaluator that can handle both nulls- and no-nulls-containing blocks.
      */
     public abstract static class AbstractEvaluator extends AbstractNullableEvaluator {
-        protected AbstractEvaluator(DriverContext driverContext, EvalOperator.ExpressionEvaluator field) {
+        protected AbstractEvaluator(DriverContext driverContext, ExpressionEvaluator field) {
             super(driverContext, field);
         }
 
@@ -116,11 +115,11 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction {
     /**
      * Base evaluator that can handle evaluator-checked exceptions; i.e. for expressions that can be evaluated to null.
      */
-    public abstract static class AbstractNullableEvaluator implements EvalOperator.ExpressionEvaluator {
+    public abstract static class AbstractNullableEvaluator implements ExpressionEvaluator {
         protected final DriverContext driverContext;
-        protected final EvalOperator.ExpressionEvaluator field;
+        protected final ExpressionEvaluator field;
 
-        protected AbstractNullableEvaluator(DriverContext driverContext, EvalOperator.ExpressionEvaluator field) {
+        protected AbstractNullableEvaluator(DriverContext driverContext, ExpressionEvaluator field) {
             this.driverContext = driverContext;
             this.field = field;
         }

@@ -10,9 +10,12 @@ package org.elasticsearch.xpack.inference.services.openai.request;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
+import org.elasticsearch.xpack.inference.external.request.DenseEmbeddingRequest;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
@@ -24,7 +27,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiUtils.createOrgHeader;
 
-public class OpenAiEmbeddingsRequest implements Request {
+public class OpenAiEmbeddingsRequest implements DenseEmbeddingRequest {
 
     private final Truncator truncator;
     private final Truncator.TruncationResult truncationResult;
@@ -36,7 +39,8 @@ public class OpenAiEmbeddingsRequest implements Request {
         this.model = Objects.requireNonNull(model);
     }
 
-    public HttpRequest createHttpRequest() {
+    @Override
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         HttpPost httpPost = new HttpPost(model.uri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
@@ -66,7 +70,7 @@ public class OpenAiEmbeddingsRequest implements Request {
             }
         }
 
-        return new HttpRequest(httpPost, getInferenceEntityId());
+        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }
 
     @Override
@@ -89,5 +93,10 @@ public class OpenAiEmbeddingsRequest implements Request {
     @Override
     public boolean[] getTruncationInfo() {
         return truncationResult.truncated().clone();
+    }
+
+    @Override
+    public TaskType getTaskType() {
+        return model.getTaskType();
     }
 }

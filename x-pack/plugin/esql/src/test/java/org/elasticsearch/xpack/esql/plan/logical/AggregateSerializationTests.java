@@ -47,7 +47,8 @@ public class AggregateSerializationTests extends AbstractLogicalPlanSerializatio
                     randomSource(),
                     FieldAttributeTests.createFieldAttribute(1, true),
                     new Literal(randomSource(), between(1, 5), DataType.INTEGER),
-                    Literal.keyword(randomSource(), randomFrom("ASC", "DESC"))
+                    Literal.keyword(randomSource(), randomFrom("ASC", "DESC")),
+                    randomBoolean() ? null : FieldAttributeTests.createFieldAttribute(1, true)
                 );
                 case 4 -> new Values(randomSource(), FieldAttributeTests.createFieldAttribute(1, true));
                 case 5 -> new Sum(randomSource(), FieldAttributeTests.createFieldAttribute(1, true));

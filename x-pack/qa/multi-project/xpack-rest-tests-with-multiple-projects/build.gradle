@@ -28,6 +28,7 @@ tasks.named("yamlRestTest").configure {
     // These analytics tests work in MP mode, they just don't work with security enabled.
     '^analytics/boxplot/*',
     '^analytics/histogram/*',
+    '^analytics/t_digest_fieldtype/*',
     '^analytics/moving_percentiles/*',
     '^analytics/top_metrics/*',
     '^data_streams/10_data_stream_resolvability/*',

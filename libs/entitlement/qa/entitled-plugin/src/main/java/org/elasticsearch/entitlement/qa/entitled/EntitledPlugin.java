@@ -9,7 +9,6 @@
 
 package org.elasticsearch.entitlement.qa.entitled;
 
-import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.ExtensiblePlugin;
@@ -47,9 +46,11 @@ public class EntitledPlugin extends Plugin implements ExtensiblePlugin {
         logger.debug("selfTestNotEntitled");
         try {
             System.setIn(System.in);
-        } catch (NotEntitledException e) {
-            // All is well
-            return;
+        } catch (Exception e) {
+            if (e.getClass().getName().equals("org.elasticsearch.entitlement.bridge.NotEntitledException")) {
+                // All is well
+                return;
+            }
         }
         throw new AssertionError("Expected self-test not to be entitled");
     }

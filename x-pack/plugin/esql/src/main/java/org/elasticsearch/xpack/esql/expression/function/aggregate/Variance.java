@@ -20,9 +20,11 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
@@ -34,6 +36,14 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 
 public class Variance extends AggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Variance", Variance::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Variance.class)
+        .unary(Variance::new)
+        .name("variance", "std_var");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .acrossSeries(Variance::new)
+        .description("Calculates the population standard variance across the input vector.")
+        .example("stdvar(http_requests_total)")
+        .name("stdvar");
 
     @FunctionInfo(
         returnType = "double",
@@ -42,11 +52,11 @@ public class Variance extends AggregateFunction implements ToAggregator {
         examples = { @Example(file = "stats", tag = "variance") }
     )
     public Variance(Source source, @Param(name = "number", type = { "double", "integer", "long" }) Expression field) {
-        this(source, field, Literal.TRUE);
+        this(source, field, Literal.TRUE, NO_WINDOW);
     }
 
-    public Variance(Source source, Expression field, Expression filter) {
-        super(source, field, filter, emptyList());
+    public Variance(Source source, Expression field, Expression filter, Expression window) {
+        super(source, field, filter, window, emptyList());
     }
 
     private Variance(StreamInput in) throws IOException {
@@ -76,16 +86,16 @@ public class Variance extends AggregateFunction implements ToAggregator {
 
     @Override
     protected NodeInfo<Variance> info() {
-        return NodeInfo.create(this, Variance::new, field(), filter());
+        return NodeInfo.create(this, Variance::new, field(), filter(), window());
     }
 
     @Override
     public Variance replaceChildren(List<Expression> newChildren) {
-        return new Variance(source(), newChildren.get(0), newChildren.get(1));
+        return new Variance(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
     public Variance withFilter(Expression filter) {
-        return new Variance(source(), field(), filter);
+        return new Variance(source(), field(), filter, window());
     }
 
     @Override

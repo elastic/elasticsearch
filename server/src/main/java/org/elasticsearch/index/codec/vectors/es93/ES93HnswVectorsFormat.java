@@ -17,41 +17,62 @@ import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.index.codec.vectors.AbstractHnswVectorsFormat;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
 
+import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
+import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
+import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_NUM_MERGE_WORKER;
+
 public class ES93HnswVectorsFormat extends AbstractHnswVectorsFormat {
 
     static final String NAME = "ES93HnswVectorsFormat";
+    /**
+     * For k=100, we ask by default to search a graph of 100*1.5=150 results.
+     * So the threshold is set to 150 to match this expected search cost.
+     */
+    public static final int HNSW_GRAPH_THRESHOLD = 150;
 
     private final FlatVectorsFormat flatVectorsFormat;
 
     public ES93HnswVectorsFormat() {
-        super(NAME);
+        super(NAME, DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, DEFAULT_NUM_MERGE_WORKER, null, HNSW_GRAPH_THRESHOLD);
         flatVectorsFormat = new ES93GenericFlatVectorsFormat();
     }
 
-    public ES93HnswVectorsFormat(ES93GenericFlatVectorsFormat.ElementType elementType, boolean useDirectIO) {
-        super(NAME);
-        flatVectorsFormat = new ES93GenericFlatVectorsFormat(elementType, useDirectIO);
+    public ES93HnswVectorsFormat(DenseVectorFieldMapper.ElementType elementType) {
+        super(NAME, DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, DEFAULT_NUM_MERGE_WORKER, null, HNSW_GRAPH_THRESHOLD);
+        flatVectorsFormat = new ES93GenericFlatVectorsFormat(elementType, false);
     }
 
-    public ES93HnswVectorsFormat(int maxConn, int beamWidth, ES93GenericFlatVectorsFormat.ElementType elementType, boolean useDirectIO) {
-        super(NAME, maxConn, beamWidth);
-        flatVectorsFormat = new ES93GenericFlatVectorsFormat(elementType, useDirectIO);
+    public ES93HnswVectorsFormat(int maxConn, int beamWidth, DenseVectorFieldMapper.ElementType elementType) {
+        super(NAME, maxConn, beamWidth, DEFAULT_NUM_MERGE_WORKER, null, HNSW_GRAPH_THRESHOLD);
+        flatVectorsFormat = new ES93GenericFlatVectorsFormat(elementType, false);
     }
 
     public ES93HnswVectorsFormat(
         int maxConn,
         int beamWidth,
-        ES93GenericFlatVectorsFormat.ElementType elementType,
-        boolean useDirectIO,
+        DenseVectorFieldMapper.ElementType elementType,
         int numMergeWorkers,
         ExecutorService mergeExec
     ) {
-        super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec);
-        flatVectorsFormat = new ES93GenericFlatVectorsFormat(elementType, useDirectIO);
+        super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec, HNSW_GRAPH_THRESHOLD);
+        flatVectorsFormat = new ES93GenericFlatVectorsFormat(elementType, false);
+    }
+
+    public ES93HnswVectorsFormat(
+        int maxConn,
+        int beamWidth,
+        DenseVectorFieldMapper.ElementType elementType,
+        int numMergeWorkers,
+        ExecutorService mergeExec,
+        int hnswGraphThreshold
+    ) {
+        super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec, resolveThreshold(hnswGraphThreshold, HNSW_GRAPH_THRESHOLD));
+        flatVectorsFormat = new ES93GenericFlatVectorsFormat(elementType, false);
     }
 
     @Override
@@ -61,7 +82,15 @@ public class ES93HnswVectorsFormat extends AbstractHnswVectorsFormat {
 
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new Lucene99HnswVectorsWriter(state, maxConn, beamWidth, flatVectorsFormat.fieldsWriter(state), numMergeWorkers, mergeExec);
+        return new Lucene99HnswVectorsWriter(
+            state,
+            maxConn,
+            beamWidth,
+            flatVectorsFormat.fieldsWriter(state),
+            numMergeWorkers,
+            mergeExec,
+            hnswGraphThreshold
+        );
     }
 
     @Override

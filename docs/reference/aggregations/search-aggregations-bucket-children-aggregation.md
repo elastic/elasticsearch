@@ -44,7 +44,7 @@ PUT child_example/_doc/1
     "name": "question"
   },
   "body": "<p>I have Windows 2003 server and i bought a new Windows 2008 server...",
-  "title": "Whats the best way to file transfer my site from server to a newer one?",
+  "title": "What's the best way to file transfer my site from server to a newer one?",
   "tags": [
     "windows-server-2003",
     "windows-server-2008",

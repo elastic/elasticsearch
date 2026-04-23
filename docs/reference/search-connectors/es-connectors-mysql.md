@@ -9,11 +9,7 @@ mapped_pages:
 
 The *Elastic MySQL connector* is a [connector](/reference/search-connectors/index.md) for [MySQL](https://www.mysql.com) data sources. This connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
 
-View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/mysql.py) (branch *main*, compatible with Elastic *9.0*).
-
-::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
-::::
+View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/mysql) (branch *main*, compatible with Elastic *9.0*).
 
 ## **Self-managed connector** [es-connectors-mysql-connector-client-reference]
 
@@ -30,7 +26,7 @@ This connector has no additional prerequisites beyond the shared requirements, l
 
 To create a new MySQL connector:
 
-1. In the Kibana UI, navigate to the **Search → Content → Connectors** page from the main menu, or use the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects).
+1. In the Kibana UI, search for "connectors" using the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects) and choose the "Elasticsearch" connectors.
 2. Follow the instructions to create a new  **MySQL** self-managed connector.
 
 
@@ -202,7 +198,7 @@ This connector has the following known issues:
 
 * **Upgrading from a tech preview connector (8.7 or earlier) to 8.8 will cause the MySQL connector configuration to be invalid.**
 
-    MySQL connectors prior to 8.8 can be missing some configuration fields that are required for the connector to run. If you would like to continue using your MySQL connector after upgrading from 8.7 or earlier, run the script below to fix your connector’s configuration. This will populate the configuration with the missing fields. The auxilliary information needed for the configuration will then be automatically added by by the self-managed connector.
+    MySQL connectors prior to 8.8 can be missing some configuration fields that are required for the connector to run. If you would like to continue using your MySQL connector after upgrading from 8.7 or earlier, run the script below to fix your connector’s configuration. This will populate the configuration with the missing fields. The auxiliary information needed for the configuration will then be automatically added by by the self-managed connector.
 
     ```console
     POST /.elastic-connectors/_update/connector_id
@@ -274,7 +270,7 @@ You can deploy the MySQL connector as a self-managed connector using Docker. Fol
 Download the sample configuration file. You can either download it manually or run the following command:
 
 ```sh
-curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
+curl https://raw.githubusercontent.com/elastic/connectors/main/app/connectors_service/config.yml.example --output ~/connectors-config/config.yml
 ```
 % NOTCONSOLE
 

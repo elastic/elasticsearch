@@ -32,13 +32,11 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.common.util.FeatureFlag;
@@ -71,7 +69,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -312,6 +309,7 @@ import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.autoscaling.AbstractNodeAvailabilityZoneMapper;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingDeciderService;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingNamedWritableProvider;
+import org.elasticsearch.xpack.ml.datafeed.CrossClusterSearchStats;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfigAutoUpdater;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedContextProvider;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedJobBuilder;
@@ -718,6 +716,28 @@ public class MachineLearning extends Plugin
         Property.NodeScope
     );
 
+    public static final Setting<ByteSizeValue> RESULTS_INDEX_ROLLOVER_MAX_SIZE = Setting.byteSizeSetting(
+        "xpack.ml.results_index_rollover_max_size",
+        ByteSizeValue.of(50, ByteSizeUnit.GB),
+        ByteSizeValue.ofBytes(-1L),
+        ByteSizeValue.ofBytes(Long.MAX_VALUE),
+        Property.OperatorDynamic,
+        Property.NodeScope
+    );
+
+    /**
+     * Open anomaly detection jobs whose datafeed is stopped and that have not received data for
+     * longer than this duration will be automatically closed during nightly maintenance. Set to
+     * {@code -1} to disable auto-close.
+     */
+    public static final Setting<TimeValue> IDLE_JOB_AUTO_CLOSE_TIMEOUT = Setting.timeSetting(
+        "xpack.ml.idle_job_auto_close_timeout",
+        TimeValue.timeValueHours(48),
+        TimeValue.MINUS_ONE,
+        Property.OperatorDynamic,
+        Property.NodeScope
+    );
+
     /**
      * This is the maximum possible node size for a machine learning node. It is useful when determining if a job could ever be opened
      * on the cluster.
@@ -740,6 +760,44 @@ public class MachineLearning extends Plugin
         "xpack.ml.delayed_data_check_freq",
         TimeValue.timeValueMinutes(15),
         TimeValue.timeValueSeconds(1),
+        Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Maximum total time to retry the job opening pipeline when a system-initiated reassignment encounters transient failures
+     * (e.g. during rolling upgrades). User-initiated opens are not retried. Minimum is 1 minute.
+     */
+    public static final Setting<TimeValue> JOB_OPEN_RETRY_TIMEOUT = Setting.timeSetting(
+        "xpack.ml.job_open_retry_timeout",
+        TimeValue.timeValueMinutes(60),
+        TimeValue.timeValueMinutes(1),
+        TimeValue.timeValueDays(365),
+        Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Minimum number of consecutive search cycles a cross-cluster scope change must persist before being
+     * confirmed. Lowering this value (together with {@link #CCS_STABILIZATION_FLOOR}) enables faster
+     * detection in integration tests without waiting for production timeouts.
+     */
+    public static final Setting<Integer> CCS_STABILIZATION_CYCLES = Setting.intSetting(
+        "xpack.ml.ccs_stabilization_cycles",
+        CrossClusterSearchStats.DEFAULT_STABILIZATION_CYCLES,
+        1,
+        Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Minimum wall-clock duration since a cross-cluster scope change was first observed before it can
+     * be confirmed. Works in conjunction with {@link #CCS_STABILIZATION_CYCLES}.
+     */
+    public static final Setting<TimeValue> CCS_STABILIZATION_FLOOR = Setting.timeSetting(
+        "xpack.ml.ccs_stabilization_floor",
+        CrossClusterSearchStats.DEFAULT_MIN_STABILIZATION_DURATION,
+        TimeValue.ZERO,
         Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -771,6 +829,15 @@ public class MachineLearning extends Plugin
         Setting.Property.NodeScope
     );
 
+    // These 3 settings enable parts of ML to be enabled or disabled at a more granular level than the entire plugin
+    public static final Setting<Boolean> ANOMALY_DETECTION_ENABLED = Setting.boolSetting("xpack.ml.ad.enabled", true, Property.NodeScope);
+    public static final Setting<Boolean> DATA_FRAME_ANALYTICS_ENABLED = Setting.boolSetting(
+        "xpack.ml.dfa.enabled",
+        true,
+        Property.NodeScope
+    );
+    public static final Setting<Boolean> NLP_ENABLED = Setting.boolSetting("xpack.ml.nlp.enabled", true, Property.NodeScope);
+
     /**
      * Each model deployment results in one or more entries in the cluster state
      * for the model allocations. In order to prevent the cluster state from
@@ -789,6 +856,9 @@ public class MachineLearning extends Plugin
 
     private final Settings settings;
     private final boolean enabled;
+    private final boolean anomalyDetectionEnabled;
+    private final boolean dataFrameAnalyticsEnabled;
+    private final boolean nlpEnabled;
 
     private final SetOnce<AutodetectProcessManager> autodetectProcessManager = new SetOnce<>();
     private final SetOnce<DatafeedConfigProvider> datafeedConfigProvider = new SetOnce<>();
@@ -812,6 +882,9 @@ public class MachineLearning extends Plugin
     public MachineLearning(Settings settings) {
         this.settings = settings;
         this.enabled = XPackSettings.MACHINE_LEARNING_ENABLED.get(settings);
+        anomalyDetectionEnabled = ANOMALY_DETECTION_ENABLED.get(settings);
+        dataFrameAnalyticsEnabled = DATA_FRAME_ANALYTICS_ENABLED.get(settings);
+        nlpEnabled = NLP_ENABLED.get(settings);
     }
 
     protected XPackLicenseState getLicenseState() {
@@ -828,6 +901,7 @@ public class MachineLearning extends Plugin
             ALLOCATED_PROCESSORS_SCALE,
             MachineLearningField.AUTODETECT_PROCESS,
             PROCESS_CONNECT_TIMEOUT,
+            MachineLearningField.MODEL_GRAPH_VALIDATION_ENABLED,
             CONCURRENT_JOB_ALLOCATIONS,
             MachineLearningField.MAX_MODEL_MEMORY_LIMIT,
             MachineLearningField.MAX_LAZY_ML_NODES,
@@ -841,13 +915,21 @@ public class MachineLearning extends Plugin
             ModelLoadingService.INFERENCE_MODEL_CACHE_TTL,
             ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
             NIGHTLY_MAINTENANCE_REQUESTS_PER_SECOND,
+            RESULTS_INDEX_ROLLOVER_MAX_SIZE,
+            IDLE_JOB_AUTO_CLOSE_TIMEOUT,
             MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT,
             MAX_ML_NODE_SIZE,
             DELAYED_DATA_CHECK_FREQ,
+            JOB_OPEN_RETRY_TIMEOUT,
+            CCS_STABILIZATION_CYCLES,
+            CCS_STABILIZATION_FLOOR,
             DUMMY_ENTITY_MEMORY,
             DUMMY_ENTITY_PROCESSORS,
             SCALE_UP_COOLDOWN_TIME,
-            SCALE_TO_ZERO_AFTER_NO_REQUESTS_TIME
+            SCALE_TO_ZERO_AFTER_NO_REQUESTS_TIME,
+            ANOMALY_DETECTION_ENABLED,
+            DATA_FRAME_ANALYTICS_ENABLED,
+            NLP_ENABLED
         );
     }
 
@@ -973,12 +1055,14 @@ public class MachineLearning extends Plugin
 
         this.mlUpgradeModeActionFilter.set(new MlUpgradeModeActionFilter(clusterService));
 
+        boolean canUseIlm = DiscoveryNode.isStateless(settings) == false;
+
         MlIndexTemplateRegistry registry = new MlIndexTemplateRegistry(
             settings,
             clusterService,
             threadPool,
             client,
-            machineLearningExtension.get().useIlm(),
+            canUseIlm,
             xContentRegistry
         );
         registry.initialize();
@@ -1337,7 +1421,7 @@ public class MachineLearning extends Plugin
             client,
             inferenceAuditor,
             telemetryProvider.getMeterRegistry(),
-            machineLearningExtension.get().isNlpEnabled(),
+            nlpEnabled,
             settings
         );
 
@@ -1345,12 +1429,15 @@ public class MachineLearning extends Plugin
             settings,
             threadPool,
             clusterService,
+            anomalyDetectionAuditor,
             client,
             adaptiveAllocationsScalerService,
             mlAssignmentNotifier,
-            machineLearningExtension.get().isAnomalyDetectionEnabled(),
-            machineLearningExtension.get().isDataFrameAnalyticsEnabled(),
-            machineLearningExtension.get().isNlpEnabled()
+            indexNameExpressionResolver,
+            anomalyDetectionEnabled,
+            dataFrameAnalyticsEnabled,
+            nlpEnabled,
+            canUseIlm
         );
 
         MlMetrics mlMetrics = new MlMetrics(
@@ -1450,13 +1537,7 @@ public class MachineLearning extends Plugin
 
     @Override
     public List<RestHandler> getRestHandlers(
-        Settings unused,
-        NamedWriteableRegistry namedWriteableRegistry,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
+        RestHandlersServices restHandlersServices,
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
@@ -1467,7 +1548,7 @@ public class MachineLearning extends Plugin
         restHandlers.add(new RestMlInfoAction());
         restHandlers.add(new RestMlMemoryAction());
         restHandlers.add(new RestSetUpgradeModeAction());
-        if (machineLearningExtension.get().isAnomalyDetectionEnabled()) {
+        if (anomalyDetectionEnabled) {
             restHandlers.add(new RestGetJobsAction());
             restHandlers.add(new RestGetJobStatsAction());
             restHandlers.add(new RestPutJobAction());
@@ -1518,7 +1599,7 @@ public class MachineLearning extends Plugin
             restHandlers.add(new RestCatJobsAction());
             restHandlers.add(new RestCatDatafeedsAction());
         }
-        if (machineLearningExtension.get().isDataFrameAnalyticsEnabled() || machineLearningExtension.get().isNlpEnabled()) {
+        if (dataFrameAnalyticsEnabled || nlpEnabled) {
             restHandlers.add(new RestGetTrainedModelsAction());
             restHandlers.add(new RestDeleteTrainedModelAction());
             restHandlers.add(new RestGetTrainedModelsStatsAction());
@@ -1527,8 +1608,8 @@ public class MachineLearning extends Plugin
             restHandlers.add(new RestDeleteTrainedModelAliasAction());
             restHandlers.add(new RestPutTrainedModelDefinitionPartAction());
             restHandlers.add(new RestInferTrainedModelAction());
-            restHandlers.add(new RestCatTrainedModelsAction());
-            if (machineLearningExtension.get().isDataFrameAnalyticsEnabled()) {
+            restHandlers.add(new RestCatTrainedModelsAction(dataFrameAnalyticsEnabled));
+            if (dataFrameAnalyticsEnabled) {
                 restHandlers.add(new RestGetDataFrameAnalyticsAction());
                 restHandlers.add(new RestGetDataFrameAnalyticsStatsAction());
                 restHandlers.add(new RestPutDataFrameAnalyticsAction());
@@ -1541,7 +1622,7 @@ public class MachineLearning extends Plugin
                 restHandlers.add(new RestPreviewDataFrameAnalyticsAction());
                 restHandlers.add(new RestCatDataFrameAnalyticsAction());
             }
-            if (machineLearningExtension.get().isNlpEnabled()) {
+            if (nlpEnabled) {
                 restHandlers.add(new RestStartTrainedModelDeploymentAction(machineLearningExtension.get().disableInferenceProcessCache()));
                 restHandlers.add(new RestStopTrainedModelDeploymentAction());
                 restHandlers.add(new RestUpdateTrainedModelDeploymentAction());
@@ -1569,7 +1650,7 @@ public class MachineLearning extends Plugin
         // Included in this section as it's used by MlMemoryAction
         actionHandlers.add(new ActionHandler(TrainedModelCacheInfoAction.INSTANCE, TransportTrainedModelCacheInfoAction.class));
         actionHandlers.add(new ActionHandler(GetMlAutoscalingStats.INSTANCE, TransportGetMlAutoscalingStats.class));
-        if (machineLearningExtension.get().isAnomalyDetectionEnabled()) {
+        if (anomalyDetectionEnabled) {
             actionHandlers.add(new ActionHandler(GetJobsAction.INSTANCE, TransportGetJobsAction.class));
             actionHandlers.add(new ActionHandler(GetJobsStatsAction.INSTANCE, TransportGetJobsStatsAction.class));
             actionHandlers.add(new ActionHandler(PutJobAction.INSTANCE, TransportPutJobAction.class));
@@ -1628,7 +1709,7 @@ public class MachineLearning extends Plugin
             actionHandlers.add(new ActionHandler(GetDatafeedRunningStateAction.INSTANCE, TransportGetDatafeedRunningStateAction.class));
             actionHandlers.add(new ActionHandler(DeleteExpiredDataAction.INSTANCE, TransportDeleteExpiredDataAction.class));
         }
-        if (machineLearningExtension.get().isDataFrameAnalyticsEnabled() || machineLearningExtension.get().isNlpEnabled()) {
+        if (dataFrameAnalyticsEnabled || nlpEnabled) {
             actionHandlers.add(new ActionHandler(GetTrainedModelsAction.INSTANCE, TransportGetTrainedModelsAction.class));
             actionHandlers.add(new ActionHandler(DeleteTrainedModelAction.INSTANCE, TransportDeleteTrainedModelAction.class));
             actionHandlers.add(new ActionHandler(GetTrainedModelsStatsAction.INSTANCE, TransportGetTrainedModelsStatsAction.class));
@@ -1642,7 +1723,7 @@ public class MachineLearning extends Plugin
             actionHandlers.add(new ActionHandler(InferModelAction.INSTANCE, TransportInternalInferModelAction.class));
             actionHandlers.add(new ActionHandler(InferModelAction.EXTERNAL_INSTANCE, TransportExternalInferModelAction.class));
             actionHandlers.add(new ActionHandler(GetDeploymentStatsAction.INSTANCE, TransportGetDeploymentStatsAction.class));
-            if (machineLearningExtension.get().isDataFrameAnalyticsEnabled()) {
+            if (dataFrameAnalyticsEnabled) {
                 actionHandlers.add(new ActionHandler(GetDataFrameAnalyticsAction.INSTANCE, TransportGetDataFrameAnalyticsAction.class));
                 actionHandlers.add(
                     new ActionHandler(GetDataFrameAnalyticsStatsAction.INSTANCE, TransportGetDataFrameAnalyticsStatsAction.class)
@@ -1664,7 +1745,7 @@ public class MachineLearning extends Plugin
                     new ActionHandler(PreviewDataFrameAnalyticsAction.INSTANCE, TransportPreviewDataFrameAnalyticsAction.class)
                 );
             }
-            if (machineLearningExtension.get().isNlpEnabled()) {
+            if (nlpEnabled) {
                 actionHandlers.add(
                     new ActionHandler(StartTrainedModelDeploymentAction.INSTANCE, TransportStartTrainedModelDeploymentAction.class)
                 );
@@ -2281,7 +2362,7 @@ public class MachineLearning extends Plugin
         }).<CloseJobAction.Response>delegateFailureAndWrap((delegate, closeJobResponse) -> {
             // Handle the response
             results.put("anomaly_detectors", closeJobResponse.isClosed());
-            if (machineLearningExtension.get().isDataFrameAnalyticsEnabled() == false) {
+            if (dataFrameAnalyticsEnabled == false) {
                 delegate.onResponse(new StopDataFrameAnalyticsAction.Response(true));
                 return;
             }
@@ -2297,7 +2378,7 @@ public class MachineLearning extends Plugin
         }).<StopDatafeedAction.Response>delegateFailureAndWrap((delegate, datafeedResponse) -> {
             // Handle the response
             results.put("datafeeds", datafeedResponse.isStopped());
-            if (machineLearningExtension.get().isAnomalyDetectionEnabled() == false) {
+            if (anomalyDetectionEnabled == false) {
                 delegate.onResponse(new CloseJobAction.Response(true));
                 return;
             }
@@ -2322,7 +2403,7 @@ public class MachineLearning extends Plugin
                 )
             );
         }).<CancelJobModelSnapshotUpgradeAction.Response>delegateFailureAndWrap((delegate, cancelUpgradesResponse) -> {
-            if (machineLearningExtension.get().isAnomalyDetectionEnabled() == false) {
+            if (anomalyDetectionEnabled == false) {
                 delegate.onResponse(new StopDatafeedAction.Response(true));
                 return;
             }
@@ -2332,7 +2413,7 @@ public class MachineLearning extends Plugin
                 client.execute(StopDatafeedAction.INSTANCE, stopDatafeedsReq.setForce(true), delegate);
             }));
         }).<AcknowledgedResponse>delegateFailureAndWrap((delegate, acknowledgedResponse) -> {
-            if (machineLearningExtension.get().isAnomalyDetectionEnabled() == false) {
+            if (anomalyDetectionEnabled == false) {
                 delegate.onResponse(new CancelJobModelSnapshotUpgradeAction.Response(true));
                 return;
             }
@@ -2342,7 +2423,7 @@ public class MachineLearning extends Plugin
             );
             client.execute(CancelJobModelSnapshotUpgradeAction.INSTANCE, cancelSnapshotUpgradesReq, delegate);
         }).delegateFailureAndWrap((delegate, acknowledgedResponse) -> {
-            if (trainedModelAllocationClusterService.get() == null || machineLearningExtension.get().isNlpEnabled() == false) {
+            if (trainedModelAllocationClusterService.get() == null || nlpEnabled == false) {
                 delegate.onResponse(AcknowledgedResponse.TRUE);
                 return;
             }

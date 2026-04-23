@@ -16,8 +16,8 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -28,6 +28,8 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.junit.After;
 
+import java.time.Duration;
+import java.time.Period;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -211,7 +213,7 @@ public class CaseExtraTests extends ESTestCase {
             DriverContext driverContext = driverContext();
             Page page = new Page(driverContext.blockFactory().newConstantIntBlockWith(0, 1));
             try (
-                EvalOperator.ExpressionEvaluator eval = caseExpr.toEvaluator(AbstractFunctionTestCase.toEvaluator()).get(driverContext);
+                ExpressionEvaluator eval = caseExpr.toEvaluator(AbstractFunctionTestCase.toEvaluator()).get(driverContext);
                 Block block = eval.eval(page)
             ) {
                 return toJavaObject(block, 0);
@@ -226,6 +228,69 @@ public class CaseExtraTests extends ESTestCase {
             assertTrue(caseExpr.foldable());
             return caseExpr.fold(FoldContext.small());
         });
+    }
+
+    public void testFoldCaseWithTemporalAmount() {
+        // TIME_DURATION
+        Duration oneDay = Duration.ofDays(1);
+        Duration fiveDays = Duration.ofDays(5);
+        Duration tenDays = Duration.ofDays(10);
+
+        Case caseExprTrue = caseExprWithTemporalAmount(true, oneDay, tenDays, DataType.TIME_DURATION);
+        assertTrue(caseExprTrue.foldable());
+        assertEquals(oneDay, caseExprTrue.fold(FoldContext.small()));
+
+        Case caseExprFalse = caseExprWithTemporalAmount(false, oneDay, tenDays, DataType.TIME_DURATION);
+        assertTrue(caseExprFalse.foldable());
+        assertEquals(tenDays, caseExprFalse.fold(FoldContext.small()));
+
+        // DATE_PERIOD
+        Period oneMonth = Period.ofMonths(1);
+        Period oneYear = Period.ofYears(1);
+
+        Case caseExprPeriodTrue = caseExprWithTemporalAmount(true, oneMonth, oneYear, DataType.DATE_PERIOD);
+        assertTrue(caseExprPeriodTrue.foldable());
+        assertEquals(oneMonth, caseExprPeriodTrue.fold(FoldContext.small()));
+
+        Case caseExprPeriodFalse = caseExprWithTemporalAmount(false, oneMonth, oneYear, DataType.DATE_PERIOD);
+        assertTrue(caseExprPeriodFalse.foldable());
+        assertEquals(oneYear, caseExprPeriodFalse.fold(FoldContext.small()));
+
+        // Test multiple conditions
+        Case caseExprMulti = new Case(
+            Source.EMPTY,
+            new Literal(Source.EMPTY, false, DataType.BOOLEAN),
+            List.of(
+                new Literal(Source.EMPTY, oneDay, DataType.TIME_DURATION),
+                new Literal(Source.EMPTY, true, DataType.BOOLEAN),
+                new Literal(Source.EMPTY, fiveDays, DataType.TIME_DURATION),
+                new Literal(Source.EMPTY, tenDays, DataType.TIME_DURATION)
+            )
+        );
+        assertTrue(caseExprMulti.foldable());
+        assertEquals(fiveDays, caseExprMulti.fold(FoldContext.small()));
+
+        // Test multiple conditions with else
+        Case caseExprMultiElse = new Case(
+            Source.EMPTY,
+            new Literal(Source.EMPTY, false, DataType.BOOLEAN),
+            List.of(
+                new Literal(Source.EMPTY, oneDay, DataType.TIME_DURATION),
+                new Literal(Source.EMPTY, false, DataType.BOOLEAN),
+                new Literal(Source.EMPTY, fiveDays, DataType.TIME_DURATION),
+                new Literal(Source.EMPTY, tenDays, DataType.TIME_DURATION)
+            )
+        );
+        assertTrue(caseExprMultiElse.foldable());
+        assertEquals(tenDays, caseExprMultiElse.fold(FoldContext.small()));
+    }
+
+    private static Case caseExprWithTemporalAmount(boolean condition, Object trueValue, Object elseValue, DataType dataType) {
+        return new Case(
+            Source.EMPTY,
+            new Literal(Source.EMPTY, condition, DataType.BOOLEAN),
+            List.of(new Literal(Source.EMPTY, trueValue, dataType), new Literal(Source.EMPTY, elseValue, dataType))
+        );
     }
 
     public void testCase(Function<Case, Object> toValue) {
@@ -275,10 +340,10 @@ public class CaseExtraTests extends ESTestCase {
         DriverContext driveContext = driverContext();
         EvaluatorMapper.ToEvaluator toEvaluator = new EvaluatorMapper.ToEvaluator() {
             @Override
-            public EvalOperator.ExpressionEvaluator.Factory apply(Expression expression) {
+            public ExpressionEvaluator.Factory apply(Expression expression) {
                 Object value = expression.fold(FoldContext.small());
                 if (value != null && value.equals(2)) {
-                    return dvrCtx -> new EvalOperator.ExpressionEvaluator() {
+                    return dvrCtx -> new ExpressionEvaluator() {
                         @Override
                         public Block eval(Page page) {
                             fail("Unexpected evaluation of 4th argument");
@@ -302,7 +367,7 @@ public class CaseExtraTests extends ESTestCase {
                 return FoldContext.small();
             }
         };
-        EvalOperator.ExpressionEvaluator evaluator = caseExpr.toEvaluator(toEvaluator).get(driveContext);
+        ExpressionEvaluator evaluator = caseExpr.toEvaluator(toEvaluator).get(driveContext);
         Page page = new Page(driveContext.blockFactory().newConstantIntBlockWith(0, 1));
         try (Block block = evaluator.eval(page)) {
             assertEquals(1, toJavaObject(block, 0));
@@ -337,9 +402,8 @@ public class CaseExtraTests extends ESTestCase {
 
     protected final DriverContext driverContext() {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(256)).withCircuitBreaking();
-        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        breakers.add(breaker);
-        return new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays));
+        breakers.add(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST));
+        return new DriverContext(bigArrays, BlockFactory.builder(bigArrays).build(), null);
     }
 
     @After

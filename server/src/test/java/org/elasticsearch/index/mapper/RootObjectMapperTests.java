@@ -243,7 +243,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
             DoubleScriptFieldType field = (DoubleScriptFieldType) mapperService.fieldType("field");
             assertEquals(NumberFieldMapper.NumberType.DOUBLE.typeName(), field.typeName());
             LongScriptFieldType field2Updated = (LongScriptFieldType) mapperService.fieldType("field2");
-            assertSame(field2, field2Updated);
+            assertEquals(field2.typeName(), field2Updated.typeName());
         }
         {
             String mapping = Strings.toString(mapping(builder -> builder.startObject("concrete").field("type", "keyword").endObject()));
@@ -251,7 +251,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
             DoubleScriptFieldType field = (DoubleScriptFieldType) mapperService.fieldType("field");
             assertEquals(NumberFieldMapper.NumberType.DOUBLE.typeName(), field.typeName());
             LongScriptFieldType field2Updated = (LongScriptFieldType) mapperService.fieldType("field2");
-            assertSame(field2, field2Updated);
+            assertEquals(field2.typeName(), field2Updated.typeName());
             MappedFieldType concrete = mapperService.fieldType("concrete");
             assertThat(concrete, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
         }
@@ -496,10 +496,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                 }
             }""";
 
-        final String[] validSubojectsValues = ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG
-            ? new String[] { "false", "true", "auto" }
-            : new String[] { "false", "true" };
-
+        final String[] validSubojectsValues = new String[] { "false", "true" };
         {
             String json = withSubobjects.replace("<SUBOBJECTS_SETTING>", "false").replace("<FIELD_NAME>", "_project");
             Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperServiceWithNamespaceValidator(json, validator));

@@ -43,6 +43,7 @@ import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
@@ -238,7 +239,8 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 public void sendExecuteFetch(
                     Transport.Connection connection,
                     ShardFetchSearchRequest request,
-                    SearchTask task,
+                    AbstractSearchAsyncAction<?> context,
+                    SearchShardTarget shardTarget,
                     ActionListener<FetchSearchResult> listener
                 ) {
                     FetchSearchResult fetchResult = new FetchSearchResult();
@@ -349,7 +351,8 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 public void sendExecuteFetch(
                     Transport.Connection connection,
                     ShardFetchSearchRequest request,
-                    SearchTask task,
+                    AbstractSearchAsyncAction<?> context,
+                    SearchShardTarget shardTarget,
                     ActionListener<FetchSearchResult> listener
                 ) {
                     if (request.contextId().getId() == 321) {
@@ -452,7 +455,8 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 public void sendExecuteFetch(
                     Transport.Connection connection,
                     ShardFetchSearchRequest request,
-                    SearchTask task,
+                    AbstractSearchAsyncAction<?> context,
+                    SearchShardTarget shardTarget,
                     ActionListener<FetchSearchResult> listener
                 ) {
                     new Thread(() -> {
@@ -590,7 +594,8 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 public void sendExecuteFetch(
                     Transport.Connection connection,
                     ShardFetchSearchRequest request,
-                    SearchTask task,
+                    AbstractSearchAsyncAction<?> context,
+                    SearchShardTarget shardTarget,
                     ActionListener<FetchSearchResult> listener
                 ) {
                     FetchSearchResult fetchResult = new FetchSearchResult();
@@ -705,7 +710,8 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 public void sendExecuteFetch(
                     Transport.Connection connection,
                     ShardFetchSearchRequest request,
-                    SearchTask task,
+                    AbstractSearchAsyncAction<?> context,
+                    SearchShardTarget shardTarget,
                     ActionListener<FetchSearchResult> listener
                 ) {
                     FetchSearchResult fetchResult = new FetchSearchResult();
@@ -758,7 +764,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
 
     }
 
-    private static BiFunction<SearchResponseSections, AtomicArray<SearchPhaseResult>, SearchPhase> searchPhaseFactory(
+    static BiFunction<SearchResponseSections, AtomicArray<SearchPhaseResult>, SearchPhase> searchPhaseFactory(
         MockSearchPhaseContext mockSearchPhaseContext
     ) {
         return (searchResponse, scrollId) -> new SearchPhase("test") {
@@ -769,13 +775,13 @@ public class FetchSearchPhaseTests extends ESTestCase {
         };
     }
 
-    private static void addProfiling(boolean profiled, QuerySearchResult queryResult) {
+    static void addProfiling(boolean profiled, QuerySearchResult queryResult) {
         if (profiled) {
             queryResult.profileResults(new SearchProfileQueryPhaseResult(List.of(), null));
         }
     }
 
-    private static ProfileResult fetchProfile(boolean profiled) {
+    public static ProfileResult fetchProfile(boolean profiled) {
         return profiled ? new ProfileResult("fetch", "fetch", Map.of(), Map.of(), FETCH_PROFILE_TIME, List.of()) : null;
     }
 
@@ -867,8 +873,13 @@ public class FetchSearchPhaseTests extends ESTestCase {
                     return StoredFieldsSpec.NEEDS_SOURCE;
                 }
             }));
-            fetchPhase.execute(searchContext, IntStream.range(0, 100).toArray(), null);
-            assertThat(breakerCalledCount.get(), is(4));
+            fetchPhase.execute(
+                searchContext,
+                IntStream.range(0, 100).toArray(),
+                null,
+                i -> breakingCircuitBreaker.addEstimateBytesAndMaybeBreak(i, "test")
+            );
+            assertThat(breakerCalledCount.get(), is(100));
         } finally {
             r.close();
             dir.close();
@@ -1028,7 +1039,8 @@ public class FetchSearchPhaseTests extends ESTestCase {
             null,
             Collections.emptyMap(),
             null,
-            MapperMetrics.NOOP
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );
         TestSearchContext searchContext = new TestSearchContext(searchExecutionContext, null, contextIndexSearcher) {
             private final FetchSearchResult fetchSearchResult = new FetchSearchResult();

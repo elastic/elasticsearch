@@ -9,7 +9,6 @@
 
 package org.elasticsearch.telemetry.apm.internal.tracing;
 
-import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanBuilder;
@@ -36,6 +35,8 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
+import org.elasticsearch.telemetry.apm.internal.export.TraceSupplier;
+import org.elasticsearch.telemetry.apm.internal.export.agent.AgentExportTracerSupplier;
 import org.elasticsearch.telemetry.tracing.TraceContext;
 import org.elasticsearch.telemetry.tracing.Traceable;
 
@@ -45,12 +46,14 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * This is an implementation of the {@link org.elasticsearch.telemetry.tracing.Tracer} interface, which uses
- * the OpenTelemetry API to capture spans.
+ * {@link org.elasticsearch.telemetry.tracing.Tracer} implementation provided by the Elasticsearch {@code apm}
+ * module ({@code modules/apm}). It records spans using the OpenTelemetry API. Export is separate: spans may be
+ * shipped by the Elasticsearch APM Java agent (via {@link AgentExportTracerSupplier}) or by an OpenTelemetry
+ * SDK implementation.
  * <p>
- * This module doesn't provide an implementation of the OTel API. Normally that would mean that the
- * API's default, no-op implementation would be used. However, when the APM Java is attached, it
- * intercepts the {@link GlobalOpenTelemetry} class and provides its own implementation instead.
+ * Elasticsearch does not bundle an OpenTelemetry API implementation by default. Normally the API's default
+ * no-op applies. When the Elasticsearch APM Java agent is attached, it intercepts {@code GlobalOpenTelemetry}
+ * and supplies a real implementation for export to Elastic APM.
  */
 public class APMTracer extends AbstractLifecycleComponent implements org.elasticsearch.telemetry.tracing.Tracer {
 
@@ -58,6 +61,8 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     /** Holds in-flight span information. */
     private final Map<String, Context> spans = ConcurrentCollections.newConcurrentMap();
+
+    private final TraceSupplier traceSupplier;
 
     private volatile boolean enabled;
     private volatile APMServices services;
@@ -85,6 +90,12 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     record APMServices(Tracer tracer, OpenTelemetry openTelemetry) {}
 
     public APMTracer(Settings settings) {
+        this(settings, new AgentExportTracerSupplier(settings));
+    }
+
+    // package-private for testing
+    APMTracer(Settings settings, TraceSupplier traceSupplier) {
+        this.traceSupplier = traceSupplier;
         this.includeNames = APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING.get(settings);
         this.excludeNames = APMAgentSettings.TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING.get(settings);
         this.labelFilters = APMAgentSettings.TELEMETRY_TRACING_SANITIZE_FIELD_NAMES.get(settings);
@@ -92,6 +103,17 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         this.filterAutomaton = buildAutomaton(includeNames, excludeNames);
         this.labelFilterAutomaton = buildAutomaton(labelFilters, List.of());
         this.enabled = APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.get(settings);
+    }
+
+    /**
+     * Ensures buffered traces are exported on a best-effort basis. When using the APM agent (no ES-owned
+     * tracer provider), this waits for 2× the agent export interval.
+     */
+    public void attemptFlushTraces() {
+        if (enabled == false) {
+            return;
+        }
+        traceSupplier.attemptFlushTraces();
     }
 
     public void setEnabled(boolean enabled) {
@@ -132,6 +154,18 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     @Override
     protected void doStop() {
+        if (enabled) {
+            try {
+                traceSupplier.attemptFlushTraces();
+            } catch (Exception e) {
+                logger.warn("Exception flushing trace supplier", e);
+            }
+        }
+        try {
+            traceSupplier.close();
+        } catch (Exception e) {
+            logger.warn("Exception closing trace supplier", e);
+        }
         destroyApmServices();
     }
 
@@ -143,7 +177,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         assert this.enabled;
         assert this.services == null;
 
-        var openTelemetry = GlobalOpenTelemetry.get();
+        var openTelemetry = traceSupplier.get();
         var tracer = openTelemetry.getTracer("elasticsearch", Build.current().version());
         return new APMServices(tracer, openTelemetry);
     }
@@ -177,7 +211,9 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
             // A span can have a parent span, which here is modelled though a parent span context.
             // Setting this is important for seeing a complete trace in the APM UI.
-            final Context parentContext = getParentContext(traceContext);
+            // Attempt to fetch a local parent context first, otherwise look for a remote parent
+            final Context localParentContext = traceContext.getTransient(Task.PARENT_APM_TRACE_CONTEXT);
+            final Context parentContext = localParentContext != null ? localParentContext : getRemoteParentContext(traceContext);
             if (parentContext != null) {
                 spanBuilder.setParent(parentContext);
             }
@@ -188,21 +224,25 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             if (startTime != null) {
                 spanBuilder.setStartTimestamp(startTime);
             }
+
             final Span span = spanBuilder.startSpan();
-            // If the agent decided not to record this span (e.g., due to transaction_max_spans), isRecording() will be false.
             if (span.isRecording() == false) {
-                logger.trace("Span [{}] [{}] will not be recorded, e.g. due to transaction_max_spans reached", spanId, spanName);
-                // It's good practice to end the no-op span immediately to release any resources.
-                span.end();
-                // Returning null from computeIfAbsent means no value will be inserted into the map.
-                return null;
+                if (localParentContext == null) {
+                    // this root span (transactions) is dropped due to sampling; the agent might report these when connected to
+                    // very old versions of apm server, however (with an incorrect duration)
+                    logger.trace("Root span [{}] [{}] will not be recorded due to sampling", spanId, spanName);
+                } else {
+                    logger.trace("Span [{}] [{}] will not be recorded due to transaction_max_spans reached", spanId, spanName);
+                }
+                span.end(); // end span immediately to release any resources.
+                return null; // return null to discard and not record in map of spans
             }
 
-            // If we are here, the span is real and being recorded.
-            logger.trace("Successfully started tracing [{}] [{}]", spanId, spanName);
             final Context contextForNewSpan = Context.current().with(span);
-
-            updateThreadContext(traceContext, services, contextForNewSpan);
+            if (span.isRecording()) {
+                logger.trace("Recording trace [{}] [{}]", spanId, spanName);
+                updateThreadContext(traceContext, services, contextForNewSpan);
+            }
 
             return contextForNewSpan;
         });
@@ -240,30 +280,26 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         });
     }
 
-    private Context getParentContext(TraceContext traceContext) {
+    private Context getRemoteParentContext(TraceContext traceContext) {
         // https://github.com/open-telemetry/opentelemetry-java/discussions/2884#discussioncomment-381870
         // If you just want to propagate across threads within the same process, you don't need context propagators (extract/inject).
         // You can just pass the Context object directly to another thread (it is immutable and thus thread-safe).
 
-        // Attempt to fetch a local parent context first, otherwise look for a remote parent
-        Context parentContext = traceContext.getTransient(Task.PARENT_APM_TRACE_CONTEXT);
-        if (parentContext == null) {
-            final String traceParentHeader = traceContext.getTransient(Task.PARENT_TRACE_PARENT_HEADER);
-            final String traceStateHeader = traceContext.getTransient(Task.PARENT_TRACE_STATE);
+        final String traceParentHeader = traceContext.getTransient(Task.PARENT_TRACE_PARENT_HEADER);
+        final String traceStateHeader = traceContext.getTransient(Task.PARENT_TRACE_STATE);
 
-            if (traceParentHeader != null) {
-                final Map<String, String> traceContextMap = Maps.newMapWithExpectedSize(2);
-                // traceparent and tracestate should match the keys used by W3CTraceContextPropagator
-                traceContextMap.put(Task.TRACE_PARENT_HTTP_HEADER, traceParentHeader);
-                if (traceStateHeader != null) {
-                    traceContextMap.put(Task.TRACE_STATE, traceStateHeader);
-                }
-                parentContext = services.openTelemetry.getPropagators()
-                    .getTextMapPropagator()
-                    .extract(Context.current(), traceContextMap, new MapKeyGetter());
+        if (traceParentHeader != null) {
+            final Map<String, String> traceContextMap = Maps.newMapWithExpectedSize(2);
+            // traceparent and tracestate should match the keys used by W3CTraceContextPropagator
+            traceContextMap.put(Task.TRACE_PARENT_HTTP_HEADER, traceParentHeader);
+            if (traceStateHeader != null) {
+                traceContextMap.put(Task.TRACE_STATE, traceStateHeader);
             }
+            return services.openTelemetry.getPropagators()
+                .getTextMapPropagator()
+                .extract(Context.current(), traceContextMap, new MapKeyGetter());
         }
-        return parentContext;
+        return null;
     }
 
     /**
@@ -288,7 +324,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     @Override
     public Releasable withScope(Traceable traceable) {
         final Context context = spans.get(traceable.getSpanId());
-        if (context != null) {
+        if (context != null && Span.fromContextOrNull(context).isRecording()) {
             return context.makeCurrent()::close;
         }
         return () -> {};
@@ -385,9 +421,10 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     @Override
     public void stopTrace(Traceable traceable) {
-        final var span = Span.fromContextOrNull(spans.remove(traceable.getSpanId()));
+        final String spanId = traceable.getSpanId();
+        final var span = Span.fromContextOrNull(spans.remove(spanId));
         if (span != null) {
-            logger.trace("Finishing trace [{}]", traceable);
+            logger.trace("Finishing trace [{}]", spanId);
             span.end();
         }
     }

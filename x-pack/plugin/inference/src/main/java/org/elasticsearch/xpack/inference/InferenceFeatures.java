@@ -10,18 +10,25 @@ package org.elasticsearch.xpack.inference;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xpack.core.inference.usage.ModelStats;
+import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.queries.InterceptedInferenceQueryBuilder;
+import org.elasticsearch.xpack.inference.queries.SemanticKnnVectorQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder;
 
 import java.util.HashSet;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder.RETRIEVER_RESULT_DIVERSIFICATION_USES_QUERY_VECTOR_BUILDER;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_AUTO_PREFILTERING;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_BFLOAT16_SUPPORT;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_ELEMENT_TYPE_IN_INDEX_OPTIONS;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_EXCLUDE_SUB_FIELDS_FROM_FIELD_CAPS;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_INDEX_OPTIONS;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_INDEX_OPTIONS_WITH_DEFAULTS;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_PREVENT_LEGACY_FORMAT_NEW_INDICES;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_SPARSE_VECTOR_INDEX_OPTIONS;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_SUPPORT_CHUNKING_CONFIG;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_UPDATABLE_INFERENCE_ID;
@@ -31,6 +38,7 @@ import static org.elasticsearch.xpack.inference.queries.LegacySemanticMatchQuery
 import static org.elasticsearch.xpack.inference.queries.LegacySemanticSparseVectorQueryRewriteInterceptor.SEMANTIC_SPARSE_VECTOR_QUERY_REWRITE_INTERCEPTION_SUPPORTED;
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankDoc.TEXT_SIMILARITY_RANK_DOC_EXPLAIN_CHUNKS;
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_SNIPPETS;
+import static org.elasticsearch.xpack.inference.vectors.EmbeddingQueryVectorBuilder.EMBEDDING_QUERY_VECTOR_BUILDER_FEATURE;
 
 /**
  * Provides inference features.
@@ -39,6 +47,12 @@ public class InferenceFeatures implements FeatureSpecification {
 
     private static final NodeFeature SEMANTIC_TEXT_HIGHLIGHTER = new NodeFeature("semantic_text.highlighter");
     private static final NodeFeature SEMANTIC_TEXT_HIGHLIGHTER_DEFAULT = new NodeFeature("semantic_text.highlighter.default");
+    private static final NodeFeature SEMANTIC_TEXT_HIGHLIGHTER_DISKBBQ_SIMILARITY_SUPPORT = new NodeFeature(
+        "semantic_text.highlighter.bbq_and_similarity_support"
+    );
+    private static final NodeFeature SEMANTIC_TEXT_HIGHLIGHTER_VECTOR_SIMILARITY_SUPPORT = new NodeFeature(
+        "semantic_text.highlighter.vector_similarity_support"
+    );
     private static final NodeFeature TEST_RERANKING_SERVICE_PARSE_TEXT_AS_SCORE = new NodeFeature(
         "test_reranking_service.parse_text_as_score"
     );
@@ -54,11 +68,31 @@ public class InferenceFeatures implements FeatureSpecification {
     private static final NodeFeature SEMANTIC_TEXT_FIELDS_CHUNKS_FORMAT = new NodeFeature("semantic_text.fields_chunks_format");
 
     public static final NodeFeature INFERENCE_ENDPOINT_CACHE = new NodeFeature("inference.endpoint.cache");
+    public static final NodeFeature INFERENCE_CCM_CACHE = new NodeFeature("inference.ccm.cache");
     public static final NodeFeature SEARCH_USAGE_EXTENDED_DATA = new NodeFeature("search.usage.extended_data");
+    public static final NodeFeature TEXT_SIMILARITY_RERANKER_INFERENCE_ID_CHUNKING = new NodeFeature(
+        "text_similarity_reranker_inference_id_chunking"
+    );
+    public static final NodeFeature TEXT_SIMILARITY_RERANKER_COMPREHENSIVE_TOP_N_HANDLING = new NodeFeature(
+        "text_similarity_reranker.comprehensive_top_n_handling"
+    );
+    public static final NodeFeature INFERENCE_AUTH_POLLER_PERSISTENT_TASK = new NodeFeature("inference.auth_poller.persistent_task");
+    public static final NodeFeature INFERENCE_CCM_ENABLEMENT_SERVICE = new NodeFeature("inference.ccm.enablement_service");
+
+    public static final NodeFeature EMBEDDING_TASK_TYPE = new NodeFeature("inference.embedding_task_type");
+    public static final NodeFeature ENDPOINT_METADATA_FIELD = new NodeFeature("inference.metadata_field");
+    public static final NodeFeature SEMANTIC_TEXT_EMBEDDING_TASK = new NodeFeature("semantic_text.inference_using_embedding_task");
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(INFERENCE_ENDPOINT_CACHE);
+        return Set.of(
+            INFERENCE_ENDPOINT_CACHE,
+            INFERENCE_CCM_CACHE,
+            INFERENCE_AUTH_POLLER_PERSISTENT_TASK,
+            INFERENCE_CCM_ENABLEMENT_SERVICE,
+            EMBEDDING_TASK_TYPE,
+            ENDPOINT_METADATA_FIELD
+        );
     }
 
     @Override
@@ -96,15 +130,30 @@ public class InferenceFeatures implements FeatureSpecification {
                 SEMANTIC_TEXT_SPARSE_VECTOR_INDEX_OPTIONS,
                 SEMANTIC_TEXT_FIELDS_CHUNKS_FORMAT,
                 SEMANTIC_TEXT_UPDATABLE_INFERENCE_ID,
+                SEMANTIC_TEXT_HIGHLIGHTER_DISKBBQ_SIMILARITY_SUPPORT,
+                SEMANTIC_TEXT_HIGHLIGHTER_VECTOR_SIMILARITY_SUPPORT,
+                SEMANTIC_TEXT_AUTO_PREFILTERING,
+                SEMANTIC_TEXT_BFLOAT16_SUPPORT,
                 SemanticQueryBuilder.SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS,
                 SemanticQueryBuilder.SEMANTIC_QUERY_FILTER_FIELD_CAPS_FIX,
                 InterceptedInferenceQueryBuilder.NEW_SEMANTIC_QUERY_INTERCEPTORS,
+                SemanticKnnVectorQueryRewriteInterceptor.SEMANTIC_KNN_VECTOR_QUERY_FILTERS_REWRITE_INTERCEPTION_SUPPORTED,
                 TEXT_SIMILARITY_RERANKER_SNIPPETS,
                 ModelStats.SEMANTIC_TEXT_USAGE,
                 SEARCH_USAGE_EXTENDED_DATA,
-                TEXT_SIMILARITY_RANK_DOC_EXPLAIN_CHUNKS
+                TEXT_SIMILARITY_RANK_DOC_EXPLAIN_CHUNKS,
+                RETRIEVER_RESULT_DIVERSIFICATION_USES_QUERY_VECTOR_BUILDER,
+                TEXT_SIMILARITY_RERANKER_INFERENCE_ID_CHUNKING,
+                TEXT_SIMILARITY_RERANKER_COMPREHENSIVE_TOP_N_HANDLING,
+                EMBEDDING_QUERY_VECTOR_BUILDER_FEATURE,
+                SEMANTIC_TEXT_ELEMENT_TYPE_IN_INDEX_OPTIONS,
+                SEMANTIC_TEXT_PREVENT_LEGACY_FORMAT_NEW_INDICES,
+                SEMANTIC_TEXT_EMBEDDING_TASK
             )
         );
+        if (SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled()) {
+            testFeatures.add(SemanticFieldMapper.SEMANTIC_FIELD_MAPPER);
+        }
         testFeatures.addAll(getFeatures());
         return testFeatures;
     }

@@ -13,12 +13,82 @@ If you are an Enterprise Search user and want to upgrade to Elastic 9.0, refer t
 It includes detailed steps, tooling, and resources to help you transition to supported alternatives in 9.x, such as Elasticsearch, the Open Web Crawler, and self-managed connectors.
 :::
 
+## 9.3.3 [connectors-9.3.3-release-notes]
+* Fixed a bug in Network Drive connector where users from different domains with the same RID could inherit each other's document permissions. [#3973]https://github.com/elastic/connectors/pull/3973
+
+## 9.2.8 [connectors-9.2.8-release-notes]
+* Fixed a bug in Network Drive connector where users from different domains with the same RID could inherit each other's document permissions. [#3973]https://github.com/elastic/connectors/pull/3973
+
+## 9.3.2 [connectors-9.3.2-release-notes]
+
+### Fixes [connectors-9.3.2-fixes]
+* Fixed a bug where using `id_columns` in advanced sync rules with mixed-case table or column names caused all documents to receive the same `_id`, resulting in document overwrites and only 1 document being indexed instead of the expected count.[#3885](https://github.com/elastic/connectors/pull/3885),[#3884](https://github.com/elastic/connectors/issues/3884)
+* Fixed an issue with access control syncs crashing due to `noop` returned from `bulk` API was treated as a failure. [#3961](https://github.com/elastic/connectors/pull/3961), [#3957](https://github.com/elastic/connectors/issues/3957)
+
+## 9.2.7 [connectors-9.2.7-release-notes]
+
+### Fixes [connectors-9.2.7-fixes]
+* Fixed a bug where using `id_columns` in advanced sync rules with mixed-case table or column names caused all documents to receive the same `_id`, resulting in document overwrites and only 1 document being indexed instead of the expected count. [#3885](https://github.com/elastic/connectors/pull/3885),[#3884](https://github.com/elastic/connectors/issues/3884)
+* Fixed an issue with access control syncs crashing due to `noop` returned from `bulk` API was treated as a failure. [#3961](https://github.com/elastic/connectors/pull/3961), [#3957](https://github.com/elastic/connectors/issues/3957)
+
+## 9.3.1 [connectors-9.3.1-release-notes]
+
+### Fixes [connectors-9.3.1-fixes]
+* Fixed an issue where MultiService would enter an unresponsive state instead of shutting down cleanly when a managed service crashed with an unhandled exception. ([#3940](https://github.com/elastic/connectors/pull/3940),[#3939](https://github.com/elastic/connectors/issues/3939))
+
+## 9.2.6 [connectors-9.2.6-release-notes]
+
+### Fixes [connectors-9.2.6-fixes]
+* Fixed an issue where MultiService would enter an unresponsive  state instead of shutting down cleanly when a managed service crashed with an unhandled exception. ([#3940](https://github.com/elastic/connectors/pull/3940), [#3939](https://github.com/elastic/connectors/issues/3939))
+
+## 9.3.0 [connectors-9.3.0-release-notes]
+
+### Fixes [connectors-9.3.0-fixes]
+* Fixed a bug in the Network Drive connector that caused connections to SMB servers to close prematurely, leading to errors when multiple connections were made to the same host. [#3868](https://github.com/elastic/connectors/pull/3868), [#3873](https://github.com/elastic/connectors/pull/3873)
+* Fixed a serialization error in the PostgreSQL connector when handling `INET`, `CIDR`, `UUID`, and geometric types.[#3900](https://github.com/elastic/connectors/pull/3900), [#3879](https://github.com/elastic/connectors/issues/3879)
+
+### Features and enhancements [connectors-9.3.0-features-enhancements]
+* Added a new GitLab connector to sync Projects, Issues, Epics, Merge Requests, Releases, and README files. [#3770](https://github.com/elastic/connectors/pull/3770) [#11093](https://github.com/elastic/search-team/issues/11093)
+
+## 9.2.5 [connectors-9.2.5-release-notes]
+
+### Fixes [connectors-9.2.5-fixes]
+* Fixed a serialization error in the PostgreSQL connector when handling `INET`, `CIDR`, `UUID`, and geometric types. [#3900](https://github.com/elastic/connectors/pull/3900), [#3879](https://github.com/elastic/connectors/issues/3879)
+
+## 9.2.4 [connectors-9.2.4-release-notes]
+There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
+
+## 9.2.3 [connectors-9.2.3-release-notes]
+
+### Fixes [connectors-9.2.3-fixes]
+* Fixed a bug in the Network Drive connector that caused connections to SMB servers to close prematurely, leading to errors when multiple connections were made to the same host. [#3868](https://github.com/elastic/connectors/pull/3868), [#3873](https://github.com/elastic/connectors/pull/3873)
+
+## 9.2.2 [connectors-9.2.2-release-notes]
+There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
+
+## 9.2.1 [connectors-9.2.1-release-notes]
+There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
+
 ## 9.2.0 [connectors-9.2.0-release-notes]
 
 ### Features and enhancements [connectors-9.2.0-features-enhancements]
 * Refactored pagination from OFFSET-based to keyset (primary-key) pagination in the MySQL connector. This delivers 3×+ faster syncs on large tables and modest gains on smaller ones. [#3719](https://github.com/elastic/connectors/pull/3719).
 
 * Updated the Jira connector to use the new `/rest/api/3/search/jql` endpoint, ensuring compatibility with Jira’s latest API. [#3710](https://github.com/elastic/connectors/pull/3710).
+
+## 9.1.10 [connectors-9.1.10-release-notes]
+There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
+
+## 9.1.9 [connectors-9.1.9-release-notes]
+
+### Fixes [connectors-9.1.9-fixes]
+* Fixed a bug in the Network Drive connector that caused connections to SMB servers to close prematurely, leading to errors when multiple connections were made to the same host. [#3868](https://github.com/elastic/connectors/pull/3868), [#3873](https://github.com/elastic/connectors/pull/3873)
+
+## 9.1.8 [connectors-9.1.8-release-notes]
+There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
+
+## 9.1.7 [connectors-9.1.7-release-notes]
+There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
 
 ## 9.1.6 [connectors-9.1.6-release-notes]
 

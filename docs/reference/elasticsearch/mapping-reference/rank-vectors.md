@@ -34,7 +34,27 @@ PUT my-rank-vectors-float/_doc/1
 ```
 % TESTSETUP
 
-In addition to the `float` element type, `byte` and `bit` element types are also supported.
+In addition to the `float` element type, `bfloat16`, `byte`, and `bit` element types are also supported.
+
+Here is an example of using this field with `bfloat16` elements.
+```console
+PUT my-rank-vectors-bfloat16
+{
+  "mappings": {
+    "properties": {
+      "my_vector": {
+        "type": "rank_vectors",
+        "element_type": "bfloat16"
+      }
+    }
+  }
+}
+
+PUT my-rank-vectors-bfloat16/_doc/1
+{
+  "my_vector" : [[0.5, 10, 6], [-0.5, 10, 10]]
+}
+```
 
 Here is an example of using this field with `byte` elements.
 
@@ -91,6 +111,9 @@ $$$rank-vectors-element-type$$$
 ::::{dropdown} Valid values for element_type
 `float`
 :   indexes a 4-byte floating-point value per dimension. This is the default value.
+
+`bfloat16` {applies_to}`stack: ga 9.3`
+:   indexes a 2-byte floating-point value per dimension.
 
 `byte`
 :   indexes a 1-byte integer value per dimension.

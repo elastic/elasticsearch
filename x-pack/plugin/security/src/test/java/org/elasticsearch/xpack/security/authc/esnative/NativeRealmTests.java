@@ -36,7 +36,7 @@ public class NativeRealmTests extends ESTestCase {
     private SecurityIndexManager.IndexState dummyState(ClusterHealthStatus indexStatus) {
         return mock(SecurityIndexManager.class).new IndexState(
             Metadata.DEFAULT_PROJECT_ID, SecurityIndexManager.ProjectStatus.PROJECT_AVAILABLE, Instant.now(), true, true, true, true, true,
-            null, null, null, null, concreteSecurityIndexName, indexStatus, IndexMetadata.State.OPEN, "my_uuid", Set.of()
+            null, false, null, null, null, concreteSecurityIndexName, indexStatus, IndexMetadata.State.OPEN, "my_uuid", Set.of()
         );
     }
 

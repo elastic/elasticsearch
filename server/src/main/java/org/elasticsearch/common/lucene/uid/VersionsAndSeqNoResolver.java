@@ -14,9 +14,10 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CloseableThreadLocal;
-import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
+import org.elasticsearch.index.mapper.Uid;
 
 import java.io.IOException;
 import java.util.Base64;
@@ -153,22 +154,30 @@ public final class VersionsAndSeqNoResolver {
      * This allows this method to know whether there is no document with the specified id without loading the docid for
      * the specified id.
      *
-     * @param reader    The reader load docid, version and seqno from.
-     * @param uid       The term that describes the uid of the document to load docid, version and seqno for.
-     * @param id        The id that contains the encoded timestamp. The timestamp is used to skip checking the id for entire segments.
-     * @param loadSeqNo Whether to load sequence number from _seq_no doc values field.
+     * @param reader         The reader load docid, version and seqno from.
+     * @param uid            The term that describes the uid of the document to load docid, version and seqno for.
+     * @param id             The id that contains the encoded timestamp. The timestamp is used to skip checking the id for entire segments.
+     * @param loadSeqNo      Whether to load sequence number from _seq_no doc values field.
+     * @param useSyntheticId Whether the id is a synthetic (true) or standard (false ) document id.
      * @return the internal doc ID and version for the specified term from the specified reader or
      *         returning <code>null</code> if no document was found for the specified id
      * @throws IOException In case of an i/o related failure
      */
-    public static DocIdAndVersion timeSeriesLoadDocIdAndVersion(IndexReader reader, BytesRef uid, String id, boolean loadSeqNo)
-        throws IOException {
-        byte[] idAsBytes = Base64.getUrlDecoder().decode(id);
-        assert idAsBytes.length == 20;
-        // id format: [4 bytes (basic hash routing fields), 8 bytes prefix of 128 murmurhash dimension fields, 8 bytes
-        // @timestamp)
-        long timestamp = ByteUtils.readLongBE(idAsBytes, 12);
-
+    public static DocIdAndVersion timeSeriesLoadDocIdAndVersion(
+        IndexReader reader,
+        BytesRef uid,
+        String id,
+        boolean loadSeqNo,
+        boolean useSyntheticId
+    ) throws IOException {
+        final long timestamp;
+        if (useSyntheticId) {
+            assert uid.equals(Uid.encodeId((id)));
+            timestamp = TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(uid);
+        } else {
+            byte[] idAsBytes = Base64.getUrlDecoder().decode(id);
+            timestamp = TsidExtractingIdFieldMapper.extractTimestampFromId(idAsBytes);
+        }
         PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, true);
         List<LeafReaderContext> leaves = reader.leaves();
         // iterate in default order, the segments should be sorted by DataStream#TIMESERIES_LEAF_READERS_SORTER
@@ -210,6 +219,15 @@ public final class VersionsAndSeqNoResolver {
      * The result is either null or the live and latest version of the given uid.
      */
     public static DocIdAndSeqNo loadDocIdAndSeqNo(IndexReader reader, BytesRef term) throws IOException {
+        return loadDocIdAndSeqNo(reader, term, true);
+    }
+
+    /**
+     * Loads the internal docId and sequence number of the latest copy for a given uid from the provided reader.
+     * When {@code loadSeqNo} is false, {@code UNASSIGNED_SEQ_NO} is returned instead of reading the doc value.
+     * The result is either null or the live and latest version of the given uid.
+     */
+    public static DocIdAndSeqNo loadDocIdAndSeqNo(IndexReader reader, BytesRef term, boolean loadSeqNo) throws IOException {
         final PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, false);
         final List<LeafReaderContext> leaves = reader.leaves();
         // iterate backwards to optimize for the frequently updated documents
@@ -217,7 +235,7 @@ public final class VersionsAndSeqNoResolver {
         for (int i = leaves.size() - 1; i >= 0; i--) {
             final LeafReaderContext leaf = leaves.get(i);
             final PerThreadIDVersionAndSeqNoLookup lookup = lookups[leaf.ord];
-            final DocIdAndSeqNo result = lookup.lookupSeqNo(term, leaf);
+            final DocIdAndSeqNo result = lookup.lookupDocIdAndSeqNo(term, leaf, loadSeqNo);
             if (result != null) {
                 return result;
             }

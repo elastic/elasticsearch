@@ -15,6 +15,10 @@ import org.elasticsearch.nativeaccess.lib.JavaLibrary;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.ZstdLibrary;
 
+import java.io.IOException;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileChannel.MapMode;
+
 abstract class AbstractNativeAccess implements NativeAccess {
 
     protected static final Logger logger = LogManager.getLogger(NativeAccess.class);
@@ -55,6 +59,12 @@ abstract class AbstractNativeAccess implements NativeAccess {
     public CloseableByteBuffer newConfinedBuffer(int len) {
         assert len > 0;
         return javaLib.newConfinedBuffer(len);
+    }
+
+    @Override
+    public CloseableMappedByteBuffer map(FileChannel fileChannel, MapMode mode, long position, long size) throws IOException {
+        assert fileChannel != null && position >= 0 && size > 0;
+        return javaLib.map(fileChannel, mode, position, size);
     }
 
     @Override

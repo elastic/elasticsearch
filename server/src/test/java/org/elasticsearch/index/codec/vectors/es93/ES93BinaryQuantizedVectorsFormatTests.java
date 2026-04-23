@@ -40,7 +40,6 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnFloatVectorQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
@@ -51,10 +50,12 @@ import org.apache.lucene.search.join.DiversifyingChildrenFloatKnnVectorQuery;
 import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
-import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.codec.vectors.BaseQuantizedKnnVectorsFormatTestCase;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
@@ -73,18 +74,23 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.oneOf;
 
-public class ES93BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
+public class ES93BinaryQuantizedVectorsFormatTests extends BaseQuantizedKnnVectorsFormatTestCase {
 
     static {
         LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
+    @Override
+    protected boolean supportsFloatVectorFallback() {
+        return false;
+    }
+
     private KnnVectorsFormat format;
 
     @Override
     public void setUp() throws Exception {
-        format = new ES93BinaryQuantizedVectorsFormat(ES93GenericFlatVectorsFormat.ElementType.STANDARD, random().nextBoolean());
+        format = new ES93BinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, random().nextBoolean());
         super.setUp();
     }
 
@@ -130,7 +136,7 @@ public class ES93BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormatT
         VectorSimilarityFunction similarityFunction = VectorSimilarityFunction.EUCLIDEAN;
         try (Directory d = newDirectory()) {
             IndexWriterConfig iwc = newIndexWriterConfig().setCodec(getCodec());
-            iwc.setMergePolicy(new SoftDeletesRetentionMergePolicy("soft_delete", MatchAllDocsQuery::new, iwc.getMergePolicy()));
+            iwc.setMergePolicy(new SoftDeletesRetentionMergePolicy("soft_delete", () -> Queries.ALL_DOCS_INSTANCE, iwc.getMergePolicy()));
             try (IndexWriter w = new IndexWriter(d, iwc)) {
                 List<Document> toAdd = new ArrayList<>();
                 for (int j = 1; j <= 5; j++) {
@@ -194,14 +200,18 @@ public class ES93BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormatT
             Locale.ROOT,
             expected,
             "ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format=%s)",
-            "ES818BinaryFlatVectorsScorer(nonQuantizedDelegate={}())"
+            "ES818BinaryFlatVectorsScorer(nonQuantizedDelegate=ES93GenericFlatVectorScorer(delegate={}))"
         );
-        expected = format(Locale.ROOT, expected, "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer={}())");
+        expected = format(
+            Locale.ROOT,
+            expected,
+            "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=ES93GenericFlatVectorScorer(delegate={}))"
+        );
 
-        var defaultScorer = expected.replaceAll("\\{}", "DefaultFlatVectorScorer");
-        var memSegScorer = expected.replaceAll("\\{}", "Lucene99MemorySegmentFlatVectorsScorer");
+        var defaultScorer = expected.replaceAll("\\{}", "DefaultFlatVectorScorer()");
+        var memSegScorer = expected.replaceAll("\\{}", "Lucene99MemorySegmentFlatVectorsScorer()");
 
-        KnnVectorsFormat format = new ES93BinaryQuantizedVectorsFormat(ES93GenericFlatVectorsFormat.ElementType.STANDARD, false);
+        KnnVectorsFormat format = new ES93BinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, false);
         assertThat(format, hasToString(oneOf(defaultScorer, memSegScorer)));
     }
 

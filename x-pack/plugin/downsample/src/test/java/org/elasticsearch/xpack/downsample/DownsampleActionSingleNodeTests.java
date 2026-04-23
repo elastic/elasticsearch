@@ -28,6 +28,7 @@ import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -112,7 +113,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -180,7 +180,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         sourceIndex = randomAlphaOfLength(14).toLowerCase(Locale.ROOT);
         downsampleIndex = "downsample-" + sourceIndex;
         startTime = randomLongBetween(946769284000L, 1607470084000L); // random date between 2000-2020
-        docCount = randomIntBetween(1000, 9000);
+        docCount = randomIntBetween(1000, 7000);
         numOfShards = randomIntBetween(1, 1);
         numOfReplicas = randomIntBetween(0, 0);
 
@@ -241,7 +241,6 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             .field("type", "aggregate_metric_double")
             .field("time_series_metric", "gauge")
             .array("metrics", new String[] { "min", "max", "sum", "value_count" })
-            .field("default_metric", "value_count")
             .endObject();
         mapping.startObject(FIELD_METRIC_LABEL_DOUBLE)
             .field("type", "double") /* numeric label indexed as a metric */
@@ -262,7 +261,6 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         mapping.startObject(FIELD_LABEL_AGG_METRIC)
             .field("type", "aggregate_metric_double")
             .array("metrics", new String[] { "min", "max", "sum", "value_count" })
-            .field("default_metric", "value_count")
             .endObject();
 
         mapping.endObject().endObject().endObject();
@@ -713,6 +711,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
             new String[] {},
             new String[] { FIELD_DIMENSION_1, FIELD_DIMENSION_2 },
+            Map.of(),
             new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.INITIALIZED, null)
         );
 
@@ -763,6 +762,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
             new String[] {},
             new String[] { FIELD_DIMENSION_1, FIELD_DIMENSION_2 },
+            Map.of(),
             new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.INITIALIZED, null)
         );
 
@@ -831,6 +831,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
             new String[] {},
             new String[] { FIELD_DIMENSION_1, FIELD_DIMENSION_2 },
+            Map.of(),
             new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.INITIALIZED, null)
         );
         /*
@@ -884,6 +885,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
                 new String[] {},
                 new String[] { FIELD_DIMENSION_1, FIELD_DIMENSION_2 },
+                Map.of(),
                 new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.INITIALIZED, null)
             );
 
@@ -942,6 +944,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
             new String[] {},
             new String[] { FIELD_DIMENSION_1, FIELD_DIMENSION_2 },
+            Map.of(),
             new DownsampleShardPersistentTaskState(
                 DownsampleShardIndexerStatus.STARTED,
                 new BytesRef(
@@ -1018,6 +1021,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
             new String[] {},
             new String[] { FIELD_DIMENSION_1 },
+            Map.of(),
             new DownsampleShardPersistentTaskState(
                 DownsampleShardIndexerStatus.STARTED,
                 // NOTE: there is just one dimension with two possible values, this needs to be one of the two possible tsid values.
@@ -1211,14 +1215,12 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         final MapperService mapperService = indicesService.createIndexMapperServiceForValidation(indexMetadata);
         final CompressedXContent sourceIndexCompressedXContent = new CompressedXContent(sourceIndexMappings);
         mapperService.merge(MapperService.SINGLE_MAPPING_NAME, sourceIndexCompressedXContent, MapperService.MergeReason.INDEX_TEMPLATE);
-        TimeseriesFieldTypeHelper helper = new TimeseriesFieldTypeHelper.Builder(mapperService).build(config.getTimestampField());
-
         Map<String, TimeSeriesParams.MetricType> metricFields = new HashMap<>();
         Map<String, String> labelFields = new HashMap<>();
         MappingVisitor.visitMapping(sourceIndexMappings, (field, fieldMapping) -> {
-            if (helper.isTimeSeriesMetric(field, fieldMapping)) {
+            if (TimeSeriesFields.isTimeSeriesMetric(fieldMapping)) {
                 metricFields.put(field, TimeSeriesParams.MetricType.fromString(fieldMapping.get(TIME_SERIES_METRIC_PARAM).toString()));
-            } else if (helper.isTimeSeriesLabel(field, fieldMapping)) {
+            } else if (TimeSeriesFields.isTimeSeriesLabel(field, mapperService, config.getTimestampField())) {
                 labelFields.put(field, fieldMapping.get("type").toString());
             }
         });
@@ -1307,112 +1309,117 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         Map<String, String> labelFields
     ) {
         final AggregationBuilder aggregations = buildAggregations(config, metricFields, labelFields, config.getTimestampField());
-        List<InternalAggregation> origList = aggregate(sourceIndex, aggregations).asList();
-        List<InternalAggregation> downsampleList = aggregate(downsampleIndex, aggregations).asList();
-        assertEquals(origList.size(), downsampleList.size());
-        for (int i = 0; i < origList.size(); i++) {
-            assertEquals(origList.get(i).getName(), downsampleList.get(i).getName());
-        }
+        SearchResponse respOrig = client().prepareSearch(sourceIndex).setSize(0).addAggregation(aggregations).get();
+        SearchResponse respDown = client().prepareSearch(downsampleIndex).setSize(0).addAggregation(aggregations).get();
+        try {
+            List<InternalAggregation> origList = respOrig.getAggregations().asList();
+            List<InternalAggregation> downsampleList = respDown.getAggregations().asList();
+            assertEquals(origList.size(), downsampleList.size());
+            for (int i = 0; i < origList.size(); i++) {
+                assertEquals(origList.get(i).getName(), downsampleList.get(i).getName());
+            }
 
-        StringTerms originalTsIdTermsAggregation = (StringTerms) origList.get(0);
-        StringTerms downsampleTsIdTermsAggregation = (StringTerms) downsampleList.get(0);
-        originalTsIdTermsAggregation.getBuckets().forEach(originalBucket -> {
+            StringTerms originalTsIdTermsAggregation = (StringTerms) origList.get(0);
+            StringTerms downsampleTsIdTermsAggregation = (StringTerms) downsampleList.get(0);
+            originalTsIdTermsAggregation.getBuckets().forEach(originalBucket -> {
 
-            StringTerms.Bucket downsampleBucket = downsampleTsIdTermsAggregation.getBucketByKey(originalBucket.getKeyAsString());
-            assertEquals(originalBucket.getAggregations().asList().size(), downsampleBucket.getAggregations().asList().size());
+                StringTerms.Bucket downsampleBucket = downsampleTsIdTermsAggregation.getBucketByKey(originalBucket.getKeyAsString());
+                assertEquals(originalBucket.getAggregations().asList().size(), downsampleBucket.getAggregations().asList().size());
 
-            InternalDateHistogram originalDateHistogram = (InternalDateHistogram) originalBucket.getAggregations().asList().get(0);
-            InternalDateHistogram downsamoleDateHistogram = (InternalDateHistogram) downsampleBucket.getAggregations().asList().get(0);
-            List<InternalDateHistogram.Bucket> originalDateHistogramBuckets = originalDateHistogram.getBuckets();
-            List<InternalDateHistogram.Bucket> downsampleDateHistogramBuckets = downsamoleDateHistogram.getBuckets();
-            assertEquals(originalDateHistogramBuckets.size(), downsampleDateHistogramBuckets.size());
-            assertEquals(
-                originalDateHistogramBuckets.stream().map(InternalDateHistogram.Bucket::getKeyAsString).collect(Collectors.toList()),
-                downsampleDateHistogramBuckets.stream().map(InternalDateHistogram.Bucket::getKeyAsString).collect(Collectors.toList())
-            );
+                InternalDateHistogram originalDateHistogram = (InternalDateHistogram) originalBucket.getAggregations().asList().get(0);
+                InternalDateHistogram downsamoleDateHistogram = (InternalDateHistogram) downsampleBucket.getAggregations().asList().get(0);
+                List<InternalDateHistogram.Bucket> originalDateHistogramBuckets = originalDateHistogram.getBuckets();
+                List<InternalDateHistogram.Bucket> downsampleDateHistogramBuckets = downsamoleDateHistogram.getBuckets();
+                assertEquals(originalDateHistogramBuckets.size(), downsampleDateHistogramBuckets.size());
+                assertEquals(
+                    originalDateHistogramBuckets.stream().map(InternalDateHistogram.Bucket::getKeyAsString).collect(Collectors.toList()),
+                    downsampleDateHistogramBuckets.stream().map(InternalDateHistogram.Bucket::getKeyAsString).collect(Collectors.toList())
+                );
 
-            for (int i = 0; i < originalDateHistogramBuckets.size(); ++i) {
-                InternalDateHistogram.Bucket originalDateHistogramBucket = originalDateHistogramBuckets.get(i);
-                InternalDateHistogram.Bucket downsampleDateHistogramBucket = downsampleDateHistogramBuckets.get(i);
-                assertEquals(originalDateHistogramBucket.getKeyAsString(), downsampleDateHistogramBucket.getKeyAsString());
+                for (int i = 0; i < originalDateHistogramBuckets.size(); ++i) {
+                    InternalDateHistogram.Bucket originalDateHistogramBucket = originalDateHistogramBuckets.get(i);
+                    InternalDateHistogram.Bucket downsampleDateHistogramBucket = downsampleDateHistogramBuckets.get(i);
+                    assertEquals(originalDateHistogramBucket.getKeyAsString(), downsampleDateHistogramBucket.getKeyAsString());
 
-                InternalAggregations originalAggregations = originalDateHistogramBucket.getAggregations();
-                InternalAggregations downsampleAggregations = downsampleDateHistogramBucket.getAggregations();
-                assertEquals(originalAggregations.asList().size(), downsampleAggregations.asList().size());
+                    InternalAggregations originalAggregations = originalDateHistogramBucket.getAggregations();
+                    InternalAggregations downsampleAggregations = downsampleDateHistogramBucket.getAggregations();
+                    assertEquals(originalAggregations.asList().size(), downsampleAggregations.asList().size());
 
-                List<InternalAggregation> nonTopHitsOriginalAggregations = originalAggregations.asList()
-                    .stream()
-                    .filter(agg -> agg.getType().equals("top_hits") == false)
-                    .toList();
-                List<InternalAggregation> nonTopHitsDownsampleAggregations = downsampleAggregations.asList()
-                    .stream()
-                    .filter(agg -> agg.getType().equals("top_hits") == false)
-                    .toList();
-                assertEquals(nonTopHitsOriginalAggregations, nonTopHitsDownsampleAggregations);
+                    List<InternalAggregation> nonTopHitsOriginalAggregations = originalAggregations.asList()
+                        .stream()
+                        .filter(agg -> agg.getType().equals("top_hits") == false)
+                        .toList();
+                    List<InternalAggregation> nonTopHitsDownsampleAggregations = downsampleAggregations.asList()
+                        .stream()
+                        .filter(agg -> agg.getType().equals("top_hits") == false)
+                        .toList();
+                    assertEquals(nonTopHitsOriginalAggregations, nonTopHitsDownsampleAggregations);
 
-                List<InternalAggregation> topHitsOriginalAggregations = originalAggregations.asList()
-                    .stream()
-                    .filter(agg -> agg.getType().equals("top_hits"))
-                    .toList();
-                List<InternalAggregation> topHitsDownsampleAggregations = downsampleAggregations.asList()
-                    .stream()
-                    .filter(agg -> agg.getType().equals("top_hits"))
-                    .toList();
-                assertEquals(topHitsOriginalAggregations.size(), topHitsDownsampleAggregations.size());
+                    List<InternalAggregation> topHitsOriginalAggregations = originalAggregations.asList()
+                        .stream()
+                        .filter(agg -> agg.getType().equals("top_hits"))
+                        .toList();
+                    List<InternalAggregation> topHitsDownsampleAggregations = downsampleAggregations.asList()
+                        .stream()
+                        .filter(agg -> agg.getType().equals("top_hits"))
+                        .toList();
+                    assertEquals(topHitsOriginalAggregations.size(), topHitsDownsampleAggregations.size());
 
-                for (int j = 0; j < topHitsDownsampleAggregations.size(); ++j) {
-                    InternalTopHits originalTopHits = (InternalTopHits) topHitsOriginalAggregations.get(j);
-                    InternalTopHits downsampleTopHits = (InternalTopHits) topHitsDownsampleAggregations.get(j);
-                    SearchHit[] originalHits = originalTopHits.getHits().getHits();
-                    SearchHit[] downsampleHits = downsampleTopHits.getHits().getHits();
-                    assertEquals(originalHits.length, downsampleHits.length);
+                    for (int j = 0; j < topHitsDownsampleAggregations.size(); ++j) {
+                        InternalTopHits originalTopHits = (InternalTopHits) topHitsOriginalAggregations.get(j);
+                        InternalTopHits downsampleTopHits = (InternalTopHits) topHitsDownsampleAggregations.get(j);
+                        SearchHit[] originalHits = originalTopHits.getHits().getHits();
+                        SearchHit[] downsampleHits = downsampleTopHits.getHits().getHits();
+                        assertEquals(originalHits.length, downsampleHits.length);
 
-                    for (int k = 0; k < originalHits.length; ++k) {
-                        SearchHit originalHit = originalHits[k];
-                        SearchHit downsampleHit = downsampleHits[k];
+                        for (int k = 0; k < originalHits.length; ++k) {
+                            SearchHit originalHit = originalHits[k];
+                            SearchHit downsampleHit = downsampleHits[k];
 
-                        Map<String, DocumentField> originalHitDocumentFields = originalHit.getDocumentFields();
-                        Map<String, DocumentField> downsampleHitDocumentFields = downsampleHit.getDocumentFields();
-                        List<DocumentField> originalFields = originalHitDocumentFields.values().stream().toList();
-                        List<DocumentField> downsampleFields = downsampleHitDocumentFields.values().stream().toList();
-                        List<Object> originalFieldsList = originalFields.stream().flatMap(x -> x.getValues().stream()).toList();
-                        List<Object> downsampelFieldsList = downsampleFields.stream().flatMap(x -> x.getValues().stream()).toList();
-                        if (originalFieldsList.isEmpty() == false && downsampelFieldsList.isEmpty() == false) {
-                            // NOTE: here we take advantage of the fact that a label field is indexed also as a metric of type
-                            // `counter`. This way we can actually check that the label value stored in the downsample index
-                            // is the last value (which is what we store for a metric of type counter) by comparing the metric
-                            // field value to the label field value.
-                            originalFieldsList.forEach(
-                                field -> assertTrue(
-                                    "Field [" + field + "] is not included in the downsample fields: " + downsampelFieldsList,
-                                    downsampelFieldsList.contains(field)
-                                )
-                            );
-                            downsampelFieldsList.forEach(
-                                field -> assertTrue(
-                                    "Field [" + field + "] is not included in the source fields: " + originalFieldsList,
-                                    originalFieldsList.contains(field)
-                                )
-                            );
-                            String labelName = originalHit.getDocumentFields().values().stream().findFirst().get().getName();
-                            Object originalLabelValue = originalHit.getDocumentFields().values().stream().findFirst().get().getValue();
-                            Object downsampleLabelValue = downsampleHit.getDocumentFields().values().stream().findFirst().get().getValue();
-                            Optional<InternalAggregation> labelAsMetric = topHitsOriginalAggregations.stream()
-                                .filter(agg -> agg.getName().equals("metric_" + downsampleTopHits.getName()))
-                                .findFirst();
-                            // NOTE: this check is possible only if the label can be indexed as a metric (the label is a numeric field)
-                            if (labelAsMetric.isPresent()) {
-                                double metricValue = ((InternalTopHits) labelAsMetric.get()).getHits().getHits()[0].field(
-                                    "metric_" + labelName
-                                ).getValue();
-                                assertEquals(metricValue, downsampleLabelValue);
-                                assertEquals(metricValue, originalLabelValue);
+                            Map<String, DocumentField> originalHitDocumentFields = originalHit.getDocumentFields();
+                            Map<String, DocumentField> downsampleHitDocumentFields = downsampleHit.getDocumentFields();
+                            List<DocumentField> originalFields = originalHitDocumentFields.values().stream().toList();
+                            List<DocumentField> downsampleFields = downsampleHitDocumentFields.values().stream().toList();
+                            if (originalFields.isEmpty() == false && downsampleFields.isEmpty() == false) {
+                                assertEquals(originalFields.size(), downsampleFields.size());
+                                for (int fieldIndex = 0; fieldIndex < originalFields.size(); fieldIndex++) {
+                                    DocumentField originalField = originalFields.get(fieldIndex);
+                                    DocumentField downsampleField = downsampleFields.get(fieldIndex);
+                                    assertEquals(originalField.getName(), downsampleField.getName());
+                                    originalField.getValues()
+                                        .forEach(
+                                            value -> assertTrue(
+                                                "Field ["
+                                                    + originalField.getName()
+                                                    + "] does not have the value ["
+                                                    + value
+                                                    + "] in the downsample field values: "
+                                                    + downsampleField.getValues(),
+                                                downsampleField.getValues().contains(value)
+                                            )
+                                        );
+                                    downsampleField.getValues()
+                                        .forEach(
+                                            value -> assertTrue(
+                                                "Field ["
+                                                    + downsampleField.getName()
+                                                    + "] does not have the value ["
+                                                    + value
+                                                    + "] in the source field values: "
+                                                    + originalField.getValues(),
+                                                originalField.getValues().contains(value)
+                                            )
+                                        );
+                                }
                             }
                         }
                     }
                 }
-            }
-        });
+            });
+        } finally {
+            respOrig.decRef();
+            respDown.decRef();
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -1571,6 +1578,11 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                             SortBuilders.fieldSort(timestampField).order(SortOrder.DESC)
                         ).size(1).fetchField(fieldName)
                     );
+                    case "first_value" -> dateHistogramAggregation.subAggregation(
+                        new TopHitsAggregationBuilder(fieldName + "_" + supportedAggregation).sort(
+                            SortBuilders.fieldSort(timestampField).order(SortOrder.ASC)
+                        ).size(1).fetchField(fieldName)
+                    );
                     case "sum" -> dateHistogramAggregation.subAggregation(
                         new SumAggregationBuilder(fieldName + "_" + supportedAggregation).field(fieldName)
                     );
@@ -1597,7 +1609,10 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         if (samplingMethod == DownsampleConfig.SamplingMethod.LAST_VALUE) {
             return new String[] { "last_value" };
         } else {
-            return metricType.supportedAggs();
+            if (metricType == TimeSeriesParams.MetricType.GAUGE) {
+                return metricType.supportedAggs();
+            }
+            return new String[] { "first_value" };
         }
     }
 
@@ -1824,11 +1839,10 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     static DownsampleConfig.SamplingMethod randomSamplingMethod() {
-        return switch (between(0, 2)) {
-            case 0 -> null;
-            case 1 -> DownsampleConfig.SamplingMethod.AGGREGATE;
-            case 2 -> DownsampleConfig.SamplingMethod.LAST_VALUE;
-            default -> throw new IllegalStateException("Unexpected randomisation branch");
-        };
+        if (between(0, DownsampleConfig.SamplingMethod.values().length) == 0) {
+            return null;
+        } else {
+            return randomFrom(DownsampleConfig.SamplingMethod.values());
+        }
     }
 }

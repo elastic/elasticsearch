@@ -55,7 +55,7 @@ public class GoogleAiStudioEmbeddingsModel extends GoogleAiStudioModel {
         super(model, serviceSettings);
     }
 
-    // Should only be used directly for testing
+    // Should be used directly only for testing
     GoogleAiStudioEmbeddingsModel(
         String inferenceEntityId,
         TaskType taskType,
@@ -65,13 +65,16 @@ public class GoogleAiStudioEmbeddingsModel extends GoogleAiStudioModel {
         ChunkingSettings chunkingSettings,
         @Nullable DefaultSecretSettings secrets
     ) {
-        super(
+        this(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
-            new ModelSecrets(secrets),
-            serviceSettings
+            new ModelSecrets(secrets)
         );
+    }
+
+    public GoogleAiStudioEmbeddingsModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(modelConfigurations, modelSecrets, (GoogleAiStudioEmbeddingsServiceSettings) modelConfigurations.getServiceSettings());
         try {
-            this.uri = buildUri(serviceSettings.modelId());
+            this.uri = buildUri(modelConfigurations.getServiceSettings().modelId());
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }

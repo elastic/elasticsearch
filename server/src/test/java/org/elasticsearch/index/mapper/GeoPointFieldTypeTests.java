@@ -19,6 +19,7 @@ import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.blockloader.docvalues.GeoBytesRefFromLongsBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
 import org.elasticsearch.script.ScriptCompiler;
 
@@ -38,12 +39,8 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
         boolean ignoreMalformed = randomBoolean();
-        MappedFieldType mapper = new GeoPointFieldMapper.Builder(
-            "field",
-            ScriptCompiler.NONE,
-            ignoreMalformed,
-            IndexVersion.current(),
-            null
+        MappedFieldType mapper = new GeoPointFieldMapper.Builder("field", ScriptCompiler.NONE, defaultIndexSettings()).ignoreMalformed(
+            ignoreMalformed
         ).build(MapperBuilderContext.root(false, false)).fieldType();
 
         Map<String, Object> jsonPoint = Map.of("type", "Point", "coordinates", List.of(42.0, 27.1));
@@ -125,7 +122,7 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchVectorTile() throws IOException {
-        MappedFieldType mapper = new GeoPointFieldMapper.Builder("field", ScriptCompiler.NONE, false, IndexVersion.current(), null).build(
+        MappedFieldType mapper = new GeoPointFieldMapper.Builder("field", ScriptCompiler.NONE, defaultIndexSettings()).build(
             MapperBuilderContext.root(false, false)
         ).fieldType();
         final int z = randomIntBetween(1, 10);
@@ -232,7 +229,7 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
 
         // then
         // verify that we use the correct block value reader
-        assertThat(loader, instanceOf(GeoPointFieldMapper.BytesRefFromLongsBlockLoader.class));
+        assertThat(loader, instanceOf(GeoBytesRefFromLongsBlockLoader.class));
     }
 
     public void testBlockLoaderFallsBackToSource() {

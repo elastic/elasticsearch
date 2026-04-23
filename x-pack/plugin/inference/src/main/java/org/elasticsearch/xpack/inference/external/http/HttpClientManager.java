@@ -24,6 +24,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -104,7 +105,17 @@ public class HttpClientManager implements Closeable {
         ClusterService clusterService,
         ThrottlerManager throttlerManager
     ) {
-        PoolingNHttpClientConnectionManager connectionManager = createConnectionManager();
+        return create(settings, threadPool, clusterService, throttlerManager, null);
+    }
+
+    public static HttpClientManager create(
+        Settings settings,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        ThrottlerManager throttlerManager,
+        @Nullable TimeValue connectionTtl
+    ) {
+        PoolingNHttpClientConnectionManager connectionManager = createConnectionManager(connectionTtl);
         return new HttpClientManager(settings, connectionManager, threadPool, clusterService, throttlerManager);
     }
 
@@ -173,7 +184,7 @@ public class HttpClientManager implements Closeable {
         );
     }
 
-    private static PoolingNHttpClientConnectionManager createConnectionManager() {
+    private static PoolingNHttpClientConnectionManager createConnectionManager(@Nullable TimeValue connectionTtl) {
         ConnectingIOReactor ioReactor;
         try {
             var configBuilder = IOReactorConfig.custom().setSoKeepAlive(true);
@@ -184,13 +195,27 @@ public class HttpClientManager implements Closeable {
             throw new ElasticsearchException(message, e);
         }
 
+        var registry = RegistryBuilder.<SchemeIOSessionStrategy>create()
+            .register("http", NoopIOSessionStrategy.INSTANCE)
+            .register("https", SSLIOSessionStrategy.getDefaultStrategy())
+            .build();
+
+        // -1 is used as the default within the PoolingNHttpClientConnectionManager to indicate no TTL
+        var connectionTtlMillis = connectionTtl == null ? -1 : connectionTtl.getMillis();
+
         /*
-          The max time to live for open connections in the pool will not be set because we don't specify a ttl in the constructor.
-          This meaning that there should not be a limit.
-          We can control the TTL dynamically using the IdleConnectionEvictor and keep-alive strategy.
+          If the connection TTL is not set, the TTL will be controlled using the IdleConnectionEvictor and keep-alive strategy.
           The max idle time cluster setting will dictate how much time an open connection can be unused for before it can be closed.
          */
-        return new PoolingNHttpClientConnectionManager(ioReactor);
+        return new PoolingNHttpClientConnectionManager(
+            ioReactor,
+            null,
+            registry,
+            null,
+            null,
+            Math.toIntExact(connectionTtlMillis),
+            TimeUnit.MILLISECONDS
+        );
     }
 
     private void addSettingsUpdateConsumers(ClusterService clusterService) {

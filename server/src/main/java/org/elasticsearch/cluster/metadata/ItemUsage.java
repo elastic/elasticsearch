@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
@@ -27,6 +26,8 @@ import java.util.Set;
  * A class encapsulating the usage of a particular "thing" by something else
  */
 public class ItemUsage implements Writeable, ToXContentObject {
+
+    public static final ItemUsage EMPTY = new ItemUsage(null, null, null);
 
     private final Set<String> indices;
     private final Set<String> dataStreams;
@@ -46,24 +47,6 @@ public class ItemUsage implements Writeable, ToXContentObject {
         this.composableTemplates = composableTemplates == null ? null : new HashSet<>(composableTemplates);
     }
 
-    public ItemUsage(StreamInput in) throws IOException {
-        if (in.readBoolean()) {
-            this.indices = in.readCollectionAsSet(StreamInput::readString);
-        } else {
-            this.indices = null;
-        }
-        if (in.readBoolean()) {
-            this.dataStreams = in.readCollectionAsSet(StreamInput::readString);
-        } else {
-            this.dataStreams = null;
-        }
-        if (in.readBoolean()) {
-            this.composableTemplates = in.readCollectionAsSet(StreamInput::readString);
-        } else {
-            this.composableTemplates = null;
-        }
-    }
-
     public Set<String> getIndices() {
         return indices;
     }
@@ -79,15 +62,9 @@ public class ItemUsage implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (this.indices != null) {
-            builder.stringListField("indices", this.indices);
-        }
-        if (this.dataStreams != null) {
-            builder.stringListField("data_streams", this.dataStreams);
-        }
-        if (this.composableTemplates != null) {
-            builder.stringListField("composable_templates", this.composableTemplates);
-        }
+        builder.stringListField("indices", this.indices != null ? this.indices : Set.of());
+        builder.stringListField("data_streams", this.dataStreams != null ? this.dataStreams : Set.of());
+        builder.stringListField("composable_templates", this.composableTemplates != null ? this.composableTemplates : Set.of());
         builder.endObject();
         return builder;
     }

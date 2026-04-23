@@ -83,32 +83,41 @@ public class TransportLogsStreamsToggleActivation extends AcknowledgedTransportM
         ProjectId projectId = projectResolver.getProjectId();
         ProjectMetadata projectMetadata = state.metadata().getProject(projectId);
         StreamsMetadata streamsState = projectMetadata.custom(StreamsMetadata.TYPE, StreamsMetadata.EMPTY);
-        boolean currentlyEnabled = streamsState.isLogsEnabled();
+        final StreamType streamType = request.stream();
+        boolean currentlyEnabled = streamType.streamTypeIsEnabled(projectMetadata);
         boolean shouldEnable = request.shouldEnable();
 
         if (shouldEnable == currentlyEnabled) {
-            logger.debug("Logs streams are already in the requested state: {}", shouldEnable);
+            logger.info("Stream [{}] is already in the requested state: {}", streamType.getStreamName(), shouldEnable);
             listener.onResponse(AcknowledgedResponse.TRUE);
             return;
         }
 
-        if (shouldEnable && logsIndexExists(projectMetadata)) {
+        if (shouldEnable && logsIndexExists(streamType, projectMetadata)) {
             listener.onFailure(
                 new ElasticsearchStatusException(
-                    "Cannot enable logs streams: indices named 'logs' or starting with 'logs.' already exist.",
+                    "Cannot enable streams: indices named '"
+                        + streamType.getStreamName()
+                        + "' or starting with '"
+                        + streamType.getStreamName()
+                        + ".' already exist.",
                     RestStatus.CONFLICT
                 )
             );
             return;
         }
 
-        StreamsMetadataUpdateTask updateTask = new StreamsMetadataUpdateTask(request, listener, projectId, shouldEnable);
-        String taskName = String.format(Locale.ROOT, "enable-streams-logs-[%s]", shouldEnable ? "enable" : "disable");
+        StreamsMetadataUpdateTask updateTask = new StreamsMetadataUpdateTask(request, listener, projectId, streamType, shouldEnable);
+        String taskName = String.format(
+            Locale.ROOT,
+            "enable-streams-logs-[%s]",
+            streamType.getStreamName() + "-" + (shouldEnable ? "enable" : "disable")
+        );
         taskQueue.submitTask(taskName, updateTask, updateTask.timeout());
     }
 
-    private boolean logsIndexExists(ProjectMetadata projectMetadata) {
-        String logsStreamName = StreamType.LOGS.getStreamName();
+    private boolean logsIndexExists(StreamType streamType, ProjectMetadata projectMetadata) {
+        String logsStreamName = streamType.getStreamName();
         String logsStreamPrefix = logsStreamName + ".";
 
         for (String name : projectMetadata.getConcreteAllIndices()) {
@@ -127,25 +136,35 @@ public class TransportLogsStreamsToggleActivation extends AcknowledgedTransportM
 
     static class StreamsMetadataUpdateTask extends AckedClusterStateUpdateTask {
         private final ProjectId projectId;
+        private final StreamType type;
         private final boolean enabled;
 
         StreamsMetadataUpdateTask(
             AcknowledgedRequest<?> request,
             ActionListener<? extends AcknowledgedResponse> listener,
             ProjectId projectId,
+            StreamType type,
             boolean enabled
         ) {
             super(request, listener);
             this.projectId = projectId;
+            this.type = type;
             this.enabled = enabled;
         }
 
         @Override
         public ClusterState execute(ClusterState currentState) {
-            return currentState.copyAndUpdateProject(
-                projectId,
-                builder -> builder.putCustom(StreamsMetadata.TYPE, new StreamsMetadata(enabled))
-            );
+            final StreamsMetadata streamMetadata = currentState.projectState(projectId)
+                .metadata()
+                .custom(StreamsMetadata.TYPE, StreamsMetadata.EMPTY);
+            return currentState.copyAndUpdateProject(projectId, builder -> {
+                switch (type) {
+                    case LOGS_ECS -> builder.putCustom(StreamsMetadata.TYPE, streamMetadata.toggleECS(enabled));
+                    case LOGS_OTEL -> builder.putCustom(StreamsMetadata.TYPE, streamMetadata.toggleOTel(enabled));
+                    case LOGS -> builder.putCustom(StreamsMetadata.TYPE, streamMetadata.toggleLogs(enabled));
+                }
+                ;
+            });
         }
     }
 }

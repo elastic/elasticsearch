@@ -427,7 +427,7 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
     }
 
     public void testGetResultMappings_DependentVariableMappingIsAbsent() {
-        FieldCapabilitiesResponse fieldCapabilitiesResponse = new FieldCapabilitiesResponse(new String[0], Collections.emptyMap());
+        FieldCapabilitiesResponse fieldCapabilitiesResponse = FieldCapabilitiesResponse.empty();
         expectThrows(
             ElasticsearchStatusException.class,
             () -> new Classification("foo").getResultMappings("results", fieldCapabilitiesResponse)
@@ -435,10 +435,9 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
     }
 
     public void testGetResultMappings_DependentVariableMappingHasNoTypes() {
-        FieldCapabilitiesResponse fieldCapabilitiesResponse = new FieldCapabilitiesResponse(
-            new String[0],
-            Collections.singletonMap("foo", Collections.emptyMap())
-        );
+        FieldCapabilitiesResponse fieldCapabilitiesResponse = FieldCapabilitiesResponse.builder()
+            .withFields(Collections.singletonMap("foo", Collections.emptyMap()))
+            .build();
         expectThrows(
             ElasticsearchStatusException.class,
             () -> new Classification("foo").getResultMappings("results", fieldCapabilitiesResponse)
@@ -459,10 +458,9 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
                 Map.of("type", "double")
             )
         );
-        FieldCapabilitiesResponse fieldCapabilitiesResponse = new FieldCapabilitiesResponse(
-            new String[0],
-            Collections.singletonMap("foo", Collections.singletonMap("dummy", createFieldCapabilities("foo", "dummy")))
-        );
+        FieldCapabilitiesResponse fieldCapabilitiesResponse = FieldCapabilitiesResponse.builder()
+            .withFields(Collections.singletonMap("foo", Collections.singletonMap("dummy", createFieldCapabilities("foo", "dummy"))))
+            .build();
 
         Map<String, Object> resultMappings = new Classification("foo").getResultMappings("results", fieldCapabilitiesResponse);
 

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.inference.services.cohere.completion;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,13 +30,17 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalUri;
 import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings.API_VERSION;
 import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings.MODEL_REQUIRED_FOR_V2_API;
 import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings.apiVersionFromMap;
 
+/**
+ * Settings for the Cohere completion service.
+ * This class encapsulates the configuration settings required to use Cohere models for generating completions.
+ */
 public class CohereCompletionServiceSettings extends FilteredXContentObject implements ServiceSettings, CohereRateLimitServiceSettings {
 
     public static final String NAME = "cohere_completion_service_settings";
@@ -46,29 +50,26 @@ public class CohereCompletionServiceSettings extends FilteredXContentObject impl
     // 10K requests per minute
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(10_000);
 
+    /**
+     * Creates an instance of {@link CohereCompletionServiceSettings} from a map of settings.
+     *
+     * @param map The map containing the settings.
+     * @param context The context for configuration parsing.
+     * @return the created {@link CohereCompletionServiceSettings}.
+     * @throws ValidationException If there are validation errors in the provided settings.
+     */
     public static CohereCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
 
-        String url = extractOptionalString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        URI uri = convertToUri(url, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
-            map,
-            DEFAULT_RATE_LIMIT_SETTINGS,
-            validationException,
-            CohereService.NAME,
-            context
-        );
-        String modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var uri = extractOptionalUri(map, URL, validationException);
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, CohereService.NAME, context);
+        var modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var apiVersion = apiVersionFromMap(map, context, validationException);
-        if (apiVersion == CohereServiceSettings.CohereApiVersion.V2) {
-            if (modelId == null) {
-                validationException.addValidationError(MODEL_REQUIRED_FOR_V2_API);
-            }
+        if (apiVersion == CohereServiceSettings.CohereApiVersion.V2 && modelId == null) {
+            validationException.addValidationError(MODEL_REQUIRED_FOR_V2_API);
         }
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new CohereCompletionServiceSettings(uri, modelId, rateLimitSettings, apiVersion);
     }
@@ -99,6 +100,11 @@ public class CohereCompletionServiceSettings extends FilteredXContentObject impl
         this(createOptionalUri(url), modelId, rateLimitSettings, apiVersion);
     }
 
+    /**
+     * Creates {@link CohereCompletionServiceSettings} from a {@link StreamInput}.
+     * @param in the stream input
+     * @throws IOException if an I/O exception occurs
+     */
     public CohereCompletionServiceSettings(StreamInput in) throws IOException {
         uri = createOptionalUri(in.readOptionalString());
         modelId = in.readOptionalString();
@@ -129,6 +135,23 @@ public class CohereCompletionServiceSettings extends FilteredXContentObject impl
     }
 
     @Override
+    public CohereCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            CohereService.NAME,
+            ConfigurationParseContext.REQUEST
+        );
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new CohereCompletionServiceSettings(this.uri, this.modelId, extractedRateLimitSettings, this.apiVersion);
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
@@ -146,7 +169,7 @@ public class CohereCompletionServiceSettings extends FilteredXContentObject impl
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_15_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -172,6 +195,11 @@ public class CohereCompletionServiceSettings extends FilteredXContentObject impl
         rateLimitSettings.toXContent(builder, params);
 
         return builder;
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 
     @Override

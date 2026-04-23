@@ -53,7 +53,7 @@ import java.util.Objects;
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 import static org.elasticsearch.search.fetch.subphase.InnerHitsContext.intersect;
 
-public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder> {
+public class NestedQueryBuilder extends LeafQueryBuilder<NestedQueryBuilder> {
     public static final String NAME = "nested";
     /**
      * The default value for ignore_unmapped.
@@ -297,7 +297,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         NestedObjectMapper mapper = context.nestedLookup().getNestedMappers().get(path);
         if (mapper == null) {
             if (ignoreUnmapped) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             } else {
                 throw new QueryShardException(context, "[" + NAME + "] failed to find nested object under path [" + path + "]");
             }

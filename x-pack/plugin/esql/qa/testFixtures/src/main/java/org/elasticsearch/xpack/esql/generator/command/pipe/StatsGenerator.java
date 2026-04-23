@@ -43,7 +43,7 @@ public class StatsGenerator implements CommandGenerator {
             return EMPTY_DESCRIPTION;
         }
         StringBuilder cmd = new StringBuilder(" | ");
-        cmd.append(commandName());
+        cmd.append(commandName().replace("_", " "));
         cmd.append(" ");
         int nStats = randomIntBetween(1, 5);
         for (int i = 0; i < nStats; i++) {
@@ -56,7 +56,7 @@ public class StatsGenerator implements CommandGenerator {
                     name = EsqlQueryGenerator.randomIdentifier();
                 }
             }
-            String expression = EsqlQueryGenerator.agg(nonNull);
+            String expression = EsqlQueryGenerator.agg(nonNull, previousCommands);
             if (i > 0) {
                 cmd.append(",");
             }

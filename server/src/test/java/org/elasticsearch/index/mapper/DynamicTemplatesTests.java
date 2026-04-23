@@ -69,7 +69,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             b.field("s", "hello");
             b.field("l", 1);
         }));
-        merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
+        mergeDynamicUpdate(mapperService, parsedDoc.dynamicMappingsUpdate());
 
         assertThat(mapperService.fieldType("s"), notNullValue());
         assertThat(mapperService.fieldType("s").indexType(), is(IndexType.NONE));
@@ -100,7 +100,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             b.field("s", "hello");
             b.field("l", 1);
         }));
-        merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
+        mergeDynamicUpdate(mapperService, parsedDoc.dynamicMappingsUpdate());
 
         assertThat(mapperService.fieldType("s"), notNullValue());
         var indexType = mapperService.fieldType("s").indexType();
@@ -117,7 +117,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         String docJson = copyToStringFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/simple/test-data.json");
         ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(docJson));
 
-        merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
+        mergeDynamicUpdate(mapperService, parsedDoc.dynamicMappingsUpdate());
         LuceneDocument doc = parsedDoc.rootDoc();
 
         IndexableField f = doc.getField("name");
@@ -172,7 +172,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         String docJson = copyToStringFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/simple/test-data.json");
         ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(docJson));
 
-        merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
+        mergeDynamicUpdate(mapperService, parsedDoc.dynamicMappingsUpdate());
         LuceneDocument doc = parsedDoc.rootDoc();
 
         IndexableField f = doc.getField("name");
@@ -704,7 +704,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         ParsedDocument parsed = mapperService.documentMapper().parse(source(b -> b.field("field", "foo")));
         assertNotNull(parsed.dynamicMappingsUpdate());
 
-        merge(mapperService, dynamicMapping(parsed.dynamicMappingsUpdate()));
+        mergeDynamicUpdate(mapperService, parsed.dynamicMappingsUpdate());
         assertNotNull(mapperService.documentMapper().mappers().getMapper("field.raw"));
         parsed = mapperService.documentMapper().parse(source(b -> b.field("field", "foo")));
         assertNull(parsed.dynamicMappingsUpdate());
@@ -748,7 +748,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         }));
         assertNotNull(doc.dynamicMappingsUpdate());
 
-        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
+        mergeDynamicUpdate(mapperService, doc.dynamicMappingsUpdate());
 
         DateFieldMapper dateMapper1 = (DateFieldMapper) mapperService.documentMapper().mappers().getMapper("date1");
         DateFieldMapper dateMapper2 = (DateFieldMapper) mapperService.documentMapper().mappers().getMapper("date2");
@@ -792,7 +792,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         }));
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("foo", "abc")));
         assertNotNull(doc.dynamicMappingsUpdate());
-        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
+        mergeDynamicUpdate(mapperService, doc.dynamicMappingsUpdate());
         assertThat(mapperService.fieldType("foo"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
     }
 
@@ -818,11 +818,8 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             b.field("s", "hello");
             b.field("l", 1);
         }));
-        assertEquals(
-            """
-                {"_doc":{"runtime":{"s":{"type":"long"}},"properties":{"l":{"type":"long"}}}}""",
-            Strings.toString(parsedDoc.dynamicMappingsUpdate())
-        );
+        assertEquals("""
+            {"_doc":{"runtime":{"s":{"type":"long"}},"properties":{"l":{"type":"long"}}}}""", parsedDoc.dynamicMappingsUpdate().string());
     }
 
     public void testDynamicTemplateRuntimeMatch() throws Exception {
@@ -905,7 +902,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
                   }
                 }
               }
-            }"""), Strings.toString(parsedDoc.dynamicMappingsUpdate()));
+            }"""), parsedDoc.dynamicMappingsUpdate().string());
     }
 
     public void testDynamicTemplateRuntimePathMatch() throws Exception {
@@ -976,7 +973,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
                   }
                 }
               }
-            }"""), Strings.toString(parsedDoc.dynamicMappingsUpdate()));
+            }"""), parsedDoc.dynamicMappingsUpdate().string());
     }
 
     public void testDynamicRuntimeWithDynamicTemplate() throws IOException {
@@ -1017,7 +1014,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
                   }
                 }
               }
-            }"""), Strings.toString(parsedDoc.dynamicMappingsUpdate()));
+            }"""), parsedDoc.dynamicMappingsUpdate().string());
 
         DocumentMapper documentMapper = createDocumentMapper(topMapping(b -> {
             b.field("dynamic", ObjectMapper.Dynamic.RUNTIME);
@@ -1055,7 +1052,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
                   }
                 }
               }
-            }"""), Strings.toString(parsedDoc2.dynamicMappingsUpdate()));
+            }"""), parsedDoc2.dynamicMappingsUpdate().string());
     }
 
     private MapperService createDynamicTemplateNoSubobjects() throws IOException {
@@ -1104,7 +1101,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             b.field("foo.metric.count.min", 4);
             b.field("foo.metric.count.max", 15);
         }));
-        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
+        mergeDynamicUpdate(mapperService, doc.dynamicMappingsUpdate());
         assertNoSubobjects(mapperService);
     }
 
@@ -1126,7 +1123,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             }
             b.endObject();
         }));
-        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
+        mergeDynamicUpdate(mapperService, doc.dynamicMappingsUpdate());
         assertNoSubobjects(mapperService);
     }
 
@@ -1159,7 +1156,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             }
             b.endObject();
         }));
-        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
+        mergeDynamicUpdate(mapperService, doc.dynamicMappingsUpdate());
         assertNoSubobjects(mapperService);
     }
 
@@ -1261,8 +1258,9 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         assertNotNull(parsedDocument.rootDoc().getField("service.time.max"));
         assertNotNull(parsedDocument.rootDoc().getField("location.with.dots"));
         assertNotNull(parsedDocument.dynamicMappingsUpdate());
-        assertNotNull(parsedDocument.dynamicMappingsUpdate().getRoot().getMapper("service.time.max"));
-        assertThat(parsedDocument.dynamicMappingsUpdate().getRoot().getMapper("location.with.dots"), instanceOf(GeoPointFieldMapper.class));
+        Mapping dynamicUpdate = parseDynamicUpdate(parsedDocument.dynamicMappingsUpdate());
+        assertNotNull(dynamicUpdate.getRoot().getMapper("service.time.max"));
+        assertThat(dynamicUpdate.getRoot().getMapper("location.with.dots"), instanceOf(GeoPointFieldMapper.class));
     }
 
     public void testDynamicSubobjectsFalseDynamicFalse() throws Exception {
@@ -1319,7 +1317,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         assertNotNull(doc.rootDoc().getField("metrics.service.time"));
         assertNull(doc.rootDoc().getField("metrics.service.time.max"));
         assertNotNull(doc.dynamicMappingsUpdate());
-        ObjectMapper metrics = (ObjectMapper) doc.dynamicMappingsUpdate().getRoot().getMapper("metrics");
+        ObjectMapper metrics = (ObjectMapper) parseDynamicUpdate(doc.dynamicMappingsUpdate()).getRoot().getMapper("metrics");
         assertEquals(ObjectMapper.Dynamic.FALSE, metrics.dynamic());
         assertEquals(1, metrics.mappers.size());
         ObjectMapper service = (ObjectMapper) metrics.getMapper("service");
@@ -1395,269 +1393,13 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         assertThat(ex.getMessage(), containsString("dynamic template [my_template] has invalid content"));
 
         // the previous exception should be ignored by indices with v7 index versions
-        IndexVersion indexVersion = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0);
+        IndexVersion indexVersion = IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.V_8_0_0);
         Settings settings = Settings.builder().put("number_of_shards", 1).put("index.version.created", indexVersion).build();
         MapperService mapperService = createMapperService(indexVersion, settings, () -> randomBoolean());
         merge(mapperService, mapping);
         assertWarnings(
             "Parameter [ignore_malformed] is used in a dynamic template mapping and has no effect on type [keyword]. "
                 + "Usage will result in an error in future major versions and should be removed."
-        );
-    }
-
-    public void testSubobjectsAutoFlatPaths() throws IOException {
-        assumeTrue("only test when feature flag for subobjects auto is enabled", ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG);
-        MapperService mapperService = createDynamicTemplateAutoSubobjects();
-        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
-            b.field("foo.metric.count", 10);
-            b.field("foo.bar.baz", 10);
-            b.field("foo.metric.count.min", 4);
-            b.field("foo.metric.count.max", 15);
-        }));
-        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
-        assertNoSubobjects(mapperService);
-    }
-
-    public void testSubobjectsAutoStructuredPaths() throws IOException {
-        assumeTrue("only test when feature flag for subobjects auto is enabled", ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG);
-        MapperService mapperService = createDynamicTemplateAutoSubobjects();
-        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
-            b.startObject("foo");
-            {
-                b.startObject("metric");
-                {
-                    b.field("count", 10);
-                    b.field("count.min", 4);
-                    b.field("count.max", 15);
-                }
-                b.endObject();
-                b.startObject("bar");
-                b.field("baz", 10);
-                b.endObject();
-            }
-            b.endObject();
-        }));
-        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
-        assertNoSubobjects(mapperService);
-    }
-
-    public void testSubobjectsAutoArrayOfObjects() throws IOException {
-        assumeTrue("only test when feature flag for subobjects auto is enabled", ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG);
-        MapperService mapperService = createDynamicTemplateAutoSubobjects();
-        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
-            b.startObject("foo");
-            {
-                b.startArray("metric");
-                {
-                    b.startObject();
-                    {
-                        b.field("count", 10);
-                        b.field("count.min", 4);
-                        b.field("count.max", 15);
-                    }
-                    b.endObject();
-                    b.startObject();
-                    {
-                        b.field("count", 5);
-                        b.field("count.min", 3);
-                        b.field("count.max", 50);
-                    }
-                    b.endObject();
-                }
-                b.endArray();
-                b.startObject("bar");
-                b.field("baz", 10);
-                b.endObject();
-            }
-            b.endObject();
-        }));
-        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
-        assertNoSubobjects(mapperService);
-    }
-
-    public void testSubobjectAutoDynamicNested() throws IOException {
-        assumeTrue("only test when feature flag for subobjects auto is enabled", ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG);
-        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
-            b.startArray("dynamic_templates");
-            {
-                b.startObject();
-                b.startObject("nested");
-                {
-                    b.field("match", "object");
-                    b.startObject("mapping");
-                    {
-                        b.field("type", "nested");
-                    }
-                    b.endObject();
-                }
-                b.endObject();
-                b.endObject();
-            }
-            b.endArray();
-            b.startObject("properties");
-            b.startObject("metrics").field("type", "object").field("subobjects", "auto").endObject();
-            b.endObject();
-        }));
-
-        ParsedDocument doc = mapper.parse(source("""
-            {
-              "metrics.object" : {
-                "foo" : "bar"
-              }
-            }
-            """));
-
-        assertNotNull(doc.docs().get(0).get("metrics.object.foo"));
-        assertThat(
-            ((ObjectMapper) doc.dynamicMappingsUpdate().getRoot().getMapper("metrics")).getMapper("object"),
-            instanceOf(NestedObjectMapper.class)
-        );
-    }
-
-    public void testRootSubobjectAutoDynamicNested() throws IOException {
-        assumeTrue("only test when feature flag for subobjects auto is enabled", ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG);
-        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
-            b.startArray("dynamic_templates");
-            {
-                b.startObject();
-                b.startObject("nested");
-                {
-                    b.field("match", "object");
-                    b.startObject("mapping");
-                    {
-                        b.field("type", "nested");
-                    }
-                    b.endObject();
-                }
-                b.endObject();
-                b.endObject();
-            }
-            b.endArray();
-            b.field("subobjects", "auto");
-        }));
-
-        ParsedDocument doc = mapper.parse(source("""
-            {
-              "object" : {
-                "foo" : "bar"
-              }
-            }
-            """));
-
-        assertNotNull(doc.docs().get(0).get("object.foo"));
-        assertThat(doc.dynamicMappingsUpdate().getRoot().getMapper("object"), instanceOf(NestedObjectMapper.class));
-    }
-
-    public void testDynamicSubobjectsAutoDynamicFalse() throws Exception {
-        assumeTrue("only test when feature flag for subobjects auto is enabled", ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG);
-        // verify that we read the dynamic value properly from the parent mapper. DocumentParser#dynamicOrDefault splits the field
-        // name where dots are found, but it does that only for the parent prefix e.g. metrics.service and not for the leaf suffix time.max
-        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
-            b.startArray("dynamic_templates");
-            {
-                b.startObject();
-                b.startObject("metrics");
-                {
-                    b.field("match", "metrics");
-                    b.startObject("mapping");
-                    {
-                        b.field("type", "object");
-                        b.field("dynamic", "false");
-                        b.startObject("properties");
-                        {
-                            b.startObject("service");
-                            {
-                                b.field("type", "object");
-                                b.field("subobjects", "auto");
-                                b.startObject("properties");
-                                {
-                                    b.startObject("time");
-                                    b.field("type", "keyword");
-                                    b.endObject();
-                                }
-                                b.endObject();
-                            }
-                            b.endObject();
-                        }
-                        b.endObject();
-                    }
-                    b.endObject();
-                }
-                b.endObject();
-                b.endObject();
-            }
-            b.endArray();
-        }));
-
-        ParsedDocument doc = mapper.parse(source("""
-            {
-              "metrics": {
-                "service": {
-                  "time" : 10,
-                  "time.max" : 500
-                }
-              }
-            }
-            """));
-
-        assertNotNull(doc.rootDoc().getField("metrics.service.time"));
-        assertNull(doc.rootDoc().getField("metrics.service.time.max"));
-        assertNotNull(doc.dynamicMappingsUpdate());
-        ObjectMapper metrics = (ObjectMapper) doc.dynamicMappingsUpdate().getRoot().getMapper("metrics");
-        assertEquals(ObjectMapper.Dynamic.FALSE, metrics.dynamic());
-        assertEquals(1, metrics.mappers.size());
-        ObjectMapper service = (ObjectMapper) metrics.getMapper("service");
-        assertEquals(ObjectMapper.Subobjects.AUTO, service.subobjects());
-        assertEquals(1, service.mappers.size());
-        assertNotNull(service.getMapper("time"));
-    }
-
-    public void testSubobjectsAutoWithInnerNestedFromDynamicTemplate() throws IOException {
-        assumeTrue("only test when feature flag for subobjects auto is enabled", ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG);
-        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
-            b.startArray("dynamic_templates");
-            {
-                b.startObject();
-                {
-                    b.startObject("test");
-                    {
-                        b.field("match", "metrics");
-                        b.startObject("mapping");
-                        {
-                            b.field("type", "object").field("subobjects", "auto");
-                            b.startObject("properties");
-                            {
-                                b.startObject("time");
-                                b.field("type", "nested");
-                                b.endObject();
-                            }
-                            b.endObject();
-                        }
-                        b.endObject();
-                    }
-                    b.endObject();
-                }
-                b.endObject();
-            }
-            b.endArray();
-        }));
-
-        ParsedDocument doc = mapper.parse(source("""
-            {
-              "metrics": {
-                "time" : {
-                  "foo" : "bar"
-                },
-                "time.max" : 500
-              }
-            }
-            """));
-
-        assertNotNull(doc.rootDoc().get("metrics.time.max"));
-        assertNotNull(doc.docs().get(0).get("metrics.time.foo"));
-        assertThat(
-            ((ObjectMapper) doc.dynamicMappingsUpdate().getRoot().getMapper("metrics")).getMapper("time"),
-            instanceOf(NestedObjectMapper.class)
         );
     }
 
@@ -1711,7 +1453,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             }
             """));
 
-        Mapping mapping = doc.dynamicMappingsUpdate();
+        Mapping mapping = parseDynamicUpdate(doc.dynamicMappingsUpdate());
         ObjectMapper artifacts = (ObjectMapper) mapping.getRoot().getMapper("artifacts");
         ObjectMapper dynamic1 = (ObjectMapper) artifacts.getMapper("dynamic1");
         ObjectMapper identifiers1 = (ObjectMapper) dynamic1.getMapper("identifiers");
@@ -1790,7 +1532,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             }
             """));
 
-        Mapping mapping = doc.dynamicMappingsUpdate();
+        Mapping mapping = parseDynamicUpdate(doc.dynamicMappingsUpdate());
         ObjectMapper artifacts = (ObjectMapper) mapping.getRoot().getMapper("artifacts");
         ObjectMapper dynamic = (ObjectMapper) artifacts.getMapper("dynamic");
         ObjectMapper identifiers = (ObjectMapper) dynamic.getMapper("identifiers");
@@ -1859,7 +1601,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             }
             """));
 
-        Mapping mapping = doc.dynamicMappingsUpdate();
+        Mapping mapping = parseDynamicUpdate(doc.dynamicMappingsUpdate());
         ObjectMapper artifacts = (ObjectMapper) mapping.getRoot().getMapper("artifacts");
         ObjectMapper dynamic = (ObjectMapper) artifacts.getMapper("dynamic");
         ObjectMapper identifiers = (ObjectMapper) dynamic.getMapper("identifiers");
@@ -1920,7 +1662,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             }
             """));
 
-        Mapping mapping = doc.dynamicMappingsUpdate();
+        Mapping mapping = parseDynamicUpdate(doc.dynamicMappingsUpdate());
         ObjectMapper artifacts = (ObjectMapper) mapping.getRoot().getMapper("artifacts");
         ObjectMapper dynamic = (ObjectMapper) artifacts.getMapper("dynamic");
         ObjectMapper identifiers = (ObjectMapper) dynamic.getMapper("identifiers");
@@ -1959,7 +1701,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             }
             """));
 
-        Mapping mapping = doc.dynamicMappingsUpdate();
+        Mapping mapping = parseDynamicUpdate(doc.dynamicMappingsUpdate());
         ObjectMapper artifacts = (ObjectMapper) mapping.getRoot().getMapper("artifacts");
         ObjectMapper disabled = (ObjectMapper) artifacts.getMapper("disabled");
         assertFalse(disabled.enabled.value());
@@ -1993,7 +1735,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             }
             """));
 
-        Mapping mapping = doc.dynamicMappingsUpdate();
+        Mapping mapping = parseDynamicUpdate(doc.dynamicMappingsUpdate());
         ObjectMapper artifacts = (ObjectMapper) mapping.getRoot().getMapper("artifacts");
         ObjectMapper strict = (ObjectMapper) artifacts.getMapper("strict");
         assertEquals(ObjectMapper.Dynamic.STRICT, strict.dynamic());
@@ -2027,7 +1769,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             }
             """));
 
-        Mapping mapping = doc.dynamicMappingsUpdate();
+        Mapping mapping = parseDynamicUpdate(doc.dynamicMappingsUpdate());
         ObjectMapper artifacts = (ObjectMapper) mapping.getRoot().getMapper("artifacts");
         ObjectMapper leaf = (ObjectMapper) artifacts.getMapper("leaf");
         assertEquals(ObjectMapper.Subobjects.DISABLED, leaf.subobjects());
@@ -2070,60 +1812,12 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
 
         MapperService mapperService = createMapperService(mapping);
         ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(docJson));
-        merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
+        mergeDynamicUpdate(mapperService, parsedDoc.dynamicMappingsUpdate());
 
         Mapper fooBarMapper = mapperService.documentMapper().mappers().getMapper("attributes.foo.bar");
         assertNotNull(fooBarMapper);
         assertEquals("text", fooBarMapper.typeName());
         Mapper fooStructuredMapper = mapperService.documentMapper().mappers().getMapper("attributes.complex.attribute");
-        assertNotNull(fooStructuredMapper);
-        assertEquals("flattened", fooStructuredMapper.typeName());
-    }
-
-    public void testSubobjectsAutoFlattened() throws IOException {
-        assumeTrue("only test when feature flag for subobjects auto is enabled", ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG);
-        String mapping = """
-            {
-              "_doc": {
-                "properties": {
-                  "attributes": {
-                    "type": "object",
-                    "subobjects": "auto"
-                  }
-                },
-                "dynamic_templates": [
-                  {
-                    "test": {
-                      "path_match": "attributes.resource.*",
-                      "match_mapping_type": "object",
-                      "mapping": {
-                        "type": "flattened"
-                      }
-                    }
-                  }
-                ]
-              }
-            }
-            """;
-        String docJson = """
-            {
-              "attributes.resource": {
-                "complex.attribute": {
-                  "a": "b"
-                },
-                "foo.bar": "baz"
-              }
-            }
-            """;
-
-        MapperService mapperService = createMapperService(mapping);
-        ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(docJson));
-        merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
-
-        Mapper fooBarMapper = mapperService.documentMapper().mappers().getMapper("attributes.resource.foo.bar");
-        assertNotNull(fooBarMapper);
-        assertEquals("text", fooBarMapper.typeName());
-        Mapper fooStructuredMapper = mapperService.documentMapper().mappers().getMapper("attributes.resource.complex.attribute");
         assertNotNull(fooStructuredMapper);
         assertEquals("flattened", fooStructuredMapper.typeName());
     }
@@ -2155,7 +1849,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
 
         MapperService mapperService = createMapperService(mapping);
         ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(docJson));
-        merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
+        mergeDynamicUpdate(mapperService, parsedDoc.dynamicMappingsUpdate());
         LuceneDocument doc = parsedDoc.rootDoc();
 
         assertEquals(IntField.class, doc.getField("long_one").getClass());
@@ -2203,7 +1897,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
 
         MapperService mapperService = createMapperService(mapping);
         ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(docJson));
-        merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
+        mergeDynamicUpdate(mapperService, parsedDoc.dynamicMappingsUpdate());
         LuceneDocument doc = parsedDoc.rootDoc();
 
         assertNotEquals(ESInetAddressPoint.class, doc.getField("one_ip").getClass());
@@ -2255,7 +1949,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
 
         MapperService mapperService = createMapperService(mapping);
         ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(docJson));
-        merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
+        mergeDynamicUpdate(mapperService, parsedDoc.dynamicMappingsUpdate());
         LuceneDocument doc = parsedDoc.rootDoc();
 
         assertEquals(ESInetAddressPoint.class, doc.getField("one100_ip").getClass());
@@ -2301,7 +1995,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
 
         MapperService mapperService = createMapperService(mapping);
         ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(docJson));
-        merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
+        mergeDynamicUpdate(mapperService, parsedDoc.dynamicMappingsUpdate());
         LuceneDocument doc = parsedDoc.rootDoc();
 
         assertEquals(ESInetAddressPoint.class, doc.getField("oneip").getClass());
@@ -2359,7 +2053,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
 
         MapperService mapperService = createMapperService(mapping);
         ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(docJson));
-        merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
+        mergeDynamicUpdate(mapperService, parsedDoc.dynamicMappingsUpdate());
 
         LuceneDocument doc = parsedDoc.rootDoc();
 
@@ -2418,7 +2112,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
 
         MapperService mapperService = createMapperService(mapping);
         ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(docJson));
-        merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
+        mergeDynamicUpdate(mapperService, parsedDoc.dynamicMappingsUpdate());
 
         LuceneDocument doc = parsedDoc.rootDoc();
 
@@ -2468,9 +2162,13 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
 
         MapperService mapperService = createMapperService(mapping);
         ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(docJson));
-        merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
+        mergeDynamicUpdate(mapperService, parsedDoc.dynamicMappingsUpdate());
 
-        Map<String, Object> actualDynamicMappings = XContentTestUtils.convertToMap(parsedDoc.dynamicMappingsUpdate());
+        Map<String, Object> actualDynamicMappings = XContentHelper.convertToMap(
+            parsedDoc.dynamicMappingsUpdate().compressedReference(),
+            true,
+            XContentType.JSON
+        ).v2();
 
         String expected = """
             {
@@ -2528,7 +2226,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
 
         MapperService mapperService = createMapperService(mapping);
         ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(docJson));
-        merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
+        mergeDynamicUpdate(mapperService, parsedDoc.dynamicMappingsUpdate());
 
         Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper("one_bool");
         assertNotNull(fieldMapper);
@@ -2583,7 +2281,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
 
         MapperService mapperService = createMapperService(mapping);
         ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(docJson1));
-        merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
+        mergeDynamicUpdate(mapperService, parsedDoc.dynamicMappingsUpdate());
 
         Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper("name.first");
         assertThat(fieldMapper, instanceOf(TextFieldMapper.class));
@@ -2605,7 +2303,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
 
         // test second doc with user.name.xxx
         parsedDoc = mapperService.documentMapper().parse(source(docJson2));
-        merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
+        mergeDynamicUpdate(mapperService, parsedDoc.dynamicMappingsUpdate());
 
         fieldMapper = mapperService.documentMapper().mappers().getMapper("user.name.first");
         assertThat(fieldMapper, instanceOf(TextFieldMapper.class));
@@ -2670,7 +2368,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
 
         MapperService mapperService = createMapperService(mapping);
         ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(docJson1));
-        merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
+        mergeDynamicUpdate(mapperService, parsedDoc.dynamicMappingsUpdate());
 
         Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper("name.first");
         assertThat(fieldMapper, instanceOf(TextFieldMapper.class));
@@ -2691,7 +2389,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
 
         // test second doc with user.name.xxx
         parsedDoc = mapperService.documentMapper().parse(source(docJson2));
-        merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
+        mergeDynamicUpdate(mapperService, parsedDoc.dynamicMappingsUpdate());
 
         fieldMapper = mapperService.documentMapper().mappers().getMapper("user.name.first");
         assertThat(fieldMapper, instanceOf(TextFieldMapper.class));
@@ -2894,7 +2592,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         }));
         DocumentMapper docMapper = mapperService.documentMapper();
         ParsedDocument parsedDoc = docMapper.parse(source(b -> { b.field("a.b.b", 123.456); }));
-        merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
+        mergeDynamicUpdate(mapperService, parsedDoc.dynamicMappingsUpdate());
 
         assertEquals("double", mapperService.fieldType("a.b.b").typeName());
     }

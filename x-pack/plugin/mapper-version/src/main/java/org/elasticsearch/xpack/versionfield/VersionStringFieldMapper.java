@@ -43,6 +43,7 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -116,6 +117,11 @@ public class VersionStringFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public VersionStringFieldMapper build(MapperBuilderContext context) {
             FieldType fieldtype = new FieldType(Defaults.FIELD_TYPE);
             return new VersionStringFieldMapper(leafName(), fieldtype, buildFieldType(context, fieldtype), builderParams(this, context));
@@ -132,7 +138,13 @@ public class VersionStringFieldMapper extends FieldMapper {
     public static final class VersionStringFieldType extends TermBasedFieldType {
 
         private VersionStringFieldType(String name, FieldType fieldType, Map<String, String> meta) {
-            super(name, true, false, true, new TextSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER), meta);
+            super(
+                name,
+                IndexType.terms(true, true),
+                false,
+                new TextSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER),
+                meta
+            );
         }
 
         @Override
@@ -305,7 +317,7 @@ public class VersionStringFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             failIfNoDocValues();
-            return new BytesRefsFromOrdsBlockLoader(name());
+            return new BytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
         }
 
         @Override

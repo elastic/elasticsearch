@@ -19,6 +19,7 @@ import org.elasticsearch.action.support.replication.TransportBroadcastReplicatio
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.injection.guice.Inject;
@@ -60,8 +61,8 @@ public class TransportRefreshAction extends TransportBroadcastReplicationAction<
     }
 
     @Override
-    protected BasicReplicationRequest newShardRequest(RefreshRequest request, ShardId shardId) {
-        BasicReplicationRequest replicationRequest = new BasicReplicationRequest(shardId);
+    protected BasicReplicationRequest newShardRequest(RefreshRequest request, ShardId shardId, SplitShardCountSummary shardCountSummary) {
+        BasicReplicationRequest replicationRequest = new BasicReplicationRequest(shardId, shardCountSummary);
         replicationRequest.waitForActiveShards(ActiveShardCount.NONE);
         return replicationRequest;
     }

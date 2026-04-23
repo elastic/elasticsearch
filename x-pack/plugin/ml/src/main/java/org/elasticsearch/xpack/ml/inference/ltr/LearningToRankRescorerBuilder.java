@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.inference.ltr;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -304,7 +303,7 @@ public class LearningToRankRescorerBuilder extends RescorerBuilder<LearningToRan
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_16_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

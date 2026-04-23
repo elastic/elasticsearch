@@ -13,19 +13,20 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 
 /**
  * Compact serializable container for ByteRefs
  */
-public final class BytesRefArray implements Accountable, Releasable, Writeable {
+public final class BytesRefArray extends AbstractRefCounted implements Accountable, Releasable, Writeable {
 
     // base size of the bytes ref array
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefArray.class);
@@ -36,12 +37,26 @@ public final class BytesRefArray implements Accountable, Releasable, Writeable {
     private long size;
 
     public BytesRefArray(long capacity, BigArrays bigArrays) {
+        this(capacity, bigArrays, 0L);
+    }
+
+    /**
+     * Creates a new {@link BytesRefArray} with pre-allocated byte storage.
+     *
+     * @param capacity  estimated number of entries
+     * @param bigArrays backing big-arrays instance
+     * @param byteHint  expected total byte payload; when positive, the internal byte
+     *                  buffer is pre-sized to this value instead of the default
+     *                  {@code capacity * 3}, reducing grow-on-demand resizes
+     */
+    public BytesRefArray(long capacity, BigArrays bigArrays, long byteHint) {
         this.bigArrays = bigArrays;
         boolean success = false;
         try {
             startOffsets = bigArrays.newLongArray(capacity + 1, false);
             startOffsets.set(0, 0);
-            bytes = bigArrays.newByteArray(capacity * 3, false);
+            long initialBytes = byteHint > 0 ? byteHint : capacity * 3;
+            bytes = bigArrays.newByteArray(initialBytes, false);
             success = true;
         } finally {
             if (false == success) {
@@ -77,22 +92,44 @@ public final class BytesRefArray implements Accountable, Releasable, Writeable {
         }
     }
 
-    private BytesRefArray(LongArray startOffsets, ByteArray bytes, long size, BigArrays bigArrays) {
+    public BytesRefArray(LongArray startOffsets, ByteArray bytes, long size, BigArrays bigArrays) {
         this.bytes = bytes;
         this.startOffsets = startOffsets;
         this.size = size;
         this.bigArrays = bigArrays;
     }
 
-    public void append(BytesRef key) {
-        assert startOffsets != null : "using BytesRefArray after ownership taken";
+    /**
+     * Appends the contents of the {@code value}, leaving it unchanged.
+     */
+    public void append(BytesRef value) {
         final long startOffset = startOffsets.get(size);
         startOffsets = bigArrays.grow(startOffsets, size + 2);
-        startOffsets.set(size + 1, startOffset + key.length);
+        startOffsets.set(size + 1, startOffset + value.length);
         ++size;
-        if (key.length > 0) {
-            bytes = bigArrays.grow(bytes, startOffset + key.length);
-            bytes.set(startOffset, key.bytes, key.offset, key.length);
+        if (value.length > 0) {
+            bytes = bigArrays.grow(bytes, startOffset + value.length);
+            bytes.set(startOffset, value.bytes, value.offset, value.length);
+        }
+    }
+
+    /**
+     * Appends the remaining contents of the {@code cursor}, entirely draining it.
+     * This does <strong>not</strong> change the cursor's underlying bytes, but it
+     * does advance the cursor to its end.
+     */
+    public void append(PagedBytesCursor cursor) {
+        final int length = cursor.remaining();
+        final long startOffset = startOffsets.get(size);
+        startOffsets = bigArrays.grow(startOffsets, size + 2);
+        startOffsets.set(size + 1, startOffset + length);
+        ++size;
+        if (length > 0) {
+            bytes = bigArrays.grow(bytes, startOffset + length);
+            long writeOffset = startOffset;
+            while (cursor.remaining() > 0) {
+                writeOffset += cursor.copyPageInto(bytes, writeOffset);
+            }
         }
     }
 
@@ -101,11 +138,16 @@ public final class BytesRefArray implements Accountable, Releasable, Writeable {
      * <p>Beware that the content of the {@link BytesRef} may become invalid as soon as {@link #close()} is called</p>
      */
     public BytesRef get(long id, BytesRef dest) {
-        assert startOffsets != null : "using BytesRefArray after ownership taken";
         final long startOffset = startOffsets.get(id);
         final int length = (int) (startOffsets.get(id + 1) - startOffset);
         bytes.get(startOffset, length, dest);
         return dest;
+    }
+
+    public PagedBytesCursor get(long id, PagedBytesCursor scratch) {
+        final long startOffset = startOffsets.get(id);
+        final int length = (int) (startOffsets.get(id + 1) - startOffset);
+        return bytes.get(startOffset, length, scratch);
     }
 
     public long size() {
@@ -114,66 +156,16 @@ public final class BytesRefArray implements Accountable, Releasable, Writeable {
 
     @Override
     public void close() {
+        decRef();
+    }
+
+    @Override
+    protected void closeInternal() {
         Releasables.close(bytes, startOffsets);
-    }
-
-    /**
-     * Create new instance and pass ownership of this array to the new one.
-     *
-     * Note, this closes this array. Don't use it after passing ownership.
-     *
-     * @param other BytesRefArray to claim ownership from
-     * @return a new BytesRefArray instance with the payload of other
-     */
-    public static BytesRefArray takeOwnershipOf(BytesRefArray other) {
-        BytesRefArray b = new BytesRefArray(other.startOffsets, other.bytes, other.size, other.bigArrays);
-
-        // don't leave a broken array behind, although it isn't used any longer
-        // on append both arrays get re-allocated
-        other.startOffsets = null;
-        other.bytes = null;
-        other.size = 0;
-
-        return b;
-    }
-
-    /**
-     * Creates a deep copy of the given BytesRefArray.
-     */
-    public static BytesRefArray deepCopy(BytesRefArray other) {
-        LongArray startOffsets = null;
-        ByteArray bytes = null;
-        BytesRefArray result = null;
-        try {
-            startOffsets = other.bigArrays.newLongArray(other.startOffsets.size());
-            for (long i = 0; i < other.startOffsets.size(); i++) {
-                startOffsets.set(i, other.startOffsets.get(i));
-            }
-            bytes = other.bigArrays.newByteArray(other.bytes.size());
-            BytesRefIterator it = other.bytes.iterator();
-            BytesRef ref;
-            long pos = 0;
-            try {
-                while ((ref = it.next()) != null) {
-                    bytes.set(pos, ref.bytes, ref.offset, ref.length);
-                    pos += ref.length;
-                }
-            } catch (IOException e) {
-                assert false : new AssertionError("BytesRefIterator should not throw IOException", e);
-                throw new UncheckedIOException(e);
-            }
-            result = new BytesRefArray(startOffsets, bytes, other.size, other.bigArrays);
-            return result;
-        } finally {
-            if (result == null) {
-                Releasables.closeExpectNoException(startOffsets, bytes);
-            }
-        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        assert startOffsets != null : "using BytesRefArray after ownership taken";
         out.writeVLong(size);
         long sizeOfStartOffsets = size + 1;
 

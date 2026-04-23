@@ -161,8 +161,7 @@ public class LeaderChecker {
      * publication targets, and also called if a leader becomes a non-leader.
      */
     void setCurrentNodes(DiscoveryNodes discoveryNodes) {
-        // Sorting the nodes for deterministic logging until https://github.com/elastic/elasticsearch/issues/94946 is fixed
-        logger.trace(() -> format("setCurrentNodes: %s", discoveryNodes.mastersFirstStream().toList()));
+        logger.trace(() -> format("setCurrentNodes: %s", discoveryNodes));
         this.discoveryNodes = discoveryNodes;
     }
 

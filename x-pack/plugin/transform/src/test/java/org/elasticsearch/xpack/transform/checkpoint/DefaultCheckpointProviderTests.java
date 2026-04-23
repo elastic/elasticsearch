@@ -31,9 +31,9 @@ import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.MockLog.LoggingExpectation;
 import org.elasticsearch.test.transport.StubLinkedProjectConfigService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
+import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.transform.notifications.MockTransformAuditor;
 import org.elasticsearch.xpack.transform.notifications.MockTransformAuditor.AuditExpectation;
 import org.elasticsearch.xpack.transform.persistence.IndexBasedTransformConfigManager;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 import org.mockito.stubbing.Answer;
 
 import java.time.Clock;
@@ -59,7 +60,6 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -232,51 +232,6 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         );
     }
 
-    public void testHandlingShardFailures() throws Exception {
-        var transformId = getTestName();
-        var indexName = "some-index";
-        TransformConfig transformConfig = new TransformConfig.Builder(TransformConfigTests.randomTransformConfig(transformId)).setSource(
-            new SourceConfig(indexName)
-        ).build();
-
-        var remoteClusterResolver = mock(RemoteClusterResolver.class);
-        doReturn(new RemoteClusterResolver.ResolvedIndices(Collections.emptyMap(), Collections.singletonList(indexName))).when(
-            remoteClusterResolver
-        ).resolve(transformConfig.getSource().getIndex());
-
-        mockGetIndexResponse(indexName);
-        mockIndicesStatsResponse(indexName);
-        mockGetCheckpointAction();
-
-        var provider = new DefaultCheckpointProvider(
-            clock,
-            parentTaskClient,
-            remoteClusterResolver,
-            transformConfigManager,
-            transformAuditor,
-            transformConfig
-        );
-
-        var latch = new CountDownLatch(1);
-        provider.createNextCheckpoint(
-            null,
-            new LatchedActionListener<>(
-                ActionListener.wrap(
-                    response -> fail("This test case must fail"),
-                    e -> assertThat(
-                        e.getMessage(),
-                        startsWith(
-                            "Source has [7] failed shards, first shard failure: [some-index][3] failed, "
-                                + "reason [java.lang.Exception: something's wrong"
-                        )
-                    )
-                ),
-                latch
-            )
-        );
-        assertTrue(latch.await(1, TimeUnit.MILLISECONDS));
-    }
-
     private void mockGetIndexResponse(String indexName) {
         GetIndexResponse getIndexResponse = new GetIndexResponse(new String[] { indexName }, null, null, null, null, null);
         doAnswer(withResponse(getIndexResponse)).when(client).execute(eq(GetIndexAction.INSTANCE), any(), any());
@@ -290,14 +245,6 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
                 new DefaultShardOperationFailedException(indexName, 3, new Exception("something's wrong")) }
         ).when(indicesStatsResponse).getShardFailures();
         doAnswer(withResponse(indicesStatsResponse)).when(client).execute(eq(IndicesStatsAction.INSTANCE), any(), any());
-    }
-
-    private void mockGetCheckpointAction() {
-        doAnswer(invocationOnMock -> {
-            ActionListener<?> listener = invocationOnMock.getArgument(2);
-            listener.onFailure(new ActionNotFoundTransportException("This should fail."));
-            return null;
-        }).when(client).execute(eq(GetCheckpointAction.INSTANCE), any(), any());
     }
 
     public void testHandlingNoClusters() throws Exception {
@@ -460,6 +407,111 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         assertThat(
             checkpointHolder.get().getIndicesCheckpoints().keySet(),
             containsInAnyOrder("remote-1:index-1", "remote-2:index-1", "remote-3:index-1")
+        );
+    }
+
+    public void testGetIndexCheckpointsQueryOmittedWhenRuntimeMappingsPresent() throws InterruptedException {
+        // Arrange: create a config with runtime_mappings and a query filter
+        String transformId = getTestName();
+        SourceConfig sourceWithRuntimeMappings = new SourceConfig(
+            new String[] { "source_index" },
+            QueryConfig.matchAll(),
+            Map.of("total_price_with_tax", Map.of("type", "double", "script", Map.of("source", "emit(1.0)"))),
+            null
+        );
+        TransformConfig transformConfig = new TransformConfig.Builder(TransformConfigTests.randomTransformConfig(transformId)).setSource(
+            sourceWithRuntimeMappings
+        ).build();
+
+        GetCheckpointAction.Response checkpointResponse = new GetCheckpointAction.Response(
+            Map.of("source_index", new long[] { 1L, 2L, 3L })
+        );
+        ArgumentCaptor<GetCheckpointAction.Request> requestCaptor = ArgumentCaptor.forClass(GetCheckpointAction.Request.class);
+        doAnswer(withResponse(checkpointResponse)).when(client).execute(eq(GetCheckpointAction.INSTANCE), requestCaptor.capture(), any());
+
+        RemoteClusterResolver remoteClusterResolver = mock(RemoteClusterResolver.class);
+        when(remoteClusterResolver.resolve(any(String[].class))).thenReturn(
+            new RemoteClusterResolver.ResolvedIndices(Map.of(), List.of("source_index"))
+        );
+
+        DefaultCheckpointProvider provider = new DefaultCheckpointProvider(
+            clock,
+            parentTaskClient,
+            remoteClusterResolver,
+            transformConfigManager,
+            transformAuditor,
+            transformConfig
+        );
+
+        // Act: trigger checkpoint creation which calls getIndexCheckpoints
+        SetOnce<TransformCheckpoint> checkpointHolder = new SetOnce<>();
+        SetOnce<Exception> exceptionHolder = new SetOnce<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        provider.createNextCheckpoint(
+            null,
+            new LatchedActionListener<>(ActionListener.wrap(checkpointHolder::set, exceptionHolder::set), latch)
+        );
+        assertThat(latch.await(100, TimeUnit.MILLISECONDS), is(true));
+        assertThat(exceptionHolder.get(), is(nullValue()));
+
+        // Assert: the query should be null because runtime_mappings are present
+        GetCheckpointAction.Request capturedRequest = requestCaptor.getValue();
+        assertNull(
+            "GetCheckpointAction.Request query should be null when runtime_mappings are present, "
+                + "because SearchShardsRequest does not support runtime_mappings",
+            capturedRequest.getQuery()
+        );
+    }
+
+    public void testGetIndexCheckpointsQuerySetWhenNoRuntimeMappings() throws InterruptedException {
+        // Arrange: create a config WITHOUT runtime_mappings but with a query filter
+        String transformId = getTestName();
+        SourceConfig sourceWithoutRuntimeMappings = new SourceConfig(
+            new String[] { "source_index" },
+            QueryConfig.matchAll(),
+            Collections.emptyMap(),
+            null
+        );
+        TransformConfig transformConfig = new TransformConfig.Builder(TransformConfigTests.randomTransformConfig(transformId)).setSource(
+            sourceWithoutRuntimeMappings
+        ).build();
+
+        GetCheckpointAction.Response checkpointResponse = new GetCheckpointAction.Response(
+            Map.of("source_index", new long[] { 1L, 2L, 3L })
+        );
+        ArgumentCaptor<GetCheckpointAction.Request> requestCaptor = ArgumentCaptor.forClass(GetCheckpointAction.Request.class);
+        doAnswer(withResponse(checkpointResponse)).when(client).execute(eq(GetCheckpointAction.INSTANCE), requestCaptor.capture(), any());
+
+        RemoteClusterResolver remoteClusterResolver = mock(RemoteClusterResolver.class);
+        when(remoteClusterResolver.resolve(any(String[].class))).thenReturn(
+            new RemoteClusterResolver.ResolvedIndices(Map.of(), List.of("source_index"))
+        );
+
+        DefaultCheckpointProvider provider = new DefaultCheckpointProvider(
+            clock,
+            parentTaskClient,
+            remoteClusterResolver,
+            transformConfigManager,
+            transformAuditor,
+            transformConfig
+        );
+
+        // Act: trigger checkpoint creation which calls getIndexCheckpoints
+        SetOnce<TransformCheckpoint> checkpointHolder = new SetOnce<>();
+        SetOnce<Exception> exceptionHolder = new SetOnce<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        provider.createNextCheckpoint(
+            null,
+            new LatchedActionListener<>(ActionListener.wrap(checkpointHolder::set, exceptionHolder::set), latch)
+        );
+        assertThat(latch.await(100, TimeUnit.MILLISECONDS), is(true));
+        assertThat(exceptionHolder.get(), is(nullValue()));
+
+        // Assert: the query should be set when no runtime_mappings are present (for shard-skipping optimization)
+        GetCheckpointAction.Request capturedRequest = requestCaptor.getValue();
+        assertNotNull(
+            "GetCheckpointAction.Request query should be set when no runtime_mappings are present for shard-skipping optimization",
+            capturedRequest.getQuery()
         );
     }
 

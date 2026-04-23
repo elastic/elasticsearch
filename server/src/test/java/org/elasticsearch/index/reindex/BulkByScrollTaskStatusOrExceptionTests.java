@@ -77,6 +77,52 @@ public class BulkByScrollTaskStatusOrExceptionTests extends AbstractXContentTest
     }
 
     /**
+     * Verifies that a {@link StatusOrException} constructed with a {@link BulkByScrollTask.Status} exposes it via
+     * {@link StatusOrException#getStatus()} and returns null from {@link StatusOrException#getException()}.
+     */
+    public void testStatusOrExceptionWithStatus() {
+        BulkByScrollTask.Status status = BulkByScrollTaskStatusTests.randomStatusWithoutException();
+        StatusOrException statusOrException = new StatusOrException(status);
+        assertNotNull(statusOrException.getStatus());
+        assertSame(status, statusOrException.getStatus());
+        assertNull(statusOrException.getException());
+    }
+
+    /**
+     * Verifies that a {@link StatusOrException} constructed with an {@link Exception} exposes it via
+     * {@link StatusOrException#getException()} and returns null from {@link StatusOrException#getStatus()}.
+     */
+    public void testStatusOrExceptionWithException() {
+        String message = randomAlphaOfLengthBetween(5, 20);
+        Exception exception = new ElasticsearchException(message);
+        StatusOrException statusOrException = new StatusOrException(exception);
+        assertNull(statusOrException.getStatus());
+        assertNotNull(statusOrException.getException());
+        assertSame(exception, statusOrException.getException());
+        assertThat(statusOrException.getException().getMessage(), containsString(message));
+    }
+
+    /**
+     * Verifies that {@link StatusOrException#equals(Object)} returns false for null and for an object of a different class.
+     */
+    public void testEqualsReturnsFalseForNullAndWrongType() {
+        StatusOrException statusOrException = createTestInstanceWithoutExceptions();
+        assertFalse(statusOrException.equals(null));
+        assertFalse(statusOrException.equals(BulkByScrollTaskStatusTests.randomStatus()));
+    }
+
+    /**
+     * Verifies that two {@link StatusOrException} instances with the same status are equal and have the same hashCode.
+     */
+    public void testEqualsAndHashCodeWhenHoldingSameStatus() {
+        BulkByScrollTask.Status status = BulkByScrollTaskStatusTests.randomStatusWithoutException();
+        StatusOrException first = new StatusOrException(status);
+        StatusOrException second = new StatusOrException(status);
+        assertEquals(first, second);
+        assertEquals(first.hashCode(), second.hashCode());
+    }
+
+    /**
      * Test parsing {@link StatusOrException} with inner failures as they don't support asserting on xcontent equivalence, given that
      * exceptions are not parsed back as the same original class. We run the usual {@link AbstractXContentTestCase#testFromXContent()}
      * without failures, and this other test with failures where we disable asserting on xcontent equivalence at the end.

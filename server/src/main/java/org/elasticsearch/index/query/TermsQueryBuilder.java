@@ -49,7 +49,7 @@ import java.util.stream.IntStream;
 /**
  * A filter for a field based on several terms matching on any of them.
  */
-public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
+public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
     public static final String NAME = "terms";
 
     private final String fieldName;

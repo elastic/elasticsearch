@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.inference.action.DeleteInferenceEndpointActi
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 
 import java.util.Map;
 import java.util.Optional;
@@ -85,7 +86,7 @@ public class TransportDeleteInferenceEndpointActionTests extends ESTestCase {
             listener.onResponse(new UnparsedModel("model_id", TaskType.COMPLETION, "service", Map.of(), Map.of()));
             return Void.TYPE;
         }).when(mockModelRegistry).getModel(anyString(), any());
-        when(mockModelRegistry.containsDefaultConfigId(anyString())).thenReturn(true);
+        when(mockModelRegistry.containsPreconfiguredInferenceEndpointId(anyString())).thenReturn(true);
 
         var listener = new PlainActionFuture<DeleteInferenceEndpointAction.Response>();
 
@@ -109,7 +110,7 @@ public class TransportDeleteInferenceEndpointActionTests extends ESTestCase {
             listener.onResponse(new UnparsedModel("model_id", TaskType.COMPLETION, "service", Map.of(), Map.of()));
             return Void.TYPE;
         }).when(mockModelRegistry).getModel(anyString(), any());
-        when(mockModelRegistry.containsDefaultConfigId(anyString())).thenReturn(true);
+        when(mockModelRegistry.containsPreconfiguredInferenceEndpointId(anyString())).thenReturn(true);
         doAnswer(invocationOnMock -> {
             ActionListener<Boolean> listener = invocationOnMock.getArgument(1);
             listener.onResponse(true);
@@ -145,7 +146,7 @@ public class TransportDeleteInferenceEndpointActionTests extends ESTestCase {
         var taskType = randomFrom(TaskType.values());
         var mockService = mock(InferenceService.class);
         mockUnparsableModel(inferenceEndpointId, serviceName, taskType, mockService);
-        when(mockModelRegistry.containsDefaultConfigId(inferenceEndpointId)).thenReturn(false);
+        when(mockModelRegistry.containsPreconfiguredInferenceEndpointId(inferenceEndpointId)).thenReturn(false);
 
         var listener = new PlainActionFuture<DeleteInferenceEndpointAction.Response>();
         action.masterOperation(
@@ -160,9 +161,17 @@ public class TransportDeleteInferenceEndpointActionTests extends ESTestCase {
 
         verify(mockModelRegistry).getModel(eq(inferenceEndpointId), any());
         verify(mockInferenceServiceRegistry).getService(eq(serviceName));
-        verify(mockModelRegistry).containsDefaultConfigId(eq(inferenceEndpointId));
-        verify(mockService).parsePersistedConfig(eq(inferenceEndpointId), eq(taskType), any());
+        verify(mockModelRegistry).containsPreconfiguredInferenceEndpointId(eq(inferenceEndpointId));
+        verifyServiceParsedPersistedConfig(mockService, inferenceEndpointId, taskType);
         verifyNoMoreInteractions(mockModelRegistry, mockInferenceServiceRegistry, mockService);
+    }
+
+    private void verifyServiceParsedPersistedConfig(InferenceService mockService, String endpointId, TaskType taskType) {
+        ArgumentCaptor<UnparsedModel> unparsedModelCaptor = ArgumentCaptor.forClass(UnparsedModel.class);
+        verify(mockService).parsePersistedConfig(unparsedModelCaptor.capture());
+        UnparsedModel capturedUnparsedModel = unparsedModelCaptor.getValue();
+        assertThat(capturedUnparsedModel.inferenceEntityId(), is(endpointId));
+        assertThat(capturedUnparsedModel.taskType(), is(taskType));
     }
 
     public void testDeletesUnparsableEndpoint_WhenForceIsTrue() {
@@ -191,19 +200,20 @@ public class TransportDeleteInferenceEndpointActionTests extends ESTestCase {
 
         verify(mockModelRegistry).getModel(eq(inferenceEndpointId), any());
         verify(mockInferenceServiceRegistry).getService(eq(serviceName));
-        verify(mockService).parsePersistedConfig(eq(inferenceEndpointId), eq(taskType), any());
+        verifyServiceParsedPersistedConfig(mockService, inferenceEndpointId, taskType);
         verify(mockModelRegistry).deleteModel(eq(inferenceEndpointId), any());
         verifyNoMoreInteractions(mockModelRegistry, mockInferenceServiceRegistry, mockService);
     }
 
     private void mockUnparsableModel(String inferenceEndpointId, String serviceName, TaskType taskType, InferenceService mockService) {
+        UnparsedModel unparsedModel = new UnparsedModel(inferenceEndpointId, taskType, serviceName, Map.of(), Map.of());
         doAnswer(invocationOnMock -> {
             ActionListener<UnparsedModel> listener = invocationOnMock.getArgument(1);
-            listener.onResponse(new UnparsedModel(inferenceEndpointId, taskType, serviceName, Map.of(), Map.of()));
+            listener.onResponse(unparsedModel);
             return Void.TYPE;
         }).when(mockModelRegistry).getModel(eq(inferenceEndpointId), any());
         doThrow(new ElasticsearchStatusException(randomAlphanumericOfLength(10), RestStatus.INTERNAL_SERVER_ERROR)).when(mockService)
-            .parsePersistedConfig(eq(inferenceEndpointId), eq(taskType), any());
+            .parsePersistedConfig(unparsedModel);
         when(mockInferenceServiceRegistry.getService(serviceName)).thenReturn(Optional.of(mockService));
     }
 
@@ -240,7 +250,7 @@ public class TransportDeleteInferenceEndpointActionTests extends ESTestCase {
         var serviceName = randomAlphanumericOfLength(10);
         var taskType = randomFrom(TaskType.values());
         mockNoService(inferenceEndpointId, serviceName, taskType);
-        when(mockModelRegistry.containsDefaultConfigId(inferenceEndpointId)).thenReturn(false);
+        when(mockModelRegistry.containsPreconfiguredInferenceEndpointId(inferenceEndpointId)).thenReturn(false);
 
         var listener = new PlainActionFuture<DeleteInferenceEndpointAction.Response>();
 
@@ -255,7 +265,7 @@ public class TransportDeleteInferenceEndpointActionTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString("No service found for this inference endpoint"));
         verify(mockModelRegistry).getModel(eq(inferenceEndpointId), any());
         verify(mockInferenceServiceRegistry).getService(eq(serviceName));
-        verify(mockModelRegistry).containsDefaultConfigId(eq(inferenceEndpointId));
+        verify(mockModelRegistry).containsPreconfiguredInferenceEndpointId(eq(inferenceEndpointId));
         verifyNoMoreInteractions(mockModelRegistry, mockInferenceServiceRegistry);
     }
 
@@ -275,7 +285,7 @@ public class TransportDeleteInferenceEndpointActionTests extends ESTestCase {
         var mockService = mock(InferenceService.class);
         var mockModel = mock(Model.class);
         mockStopDeploymentFails(inferenceEndpointId, serviceName, taskType, mockService, mockModel);
-        when(mockModelRegistry.containsDefaultConfigId(inferenceEndpointId)).thenReturn(false);
+        when(mockModelRegistry.containsPreconfiguredInferenceEndpointId(inferenceEndpointId)).thenReturn(false);
 
         var listener = new PlainActionFuture<DeleteInferenceEndpointAction.Response>();
         action.masterOperation(
@@ -289,8 +299,8 @@ public class TransportDeleteInferenceEndpointActionTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString("Failed to stop model deployment"));
         verify(mockModelRegistry).getModel(eq(inferenceEndpointId), any());
         verify(mockInferenceServiceRegistry).getService(eq(serviceName));
-        verify(mockModelRegistry).containsDefaultConfigId(eq(inferenceEndpointId));
-        verify(mockService).parsePersistedConfig(eq(inferenceEndpointId), eq(taskType), any());
+        verify(mockModelRegistry).containsPreconfiguredInferenceEndpointId(eq(inferenceEndpointId));
+        verifyServiceParsedPersistedConfig(mockService, inferenceEndpointId, taskType);
         verify(mockService).stop(eq(mockModel), any());
         verifyNoMoreInteractions(mockModelRegistry, mockInferenceServiceRegistry, mockService, mockModel);
     }
@@ -320,7 +330,7 @@ public class TransportDeleteInferenceEndpointActionTests extends ESTestCase {
         assertTrue(response.isAcknowledged());
         verify(mockModelRegistry).getModel(eq(inferenceEndpointId), any());
         verify(mockInferenceServiceRegistry).getService(eq(serviceName));
-        verify(mockService).parsePersistedConfig(eq(inferenceEndpointId), eq(taskType), any());
+        verifyServiceParsedPersistedConfig(mockService, inferenceEndpointId, taskType);
         verify(mockService).stop(eq(mockModel), any());
         verify(mockModelRegistry).deleteModel(eq(inferenceEndpointId), any());
         verifyNoMoreInteractions(mockModelRegistry, mockInferenceServiceRegistry, mockService, mockModel);
@@ -333,13 +343,14 @@ public class TransportDeleteInferenceEndpointActionTests extends ESTestCase {
         InferenceService mockService,
         Model mockModel
     ) {
+        UnparsedModel unparsedModel = new UnparsedModel(inferenceEndpointId, taskType, serviceName, Map.of(), Map.of());
         doAnswer(invocationOnMock -> {
             ActionListener<UnparsedModel> listener = invocationOnMock.getArgument(1);
-            listener.onResponse(new UnparsedModel(inferenceEndpointId, taskType, serviceName, Map.of(), Map.of()));
+            listener.onResponse(unparsedModel);
             return Void.TYPE;
         }).when(mockModelRegistry).getModel(eq(inferenceEndpointId), any());
         when(mockInferenceServiceRegistry.getService(serviceName)).thenReturn(Optional.of(mockService));
-        doReturn(mockModel).when(mockService).parsePersistedConfig(eq(inferenceEndpointId), eq(taskType), any());
+        doReturn(mockModel).when(mockService).parsePersistedConfig(unparsedModel);
         doAnswer(invocationOnMock -> {
             ActionListener<Boolean> listener = invocationOnMock.getArgument(1);
             listener.onFailure(new ElasticsearchStatusException("Failed to stop model deployment", RestStatus.INTERNAL_SERVER_ERROR));

@@ -40,7 +40,7 @@ public class ExponentialHistogramXContentTests extends ExponentialHistogramTestC
 
     public void testEmptyHistogram() {
         ExponentialHistogram emptyHistogram = ExponentialHistogram.empty();
-        assertThat(toJson(emptyHistogram), equalTo("{\"scale\":" + emptyHistogram.scale() + ",\"sum\":0.0}"));
+        assertThat(toJson(emptyHistogram), equalTo("{\"scale\":" + emptyHistogram.scale() + "}"));
     }
 
     public void testFullHistogram() {

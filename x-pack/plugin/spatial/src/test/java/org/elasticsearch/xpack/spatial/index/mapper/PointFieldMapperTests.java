@@ -62,10 +62,12 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
         checker.registerConflictCheck("index", b -> b.field("index", false));
-        checker.registerUpdateCheck(b -> b.field("ignore_z_value", false), m -> {
+        checker.registerUpdateCheck("ignore_z_value", b -> b.field("ignore_z_value", false), m -> {
             PointFieldMapper gpfm = (PointFieldMapper) m;
             assertFalse(gpfm.ignoreZValue());
         });
+        checker.registerConflictCheck("null_value", b -> b.field("null_value", "1,1"));
+        checker.registerConflictCheck("store", b -> b.field("store", true));
     }
 
     public void testAggregationsDocValuesDisabled() throws IOException {
@@ -552,5 +554,10 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
     @Override
     protected boolean supportsBulkLongBlockReading() {
         return true;
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
     }
 }

@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -37,12 +38,20 @@ public class MultiSearchTemplateRequest extends LegacyActionRequest implements C
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
 
+    @Nullable
+    private String projectRouting;
+
     public MultiSearchTemplateRequest() {}
 
     MultiSearchTemplateRequest(StreamInput in) throws IOException {
         super(in);
         maxConcurrentSearchRequests = in.readVInt();
         requests = in.readCollectionAsList(SearchTemplateRequest::new);
+        if (in.getTransportVersion().supports(SearchTemplateRequest.SEARCH_TEMPLATE_PROJECT_ROUTING)) {
+            this.projectRouting = in.readOptionalString();
+        } else {
+            this.projectRouting = null;
+        }
     }
 
     /**
@@ -118,6 +127,9 @@ public class MultiSearchTemplateRequest extends LegacyActionRequest implements C
         super.writeTo(out);
         out.writeVInt(maxConcurrentSearchRequests);
         out.writeCollection(requests);
+        if (out.getTransportVersion().supports(SearchTemplateRequest.SEARCH_TEMPLATE_PROJECT_ROUTING)) {
+            out.writeOptionalString(this.projectRouting);
+        }
     }
 
     @Override
@@ -151,6 +163,19 @@ public class MultiSearchTemplateRequest extends LegacyActionRequest implements C
             output.write(xContent.bulkSeparator());
         }
         return output.toByteArray();
+    }
+
+    public void setProjectRouting(@Nullable String projectRouting) {
+        if (this.projectRouting != null) {
+            throw new IllegalArgumentException("project_routing already set");
+        }
+
+        this.projectRouting = projectRouting;
+    }
+
+    @Nullable
+    public String getProjectRouting() {
+        return projectRouting;
     }
 
 }

@@ -74,9 +74,7 @@ public class HuggingFaceChatCompletionServiceSettings extends FilteredXContentOb
             context
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
         return new HuggingFaceChatCompletionServiceSettings(modelId, uri, rateLimitSettings);
     }
 

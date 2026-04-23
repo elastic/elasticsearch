@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.function.Function;
 
 import static java.util.Arrays.asList;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalsOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.fieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
@@ -56,19 +57,29 @@ public class CanonicalTests extends ESTestCase {
 
     public void testNonCommutativeBinary() throws Exception {
         Div div = new Div(EMPTY, of(2), of(1));
-        Sub sub = new Sub(EMPTY, of(2), of(1));
+        Sub sub = new Sub(EMPTY, of(2), of(1), TEST_CFG);
         Mod mod = new Mod(EMPTY, div, sub);
         assertEquals(mod, mod.canonical());
     }
 
     public void testNonCommutativeMixedWithCommutative() throws Exception {
         // (0+1) / 1
-        Div div = new Div(EMPTY, new Add(EMPTY, of(0), of(1)), of(1));
+        Div div = new Div(EMPTY, new Add(EMPTY, of(0), of(1), TEST_CFG), of(1));
         // 1*2 - 1+2
-        Sub sub = new Sub(EMPTY, new Mul(EMPTY, of(1), new Add(EMPTY, of(1), of(2))), new Add(EMPTY, of(1), of(2)));
+        Sub sub = new Sub(
+            EMPTY,
+            new Mul(EMPTY, of(1), new Add(EMPTY, of(1), of(2), TEST_CFG)),
+            new Add(EMPTY, of(1), of(2), TEST_CFG),
+            TEST_CFG
+        );
 
-        Div shuffledDiv = new Div(EMPTY, new Add(EMPTY, of(1), of(0)), of(1));
-        Sub shuffledSub = new Sub(EMPTY, new Mul(EMPTY, new Add(EMPTY, of(2), of(1)), of(1)), new Add(EMPTY, of(2), of(1)));
+        Div shuffledDiv = new Div(EMPTY, new Add(EMPTY, of(1), of(0), TEST_CFG), of(1));
+        Sub shuffledSub = new Sub(
+            EMPTY,
+            new Mul(EMPTY, new Add(EMPTY, of(2), of(1), TEST_CFG), of(1)),
+            new Add(EMPTY, of(2), of(1), TEST_CFG),
+            TEST_CFG
+        );
 
         And and = new And(EMPTY, div, sub);
         And shuffledAnd = new And(EMPTY, shuffledDiv, shuffledSub);
@@ -90,16 +101,16 @@ public class CanonicalTests extends ESTestCase {
     }
 
     public void testBasicSymmetricalAdd() throws Exception {
-        Expression left = new Add(EMPTY, new Add(EMPTY, of(1), of(2)), new Add(EMPTY, of(3), of(4)));
-        Expression right = new Add(EMPTY, new Add(EMPTY, of(4), of(2)), new Add(EMPTY, of(1), of(3)));
+        Expression left = new Add(EMPTY, new Add(EMPTY, of(1), of(2), TEST_CFG), new Add(EMPTY, of(3), of(4), TEST_CFG), TEST_CFG);
+        Expression right = new Add(EMPTY, new Add(EMPTY, of(4), of(2), TEST_CFG), new Add(EMPTY, of(1), of(3), TEST_CFG), TEST_CFG);
 
         assertEquals(left.canonical(), right.canonical());
         assertEquals(left.semanticHash(), right.semanticHash());
     }
 
     public void testBasicASymmetricalAdd() throws Exception {
-        Expression left = new Add(EMPTY, new Add(EMPTY, of(1), of(2)), of(3));
-        Expression right = new Add(EMPTY, of(1), new Add(EMPTY, of(2), of(3)));
+        Expression left = new Add(EMPTY, new Add(EMPTY, of(1), of(2), TEST_CFG), of(3), TEST_CFG);
+        Expression right = new Add(EMPTY, of(1), new Add(EMPTY, of(2), of(3), TEST_CFG), TEST_CFG);
 
         assertEquals(left.canonical(), right.canonical());
         assertEquals(left.semanticHash(), right.semanticHash());
@@ -129,14 +140,14 @@ public class CanonicalTests extends ESTestCase {
         FieldAttribute d = fieldAttribute();
 
         And ab = new And(EMPTY, greaterThanOf(a, of(1)), lessThanOf(b, of(2)));
-        And cd = new And(EMPTY, equalsOf(new Add(EMPTY, c, of(20)), of(3)), greaterThanOrEqualOf(d, of(4)));
+        And cd = new And(EMPTY, equalsOf(new Add(EMPTY, c, of(20), TEST_CFG), of(3)), greaterThanOrEqualOf(d, of(4)));
 
         And and = new And(EMPTY, ab, cd);
 
         // swap d comparison
         And db = new And(EMPTY, greaterThanOrEqualOf(d, of(4)).swapLeftAndRight(), lessThanOf(b, of(2)));
         // swap order for c and swap a comparison
-        And ca = new And(EMPTY, equalsOf(new Add(EMPTY, of(20), c), of(3)), greaterThanOf(a, of(1)));
+        And ca = new And(EMPTY, equalsOf(new Add(EMPTY, of(20), c, TEST_CFG), of(3)), greaterThanOf(a, of(1)));
 
         And shuffleAnd = new And(EMPTY, db, ca);
 
@@ -150,13 +161,13 @@ public class CanonicalTests extends ESTestCase {
         FieldAttribute d = fieldAttribute();
 
         And ab = new And(EMPTY, greaterThanOf(a, of(1)), lessThanOf(b, of(2)));
-        And cd = new And(EMPTY, equalsOf(new Add(EMPTY, c, of(20)), of(3)), greaterThanOrEqualOf(d, of(4)));
+        And cd = new And(EMPTY, equalsOf(new Add(EMPTY, c, of(20), TEST_CFG), of(3)), greaterThanOrEqualOf(d, of(4)));
         And and = new And(EMPTY, ab, cd);
 
         // swap d comparison
         Or db = new Or(EMPTY, new Not(EMPTY, greaterThanOrEqualOf(d, of(4))), lessThanOf(b, of(2)).negate());
         // swap order for c and swap a comparison
-        Or ca = new Or(EMPTY, notEqualsOf(new Add(EMPTY, of(20), c), of(3)), new Not(EMPTY, greaterThanOf(a, of(1))));
+        Or ca = new Or(EMPTY, notEqualsOf(new Add(EMPTY, of(20), c, TEST_CFG), of(3)), new Not(EMPTY, greaterThanOf(a, of(1))));
 
         Not not = new Not(EMPTY, new Or(EMPTY, db, ca));
 
@@ -212,7 +223,7 @@ public class CanonicalTests extends ESTestCase {
     public void testBasicOperators() throws Exception {
         List<BinaryOperatorFactory> list = Arrays.asList(
             // arithmetic
-            Add::new,
+            (source, left, right) -> new Add(source, left, right, TEST_CFG),
             Mul::new,
             // logical
             Or::new,

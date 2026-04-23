@@ -1,0 +1,3 @@
+Limit[1000[INTEGER],false,false]
+\_Aggregate[[],[COUNT(sv{f}#0,true[BOOLEAN],PT0S[TIME_DURATION]) AS COUNT(sv)#1, PERCENTILE(sv{f}#0,true[BOOLEAN],PT0S[TIME_DURATION],50[INTEGER]) AS MEDIAN(sv)#2]]
+  \_EsRelation[many_numbers][mv{f}#3, sv{f}#0, sv_and_one_mv{f}#4]

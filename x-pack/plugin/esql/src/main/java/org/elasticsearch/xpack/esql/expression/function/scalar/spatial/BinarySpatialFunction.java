@@ -16,6 +16,7 @@ import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -37,6 +38,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isNull;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.makeGeometryFromLiteral;
 
 /**
  * Spatial functions that take two arguments that must both be spatial types can inherit from this class.
@@ -49,7 +51,7 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
         "esql_serialize_source_functions_warnings"
     );
 
-    private final SpatialTypeResolver spatialTypeResolver;
+    protected final SpatialTypeResolver spatialTypeResolver;
     private SpatialCrsType crsType;
     protected final boolean leftDocValues;
     protected final boolean rightDocValues;
@@ -96,6 +98,18 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
         // The CRS type is re-resolved from the combination of left and right fields, and also not necessary to serialize
     }
 
+    protected abstract Object fold(Geometry leftGeom, Geometry rightGeom);
+
+    @Override
+    public Object fold(FoldContext ctx) {
+        var leftGeom = makeGeometryFromLiteral(ctx, left());
+        var rightGeom = makeGeometryFromLiteral(ctx, right());
+        if (leftGeom == null || rightGeom == null) {
+            return null;
+        }
+        return fold(leftGeom, rightGeom);
+    }
+
     /**
      * Mark the function as expecting the specified fields to arrive as doc-values.
      */
@@ -124,10 +138,10 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
         return spatialTypeResolver.resolveType();
     }
 
-    static class SpatialTypeResolver {
+    protected static class SpatialTypeResolver {
         private final SpatialEvaluatorFactory.SpatialSourceResolution supplier;
         private final boolean pointsOnly;
-        private final boolean supportsGrid;
+        protected final boolean supportsGrid;
 
         SpatialTypeResolver(SpatialEvaluatorFactory.SpatialSourceResolution supplier, boolean pointsOnly, boolean supportsGrid) {
             this.supplier = supplier;

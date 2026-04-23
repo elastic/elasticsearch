@@ -1,0 +1,29 @@
+
+#ifndef STD_ALGORITHM_H
+#define STD_ALGORITHM_H
+
+namespace std {
+
+template<class T>
+const T& min(const T& a, const T& b)
+{
+    return (b < a) ? b : a;
+}
+
+template<class InputIt, class Size, class OutputIt>
+constexpr OutputIt copy_n(InputIt first, Size count, OutputIt result)
+{
+    if (count > 0)
+    {
+        *result = *first;
+        ++result;
+        for (Size i = 1; i != count; ++i, (void)++result)
+            *result = *++first;
+    }
+
+    return result;
+}
+
+}
+
+#endif //STD_ALGORITHM_H

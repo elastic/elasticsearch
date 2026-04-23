@@ -13,28 +13,28 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Log}.
+ * {@link ExpressionEvaluator} implementation for {@link Log}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class LogConstantEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class LogConstantEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LogConstantEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator value;
+  private final ExpressionEvaluator value;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public LogConstantEvaluator(Source source, EvalOperator.ExpressionEvaluator value,
+  public LogConstantEvaluator(Source source, ExpressionEvaluator value,
       DriverContext driverContext) {
     this.source = source;
     this.value = value;
@@ -112,22 +112,17 @@ public final class LogConstantEvaluator implements EvalOperator.ExpressionEvalua
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory value;
+    private final ExpressionEvaluator.Factory value;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory value) {
+    public Factory(Source source, ExpressionEvaluator.Factory value) {
       this.source = source;
       this.value = value;
     }

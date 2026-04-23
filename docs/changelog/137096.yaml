@@ -1,5 +1,0 @@
-pr: 137096
-summary: Fix mapping conflicts in clone/split/shrink APIs
-area: Indices APIs
-type: bug
-issues: []

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -44,6 +45,7 @@ public class ColumnInfoImpl implements ColumnInfo {
     }
 
     private static final TransportVersion ESQL_REPORT_ORIGINAL_TYPES = TransportVersion.fromName("esql_report_original_types");
+    private static final TransportVersion ESQL_COLUMN_META = TransportVersion.fromName("esql_column_meta");
 
     @Override
     public boolean equals(Object o) {
@@ -78,16 +80,24 @@ public class ColumnInfoImpl implements ColumnInfo {
     @Nullable
     private final DataType suggestedCast;
 
+    @Nullable
+    private final Map<String, Object> meta;
+
     @ParserConstructor
     public ColumnInfoImpl(String name, String type, @Nullable List<String> originalTypes) {
-        this(name, DataType.fromEs(type), originalTypes);
+        this(name, DataType.fromEs(type), originalTypes, null);
     }
 
     public ColumnInfoImpl(String name, DataType type, @Nullable List<String> originalTypes) {
+        this(name, type, originalTypes, null);
+    }
+
+    public ColumnInfoImpl(String name, DataType type, @Nullable List<String> originalTypes, @Nullable Map<String, Object> meta) {
         this.name = name;
         this.type = type;
         this.originalTypes = originalTypes;
         this.suggestedCast = calculateSuggestedCast(this.originalTypes);
+        this.meta = meta;
     }
 
     private static DataType calculateSuggestedCast(List<String> originalTypes) {
@@ -109,6 +119,11 @@ public class ColumnInfoImpl implements ColumnInfo {
             this.originalTypes = null;
             this.suggestedCast = null;
         }
+        if (in.getTransportVersion().supports(ESQL_COLUMN_META)) {
+            this.meta = in.readOptional(StreamInput::readGenericMap);
+        } else {
+            this.meta = null;
+        }
     }
 
     @Override
@@ -117,6 +132,9 @@ public class ColumnInfoImpl implements ColumnInfo {
         out.writeString(type.outputType());
         if (out.getTransportVersion().supports(ESQL_REPORT_ORIGINAL_TYPES)) {
             out.writeOptionalStringCollection(originalTypes);
+        }
+        if (out.getTransportVersion().supports(ESQL_COLUMN_META)) {
+            out.writeOptional(StreamOutput::writeGenericMap, meta);
         }
     }
 
@@ -130,6 +148,9 @@ public class ColumnInfoImpl implements ColumnInfo {
         }
         if (suggestedCast != null) {
             builder.field("suggested_cast", suggestedCast.typeName());
+        }
+        if (meta != null) {
+            builder.field("_meta", meta);
         }
         builder.endObject();
         return builder;

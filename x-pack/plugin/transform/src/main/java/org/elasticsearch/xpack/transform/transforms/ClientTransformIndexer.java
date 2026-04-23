@@ -31,6 +31,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
@@ -79,6 +80,7 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -91,6 +93,8 @@ class ClientTransformIndexer extends TransformIndexer {
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Settings destIndexSettings;
+    private final boolean crossProjectEnabled;
+    private final Function<ProjectId, Boolean> hasLinkedProjects;
     private final AtomicBoolean oldStatsCleanedUp = new AtomicBoolean(false);
 
     private final AtomicReference<SeqNoPrimaryTermAndIndex> seqNoPrimaryTermAndIndexHolder;
@@ -140,6 +144,9 @@ class ClientTransformIndexer extends TransformIndexer {
         context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
 
         disablePit = TransformEffectiveSettings.isPitDisabled(transformConfig.getSettings());
+        crossProjectEnabled = transformServices.crossProjectModeDecider().crossProjectEnabled()
+            && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled();
+        this.hasLinkedProjects = transformServices.hasLinkedProjects();
     }
 
     @Override
@@ -486,6 +493,11 @@ class ClientTransformIndexer extends TransformIndexer {
         closePointInTime(super::onStop);
     }
 
+    @Override
+    protected void onAbort() {
+        closePointInTime(super::onAbort);
+    }
+
     // visible for testing
     void closePointInTime(Runnable runAfter) {
         // we shouldn't need to do this, because a transform is only ever running on one thread anyway, but now that we're waiting for
@@ -536,7 +548,10 @@ class ClientTransformIndexer extends TransformIndexer {
         SearchRequest searchRequest = namedSearchRequest.v2();
         // We explicitly disable PIT in the presence of remote clusters in the source due to huge PIT handles causing performance problems.
         // We should not re-enable until this is resolved: https://github.com/elastic/elasticsearch/issues/80187
-        if (disablePit || searchRequest.indices().length == 0 || transformConfig.getSource().requiresRemoteCluster()) {
+        if (disablePit
+            || searchRequest.indices().length == 0
+            || transformConfig.getSource().requiresRemoteCluster()
+            || (crossProjectEnabled && hasLinkedProjects.apply(context.projectId()))) {
             listener.onResponse(namedSearchRequest);
             return;
         }
@@ -550,8 +565,11 @@ class ClientTransformIndexer extends TransformIndexer {
 
         // no pit, create a new one
         OpenPointInTimeRequest pitRequest = new OpenPointInTimeRequest(searchRequest.indices()).keepAlive(PIT_KEEP_ALIVE);
-        // use index filter for better performance
-        pitRequest.indexFilter(transformConfig.getSource().getQueryConfig().getQuery());
+        // Only use index filter when there are no runtime mappings, because OpenPointInTimeRequest
+        // does not support runtime_mappings and the query may reference runtime fields
+        if (transformConfig.getSource().getRuntimeMappings().isEmpty()) {
+            pitRequest.indexFilter(transformConfig.getSource().getQueryConfig().getQuery());
+        }
 
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),

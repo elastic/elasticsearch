@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
 
-public final class PruneFilters extends OptimizerRules.OptimizerRule<Filter> {
+public class PruneFilters extends OptimizerRules.OptimizerRule<Filter> {
     @Override
     protected LogicalPlan rule(Filter filter) {
         Expression condition = filter.condition().transformUp(BinaryLogic.class, PruneFilters::foldBinaryLogic);
@@ -30,7 +30,7 @@ public final class PruneFilters extends OptimizerRules.OptimizerRule<Filter> {
                 return filter.child();
             }
             if (FALSE.equals(condition) || Expressions.isGuaranteedNull(condition)) {
-                return PruneEmptyPlans.skipPlan(filter);
+                return handleAlwaysFalseFilter(filter);
             }
         }
 
@@ -38,6 +38,15 @@ public final class PruneFilters extends OptimizerRules.OptimizerRule<Filter> {
             return new Filter(filter.source(), filter.child(), condition);
         }
         return filter;
+    }
+
+    /**
+     * Handles a filter whose condition has been folded to {@code false} or {@code null}.
+     * By default, collapses the plan via {@link PruneEmptyPlans#skipPlan}; subclasses may
+     * override to preserve plan structure when collapsing is not appropriate (e.g. lookup plans).
+     */
+    protected LogicalPlan handleAlwaysFalseFilter(Filter filter) {
+        return PruneEmptyPlans.skipPlan(filter);
     }
 
     private static Expression foldBinaryLogic(BinaryLogic binaryLogic) {

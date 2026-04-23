@@ -12,12 +12,8 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.example.realm.CustomRealm;
-import org.elasticsearch.example.realm.CustomRealmIT;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.example.SpiExtensionRestTestCase;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 
 import java.io.IOException;
@@ -31,7 +27,7 @@ import static org.hamcrest.Matchers.is;
 /**
  * Integration test for custom roles providers.
  */
-public class CustomRolesProviderIT extends ESRestTestCase {
+public class CustomRolesProviderIT extends SpiExtensionRestTestCase {
     private static final String TEST_USER = "test_user";
     private static final String TEST_PWD = "test-user-password";
 
@@ -43,14 +39,6 @@ public class CustomRolesProviderIT extends ESRestTestCase {
             UsernamePasswordToken.basicAuthHeaderValue(TEST_USER, new SecureString(TEST_PWD.toCharArray()))
         );
         AUTH_OPTIONS = options.build();
-    }
-
-    @Override
-    protected Settings restClientSettings() {
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + "." + CustomRealm.USER_HEADER, CustomRealmIT.USERNAME)
-            .put(ThreadContext.PREFIX + "." + CustomRealm.PW_HEADER, CustomRealmIT.PASSWORD)
-            .build();
     }
 
     public void setupTestUser(String role) throws IOException {

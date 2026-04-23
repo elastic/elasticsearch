@@ -4,6 +4,7 @@ mapped_pages:
 navigation_title: General
 applies_to:
   stack: all
+  serverless: all
 ---
 # General index settings [index-modules]
 
@@ -117,7 +118,21 @@ $$$index-shard-check-on-startup$$$ `index.shard.check_on_startup`
 
 :::::
 
+$$$index-disable-sequence-numbers$$$ `index.disable_sequence_numbers`
+:   ::::{warning}
+    This setting is experimental and might be changed or removed in a future release. Available in {{serverless-full}} and {{stack}} 9.4+. 
+    ::::
 
+    Controls whether the index maintains sequence numbers for document operations. When set to `true`, sequence numbers are not available, trading some consistency guarantees for reduced storage overhead. Defaults to `false`. This setting can only be set at index creation time and cannot be changed afterwards. Requires `index.seq_no.index_options` to be set to `doc_values_only`.
+
+    Disabling sequence numbers introduces the following limitations:
+
+    * **No [optimistic concurrency control](/reference/elasticsearch/rest-apis/optimistic-concurrency-control.md)**: The `if_seq_no` and `if_primary_term` parameters cannot be used with [index](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-index) or [bulk](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-bulk) requests.
+    * **Sentinel values in responses**: [Index](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-index), [bulk](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-bulk), [get](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-get), and [search](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search) responses return sentinel values for `_seq_no` and `_primary_term` instead of real sequence numbers.
+    * **Updates not supported**: Single-document [update](/reference/elasticsearch/rest-apis/update-document.md) operations and update actions within [bulk](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-bulk) requests are not supported and will be rejected.
+    * **Weaker consistency for update-by-query and delete-by-query**: [Update by query](/reference/elasticsearch/rest-apis/update-by-query-api.md) and [delete by query](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-delete-by-query) operations proceed without sequence number-based conflict detection. This means concurrent modifications to documents during these operations may be silently overwritten rather than triggering version conflicts.
+    * **`_seq_no` field not queryable**: Queries, filters, and sorts on the `_seq_no` field are not supported.
+    * **`random_score` requires an explicit `field`**: The [`random_score`](/reference/query-languages/query-dsl/query-dsl-function-score-query.md) function cannot fall back to using `_seq_no` as a source of randomness. A `field` parameter must be specified explicitly.
 
 
 ## Dynamic index settings [dynamic-index-settings]
@@ -154,7 +169,7 @@ $$$index-refresh-interval-setting$$$
 :   How often to perform a refresh operation, which makes recent changes to the index visible to search. If this setting is not explicitly set, shards that haven’t seen search traffic for at least `index.search.idle.after` seconds will not receive background refreshes until they receive a search request. Searches that hit an idle shard where a refresh is pending will trigger a refresh as part of the search operation for that shard only. This behavior aims to automatically optimize bulk indexing in the default case when no searches are performed. To opt out of this behavior, set an explicit value for the refresh interval, even if it matches the default value.
 
     The value defaults to `1s` in {{stack}} and `5s` in {{serverless-short}}. In {{serverless-short}}, `5s` is also the minimum value that can be set.
-    
+
     In both cases, the setting can be set to `-1` to disable refresh.
 
 $$$index-max-result-window$$$
@@ -271,4 +286,7 @@ $$$index-esql-stored-fields-sequential-proportion$$$
 :   Tuning parameter for deciding when {{esql}} will load [stored fields](/reference/elasticsearch/rest-apis/retrieve-selected-fields.md#stored-fields) using a strategy tuned for loading dense sequence of documents. Allows values between 0.0 and 1.0 and defaults to 0.2. Indices with documents smaller than 10kb may see speed improvements loading `text` fields by setting this lower.
 
 $$$index-dense-vector-hnsw-early-termination$$$ `index.dense_vector.hnsw_early_termination` {applies_to}`stack: ga 9.2` {applies_to}`serverless: all`
-:   Whether to apply _patience_ based early termination strategy to knn queries over HNSW graphs (see [paper](https://cs.uwaterloo.ca/~jimmylin/publications/Teofili_Lin_ECIR2025.pdf)). This is only applicable to `dense_vector` fields with `hnsw`, `int8_hnsw`, `int4_hnsw` and `bbq_hnsw` index types. Defaults to `false`.
+:   Whether to apply _patience_ based early termination strategy to knn queries over HNSW graphs (see [paper](https://cs.uwaterloo.ca/~jimmylin/publications/Teofili_Lin_ECIR2025.pdf)). This is only applicable to `dense_vector` fields with `hnsw`, `int8_hnsw`, `int4_hnsw` and `bbq_hnsw` index types. Defaults to `true` for indexes created with {{es}} 9.3, `false` for indexes created with older versions.
+
+$$$index-use_time_series_doc_values_format$$$ `index.use_time_series_doc_values_format` {applies_to}`stack: ga 9.3`
+:   Indicates whether the time series doc values format should be used. Defaults to `true` if `index.mode` is `time_series` or `logsdb`, otherwise `false`.

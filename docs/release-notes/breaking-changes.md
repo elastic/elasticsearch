@@ -12,6 +12,77 @@ If you are migrating from a version prior to version 9.0, you must first upgrade
 
 % ## Next version [elasticsearch-nextversion-breaking-changes]
 
+## 9.3.3 [elasticsearch-9.3.3-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.2.8 [elasticsearch-9.2.8-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.3.2 [elasticsearch-9.3.2-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.2.7 [elasticsearch-9.2.7-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.2.6 [elasticsearch-9.2.6-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.3.1 [elasticsearch-9.3.1-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.3.0 [elasticsearch-9.3.0-breaking-changes]
+
+Mapping:
+* Implement native synthetic source for normalized keywords [#136915](https://github.com/elastic/elasticsearch/pull/136915)
+
+Search:
+* Disable cross-cluster functionality for `_fleet/_fleet_msearch` [#136703](https://github.com/elastic/elasticsearch/pull/136703)
+* Disable cross-cluster functionality for `_fleet/_fleet_search` [#136039](https://github.com/elastic/elasticsearch/pull/136039)
+
+
+
+## 9.2.5 [elasticsearch-9.2.5-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.1.10 [elasticsearch-9.1.10-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.2.4 [elasticsearch-9.2.4-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.1.9 [elasticsearch-9.1.9-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.2.3 [elasticsearch-9.2.3-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.2.2 [elasticsearch-9.2.2-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.1.8 [elasticsearch-9.1.8-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.1.7 [elasticsearch-9.1.7-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.2.1 [elasticsearch-9.2.1-breaking-changes]
+
+There are no breaking changes associated with this release.
+
 ## 9.1.6 [elasticsearch-9.1.6-breaking-changes]
 
 There are no breaking changes associated with this release.

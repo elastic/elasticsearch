@@ -43,7 +43,6 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnFloatVectorQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
@@ -54,11 +53,12 @@ import org.apache.lucene.search.join.DiversifyingChildrenFloatKnnVectorQuery;
 import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
-import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
+import org.elasticsearch.index.codec.vectors.BaseQuantizedKnnVectorsFormatTestCase;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
@@ -74,14 +74,19 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
-public class ES818BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
+public class ES818BinaryQuantizedVectorsFormatTests extends BaseQuantizedKnnVectorsFormatTestCase {
 
     static {
         LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
-    static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new ES818BinaryQuantizedVectorsFormat());
+    @Override
+    protected boolean supportsFloatVectorFallback() {
+        return false;
+    }
+
+    static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new ES818BinaryQuantizedRWVectorsFormat());
 
     @Override
     protected Codec getCodec() {
@@ -125,7 +130,7 @@ public class ES818BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormat
         VectorSimilarityFunction similarityFunction = VectorSimilarityFunction.EUCLIDEAN;
         try (Directory d = newDirectory()) {
             IndexWriterConfig iwc = newIndexWriterConfig().setCodec(codec);
-            iwc.setMergePolicy(new SoftDeletesRetentionMergePolicy("soft_delete", MatchAllDocsQuery::new, iwc.getMergePolicy()));
+            iwc.setMergePolicy(new SoftDeletesRetentionMergePolicy("soft_delete", () -> Queries.ALL_DOCS_INSTANCE, iwc.getMergePolicy()));
             try (IndexWriter w = new IndexWriter(d, iwc)) {
                 List<Document> toAdd = new ArrayList<>();
                 for (int j = 1; j <= 5; j++) {
@@ -258,11 +263,21 @@ public class ES818BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormat
                         );
                         ESVectorUtil.packAsBinary(quantizedVector, expectedVector);
                         assertArrayEquals(expectedVector, qvectorValues.vectorValue(docIndexIterator.index()));
-                        assertEquals(corrections, qvectorValues.getCorrectiveTerms(docIndexIterator.index()));
+                        assertQuantizationResultEquals(corrections, qvectorValues.getCorrectiveTerms(docIndexIterator.index()));
                     }
                 }
             }
         }
+    }
+
+    static void assertQuantizationResultEquals(
+        OptimizedScalarQuantizer.QuantizationResult expected,
+        OptimizedScalarQuantizer.QuantizationResult obj
+    ) {
+        assertEquals(expected.lowerInterval(), obj.lowerInterval(), 0.000001f);
+        assertEquals(expected.upperInterval(), obj.upperInterval(), 0.000001f);
+        assertEquals(expected.additionalCorrection(), obj.additionalCorrection(), 0.00001f);
+        assertEquals(expected.quantizedComponentSum(), obj.quantizedComponentSum());
     }
 
     public void testSimpleOffHeapSize() throws IOException {

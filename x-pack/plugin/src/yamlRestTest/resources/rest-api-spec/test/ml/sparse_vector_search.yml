@@ -81,6 +81,17 @@ setup:
           {"index": { "_id": 6 }}
           {"source_text": "washing machine smells", "ml.tokens":{"washing":1.0,"machine":1.0,"smells":1.0}}
 
+  # Force merge to a single segment so that term statistics used by token pruning
+  # (averageTokenFreqRatio) are deterministic regardless of how many segments the
+  # bulk index produced. Without this, the per-segment max unique token count varies
+  # and borderline pruning decisions can flip between runs.
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.forcemerge:
+        index: index-with-sparse-vector
+        max_num_segments: 1
+
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
@@ -251,7 +262,7 @@ teardown:
               field: ml.tokens
               query_vector:
                 the: 0.5
-                comforter: 2.0
+                comforter: 3.0
                 smells: 1.0
                 bad: 1.0
               prune: true
@@ -261,7 +272,7 @@ teardown:
                 only_score_pruned_tokens: false
 
   - match: { hits.total.value: 3 }
-  - match: { hits.hits.0._score: 4 }
+  - match: { hits.hits.0._score: 6 }
 
 ---
 "Test sparse_vector search with query vector and pruning config with only score pruned tokens":

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.eql.execution.sequence;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -14,6 +15,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -22,6 +24,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskId;
@@ -36,8 +40,10 @@ import org.elasticsearch.xpack.eql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.eql.analysis.Verifier;
 import org.elasticsearch.xpack.eql.execution.assembler.BoxedQueryRequest;
 import org.elasticsearch.xpack.eql.execution.assembler.SequenceCriterion;
+import org.elasticsearch.xpack.eql.execution.search.HitReference;
 import org.elasticsearch.xpack.eql.execution.search.PITAwareQueryClient;
 import org.elasticsearch.xpack.eql.execution.search.QueryClient;
+import org.elasticsearch.xpack.eql.execution.search.QueryRequest;
 import org.elasticsearch.xpack.eql.execution.search.Timestamp;
 import org.elasticsearch.xpack.eql.execution.search.extractor.ImplicitTiebreakerHitExtractor;
 import org.elasticsearch.xpack.eql.expression.function.EqlFunctionRegistry;
@@ -54,6 +60,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -85,6 +92,7 @@ public class PITFailureTests extends ESTestCase {
                 1,
                 randomBoolean(),
                 randomBoolean(),
+                null,
                 "",
                 new TaskId("test", 123),
                 new EqlSearchTask(
@@ -150,6 +158,128 @@ public class PITFailureTests extends ESTestCase {
                 )
             );
         }
+    }
+
+    /**
+     * Regression test for <a href="https://github.com/elastic/elasticsearch/issues/146187">#146187</a>:
+     * when the search has already completed successfully and the subsequent PIT close fails
+     * (e.g. transient CCS error in {@code RemoteClusterService.collectNodes}), the failure
+     * must not be propagated back to the outer listener, which has already been invoked.
+     */
+    public void testCloseFailureDoesNotInvokeListenerTwice() {
+        CircuitBreaker cb = new NoopCircuitBreaker("testcb");
+        QueryClient client = new QueryClient() {
+            @Override
+            public void query(QueryRequest r, ActionListener<SearchResponse> l) {
+                SearchHits hits = SearchHits.unpooled(SearchHits.EMPTY, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0.0f);
+                ActionListener.respondAndRelease(l, SearchResponseUtils.successfulResponse(hits));
+            }
+
+            @Override
+            public void close(ActionListener<Boolean> closed) {
+                closed.onFailure(new IllegalStateException("simulated PIT close failure"));
+            }
+
+            @Override
+            public void fetchHits(Iterable<List<HitReference>> refs, ActionListener<List<List<SearchHit>>> listener) {
+                listener.onResponse(Collections.emptyList());
+            }
+        };
+
+        List<SequenceCriterion> criteria = new ArrayList<>();
+        criteria.add(
+            new SequenceCriterion(
+                0,
+                new BoxedQueryRequest(
+                    () -> SearchSourceBuilder.searchSource().size(10).query(matchAllQuery()).terminateAfter(0),
+                    "@timestamp",
+                    emptyList(),
+                    emptySet()
+                ),
+                keyExtractors,
+                TimestampExtractor.INSTANCE,
+                null,
+                ImplicitTiebreakerHitExtractor.INSTANCE,
+                false,
+                false
+            )
+        );
+        SequenceMatcher matcher = new SequenceMatcher(1, false, TimeValue.MINUS_ONE, null, booleanArrayOf(1, false), cb);
+        TumblingWindow window = new TumblingWindow(
+            client,
+            criteria,
+            null,
+            matcher,
+            Collections.emptyList(),
+            randomBoolean(),
+            randomBoolean()
+        );
+
+        AtomicInteger responses = new AtomicInteger();
+        AtomicInteger failures = new AtomicInteger();
+        window.execute(ActionListener.assertOnce(wrap(p -> responses.incrementAndGet(), ex -> failures.incrementAndGet())));
+        assertEquals(1, responses.get());
+        assertEquals(0, failures.get());
+    }
+
+    /**
+     * When both the sequence query and the subsequent PIT close fail, the outer listener
+     * must still be invoked exactly once (with the query failure), and the close failure
+     * must be swallowed/logged rather than re-delivered.
+     */
+    public void testQueryAndCloseFailureDoesNotInvokeListenerTwice() {
+        CircuitBreaker cb = new NoopCircuitBreaker("testcb");
+        QueryClient client = new QueryClient() {
+            @Override
+            public void query(QueryRequest r, ActionListener<SearchResponse> l) {
+                l.onFailure(new IllegalStateException("simulated query failure"));
+            }
+
+            @Override
+            public void close(ActionListener<Boolean> closed) {
+                closed.onFailure(new IllegalStateException("simulated PIT close failure"));
+            }
+
+            @Override
+            public void fetchHits(Iterable<List<HitReference>> refs, ActionListener<List<List<SearchHit>>> listener) {
+                listener.onResponse(Collections.emptyList());
+            }
+        };
+
+        List<SequenceCriterion> criteria = new ArrayList<>();
+        criteria.add(
+            new SequenceCriterion(
+                0,
+                new BoxedQueryRequest(
+                    () -> SearchSourceBuilder.searchSource().size(10).query(matchAllQuery()).terminateAfter(0),
+                    "@timestamp",
+                    emptyList(),
+                    emptySet()
+                ),
+                keyExtractors,
+                TimestampExtractor.INSTANCE,
+                null,
+                ImplicitTiebreakerHitExtractor.INSTANCE,
+                false,
+                false
+            )
+        );
+        SequenceMatcher matcher = new SequenceMatcher(1, false, TimeValue.MINUS_ONE, null, booleanArrayOf(1, false), cb);
+        TumblingWindow window = new TumblingWindow(
+            client,
+            criteria,
+            null,
+            matcher,
+            Collections.emptyList(),
+            randomBoolean(),
+            randomBoolean()
+        );
+
+        AtomicInteger responses = new AtomicInteger();
+        AtomicInteger failures = new AtomicInteger();
+        window.execute(ActionListener.assertOnce(wrap(p -> responses.incrementAndGet(), ex -> failures.incrementAndGet())));
+        assertEquals(0, responses.get());
+        assertEquals(1, failures.get());
     }
 
     /**

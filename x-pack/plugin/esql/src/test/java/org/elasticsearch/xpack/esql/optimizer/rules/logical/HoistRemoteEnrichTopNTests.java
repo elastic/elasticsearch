@@ -7,16 +7,9 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
-import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.analysis.Analyzer;
-import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
-import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.Order;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -24,16 +17,9 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 
-import java.util.Map;
-
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
@@ -114,33 +100,11 @@ public class HoistRemoteEnrichTopNTests extends AbstractLogicalPlanOptimizerTest
     }
 
     private LogicalPlan planWithPolicyOverride(String query) {
-        // Set up index and enrich policy with overlapping fields
-        var enrichResolution = new EnrichResolution();
-        AnalyzerTestUtils.loadEnrichPolicyResolution(
-            enrichResolution,
-            Enrich.Mode.REMOTE,
-            MATCH_TYPE,
-            "hosts",
-            "host",
-            "hosts",
-            "mapping-hosts.json"
+        return logicalOptimizer.optimize(
+            analyzer().addEnrichPolicy(Enrich.Mode.REMOTE, MATCH_TYPE, "hosts", "host", "hosts", "mapping-hosts.json")
+                .addIndex("host_inventory", "mapping-host_inventory.json")
+                .query(query)
         );
-        var mapping = loadMapping("mapping-host_inventory.json");
-        EsIndex inventory = new EsIndex("host_inventory", mapping, Map.of("host_inventory", IndexMode.STANDARD));
-        var analyzer = new Analyzer(
-            testAnalyzerContext(
-                EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
-                indexResolutions(inventory),
-                defaultLookupResolution(),
-                enrichResolution,
-                emptyInferenceResolution()
-            ),
-            TEST_VERIFIER
-        );
-
-        var analyzed = analyzer.analyze(parser.createStatement(query));
-        return logicalOptimizer.optimize(analyzed);
     }
 
     /**
@@ -251,7 +215,7 @@ public class HoistRemoteEnrichTopNTests extends AbstractLogicalPlanOptimizerTest
         assertFalse(topn.local());
         Order topNOrder = topn.order().get(1);
         NamedExpression expr = as(topNOrder.child(), NamedExpression.class);
-        assertThat(expr.name(), startsWith("$$order_by$1$0"));
+        assertThat(expr.name(), startsWith("$$order_by$1$"));
         var enrich = as(topn.child(), Enrich.class);
         assertThat(enrich.mode(), is(Enrich.Mode.REMOTE));
         var innerTopN = as(enrich.child(), TopN.class);

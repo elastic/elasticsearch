@@ -87,7 +87,10 @@ public class DenseVectorStatsTests extends AbstractWireSerializingTestCase<Dense
     }
 
     public void testBasicXContent() throws IOException {
-        var stats = new DenseVectorStats(5L, Map.of("foo", Map.of("vec", 9L), "bar", Map.of("vec", 14L, "vex", 1L, "veb", 3L)));
+        var stats = new DenseVectorStats(
+            5L,
+            Map.of("foo", Map.of("vec", 9L), "bar", Map.of("vec", 14L, "vex", 1L, "veb", 3L, "cenivf", 7L, "clivf", 2L))
+        );
 
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
         builder.startObject();
@@ -110,11 +113,13 @@ public class DenseVectorStatsTests extends AbstractWireSerializingTestCase<Dense
               "dense_vector" : {
                 "value_count" : 5,
                 "off_heap" : {
-                  "total_size_bytes" : 27,
+                  "total_size_bytes" : 36,
                   "total_veb_size_bytes" : 3,
                   "total_vec_size_bytes" : 23,
                   "total_veq_size_bytes" : 0,
-                  "total_vex_size_bytes" : 1
+                  "total_vex_size_bytes" : 1,
+                  "total_cenivf_size_bytes" : 7,
+                  "total_clivf_size_bytes" : 2
                 }
               }
             }""";
@@ -129,13 +134,17 @@ public class DenseVectorStatsTests extends AbstractWireSerializingTestCase<Dense
               "dense_vector" : {
                 "value_count" : 5,
                 "off_heap" : {
-                  "total_size_bytes" : 27,
+                  "total_size_bytes" : 36,
                   "total_veb_size_bytes" : 3,
                   "total_vec_size_bytes" : 23,
                   "total_veq_size_bytes" : 0,
                   "total_vex_size_bytes" : 1,
+                  "total_cenivf_size_bytes" : 7,
+                  "total_clivf_size_bytes" : 2,
                   "fielddata" : {
                     "bar" : {
+                      "cenivf_size_bytes" : 7,
+                      "clivf_size_bytes" : 2,
                       "veb_size_bytes" : 3,
                       "vec_size_bytes" : 14,
                       "vex_size_bytes" : 1
@@ -168,7 +177,9 @@ public class DenseVectorStatsTests extends AbstractWireSerializingTestCase<Dense
                           "total_veb_size_bytes" : 0,
                           "total_vec_size_bytes" : 0,
                           "total_veq_size_bytes" : 0,
-                          "total_vex_size_bytes" : 0
+                          "total_vex_size_bytes" : 0,
+                          "total_cenivf_size_bytes" : 0,
+                          "total_clivf_size_bytes" : 0
                         }
                       }
                     }""";
@@ -202,6 +213,10 @@ public class DenseVectorStatsTests extends AbstractWireSerializingTestCase<Dense
                   "total_veq_size_bytes" : 1099511627776,
                   "total_vex_size" : "190.7mb",
                   "total_vex_size_bytes" : 200000000,
+                  "total_cenivf_size" : "0b",
+                  "total_cenivf_size_bytes" : 0,
+                  "total_clivf_size" : "0b",
+                  "total_clivf_size_bytes" : 0,
                   "fielddata" : {
                     "bar" : {
                       "veb_size" : "1kb",

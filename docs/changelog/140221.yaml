@@ -1,0 +1,5 @@
+pr: 140221
+summary: Retrieve routing hash from synthetic id for translog operations
+area: TSDB
+type: bug
+issues: []

@@ -18,6 +18,36 @@ setup:
   - contains: {index_templates: {name: traces-apm.sampled@template}}
 
 ---
+# This is a regression test to avoid incurring in APM Server bug https://github.com/elastic/apm-server/issues/20496
+"Test apm timestamp.us mapping":
+  - do:
+      cluster.get_component_template:
+        name: apm@mappings
+  - match:
+      component_templates.0.component_template.template.mappings.properties.timestamp.properties.us.type: long
+
+---
+"Test apm timestamp.us coercion":
+  - do:
+      index:
+        index: traces-apm-timestampus
+        refresh: true
+        body:
+          "@timestamp": "2017-06-22T00:00:00Z"
+          data_stream.type: traces
+          data_stream.dataset: apm
+          data_stream.namespace: testing
+          timestamp:
+            us: 1772469840000000.0
+  - do:
+      search:
+        index: traces-apm-timestampus
+        body:
+          fields: ["timestamp.us"]
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields.timestamp\.us: [1772469840000000] }
+
+---
 "Test metrics-apm* template installation":
   - skip:
       reason: contains is a newly added assertion

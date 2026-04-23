@@ -7,32 +7,54 @@
 package org.elasticsearch.xpack.ml;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
+import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
+import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsAction;
+import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.ResetJobAction;
+import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.config.JobState;
+import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -40,10 +62,17 @@ import org.mockito.stubbing.Answer;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
@@ -60,6 +89,7 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
     private ThreadPool threadPool;
     private Client client;
     private ClusterService clusterService;
+    private AnomalyDetectionAuditor auditor;
     private MlAssignmentNotifier mlAssignmentNotifier;
 
     @Before
@@ -68,6 +98,7 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
         clusterService = mock(ClusterService.class);
+        auditor = mock(AnomalyDetectionAuditor.class);
         mlAssignmentNotifier = mock(MlAssignmentNotifier.class);
     }
 
@@ -139,7 +170,7 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
     public void testNoAnomalyDetectionTasksWhenDisabled() throws InterruptedException {
         when(clusterService.state()).thenReturn(createClusterState(false));
 
-        executeMaintenanceTriggers(1, false, randomBoolean(), randomBoolean());
+        executeMaintenanceTriggers(1, false, randomBoolean(), randomBoolean(), randomBoolean());
 
         verify(client, never()).threadPool();
         verify(client, never()).execute(same(DeleteExpiredDataAction.INSTANCE), any(), any());
@@ -289,15 +320,310 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
         verifyNoMoreInteractions(client, mlAssignmentNotifier);
     }
 
+    public void testHasIlm() {
+        List<IlmTestCase> testCases = List.of(
+            new IlmTestCase(true, true, true, "ILM should be active when both settings are enabled"),
+            new IlmTestCase(false, false, true, "ILM should be inactive when index policy is missing"),
+            new IlmTestCase(false, true, false, "ILM should be inactive when ML setting is disabled"),
+            new IlmTestCase(false, false, false, "ILM should be inactive when both settings are disabled")
+        );
+
+        String indexName = randomAlphaOfLength(10);
+        for (IlmTestCase testCase : testCases) {
+            MlDailyMaintenanceService service = createService(indexName, testCase.hasIlmPolicy, testCase.isIlmEnabled);
+            assertThat(testCase.description, service.hasIlm(indexName), equalTo(testCase.expected));
+        }
+    }
+
+    public void testCloseIdleJobsDisabledWhenTimeoutIsNegative() throws InterruptedException {
+        MlDailyMaintenanceService service = createMaintenanceService();
+        service.setIdleJobAutoCloseTimeout(TimeValue.MINUS_ONE);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        service.triggerCloseIdleJobsWithStoppedDatafeeds(ActionListener.wrap(r -> {
+            assertTrue(r.isAcknowledged());
+            latch.countDown();
+        }, e -> fail(e.getMessage())));
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+
+        verify(client, never()).execute(same(CloseJobAction.INSTANCE), any(), any());
+    }
+
+    public void testCloseIdleJobsNoCandidatesWhenAllHaveDatafeeds() throws InterruptedException {
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        addJobTask(tasksBuilder, "job-1", JobState.OPENED);
+        addDatafeedTask(tasksBuilder, "datafeed-1", "job-1");
+
+        when(clusterService.state()).thenReturn(createClusterStateWithTasks(tasksBuilder.build()));
+
+        MlDailyMaintenanceService service = createMaintenanceService();
+
+        CountDownLatch latch = new CountDownLatch(1);
+        service.triggerCloseIdleJobsWithStoppedDatafeeds(ActionListener.wrap(r -> {
+            assertTrue(r.isAcknowledged());
+            latch.countDown();
+        }, e -> fail(e.getMessage())));
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+
+        verify(client, never()).execute(same(TransportSearchAction.TYPE), any(), any());
+        verify(client, never()).execute(same(CloseJobAction.INSTANCE), any(), any());
+    }
+
+    public void testCloseIdleJobsClosesJobWithOldData() throws InterruptedException {
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        addJobTask(tasksBuilder, "idle-job", JobState.OPENED);
+
+        when(clusterService.state()).thenReturn(createClusterStateWithTasks(tasksBuilder.build()));
+        doAnswer(withDatafeedResponse("idle-job")).when(client).execute(same(GetDatafeedsAction.INSTANCE), any(), any());
+
+        long threeDaysAgo = threadPool.absoluteTimeInMillis() - TimeValue.timeValueHours(72).millis();
+        doAnswer(withSearchResponse("idle-job", threeDaysAgo)).when(client).execute(same(TransportSearchAction.TYPE), any(), any());
+        doAnswer(withResponse(new CloseJobAction.Response(true))).when(client).execute(same(CloseJobAction.INSTANCE), any(), any());
+
+        MlDailyMaintenanceService service = createMaintenanceService();
+
+        CountDownLatch latch = new CountDownLatch(1);
+        service.triggerCloseIdleJobsWithStoppedDatafeeds(ActionListener.wrap(r -> {
+            assertTrue(r.isAcknowledged());
+            latch.countDown();
+        }, e -> fail(e.getMessage())));
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+
+        verify(client).execute(same(CloseJobAction.INSTANCE), any(), any());
+    }
+
+    public void testCloseIdleJobsSkipsJobWithRecentData() throws InterruptedException {
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        addJobTask(tasksBuilder, "active-job", JobState.OPENED);
+
+        when(clusterService.state()).thenReturn(createClusterStateWithTasks(tasksBuilder.build()));
+        doAnswer(withDatafeedResponse("active-job")).when(client).execute(same(GetDatafeedsAction.INSTANCE), any(), any());
+
+        long oneHourAgo = threadPool.absoluteTimeInMillis() - TimeValue.timeValueHours(1).millis();
+        doAnswer(withSearchResponse("active-job", oneHourAgo)).when(client).execute(same(TransportSearchAction.TYPE), any(), any());
+
+        MlDailyMaintenanceService service = createMaintenanceService();
+
+        CountDownLatch latch = new CountDownLatch(1);
+        service.triggerCloseIdleJobsWithStoppedDatafeeds(ActionListener.wrap(r -> {
+            assertTrue(r.isAcknowledged());
+            latch.countDown();
+        }, e -> fail(e.getMessage())));
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+
+        verify(client, never()).execute(same(CloseJobAction.INSTANCE), any(), any());
+    }
+
+    public void testCloseIdleJobsSkipsClosedJobs() throws InterruptedException {
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        addJobTask(tasksBuilder, "closed-job", JobState.CLOSED);
+
+        when(clusterService.state()).thenReturn(createClusterStateWithTasks(tasksBuilder.build()));
+
+        MlDailyMaintenanceService service = createMaintenanceService();
+
+        CountDownLatch latch = new CountDownLatch(1);
+        service.triggerCloseIdleJobsWithStoppedDatafeeds(ActionListener.wrap(r -> {
+            assertTrue(r.isAcknowledged());
+            latch.countDown();
+        }, e -> fail(e.getMessage())));
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+
+        verify(client, never()).execute(same(TransportSearchAction.TYPE), any(), any());
+        verify(client, never()).execute(same(CloseJobAction.INSTANCE), any(), any());
+    }
+
+    public void testCloseIdleJobsSkipsJobsWithoutConfiguredDatafeed() throws InterruptedException {
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        addJobTask(tasksBuilder, "no-datafeed-job", JobState.OPENED);
+
+        when(clusterService.state()).thenReturn(createClusterStateWithTasks(tasksBuilder.build()));
+        doAnswer(withDatafeedResponse()).when(client).execute(same(GetDatafeedsAction.INSTANCE), any(), any());
+
+        MlDailyMaintenanceService service = createMaintenanceService();
+
+        CountDownLatch latch = new CountDownLatch(1);
+        service.triggerCloseIdleJobsWithStoppedDatafeeds(ActionListener.wrap(r -> {
+            assertTrue(r.isAcknowledged());
+            latch.countDown();
+        }, e -> fail(e.getMessage())));
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+
+        verify(client, never()).execute(same(TransportSearchAction.TYPE), any(), any());
+        verify(client, never()).execute(same(CloseJobAction.INSTANCE), any(), any());
+    }
+
+    public void testCloseIdleJobsSkipsJobWithNoDataCounts() throws InterruptedException {
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        addJobTask(tasksBuilder, "no-data-job", JobState.OPENED);
+
+        when(clusterService.state()).thenReturn(createClusterStateWithTasks(tasksBuilder.build()));
+        doAnswer(withDatafeedResponse("no-data-job")).when(client).execute(same(GetDatafeedsAction.INSTANCE), any(), any());
+
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[2];
+            SearchResponse response = SearchResponseUtils.successfulResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
+            try {
+                listener.onResponse(response);
+            } finally {
+                response.decRef();
+            }
+            return null;
+        }).when(client).execute(same(TransportSearchAction.TYPE), any(), any());
+
+        MlDailyMaintenanceService service = createMaintenanceService();
+
+        CountDownLatch latch = new CountDownLatch(1);
+        service.triggerCloseIdleJobsWithStoppedDatafeeds(ActionListener.wrap(r -> {
+            assertTrue(r.isAcknowledged());
+            latch.countDown();
+        }, e -> fail(e.getMessage())));
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+
+        verify(client, never()).execute(same(CloseJobAction.INSTANCE), any(), any());
+    }
+
+    private MlDailyMaintenanceService createMaintenanceService() {
+        return new MlDailyMaintenanceService(
+            Settings.EMPTY,
+            threadPool,
+            client,
+            clusterService,
+            auditor,
+            mlAssignmentNotifier,
+            () -> TimeValue.timeValueDays(1),
+            TestIndexNameExpressionResolver.newInstance(),
+            true,
+            true,
+            true,
+            true
+        );
+    }
+
+    private static void addJobTask(PersistentTasksCustomMetadata.Builder builder, String jobId, JobState state) {
+        builder.addTask(
+            MlTasks.jobTaskId(jobId),
+            MlTasks.JOB_TASK_NAME,
+            new OpenJobAction.JobParams(jobId),
+            PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT
+        );
+        builder.updateTaskState(MlTasks.jobTaskId(jobId), new JobTaskState(state, builder.getLastAllocationId(), null, null));
+    }
+
+    private static void addDatafeedTask(PersistentTasksCustomMetadata.Builder builder, String datafeedId, String jobId) {
+        StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams(datafeedId, 0);
+        params.setJobId(jobId);
+        builder.addTask(
+            MlTasks.datafeedTaskId(datafeedId),
+            MlTasks.DATAFEED_TASK_NAME,
+            params,
+            PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT
+        );
+    }
+
+    private static ClusterState createClusterStateWithTasks(PersistentTasksCustomMetadata tasks) {
+        return ClusterState.builder(new ClusterName("MlDailyMaintenanceServiceTests"))
+            .metadata(
+                Metadata.builder()
+                    .putCustom(PersistentTasksCustomMetadata.TYPE, tasks)
+                    .putCustom(MlMetadata.TYPE, new MlMetadata.Builder().build())
+            )
+            .nodes(DiscoveryNodes.builder().build())
+            .build();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Answer<Void> withDatafeedResponse(String... jobIds) {
+        return invocationOnMock -> {
+            ActionListener<GetDatafeedsAction.Response> listener = (ActionListener<GetDatafeedsAction.Response>) invocationOnMock
+                .getArguments()[2];
+            List<DatafeedConfig> datafeeds = new java.util.ArrayList<>();
+            for (String jobId : jobIds) {
+                datafeeds.add(new DatafeedConfig.Builder("datafeed-" + jobId, jobId).setIndices(List.of("index")).build());
+            }
+            listener.onResponse(new GetDatafeedsAction.Response(new QueryPage<>(datafeeds, datafeeds.size(), new ParseField(""))));
+            return null;
+        };
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Answer<Void> withSearchResponse(String jobId, long latestRecordTimestamp) {
+        return invocationOnMock -> {
+            ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[2];
+            try {
+                XContentBuilder sourceBuilder = JsonXContent.contentBuilder();
+                sourceBuilder.startObject();
+                sourceBuilder.field("latest_record_timestamp", latestRecordTimestamp);
+                sourceBuilder.endObject();
+                SearchHit hit = SearchHit.unpooled(0);
+                hit.sourceRef(BytesReference.bytes(sourceBuilder));
+                SearchHits hits = SearchHits.unpooled(new SearchHit[] { hit }, null, 1.0f);
+                SearchResponse response = SearchResponseUtils.successfulResponse(hits);
+                try {
+                    listener.onResponse(response);
+                } finally {
+                    response.decRef();
+                }
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+            return null;
+        };
+    }
+
+    private MlDailyMaintenanceService createService(String indexName, boolean hasIlmPolicy, boolean isIlmEnabled) {
+        AdminClient adminClient = mock(AdminClient.class);
+        IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
+        @SuppressWarnings("unchecked")
+        ActionFuture<GetIndexResponse> actionFuture = mock(ActionFuture.class);
+
+        when(client.admin()).thenReturn(adminClient);
+        when(adminClient.indices()).thenReturn(indicesAdminClient);
+        when(indicesAdminClient.getIndex(any())).thenReturn(actionFuture);
+
+        Settings.Builder indexSettings = Settings.builder();
+        if (hasIlmPolicy) {
+            indexSettings.put("index.lifecycle.name", "ml-policy");
+        }
+        GetIndexResponse getIndexResponse = new GetIndexResponse(
+            new String[] { indexName },
+            Map.of(),
+            Map.of(),
+            Map.of(indexName, indexSettings.build()),
+            Map.of(),
+            Map.of()
+        );
+        when(actionFuture.actionGet()).thenReturn(getIndexResponse);
+
+        return new MlDailyMaintenanceService(
+            Settings.EMPTY,
+            threadPool,
+            client,
+            clusterService,
+            auditor,
+            mlAssignmentNotifier,
+            () -> TimeValue.timeValueDays(1),
+            TestIndexNameExpressionResolver.newInstance(),
+            true,
+            true,
+            true,
+            isIlmEnabled
+        );
+    }
+
+    private record IlmTestCase(boolean expected, boolean hasIlmPolicy, boolean isIlmEnabled, String description) {}
+
     private void executeMaintenanceTriggers(int triggerCount) throws InterruptedException {
-        executeMaintenanceTriggers(triggerCount, true, true, true);
+        executeMaintenanceTriggers(triggerCount, true, true, true, true);
     }
 
     private void executeMaintenanceTriggers(
         int triggerCount,
         boolean isAnomalyDetectionEnabled,
         boolean isDataFrameAnalyticsEnabled,
-        boolean isNlpEnabled
+        boolean isNlpEnabled,
+        boolean isIlmEnabled
     ) throws InterruptedException {
         // The scheduleProvider is called upon scheduling. The latch waits for (triggerCount + 1)
         // schedules to happen, which means that the maintenance task is executed triggerCount
@@ -317,16 +643,66 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
                 threadPool,
                 client,
                 clusterService,
+                auditor,
                 mlAssignmentNotifier,
                 scheduleProvider,
+                TestIndexNameExpressionResolver.newInstance(),
                 isAnomalyDetectionEnabled,
                 isDataFrameAnalyticsEnabled,
-                isNlpEnabled
+                isNlpEnabled,
+                isIlmEnabled
             )
         ) {
             service.start();
             latch.await(5, TimeUnit.SECONDS);
         }
+    }
+
+    public void testCollectOpenJobsWithoutRunningDatafeeds_noTasks() {
+        ClusterState state = createClusterState(false);
+        assertThat(MlDailyMaintenanceService.collectOpenJobsWithoutRunningDatafeeds(state), empty());
+    }
+
+    public void testCollectOpenJobsWithoutRunningDatafeeds_openJobWithRunningDatafeed() {
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        addJobTask(tasksBuilder, "job-1", JobState.OPENED);
+        addDatafeedTask(tasksBuilder, "datafeed-1", "job-1");
+        ClusterState state = createClusterStateWithTasks(tasksBuilder.build());
+
+        assertThat(MlDailyMaintenanceService.collectOpenJobsWithoutRunningDatafeeds(state), empty());
+    }
+
+    public void testCollectOpenJobsWithoutRunningDatafeeds_openJobWithoutDatafeed() {
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        addJobTask(tasksBuilder, "job-1", JobState.OPENED);
+        ClusterState state = createClusterStateWithTasks(tasksBuilder.build());
+
+        assertThat(MlDailyMaintenanceService.collectOpenJobsWithoutRunningDatafeeds(state), contains("job-1"));
+    }
+
+    public void testCollectOpenJobsWithoutRunningDatafeeds_closedJobIsExcluded() {
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        addJobTask(tasksBuilder, "job-open", JobState.OPENED);
+        addJobTask(tasksBuilder, "job-closed", JobState.CLOSED);
+        ClusterState state = createClusterStateWithTasks(tasksBuilder.build());
+
+        Set<String> result = MlDailyMaintenanceService.collectOpenJobsWithoutRunningDatafeeds(state);
+        assertThat(result, contains("job-open"));
+        assertThat(result, not(hasItem("job-closed")));
+    }
+
+    public void testCollectOpenJobsWithoutRunningDatafeeds_mixedJobs() {
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        addJobTask(tasksBuilder, "job-with-datafeed", JobState.OPENED);
+        addDatafeedTask(tasksBuilder, "datafeed-1", "job-with-datafeed");
+        addJobTask(tasksBuilder, "job-without-datafeed", JobState.OPENED);
+        addJobTask(tasksBuilder, "job-closed", JobState.CLOSED);
+        ClusterState state = createClusterStateWithTasks(tasksBuilder.build());
+
+        Set<String> result = MlDailyMaintenanceService.collectOpenJobsWithoutRunningDatafeeds(state);
+        assertThat(result, contains("job-without-datafeed"));
+        assertThat(result, not(hasItem("job-with-datafeed")));
+        assertThat(result, not(hasItem("job-closed")));
     }
 
     private static ClusterState createClusterState(boolean isUpgradeMode) {

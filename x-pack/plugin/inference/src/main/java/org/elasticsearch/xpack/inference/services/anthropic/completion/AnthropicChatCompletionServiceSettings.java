@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.anthropic.completion;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -44,21 +43,13 @@ public class AnthropicChatCompletionServiceSettings extends FilteredXContentObje
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(50);
 
     public static AnthropicChatCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
 
-        String modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
-            map,
-            DEFAULT_RATE_LIMIT_SETTINGS,
-            validationException,
-            AnthropicService.NAME,
-            context
-        );
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, AnthropicService.NAME, context);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new AnthropicChatCompletionServiceSettings(modelId, rateLimitSettings);
     }
@@ -88,6 +79,23 @@ public class AnthropicChatCompletionServiceSettings extends FilteredXContentObje
     }
 
     @Override
+    public AnthropicChatCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            AnthropicService.NAME,
+            ConfigurationParseContext.REQUEST
+        );
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new AnthropicChatCompletionServiceSettings(this.modelId, extractedRateLimitSettings);
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
@@ -113,7 +121,7 @@ public class AnthropicChatCompletionServiceSettings extends FilteredXContentObje
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_14_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

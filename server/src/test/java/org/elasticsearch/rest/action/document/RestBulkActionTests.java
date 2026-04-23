@@ -241,7 +241,7 @@ public class RestBulkActionTests extends ESTestCase {
             })
             .withHeaders(Map.of("Content-Type", Collections.singletonList("application/json")))
             .build();
-        FakeRestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
+        FakeRestChannel channel = new FakeRestChannel(request, randomBoolean());
 
         IndexingPressure indexingPressure = new IndexingPressure(Settings.EMPTY);
         RestBulkAction.ChunkHandler chunkHandler = new RestBulkAction.ChunkHandler(true, request, () -> {

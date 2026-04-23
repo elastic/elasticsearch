@@ -30,7 +30,6 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnFloatVectorQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
@@ -44,8 +43,10 @@ import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.codec.vectors.BFloat16;
-import org.elasticsearch.index.codec.vectors.BaseBFloat16KnnVectorsFormatTestCase;
+import org.elasticsearch.index.codec.vectors.BaseQuantizedBFloat16KnnVectorsFormatTestCase;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
@@ -64,7 +65,7 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.oneOf;
 
-public class ES93BinaryQuantizedBFloat16VectorsFormatTests extends BaseBFloat16KnnVectorsFormatTestCase {
+public class ES93BinaryQuantizedBFloat16VectorsFormatTests extends BaseQuantizedBFloat16KnnVectorsFormatTestCase {
 
     static {
         LogConfigurator.loadLog4jPlugins();
@@ -75,7 +76,7 @@ public class ES93BinaryQuantizedBFloat16VectorsFormatTests extends BaseBFloat16K
 
     @Override
     public void setUp() throws Exception {
-        format = new ES93BinaryQuantizedVectorsFormat(ES93GenericFlatVectorsFormat.ElementType.BFLOAT16, random().nextBoolean());
+        format = new ES93BinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.BFLOAT16, random().nextBoolean());
         super.setUp();
     }
 
@@ -121,7 +122,7 @@ public class ES93BinaryQuantizedBFloat16VectorsFormatTests extends BaseBFloat16K
         VectorSimilarityFunction similarityFunction = VectorSimilarityFunction.EUCLIDEAN;
         try (Directory d = newDirectory()) {
             IndexWriterConfig iwc = newIndexWriterConfig().setCodec(getCodec());
-            iwc.setMergePolicy(new SoftDeletesRetentionMergePolicy("soft_delete", MatchAllDocsQuery::new, iwc.getMergePolicy()));
+            iwc.setMergePolicy(new SoftDeletesRetentionMergePolicy("soft_delete", () -> Queries.ALL_DOCS_INSTANCE, iwc.getMergePolicy()));
             try (IndexWriter w = new IndexWriter(d, iwc)) {
                 List<Document> toAdd = new ArrayList<>();
                 for (int j = 1; j <= 5; j++) {
@@ -185,18 +186,19 @@ public class ES93BinaryQuantizedBFloat16VectorsFormatTests extends BaseBFloat16K
             Locale.ROOT,
             expected,
             "ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format=%s)",
-            "ES818BinaryFlatVectorsScorer(nonQuantizedDelegate={}())"
+            "ES818BinaryFlatVectorsScorer(nonQuantizedDelegate=ES93GenericFlatVectorScorer(delegate={}()))"
         );
         expected = format(
             Locale.ROOT,
             expected,
-            "ES93BFloat16FlatVectorsFormat(name=ES93BFloat16FlatVectorsFormat, flatVectorScorer={}())"
+            "ES93BFloat16FlatVectorsFormat(name=ES93BFloat16FlatVectorsFormat,"
+                + " flatVectorScorer=ES93GenericFlatVectorScorer(delegate={}()))"
         );
 
         var defaultScorer = expected.replaceAll("\\{}", "DefaultFlatVectorScorer");
         var memSegScorer = expected.replaceAll("\\{}", "Lucene99MemorySegmentFlatVectorsScorer");
 
-        KnnVectorsFormat format = new ES93BinaryQuantizedVectorsFormat(ES93GenericFlatVectorsFormat.ElementType.BFLOAT16, false);
+        KnnVectorsFormat format = new ES93BinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.BFLOAT16, false);
         assertThat(format, hasToString(oneOf(defaultScorer, memSegScorer)));
     }
 

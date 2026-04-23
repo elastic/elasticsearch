@@ -25,7 +25,7 @@ public abstract class XPackUsageFeatureTransportAction extends TransportLocalClu
      * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC it must be registered with the TransportService until
      * we no longer need to support calling this action remotely.
      */
-    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA)
     @SuppressWarnings("this-escape")
     public XPackUsageFeatureTransportAction(
         String name,

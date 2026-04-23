@@ -101,7 +101,10 @@ public class TransportClusterSearchShardsAction extends TransportMasterNodeReadA
             request.indices()
         );
         Map<String, AliasFilter> indicesAndFilters = new HashMap<>();
-        Set<ResolvedExpression> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(project.metadata(), request.indices());
+        Set<ResolvedExpression> indicesAndAliases = indexNameExpressionResolver.resolveExpressionsIgnoringRemotes(
+            project.metadata(),
+            request.indices()
+        );
         for (String index : concreteIndices) {
             final AliasFilter aliasFilter = indicesService.buildAliasFilter(project, index, indicesAndAliases);
             final String[] aliases = indexNameExpressionResolver.allIndexAliases(project.metadata(), index, indicesAndAliases);
@@ -130,6 +133,8 @@ public class TransportClusterSearchShardsAction extends TransportMasterNodeReadA
         for (String nodeId : nodeIds) {
             nodes[currentNode++] = clusterState.getNodes().get(nodeId);
         }
-        listener.onResponse(new ClusterSearchShardsResponse(groupResponses, nodes, indicesAndFilters));
+        listener.onResponse(
+            new ClusterSearchShardsResponse(groupResponses, nodes, indicesAndFilters, request.getResolvedIndexExpressions())
+        );
     }
 }

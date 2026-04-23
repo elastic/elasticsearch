@@ -11,8 +11,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -39,6 +40,9 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
  */
 public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Coalesce", Coalesce::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Coalesce.class)
+        .unaryVariadic(Coalesce::new)
+        .name("coalesce");
 
     private DataType dataType;
 
@@ -49,6 +53,8 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
             "cartesian_shape",
             "date_nanos",
             "date",
+            "dense_vector",
+            "histogram",
             "geo_point",
             "geo_shape",
             "geohash",
@@ -58,7 +64,9 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
             "ip",
             "keyword",
             "long",
-            "version" },
+            "tdigest",
+            "version",
+            "exponential_histogram" },
         description = "Returns the first of its arguments that is not null. If all arguments are null, it returns `null`.",
         examples = { @Example(file = "null", tag = "coalesce") }
     )
@@ -72,6 +80,8 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
                 "cartesian_shape",
                 "date_nanos",
                 "date",
+                "dense_vector",
+                "histogram",
                 "geo_point",
                 "geo_shape",
                 "geohash",
@@ -81,8 +91,10 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
                 "ip",
                 "keyword",
                 "long",
+                "tdigest",
                 "text",
-                "version" },
+                "version",
+                "exponential_histogram" },
             description = "Expression to evaluate."
         ) Expression first,
         @Param(
@@ -93,6 +105,8 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
                 "cartesian_shape",
                 "date_nanos",
                 "date",
+                "dense_vector",
+                "histogram",
                 "geo_point",
                 "geo_shape",
                 "geohash",
@@ -102,11 +116,13 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
                 "ip",
                 "keyword",
                 "long",
+                "tdigest",
                 "text",
-                "version" },
+                "version",
+                "exponential_histogram" },
             description = "Other expression to evaluate.",
             optional = true
-        ) List<Expression> rest
+        ) List<? extends Expression> rest
     ) {
         super(source, Stream.concat(Stream.of(first), rest.stream()).toList());
     }
@@ -205,13 +221,16 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
                 toEvaluator,
                 children()
             );
-            case KEYWORD, TEXT, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE, IP, VERSION -> CoalesceBytesRefEvaluator
+            case KEYWORD, TEXT, CARTESIAN_POINT, CARTESIAN_SHAPE, HISTOGRAM, GEO_POINT, GEO_SHAPE, IP, VERSION -> CoalesceBytesRefEvaluator
                 .toEvaluator(toEvaluator, children());
-            case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
+            case EXPONENTIAL_HISTOGRAM -> CoalesceExponentialHistogramEvaluator.toEvaluator(toEvaluator, children());
+            case TDIGEST -> CoalesceTDigestEvaluator.toEvaluator(toEvaluator, children());
+            case DENSE_VECTOR -> CoalesceFloatEvaluator.toEvaluator(toEvaluator, children());
+            case NULL -> ConstantEvaluators.CONSTANT_NULL_FACTORY;
             case UNSUPPORTED, SHORT, BYTE, DATE_PERIOD, OBJECT, DOC_DATA_TYPE, SOURCE, TIME_DURATION, FLOAT, HALF_FLOAT, TSID_DATA_TYPE,
-                SCALED_FLOAT, PARTIAL_AGG, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, DENSE_VECTOR ->
-                throw new UnsupportedOperationException(dataType() + " can’t be coalesced");
-            // TODO(b/133393): Implement coalesce for exponential histograms
+                SCALED_FLOAT, PARTIAL_AGG, AGGREGATE_METRIC_DOUBLE, DATE_RANGE -> throw new UnsupportedOperationException(
+                    dataType() + " can't be coalesced"
+                );
         };
     }
 }

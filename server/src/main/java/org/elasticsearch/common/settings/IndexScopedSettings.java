@@ -30,6 +30,7 @@ import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.SearchSlowLog;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.codec.bloomfilter.SyntheticIdBloomFilterSettings;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -159,14 +160,17 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING,
                 IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING,
                 IndexSettings.INDEX_SEARCH_IDLE_AFTER,
+                IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING,
                 DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC,
                 DenseVectorFieldMapper.HNSW_EARLY_TERMINATION,
                 IndexFieldDataService.INDEX_FIELDDATA_CACHE_KEY,
                 IndexSettings.IGNORE_ABOVE_SETTING,
+                IndexSettings.STORE_FLATTENED_ROOT_DOC_VALUES,
                 FieldMapper.IGNORE_MALFORMED_SETTING,
                 FieldMapper.COERCE_SETTING,
                 Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING,
                 MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING,
+                MapperService.INDEX_MAPPING_NESTED_PARENTS_LIMIT_SETTING,
                 MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING,
                 MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING,
                 MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LENGTH_SETTING,
@@ -207,7 +211,12 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING,
                 IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING,
                 IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING,
+                IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING,
+                IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE,
                 InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT,
+                IndexSettings.USE_ES_812_POSTINGS_FORMAT,
+                IndexSettings.USE_DOC_VALUES_SKIPPER,
+                IndexSettings.INTRA_MERGE_PARALLELISM_ENABLED_SETTING,
 
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {
@@ -232,6 +241,14 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.TIME_SERIES_START_TIME,
                 IndexSettings.TIME_SERIES_END_TIME,
                 IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING,
+                IndexSettings.SYNTHETIC_ID,
+                SyntheticIdBloomFilterSettings.NUM_HASH_FUNCTIONS,
+                SyntheticIdBloomFilterSettings.SMALL_SEGMENT_MAX_DOCS,
+                SyntheticIdBloomFilterSettings.LARGE_SEGMENT_MIN_DOCS,
+                SyntheticIdBloomFilterSettings.HIGH_BITS_PER_DOC,
+                SyntheticIdBloomFilterSettings.LOW_BITS_PER_DOC,
+                SyntheticIdBloomFilterSettings.MAX_SIZE,
+                SyntheticIdBloomFilterSettings.OPTIMIZED_MERGE,
 
                 // Legacy index settings we must keep around for BWC from 7.x
                 EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS,
@@ -244,11 +261,10 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             )
         );
 
-        if (IndexSettings.DOC_VALUES_SKIPPER) {
-            settings.add(IndexSettings.USE_DOC_VALUES_SKIPPER);
-        }
-        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
-            settings.add(IndexSettings.USE_SYNTHETIC_ID);
+        settings.add(IndexSettings.DISABLE_SEQUENCE_NUMBERS);
+        settings.add(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE);
+        if (IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled()) {
+            settings.add(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD);
         }
         settings.add(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING);
         BUILT_IN_INDEX_SETTINGS = Collections.unmodifiableSet(settings);

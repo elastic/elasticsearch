@@ -28,8 +28,14 @@ import java.io.IOException;
  */
 public class WriteableExponentialHistogram extends AbstractExponentialHistogram implements GenericNamedWriteable {
 
-    // TODO(b/133393): as it turns out, this is also required in production. Therefore we have to properly register this class,
-    // like in https://github.com/elastic/elasticsearch/pull/135054
+    // TODO: This is currently only used for serializing literals in tests.
+    // At the time of writing, it is impossible for ExponentialHistogram literals to appear outside of tests
+    // as there is no conversion function or other means for constructing them except from a block loader.
+    // For this reason, this class is currently only available and registered for deserialization in tests,
+    // so that we don't have to care about backwards compatibility.
+    // If we eventually have to support ExponentialHistogram literals in production code,
+    // proper testing for this class needs to be added, similar to the following PR:
+    // https://github.com/elastic/elasticsearch/pull/135054
 
     private static final String WRITEABLE_NAME = "test_exponential_histogram";
 
@@ -41,7 +47,7 @@ public class WriteableExponentialHistogram extends AbstractExponentialHistogram 
 
     private final ExponentialHistogram delegate;
 
-    WriteableExponentialHistogram(ExponentialHistogram delegate) {
+    public WriteableExponentialHistogram(ExponentialHistogram delegate) {
         this.delegate = delegate;
     }
 

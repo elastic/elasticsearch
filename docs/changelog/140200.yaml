@@ -1,0 +1,6 @@
+pr: 140200
+summary: Use `IllegalArgumentException` over `RepositoryException` for readonly-repository
+  checks
+area: Snapshot/Restore
+type: bug
+issues: []

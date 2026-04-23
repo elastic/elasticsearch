@@ -2020,6 +2020,14 @@
                   "ignore_above": 1024,
                   "type": "keyword"
                 },
+                "mode": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "codec": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
                 "recovery": {
                   "properties": {
                     "stop_time": {
@@ -3698,6 +3706,14 @@
             "index": {
               "type": "alias",
               "path": "elasticsearch.index.name"
+            },
+            "mode": {
+              "type": "alias",
+              "path": "elasticsearch.index.mode"
+            },
+            "codec": {
+              "type": "alias",
+              "path": "elasticsearch.index.codec"
             },
             "primaries": {
               "properties": {

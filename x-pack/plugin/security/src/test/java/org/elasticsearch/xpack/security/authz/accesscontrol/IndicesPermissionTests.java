@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -67,8 +66,7 @@ public class IndicesPermissionTests extends ESTestCase {
         IndexMetadata.Builder imbBuilder = IndexMetadata.builder("_index")
             .settings(indexSettings(IndexVersion.current(), 1, 1))
             .putAlias(AliasMetadata.builder("_alias"));
-        Metadata md = Metadata.builder().put(imbBuilder).build();
-        ProjectMetadata pmd = md.getProject();
+        ProjectMetadata pmd = ProjectMetadata.builder(randomProjectIdOrDefault()).put(imbBuilder.build(), true).build();
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
 
         // basics:
@@ -156,8 +154,7 @@ public class IndicesPermissionTests extends ESTestCase {
         IndexMetadata.Builder imbBuilder1 = IndexMetadata.builder("_index_1")
             .settings(indexSettings(IndexVersion.current(), 1, 1))
             .putAlias(AliasMetadata.builder("_alias"));
-        md = Metadata.builder(md).put(imbBuilder1).build();
-        pmd = md.getProject();
+        pmd = ProjectMetadata.builder(pmd).put(imbBuilder1.build(), true).build();
 
         // match all fields with more than one permission
         Set<BytesReference> fooQuery = Collections.singleton(new BytesArray("{foo}"));
@@ -189,7 +186,7 @@ public class IndicesPermissionTests extends ESTestCase {
     }
 
     public void testAuthorizeDataStreamAccessWithFailuresSelector() {
-        Metadata.Builder builder = Metadata.builder();
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
         String dataStreamName = randomAlphaOfLength(6);
         int numBackingIndices = randomIntBetween(1, 3);
         List<IndexMetadata> backingIndices = new ArrayList<>();
@@ -204,7 +201,7 @@ public class IndicesPermissionTests extends ESTestCase {
         for (IndexMetadata index : backingIndices) {
             builder.put(index, false);
         }
-        var metadata = builder.build().getProject();
+        var metadata = builder.build();
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
 
         for (var privilege : List.of(IndexPrivilege.ALL, IndexPrivilege.READ)) {
@@ -367,7 +364,7 @@ public class IndicesPermissionTests extends ESTestCase {
     }
 
     public void testAuthorizeDataStreamFailureIndices() {
-        Metadata.Builder builder = Metadata.builder();
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
         String dataStreamName = randomAlphaOfLength(6);
         int numBackingIndices = randomIntBetween(1, 3);
         List<IndexMetadata> backingIndices = new ArrayList<>();
@@ -391,7 +388,7 @@ public class IndicesPermissionTests extends ESTestCase {
         for (IndexMetadata index : failureIndices) {
             builder.put(index, false);
         }
-        var metadata = builder.build().getProject();
+        var metadata = builder.build();
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
 
         for (var privilege : List.of(IndexPrivilege.READ)) {
@@ -455,8 +452,7 @@ public class IndicesPermissionTests extends ESTestCase {
         IndexMetadata.Builder imbBuilder = IndexMetadata.builder("_index")
             .settings(indexSettings(IndexVersion.current(), 1, 1))
             .putAlias(AliasMetadata.builder("_alias"));
-        Metadata md = Metadata.builder().put(imbBuilder).build();
-        ProjectMetadata pmd = md.getProject();
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectIdOrDefault()).put(imbBuilder.build(), true).build();
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
 
         Set<BytesReference> query = Collections.singleton(new BytesArray("{}"));
@@ -468,7 +464,7 @@ public class IndicesPermissionTests extends ESTestCase {
         IndicesAccessControl permissions = role.authorize(
             TransportSearchAction.TYPE.name(),
             Sets.newHashSet("_index"),
-            pmd,
+            projectMetadata,
             fieldPermissionsCache
         );
         assertThat(permissions.getIndexPermissions("_index"), notNullValue());
@@ -515,13 +511,10 @@ public class IndicesPermissionTests extends ESTestCase {
     // tests that field permissions are merged correctly when we authorize with several groups and don't crash when an index has no group
     public void testCorePermissionAuthorize() {
         final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
-        final var metadata = new Metadata.Builder().put(
-            new IndexMetadata.Builder("a1").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(),
-            true
-        )
+        final var metadata = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(new IndexMetadata.Builder("a1").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
             .put(new IndexMetadata.Builder("a2").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
-            .build()
-            .getProject();
+            .build();
 
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         IndicesPermission core = new IndicesPermission.Builder(RESTRICTED_INDICES).addGroup(
@@ -627,14 +620,16 @@ public class IndicesPermissionTests extends ESTestCase {
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_6,
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7
         );
-        final var metadata = new Metadata.Builder().put(
-            new IndexMetadata.Builder(internalSecurityIndex).settings(indexSettings)
-                .numberOfShards(1)
-                .numberOfReplicas(0)
-                .putAlias(new AliasMetadata.Builder(SecuritySystemIndices.SECURITY_MAIN_ALIAS).build())
-                .build(),
-            true
-        ).build().getProject();
+        final var metadata = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(
+                new IndexMetadata.Builder(internalSecurityIndex).settings(indexSettings)
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .putAlias(new AliasMetadata.Builder(SecuritySystemIndices.SECURITY_MAIN_ALIAS).build())
+                    .build(),
+                true
+            )
+            .build();
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
 
         // allow_restricted_indices: false
@@ -681,10 +676,9 @@ public class IndicesPermissionTests extends ESTestCase {
     public void testAsyncSearchIndicesPermissions() {
         final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         final String asyncSearchIndex = XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2);
-        final var metadata = new Metadata.Builder().put(
-            new IndexMetadata.Builder(asyncSearchIndex).settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(),
-            true
-        ).build().getProject();
+        final var metadata = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(new IndexMetadata.Builder(asyncSearchIndex).settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
+            .build();
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
 
         // allow_restricted_indices: false
@@ -725,7 +719,7 @@ public class IndicesPermissionTests extends ESTestCase {
     }
 
     public void testAuthorizationForBackingIndices() {
-        Metadata.Builder builder = Metadata.builder();
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
         String dataStreamName = randomAlphaOfLength(6);
         int numBackingIndices = randomIntBetween(1, 3);
         List<IndexMetadata> backingIndices = new ArrayList<>();
@@ -740,7 +734,7 @@ public class IndicesPermissionTests extends ESTestCase {
         for (IndexMetadata index : backingIndices) {
             builder.put(index, false);
         }
-        var metadata = builder.build().getProject();
+        var metadata = builder.build();
 
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         IndicesPermission indicesPermission = new IndicesPermission.Builder(RESTRICTED_INDICES).addGroup(
@@ -786,10 +780,9 @@ public class IndicesPermissionTests extends ESTestCase {
 
     public void testAuthorizationForMappingUpdates() {
         final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
-        final Metadata.Builder metadataBuilder = new Metadata.Builder().put(
-            new IndexMetadata.Builder("test1").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(),
-            true
-        ).put(new IndexMetadata.Builder("test_write1").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true);
+        final ProjectMetadata.Builder projBuilder = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(new IndexMetadata.Builder("test1").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
+            .put(new IndexMetadata.Builder("test_write1").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true);
 
         int numBackingIndices = randomIntBetween(1, 3);
         List<IndexMetadata> backingIndices = new ArrayList<>();
@@ -800,12 +793,12 @@ public class IndicesPermissionTests extends ESTestCase {
             "test_write2",
             backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
         );
-        metadataBuilder.put(ds);
+        projBuilder.put(ds);
         for (IndexMetadata index : backingIndices) {
-            metadataBuilder.put(index, false);
+            projBuilder.put(index, false);
         }
 
-        ProjectMetadata metadata = metadataBuilder.build().getProject();
+        ProjectMetadata metadata = projBuilder.build();
 
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         IndicesPermission core = new IndicesPermission.Builder(RESTRICTED_INDICES).addGroup(

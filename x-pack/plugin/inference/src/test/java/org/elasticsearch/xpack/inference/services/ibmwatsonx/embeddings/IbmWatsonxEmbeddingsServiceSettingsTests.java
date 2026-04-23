@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -26,6 +27,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhitespaceInJsonString;
 import static org.elasticsearch.xpack.inference.Utils.randomSimilarityMeasure;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.hamcrest.Matchers.is;
 
 public class IbmWatsonxEmbeddingsServiceSettingsTests extends AbstractWireSerializingTestCase<IbmWatsonxEmbeddingsServiceSettings> {
@@ -41,8 +43,8 @@ public class IbmWatsonxEmbeddingsServiceSettingsTests extends AbstractWireSerial
             randomAlphaOfLength(8),
             uri,
             randomAlphaOfLength(8),
-            randomFrom(randomNonNegativeInt(), null),
-            randomFrom(randomNonNegativeInt(), null),
+            randomNonNegativeIntOrNull(),
+            randomNonNegativeIntOrNull(),
             randomFrom(randomSimilarityMeasure(), null),
             randomFrom(RateLimitSettingsTests.createRandom(), null)
         );
@@ -135,6 +137,35 @@ public class IbmWatsonxEmbeddingsServiceSettingsTests extends AbstractWireSerial
 
     @Override
     protected IbmWatsonxEmbeddingsServiceSettings mutateInstance(IbmWatsonxEmbeddingsServiceSettings instance) throws IOException {
-        return randomValueOtherThan(instance, IbmWatsonxEmbeddingsServiceSettingsTests::createRandom);
+        var modelId = instance.modelId();
+        var projectId = instance.projectId();
+        var url = instance.url();
+        var apiVersion = instance.apiVersion();
+        var maxInputTokens = instance.maxInputTokens();
+        var dimensions = instance.dimensions();
+        var similarity = instance.similarity();
+        var rateLimitSettings = instance.rateLimitSettings();
+        switch (randomInt(7)) {
+            case 0 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(8));
+            case 1 -> projectId = randomValueOtherThan(projectId, () -> randomAlphaOfLength(8));
+            case 2 -> url = randomValueOtherThan(url, () -> createUri(randomAlphaOfLength(8)));
+            case 3 -> apiVersion = randomValueOtherThan(apiVersion, () -> randomAlphaOfLength(8));
+            case 4 -> maxInputTokens = randomValueOtherThan(maxInputTokens, ESTestCase::randomNonNegativeIntOrNull);
+            case 5 -> dimensions = randomValueOtherThan(dimensions, ESTestCase::randomNonNegativeIntOrNull);
+            case 6 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(randomSimilarityMeasure(), null));
+            case 7 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new IbmWatsonxEmbeddingsServiceSettings(
+            modelId,
+            projectId,
+            url,
+            apiVersion,
+            maxInputTokens,
+            dimensions,
+            similarity,
+            rateLimitSettings
+        );
     }
 }

@@ -14,6 +14,7 @@ import com.squareup.javapoet.TypeSpec;
 import org.elasticsearch.compute.gen.Types;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 import javax.lang.model.element.Modifier;
 
@@ -74,7 +75,7 @@ public record BlockArgument(TypeName type, String name) implements Argument {
     }
 
     @Override
-    public void resolveVectors(MethodSpec.Builder builder, String... invokeBlockEval) {
+    public void resolveVectors(MethodSpec.Builder builder, Consumer<MethodSpec.Builder> onBlock, Consumer<MethodSpec.Builder> onAllNull) {
         // nothing to do
     }
 
@@ -116,6 +117,12 @@ public record BlockArgument(TypeName type, String name) implements Argument {
     }
 
     @Override
+    public void addContinueIfPositionHasNoValueBlock(MethodSpec.Builder builder) {
+        // nothing to do
+        // block params don't skip any positions as all values must be passed down to the aggregator
+    }
+
+    @Override
     public String closeInvocation() {
         return name;
     }
@@ -123,5 +130,15 @@ public record BlockArgument(TypeName type, String name) implements Argument {
     @Override
     public void sumBaseRamBytesUsed(MethodSpec.Builder builder) {
         builder.addStatement("baseRamBytesUsed += $L.baseRamBytesUsed()", name);
+    }
+
+    @Override
+    public void startBlockProcessingLoop(MethodSpec.Builder builder) {
+        // nothing to do
+    }
+
+    @Override
+    public void endBlockProcessingLoop(MethodSpec.Builder builder) {
+        // nothing to do
     }
 }

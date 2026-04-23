@@ -17,11 +17,11 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyCredentials;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.authc.ApiKeyService.ApiKeyCredentials;
 import org.elasticsearch.xpack.security.authc.AuthenticationService.AuditableRequest;
 import org.elasticsearch.xpack.security.metric.SecurityMetricType;
 

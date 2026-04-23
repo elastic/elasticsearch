@@ -7,32 +7,20 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
-import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.analysis.Analyzer;
-import org.elasticsearch.xpack.esql.analysis.Verifier;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.TestPlannerOptimizer;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
-import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.hamcrest.Matcher;
 import org.junit.BeforeClass;
 
 import java.util.List;
-import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyPolicyResolution;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithDateDateNanosUnionType;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.matchesRegex;
@@ -46,39 +34,16 @@ public class QueryTranslatorTests extends ESTestCase {
 
     private static TestPlannerOptimizer plannerOptimizerDateDateNanosUnionTypes;
 
-    private static Analyzer makeAnalyzer(String indexName, String mappingFileName) {
-        var mapping = loadMapping(mappingFileName);
-        EsIndex test = new EsIndex(indexName, mapping, Map.of(indexName, IndexMode.STANDARD));
-
-        return new Analyzer(
-            testAnalyzerContext(
-                EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
-                indexResolutions(test),
-                emptyPolicyResolution(),
-                emptyInferenceResolution()
-            ),
-            new Verifier(new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L))
-        );
-    }
-
-    public static Analyzer makeAnalyzer(IndexResolution indexResolution) {
-        return new Analyzer(
-            testAnalyzerContext(
-                EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
-                indexResolutions(indexResolution),
-                emptyPolicyResolution(),
-                emptyInferenceResolution()
-            ),
-            new Verifier(new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L))
-        );
-    }
-
     @BeforeClass
     public static void init() {
-        plannerOptimizer = new TestPlannerOptimizer(EsqlTestUtils.TEST_CFG, makeAnalyzer("test", "mapping-all-types.json"));
-        plannerOptimizerIPs = new TestPlannerOptimizer(EsqlTestUtils.TEST_CFG, makeAnalyzer("hosts", "mapping-hosts.json"));
+        plannerOptimizer = new TestPlannerOptimizer(
+            EsqlTestUtils.TEST_CFG,
+            analyzer().addIndex("test", "mapping-all-types.json").buildAnalyzer()
+        );
+        plannerOptimizerIPs = new TestPlannerOptimizer(
+            EsqlTestUtils.TEST_CFG,
+            analyzer().addIndex("hosts", "mapping-hosts.json").buildAnalyzer()
+        );
     }
 
     @Override
@@ -326,7 +291,10 @@ public class QueryTranslatorTests extends ESTestCase {
 
     public void testToDateNanos() {
         IndexResolution indexWithUnionTypedFields = indexWithDateDateNanosUnionType();
-        plannerOptimizerDateDateNanosUnionTypes = new TestPlannerOptimizer(EsqlTestUtils.TEST_CFG, makeAnalyzer(indexWithUnionTypedFields));
+        plannerOptimizerDateDateNanosUnionTypes = new TestPlannerOptimizer(
+            EsqlTestUtils.TEST_CFG,
+            analyzer().addIndex(indexWithUnionTypedFields).buildAnalyzer()
+        );
         var stats = EsqlTestUtils.statsForExistingField("date_and_date_nanos", "date_and_date_nanos_and_long");
 
         // == term

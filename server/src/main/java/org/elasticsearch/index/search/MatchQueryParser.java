@@ -26,9 +26,10 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostAttribute;
 import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.util.QueryBuilder;
 import org.apache.lucene.util.graph.GraphTokenStreamFiniteStrings;
 import org.elasticsearch.ElasticsearchException;
@@ -36,6 +37,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.SpanBooleanQueryRewriteWithMaxClause;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -56,9 +58,6 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.Supplier;
-
-import static org.elasticsearch.common.lucene.search.Queries.newLenientFieldQuery;
-import static org.elasticsearch.common.lucene.search.Queries.newUnmappedFieldQuery;
 
 public class MatchQueryParser {
 
@@ -145,7 +144,10 @@ public class MatchQueryParser {
 
     protected boolean autoGenerateSynonymsPhraseQuery = true;
 
-    public MatchQueryParser(SearchExecutionContext context) {
+    protected final QueryVisitor queryVisitor;
+
+    public MatchQueryParser(SearchExecutionContext context, QueryVisitor queryVisitor) {
+        this.queryVisitor = queryVisitor;
         this.context = context;
     }
 
@@ -244,7 +246,13 @@ public class MatchQueryParser {
         Analyzer analyzer = getAnalyzer(fieldType, type == Type.PHRASE || type == Type.PHRASE_PREFIX);
         assert analyzer != null;
 
-        MatchQueryBuilder builder = new MatchQueryBuilder(analyzer, fieldType, enablePositionIncrements, autoGenerateSynonymsPhraseQuery);
+        MatchQueryBuilder builder = new MatchQueryBuilder(
+            analyzer,
+            fieldType,
+            enablePositionIncrements,
+            autoGenerateSynonymsPhraseQuery,
+            queryVisitor
+        );
         String resolvedFieldName = fieldType.name();
         String stringValue = value.toString();
 
@@ -270,7 +278,25 @@ public class MatchQueryParser {
             case PHRASE -> builder.createPhraseQuery(resolvedFieldName, stringValue, phraseSlop);
             case PHRASE_PREFIX -> builder.createPhrasePrefixQuery(resolvedFieldName, stringValue, phraseSlop);
         };
-        return query == null ? zeroTermsQuery.asQuery() : query;
+        if (query == null) {
+            query = zeroTermsQuery.asQuery();
+            if (query != null) {
+                query.visit(queryVisitor);
+            }
+        }
+        return query;
+    }
+
+    private Query newLenientFieldQuery(String fieldName, RuntimeException e) {
+        Query query = Queries.newLenientFieldQuery(fieldName, e);
+        query.visit(queryVisitor);
+        return query;
+    }
+
+    private Query newUnmappedFieldQuery(String fieldName) {
+        Query query = Queries.newUnmappedFieldQuery(fieldName);
+        query.visit(queryVisitor);
+        return query;
     }
 
     protected Analyzer getAnalyzer(MappedFieldType fieldType, boolean quoted) {
@@ -285,6 +311,7 @@ public class MatchQueryParser {
 
     class MatchQueryBuilder extends QueryBuilder {
         private final MappedFieldType fieldType;
+        private final QueryVisitor queryVisitor;
 
         /**
          * Creates a new QueryBuilder using the given analyzer.
@@ -293,7 +320,8 @@ public class MatchQueryParser {
             Analyzer analyzer,
             MappedFieldType fieldType,
             boolean enablePositionIncrements,
-            boolean autoGenerateSynonymsPhraseQuery
+            boolean autoGenerateSynonymsPhraseQuery,
+            QueryVisitor queryVisitor
         ) {
             super(analyzer);
             this.fieldType = fieldType;
@@ -303,6 +331,7 @@ public class MatchQueryParser {
             } else {
                 setAutoGenerateMultiTermSynonymsPhraseQuery(false);
             }
+            this.queryVisitor = queryVisitor;
         }
 
         @Override
@@ -447,7 +476,11 @@ public class MatchQueryParser {
 
         private SpanQuery newSpanQuery(Term[] terms, boolean isPrefix) {
             if (terms.length == 1) {
-                return isPrefix ? fieldType.spanPrefixQuery(terms[0].text(), spanRewriteMethod, context) : new SpanTermQuery(terms[0]);
+                SpanQuery query = isPrefix
+                    ? fieldType.spanPrefixQuery(terms[0].text(), spanRewriteMethod, context)
+                    : new SpanTermQuery(terms[0]);
+                query.visit(queryVisitor);
+                return query;
             }
             SpanQuery[] spanQueries = new SpanQuery[terms.length];
             for (int i = 0; i < terms.length; i++) {
@@ -455,7 +488,9 @@ public class MatchQueryParser {
                     ? fieldType.spanPrefixQuery(terms[i].text(), spanRewriteMethod, context)
                     : new SpanTermQuery(terms[i]);
             }
-            return new SpanOrQuery(spanQueries);
+            SpanQuery query = new SpanOrQuery(spanQueries);
+            query.visit(queryVisitor);
+            return query;
         }
 
         private SpanQuery createSpanQuery(TokenStream in, String field, boolean isPrefix) throws IOException {
@@ -483,6 +518,7 @@ public class MatchQueryParser {
                 builder.addClause(spanQuery);
             }
             SpanNearQuery query = builder.build();
+            query.visit(queryVisitor);
             SpanQuery[] clauses = query.getClauses();
             if (clauses.length == 1) {
                 return clauses[0];
@@ -508,7 +544,9 @@ public class MatchQueryParser {
                 querySupplier = () -> fieldType.termQuery(term.bytes(), context);
             }
             try {
-                return querySupplier.get();
+                Query query = querySupplier.get();
+                query.visit(queryVisitor);
+                return query;
             } catch (RuntimeException e) {
                 if (lenient) {
                     return newLenientFieldQuery(fieldType.name(), e);
@@ -518,12 +556,25 @@ public class MatchQueryParser {
             }
         }
 
+        @Override
+        protected Query newSynonymQuery(String field, TermAndBoost[] terms) {
+            SynonymQuery.Builder builder = new SynonymQuery.Builder(field);
+            for (TermAndBoost t : terms) {
+                builder.addTerm(t.term(), t.boost());
+            }
+            Query query = builder.build();
+            query.visit(queryVisitor);
+            return query;
+        }
+
         /**
          * Builds a new prefix query instance.
          */
         protected Query newPrefixQuery(Term term) {
             try {
-                return fieldType.prefixQuery(term.text(), null, context);
+                Query query = fieldType.prefixQuery(term.text(), null, context);
+                query.visit(queryVisitor);
+                return query;
             } catch (RuntimeException e) {
                 if (lenient) {
                     return newLenientFieldQuery(term.field(), e);
@@ -594,7 +645,9 @@ public class MatchQueryParser {
         @Override
         protected Query analyzePhrase(String field, TokenStream stream, int slop) throws IOException {
             try {
-                return fieldType.phraseQuery(stream, slop, enablePositionIncrements, context);
+                Query query = fieldType.phraseQuery(stream, slop, enablePositionIncrements, context);
+                query.visit(queryVisitor);
+                return query;
             } catch (IllegalArgumentException | IllegalStateException e) {
                 if (lenient) {
                     return newLenientFieldQuery(field, e);
@@ -606,7 +659,9 @@ public class MatchQueryParser {
         @Override
         protected Query analyzeMultiPhrase(String field, TokenStream stream, int slop) throws IOException {
             try {
-                return fieldType.multiPhraseQuery(stream, slop, enablePositionIncrements, context);
+                Query query = fieldType.multiPhraseQuery(stream, slop, enablePositionIncrements, context);
+                query.visit(queryVisitor);
+                return query;
             } catch (IllegalArgumentException | IllegalStateException e) {
                 if (lenient) {
                     return newLenientFieldQuery(field, e);
@@ -617,7 +672,9 @@ public class MatchQueryParser {
 
         private Query analyzePhrasePrefix(String field, TokenStream stream, int slop, int positionCount) throws IOException {
             try {
-                return fieldType.phrasePrefixQuery(stream, slop, maxExpansions, context);
+                Query query = fieldType.phrasePrefixQuery(stream, slop, maxExpansions, context);
+                query.visit(queryVisitor);
+                return query;
             } catch (IllegalArgumentException | IllegalStateException e) {
                 if (lenient) {
                     return newLenientFieldQuery(field, e);
@@ -712,7 +769,6 @@ public class MatchQueryParser {
             List<SpanQuery> clauses = new ArrayList<>();
             int[] articulationPoints = graph.articulationPoints();
             int lastState = 0;
-            int maxClauseCount = IndexSearcher.getMaxClauseCount();
             for (int i = 0; i <= articulationPoints.length; i++) {
                 int start = lastState;
                 int end = -1;
@@ -729,9 +785,6 @@ public class MatchQueryParser {
                         TokenStream ts = it.next();
                         SpanQuery q = createSpanQuery(ts, field, usePrefix);
                         if (q != null) {
-                            if (queries.size() >= maxClauseCount) {
-                                throw new IndexSearcher.TooManyClauses();
-                            }
                             queries.add(q);
                         }
                     }
@@ -743,16 +796,10 @@ public class MatchQueryParser {
                 } else {
                     Term[] terms = graph.getTerms(field, start);
                     assert terms.length > 0;
-                    if (terms.length >= maxClauseCount) {
-                        throw new IndexSearcher.TooManyClauses();
-                    }
                     queryPos = newSpanQuery(terms, usePrefix);
                 }
 
                 if (queryPos != null) {
-                    if (clauses.size() >= maxClauseCount) {
-                        throw new IndexSearcher.TooManyClauses();
-                    }
                     clauses.add(queryPos);
                 }
             }

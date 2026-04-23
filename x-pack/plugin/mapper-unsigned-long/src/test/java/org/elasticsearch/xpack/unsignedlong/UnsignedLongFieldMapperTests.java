@@ -15,6 +15,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -34,6 +35,7 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -49,6 +51,12 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
     @Override
     protected Collection<? extends Plugin> getPlugins() {
         return List.of(new UnsignedLongMapperPlugin());
+    }
+
+    @Override
+    protected FieldMapper.DocValuesParameter.Values getDocValuesParameters(MapperService mapperService) {
+        UnsignedLongFieldMapper mapper = (UnsignedLongFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        return mapper.docValuesParameters();
     }
 
     @Override
@@ -72,6 +80,8 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", 1));
+        registerDimensionChecks(checker);
+        checker.registerConflictCheck("time_series_metric", b -> b.field("time_series_metric", "gauge"));
     }
 
     public void testDefaults() throws Exception {
@@ -228,6 +238,8 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
 
         assertDimension(true, UnsignedLongFieldMapper.UnsignedLongFieldType::isDimension);
         assertDimension(false, UnsignedLongFieldMapper.UnsignedLongFieldType::isDimension);
+
+        assertTimeSeriesIndexing();
     }
 
     public void testDimensionIndexedAndDocvalues() {
@@ -236,30 +248,14 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
                 minimalMapping(b);
                 b.field("time_series_dimension", true).field("index", false).field("doc_values", false);
             })));
-            assertThat(
-                e.getCause().getMessage(),
-                containsString("Field [time_series_dimension] requires that [index] and [doc_values] are true")
-            );
+            assertThat(e.getCause().getMessage(), containsString("Field [time_series_dimension] requires that [doc_values] is true"));
         }
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
                 minimalMapping(b);
                 b.field("time_series_dimension", true).field("index", true).field("doc_values", false);
             })));
-            assertThat(
-                e.getCause().getMessage(),
-                containsString("Field [time_series_dimension] requires that [index] and [doc_values] are true")
-            );
-        }
-        {
-            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
-                minimalMapping(b);
-                b.field("time_series_dimension", true).field("index", false).field("doc_values", true);
-            })));
-            assertThat(
-                e.getCause().getMessage(),
-                containsString("Field [time_series_dimension] requires that [index] and [doc_values] are true")
-            );
+            assertThat(e.getCause().getMessage(), containsString("Field [time_series_dimension] requires that [doc_values] is true"));
         }
     }
 
@@ -459,10 +455,15 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
                 .map(Value::output)
                 .sorted()
                 .toList();
-            Stream<Object> malformedOutput = values.stream().filter(v -> v.malformedOutput != null).map(Value::malformedOutput);
+            // Malformed values are stored as BytesRef with a type-prefix byte and sorted lexicographically.
+            List<Object> malformedOutput = values.stream()
+                .filter(v -> v.malformedOutput != null)
+                .map(Value::malformedOutput)
+                .sorted(Comparator.comparing(Object::toString))
+                .toList();
 
             // Malformed values are always last in the implementation.
-            List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedOutput).toList();
+            List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedOutput.stream()).toList();
             Object out = outList.size() == 1 ? outList.get(0) : outList;
 
             return new SyntheticSourceExample(in, out, this::mapping);
@@ -519,5 +520,10 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
     @Override
     protected boolean supportsBulkLongBlockReading() {
         return true;
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of(new SortShortcutSupport(this::minimalMapping, this::writeField, true));
     }
 }

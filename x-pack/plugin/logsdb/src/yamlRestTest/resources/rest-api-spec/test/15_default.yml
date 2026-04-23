@@ -1,0 +1,19 @@
+'default index mode':
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
+
+  - do:
+      indices.create_data_stream:
+        name: logs-test-1
+
+  - do:
+      indices.get_data_stream:
+        name: logs-test-1
+
+  - match: { data_streams.0.indices.0.index_mode: logsdb}
+  - match: { data_streams.0.index_mode: logsdb}

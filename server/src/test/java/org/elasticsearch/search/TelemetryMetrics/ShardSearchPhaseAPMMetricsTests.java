@@ -33,6 +33,8 @@ import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +51,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResp
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertScrollResponsesAndHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
+import static org.hamcrest.Matchers.hasSize;
 
 public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
 
@@ -101,10 +104,10 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
         );
         final List<Measurement> dfsMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(DFS_SEARCH_PHASE_METRIC);
         assertEquals(num_primaries, dfsMeasurements.size());
+        assertAttributes(dfsMeasurements, false, false);
         final List<Measurement> queryMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(QUERY_SEARCH_PHASE_METRIC);
         assertEquals(num_primaries, queryMeasurements.size());
-        final List<Measurement> fetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(FETCH_SEARCH_PHASE_METRIC);
-        assertEquals(1, fetchMeasurements.size());
+        final List<Measurement> fetchMeasurements = getFetchMeasurementsEventually(1);
         assertAttributes(fetchMeasurements, false, false);
     }
 
@@ -117,10 +120,11 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
         );
         final List<Measurement> dfsMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(DFS_SEARCH_PHASE_METRIC);
         assertEquals(0, dfsMeasurements.size()); // DFS phase not done for index with single shard
+        assertAttributes(dfsMeasurements, true, false);
         final List<Measurement> queryMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(QUERY_SEARCH_PHASE_METRIC);
         assertEquals(1, queryMeasurements.size());
-        final List<Measurement> fetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(FETCH_SEARCH_PHASE_METRIC);
-        assertEquals(1, fetchMeasurements.size());
+        assertAttributes(queryMeasurements, true, false);
+        final List<Measurement> fetchMeasurements = getFetchMeasurementsEventually(1);
         assertAttributes(fetchMeasurements, true, false);
     }
 
@@ -132,8 +136,7 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
         final List<Measurement> queryMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(QUERY_SEARCH_PHASE_METRIC);
         assertEquals(num_primaries, queryMeasurements.size());
         assertAttributes(queryMeasurements, false, false);
-        final List<Measurement> fetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(FETCH_SEARCH_PHASE_METRIC);
-        assertEquals(1, fetchMeasurements.size());
+        final List<Measurement> fetchMeasurements = getFetchMeasurementsEventually(1);
         assertAttributes(fetchMeasurements, false, false);
     }
 
@@ -147,8 +150,7 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
         final List<Measurement> queryMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(QUERY_SEARCH_PHASE_METRIC);
         assertEquals(1, queryMeasurements.size());
         assertAttributes(queryMeasurements, true, false);
-        final List<Measurement> fetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(FETCH_SEARCH_PHASE_METRIC);
-        assertEquals(1, fetchMeasurements.size());
+        final List<Measurement> fetchMeasurements = getFetchMeasurementsEventually(1);
         assertAttributes(fetchMeasurements, true, false);
     }
 
@@ -184,8 +186,7 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
             assertEquals(1, systemTarget);
         }
         {
-            final List<Measurement> fetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(FETCH_SEARCH_PHASE_METRIC);
-            assertEquals(2, fetchMeasurements.size());
+            final List<Measurement> fetchMeasurements = getFetchMeasurementsEventually(2);
             int userTarget = 0;
             int systemTarget = 0;
             for (Measurement measurement : fetchMeasurements) {
@@ -208,7 +209,7 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testSearchTransportMetricsScroll() {
+    public void testSearchTransportMetricsScroll() throws Exception {
         assertScrollResponsesAndHitCount(
             client(),
             TimeValue.timeValueSeconds(60),
@@ -220,10 +221,21 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
                 assertAttributes(queryMeasurements, false, true);
                 // No hits, no fetching done
                 if (response.getHits().getHits().length > 0) {
+                    try {
+                        assertBusy(() -> {
+                            final List<Measurement> fetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(
+                                FETCH_SEARCH_PHASE_METRIC
+                            );
+                            assertThat(fetchMeasurements.size(), Matchers.greaterThan(0));
+                        });
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+
+                    // Get fresh list for subsequent assertions
                     final List<Measurement> fetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(
                         FETCH_SEARCH_PHASE_METRIC
                     );
-                    assertThat(fetchMeasurements.size(), Matchers.greaterThan(0));
                     int numFetchShards = Math.min(2, num_primaries);
                     assertThat(fetchMeasurements.size(), Matchers.lessThanOrEqualTo(numFetchShards));
                     assertAttributes(fetchMeasurements, false, true);
@@ -248,8 +260,7 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
                 final List<Measurement> queryMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(QUERY_SEARCH_PHASE_METRIC);
                 assertEquals(1, queryMeasurements.size());
                 assertAttributes(queryMeasurements, true, true);
-                final List<Measurement> fetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(FETCH_SEARCH_PHASE_METRIC);
-                assertEquals(1, fetchMeasurements.size());
+                final List<Measurement> fetchMeasurements = getFetchMeasurementsEventually(1);
                 assertAttributes(fetchMeasurements, true, true);
                 resetMeter();
             }
@@ -270,8 +281,7 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
         final List<Measurement> queryMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(QUERY_SEARCH_PHASE_METRIC);
         assertEquals(num_primaries, queryMeasurements.size());
         assertAttributes(queryMeasurements, false, false);
-        final List<Measurement> fetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(FETCH_SEARCH_PHASE_METRIC);
-        assertEquals(1, fetchMeasurements.size());
+        final List<Measurement> fetchMeasurements = getFetchMeasurementsEventually(1);
         assertAttributes(fetchMeasurements, false, false);
     }
 
@@ -301,8 +311,7 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
         final List<Measurement> queryMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(QUERY_SEARCH_PHASE_METRIC);
         assertEquals(1, queryMeasurements.size());
         assertTimeRangeAttributes(queryMeasurements, ".others", true, false);
-        final List<Measurement> fetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(FETCH_SEARCH_PHASE_METRIC);
-        assertEquals(1, fetchMeasurements.size());
+        final List<Measurement> fetchMeasurements = getFetchMeasurementsEventually(1);
         assertTimeRangeAttributes(fetchMeasurements, ".others", true, false);
     }
 
@@ -315,8 +324,7 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
         final List<Measurement> queryMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(QUERY_SEARCH_PHASE_METRIC);
         assertEquals(1, queryMeasurements.size());
         assertTimeRangeAttributes(queryMeasurements, ".others", true, false);
-        final List<Measurement> fetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(FETCH_SEARCH_PHASE_METRIC);
-        assertEquals(1, fetchMeasurements.size());
+        final List<Measurement> fetchMeasurements = getFetchMeasurementsEventually(1);
         assertTimeRangeAttributes(fetchMeasurements, ".others", true, false);
     }
 
@@ -335,8 +343,7 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
         // compound retriever does its own search as an async action, whose metrics are recorded separately
         assertEquals(2, queryMeasurements.size());
         assertTimeRangeAttributes(queryMeasurements, ".others", true, true);
-        final List<Measurement> fetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(FETCH_SEARCH_PHASE_METRIC);
-        assertEquals(2, fetchMeasurements.size());
+        final List<Measurement> fetchMeasurements = getFetchMeasurementsEventually(2);
         assertTimeRangeAttributes(fetchMeasurements, ".others", true, true);
     }
 
@@ -368,6 +375,18 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
         });
         final List<Measurement> canMatchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(CAN_MATCH_SEARCH_PHASE_METRIC);
         assertEquals(num_primaries, canMatchMeasurements.size());
+        for (Measurement measurement : canMatchMeasurements) {
+            Map<String, Object> attributes = measurement.attributes();
+            assertThat(attributes.size(), Matchers.greaterThanOrEqualTo(4));
+            assertEquals("user", attributes.get("target"));
+            assertEquals("hits_only", attributes.get("query_type"));
+            assertEquals("_score", attributes.get("sort"));
+            assertEquals(false, attributes.get(SearchRequestAttributesExtractor.SYSTEM_THREAD_ATTRIBUTE_NAME));
+            // the shards that get short-cut filtered because they are empty won't have time range attributes in their metric attributes
+            if (attributes.containsKey("time_range_filter_from")) {
+                assertEquals("older_than_14_days", attributes.get("time_range_filter_from"));
+            }
+        }
         final List<Measurement> queryMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(QUERY_SEARCH_PHASE_METRIC);
         // the two docs are at most spread across two shards, other shards are empty and get filtered out
         assertThat(queryMeasurements.size(), Matchers.lessThanOrEqualTo(2));
@@ -382,9 +401,8 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
             // the time range filter field because no range query is executed at the shard level.
             assertEquals("older_than_14_days", attributes.get("time_range_filter_from"));
         }
-        final List<Measurement> fetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(FETCH_SEARCH_PHASE_METRIC);
+        final List<Measurement> fetchMeasurements = getFetchMeasurementsEventually(queryMeasurements.size());
         // in this case, each shard queried has results to be fetched
-        assertEquals(queryMeasurements.size(), fetchMeasurements.size());
         // no range info stored because we had no bounds after rewrite, basically a match_all
         for (Measurement measurement : fetchMeasurements) {
             Map<String, Object> attributes = measurement.attributes();
@@ -397,8 +415,61 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
         }
     }
 
+    public void testUniformCanMatchMetricAttributesWhenPlentyOfDocumentsInIndex() {
+        // create an index with a large number of documents so no shard should be empty and no shard will be short-circuited in can match
+        String indexName = "every_shard_has_documents";
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, num_primaries)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .build()
+        );
+        ensureGreen(indexName);
+
+        LocalDate baseDate = LocalDate.of(2024, 11, 1);
+        for (int i = 1; i <= num_primaries * 2; i++) {
+            LocalDate docDate = baseDate.plusMonths(i - 1);
+            prepareIndex(indexName).setId(Integer.toString(i))
+                .setSource("body", "doc" + i, "@timestamp", docDate.format(DateTimeFormatter.ISO_LOCAL_DATE))
+                .setRefreshPolicy(IMMEDIATE)
+                .get();
+
+        }
+
+        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+        boolQueryBuilder.filter(new RangeQueryBuilder("@timestamp").from("2024-10-01"));
+        assertResponse(client().prepareSearch(indexName).setPreFilterShardSize(1).setQuery(boolQueryBuilder), searchResponse -> {
+            assertNoFailures(searchResponse);
+            assertHitCount(searchResponse, num_primaries * 2L);
+        });
+        final List<Measurement> canMatchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(CAN_MATCH_SEARCH_PHASE_METRIC);
+        assertEquals(num_primaries, canMatchMeasurements.size());
+        for (Measurement measurement : canMatchMeasurements) {
+            Map<String, Object> attributes = measurement.attributes();
+            assertThat(attributes.entrySet(), hasSize(5));
+            assertEquals("user", attributes.get("target"));
+            assertEquals("hits_only", attributes.get("query_type"));
+            assertEquals("_score", attributes.get("sort"));
+            assertEquals(false, attributes.get(SearchRequestAttributesExtractor.SYSTEM_THREAD_ATTRIBUTE_NAME));
+            assertEquals("older_than_14_days", attributes.get("time_range_filter_from"));
+        }
+    }
+
     private void resetMeter() {
         getTestTelemetryPlugin().resetMeter();
+    }
+
+    private List<Measurement> getFetchMeasurementsEventually(int expectedSize) {
+        try {
+            assertBusy(() -> {
+                final List<Measurement> fetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(FETCH_SEARCH_PHASE_METRIC);
+                assertEquals(expectedSize, fetchMeasurements.size());
+            });
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        return getTestTelemetryPlugin().getLongHistogramMeasurement(FETCH_SEARCH_PHASE_METRIC);
     }
 
     private TestTelemetryPlugin getTestTelemetryPlugin() {

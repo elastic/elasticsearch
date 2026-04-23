@@ -24,10 +24,11 @@ import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec;
-import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
+import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
+import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
+import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -62,10 +63,10 @@ import java.util.function.Supplier;
 @Measurement(iterations = 1)
 public class TSDBDocValuesMergeBenchmark {
 
+    private static final int NUMERIC_LARGE_BLOCK_SHIFT = 9;
+
     static {
-        LogConfigurator.loadLog4jPlugins();
-        LogConfigurator.configureESLogging();
-        LogConfigurator.setNodeName("test");
+        Utils.configureBenchmarkLogging();
     }
 
     private static final String TIMESTAMP_FIELD = "@timestamp";
@@ -257,8 +258,16 @@ public class TSDBDocValuesMergeBenchmark {
         );
         config.setLeafSorter(DataStream.TIMESERIES_LEAF_READERS_SORTER);
         config.setMergePolicy(new LogByteSizeMergePolicy());
-        var docValuesFormat = new ES819TSDBDocValuesFormat(4096, 512, optimizedMergeEnabled);
-        config.setCodec(new Elasticsearch92Lucene103Codec() {
+        var docValuesFormat = new ES819Version3TSDBDocValuesFormat(
+            4096,
+            512,
+            optimizedMergeEnabled,
+            BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
+            true,
+            NUMERIC_LARGE_BLOCK_SHIFT,
+            false
+        );
+        config.setCodec(new Elasticsearch93Lucene104Codec() {
             @Override
             public DocValuesFormat getDocValuesFormatForField(String field) {
                 return docValuesFormat;

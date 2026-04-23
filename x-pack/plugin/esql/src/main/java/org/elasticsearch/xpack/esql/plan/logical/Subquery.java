@@ -22,8 +22,6 @@ import java.util.Objects;
 public class Subquery extends UnaryPlan implements TelemetryAware, SortAgnostic {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Subquery", Subquery::new);
 
-    // subquery alias/qualifier could be added in the future if needed
-
     public Subquery(Source source, LogicalPlan subqueryPlan) {
         super(source, subqueryPlan);
     }
@@ -44,7 +42,7 @@ public class Subquery extends UnaryPlan implements TelemetryAware, SortAgnostic 
     }
 
     @Override
-    protected NodeInfo<Subquery> info() {
+    protected NodeInfo<? extends Subquery> info() {
         return NodeInfo.create(this, Subquery::new, child());
     }
 
@@ -83,8 +81,8 @@ public class Subquery extends UnaryPlan implements TelemetryAware, SortAgnostic 
     }
 
     @Override
-    public String nodeString() {
-        return nodeName() + "[]";
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+        sb.append(nodeName()).append("[]");
     }
 
     public LogicalPlan plan() {

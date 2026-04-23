@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.capabilities;
 
 import org.apache.lucene.search.MultiTermQuery.RewriteMethod;
-import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
+import org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.operator.FilterOperator;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;

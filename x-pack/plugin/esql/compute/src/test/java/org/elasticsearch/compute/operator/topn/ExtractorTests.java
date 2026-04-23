@@ -19,6 +19,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.lucene.AlwaysReferencedIndexedByShardId;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.test.BlockTestUtils;
@@ -28,8 +29,10 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.common.time.DateUtils.MAX_MILLIS_BEFORE_9999;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -44,7 +47,7 @@ public class ExtractorTests extends ESTestCase {
                 case UNKNOWN -> {
                     supportsNull = false;
                 }
-                case COMPOSITE, EXPONENTIAL_HISTOGRAM -> {
+                case COMPOSITE -> {
                     // TODO: add later
                     supportsNull = false;
                 }
@@ -54,6 +57,7 @@ public class ExtractorTests extends ESTestCase {
                             "regular aggregate_metric_double",
                             e,
                             TopNEncoder.DEFAULT_UNSORTABLE,
+                            false,
                             () -> randomAggregateMetricDouble(true)
                         )
                     );
@@ -62,26 +66,41 @@ public class ExtractorTests extends ESTestCase {
                             "aggregate_metric_double with nulls",
                             e,
                             TopNEncoder.DEFAULT_UNSORTABLE,
+                            false,
                             () -> randomAggregateMetricDouble(false)
                         )
                     );
+                }
+                case LONG_RANGE -> {
+                    cases.add(valueTestCase("date_range", e, TopNEncoder.DEFAULT_UNSORTABLE, false, ExtractorTests::randomDateRange));
                 }
                 case FLOAT -> {
                     supportsNull = false;
                 }
                 case BYTES_REF -> {
-                    cases.add(valueTestCase("single alpha", e, TopNEncoder.UTF8, () -> randomAlphaOfLength(5)));
-                    cases.add(valueTestCase("many alpha", e, TopNEncoder.UTF8, () -> randomList(2, 10, () -> randomAlphaOfLength(5))));
-                    cases.add(valueTestCase("single utf8", e, TopNEncoder.UTF8, () -> randomRealisticUnicodeOfLength(10)));
+                    cases.add(valueTestCase("single alpha", e, TopNEncoder.UTF8, true, () -> randomAlphaOfLength(5)));
                     cases.add(
-                        valueTestCase("many utf8", e, TopNEncoder.UTF8, () -> randomList(2, 10, () -> randomRealisticUnicodeOfLength(10)))
+                        valueTestCase("many alpha", e, TopNEncoder.UTF8, true, () -> randomList(2, 10, () -> randomAlphaOfLength(5)))
                     );
-                    cases.add(valueTestCase("single version", e, TopNEncoder.VERSION, () -> TopNEncoderTests.randomVersion().toBytesRef()));
+                    cases.add(valueTestCase("single utf8", e, TopNEncoder.UTF8, true, () -> randomRealisticUnicodeOfLength(10)));
+                    cases.add(
+                        valueTestCase(
+                            "many utf8",
+                            e,
+                            TopNEncoder.UTF8,
+                            true,
+                            () -> randomList(2, 10, () -> randomRealisticUnicodeOfLength(10))
+                        )
+                    );
+                    cases.add(
+                        valueTestCase("single version", e, TopNEncoder.VERSION, true, () -> TopNEncoderTests.randomVersion().toBytesRef())
+                    );
                     cases.add(
                         valueTestCase(
                             "many version",
                             e,
                             TopNEncoder.VERSION,
+                            true,
                             () -> randomList(2, 10, () -> TopNEncoderTests.randomVersion().toBytesRef())
                         )
                     );
@@ -90,6 +109,7 @@ public class ExtractorTests extends ESTestCase {
                             "single IP",
                             e,
                             TopNEncoder.IP,
+                            true,
                             () -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())))
                         )
                     );
@@ -98,15 +118,17 @@ public class ExtractorTests extends ESTestCase {
                             "many IP",
                             e,
                             TopNEncoder.IP,
+                            true,
                             () -> randomList(2, 10, () -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean()))))
                         )
                     );
-                    cases.add(valueTestCase("single point", e, TopNEncoder.DEFAULT_UNSORTABLE, TopNEncoderTests::randomPointAsWKB));
+                    cases.add(valueTestCase("single point", e, TopNEncoder.DEFAULT_UNSORTABLE, false, TopNEncoderTests::randomPointAsWKB));
                     cases.add(
                         valueTestCase(
                             "many points",
                             e,
                             TopNEncoder.DEFAULT_UNSORTABLE,
+                            false,
                             () -> randomList(2, 10, TopNEncoderTests::randomPointAsWKB)
                         )
                     );
@@ -119,45 +141,62 @@ public class ExtractorTests extends ESTestCase {
                                 "doc",
                                 e,
                                 new DocVectorEncoder(AlwaysReferencedIndexedByShardId.INSTANCE),
+                                false,
                                 () -> new DocVector(
                                     AlwaysReferencedIndexedByShardId.INSTANCE,
                                     // Shard ID should be small and non-negative.
                                     blockFactory.newConstantIntBlockWith(randomIntBetween(0, 255), 1).asVector(),
                                     blockFactory.newConstantIntBlockWith(randomInt(), 1).asVector(),
                                     blockFactory.newConstantIntBlockWith(randomInt(), 1).asVector(),
-                                    randomBoolean() ? null : randomBoolean()
-                                ).asBlock()
+                                    docVectorConfig()
+                                ).asBlock(),
+                                b -> {
+                                    DocVector v = (DocVector) b.asVector();
+                                    return new DocVector(
+                                        AlwaysReferencedIndexedByShardId.INSTANCE,
+                                        v.shards(),
+                                        v.segments(),
+                                        v.docs(),
+                                        DocVector.config().mayContainDuplicates()
+                                    ).asBlock();
+                                }
                             ) }
                     );
                 }
+                case TDIGEST, EXPONENTIAL_HISTOGRAM ->
+                    // multi values are not supported
+                    cases.add(valueTestCase("single " + e, e, TopNEncoder.DEFAULT_UNSORTABLE, false, () -> BlockTestUtils.randomValue(e)));
                 case NULL -> {
                 }
                 default -> {
-                    cases.add(valueTestCase("single " + e, e, TopNEncoder.DEFAULT_UNSORTABLE, () -> BlockTestUtils.randomValue(e)));
+                    cases.add(valueTestCase("single " + e, e, TopNEncoder.DEFAULT_UNSORTABLE, false, () -> BlockTestUtils.randomValue(e)));
                     cases.add(
                         valueTestCase(
                             "many " + e,
                             e,
                             TopNEncoder.DEFAULT_UNSORTABLE,
+                            false,
                             () -> randomList(2, 10, () -> BlockTestUtils.randomValue(e))
                         )
                     );
                 }
             }
             if (supportsNull) {
-                cases.add(valueTestCase("null " + e, e, TopNEncoder.DEFAULT_UNSORTABLE, () -> null));
+                cases.add(valueTestCase("null " + e, e, TopNEncoder.DEFAULT_UNSORTABLE, false, () -> null));
             }
         }
         return cases;
     }
 
-    static Object[] valueTestCase(String name, ElementType type, TopNEncoder encoder, Supplier<Object> value) {
+    static Object[] valueTestCase(String name, ElementType type, TopNEncoder encoder, boolean sortable, Supplier<Object> value) {
         return new Object[] {
             new TestCase(
                 name,
                 type,
                 encoder,
-                () -> BlockUtils.fromListRow(TestBlockFactory.getNonBreakingInstance(), Arrays.asList(value.get()))[0]
+                sortable,
+                () -> BlockUtils.fromListRow(TestBlockFactory.getNonBreakingInstance(), Arrays.asList(value.get()))[0],
+                Function.identity()
             ) };
     }
 
@@ -165,13 +204,24 @@ public class ExtractorTests extends ESTestCase {
         private final String name;
         private final ElementType type;
         private final TopNEncoder encoder;
+        private final boolean sortable;
         private final Supplier<Block> value;
+        private final Function<Block, Block> expected;
 
-        TestCase(String name, ElementType type, TopNEncoder encoder, Supplier<Block> value) {
+        TestCase(
+            String name,
+            ElementType type,
+            TopNEncoder encoder,
+            boolean sortable,
+            Supplier<Block> value,
+            Function<Block, Block> expected
+        ) {
             this.name = name;
             this.type = type;
             this.encoder = encoder;
+            this.sortable = sortable;
             this.value = value;
+            this.expected = expected;
         }
 
         @Override
@@ -208,16 +258,19 @@ public class ExtractorTests extends ESTestCase {
         result.decodeValue(values);
         assertThat(values.length, equalTo(0));
 
-        assertThat(result.build(), equalTo(value));
+        Block resultBlock = result.build();
+        assertThat(resultBlock, equalTo(testCase.expected.apply(value)));
     }
 
     public void testInKey() {
-        assumeFalse("can't sort with un-sortable encoder", testCase.encoder instanceof DefaultUnsortableTopNEncoder);
+        if (testCase.sortable == false) {
+            return;
+        }
         Block value = testCase.value.get();
 
         BreakingBytesRefBuilder keysBuilder = nonBreakingBytesRefBuilder();
-        KeyExtractor.extractorFor(testCase.type, testCase.encoder.toSortable(), randomBoolean(), randomByte(), randomByte(), value)
-            .writeKey(keysBuilder, 0);
+        boolean asc = randomBoolean();
+        KeyExtractor.extractorFor(testCase.type, testCase.encoder, asc, randomByte(), randomByte(), value).writeKey(keysBuilder, 0);
         assertThat(keysBuilder.length(), greaterThan(0));
 
         BreakingBytesRefBuilder valuesBuilder = nonBreakingBytesRefBuilder();
@@ -227,7 +280,7 @@ public class ExtractorTests extends ESTestCase {
         ResultBuilder result = ResultBuilder.resultBuilderFor(
             TestBlockFactory.getNonBreakingInstance(),
             testCase.type,
-            testCase.encoder.toUnsortable(),
+            testCase.encoder,
             true,
             1
         );
@@ -238,14 +291,14 @@ public class ExtractorTests extends ESTestCase {
             // Skip the non-null byte
             keys.offset++;
             keys.length--;
-            result.decodeKey(keys);
+            result.decodeKey(keys, asc);
             assertThat(keys.length, equalTo(0));
         }
         BytesRef values = valuesBuilder.bytesRefView();
         result.decodeValue(values);
         assertThat(values.length, equalTo(0));
 
-        assertThat(result.build(), equalTo(value));
+        assertThat(result.build(), equalTo(testCase.expected.apply(value)));
     }
 
     public static AggregateMetricDoubleLiteral randomAggregateMetricDouble(boolean allMetrics) {
@@ -258,5 +311,19 @@ public class ExtractorTests extends ESTestCase {
             randomBoolean() ? randomDouble() : null,
             randomBoolean() ? randomInt() : null
         );
+    }
+
+    private static LongRangeBlockBuilder.LongRange randomDateRange() {
+        var from = randomMillisUpToYear9999();
+        var to = randomLongBetween(from + 1, MAX_MILLIS_BEFORE_9999);
+        return new LongRangeBlockBuilder.LongRange(from, to);
+    }
+
+    private static DocVector.Config docVectorConfig() {
+        DocVector.Config config = DocVector.config();
+        if (randomBoolean()) {
+            config.singleSegmentNonDecreasing(randomBoolean());
+        }
+        return config;
     }
 }

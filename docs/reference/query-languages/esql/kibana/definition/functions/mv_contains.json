@@ -10,13 +10,13 @@
           "name" : "superset",
           "type" : "boolean",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         },
         {
           "name" : "subset",
           "type" : "boolean",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         }
       ],
       "variadic" : false,
@@ -28,13 +28,13 @@
           "name" : "superset",
           "type" : "cartesian_point",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         },
         {
           "name" : "subset",
           "type" : "cartesian_point",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         }
       ],
       "variadic" : false,
@@ -46,13 +46,13 @@
           "name" : "superset",
           "type" : "cartesian_shape",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         },
         {
           "name" : "subset",
           "type" : "cartesian_shape",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         }
       ],
       "variadic" : false,
@@ -64,13 +64,13 @@
           "name" : "superset",
           "type" : "date",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         },
         {
           "name" : "subset",
           "type" : "date",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         }
       ],
       "variadic" : false,
@@ -82,13 +82,13 @@
           "name" : "superset",
           "type" : "date_nanos",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         },
         {
           "name" : "subset",
           "type" : "date_nanos",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         }
       ],
       "variadic" : false,
@@ -100,13 +100,13 @@
           "name" : "superset",
           "type" : "double",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         },
         {
           "name" : "subset",
           "type" : "double",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         }
       ],
       "variadic" : false,
@@ -118,13 +118,13 @@
           "name" : "superset",
           "type" : "geo_point",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         },
         {
           "name" : "subset",
           "type" : "geo_point",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         }
       ],
       "variadic" : false,
@@ -136,13 +136,13 @@
           "name" : "superset",
           "type" : "geo_shape",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         },
         {
           "name" : "subset",
           "type" : "geo_shape",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         }
       ],
       "variadic" : false,
@@ -154,13 +154,13 @@
           "name" : "superset",
           "type" : "geohash",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         },
         {
           "name" : "subset",
           "type" : "geohash",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         }
       ],
       "variadic" : false,
@@ -172,13 +172,13 @@
           "name" : "superset",
           "type" : "geohex",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         },
         {
           "name" : "subset",
           "type" : "geohex",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         }
       ],
       "variadic" : false,
@@ -190,13 +190,13 @@
           "name" : "superset",
           "type" : "geotile",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         },
         {
           "name" : "subset",
           "type" : "geotile",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         }
       ],
       "variadic" : false,
@@ -208,13 +208,13 @@
           "name" : "superset",
           "type" : "integer",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         },
         {
           "name" : "subset",
           "type" : "integer",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         }
       ],
       "variadic" : false,
@@ -226,13 +226,13 @@
           "name" : "superset",
           "type" : "ip",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         },
         {
           "name" : "subset",
           "type" : "ip",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         }
       ],
       "variadic" : false,
@@ -244,13 +244,13 @@
           "name" : "superset",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         },
         {
           "name" : "subset",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         }
       ],
       "variadic" : false,
@@ -262,13 +262,13 @@
           "name" : "superset",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         },
         {
           "name" : "subset",
           "type" : "text",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         }
       ],
       "variadic" : false,
@@ -280,13 +280,13 @@
           "name" : "superset",
           "type" : "long",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         },
         {
           "name" : "subset",
           "type" : "long",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         }
       ],
       "variadic" : false,
@@ -298,13 +298,13 @@
           "name" : "superset",
           "type" : "text",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         },
         {
           "name" : "subset",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         }
       ],
       "variadic" : false,
@@ -316,13 +316,13 @@
           "name" : "superset",
           "type" : "text",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         },
         {
           "name" : "subset",
           "type" : "text",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         }
       ],
       "variadic" : false,
@@ -334,13 +334,13 @@
           "name" : "superset",
           "type" : "unsigned_long",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         },
         {
           "name" : "subset",
           "type" : "unsigned_long",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         }
       ],
       "variadic" : false,
@@ -352,13 +352,13 @@
           "name" : "superset",
           "type" : "version",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         },
         {
           "name" : "subset",
           "type" : "version",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         }
       ],
       "variadic" : false,

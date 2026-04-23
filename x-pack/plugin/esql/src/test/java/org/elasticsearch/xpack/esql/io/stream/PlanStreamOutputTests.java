@@ -50,11 +50,11 @@ public class PlanStreamOutputTests extends ESTestCase {
 
     public void testTransportVersion() throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
-        TransportVersion v1 = TransportVersionUtils.randomCompatibleVersion(random());
+        TransportVersion v1 = TransportVersionUtils.randomCompatibleVersion();
         out.setTransportVersion(v1);
         PlanStreamOutput planOut = new PlanStreamOutput(out, randomBoolean() ? null : randomConfiguration());
         assertThat(planOut.getTransportVersion(), equalTo(v1));
-        TransportVersion v2 = TransportVersionUtils.randomCompatibleVersion(random());
+        TransportVersion v2 = TransportVersionUtils.randomCompatibleVersion();
         planOut.setTransportVersion(v2);
         assertThat(planOut.getTransportVersion(), equalTo(v2));
         assertThat(out.getTransportVersion(), equalTo(v2));
@@ -293,10 +293,9 @@ public class PlanStreamOutputTests extends ESTestCase {
         }
     }
 
-    private static final BlockFactory BLOCK_FACTORY = BlockFactory.getInstance(
-        new NoopCircuitBreaker("noop-esql-breaker"),
-        BigArrays.NON_RECYCLING_INSTANCE
-    );
+    private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+        .breaker(new NoopCircuitBreaker("none"))
+        .build();
 
     private static final NamedWriteableRegistry REGISTRY;
 

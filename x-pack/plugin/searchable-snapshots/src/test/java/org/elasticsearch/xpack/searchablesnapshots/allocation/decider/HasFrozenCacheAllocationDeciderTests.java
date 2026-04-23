@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.allocation.decider;
 
+import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
@@ -27,6 +29,8 @@ public class HasFrozenCacheAllocationDeciderTests extends ESTestCase {
 
     public void testCanAllocateToNode() {
         final var frozenCacheService = mock(FrozenCacheInfoService.class);
+        final var allocation = TestRoutingAllocationFactory.forClusterState(ClusterStateCreationUtils.stateWithNoShard()).build();
+        final var simulatingAllocation = allocation.mutableCloneForSimulation();
         final var decider = new HasFrozenCacheAllocationDecider(frozenCacheService);
 
         final var indexMetadata = IndexMetadata.builder(randomIdentifier())
@@ -35,7 +39,10 @@ public class HasFrozenCacheAllocationDeciderTests extends ESTestCase {
 
         for (var nodeState : NodeState.values()) {
             when(frozenCacheService.getNodeState(any(DiscoveryNode.class))).thenReturn(nodeState);
-            assertThat(decider.canAllocateToNode(indexMetadata, mock(DiscoveryNode.class)), equalTo(Decision.ALWAYS));
+            assertThat(
+                decider.canAllocateToNode(indexMetadata, mock(DiscoveryNode.class), randomFrom(allocation, simulatingAllocation)),
+                equalTo(Decision.ALWAYS)
+            );
         }
 
         final var partialSearchableSnapshotIndexMetadata = IndexMetadata.builder(randomIdentifier())
@@ -47,12 +54,17 @@ public class HasFrozenCacheAllocationDeciderTests extends ESTestCase {
 
         for (var nodeState : NodeState.values()) {
             when(frozenCacheService.getNodeState(any(DiscoveryNode.class))).thenReturn(nodeState);
-            final Decision decision = decider.canAllocateToNode(partialSearchableSnapshotIndexMetadata, mock(DiscoveryNode.class));
+            final boolean isSimulating = randomBoolean();
+            final Decision decision = decider.canAllocateToNode(
+                partialSearchableSnapshotIndexMetadata,
+                mock(DiscoveryNode.class),
+                isSimulating ? simulatingAllocation : allocation
+            );
             final Decision.Type expectedType;
             if (nodeState == NodeState.HAS_CACHE) {
                 expectedType = Decision.Type.YES;
             } else if (nodeState == NodeState.FETCHING) {
-                expectedType = Decision.Type.THROTTLE;
+                expectedType = isSimulating ? Decision.Type.NO : Decision.Type.THROTTLE;
             } else {
                 expectedType = Decision.Type.NO;
             }

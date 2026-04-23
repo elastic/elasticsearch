@@ -1,10 +1,14 @@
 ---
 setup:
+  - skip:
+      features: allowed_warnings
   - do:
       cluster.health:
         wait_for_events: languid
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       cluster.put_component_template:
         name: "metrics@custom"
         body:
@@ -21,6 +25,8 @@ setup:
                     source: metrics@custom
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       cluster.put_component_template:
         name: "metrics-apm.app@custom"
         body:
@@ -39,6 +45,8 @@ setup:
 ---
 "Test metrics @custom component templates":
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.create_data_stream:
         name: metrics-apm.app.svc1-testing
   - do:
@@ -47,6 +55,8 @@ setup:
       cluster.health:
         wait_for_events: languid
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.get_field_mapping:
         index: metrics-apm.app.svc1-testing
         fields: custom_field*

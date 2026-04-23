@@ -48,8 +48,10 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -1306,7 +1308,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final long globalCheckpoint = randomLongBetween(UNASSIGNED_SEQ_NO, indexShard.getLocalCheckpoint());
         final long maxSeqNoOfUpdatesOrDeletes = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, maxSeqNo);
         final long maxSeqNoOfUpdatesOrDeletesBeforeRollback = indexShard.getMaxSeqNoOfUpdatesOrDeletes();
-        final Set<String> docsBeforeRollback = getShardDocUIDs(indexShard);
+        final Set<String> docsBeforeRollback = getShardDocIDs(indexShard);
         final CountDownLatch latch = new CountDownLatch(1);
         randomReplicaOperationPermitAcquisition(
             indexShard,
@@ -1346,7 +1348,7 @@ public class IndexShardTests extends IndexShardTestCase {
         resyncLatch.await();
         assertThat(indexShard.getLocalCheckpoint(), equalTo(maxSeqNo));
         assertThat(indexShard.seqNoStats().getMaxSeqNo(), equalTo(maxSeqNo));
-        assertThat(getShardDocUIDs(indexShard), equalTo(docsBeforeRollback));
+        assertThat(getShardDocIDs(indexShard), equalTo(docsBeforeRollback));
         assertThat(indexShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(expectedMaxSeqNoOfUpdatesOrDeletes));
         closeShard(indexShard, false);
     }
@@ -1361,7 +1363,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final long globalCheckpointOnReplica = randomLongBetween(UNASSIGNED_SEQ_NO, indexShard.getLocalCheckpoint());
         indexShard.updateGlobalCheckpointOnReplica(globalCheckpointOnReplica, "test");
         final long globalCheckpoint = randomLongBetween(UNASSIGNED_SEQ_NO, indexShard.getLocalCheckpoint());
-        Set<String> docsBelowGlobalCheckpoint = getShardDocUIDs(indexShard).stream()
+        Set<String> docsBelowGlobalCheckpoint = getShardDocIDs(indexShard).stream()
             .filter(id -> Long.parseLong(id) <= Math.max(globalCheckpointOnReplica, globalCheckpoint))
             .collect(Collectors.toSet());
         final CountDownLatch latch = new CountDownLatch(1);
@@ -1394,7 +1396,7 @@ public class IndexShardTests extends IndexShardTestCase {
         } else {
             assertThat(indexShard.getLocalCheckpoint(), equalTo(Math.max(globalCheckpoint, globalCheckpointOnReplica)));
         }
-        assertThat(getShardDocUIDs(indexShard), equalTo(docsBelowGlobalCheckpoint));
+        assertThat(getShardDocIDs(indexShard), equalTo(docsBelowGlobalCheckpoint));
         if (shouldRollback) {
             assertThat(indexShard.getEngine(), not(sameInstance(beforeRollbackEngine)));
         } else {
@@ -1625,7 +1627,7 @@ public class IndexShardTests extends IndexShardTestCase {
         ShardStats stats = new ShardStats(
             shard.routingEntry(),
             shard.shardPath(),
-            CommonStats.getShardLevelStats(new IndicesQueryCache(Settings.EMPTY), shard, new CommonStatsFlags()),
+            CommonStats.getShardLevelStats(new IndicesQueryCache(Settings.EMPTY), shard, new CommonStatsFlags(), () -> 0L),
             shard.commitStats(),
             shard.seqNoStats(),
             shard.getRetentionLeaseStats(),
@@ -1834,7 +1836,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         long refreshCount = shard.refreshStats().getTotal();
         indexDoc(shard, "_doc", "test");
-        try (Engine.GetResult ignored = shard.get(new Engine.Get(true, false, "test"))) {
+        try (Engine.GetResult ignored = shard.get(new Engine.Get(true, false, "test"), SplitShardCountSummary.IRRELEVANT)) {
             assertThat(shard.refreshStats().getTotal(), equalTo(refreshCount + 1));
         }
         indexDoc(shard, "_doc", "test");
@@ -1861,7 +1863,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final long externalRefreshCount = shard.refreshStats().getExternalTotal();
         final long extraInternalRefreshes = shard.routingEntry().primary() || shard.indexSettings().isSoftDeleteEnabled() == false ? 0 : 1;
         indexDoc(shard, "_doc", "test");
-        try (Engine.GetResult ignored = shard.get(new Engine.Get(true, false, "test"))) {
+        try (Engine.GetResult ignored = shard.get(new Engine.Get(true, false, "test"), SplitShardCountSummary.IRRELEVANT)) {
             assertThat(shard.refreshStats().getExternalTotal(), equalTo(externalRefreshCount));
             assertThat(shard.refreshStats().getExternalTotal(), equalTo(shard.refreshStats().getTotal() - 1 - extraInternalRefreshes));
         }
@@ -2773,7 +2775,7 @@ public class IndexShardTests extends IndexShardTestCase {
             new SourceToParse("doc-1", new BytesArray("{}"), XContentType.JSON)
         );
         flushShard(shard);
-        assertThat(getShardDocUIDs(shard), containsInAnyOrder("doc-0", "doc-1"));
+        assertThat(getShardDocIDs(shard), containsInAnyOrder("doc-0", "doc-1"));
         shard.getEngine().rollTranslogGeneration();
         shard.markSeqNoAsNoop(1, primaryTerm, "test");
         shard.applyIndexOperationOnReplica(
@@ -2785,7 +2787,7 @@ public class IndexShardTests extends IndexShardTestCase {
             new SourceToParse("doc-2", new BytesArray("{}"), XContentType.JSON)
         );
         flushShard(shard);
-        assertThat(getShardDocUIDs(shard), containsInAnyOrder("doc-0", "doc-1", "doc-2"));
+        assertThat(getShardDocIDs(shard), containsInAnyOrder("doc-0", "doc-1", "doc-2"));
         closeShard(shard, false);
         // Recovering from store should discard doc #1
         final ShardRouting replicaRouting = shard.routingEntry();
@@ -2809,7 +2811,7 @@ public class IndexShardTests extends IndexShardTestCase {
         DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
         newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
         assertTrue(recoverFromStore(newShard));
-        assertThat(getShardDocUIDs(newShard), containsInAnyOrder("doc-0", "doc-2"));
+        assertThat(getShardDocIDs(newShard), containsInAnyOrder("doc-0", "doc-2"));
         closeShards(newShard);
     }
 
@@ -2912,7 +2914,7 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(shard, "_doc", "1", "{\"foobar\" : \"bar\"}");
         shard.refresh("test");
 
-        try (Engine.GetResult getResult = shard.get(new Engine.Get(false, false, "1"))) {
+        try (Engine.GetResult getResult = shard.get(new Engine.Get(false, false, "1"), SplitShardCountSummary.IRRELEVANT)) {
             assertTrue(getResult.exists());
             assertNotNull(getResult.searcher());
         }
@@ -2944,7 +2946,7 @@ public class IndexShardTests extends IndexShardTestCase {
             search = searcher.search(new TermQuery(new Term("foobar", "bar")), 10);
             assertEquals(search.totalHits.value(), 1);
         }
-        try (Engine.GetResult getResult = newShard.get(new Engine.Get(false, false, "1"))) {
+        try (Engine.GetResult getResult = newShard.get(new Engine.Get(false, false, "1"), SplitShardCountSummary.IRRELEVANT)) {
             assertTrue(getResult.exists());
             assertNotNull(getResult.searcher()); // make sure get uses the wrapped reader
             assertTrue(getResult.searcher().getIndexReader() instanceof FieldMaskingReader);
@@ -2970,15 +2972,14 @@ public class IndexShardTests extends IndexShardTestCase {
         MappedFieldType foo = shard.mapperService().fieldType("foo");
         IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(
             shard.indexSettings.getNodeSettings(),
-            new IndexFieldDataCache.Listener() {
-            }
+            new IndexFieldDataCache.Listener() {}
         );
         IndexFieldDataService indexFieldDataService = new IndexFieldDataService(
             shard.indexSettings,
             indicesFieldDataCache,
             new NoneCircuitBreakerService()
         );
-        IndexFieldData.Global<?> ifd = indexFieldDataService.getForField(foo, FieldDataContext.noRuntimeFields("test"));
+        IndexFieldData.Global<?> ifd = indexFieldDataService.getForField(foo, FieldDataContext.noRuntimeFields("test", "test"));
         FieldDataStats before = shard.fieldData().stats("foo");
         assertThat(before.getMemorySizeInBytes(), equalTo(0L));
         FieldDataStats after = null;
@@ -4465,6 +4466,8 @@ public class IndexShardTests extends IndexShardTestCase {
                         });
                         assertThat(preparedForReset.get(), equalTo(true));
                         l.onResponse(null);
+                    } catch (Exception e) {
+                        l.onFailure(e);
                     }
                 }), EsExecutors.DIRECT_EXECUTOR_SERVICE);
             } catch (Exception e) {
@@ -4505,9 +4508,9 @@ public class IndexShardTests extends IndexShardTestCase {
         var flushExecutedBarrier = new CyclicBarrier(2);
         var shard = newStartedShard(true, indexSettings, config -> new InternalEngine(config) {
             @Override
-            protected void flushHoldingLock(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) {
+            protected void flushHoldingLock(boolean force, boolean waitIfOngoing, FlushResultListener listener) {
                 if (shardStarted.get()) {
-                    super.flushHoldingLock(force, waitIfOngoing, ActionListener.noop());
+                    super.flushHoldingLock(force, waitIfOngoing, FlushResultListener.NOOP);
                     pendingListeners.add(listener);
                     safeAwait(flushExecutedBarrier);
                 } else {
@@ -4568,7 +4571,7 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testSupplyTombstoneDoc() throws Exception {
         IndexShard shard = newStartedShard();
         String id = randomRealisticUnicodeOfLengthBetween(1, 10);
-        ParsedDocument deleteTombstone = ParsedDocument.deleteTombstone(shard.indexSettings.seqNoIndexOptions(), randomBoolean(), id);
+        ParsedDocument deleteTombstone = ParsedDocument.deleteTombstone(shard.indexSettings.seqNoIndexOptions(), id);
         assertThat(deleteTombstone.docs(), hasSize(1));
         LuceneDocument deleteDoc = deleteTombstone.docs().get(0);
         assertThat(
@@ -4610,7 +4613,7 @@ public class IndexShardTests extends IndexShardTestCase {
         long maxSeqNoBeforeRollback = shard.seqNoStats().getMaxSeqNo();
         final long globalCheckpoint = randomLongBetween(shard.getLastKnownGlobalCheckpoint(), shard.getLocalCheckpoint());
         shard.updateGlobalCheckpointOnReplica(globalCheckpoint, "test");
-        Set<String> docBelowGlobalCheckpoint = getShardDocUIDs(shard).stream()
+        Set<String> docBelowGlobalCheckpoint = getShardDocIDs(shard).stream()
             .filter(id -> Long.parseLong(id) <= globalCheckpoint)
             .collect(Collectors.toSet());
         TranslogStats translogStats = shard.translogStats();
@@ -4621,10 +4624,7 @@ public class IndexShardTests extends IndexShardTestCase {
             int hitClosedExceptions = 0;
             while (done.get() == false) {
                 try {
-                    List<String> exposedDocIds = EngineTestCase.getDocIds(getEngine(shard), rarely())
-                        .stream()
-                        .map(DocIdSeqNoAndSource::id)
-                        .toList();
+                    List<String> exposedDocIds = getDocIdAndSeqNos(shard, rarely()).stream().map(DocIdSeqNoAndSource::id).toList();
                     assertThat(
                         "every operations before the global checkpoint must be reserved",
                         docBelowGlobalCheckpoint,
@@ -4652,7 +4652,7 @@ public class IndexShardTests extends IndexShardTestCase {
             }
         }, Assert::assertNotNull), TimeValue.timeValueMinutes(1L));
         engineResetLatch.await();
-        assertThat(getShardDocUIDs(shard), equalTo(docBelowGlobalCheckpoint));
+        assertThat(getShardDocIDs(shard), equalTo(docBelowGlobalCheckpoint));
         assertThat(shard.seqNoStats().getMaxSeqNo(), equalTo(globalCheckpoint));
         if (shard.indexSettings.isSoftDeleteEnabled()) {
             // we might have trimmed some operations if the translog retention policy is ignored (when soft-deletes enabled).
@@ -4954,7 +4954,10 @@ public class IndexShardTests extends IndexShardTestCase {
         Engine.IndexResult indexResult = indexDoc(shard, "_doc", "0", "{\"foo\" : \"bar\"}");
         assertTrue(indexResult.isCreated());
 
-        org.elasticsearch.index.engine.Engine.GetResult getResult = shard.get(new Engine.Get(true, true, "0"));
+        org.elasticsearch.index.engine.Engine.GetResult getResult = shard.get(
+            new Engine.Get(true, true, "0"),
+            SplitShardCountSummary.IRRELEVANT
+        );
         assertTrue(getResult.exists());
         getResult.close();
 
@@ -4982,7 +4985,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         indexDoc(shard, "_doc", "test");
         // first realtime get to start tracking translog location
-        try (var result = shard.get(new Engine.Get(true, true, "test"))) {
+        try (var result = shard.get(new Engine.Get(true, true, "test"), SplitShardCountSummary.IRRELEVANT)) {
             assertTrue(result.exists());
         }
         indexDoc(shard, "_doc", "1");
@@ -4998,28 +5001,28 @@ public class IndexShardTests extends IndexShardTestCase {
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
-            try (var result = mget.get(new Engine.Get(randomBoolean(), randomBoolean(), "1"))) {
+            try (var result = mget.get(new Engine.Get(randomBoolean(), randomBoolean(), "1"), SplitShardCountSummary.IRRELEVANT)) {
                 assertTrue(result.exists());
                 assertThat(wrappedWithKeys.get(), equalTo(1));
                 assertThat(wrappedWithoutKeys.get(), equalTo(0));
             }
-            try (var result = mget.get(new Engine.Get(false, false, "2"))) {
+            try (var result = mget.get(new Engine.Get(false, false, "2"), SplitShardCountSummary.IRRELEVANT)) {
                 assertFalse(result.exists());
                 assertThat(wrappedWithKeys.get(), equalTo(1));
                 assertThat(wrappedWithoutKeys.get(), equalTo(0));
             }
-            try (var result = mget.get(new Engine.Get(true, true, "2"))) {
+            try (var result = mget.get(new Engine.Get(true, true, "2"), SplitShardCountSummary.IRRELEVANT)) {
                 assertTrue(result.exists());
                 assertThat(wrappedWithKeys.get(), equalTo(1));
                 assertThat(wrappedWithoutKeys.get(), equalTo(1));
             }
-            try (var result = mget.get(new Engine.Get(randomBoolean(), randomBoolean(), "3"))) {
+            try (var result = mget.get(new Engine.Get(randomBoolean(), randomBoolean(), "3"), SplitShardCountSummary.IRRELEVANT)) {
                 assertTrue(result.exists());
                 assertThat(wrappedWithKeys.get(), equalTo(1));
                 assertThat(wrappedWithoutKeys.get(), equalTo(1));
             }
 
-            try (var result = mget.get(new Engine.Get(true, true, "4"))) {
+            try (var result = mget.get(new Engine.Get(true, true, "4"), SplitShardCountSummary.IRRELEVANT)) {
                 assertTrue(result.exists());
                 assertThat(wrappedWithKeys.get(), equalTo(1));
                 assertThat(wrappedWithoutKeys.get(), equalTo(2));
@@ -5027,14 +5030,24 @@ public class IndexShardTests extends IndexShardTestCase {
 
             shard.refresh("force");
             for (int i = 0; i < 5; i++) {
-                try (var result = mget.get(new Engine.Get(randomBoolean(), randomBoolean(), Integer.toString(i)))) {
+                try (
+                    var result = mget.get(
+                        new Engine.Get(randomBoolean(), randomBoolean(), Integer.toString(i)),
+                        SplitShardCountSummary.IRRELEVANT
+                    )
+                ) {
                     assertTrue(result.exists());
                     assertThat(wrappedWithKeys.get(), equalTo(2));
                     assertThat(wrappedWithoutKeys.get(), equalTo(2));
                 }
             }
             for (int i = 10; i < 15; i++) {
-                try (var result = mget.get(new Engine.Get(randomBoolean(), randomBoolean(), Integer.toString(i)))) {
+                try (
+                    var result = mget.get(
+                        new Engine.Get(randomBoolean(), randomBoolean(), Integer.toString(i)),
+                        SplitShardCountSummary.IRRELEVANT
+                    )
+                ) {
                     assertFalse(result.exists());
                     assertThat(wrappedWithKeys.get(), equalTo(2));
                     assertThat(wrappedWithoutKeys.get(), equalTo(2));
@@ -5131,7 +5144,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 config.getMergePolicy(),
                 config.getAnalyzer(),
                 config.getSimilarity(),
-                new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE),
+                new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE, null),
                 config.getEventListener(),
                 config.getQueryCache(),
                 config.getQueryCachingPolicy(),
@@ -5308,6 +5321,8 @@ public class IndexShardTests extends IndexShardTestCase {
                         });
                         assertThat(preparedForReset.get(), equalTo(true));
                         l.onResponse(null);
+                    } catch (Exception e) {
+                        l.onFailure(e);
                     }
                 }), EsExecutors.DIRECT_EXECUTOR_SERVICE);
             } catch (Exception e) {
@@ -5359,6 +5374,8 @@ public class IndexShardTests extends IndexShardTestCase {
                         });
                         assertThat(preparedForReset.get(), equalTo(true));
                         l.onResponse(null);
+                    } catch (Exception e) {
+                        l.onFailure(e);
                     }
                 }), EsExecutors.DIRECT_EXECUTOR_SERVICE);
             } catch (Exception e) {
@@ -5476,7 +5493,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     config.getMergePolicy(),
                     config.getAnalyzer(),
                     config.getSimilarity(),
-                    new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE),
+                    new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE, null),
                     config.getEventListener(),
                     config.getQueryCache(),
                     config.getQueryCachingPolicy(),
@@ -5535,6 +5552,7 @@ public class IndexShardTests extends IndexShardTestCase {
                             new Engine.Get(true, false, index.getId()),
                             shard.mapperService().mappingLookup(),
                             shard.mapperService().documentParser(),
+                            SplitShardCountSummary.IRRELEVANT,
                             searcher -> searcher
                         )
                     ) {
@@ -5564,6 +5582,8 @@ public class IndexShardTests extends IndexShardTestCase {
                             });
                             assertThat(preparedForReset.get(), equalTo(true));
                             l.onResponse(null);
+                        } catch (Exception e) {
+                            l.onFailure(e);
                         }
                     }), EsExecutors.DIRECT_EXECUTOR_SERVICE);
                 } catch (Exception e) {
@@ -5852,7 +5872,7 @@ public class IndexShardTests extends IndexShardTestCase {
     private static void blockingCallRelocated(
         IndexShard indexShard,
         ShardRouting routing,
-        BiConsumer<ReplicationTracker.PrimaryContext, ActionListener<Void>> consumer
+        CheckedBiConsumer<ReplicationTracker.PrimaryContext, ActionListener<Void>, Exception> consumer
     ) {
         safeAwait(
             (ActionListener<Void> listener) -> indexShard.relocated(

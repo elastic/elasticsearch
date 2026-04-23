@@ -87,13 +87,13 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
 
-        checker.registerUpdateCheck(b -> {
+        checker.registerUpdateCheck("search_analyzer", b -> {
             b.field("analyzer", "default");
             b.field("search_analyzer", "keyword");
         }, m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().searchAnalyzer().name()));
-        checker.registerUpdateCheck(b -> {
+        checker.registerUpdateCheck("search_quote_analyzer", b -> {
             b.field("analyzer", "default");
-            b.field("search_analyzer", "keyword");
+            b.field("search_analyzer", "default");
             b.field("search_quote_analyzer", "keyword");
         }, m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().searchQuoteAnalyzer().name()));
 
@@ -113,7 +113,7 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
             b.field("type", "annotated_text");
             b.field("norms", true);
         }));
-        checker.registerUpdateCheck(b -> {
+        checker.registerUpdateCheck("norms", b -> {
             b.field("type", "annotated_text");
             b.field("norms", true);
         }, b -> {
@@ -692,7 +692,8 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         assumeFalse("ignore_malformed not supported", ignoreMalformed);
-        return TextFieldFamilySyntheticSourceTestSetup.syntheticSourceSupport("annotated_text", false);
+        // annotated_text uses stored fields for fallback (not binary doc values), so ignored values are not sorted
+        return TextFieldFamilySyntheticSourceTestSetup.syntheticSourceSupport("annotated_text", false, false);
     }
 
     @Override
@@ -703,5 +704,15 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
     }
 }

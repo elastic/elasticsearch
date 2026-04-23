@@ -9,19 +9,11 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
-import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -94,20 +86,5 @@ public class OpenPointInTimeRequestTests extends AbstractWireSerializingTestCase
             }
             default -> throw new AssertionError("Unknown option");
         };
-    }
-
-    public void testUseDefaultConcurrentForOldVersion() throws Exception {
-        TransportVersion previousVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_9_X);
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            TransportVersion version = TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_8_0_0, previousVersion);
-            output.setTransportVersion(version);
-            OpenPointInTimeRequest original = createTestInstance();
-            original.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), new NamedWriteableRegistry(List.of()))) {
-                in.setTransportVersion(version);
-                OpenPointInTimeRequest copy = new OpenPointInTimeRequest(in);
-                assertThat(copy.maxConcurrentShardRequests(), equalTo(5));
-            }
-        }
     }
 }

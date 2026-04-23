@@ -6,10 +6,10 @@
  */
 package org.elasticsearch.xpack.eql.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -48,6 +48,7 @@ public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequ
     public static final TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueDays(5);
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.fromOptions(true, true, true, false);
 
+    private String[] originalIndices;
     private String[] indices;
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
@@ -65,6 +66,8 @@ public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequ
     private int maxSamplesPerKey = RequestDefaults.MAX_SAMPLES_PER_KEY;
     private Boolean allowPartialSearchResults;
     private Boolean allowPartialSequenceResults;
+    private String projectRouting;
+    private ResolvedIndexExpressions resolvedIndexExpressions;
 
     // Async settings
     private TimeValue waitForCompletionTimeout = null;
@@ -87,6 +90,7 @@ public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequ
     static final String KEY_MAX_SAMPLES_PER_KEY = "max_samples_per_key";
     static final String KEY_ALLOW_PARTIAL_SEARCH_RESULTS = "allow_partial_search_results";
     static final String KEY_ALLOW_PARTIAL_SEQUENCE_RESULTS = "allow_partial_sequence_results";
+    static final String KEY_PROJECT_ROUTING = "project_routing";
 
     static final ParseField FILTER = new ParseField(KEY_FILTER);
     static final ParseField TIMESTAMP_FIELD = new ParseField(KEY_TIMESTAMP_FIELD);
@@ -103,6 +107,7 @@ public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequ
     static final ParseField MAX_SAMPLES_PER_KEY = new ParseField(KEY_MAX_SAMPLES_PER_KEY);
     static final ParseField ALLOW_PARTIAL_SEARCH_RESULTS = new ParseField(KEY_ALLOW_PARTIAL_SEARCH_RESULTS);
     static final ParseField ALLOW_PARTIAL_SEQUENCE_RESULTS = new ParseField(KEY_ALLOW_PARTIAL_SEQUENCE_RESULTS);
+    static final ParseField PROJECT_ROUTING = new ParseField(KEY_PROJECT_ROUTING);
 
     private static final ObjectParser<EqlSearchRequest, Void> PARSER = objectParser(EqlSearchRequest::new);
 
@@ -130,16 +135,19 @@ public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequ
             fetchFields = in.readCollectionAsList(FieldAndFormat::new);
         }
         runtimeMappings = in.readGenericMap();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
-            maxSamplesPerKey = in.readInt();
-        }
-        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            allowPartialSearchResults = in.readOptionalBoolean();
-            allowPartialSequenceResults = in.readOptionalBoolean();
-        } else {
-            allowPartialSearchResults = false;
-            allowPartialSequenceResults = false;
-        }
+        maxSamplesPerKey = in.readInt();
+        allowPartialSearchResults = in.readOptionalBoolean();
+        allowPartialSequenceResults = in.readOptionalBoolean();
+    }
+
+    @Override
+    public String getProjectRouting() {
+        return projectRouting;
+    }
+
+    public EqlSearchRequest projectRouting(String projectRouting) {
+        this.projectRouting = projectRouting;
+        return this;
     }
 
     @Override
@@ -288,13 +296,32 @@ public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequ
         parser.declareInt(EqlSearchRequest::maxSamplesPerKey, MAX_SAMPLES_PER_KEY);
         parser.declareBoolean(EqlSearchRequest::allowPartialSearchResults, ALLOW_PARTIAL_SEARCH_RESULTS);
         parser.declareBoolean(EqlSearchRequest::allowPartialSequenceResults, ALLOW_PARTIAL_SEQUENCE_RESULTS);
+        parser.declareString(EqlSearchRequest::projectRouting, PROJECT_ROUTING);
         return parser;
     }
 
     @Override
     public EqlSearchRequest indices(String... indices) {
+        if (originalIndices == null) {
+            originalIndices = indices;
+        }
         this.indices = indices;
         return this;
+    }
+
+    @Override
+    public boolean allowsCrossProject() {
+        return true;
+    }
+
+    @Override
+    public void setResolvedIndexExpressions(ResolvedIndexExpressions expressions) {
+        this.resolvedIndexExpressions = expressions;
+    }
+
+    @Override
+    public ResolvedIndexExpressions getResolvedIndexExpressions() {
+        return resolvedIndexExpressions;
     }
 
     public QueryBuilder filter() {
@@ -488,13 +515,9 @@ public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequ
             out.writeCollection(fetchFields);
         }
         out.writeGenericMap(runtimeMappings);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
-            out.writeInt(maxSamplesPerKey);
-        }
-        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            out.writeOptionalBoolean(allowPartialSearchResults);
-            out.writeOptionalBoolean(allowPartialSequenceResults);
-        }
+        out.writeInt(maxSamplesPerKey);
+        out.writeOptionalBoolean(allowPartialSearchResults);
+        out.writeOptionalBoolean(allowPartialSequenceResults);
     }
 
     @Override
@@ -553,6 +576,10 @@ public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequ
     @Override
     public String[] indices() {
         return indices;
+    }
+
+    public String[] originalIndices() {
+        return originalIndices;
     }
 
     public EqlSearchRequest indicesOptions(IndicesOptions indicesOptions) {

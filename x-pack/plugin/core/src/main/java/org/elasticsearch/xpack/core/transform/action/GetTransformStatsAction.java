@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.transform.action;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -77,18 +76,12 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
             expandedIds = in.readCollectionAsImmutableList(StreamInput::readString);
             pageParams = new PageParams(in);
             allowNoMatch = in.readBoolean();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-                basic = in.readBoolean();
-            } else {
-                basic = false;
-            }
+            basic = in.readBoolean();
         }
 
         @Override
         public boolean match(Task task) {
-            // Only get tasks that we have expanded to
-            return expandedIds.stream()
-                .anyMatch(transformId -> task.getDescription().equals(TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX + transformId));
+            return task instanceof TransformTaskMatcher matcher && matcher.match(expandedIds);
         }
 
         public String getId() {
@@ -130,9 +123,7 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
             out.writeStringCollection(expandedIds);
             pageParams.writeTo(out);
             out.writeBoolean(allowNoMatch);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-                out.writeBoolean(basic);
-            }
+            out.writeBoolean(basic);
         }
 
         @Override

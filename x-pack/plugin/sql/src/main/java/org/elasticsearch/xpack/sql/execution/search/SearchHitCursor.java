@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.sql.execution.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -30,8 +29,10 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.sql.execution.search.Querier.closePointInTime;
+import static org.elasticsearch.xpack.sql.execution.search.Querier.closePointInTimeWithLastPage;
 import static org.elasticsearch.xpack.sql.execution.search.Querier.logSearchResponse;
 import static org.elasticsearch.xpack.sql.execution.search.Querier.prepareRequest;
+import static org.elasticsearch.xpack.sql.execution.search.Querier.refreshPointInTime;
 
 public class SearchHitCursor implements Cursor {
 
@@ -69,7 +70,7 @@ public class SearchHitCursor implements Cursor {
         extractors = in.readNamedWriteableCollectionAsList(HitExtractor.class);
         mask = BitSet.valueOf(in.readByteArray());
         includeFrozen = in.readBoolean();
-        allowPartialSearchResults = in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0) && in.readBoolean();
+        allowPartialSearchResults = in.readBoolean();
     }
 
     @Override
@@ -80,9 +81,7 @@ public class SearchHitCursor implements Cursor {
         out.writeNamedWriteableCollection(extractors);
         out.writeByteArray(mask.toByteArray());
         out.writeBoolean(includeFrozen);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
-            out.writeBoolean(allowPartialSearchResults);
-        }
+        out.writeBoolean(allowPartialSearchResults);
     }
 
     @Override
@@ -120,7 +119,7 @@ public class SearchHitCursor implements Cursor {
             log.trace("About to execute search hit query {}", StringUtils.toString(nextQuery));
         }
 
-        SearchRequest request = prepareRequest(nextQuery, cfg, includeFrozen);
+        SearchRequest request = prepareRequest(nextQuery, cfg, false, includeFrozen);
 
         client.search(
             request,
@@ -159,9 +158,11 @@ public class SearchHitCursor implements Cursor {
         SearchHitRowSet rowSet = makeRowSet.get();
 
         if (rowSet.hasRemaining() == false) {
-            closePointInTime(client, response.pointInTimeId(), listener.delegateFailureAndWrap((l, r) -> l.onResponse(Page.last(rowSet))));
+            closePointInTimeWithLastPage(client, response, Page.last(rowSet), listener);
         } else {
             updateSearchAfter(response.getHits().getHits(), source);
+            // Refresh the PIT ID with the new value returned in the response
+            refreshPointInTime(response, source);
 
             SearchHitCursor nextCursor = new SearchHitCursor(
                 source,

@@ -12,6 +12,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -27,9 +28,45 @@ public class AmazonBedrockChatCompletionModel extends AmazonBedrockModel {
             return completionModel;
         }
 
-        var requestTaskSettings = AmazonBedrockChatCompletionRequestTaskSettings.fromMap(taskSettings);
-        var taskSettingsToUse = AmazonBedrockChatCompletionTaskSettings.of(completionModel.getTaskSettings(), requestTaskSettings);
+        var requestTaskSettings = AmazonBedrockCompletionTaskSettings.fromMap(taskSettings);
+        var taskSettingsToUse = AmazonBedrockCompletionTaskSettings.of(completionModel.getTaskSettings(), requestTaskSettings);
+
+        // If the task settings didn't change, then return the same model
+        if (taskSettingsToUse.equals(completionModel.getTaskSettings())) {
+            return completionModel;
+        }
+
         return new AmazonBedrockChatCompletionModel(completionModel, taskSettingsToUse);
+    }
+
+    /**
+     * Creates a new AmazonBedrockChatCompletionModel with overridden service settings.
+     *
+     * @param model The original AmazonBedrockChatCompletionModel.
+     * @param request The UnifiedCompletionRequest containing the model override.
+     * @return A new AmazonBedrockChatCompletionModel with the overridden model ID.
+     */
+    public static AmazonBedrockChatCompletionModel of(AmazonBedrockChatCompletionModel model, UnifiedCompletionRequest request) {
+        if (request.model() == null || request.model().equals(model.getServiceSettings().modelId())) {
+            return model;
+        }
+
+        var originalModelServiceSettings = model.getServiceSettings();
+        var overriddenServiceSettings = new AmazonBedrockChatCompletionServiceSettings(
+            originalModelServiceSettings.region(),
+            request.model(),
+            originalModelServiceSettings.provider(),
+            originalModelServiceSettings.rateLimitSettings()
+        );
+
+        return new AmazonBedrockChatCompletionModel(
+            model.getInferenceEntityId(),
+            model.getTaskType(),
+            model.getConfigurations().getService(),
+            overriddenServiceSettings,
+            model.getTaskSettings(),
+            model.getSecretSettings()
+        );
     }
 
     public AmazonBedrockChatCompletionModel(
@@ -46,7 +83,7 @@ public class AmazonBedrockChatCompletionModel extends AmazonBedrockModel {
             taskType,
             name,
             AmazonBedrockChatCompletionServiceSettings.fromMap(serviceSettings, context),
-            AmazonBedrockChatCompletionTaskSettings.fromMap(taskSettings),
+            AmazonBedrockCompletionTaskSettings.fromMap(taskSettings),
             AwsSecretSettings.fromMap(secretSettings)
         );
     }
@@ -56,10 +93,14 @@ public class AmazonBedrockChatCompletionModel extends AmazonBedrockModel {
         TaskType taskType,
         String service,
         AmazonBedrockChatCompletionServiceSettings serviceSettings,
-        AmazonBedrockChatCompletionTaskSettings taskSettings,
+        AmazonBedrockCompletionTaskSettings taskSettings,
         AwsSecretSettings secrets
     ) {
-        super(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
+        this(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
+    }
+
+    public AmazonBedrockChatCompletionModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(modelConfigurations, modelSecrets);
     }
 
     public AmazonBedrockChatCompletionModel(Model model, TaskSettings taskSettings) {
@@ -77,7 +118,7 @@ public class AmazonBedrockChatCompletionModel extends AmazonBedrockModel {
     }
 
     @Override
-    public AmazonBedrockChatCompletionTaskSettings getTaskSettings() {
-        return (AmazonBedrockChatCompletionTaskSettings) super.getTaskSettings();
+    public AmazonBedrockCompletionTaskSettings getTaskSettings() {
+        return (AmazonBedrockCompletionTaskSettings) super.getTaskSettings();
     }
 }

@@ -1,0 +1,6 @@
+pr: 147313
+summary: Fix misplaced bracket in ECS v1 CISCOFW733100 grok pattern
+area: Ingest Node
+type: bug
+issues:
+ - 143332

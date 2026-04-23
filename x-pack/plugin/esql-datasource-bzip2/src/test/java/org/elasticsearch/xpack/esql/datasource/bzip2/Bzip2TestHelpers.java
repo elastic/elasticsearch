@@ -36,12 +36,8 @@ final class Bzip2TestHelpers {
      * line-alignment protocol (skip the first partial line on every non-first range). Returns the
      * concatenated UTF-8 text, which must equal the original uncompressed payload.
      */
-    static String reassembleLineAligned(
-        Bzip2DecompressionCodec codec,
-        ByteArrayStorageObject object,
-        long[] boundaries,
-        long fileLength
-    ) throws IOException {
+    static String reassembleLineAligned(Bzip2DecompressionCodec codec, ByteArrayStorageObject object, long[] boundaries, long fileLength)
+        throws IOException {
         ByteArrayOutputStream reassembled = new ByteArrayOutputStream();
         for (int i = 0; i < boundaries.length; i++) {
             long start = boundaries[i];

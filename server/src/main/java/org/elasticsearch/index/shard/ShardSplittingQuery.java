@@ -108,7 +108,7 @@ public final class ShardSplittingQuery extends Query {
                             // in this case we also don't do anything special with regards to nested docs since we basically delete
                             // by ID and parent and nested all have the same id.
                             assert indexMetadata.isRoutingPartitionedIndex() == false;
-                            findSplitDocs(IdFieldMapper.NAME, routingStoredAsDocValues, (idOnlyPredicate), leafReader, bitSet::set);
+                            findSplitDocsBasedOnId((idOnlyPredicate), leafReader, bitSet::set);
                         } else {
                             final BitSet parentBitSet;
                             if (nestedParentBitSetProducer == null) {
@@ -144,8 +144,7 @@ public final class ShardSplittingQuery extends Query {
                                 // in the _routing case we first go and find all docs that have a routing value and mark the ones we have to
                                 // delete
                                 Predicate<BytesRef> routingOnlyPredicate = bytes -> shardMatcher.test(null, bytes.utf8ToString());
-                                findSplitDocs(
-                                    RoutingFieldMapper.NAME,
+                                findSplitDocsBasedOnRouting(
                                     routingStoredAsDocValues,
                                     routingOnlyPredicate,
                                     leafReader,
@@ -172,15 +171,14 @@ public final class ShardSplittingQuery extends Query {
                                      * of the document that contains them.
                                      */
                                     FixedBitSet hasRoutingValue = new FixedBitSet(leafReader.maxDoc());
-                                    findSplitDocs(
-                                        RoutingFieldMapper.NAME,
+                                    findSplitDocsBasedOnRouting(
                                         routingStoredAsDocValues,
                                         Predicates.never(),
                                         leafReader,
                                         maybeWrapConsumer.apply(hasRoutingValue::set)
                                     );
                                     IntConsumer bitSetConsumer = maybeWrapConsumer.apply(bitSet::set);
-                                    findSplitDocs(IdFieldMapper.NAME, false, idOnlyPredicate, leafReader, docId -> {
+                                    findSplitDocsBasedOnId(idOnlyPredicate, leafReader, docId -> {
                                         if (hasRoutingValue.get(docId) == false) {
                                             bitSetConsumer.accept(docId);
                                         }
@@ -252,15 +250,20 @@ public final class ShardSplittingQuery extends Query {
         visitor.visitLeaf(this);
     }
 
-    private static void findSplitDocs(
-        String field,
+    static void findSplitDocsBasedOnId(Predicate<BytesRef> includeInShard, LeafReader leafReader, IntConsumer consumer) throws IOException {
+        Terms terms = leafReader.terms(IdFieldMapper.NAME);
+        consumeLocalDocIds(includeInShard, consumer, terms);
+    }
+
+    static void findSplitDocsBasedOnRouting(
         boolean useDocValues,
         Predicate<BytesRef> includeInShard,
         LeafReader leafReader,
         IntConsumer consumer
     ) throws IOException {
         if (useDocValues) {
-            SortedDocValues routingDocValues = leafReader.getSortedDocValues(field);
+            SortedDocValues routingDocValues = leafReader.getSortedDocValues(RoutingFieldMapper.NAME);
+            assert routingDocValues != null;
             for (int docID = routingDocValues.nextDoc(); docID != DocIdSetIterator.NO_MORE_DOCS; docID = routingDocValues.nextDoc()) {
                 int ordinal = routingDocValues.ordValue();
                 BytesRef value = routingDocValues.lookupOrd(ordinal);
@@ -269,17 +272,21 @@ public final class ShardSplittingQuery extends Query {
                 }
             }
         } else {
-            Terms terms = leafReader.terms(field);
-            TermsEnum iterator = terms.iterator();
-            BytesRef idTerm;
-            PostingsEnum postingsEnum = null;
-            while ((idTerm = iterator.next()) != null) {
-                if (includeInShard.test(idTerm) == false) {
-                    postingsEnum = iterator.postings(postingsEnum);
-                    int doc;
-                    while ((doc = postingsEnum.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-                        consumer.accept(doc);
-                    }
+            Terms terms = leafReader.terms(RoutingFieldMapper.NAME);
+            consumeLocalDocIds(includeInShard, consumer, terms);
+        }
+    }
+
+    private static void consumeLocalDocIds(Predicate<BytesRef> includeInShard, IntConsumer consumer, Terms terms) throws IOException {
+        TermsEnum iterator = terms.iterator();
+        BytesRef idTerm;
+        PostingsEnum postingsEnum = null;
+        while ((idTerm = iterator.next()) != null) {
+            if (includeInShard.test(idTerm) == false) {
+                postingsEnum = iterator.postings(postingsEnum);
+                int doc;
+                while ((doc = postingsEnum.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                    consumer.accept(doc);
                 }
             }
         }

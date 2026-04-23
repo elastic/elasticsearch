@@ -16,8 +16,10 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
+import org.apache.lucene.store.NIOFSDirectory;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.es93.OffHeapBFloat16VectorValues;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -29,6 +31,7 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.simdvec.VectorSimilarityType.DOT_PRODUCT;
 import static org.elasticsearch.simdvec.VectorSimilarityType.EUCLIDEAN;
 import static org.elasticsearch.simdvec.VectorSimilarityType.MAXIMUM_INNER_PRODUCT;
+import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 import static org.hamcrest.Matchers.closeTo;
 
 public class BFloat16VectorScorerFactoryTests extends AbstractVectorTestCase {
@@ -38,6 +41,11 @@ public class BFloat16VectorScorerFactoryTests extends AbstractVectorTestCase {
     // Accumulation over many dims can compound this; 1e-3 is a practical bound.
     private static final float DELTA = 1e-3f;
 
+    @BeforeClass
+    public static void requiresHeapSegments() {
+        assumeTrue("scorer only supported on JDK 22+", SUPPORTS_HEAP_SEGMENTS);
+    }
+
     // Tests that the provider instance is present or not on expected platforms/architectures
     public void testSupport() {
         supported();
@@ -45,79 +53,101 @@ public class BFloat16VectorScorerFactoryTests extends AbstractVectorTestCase {
 
     public void testZeros() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
-        testRandomSupplier(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, float[]::new);
+        try (Directory dir = new MMapDirectory(createTempDir("testZeros"))) {
+            testRandomSupplier(dir, float[]::new);
+        }
     }
 
-    public void testRandom() throws IOException {
+    public void testRandomMMap() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
-        testRandomSupplier(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, BFloat16VectorScorerFactoryTests::randomVector);
+        try (Directory dir = new MMapDirectory(createTempDir("testRandomMMap"))) {
+            testRandomSupplier(dir, BFloat16VectorScorerFactoryTests::randomVector);
+        }
+    }
+
+    public void testRandomNIO() throws IOException {
+        assumeTrue(notSupportedMsg(), supported());
+        try (Directory dir = new NIOFSDirectory(createTempDir("testRandomNIO"))) {
+            testRandomSupplier(dir, BFloat16VectorScorerFactoryTests::randomVector);
+        }
     }
 
     public void testRandomMaxChunkSizeSmall() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
         long maxChunkSize = randomLongBetween(32, 128);
         logger.info("maxChunkSize=" + maxChunkSize);
-        testRandomSupplier(maxChunkSize, BFloat16VectorScorerFactoryTests::randomVector);
+        try (Directory dir = new MMapDirectory(createTempDir("testRandomMaxChunkSizeSmall"), maxChunkSize)) {
+            testRandomSupplier(dir, BFloat16VectorScorerFactoryTests::randomVector);
+        }
     }
 
     public void testZerosBulk() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
-        testRandomSupplierBulk(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, float[]::new);
+        try (Directory dir = new MMapDirectory(createTempDir("testZerosBulk"))) {
+            testRandomSupplierBulk(dir, float[]::new);
+        }
     }
 
-    public void testRandomBulk() throws IOException {
+    public void testRandomBulkMMap() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
-        testRandomSupplierBulk(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, BFloat16VectorScorerFactoryTests::randomVector);
+        try (Directory dir = new MMapDirectory(createTempDir("testRandomBulkMMap"))) {
+            testRandomSupplierBulk(dir, BFloat16VectorScorerFactoryTests::randomVector);
+        }
+    }
+
+    public void testRandomBulkNIO() throws IOException {
+        assumeTrue(notSupportedMsg(), supported());
+        try (Directory dir = new NIOFSDirectory(createTempDir("testRandomBulkNIO"))) {
+            testRandomSupplierBulk(dir, BFloat16VectorScorerFactoryTests::randomVector);
+        }
     }
 
     public void testRandomMaxChunkSizeSmallBulk() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
         long maxChunkSize = randomLongBetween(32, 128);
         logger.info("maxChunkSize=" + maxChunkSize);
-        testRandomSupplierBulk(maxChunkSize, BFloat16VectorScorerFactoryTests::randomVector);
+        try (Directory dir = new MMapDirectory(createTempDir("testRandomMaxChunkSizeSmallBulk"), maxChunkSize)) {
+            testRandomSupplierBulk(dir, BFloat16VectorScorerFactoryTests::randomVector);
+        }
     }
 
-    void testRandomSupplier(long maxChunkSize, IntFunction<float[]> floatsSupplier) throws IOException {
+    void testRandomSupplier(Directory dir, IntFunction<float[]> floatsSupplier) throws IOException {
         var factory = AbstractVectorTestCase.factory.get();
 
-        try (Directory dir = new MMapDirectory(createTempDir("testRandom"), maxChunkSize)) {
-            final int dims = randomIntBetween(1, 4096);
-            final int size = randomIntBetween(2, 100);
-            final float[][] vectors = new float[size][];
+        final int dims = randomIntBetween(1, 4096);
+        final int size = randomIntBetween(2, 100);
+        final float[][] vectors = new float[size][];
 
-            String fileName = "testRandom-" + dims;
-            logger.info("Testing " + fileName);
+        String fileName = "testRandom-" + dims;
+        logger.info("Testing " + fileName);
 
-            writeTestDataFile(floatsSupplier, dir, fileName, size, dims, vectors);
+        writeTestDataFile(floatsSupplier, dir, fileName, size, dims, vectors);
 
-            try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
-                for (int times = 0; times < TIMES; times++) {
-                    int idx0 = randomIntBetween(0, size - 1);
-                    int idx1 = randomIntBetween(0, size - 1); // may be the same as idx0 - which is ok.
-                    scoreOneVector(dims, size, in, vectors, idx0, idx1, factory);
-                }
+        try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
+            for (int times = 0; times < TIMES; times++) {
+                int idx0 = randomIntBetween(0, size - 1);
+                int idx1 = randomIntBetween(0, size - 1); // may be the same as idx0 - which is ok.
+                scoreOneVector(dims, size, in, vectors, idx0, idx1, factory);
             }
         }
     }
 
-    void testRandomSupplierBulk(long maxChunkSize, IntFunction<float[]> floatsSupplier) throws IOException {
+    void testRandomSupplierBulk(Directory dir, IntFunction<float[]> floatsSupplier) throws IOException {
         var factory = AbstractVectorTestCase.factory.get();
 
-        try (Directory dir = new MMapDirectory(createTempDir("testRandom"), maxChunkSize)) {
-            final int dims = randomIntBetween(1, 4096);
-            final int size = randomIntBetween(2, 100);
-            final float[][] vectors = new float[size][];
+        final int dims = randomIntBetween(1, 4096);
+        final int size = randomIntBetween(2, 100);
+        final float[][] vectors = new float[size][];
 
-            String fileName = "testRandom-" + dims;
-            logger.info("Testing " + fileName);
+        String fileName = "testRandom-" + dims;
+        logger.info("Testing " + fileName);
 
-            writeTestDataFile(floatsSupplier, dir, fileName, size, dims, vectors);
+        writeTestDataFile(floatsSupplier, dir, fileName, size, dims, vectors);
 
-            try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
-                for (int times = 0; times < TIMES; times++) {
-                    int queryIdx = randomIntBetween(0, size - 1);
-                    scoreBulkVectors(dims, size, in, vectors, queryIdx, factory);
-                }
+        try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
+            for (int times = 0; times < TIMES; times++) {
+                int queryIdx = randomIntBetween(0, size - 1);
+                scoreBulkVectors(dims, size, in, vectors, queryIdx, factory);
             }
         }
     }

@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
@@ -125,13 +124,20 @@ public class CustomService extends SenderService<CustomModel> implements Reranki
                 );
             }
 
-            CustomModel model = createModel(
+            var model = retrieveModelCreatorFromMapOrThrow(
+                MODEL_CREATORS,
                 inferenceEntityId,
                 taskType,
+                NAME,
+                ConfigurationParseContext.REQUEST
+            ).createFromMaps(
+                inferenceEntityId,
+                taskType,
+                NAME,
                 serviceSettingsMap,
                 taskSettingsMap,
-                serviceSettingsMap,
                 chunkingSettings,
+                serviceSettingsMap,
                 ConfigurationParseContext.REQUEST
             );
 
@@ -205,27 +211,6 @@ public class CustomService extends SenderService<CustomModel> implements Reranki
         throwUnsupportedUnifiedCompletionOperation(NAME);
     }
 
-    private static CustomModel createModel(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> serviceSettings,
-        Map<String, Object> taskSettings,
-        @Nullable Map<String, Object> secretSettings,
-        @Nullable ChunkingSettings chunkingSettings,
-        ConfigurationParseContext context
-    ) {
-        return retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceEntityId, taskType, NAME, context).createFromMaps(
-            inferenceEntityId,
-            taskType,
-            NAME,
-            serviceSettings,
-            taskSettings,
-            chunkingSettings,
-            secretSettings,
-            context
-        );
-    }
-
     @Override
     public CustomModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
         return retrieveModelCreatorFromMapOrThrow(
@@ -233,7 +218,7 @@ public class CustomService extends SenderService<CustomModel> implements Reranki
             config.getInferenceEntityId(),
             config.getTaskType(),
             config.getService(),
-            ConfigurationParseContext.PERSISTENT
+            ConfigurationParseContext.REQUEST
         ).createFromModelConfigurationsAndSecrets(config, secrets);
     }
 

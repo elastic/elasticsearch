@@ -14,8 +14,6 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.transport.BytesRefRecycler;
-
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -35,12 +33,12 @@ public class TrackingBytesRefRecycler implements Recycler<BytesRef> {
 
     private static final Set<Object> ACQUIRED_PAGES = ConcurrentHashMap.newKeySet();
 
-    private final BytesRefRecycler delegate;
+    private final Recycler<BytesRef> delegate;
 
     @Nullable
     private final CircuitBreaker breaker;
 
-    public TrackingBytesRefRecycler(BytesRefRecycler delegate, @Nullable CircuitBreaker breaker) {
+    public TrackingBytesRefRecycler(Recycler<BytesRef> delegate, @Nullable CircuitBreaker breaker) {
         this.delegate = delegate;
         this.breaker = breaker;
     }

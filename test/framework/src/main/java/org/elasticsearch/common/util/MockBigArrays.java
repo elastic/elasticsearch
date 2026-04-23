@@ -31,7 +31,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.transport.BytesRefRecycler;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -137,7 +136,7 @@ public class MockBigArrays extends BigArrays {
     private final Random random;
     private final PageCacheRecycler recycler;
     private final CircuitBreakerService breakerService;
-    private final TrackingBytesRefRecycler mockBytesRefRecycler;
+    private final TrackingBytesRefRecycler bytesRefRecycler;
 
     /**
      * Create {@linkplain BigArrays} with a configured limit.
@@ -161,12 +160,10 @@ public class MockBigArrays extends BigArrays {
         super(recycler, breakerService, CircuitBreaker.REQUEST, checkBreaker);
         this.recycler = recycler;
         this.breakerService = breakerService;
-        this.mockBytesRefRecycler = recycler != null
-            ? new TrackingBytesRefRecycler(
-                new BytesRefRecycler(recycler),
-                breakerService == null ? null : breakerService.getBreaker(CircuitBreaker.REQUEST)
-            )
-            : null;
+        this.bytesRefRecycler = new TrackingBytesRefRecycler(
+            super.bytesRefRecycler(),
+            breakerService == null ? null : breakerService.getBreaker(CircuitBreaker.REQUEST)
+        );
         long seed;
         try {
             seed = SeedUtils.parseSeed(RandomizedContext.current().getRunnerSeedAsString());
@@ -178,7 +175,7 @@ public class MockBigArrays extends BigArrays {
 
     @Override
     public Recycler<BytesRef> bytesRefRecycler() {
-        return mockBytesRefRecycler != null ? mockBytesRefRecycler : super.bytesRefRecycler();
+        return bytesRefRecycler;
     }
 
     @Override

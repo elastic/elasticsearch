@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
@@ -22,7 +23,6 @@ import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceActio
 import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.After;
 import org.junit.Before;
@@ -48,7 +48,13 @@ import static org.hamcrest.Matchers.hasSize;
  * them. Proves that the parser → dataset rewriter → external-source resolver → analyzer →
  * execution pipeline wires up the way the PR description claims.
  */
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false, minNumDataNodes = 1)
+@ESIntegTestCase.ClusterScope(
+    scope = ESIntegTestCase.Scope.SUITE,
+    numDataNodes = 1,
+    numClientNodes = 0,
+    supportsDedicatedMasters = false,
+    minNumDataNodes = 1
+)
 public class FromDatasetIT extends AbstractEsqlIntegTestCase {
 
     private static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(30);

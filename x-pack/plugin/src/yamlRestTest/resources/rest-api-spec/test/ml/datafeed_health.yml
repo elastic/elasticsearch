@@ -1,0 +1,99 @@
+setup:
+  - skip:
+      features: headers
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.create:
+        index: datafeed-health-test-index
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              time:
+                type: date
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.put_job:
+        job_id: datafeed-health-job
+        body: >
+          {
+            "job_id": "datafeed-health-job",
+            "analysis_config": {
+              "bucket_span": "1h",
+              "detectors": [{"function": "count"}]
+            },
+            "analysis_limits": {
+              "model_memory_limit": "10mb"
+            },
+            "data_description": {
+              "format": "xcontent",
+              "time_field": "time",
+              "time_format": "epoch"
+            }
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.put_datafeed:
+        datafeed_id: datafeed-health-df
+        body: >
+          {
+            "job_id": "datafeed-health-job",
+            "indexes": ["datafeed-health-test-index"]
+          }
+
+---
+"Test stopped datafeed has green health":
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.get_datafeed_stats:
+        datafeed_id: datafeed-health-df
+
+  - match: { datafeeds.0.state: "stopped" }
+  - match: { datafeeds.0.health.status: "green" }
+
+---
+"Test started datafeed has health field":
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.open_job:
+        job_id: datafeed-health-job
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.start_datafeed:
+        datafeed_id: datafeed-health-df
+        start: 0
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.get_datafeed_stats:
+        datafeed_id: datafeed-health-df
+
+  - is_true: datafeeds.0.health
+  - match: { datafeeds.0.health.status: "green" }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.stop_datafeed:
+        datafeed_id: datafeed-health-df
+        force: true
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2sdGVzdC1wYXNzd29yZA=="
+      ml.close_job:
+        job_id: datafeed-health-job
+        force: true

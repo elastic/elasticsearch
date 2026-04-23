@@ -62,7 +62,8 @@ public class GetDatafeedStatsActionResponseTests extends AbstractWireSerializing
                 node,
                 explanation,
                 timingStats,
-                randomBoolean() ? null : randomRunningState()
+                randomBoolean() ? null : randomRunningState(),
+                null
             );
             datafeedStatsList.add(datafeedStats);
         }
@@ -101,7 +102,15 @@ public class GetDatafeedStatsActionResponseTests extends AbstractWireSerializing
         );
 
         GetDatafeedRunningStateAction.Response.RunningState runningState = randomRunningState();
-        Response.DatafeedStats stats = new Response.DatafeedStats("df-id", DatafeedState.STARTED, node, null, timingStats, runningState);
+        Response.DatafeedStats stats = new Response.DatafeedStats(
+            "df-id",
+            DatafeedState.STARTED,
+            node,
+            null,
+            timingStats,
+            runningState,
+            null
+        );
 
         XContentType xContentType = randomFrom(XContentType.values());
         BytesReference bytes;

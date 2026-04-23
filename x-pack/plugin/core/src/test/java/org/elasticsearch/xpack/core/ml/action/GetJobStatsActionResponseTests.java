@@ -58,7 +58,8 @@ public class GetJobStatsActionResponseTests extends AbstractWireSerializingTestC
                 node,
                 explanation,
                 openTime,
-                timingStats
+                timingStats,
+                null
             );
             jobStatsList.add(jobStats);
         }

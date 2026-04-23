@@ -38,7 +38,8 @@ public class TransportGetJobsStatsActionTests extends ESTestCase {
                     null,
                     null,
                     null,
-                    new TimingStats("id1")
+                    new TimingStats("id1"),
+                    null
                 )
             )
         );
@@ -62,7 +63,8 @@ public class TransportGetJobsStatsActionTests extends ESTestCase {
                     null,
                     null,
                     null,
-                    new TimingStats("id1")
+                    new TimingStats("id1"),
+                    null
                 )
             )
         );
@@ -82,7 +84,8 @@ public class TransportGetJobsStatsActionTests extends ESTestCase {
                     null,
                     null,
                     null,
-                    new TimingStats("id1")
+                    new TimingStats("id1"),
+                    null
                 ),
                 new GetJobsStatsAction.Response.JobStats(
                     "id3",
@@ -93,7 +96,8 @@ public class TransportGetJobsStatsActionTests extends ESTestCase {
                     null,
                     null,
                     null,
-                    new TimingStats("id3")
+                    new TimingStats("id3"),
+                    null
                 )
             )
         );
@@ -112,7 +116,8 @@ public class TransportGetJobsStatsActionTests extends ESTestCase {
                     null,
                     null,
                     null,
-                    new TimingStats("id1")
+                    new TimingStats("id1"),
+                    null
                 ),
                 new GetJobsStatsAction.Response.JobStats(
                     "id2",
@@ -123,7 +128,8 @@ public class TransportGetJobsStatsActionTests extends ESTestCase {
                     null,
                     null,
                     null,
-                    new TimingStats("id2")
+                    new TimingStats("id2"),
+                    null
                 ),
                 new GetJobsStatsAction.Response.JobStats(
                     "id3",
@@ -134,7 +140,8 @@ public class TransportGetJobsStatsActionTests extends ESTestCase {
                     null,
                     null,
                     null,
-                    new TimingStats("id3")
+                    new TimingStats("id3"),
+                    null
                 )
             )
         );

@@ -1,0 +1,61 @@
+setup:
+  - skip:
+      features: headers
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_job:
+        job_id: job-health-test
+        body: >
+          {
+            "job_id": "job-health-test",
+            "analysis_config": {
+              "bucket_span": "1h",
+              "detectors": [{"function": "count"}]
+            },
+            "analysis_limits": {
+              "model_memory_limit": "10mb"
+            },
+            "data_description": {
+              "format": "xcontent",
+              "time_field": "time",
+              "time_format": "epoch"
+            }
+          }
+
+---
+"Test closed job has green health":
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.get_job_stats:
+        job_id: job-health-test
+
+  - match: { jobs.0.state: "closed" }
+  - match: { jobs.0.health.status: "green" }
+
+---
+"Test opened job has health field":
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.open_job:
+        job_id: job-health-test
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.get_job_stats:
+        job_id: job-health-test
+
+  - match: { jobs.0.state: "opened" }
+  - is_true: jobs.0.health
+  - match: { jobs.0.health.status: "green" }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.close_job:
+        job_id: job-health-test

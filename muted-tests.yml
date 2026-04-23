@@ -352,12 +352,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.datasources.ExternalSourceDrainUtilsTests
   method: testBudgetAccountingAcrossAsyncBoundaries
   issue: https://github.com/elastic/elasticsearch/issues/147065
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=search.vectors/260_knn_lookup_query_builder/Test lookup base64 query vector builder with exclude_source_vectors false}
-  issue: https://github.com/elastic/elasticsearch/issues/147069
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=search.vectors/260_knn_lookup_query_builder/Test lookup base64 query vector builder with exclude_source_vectors true}
-  issue: https://github.com/elastic/elasticsearch/issues/147070
 - class: org.elasticsearch.xpack.esql.datasources.ExternalSourceDrainUtilsTests
   method: testCancellationWhileWaitingOnWaitForSpace
   issue: https://github.com/elastic/elasticsearch/issues/147073
@@ -373,12 +367,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=indices.simulate_index_template/10_basic/Simulate index template with data stream with mapping and setting overrides}
   issue: https://github.com/elastic/elasticsearch/issues/147064
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=search.vectors/260_knn_lookup_query_builder/Test error when field is missing}
-  issue: https://github.com/elastic/elasticsearch/issues/147076
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=search.vectors/260_knn_lookup_query_builder/Test error when document not found}
-  issue: https://github.com/elastic/elasticsearch/issues/147081
 - class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
   method: test {yaml=rrf/310_rrf_retriever_simplified/Expansion to equivalent custom sub-retrievers returns the same results}
   issue: https://github.com/elastic/elasticsearch/issues/146464

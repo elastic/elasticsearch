@@ -236,7 +236,10 @@ function detectUnmutedTests(mergeBase: string, projectRoot: string): UnmuteDetec
     // File was deleted in the PR; treat as empty.
   }
 
-  const repoFilesOutput = execSync("git ls-files", { cwd: projectRoot }).toString();
+  const repoFilesOutput = execSync("git ls-files", {
+    cwd: projectRoot,
+    maxBuffer: 256 * 1024 * 1024,
+  }).toString();
   const repoFiles = repoFilesOutput
     .split("\n")
     .map((f) => f.trim())

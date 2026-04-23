@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtract
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.datasources.DatasetRewriter;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
@@ -874,6 +875,9 @@ public class EsqlSession {
 
         TimeSpanMarker preAnalysisProfile = executionInfo.queryProfile().preAnalysis();
         preAnalysisProfile.start();
+        // Rewrite FROM targets that resolve to datasets into UnresolvedExternalRelation so the rest of
+        // pre-analysis + analysis treats them identically to the inline EXTERNAL command.
+        parsed = DatasetRewriter.rewrite(parsed, projectMetadata);
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
         preAnalysisProfile.stop();
         // Initialize the PreAnalysisResult with the local cluster's minimum transport version, so our planning will be correct also in

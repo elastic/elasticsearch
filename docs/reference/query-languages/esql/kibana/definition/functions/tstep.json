@@ -34,5 +34,5 @@
     "FROM sample_data\n| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TSTEP(\"1 hour\")\n| SORT bucket"
   ],
   "preview" : false,
-  "snapshot_only" : false
+  "snapshot_only" : true
 }

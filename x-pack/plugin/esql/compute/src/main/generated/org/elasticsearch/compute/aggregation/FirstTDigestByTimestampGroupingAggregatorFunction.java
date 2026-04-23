@@ -169,11 +169,11 @@ public final class FirstTDigestByTimestampGroupingAggregatorFunction implements 
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
+        long timestampValue = timestampVector.getLong(valuesPosition);
         int tdigestStart = tdigestBlock.getFirstValueIndex(valuesPosition);
         int tdigestEnd = tdigestStart + tdigestBlock.getValueCount(valuesPosition);
         for (int tdigestOffset = tdigestStart; tdigestOffset < tdigestEnd; tdigestOffset++) {
           TDigestHolder tdigestValue = tdigestBlock.getTDigestHolder(tdigestOffset, tdigestScratch);
-          long timestampValue = timestampVector.getLong(valuesPosition);
           FirstTDigestByTimestampAggregator.combine(state, groupId, tdigestValue, timestampValue);
         }
       }
@@ -287,11 +287,11 @@ public final class FirstTDigestByTimestampGroupingAggregatorFunction implements 
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
+        long timestampValue = timestampVector.getLong(valuesPosition);
         int tdigestStart = tdigestBlock.getFirstValueIndex(valuesPosition);
         int tdigestEnd = tdigestStart + tdigestBlock.getValueCount(valuesPosition);
         for (int tdigestOffset = tdigestStart; tdigestOffset < tdigestEnd; tdigestOffset++) {
           TDigestHolder tdigestValue = tdigestBlock.getTDigestHolder(tdigestOffset, tdigestScratch);
-          long timestampValue = timestampVector.getLong(valuesPosition);
           FirstTDigestByTimestampAggregator.combine(state, groupId, tdigestValue, timestampValue);
         }
       }
@@ -392,11 +392,11 @@ public final class FirstTDigestByTimestampGroupingAggregatorFunction implements 
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int valuesPosition = groupPosition + positionOffset;
       int groupId = groups.getInt(groupPosition);
+      long timestampValue = timestampVector.getLong(valuesPosition);
       int tdigestStart = tdigestBlock.getFirstValueIndex(valuesPosition);
       int tdigestEnd = tdigestStart + tdigestBlock.getValueCount(valuesPosition);
       for (int tdigestOffset = tdigestStart; tdigestOffset < tdigestEnd; tdigestOffset++) {
         TDigestHolder tdigestValue = tdigestBlock.getTDigestHolder(tdigestOffset, tdigestScratch);
-        long timestampValue = timestampVector.getLong(valuesPosition);
         FirstTDigestByTimestampAggregator.combine(state, groupId, tdigestValue, timestampValue);
       }
     }

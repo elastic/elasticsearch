@@ -515,23 +515,26 @@ public class GroupingAggregatorImplementer {
                 builder.endControlFlow();
             }
 
+            // Read all vector arguments first, they don't need to be read in nested loops
             for (Argument a : aggParams) {
-                if (a instanceof StandardArgument) {
-                    if (valuesAreVector && a.supportsVectorReadAccess()) {
-                        a.read(builder, a.vectorName(), "valuesPosition");
-                    } else {
-                        builder.addStatement("int $L = $L.getFirstValueIndex(valuesPosition)", a.startName(), a.blockName());
-                        builder.addStatement("int $L = $L + $L.getValueCount(valuesPosition)", a.endName(), a.startName(), a.blockName());
-                        builder.beginControlFlow(
-                            "for (int $L = $L; $L < $L; $L++)",
-                            a.offsetName(),
-                            a.startName(),
-                            a.offsetName(),
-                            a.endName(),
-                            a.offsetName()
-                        );
-                        a.read(builder, a.blockName(), a.offsetName());
-                    }
+                if (valuesAreVector && a instanceof StandardArgument && a.supportsVectorReadAccess()) {
+                    a.read(builder, a.vectorName(), "valuesPosition");
+                }
+            }
+            // Then read all remaining arguments with nested loops
+            for (Argument a : aggParams) {
+                if (a instanceof StandardArgument && (valuesAreVector == false || a.supportsVectorReadAccess() == false)) {
+                    builder.addStatement("int $L = $L.getFirstValueIndex(valuesPosition)", a.startName(), a.blockName());
+                    builder.addStatement("int $L = $L + $L.getValueCount(valuesPosition)", a.endName(), a.startName(), a.blockName());
+                    builder.beginControlFlow(
+                        "for (int $L = $L; $L < $L; $L++)",
+                        a.offsetName(),
+                        a.startName(),
+                        a.offsetName(),
+                        a.endName(),
+                        a.offsetName()
+                    );
+                    a.read(builder, a.blockName(), a.offsetName());
                 }
             }
             combineRawInput(builder);

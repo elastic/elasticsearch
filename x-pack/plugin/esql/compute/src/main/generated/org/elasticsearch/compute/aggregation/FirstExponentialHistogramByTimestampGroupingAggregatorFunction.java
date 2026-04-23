@@ -170,11 +170,11 @@ public final class FirstExponentialHistogramByTimestampGroupingAggregatorFunctio
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
+        long timestampValue = timestampVector.getLong(valuesPosition);
         int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
         int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
         for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
           ExponentialHistogram valueValue = valueBlock.getExponentialHistogram(valueOffset, valueScratch);
-          long timestampValue = timestampVector.getLong(valuesPosition);
           FirstExponentialHistogramByTimestampAggregator.combine(state, groupId, valueValue, timestampValue);
         }
       }
@@ -288,11 +288,11 @@ public final class FirstExponentialHistogramByTimestampGroupingAggregatorFunctio
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
+        long timestampValue = timestampVector.getLong(valuesPosition);
         int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
         int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
         for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
           ExponentialHistogram valueValue = valueBlock.getExponentialHistogram(valueOffset, valueScratch);
-          long timestampValue = timestampVector.getLong(valuesPosition);
           FirstExponentialHistogramByTimestampAggregator.combine(state, groupId, valueValue, timestampValue);
         }
       }
@@ -393,11 +393,11 @@ public final class FirstExponentialHistogramByTimestampGroupingAggregatorFunctio
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int valuesPosition = groupPosition + positionOffset;
       int groupId = groups.getInt(groupPosition);
+      long timestampValue = timestampVector.getLong(valuesPosition);
       int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
       int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
         ExponentialHistogram valueValue = valueBlock.getExponentialHistogram(valueOffset, valueScratch);
-        long timestampValue = timestampVector.getLong(valuesPosition);
         FirstExponentialHistogramByTimestampAggregator.combine(state, groupId, valueValue, timestampValue);
       }
     }

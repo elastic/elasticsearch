@@ -433,27 +433,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=index/100_field_name_length_limit/Test field name length limit array}
   issue: https://github.com/elastic/elasticsearch/issues/147205
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:tstep.docs_tstep_by_one_hour_duration_as_string}
-  issue: https://github.com/elastic/elasticsearch/issues/147228
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:tstep.tstep_by_ten_minutes_duration}
-  issue: https://github.com/elastic/elasticsearch/issues/147228
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:k8s-timeseries-sum-over-time.sum_over_time_with_tstep_window}
-  issue: https://github.com/elastic/elasticsearch/issues/147228
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:tstep.tstep_with_timezone_and_duration}
-  issue: https://github.com/elastic/elasticsearch/issues/147228
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:tstep.docs_tstep_by_one_hour_duration}
-  issue: https://github.com/elastic/elasticsearch/issues/147228
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:tstep.tstep_by_ten_minutes_duration_as_string}
-  issue: https://github.com/elastic/elasticsearch/issues/147228
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:tstep.tstep_with_request_timestamp_bounds_only}
-  issue: https://github.com/elastic/elasticsearch/issues/147228
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search.vectors/41_knn_search_byte_quantized_bfloat16/KNN Vector similarity search only}
   issue: https://github.com/elastic/elasticsearch/issues/147251

@@ -102,7 +102,7 @@ public final class S3StorageProvider implements StorageProvider {
 
         // Disable optional response checksum validation. The SDK default (WHEN_SUPPORTED) wraps
         // every GetObject response in a checksum-validating stream, adding ~6-7% CPU overhead.
-        // TLS already provides in-transit integrity; this matches what Trino and other engines do.
+        // TLS already provides in-transit integrity; this matches what other engines do.
         builder.responseChecksumValidation(ResponseChecksumValidation.WHEN_REQUIRED);
 
         AwsCredentialsProvider credentialsProvider;

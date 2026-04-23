@@ -31,10 +31,29 @@ setup:
                 inference_id: embedding-inference-id
 
 ---
-"Semantic field type can be added to a mapping":
+"KNN search on semantic field":
   - do:
-      indices.get_mapping:
+      index:
         index: test-semantic-field-index
+        id: "1"
+        body:
+          my_field: "the quick brown fox"
+        refresh: true
 
-  - match: { test-semantic-field-index.mappings.properties.my_field.type: semantic }
-  - match: { test-semantic-field-index.mappings.properties.my_field.inference_id: embedding-inference-id }
+  - do:
+      search:
+        index: test-semantic-field-index
+        body:
+          query:
+            knn:
+              field: my_field
+              k: 1
+              num_candidates: 10
+              query_vector_builder:
+                embedding:
+                  inference_id: embedding-inference-id
+                  input: "the quick brown fox"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+

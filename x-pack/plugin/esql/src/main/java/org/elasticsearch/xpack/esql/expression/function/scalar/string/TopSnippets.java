@@ -328,7 +328,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
 
     @Override
     public boolean foldable() {
-        return field().foldable() && query().foldable() && (options() == null || options().foldable());
+        return field().foldable() && query().foldable();
     }
 
     @Override

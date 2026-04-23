@@ -200,7 +200,7 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
 
     @Override
     public boolean foldable() {
-        return field().foldable() && (chunkingSettings() == null || chunkingSettings().foldable());
+        return field().foldable();
     }
 
     @Override

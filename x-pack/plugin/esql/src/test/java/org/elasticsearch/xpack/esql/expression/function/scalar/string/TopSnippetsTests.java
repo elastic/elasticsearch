@@ -217,16 +217,6 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
         return new TopSnippets(source, args.get(0), args.get(1), options);
     }
 
-    @Override
-    public void testFold() {
-        Expression expression = buildFieldExpression(testCase);
-        // Skip testFold if the expression is not foldable (e.g., when options contains MapExpression)
-        if (expression.foldable() == false) {
-            return;
-        }
-        super.testFold();
-    }
-
     public void testDefaultOptions() {
         String query = "wilderness";
         verifySnippets(query, null, null, 1);

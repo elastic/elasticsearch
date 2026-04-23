@@ -93,8 +93,6 @@ public class FromGenerator implements CommandGenerator {
 
     protected static final double SUBQUERY_PROBABILITY = 0.15;
 
-    protected static final int MAX_SUBQUERY_DEPTH = 2;
-
     /**
      * Appends the {@code from <sources>} portion of the command and returns whether the resulting plan
      * tree contains a subquery. Callers should propagate this into the {@link CommandDescription} context
@@ -107,17 +105,15 @@ public class FromGenerator implements CommandGenerator {
         GenerationContext context
     ) {
         result.append("from ");
-        // Force single-source inside any subquery. This avoids the ESQL "Nested subqueries are not supported"
-        // error when a multi-source FROM ends up under another. We give up generating standalone
-        // `FROM (FROM a, b)` patterns (which ESQL would actually accept), but it keeps the rule trivial.
-        int items = context.inSubquery() ? 1 : randomIntBetween(1, 3);
+        int items = randomIntBetween(1, 3);
         List<String> availableIndices = schema.baseIndices();
         boolean hasSubquery = false;
         for (int i = 0; i < items; i++) {
             if (i > 0) {
                 result.append(",");
             }
-            if (context.subqueryDepth() < MAX_SUBQUERY_DEPTH && randomDouble() < SUBQUERY_PROBABILITY) {
+            // No nested subqueries: ESQL rejects UnionAll under UnionAll ("Nested subqueries are not supported").
+            if (context.inSubquery() == false && randomDouble() < SUBQUERY_PROBABILITY) {
                 SubqueryGenerator.SubqueryResult sub = SubqueryGenerator.build(context, schema, executor);
                 if (sub != null) {
                     result.append(sub.queryText());

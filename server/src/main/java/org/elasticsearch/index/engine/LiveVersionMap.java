@@ -425,7 +425,7 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         final boolean isTooOld = versionValue.time < maxTimestampToPrune;
         final boolean isSafeToPrune = versionValue.seqNo <= maxSeqNoToPrune;
         // version value can't be removed it's
-        // not yet flushed to lucene ie. it's part of this current maps object
+        // not yet flushed to lucene i.e. it's part of this current maps object
         final boolean isNotTrackedByCurrentMaps = versionValue.time < maps.getMinDeleteTimestamp();
         final boolean isNotTrackedByArchive = versionValue.time < archive.getMinDeleteTimestamp();
         return isTooOld && isSafeToPrune && isNotTrackedByCurrentMaps && isNotTrackedByArchive;
@@ -529,9 +529,10 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
     }
 
     /**
-     * Acquires a releaseable lock for the given uId. All *UnderLock methods require
-     * this lock to be hold by the caller otherwise the visibility guarantees of this version
-     * map are broken. We assert on this lock to be hold when calling these methods.
+     * Acquires a releasable lock for the given uId. All *UnderLock methods require
+     * this lock to be held by the caller otherwise the visibility guarantees of this version
+     * map are broken. We assert on this lock to be held when calling these methods.
+     *
      * @see KeyedLock
      */
     Releasable acquireLock(BytesRef uid) {

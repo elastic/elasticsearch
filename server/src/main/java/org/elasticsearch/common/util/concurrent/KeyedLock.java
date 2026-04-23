@@ -19,18 +19,18 @@ import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * This class manages locks. Locks can be accessed with an identifier and are
- * created the first time they are acquired and removed if no thread hold the
+ * created the first time they are acquired and removed if no thread holds the
  * lock. The latter is important to assure that the list of locks does not grow
  * infinitely.
- * Note: this lock is reentrant
- *
- * */
+ * <p>
+ * Note: this lock is reentrant.
+ */
 public final class KeyedLock<T> {
 
     private final ConcurrentMap<T, KeyLock> map = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
     /**
-     * Acquires a lock for the given key. The key is compared by it's equals method not by object identity. The lock can be acquired
+     * Acquires a lock for the given key. The key is compared by its equals method not by object identity. The lock can be acquired
      * by the same thread multiple times. The lock is released by closing the returned {@link Releasable}.
      */
     public Releasable acquire(T key) {

@@ -186,8 +186,7 @@ public class DLMFrozenTransitionIT extends ESIntegTestCase {
             .frozenAfter(TimeValue.timeValueSeconds(1))
             .buildTemplate();
 
-        TransportPutComposableIndexTemplateAction.Request request
-            = new TransportPutComposableIndexTemplateAction.Request(TEMPLATE_NAME);
+        TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(TEMPLATE_NAME);
         Settings templateSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build();
         request.indexTemplate(
             ComposableIndexTemplate.builder()
@@ -208,7 +207,8 @@ public class DLMFrozenTransitionIT extends ESIntegTestCase {
         String value = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
         bulkRequest.add(
             new IndexRequest(DLMFrozenTransitionIT.DATA_STREAM_NAME).opType(DocWriteRequest.OpType.CREATE)
-                .source(String.format(Locale.ROOT, "{\"%s\":\"%s\"}", DEFAULT_TIMESTAMP_FIELD, value), XContentType.JSON));
+                .source(String.format(Locale.ROOT, "{\"%s\":\"%s\"}", DEFAULT_TIMESTAMP_FIELD, value), XContentType.JSON)
+        );
         BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
         assertThat(bulkResponse.getItems().length, equalTo(1));
         String backingIndexPrefix = DataStream.BACKING_INDEX_PREFIX + DLMFrozenTransitionIT.DATA_STREAM_NAME;

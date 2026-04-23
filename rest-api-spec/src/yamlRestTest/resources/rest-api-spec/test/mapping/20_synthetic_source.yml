@@ -233,8 +233,8 @@ synthetic_source text with ignored multi-field and multiple values in the same d
 ---
 synthetic_source text with normalized keyword with store original value:
   - requires:
-      cluster_features: [ "mapper.source.mode_from_index_setting" ]
-      reason: "Source mode configured through index setting"
+      cluster_features: [ "mapper.source.mode_from_index_setting", "mapper.keyword.normalizer_skip_store_setting"]
+      reason: "Source mode configured through index setting, normalizer_skip_store setting must be present"
 
   - do:
       indices.create:
@@ -275,8 +275,8 @@ synthetic_source text with normalized keyword with store original value:
 ---
 synthetic_source text with normalized keyword with skip store original value:
   - requires:
-      cluster_features: [ "mapper.source.mode_from_index_setting" ]
-      reason: "Source mode configured through index setting"
+      cluster_features: [ "mapper.source.mode_from_index_setting", "mapper.keyword.normalizer_skip_store_setting"]
+      reason: "Source mode configured through index setting, normalizer_skip_store setting must be present"
 
   - do:
       indices.create:

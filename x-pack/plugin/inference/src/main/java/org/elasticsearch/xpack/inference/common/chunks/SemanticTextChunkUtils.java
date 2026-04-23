@@ -91,7 +91,7 @@ public class SemanticTextChunkUtils {
                 (SparseVectorFieldMapper.SparseVectorFieldType) embeddingsField.fieldType(),
                 query
             );
-            case TEXT_EMBEDDING -> extractDenseVectorQueries((DenseVectorFieldType) embeddingsField.fieldType(), query);
+            case TEXT_EMBEDDING, EMBEDDING -> extractDenseVectorQueries((DenseVectorFieldType) embeddingsField.fieldType(), query);
             default -> throw new IllegalStateException("Wrong task type for a semantic text field, got [" + taskType.name() + "]");
         };
     }

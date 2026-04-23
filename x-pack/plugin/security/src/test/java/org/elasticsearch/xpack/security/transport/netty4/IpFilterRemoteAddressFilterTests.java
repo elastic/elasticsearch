@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.security.transport.netty4;
 
 import io.netty.channel.ChannelHandlerContext;
 
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;

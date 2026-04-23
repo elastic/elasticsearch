@@ -258,3 +258,24 @@ min:double | avg:double | cluster:keyword | pod:keyword
 544.0      | 838.1      | staging         | three
 315.0      | 671.9      | staging         | two
 ;
+
+amd_with_tbucket_outputs_dimensions
+required_capability: ts_command_v0
+required_capability: metrics_group_by_all  
+required_capability: metrics_group_by_all_with_ts_dimensions
+TS k8s-downsampled
+| STATS avg = avg_over_time(network.eth0.tx), min = min_over_time(network.eth0.tx), max = max_over_time(network.eth0.tx) BY tbucket = TBUCKET(1 hour)
+;
+ignoreOrder:true
+
+avg:double         | min:double | max:double | _timeseries:keyword                           | tbucket:datetime
+267.6666666666667  | 113.0      | 715.0      | "{""cluster"":""prod"",""pod"":""three""}"    | 2024-05-09T23:00:00.000Z
+365.85714285714283 | 243.0      | 685.0      | "{""cluster"":""qa"",""pod"":""three""}"      | 2024-05-09T23:00:00.000Z
+428.72             | 157.0      | 795.0      | "{""cluster"":""staging"",""pod"":""one""}"   | 2024-05-09T23:00:00.000Z
+470.5833333333333  | 172.0      | 824.0      | "{""cluster"":""staging"",""pod"":""three""}" | 2024-05-09T23:00:00.000Z
+563.5              | 315.0      | 1011.0     | "{""cluster"":""staging"",""pod"":""two""}"   | 2024-05-09T23:00:00.000Z
+575.7916666666666  | 20.0       | 1419.0     | "{""cluster"":""prod"",""pod"":""two""}"      | 2024-05-09T23:00:00.000Z
+612.8823529411765  | 176.0      | 1042.0     | "{""cluster"":""qa"",""pod"":""one""}"        | 2024-05-09T23:00:00.000Z
+798.3333333333334  | 94.0       | 1060.0     | "{""cluster"":""prod"",""pod"":""one""}"      | 2024-05-09T23:00:00.000Z
+877.0              | 75.0       | 1248.0     | "{""cluster"":""qa"",""pod"":""two""}"        | 2024-05-09T23:00:00.000Z
+;

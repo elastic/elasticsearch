@@ -9,69 +9,50 @@
 
 package org.elasticsearch.entitlement.config;
 
-import org.elasticsearch.entitlement.instrumentation.MethodKey;
-import org.elasticsearch.entitlement.rules.DeniedEntitlementStrategy;
-import org.elasticsearch.entitlement.rules.EntitlementRule;
+import org.elasticsearch.entitlement.rules.EntitlementRulesBuilder;
 import org.elasticsearch.entitlement.rules.Policies;
+import org.elasticsearch.entitlement.rules.TypeToken;
 import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationRegistry;
 
 import java.io.IOException;
 import java.nio.file.FileSystems;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.WatchEvent;
+import java.nio.file.WatchService;
 import java.util.List;
 import java.util.stream.StreamSupport;
 
 public class PathInstrumentation implements InstrumentationConfig {
     @Override
     public void init(InternalInstrumentationRegistry registry) {
+        EntitlementRulesBuilder builder = new EntitlementRulesBuilder(registry);
+
         // Path implementations are platform-specific, so we need to dynamically determine the class names
-        StreamSupport.stream(FileSystems.getDefault().getRootDirectories().spliterator(), false)
-            .map(Path::getClass)
-            .map(Class::getName)
-            .map(className -> className.replace('.', '/'))
-            .distinct()
-            .forEach(className -> {
-                registry.registerRule(
-                    new EntitlementRule(new MethodKey(className, "toRealPath", List.of("java.nio.file.LinkOption[]")), args -> {
-                        Path path = (Path) args[0];
-                        LinkOption[] options = (LinkOption[]) args[1];
+        List<? extends Class<? extends Path>> pathClasses = StreamSupport.stream(
+            FileSystems.getDefault().getRootDirectories().spliterator(),
+            false
+        ).map(Path::getClass).toList();
 
-                        boolean followLinks = true;
-                        for (LinkOption option : options) {
-                            if (option == LinkOption.NOFOLLOW_LINKS) {
-                                followLinks = false;
-                            }
-                        }
-                        return Policies.fileReadWithLinks(path, followLinks);
-                    }, new DeniedEntitlementStrategy.ExceptionDeniedEntitlementStrategy(e -> new IOException(e)))
-                );
-
-                registry.registerRule(
-                    new EntitlementRule(
-                        new MethodKey(
-                            className,
-                            "register",
-                            List.of("java.nio.file.WatchService", "java.nio.file.WatchEvent$Kind[]", "java.nio.file.WatchEvent$Modifier[]")
-                        ),
-                        args -> {
-                            Path path = (Path) args[0];
-                            return Policies.fileRead(path);
-                        },
-                        new DeniedEntitlementStrategy.ExceptionDeniedEntitlementStrategy(e -> new IOException(e))
-                    )
-                );
-            });
-
-        registry.registerRule(
-            new EntitlementRule(
-                new MethodKey("java/nio/file/Path", "register", List.of("java.nio.file.WatchService", "java.nio.file.WatchEvent$Kind[]")),
-                args -> {
-                    Path path = (Path) args[0];
-                    return Policies.fileRead(path);
-                },
-                new DeniedEntitlementStrategy.ExceptionDeniedEntitlementStrategy(e -> new IOException(e))
-            )
-        );
+        builder.on(pathClasses, rule -> {
+            rule.calling(Path::toRealPath, LinkOption[].class).enforce((path, options) -> {
+                boolean followLinks = true;
+                for (LinkOption option : options) {
+                    if (option == LinkOption.NOFOLLOW_LINKS) {
+                        followLinks = false;
+                    }
+                }
+                return Policies.fileReadWithLinks(path, followLinks);
+            }).elseThrow(IOException::new);
+            rule.calling(Path::register, TypeToken.of(WatchService.class), new TypeToken<WatchEvent.Kind<?>[]>() {})
+                .enforce(Policies::fileRead)
+                .elseThrow(IOException::new);
+            rule.calling(
+                Path::register,
+                TypeToken.of(WatchService.class),
+                new TypeToken<WatchEvent.Kind<?>[]>() {},
+                TypeToken.of(WatchEvent.Modifier[].class)
+            ).enforce(Policies::fileRead).elseThrow(IOException::new);
+        });
     }
 }

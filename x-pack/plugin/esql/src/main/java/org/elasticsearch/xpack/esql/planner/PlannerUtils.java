@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.Queries;
-import org.elasticsearch.xpack.esql.datasources.FilterPushdownRegistry;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
@@ -295,34 +294,12 @@ public class PlannerUtils {
         FoldContext foldCtx,
         PhysicalPlan plan,
         SearchStats searchStats,
-        FilterPushdownRegistry filterPushdownRegistry,
-        PlanTimeProfile planTimeProfile
-    ) {
-        return localPlan(plannerSettings, flags, configuration, foldCtx, plan, searchStats, filterPushdownRegistry, null, planTimeProfile);
-    }
-
-    public static PhysicalPlan localPlan(
-        PlannerSettings plannerSettings,
-        EsqlFlags flags,
-        Configuration configuration,
-        FoldContext foldCtx,
-        PhysicalPlan plan,
-        SearchStats searchStats,
-        FilterPushdownRegistry filterPushdownRegistry,
         FormatReaderRegistry formatReaderRegistry,
         PlanTimeProfile planTimeProfile
     ) {
         final var logicalOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
         var physicalOptimizer = new LocalPhysicalPlanOptimizer(
-            new LocalPhysicalOptimizerContext(
-                plannerSettings,
-                flags,
-                configuration,
-                foldCtx,
-                searchStats,
-                filterPushdownRegistry,
-                formatReaderRegistry
-            )
+            new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, searchStats, formatReaderRegistry)
         );
 
         return localPlan(plan, logicalOptimizer, physicalOptimizer, planTimeProfile);

@@ -25,6 +25,8 @@ import org.elasticsearch.simdvec.internal.ByteVectorScorer;
 import org.elasticsearch.simdvec.internal.ByteVectorScorerSupplier;
 import org.elasticsearch.simdvec.internal.FloatVectorScorer;
 import org.elasticsearch.simdvec.internal.FloatVectorScorerSupplier;
+import org.elasticsearch.simdvec.internal.HeapByteVectorScorerSupplier;
+import org.elasticsearch.simdvec.internal.HeapFloatVectorScorerSupplier;
 import org.elasticsearch.simdvec.internal.Int4VectorScorer;
 import org.elasticsearch.simdvec.internal.Int4VectorScorerSupplier;
 import org.elasticsearch.simdvec.internal.Int7SQVectorScorer;
@@ -102,6 +104,19 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
             };
         }
         return Optional.empty();
+    }
+
+    @Override
+    public Optional<RandomVectorScorerSupplier> getFloatVectorScorerSupplier(
+        VectorSimilarityType similarityType,
+        FloatVectorValues values
+    ) {
+        return HeapFloatVectorScorerSupplier.create(similarityType, values);
+    }
+
+    @Override
+    public Optional<RandomVectorScorerSupplier> getByteVectorScorerSupplier(VectorSimilarityType similarityType, ByteVectorValues values) {
+        return HeapByteVectorScorerSupplier.create(similarityType, values);
     }
 
     @Override

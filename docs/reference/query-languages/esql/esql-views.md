@@ -58,7 +58,7 @@ FROM index_pattern
 Where `index_pattern` is a comma-separated list of index or view names, including
 wildcards and date-math.
 
-Much like with [subqueries](/reference/query-languages/esql/esql-subquery.md),
+Much like [subqueries](/reference/query-languages/esql/esql-subquery.md),
 views enable you to combine results from multiple independently processed
 data sources within a single query. Each view runs its own pipeline of
 processing commands (such as `WHERE`, `EVAL`, `STATS`, or `SORT`) and the

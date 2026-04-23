@@ -331,7 +331,13 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
             // No inference results have been indexed yet
             return new MatchNoneQueryBuilder();
         } else if (modelSettings.taskType() != TaskType.TEXT_EMBEDDING && modelSettings.taskType() != TaskType.EMBEDDING) {
-            throw new IllegalArgumentException("Field [" + getField() + "] does not use a [" + TaskType.TEXT_EMBEDDING + "] model");
+            throw new IllegalArgumentException(
+                "Field ["
+                    + getField()
+                    + "] requires a text embedding model, but the configured model type is ["
+                    + modelSettings.taskType()
+                    + "]"
+            );
         }
 
         VectorData queryVector = originalQuery.queryVector();

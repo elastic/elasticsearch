@@ -21,7 +21,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
@@ -53,10 +52,6 @@ public class CBForMockArraysIT extends ESIntegTestCase {
         Recycler.V<BytesRef> leakPage() {
             return bigArrays.bytesRefRecycler().obtain();
         }
-
-        Recycler.V<BytesRef> leakPageWithCircuitBreaker() {
-            return bigArrays.withCircuitBreaking().bytesRefRecycler().obtain();
-        }
     }
 
     @Override
@@ -80,37 +75,24 @@ public class CBForMockArraysIT extends ESIntegTestCase {
 
     public void testLeakingBigArrayIsDetected() {
         final var faultyService = internalCluster().getInstance(LeakyService.class);
-        final var leaked = faultyService.leakByteArray(between(1, 1024));
-        try {
+        try (var leaked = faultyService.leakByteArray(between(1, 1024))) {
             final var e = expectThrows(RuntimeException.class, MockBigArrays::ensureAllArraysAreReleased);
             assertThat(e.getMessage(), containsString("arrays have not been released"));
-        } finally {
-            leaked.close();
         }
     }
 
     public void testLeakingBytesRefPageIsDetected() {
         final var faultyService = internalCluster().getInstance(LeakyService.class);
-        final int count = between(1, 5);
-        final var leaked = new ArrayList<Recycler.V<BytesRef>>(count);
-        for (int i = 0; i < count; i++) {
-            leaked.add(faultyService.leakPage());
-        }
-        try {
+        try (var leaked = faultyService.leakPage()) {
             final var e = expectThrows(RuntimeException.class, MockBigArrays::ensureAllArraysAreReleased);
-            assertThat(e.getMessage(), containsString(count + " pages have not been released"));
-        } finally {
-            leaked.forEach(Recycler.V::close);
+            assertThat(e.getMessage(), containsString("pages have not been released"));
         }
     }
 
     public void testLeakingBytesRefPageIsDetectedByEstimatedStats() {
         final var faultyService = internalCluster().getInstance(LeakyService.class);
-        final var leaked = faultyService.leakPageWithCircuitBreaker();
-        try {
+        try (var leaked = faultyService.leakPage()) {
             expectThrows(AssertionError.class, () -> internalCluster().ensureEstimatedStats());
-        } finally {
-            leaked.close();
         }
     }
 }

@@ -25,7 +25,7 @@ import static org.junit.Assert.assertTrue;
 
 /// A [Recycler] for [BytesRef] pages that similarly to [MockBigArrays], uses two forms of leak detection:
 ///
-/// - Circuit-breaker accounting: each [#obtain] call charges [PageCacheRecycler#BYTE_PAGE_SIZE] bytes against the
+/// - Circuit-breaker accounting: each [#obtain] call charges [#pageSize] bytes against the
 ///   [CircuitBreaker] supplied at construction time, so that [org.elasticsearch.test.InternalTestCluster#ensureEstimatedStats]
 ///   catches unreleased pages in integration tests.
 /// - Active teardown tracking: outstanding page acquisitions are recorded in a static set. [#ensureAllPagesAreReleased]

@@ -78,26 +78,23 @@ public class PostFilterHnswKnnSearchIT extends ESIntegTestCase {
             QueryBuilders.termQuery(TAG_FIELD, "common")
         );
 
-        assertResponse(
-            client().prepareSearch(indexName).setKnnSearch(List.of(knnSearch)).setSize(k).setProfile(true),
-            response -> {
-                assertNotEquals(0, response.getHits().getHits().length);
-                var profileResults = response.getProfileResults();
-                assertFalse("Profile results should not be empty", profileResults.isEmpty());
-                long vectorOpsSum = profileResults.values()
-                    .stream()
-                    .mapToLong(
-                        pr -> pr.getQueryPhase()
-                            .getSearchProfileDfsPhaseResult()
-                            .getQueryProfileShardResult()
-                            .stream()
-                            .mapToLong(qpr -> qpr.getVectorOperationsCount().longValue())
-                            .sum()
-                    )
-                    .sum();
-                assertThat("Expected vector operations to be reported in profile", vectorOpsSum, greaterThan(0L));
-            }
-        );
+        assertResponse(client().prepareSearch(indexName).setKnnSearch(List.of(knnSearch)).setSize(k).setProfile(true), response -> {
+            assertNotEquals(0, response.getHits().getHits().length);
+            var profileResults = response.getProfileResults();
+            assertFalse("Profile results should not be empty", profileResults.isEmpty());
+            long vectorOpsSum = profileResults.values()
+                .stream()
+                .mapToLong(
+                    pr -> pr.getQueryPhase()
+                        .getSearchProfileDfsPhaseResult()
+                        .getQueryProfileShardResult()
+                        .stream()
+                        .mapToLong(qpr -> qpr.getVectorOperationsCount().longValue())
+                        .sum()
+                )
+                .sum();
+            assertThat("Expected vector operations to be reported in profile", vectorOpsSum, greaterThan(0L));
+        });
     }
 
     private void createHnswIndex(String indexName, String elementType) throws IOException {
@@ -163,9 +160,7 @@ public class PostFilterHnswKnnSearchIT extends ESIntegTestCase {
     private void indexFlatDocs(String indexName) {
         for (int i = 0; i < 20; i++) {
             String tag = i < 16 ? "common" : "rare";
-            prepareIndex(indexName).setId(Integer.toString(i))
-                .setSource(VECTOR_FIELD, new float[] { 1, 1, 1, i }, TAG_FIELD, tag)
-                .get();
+            prepareIndex(indexName).setId(Integer.toString(i)).setSource(VECTOR_FIELD, new float[] { 1, 1, 1, i }, TAG_FIELD, tag).get();
         }
         forceMerge(true);
         refresh(indexName);

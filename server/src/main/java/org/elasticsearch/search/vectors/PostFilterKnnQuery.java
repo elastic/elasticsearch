@@ -69,7 +69,9 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
         // need to check if this is actually a valid candidate for post filtering
         var postFilterQuery = maybeCreatePostFilterQuery(searcher, filterWeight);
         if (postFilterQuery == null) {
-            return ((Query) innerQuery).rewrite(searcher);
+            Query rewritten = ((Query) innerQuery).rewrite(searcher);
+            this.totalVectorOps = innerQuery.totalVectorOps();
+            return rewritten;
         }
         assert postFilterQuery instanceof PostFilterableKnnQuery : "[createPostFilterQuery] should have generated a PostFilterableKnnQuery";
         return postFilterRewrite(searcher, (PostFilterableKnnQuery) postFilterQuery, filterWeight);

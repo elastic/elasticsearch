@@ -21,13 +21,12 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.Before;
 
-import static org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
-
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+import static org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import static org.elasticsearch.license.DiskBBQLicensingIT.enableLicensing;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 

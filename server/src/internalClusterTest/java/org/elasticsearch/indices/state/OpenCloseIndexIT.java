@@ -375,7 +375,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
             indexName,
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                // sync global checkpoint and translog quickly so we can speed up the test
+                // sync global checkpoint and translog quickly so that the test assertion picks it up within a 10-sec time frame
                 .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "500ms")
                 .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), "500ms")
                 .build()

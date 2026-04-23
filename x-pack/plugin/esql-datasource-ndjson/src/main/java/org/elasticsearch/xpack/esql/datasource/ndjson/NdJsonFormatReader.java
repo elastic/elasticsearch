@@ -21,10 +21,10 @@ import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
-import java.io.ByteArrayInputStream;
+import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.SequenceInputStream;
+import java.io.PushbackInputStream;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +37,9 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
 
     public static final String SCHEMA_SAMPLE_SIZE_SETTING = "esql.datasource.ndjson.schema_sample_size";
     public static final int DEFAULT_SCHEMA_SAMPLE_SIZE = 20_000;
+
+    /** Buffer size used to accelerate {@link #scanForTerminator} on cold (unbuffered) streams. */
+    private static final int SCAN_BUFFER_SIZE = 8 * 1024;
 
     private final BlockFactory blockFactory;
     private final Settings settings;
@@ -103,16 +106,18 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
      * <p>Package-visible for testing.
      */
     static InputStream openForSchemaInference(StorageObject object, boolean skipFirstLine) throws IOException {
-        InputStream stream = object.newStream();
+        InputStream raw = object.newStream();
+        // Buffering up front gives the scan below and the returned stream the 8 KB fast path;
+        // the Pushback wrapper lets the lone-CR path unread its peeked byte so the returned
+        // stream starts on the first byte of the next record without allocating a prefix stream.
+        PushbackInputStream stream = new PushbackInputStream(new BufferedInputStream(raw, SCAN_BUFFER_SIZE), 1);
         if (skipFirstLine == false) {
             return stream;
         }
         try {
             LineScan scan = scanForTerminator(stream);
             if (scan.peekedByte() != -1) {
-                // The byte that followed a lone CR was read from the stream and is the first
-                // byte of the next record; prepend it so the returned stream starts there.
-                return new SequenceInputStream(new ByteArrayInputStream(new byte[] { (byte) scan.peekedByte() }), stream);
+                stream.unread(scan.peekedByte());
             }
             return stream;
         } catch (IOException e) {
@@ -220,7 +225,9 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         // The caller only cares about the byte offset of the terminator; a lone CR followed by
         // some non-LF byte may have been consumed from the stream by the scanner, but the
         // caller discards the stream after this call so that is acceptable.
-        return scanForTerminator(stream).consumed();
+        // Wrap cold streams to restore the 8 KB fast path; if already buffered, pass through.
+        InputStream buffered = stream instanceof BufferedInputStream ? stream : new BufferedInputStream(stream, SCAN_BUFFER_SIZE);
+        return scanForTerminator(buffered).consumed();
     }
 
     /** Outcome of a single scan for the next record terminator. */

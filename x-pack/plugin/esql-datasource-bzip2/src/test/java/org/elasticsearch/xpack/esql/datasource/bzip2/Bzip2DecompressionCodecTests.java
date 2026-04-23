@@ -118,6 +118,31 @@ public class Bzip2DecompressionCodecTests extends ESTestCase {
         }
     }
 
+    /**
+     * Pins the BYBLOCK bit-scan invariant when concatenated members use different block sizes
+     * (e.g. {@code BZh9} + {@code BZh1}). {@link CBZip2InputStream} in BYBLOCK mode fixes
+     * {@code blockSize100k = 9} and never re-reads the next member's header, so the {@code Data}
+     * buffer is over-allocated for a smaller-block member; decoding itself is capped by each
+     * block's own metadata, so the round-trip must still be byte-for-byte.
+     */
+    public void testDecompressConcatenatedMembersMixedBlockSizes() throws IOException {
+        byte[] a = bzip2("first-member\n".getBytes(StandardCharsets.UTF_8), 9);
+        byte[] b = bzip2("second-smaller-block\n".getBytes(StandardCharsets.UTF_8), 1);
+        byte[] both = new byte[a.length + b.length];
+        System.arraycopy(a, 0, both, 0, a.length);
+        System.arraycopy(b, 0, both, a.length, b.length);
+        String expected = "first-member\nsecond-smaller-block\n";
+
+        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        try (InputStream in = codec.decompress(new ByteArrayInputStream(both))) {
+            assertEquals(expected, new String(in.readAllBytes(), StandardCharsets.UTF_8));
+        }
+        StorageObject object = new ByteArrayStorageObject(both);
+        try (InputStream in = codec.decompressRange(object, 0, both.length)) {
+            assertEquals(expected, new String(in.readAllBytes(), StandardCharsets.UTF_8));
+        }
+    }
+
     /** Full compressed span read via decompressRange (as with a single full-file FileSplit) must include all members. */
     public void testDecompressRangeFullObjectConcatenated() throws IOException {
         byte[] a = bzip2("a\n".getBytes(StandardCharsets.UTF_8));
@@ -136,6 +161,14 @@ public class Bzip2DecompressionCodecTests extends ESTestCase {
     private static byte[] bzip2(byte[] input) throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try (BZip2CompressorOutputStream bzip2Out = new BZip2CompressorOutputStream(baos)) {
+            bzip2Out.write(input);
+        }
+        return baos.toByteArray();
+    }
+
+    private static byte[] bzip2(byte[] input, int blockSize100k) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (BZip2CompressorOutputStream bzip2Out = new BZip2CompressorOutputStream(baos, blockSize100k)) {
             bzip2Out.write(input);
         }
         return baos.toByteArray();

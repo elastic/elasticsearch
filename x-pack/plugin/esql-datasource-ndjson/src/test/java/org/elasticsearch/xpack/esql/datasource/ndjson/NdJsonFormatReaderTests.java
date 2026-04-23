@@ -48,7 +48,7 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         }
     }
 
-    /** Lone CR on a markable stream: the peeked byte is put back via reset. */
+    /** Lone CR on a markable underlying stream: the scanner's peeked byte is unread back onto the pushback wrapper. */
     public void testSkipFirstLineLoneCrMarkable() throws IOException {
         byte[] bytes = "partial\r{\"id\":1}\n".getBytes(StandardCharsets.UTF_8);
         try (InputStream s = NdJsonFormatReader.openForSchemaInference(new BytesObject(bytes), true)) {
@@ -56,7 +56,7 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         }
     }
 
-    /** Lone CR on a non-markable stream: the peeked byte is prepended via a SequenceInputStream. */
+    /** Lone CR on a non-markable underlying stream: the pushback wrapper still accepts the unread and returns it on the next read. */
     public void testSkipFirstLineLoneCrNonMarkable() throws IOException {
         byte[] bytes = "partial\r{\"id\":1}\n".getBytes(StandardCharsets.UTF_8);
         try (InputStream s = NdJsonFormatReader.openForSchemaInference(new NonMarkableBytesObject(bytes), true)) {

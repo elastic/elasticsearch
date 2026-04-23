@@ -238,6 +238,38 @@ public class Bzip2SplittableCodecTests extends ESTestCase {
         }
     }
 
+    /**
+     * Validates the {@code finishingLine} fallback path when a non-final split extends into
+     * content that contains no {@code '\n'} before true EOF. The wrapper must reach
+     * {@link BZip2Constants#END_OF_STREAM} and return {@code -1} cleanly rather than hanging
+     * or erroring — matching the "unterminated last line" convention.
+     */
+    public void testDecompressRangeFinishesAtEofWithoutTrailingNewline() throws IOException {
+        // Cycle the alphabet (no '\n', no '\r') to get enough entropy that MIN_BLOCKSIZE
+        // produces multiple compressed blocks. {@code 'a'}-fill would collapse to a single block.
+        byte[] data = new byte[1_200_000];
+        for (int i = 0; i < data.length; i++) {
+            data[i] = (byte) ('a' + (i % 26));
+        }
+        byte[] compressed = bzip2(data, BZip2CompressorOutputStream.MIN_BLOCKSIZE);
+        ByteArrayStorageObject object = new ByteArrayStorageObject(compressed);
+
+        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        long[] boundaries = codec.findBlockBoundaries(object, 0, compressed.length);
+        assertTrue("Need at least two blocks to exercise a non-final split", boundaries.length >= 2);
+
+        long nonFinalLimit = boundaries[1];
+        assertTrue("compressedLimit must be strictly before EOF", nonFinalLimit < compressed.length);
+
+        try (InputStream stream = codec.decompressRange(object, boundaries[0], nonFinalLimit)) {
+            byte[] out = stream.readAllBytes();
+            assertTrue("Non-final split should emit at least the first block's bytes", out.length > 0);
+            for (byte b : out) {
+                assertTrue("No terminators should appear in the emitted bytes", b != '\n' && b != '\r');
+            }
+        }
+    }
+
     private static byte[] generateNdJsonData(int lines) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < lines; i++) {

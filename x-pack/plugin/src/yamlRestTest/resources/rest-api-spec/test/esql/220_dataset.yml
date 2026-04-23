@@ -14,7 +14,6 @@ setup:
       esql.get_dataset: { }
 
   - match: { datasets: [] }
-  - length: { datasets: 0 }
 
 ---
 "invalid-dataset-names":
@@ -108,7 +107,6 @@ setup:
         name: "no_match_*"
 
   - match: { datasets: [] }
-  - length: { datasets: 0 }
 
 ---
 "cluster-state-visibility":

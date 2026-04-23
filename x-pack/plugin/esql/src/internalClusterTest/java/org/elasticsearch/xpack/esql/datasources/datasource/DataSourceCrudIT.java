@@ -342,8 +342,6 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest(dsName, Map.of("region", "us-east-1"))));
         assertAcked(client().execute(PutDatasetAction.INSTANCE, putDatasetRequest(collidingName, dsName, "test://logs/", Map.of())));
 
-        // Attempt to create a native ES index with the same name — MetadataCreateIndexService.validateIndexName
-        // at line ~314 calls ProjectMetadata.hasDataset() and rejects with InvalidIndexNameException.
         ExecutionException err = expectThrows(
             ExecutionException.class,
             () -> client().execute(TransportCreateIndexAction.TYPE, new CreateIndexRequest(collidingName)).get(30, TimeUnit.SECONDS)
@@ -468,8 +466,6 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
     }
 
-    // Request builders + assertions
-
     private static PutDataSourceAction.Request putDataSourceRequest(String name, Map<String, Object> settings) {
         return new PutDataSourceAction.Request(TEST_TIMEOUT, TEST_TIMEOUT, name, "test", null, new HashMap<>(settings));
     }
@@ -537,8 +533,6 @@ public class DataSourceCrudIT extends ESIntegTestCase {
             return other;
         }
     }
-
-    // Test infrastructure — inner classes.
 
     public static class LocalStateDataSource extends LocalStateCompositeXPackPlugin {
 

@@ -14,7 +14,6 @@ setup:
       esql.get_data_source: { }
 
   - match: { data_sources: [] }
-  - length: { data_sources: 0 }
 
 ---
 "invalid-data-source-names":
@@ -106,7 +105,6 @@ setup:
         name: "no_match_*"
 
   - match: { data_sources: [] }
-  - length: { data_sources: 0 }
 
 ---
 "cluster-state-visibility":

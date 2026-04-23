@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.datasources.datasource;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -40,17 +39,13 @@ public class RestGetDataSourceAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         final String[] requested = Strings.splitStringByCommaToArray(request.param("name"));
-        final String[] names = isGetAll(requested) ? new String[] { "*" } : requested;
+        final String[] names = Strings.isAllOrWildcard(requested) ? new String[] { "*" } : requested;
         final GetDataSourceAction.Request req = new GetDataSourceAction.Request(RestUtils.getMasterNodeTimeout(request), names);
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
             GetDataSourceAction.INSTANCE,
             req,
             new RestToXContentListener<>(channel)
         );
-    }
-
-    private static boolean isGetAll(String[] requested) {
-        return requested.length == 0 || requested[0].equals(Metadata.ALL);
     }
 
     @Override

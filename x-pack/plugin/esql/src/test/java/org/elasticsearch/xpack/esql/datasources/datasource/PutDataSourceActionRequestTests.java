@@ -83,8 +83,6 @@ public class PutDataSourceActionRequestTests extends AbstractWireSerializingTest
         };
     }
 
-    // -- validate() — model on DeleteViewActionTests.java ------------------------------------------
-
     public void testValidateAcceptsCleanRequest() {
         Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "my_ds", "s3", null, Map.of("region", "us-east-1"));
         assertThat(r.validate(), nullValue());
@@ -140,8 +138,6 @@ public class PutDataSourceActionRequestTests extends AbstractWireSerializingTest
         // Constructor defaults null rawSettings to Map.of() — downstream reads see an empty map.
         assertThat(r.rawSettings(), notNullValue());
     }
-
-    // -- helpers ---------------------------------------------------------------------------------
 
     private static String randomName() {
         return randomAlphaOfLengthBetween(1, 20).toLowerCase(Locale.ROOT);

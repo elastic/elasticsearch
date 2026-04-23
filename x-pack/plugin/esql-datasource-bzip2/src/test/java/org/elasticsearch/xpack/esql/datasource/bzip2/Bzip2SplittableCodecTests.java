@@ -107,16 +107,7 @@ public class Bzip2SplittableCodecTests extends ESTestCase {
         long[] boundaries = codec.findBlockBoundaries(object, 0, compressed.length);
         assertTrue("Need multiple blocks for this test", boundaries.length >= 2);
 
-        ByteArrayOutputStream reassembled = new ByteArrayOutputStream();
-        for (int i = 0; i < boundaries.length; i++) {
-            long start = boundaries[i];
-            long end = (i + 1 < boundaries.length) ? boundaries[i + 1] : compressed.length;
-            try (InputStream stream = codec.decompressRange(object, start, end)) {
-                reassembled.write(stream.readAllBytes());
-            }
-        }
-
-        String result = reassembled.toString(StandardCharsets.UTF_8);
+        String result = reassembleLineAligned(codec, object, boundaries, compressed.length);
         String original = new String(data, StandardCharsets.UTF_8);
         assertEquals("Reassembled NDJSON should match original", original, result);
     }
@@ -130,16 +121,7 @@ public class Bzip2SplittableCodecTests extends ESTestCase {
         long[] boundaries = codec.findBlockBoundaries(object, 0, compressed.length);
         assertTrue("Need multiple blocks for this test", boundaries.length >= 2);
 
-        ByteArrayOutputStream reassembled = new ByteArrayOutputStream();
-        for (int i = 0; i < boundaries.length; i++) {
-            long start = boundaries[i];
-            long end = (i + 1 < boundaries.length) ? boundaries[i + 1] : compressed.length;
-            try (InputStream stream = codec.decompressRange(object, start, end)) {
-                reassembled.write(stream.readAllBytes());
-            }
-        }
-
-        String result = reassembled.toString(StandardCharsets.UTF_8);
+        String result = reassembleLineAligned(codec, object, boundaries, compressed.length);
         String original = new String(data, StandardCharsets.UTF_8);
         assertEquals("Reassembled CSV should match original", original, result);
     }
@@ -170,16 +152,12 @@ public class Bzip2SplittableCodecTests extends ESTestCase {
             Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
             long[] boundaries = codec.findBlockBoundaries(object, 0, compressed.length);
 
-            ByteArrayOutputStream reassembled = new ByteArrayOutputStream();
-            for (int i = 0; i < boundaries.length; i++) {
-                long start = boundaries[i];
-                long end = (i + 1 < boundaries.length) ? boundaries[i + 1] : compressed.length;
-                try (InputStream stream = codec.decompressRange(object, start, end)) {
-                    reassembled.write(stream.readAllBytes());
-                }
-            }
-
-            assertArrayEquals("Block size " + blockSize + " should reassemble correctly", data, reassembled.toByteArray());
+            String reassembled = reassembleLineAligned(codec, object, boundaries, compressed.length);
+            assertEquals(
+                "Block size " + blockSize + " should reassemble correctly",
+                new String(data, StandardCharsets.UTF_8),
+                reassembled
+            );
         }
     }
 
@@ -200,6 +178,96 @@ public class Bzip2SplittableCodecTests extends ESTestCase {
 
         Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         expectThrows(IllegalArgumentException.class, () -> codec.decompressRange(object, 10, 5));
+    }
+
+    /**
+     * Verifies the disjoint-macro-splits contract: consuming every boundary-to-boundary range with
+     * {@code skipFirstLine} on all non-first ranges yields the full original byte-for-byte. The
+     * codec's "finish-current-line" behavior is what makes this lossless — records straddling a
+     * block boundary are fully emitted by the split on the left and dropped by the split on the
+     * right's first-line skip, with no duplication.
+     */
+    public void testDisjointMacroSplitsReassembleExactly() throws IOException {
+        byte[] data = generateNdJsonData(10000);
+        byte[] compressed = bzip2(data, BZip2CompressorOutputStream.MIN_BLOCKSIZE);
+        ByteArrayStorageObject object = new ByteArrayStorageObject(compressed);
+
+        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        long[] boundaries = codec.findBlockBoundaries(object, 0, compressed.length);
+        assertTrue("Need multiple blocks to exercise macro-split boundaries", boundaries.length >= 3);
+
+        // Group pairs of blocks into disjoint macro-splits (start of next = end of previous).
+        // Neighboring ranges must NOT overlap by a full block.
+        ByteArrayOutputStream reassembled = new ByteArrayOutputStream();
+        for (int i = 0; i < boundaries.length; i += 2) {
+            long start = boundaries[i];
+            long end;
+            int next = i + 2;
+            if (next < boundaries.length) {
+                end = boundaries[next];
+            } else {
+                end = compressed.length;
+            }
+            try (InputStream stream = codec.decompressRange(object, start, end)) {
+                byte[] bytes = stream.readAllBytes();
+                byte[] aligned = i == 0 ? bytes : skipFirstLine(bytes);
+                reassembled.write(aligned);
+            }
+        }
+        String result = reassembled.toString(StandardCharsets.UTF_8);
+        String original = new String(data, StandardCharsets.UTF_8);
+        assertEquals("Disjoint macro-splits must reassemble to exact original", original, result);
+    }
+
+    /**
+     * Verifies the finish-current-line contract for a boundary that falls mid-record: the codec
+     * emits decompressed bytes up to (and including) the first {@code '\n'} beyond the
+     * compressed-split boundary.
+     */
+    public void testDecompressRangeFinishesCurrentLinePastBoundary() throws IOException {
+        byte[] data = generateNdJsonData(5000);
+        byte[] compressed = bzip2(data, BZip2CompressorOutputStream.MIN_BLOCKSIZE);
+        ByteArrayStorageObject object = new ByteArrayStorageObject(compressed);
+
+        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        long[] boundaries = codec.findBlockBoundaries(object, 0, compressed.length);
+        assertTrue("Need multiple blocks", boundaries.length >= 2);
+
+        try (InputStream stream = codec.decompressRange(object, boundaries[0], boundaries[1])) {
+            byte[] out = stream.readAllBytes();
+            assertTrue("Stream of a non-last range must end with '\\n' (finish-current-line)", out.length > 0);
+            assertEquals("Last byte must be newline", '\n', out[out.length - 1]);
+        }
+    }
+
+    private static String reassembleLineAligned(
+        Bzip2DecompressionCodec codec,
+        ByteArrayStorageObject object,
+        long[] boundaries,
+        long fileLength
+    ) throws IOException {
+        ByteArrayOutputStream reassembled = new ByteArrayOutputStream();
+        for (int i = 0; i < boundaries.length; i++) {
+            long start = boundaries[i];
+            long end = (i + 1 < boundaries.length) ? boundaries[i + 1] : fileLength;
+            try (InputStream stream = codec.decompressRange(object, start, end)) {
+                byte[] bytes = stream.readAllBytes();
+                byte[] aligned = i == 0 ? bytes : skipFirstLine(bytes);
+                reassembled.write(aligned);
+            }
+        }
+        return reassembled.toString(StandardCharsets.UTF_8);
+    }
+
+    private static byte[] skipFirstLine(byte[] bytes) {
+        for (int i = 0; i < bytes.length; i++) {
+            if (bytes[i] == '\n') {
+                byte[] out = new byte[bytes.length - i - 1];
+                System.arraycopy(bytes, i + 1, out, 0, out.length);
+                return out;
+            }
+        }
+        return new byte[0];
     }
 
     private static byte[] generateNdJsonData(int lines) {

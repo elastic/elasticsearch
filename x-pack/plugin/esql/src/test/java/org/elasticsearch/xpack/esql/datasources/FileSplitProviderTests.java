@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
@@ -1184,6 +1185,116 @@ public class FileSplitProviderTests extends ESTestCase {
         StorageObject got = FileSplitProvider.storageObjectForSplit(storage, split);
         assertThat(got, instanceOf(RangeStorageObject.class));
         verify(storage).newObject(path);
+    }
+
+    /**
+     * Multi-group grouping must place each boundary into exactly one macro-split, and groups must
+     * cover all boundaries in order without gaps.
+     */
+    public void testGroupBoundariesProducesContiguousGroups() {
+        long[] boundaries = { 0, 10, 20, 35, 55, 80, 110 };
+        long fileLength = 150;
+        // target = 30: first group 0..2 (span to index 3 = 35 >= 30), then 3..4 (span to idx 5 = 45 >= 30), then last 5..6
+        int[][] groups = FileSplitProvider.groupBoundaries(boundaries, fileLength, 30);
+        assertTrue("At least two groups expected", groups.length >= 2);
+
+        assertEquals("First group starts at block 0", 0, groups[0][0]);
+        for (int i = 1; i < groups.length; i++) {
+            assertEquals("Group " + i + " must start where previous ended + 1", groups[i - 1][1] + 1, groups[i][0]);
+        }
+        assertEquals("Last group ends at the last block index", boundaries.length - 1, groups[groups.length - 1][1]);
+    }
+
+    /**
+     * End-to-end check for the macro-split disjointness invariant: for a file with a splittable
+     * codec, the generated splits must satisfy {@code split[m+1].offset == split[m].offset + split[m].length},
+     * never overlap, and collectively cover the full file. Overlaps here would cause record duplication
+     * at the NDJSON reader level (regression guard).
+     */
+    public void testBlockAlignedMacroSplitsAreDisjoint() {
+        long fileLength = 1_000_000_000L;
+        // Spaced ~5 MB per block for 200 blocks; macro target (32 MB) groups ~7 blocks per macro-split.
+        long[] boundaries = new long[200];
+        for (int i = 0; i < boundaries.length; i++) {
+            boundaries[i] = (long) i * 5_000_000L;
+        }
+
+        DecompressionCodecRegistry codecRegistry = new DecompressionCodecRegistry();
+        codecRegistry.register(new FakeSplittableCodec(boundaries));
+
+        StorageProviderRegistry storageRegistry = createMockStorageRegistry();
+        FormatReaderRegistry formatRegistry = new FormatReaderRegistry(codecRegistry);
+
+        FileSplitProvider splitter = new FileSplitProvider(
+            FileSplitProvider.DEFAULT_TARGET_SPLIT_SIZE,
+            codecRegistry,
+            storageRegistry,
+            formatRegistry,
+            Settings.EMPTY
+        );
+
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/huge.ndjson.bz2"), fileLength, Instant.EPOCH);
+        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.ndjson.bz2");
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of());
+        List<ExternalSplit> splits = splitter.discoverSplits(ctx);
+
+        assertTrue("Expected multiple macro-splits", splits.size() >= 3);
+
+        FileSplit first = (FileSplit) splits.get(0);
+        assertEquals("First split starts at block 0 boundary (== 0)", 0L, first.offset());
+        assertEquals("First split is marked first", "true", first.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
+
+        for (int i = 1; i < splits.size(); i++) {
+            FileSplit prev = (FileSplit) splits.get(i - 1);
+            FileSplit cur = (FileSplit) splits.get(i);
+            assertEquals(
+                "Split " + i + " must start exactly where split " + (i - 1) + " ends (disjoint, no overlap, no gap)",
+                prev.offset() + prev.length(),
+                cur.offset()
+            );
+            assertNull(
+                "Only the first split may carry the first-split marker",
+                cur.config().get(FileSplitProvider.FIRST_SPLIT_KEY)
+            );
+        }
+
+        FileSplit last = (FileSplit) splits.get(splits.size() - 1);
+        assertEquals("Last split must cover up to file length", fileLength, last.offset() + last.length());
+        assertEquals("Last split is marked last", "true", last.config().get(FileSplitProvider.LAST_SPLIT_KEY));
+    }
+
+    /** Fake SplittableDecompressionCodec returning canned block boundaries, for unit-testing split logic. */
+    private static final class FakeSplittableCodec implements SplittableDecompressionCodec {
+        private final long[] boundaries;
+
+        FakeSplittableCodec(long[] boundaries) {
+            this.boundaries = boundaries;
+        }
+
+        @Override
+        public String name() {
+            return "fake-bz2";
+        }
+
+        @Override
+        public List<String> extensions() {
+            return List.of(".bz2");
+        }
+
+        @Override
+        public InputStream decompress(InputStream raw) {
+            return raw;
+        }
+
+        @Override
+        public long[] findBlockBoundaries(StorageObject object, long start, long end) {
+            return boundaries.clone();
+        }
+
+        @Override
+        public InputStream decompressRange(StorageObject object, long blockStart, long nextBlockStart) {
+            return new ByteArrayInputStream(new byte[0]);
+        }
     }
 
     // -- helpers --

@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -20,16 +21,18 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 
-import static org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2BlockScanner.BZIP2_HEADER_SIZE;
 import static org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2BlockScanner.mergeSortedUnique;
 import static org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2BlockScanner.scanBlockOffsets;
 
 /**
  * Bzip2 decompression codec with splittable support for parallel decompression.
  *
- * <p>Uses a forked Hadoop-style {@link CBZip2InputStream} in BYBLOCK mode for split
- * decompression. The decompressor handles bit-aligned block boundaries natively via
- * {@code skipToNextMarker()}, avoiding the need for byte-aligned block offsets.
+ * <p>Both sequential whole-file decompression and range decompression use
+ * {@link CBZip2InputStream} in BYBLOCK mode. BYBLOCK bit-scans for the 48-bit block magic,
+ * which naturally skips end-of-stream markers and member headers in files that consist of
+ * several bzip2 streams back-to-back (common for large fixtures). So a single code path
+ * handles both single-member and concatenated bzip2 files and produces the same byte
+ * stream as {@code bzcat}.
  *
  * <p>For split decompression, the stream is positioned at the byte containing the
  * block marker. The {@link CBZip2InputStream} in BYBLOCK mode finds the exact bit
@@ -83,14 +86,10 @@ public class Bzip2DecompressionCodec implements SplittableDecompressionCodec {
 
     @Override
     public InputStream decompress(InputStream raw) throws IOException {
-        // Skip the 2-byte 'BZ' file header; CBZip2InputStream expects the stream
-        // to start right after it (at the 'h' + block-size digit).
-        int b1 = raw.read();
-        int b2 = raw.read();
-        if (b1 != 'B' || b2 != 'Z') {
-            throw new IOException("Not a bzip2 stream: expected 'BZ' header, got [" + b1 + ", " + b2 + "]");
-        }
-        return new CBZip2InputStream(raw, CBZip2InputStream.ReadMode.CONTINUOUS);
+        // BYBLOCK mode bit-scans for block magics and transparently skips end-of-stream /
+        // next-member headers, so concatenated bzip2 files decompress as one logical stream.
+        // The wrapper absorbs END_OF_BLOCK markers and exposes a plain InputStream.
+        return new ConcatenatedDecompressStream(new CBZip2InputStream(raw, CBZip2InputStream.ReadMode.BYBLOCK));
     }
 
     /**
@@ -176,59 +175,68 @@ public class Bzip2DecompressionCodec implements SplittableDecompressionCodec {
         }
 
         long fileLength = object.length();
+        if (blockStart == 0 && nextBlockStart == fileLength) {
+            return decompress(object.newStream());
+        }
+        return decompressOneMemberRange(object, blockStart, nextBlockStart, fileLength);
+    }
 
-        // Always use BYBLOCK mode. The CBZip2InputStream constructor in BYBLOCK mode
-        // calls skipToNextBlockMarker() to find the next block magic from the current
-        // stream position, then decompresses one block at a time.
-        //
-        // For the first block (near file start), we position the stream right after
-        // the 'BZ' prefix (byte 2). The BYBLOCK constructor will skip the 'h' + digit
-        // bytes looking for the first block magic.
-        //
-        // For mid-file blocks, we position at blockStart. The BYBLOCK constructor
-        // scans forward to find the next block magic from that byte position.
+    /**
+     * Decompress a span of compressed file bytes. Uses {@link CBZip2InputStream} in BYBLOCK mode
+     * with a suffix of the file so the first bzip2 block can be read in full even when a block
+     * extends past {@code e}. The stream is clipped at {@code e} by {@link BlockBoundedDecompressStream}.
+     *
+     * <p>BYBLOCK bit-scans for the 48-bit block magic. Across concatenated bzip2 members the
+     * bit-scan skips over a member's end-of-stream magic and the next member's {@code BZh#} header
+     * and lands on the next block magic, so this path handles single-member and concatenated bzip2
+     * files uniformly without needing to discover member starts.
+     */
+    private static InputStream decompressOneMemberRange(StorageObject object, long s, long e, long fileLength) throws IOException {
+        if (s >= e) {
+            return new ByteArrayInputStream(new byte[0]);
+        }
         long streamStart;
         long initialCompressedPosition;
-        if (blockStart <= BZIP2_HEADER_SIZE) {
+        if (s == 0) {
             streamStart = 0;
-            // The 'BZ' prefix (2 bytes) is skipped before passing to CBZip2InputStream,
-            // so the decompressor's internal byte counter starts 2 bytes behind the file position
             initialCompressedPosition = 2;
         } else {
-            streamStart = blockStart;
-            // Must remain a long: compressed offsets exceed 2^31-1 for multi-GB files; casting to int corrupts the
-            // BlockBoundedDecompressStream limit check and terminates splits far too early.
-            initialCompressedPosition = blockStart;
+            streamStart = s;
+            initialCompressedPosition = s;
         }
-
         InputStream rawStream = object.newStream(streamStart, fileLength - streamStart);
         if (streamStart == 0) {
             rawStream.skipNBytes(2);
         }
-
         CBZip2InputStream decompressor = new CBZip2InputStream(rawStream, CBZip2InputStream.ReadMode.BYBLOCK);
         decompressor.updateReportedByteCount(initialCompressedPosition);
-        return new BlockBoundedDecompressStream(decompressor, nextBlockStart);
+        return new BlockBoundedDecompressStream(decompressor, e);
     }
 
     /**
      * Wraps a {@link CBZip2InputStream} and monitors its compressed byte position.
-     * Returns decompressed data normally until the compressed position passes the
-     * split boundary, then signals EOF.
+     * Emits decompressed data normally while the compressed position is under the
+     * split boundary. Once the boundary is reached at a block end, enters
+     * "finish-current-line" mode: continues emitting decompressed bytes from the
+     * following block(s) until (and including) the next {@code '\n'}, then signals
+     * EOF. This lets a single line record that straddles a macro-split boundary be
+     * fully emitted by the split on the <em>left</em> of the boundary; the split on
+     * the <em>right</em> then drops that same tail via {@code skipFirstLine}, so no
+     * record is lost or double-counted across macro-split boundaries.
      *
      * <p>In BYBLOCK mode, the decompressor returns -2 (END_OF_BLOCK) at block
-     * boundaries. At each block boundary, we check if the compressed position has
-     * passed the limit. If so, we stop. Otherwise we let the decompressor advance
-     * to the next block.
+     * boundaries.
      *
      * <p>The single-byte read path is used for all reads because the Hadoop-style
      * decompressor's bulk read can return END_OF_BLOCK (-2) which is not a valid
      * return value for standard {@link InputStream#read(byte[], int, int)}.
      */
     static class BlockBoundedDecompressStream extends InputStream {
+        private static final byte LF = (byte) '\n';
         private final CBZip2InputStream decompressor;
         private final long compressedLimit;
         private boolean done;
+        private boolean finishingLine;
 
         BlockBoundedDecompressStream(CBZip2InputStream decompressor, long compressedLimit) {
             this.decompressor = decompressor;
@@ -239,15 +247,18 @@ public class Bzip2DecompressionCodec implements SplittableDecompressionCodec {
             while (done == false) {
                 int b = decompressor.read();
                 if (b == BZip2Constants.END_OF_BLOCK) {
-                    if (decompressor.getProcessedByteCount() >= compressedLimit) {
-                        done = true;
-                        return -1;
+                    if (finishingLine == false && decompressor.getProcessedByteCount() >= compressedLimit) {
+                        finishingLine = true;
                     }
                     continue;
                 }
                 if (b == BZip2Constants.END_OF_STREAM || b < 0) {
                     done = true;
                     return -1;
+                }
+                if (finishingLine && b == (LF & 0xFF)) {
+                    done = true;
+                    return b;
                 }
                 return b;
             }
@@ -285,6 +296,64 @@ public class Bzip2DecompressionCodec implements SplittableDecompressionCodec {
                 buf.write(tmp, 0, n);
             }
             return buf.toByteArray();
+        }
+
+        @Override
+        public void close() throws IOException {
+            decompressor.close();
+        }
+    }
+
+    /**
+     * Adapts a {@link CBZip2InputStream} in BYBLOCK mode to a plain {@link InputStream} that
+     * emits the fully-decompressed bytes of the underlying bzip2 input. BYBLOCK returns
+     * {@link BZip2Constants#END_OF_BLOCK} at block boundaries (including across concatenated
+     * bzip2 members) and {@link BZip2Constants#END_OF_STREAM} at true end-of-file; this
+     * wrapper absorbs the per-block markers and reports EOF only at end-of-stream.
+     */
+    static class ConcatenatedDecompressStream extends InputStream {
+        private final CBZip2InputStream decompressor;
+        private boolean done;
+
+        ConcatenatedDecompressStream(CBZip2InputStream decompressor) {
+            this.decompressor = decompressor;
+        }
+
+        private int readSingleByte() throws IOException {
+            while (done == false) {
+                int b = decompressor.read();
+                if (b == BZip2Constants.END_OF_BLOCK) {
+                    continue;
+                }
+                if (b == BZip2Constants.END_OF_STREAM || b < 0) {
+                    done = true;
+                    return -1;
+                }
+                return b;
+            }
+            return -1;
+        }
+
+        @Override
+        public int read() throws IOException {
+            return readSingleByte();
+        }
+
+        @Override
+        public int read(byte[] buf, int off, int len) throws IOException {
+            if (done) {
+                return -1;
+            }
+            int count = 0;
+            for (int i = 0; i < len; i++) {
+                int b = readSingleByte();
+                if (b == -1) {
+                    break;
+                }
+                buf[off + i] = (byte) b;
+                count++;
+            }
+            return count == 0 ? -1 : count;
         }
 
         @Override

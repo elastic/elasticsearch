@@ -74,11 +74,12 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         return new NdJsonFormatReader(settings, blockFactory, resolvedSchema, newSampleSize);
     }
 
-    private List<Attribute> inferSchemaIfNeeded(List<Attribute> attributes, StorageObject object) throws IOException {
+    private List<Attribute> inferSchemaIfNeeded(List<Attribute> attributes, StorageObject object, boolean skipFirstLine)
+        throws IOException {
         if (attributes != null && attributes.isEmpty() == false) {
             if (needsFullSchemaSupplement(attributes)) {
                 List<Attribute> inferred;
-                try (var stream = object.newStream()) {
+                try (var stream = openForSchemaInference(object, skipFirstLine)) {
                     inferred = NdJsonSchemaInferrer.inferSchema(stream, schemaSampleSize);
                 }
                 return mergeInferredWithPreferred(inferred, attributes);
@@ -86,8 +87,50 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             return attributes;
         }
 
-        try (var stream = object.newStream()) {
+        try (var stream = openForSchemaInference(object, skipFirstLine)) {
             return NdJsonSchemaInferrer.inferSchema(stream, schemaSampleSize);
+        }
+    }
+
+    /**
+     * Opens a stream for schema inference, skipping the first partial line when the underlying
+     * range does not start at a record boundary (non-first splits). This prevents the inferrer
+     * from tripping over the truncated record fragment that precedes the first newline in a
+     * mid-file split.
+     */
+    private static InputStream openForSchemaInference(StorageObject object, boolean skipFirstLine) throws IOException {
+        InputStream stream = object.newStream();
+        if (skipFirstLine == false) {
+            return stream;
+        }
+        try {
+            int b;
+            while ((b = stream.read()) != -1) {
+                if (b == '\n') {
+                    return stream;
+                }
+                if (b == '\r') {
+                    stream.mark(1);
+                    int next = stream.read();
+                    if (next != '\n' && next != -1) {
+                        if (stream.markSupported()) {
+                            stream.reset();
+                        } else {
+                            return new java.io.SequenceInputStream(
+                                new java.io.ByteArrayInputStream(new byte[] { (byte) next }),
+                                stream
+                            );
+                        }
+                    }
+                    return stream;
+                }
+            }
+            return stream;
+        } catch (IOException e) {
+            try {
+                stream.close();
+            } catch (IOException ignored) {}
+            throw e;
         }
     }
 
@@ -178,7 +221,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             blockFactory,
             skipFirstLine,
             trimLastPartialLine,
-            inferSchemaIfNeeded(resolvedSchema, object),
+            inferSchemaIfNeeded(resolvedSchema, object, skipFirstLine),
             errorPolicy
         );
     }

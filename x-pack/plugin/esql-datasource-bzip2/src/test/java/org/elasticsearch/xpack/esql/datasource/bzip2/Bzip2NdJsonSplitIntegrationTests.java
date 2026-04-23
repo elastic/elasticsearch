@@ -69,26 +69,16 @@ public class Bzip2NdJsonSplitIntegrationTests extends ESTestCase {
 
         Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
-        // Full decompression
         String fullResult;
         try (InputStream stream = codec.decompress(new ByteArrayInputStream(compressed))) {
             fullResult = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
         }
 
-        // Split decompression
         long[] boundaries = codec.findBlockBoundaries(object, 0, compressed.length);
         assertTrue("Need multiple blocks", boundaries.length >= 2);
 
-        ByteArrayOutputStream splitResult = new ByteArrayOutputStream();
-        for (int i = 0; i < boundaries.length; i++) {
-            long start = boundaries[i];
-            long end = (i + 1 < boundaries.length) ? boundaries[i + 1] : compressed.length;
-            try (InputStream stream = codec.decompressRange(object, start, end)) {
-                splitResult.write(stream.readAllBytes());
-            }
-        }
-
-        assertEquals("Split decompression must match full decompression", fullResult, splitResult.toString(StandardCharsets.UTF_8));
+        String splitResult = reassembleLineAligned(codec, object, boundaries, compressed.length);
+        assertEquals("Split decompression must match full decompression", fullResult, splitResult);
     }
 
     public void testSplitDecompressionCsvMatchesFullDecompression() throws IOException {
@@ -106,16 +96,8 @@ public class Bzip2NdJsonSplitIntegrationTests extends ESTestCase {
         long[] boundaries = codec.findBlockBoundaries(object, 0, compressed.length);
         assertTrue("Need multiple blocks for CSV", boundaries.length >= 2);
 
-        ByteArrayOutputStream splitResult = new ByteArrayOutputStream();
-        for (int i = 0; i < boundaries.length; i++) {
-            long start = boundaries[i];
-            long end = (i + 1 < boundaries.length) ? boundaries[i + 1] : compressed.length;
-            try (InputStream stream = codec.decompressRange(object, start, end)) {
-                splitResult.write(stream.readAllBytes());
-            }
-        }
-
-        assertEquals("Split CSV decompression must match full decompression", fullResult, splitResult.toString(StandardCharsets.UTF_8));
+        String splitResult = reassembleLineAligned(codec, object, boundaries, compressed.length);
+        assertEquals("Split CSV decompression must match full decompression", fullResult, splitResult);
     }
 
     public void testSplitDecompressionPreservesAllNdJsonRecords() throws IOException {
@@ -127,18 +109,9 @@ public class Bzip2NdJsonSplitIntegrationTests extends ESTestCase {
         Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         long[] boundaries = codec.findBlockBoundaries(object, 0, compressed.length);
 
-        ByteArrayOutputStream reassembled = new ByteArrayOutputStream();
-        for (int i = 0; i < boundaries.length; i++) {
-            long start = boundaries[i];
-            long end = (i + 1 < boundaries.length) ? boundaries[i + 1] : compressed.length;
-            try (InputStream stream = codec.decompressRange(object, start, end)) {
-                reassembled.write(stream.readAllBytes());
-            }
-        }
-
-        String result = reassembled.toString(StandardCharsets.UTF_8);
+        String result = reassembleLineAligned(codec, object, boundaries, compressed.length);
         String[] lines = result.split("\n");
-        assertEquals("All NDJSON records must be present", recordCount, lines.length);
+        assertEquals("All NDJSON records must be present (no duplicates, none dropped)", recordCount, lines.length);
         for (int i = 0; i < lines.length; i++) {
             assertTrue("Line " + i + " should contain its id", lines[i].contains("\"id\":" + i));
         }
@@ -159,21 +132,39 @@ public class Bzip2NdJsonSplitIntegrationTests extends ESTestCase {
             Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
             long[] boundaries = codec.findBlockBoundaries(object, 0, compressed.length);
 
-            ByteArrayOutputStream reassembled = new ByteArrayOutputStream();
-            for (int i = 0; i < boundaries.length; i++) {
-                long start = boundaries[i];
-                long end = (i + 1 < boundaries.length) ? boundaries[i + 1] : compressed.length;
-                try (InputStream stream = codec.decompressRange(object, start, end)) {
-                    reassembled.write(stream.readAllBytes());
-                }
-            }
-
-            assertEquals(
-                "Block size " + blockSize + " split decompression should match",
-                ndjson,
-                reassembled.toString(StandardCharsets.UTF_8)
-            );
+            String reassembled = reassembleLineAligned(codec, object, boundaries, compressed.length);
+            assertEquals("Block size " + blockSize + " split decompression should match", ndjson, reassembled);
         }
+    }
+
+    private static String reassembleLineAligned(
+        Bzip2DecompressionCodec codec,
+        ByteArrayStorageObject object,
+        long[] boundaries,
+        long fileLength
+    ) throws IOException {
+        ByteArrayOutputStream reassembled = new ByteArrayOutputStream();
+        for (int i = 0; i < boundaries.length; i++) {
+            long start = boundaries[i];
+            long end = (i + 1 < boundaries.length) ? boundaries[i + 1] : fileLength;
+            try (InputStream stream = codec.decompressRange(object, start, end)) {
+                byte[] bytes = stream.readAllBytes();
+                byte[] aligned = i == 0 ? bytes : skipFirstLine(bytes);
+                reassembled.write(aligned);
+            }
+        }
+        return reassembled.toString(StandardCharsets.UTF_8);
+    }
+
+    private static byte[] skipFirstLine(byte[] bytes) {
+        for (int i = 0; i < bytes.length; i++) {
+            if (bytes[i] == '\n') {
+                byte[] out = new byte[bytes.length - i - 1];
+                System.arraycopy(bytes, i + 1, out, 0, out.length);
+                return out;
+            }
+        }
+        return new byte[0];
     }
 
     private static byte[] generateNdJsonData(int lines) {

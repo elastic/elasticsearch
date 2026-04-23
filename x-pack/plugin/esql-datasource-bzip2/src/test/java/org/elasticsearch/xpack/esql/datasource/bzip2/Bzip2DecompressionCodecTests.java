@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasource.bzip2;
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -81,8 +82,41 @@ public class Bzip2DecompressionCodecTests extends ESTestCase {
     public void testDecompressHeaderValidation() throws IOException {
         byte[] notBzip2 = "XX".getBytes(StandardCharsets.UTF_8);
         Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        IOException e = expectThrows(IOException.class, () -> codec.decompress(new ByteArrayInputStream(notBzip2)));
-        assertTrue(e.getMessage().contains("Not a bzip2 stream"));
+        IOException e = expectThrows(IOException.class, () -> {
+            try (var s = codec.decompress(new ByteArrayInputStream(notBzip2))) {
+                s.readAllBytes();
+            }
+        });
+        assertNotNull(e.getMessage());
+    }
+
+    /** Rationale: some real-world .bz2 files are several bzip2 members concatenated; a single member must not truncate NDJSON. */
+    public void testDecompressConcatenatedMembers() throws IOException {
+        byte[] a = bzip2("a\n".getBytes(StandardCharsets.UTF_8));
+        byte[] b = bzip2("b\n".getBytes(StandardCharsets.UTF_8));
+        byte[] both = new byte[a.length + b.length];
+        System.arraycopy(a, 0, both, 0, a.length);
+        System.arraycopy(b, 0, both, a.length, b.length);
+
+        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        try (InputStream in = codec.decompress(new ByteArrayInputStream(both))) {
+            assertEquals("a\nb\n", new String(in.readAllBytes(), StandardCharsets.UTF_8));
+        }
+    }
+
+    /** Full compressed span read via decompressRange (as with a single full-file FileSplit) must include all members. */
+    public void testDecompressRangeFullObjectConcatenated() throws IOException {
+        byte[] a = bzip2("a\n".getBytes(StandardCharsets.UTF_8));
+        byte[] b = bzip2("b\n".getBytes(StandardCharsets.UTF_8));
+        byte[] both = new byte[a.length + b.length];
+        System.arraycopy(a, 0, both, 0, a.length);
+        System.arraycopy(b, 0, both, a.length, b.length);
+
+        StorageObject object = new ByteArrayStorageObject(both);
+        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        try (InputStream in = codec.decompressRange(object, 0, both.length)) {
+            assertEquals("a\nb\n", new String(in.readAllBytes(), StandardCharsets.UTF_8));
+        }
     }
 
     private static byte[] bzip2(byte[] input) throws IOException {

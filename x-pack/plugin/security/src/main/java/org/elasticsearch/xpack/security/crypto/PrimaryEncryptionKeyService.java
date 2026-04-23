@@ -40,7 +40,7 @@ import javax.crypto.SecretKey;
  * <p>On master election, if no primary encryption key exists in the project metadata,
  * this service generates a new AES-256 key and publishes it to cluster state.
  */
-public class PrimaryEncryptionKeyService {
+public class PrimaryEncryptionKeyService implements AesGcmEncryptionService.KeyProvider {
 
     private static final Logger logger = LogManager.getLogger(PrimaryEncryptionKeyService.class);
 
@@ -121,16 +121,19 @@ public class PrimaryEncryptionKeyService {
         }
     }
 
+    @Override
     @Nullable
     public SecretKey getActiveKey() {
         return cache.activeKey();
     }
 
+    @Override
     @Nullable
     public String getActiveKeyId() {
         return cache.activeKeyId();
     }
 
+    @Override
     @Nullable
     public SecretKey getKey(String keyId) {
         return cache.keysByKeyId().get(keyId);

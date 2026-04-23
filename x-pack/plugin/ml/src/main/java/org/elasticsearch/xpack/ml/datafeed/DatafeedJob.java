@@ -84,6 +84,7 @@ class DatafeedJob {
     private volatile boolean isIsolated;
     private volatile boolean haveEverSeenData;
     private volatile long consecutiveDelayedDataBuckets;
+    private volatile boolean hasDelayedData;
     private volatile SearchInterval searchInterval;
 
     DatafeedJob(
@@ -155,6 +156,15 @@ class DatafeedJob {
     @Nullable
     public SearchInterval getSearchInterval() {
         return searchInterval;
+    }
+
+    /**
+     * Returns the number of consecutive buckets in which delayed data was detected during the last
+     * triggered check, or {@code 0} if the last check found no delayed data (or no check has run yet).
+     * The minimum non-zero value is {@code 1} (first occurrence).
+     */
+    public long getDelayedDataBucketCount() {
+        return hasDelayedData ? consecutiveDelayedDataBuckets + 1 : 0;
     }
 
     Long runLookBack(long startTime, Long endTime) throws Exception {
@@ -241,6 +251,7 @@ class DatafeedJob {
             // Keep track of the last bucket time for which we did a missing data check
             this.lastDataCheckTimeMs = this.currentTimeSupplier.get();
             List<BucketWithMissingData> missingDataBuckets = delayedDataDetector.detectMissingData(latestFinalBucketEndTimeMs);
+            this.hasDelayedData = missingDataBuckets.isEmpty() == false;
             if (missingDataBuckets.isEmpty() == false) {
                 long totalRecordsMissing = missingDataBuckets.stream().mapToLong(BucketWithMissingData::getMissingDocumentCount).sum();
                 Bucket lastBucket = missingDataBuckets.get(missingDataBuckets.size() - 1).getBucket();

@@ -12,11 +12,9 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedRunningStateAction.Response.DatafeedProblemStats;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
-import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.core.ml.job.AnomalyDetectionHealth;
 import org.elasticsearch.xpack.core.ml.job.AnomalyDetectionHealthIssue;
 
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -67,15 +65,13 @@ public final class DatafeedHealthChecker {
      * @param datafeedState         the current {@link DatafeedState}
      * @param node                  the node the datafeed is assigned to, or {@code null} if unassigned
      * @param assignmentExplanation the assignment explanation from the persistent task, may be {@code null}
-     * @param searchInterval        the current search interval, or {@code null} if not yet running
-     * @param problemStats          snapshot of failure counters from {@code ProblemTracker}, may be {@code null}
+     * @param problemStats          snapshot of failure and delayed-data counters from the datafeed task, may be {@code null}
      * @return the computed health object; never {@code null}
      */
     public static AnomalyDetectionHealth checkDatafeed(
         DatafeedState datafeedState,
         @Nullable DiscoveryNode node,
         @Nullable String assignmentExplanation,
-        @Nullable SearchInterval searchInterval,
         @Nullable DatafeedProblemStats problemStats
     ) {
         if (datafeedState == DatafeedState.STOPPED || datafeedState == DatafeedState.STOPPING) {
@@ -143,18 +139,15 @@ public final class DatafeedHealthChecker {
                 ));
                 maxStatus = max(maxStatus, IssueType.EMPTY_DATA.severity);
             }
-        }
 
-        // DATA_DELAY: search interval is lagging behind now (always YELLOW, never RED)
-        if (searchInterval != null) {
-            long nowMs = Instant.now().toEpochMilli();
-            // Flag as delayed when the search end is more than 1 minute behind now
-            if (nowMs - searchInterval.endMs() > 60_000L) {
+            // DATA_DELAY: delayed data detected by the DelayedDataDetector in the last triggered check
+            int delayedCount = problemStats.getDelayedDataBucketCount();
+            if (delayedCount > 0) {
                 issues.add(new AnomalyDetectionHealthIssue(
                     IssueType.DATA_DELAY.type,
                     IssueType.DATA_DELAY.title,
                     null,
-                    1,
+                    delayedCount,
                     null
                 ));
                 maxStatus = max(maxStatus, IssueType.DATA_DELAY.severity);

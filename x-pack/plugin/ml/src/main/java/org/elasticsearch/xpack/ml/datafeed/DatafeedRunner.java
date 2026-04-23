@@ -282,7 +282,8 @@ public class DatafeedRunner {
             pt.getAnalysisFailureCount(),
             pt.getAnalysisFailureFirstTime(),
             pt.getEmptyDataCount(),
-            pt.isAnalysisFailureFatal()
+            pt.isAnalysisFailureFatal(),
+            (int) Math.min(holder.datafeedJob.getDelayedDataBucketCount(), Integer.MAX_VALUE)
         );
     }
 

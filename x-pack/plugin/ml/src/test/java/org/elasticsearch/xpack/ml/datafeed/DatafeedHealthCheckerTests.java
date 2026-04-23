@@ -11,7 +11,6 @@ import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedRunningStateAction.Response.DatafeedProblemStats;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
-import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.core.ml.job.AnomalyDetectionHealth;
 
 import java.time.Instant;
@@ -24,7 +23,7 @@ public class DatafeedHealthCheckerTests extends ESTestCase {
 
     public void testStoppedDatafeedIsGreen() {
         AnomalyDetectionHealth health = DatafeedHealthChecker.checkDatafeed(
-            DatafeedState.STOPPED, null, null, null, null
+            DatafeedState.STOPPED, null, null, null
         );
         assertThat(health.getStatus(), is(HealthStatus.GREEN));
         assertThat(health.getIssues(), nullValue());
@@ -32,22 +31,22 @@ public class DatafeedHealthCheckerTests extends ESTestCase {
 
     public void testStoppingDatafeedIsGreen() {
         AnomalyDetectionHealth health = DatafeedHealthChecker.checkDatafeed(
-            DatafeedState.STOPPING, null, null, null, null
+            DatafeedState.STOPPING, null, null, null
         );
         assertThat(health.getStatus(), is(HealthStatus.GREEN));
     }
 
     public void testStartedWithNoIssuesIsGreen() {
-        DatafeedProblemStats stats = new DatafeedProblemStats(0, null, 0, null, 0, false);
+        DatafeedProblemStats stats = new DatafeedProblemStats(0, null, 0, null, 0, false, 0);
         AnomalyDetectionHealth health = DatafeedHealthChecker.checkDatafeed(
-            DatafeedState.STARTED, null, null, null, stats
+            DatafeedState.STARTED, null, null, stats
         );
         assertThat(health.getStatus(), is(HealthStatus.GREEN));
     }
 
     public void testAssignmentFailedIsRed() {
         AnomalyDetectionHealth health = DatafeedHealthChecker.checkDatafeed(
-            DatafeedState.STARTING, null, "no ML nodes available", null, null
+            DatafeedState.STARTING, null, "no ML nodes available", null
         );
         assertThat(health.getStatus(), is(HealthStatus.RED));
         assertThat(health.getIssues(), hasSize(1));
@@ -58,10 +57,10 @@ public class DatafeedHealthCheckerTests extends ESTestCase {
         DatafeedProblemStats stats = new DatafeedProblemStats(
             DatafeedHealthChecker.RED_STATUS_FAILURE_COUNT_BOUNDARY,
             Instant.now(),
-            0, null, 0, false
+            0, null, 0, false, 0
         );
         AnomalyDetectionHealth health = DatafeedHealthChecker.checkDatafeed(
-            DatafeedState.STARTED, null, null, null, stats
+            DatafeedState.STARTED, null, null, stats
         );
         assertThat(health.getStatus(), is(HealthStatus.YELLOW));
         assertThat(health.getIssues(), hasSize(1));
@@ -72,10 +71,10 @@ public class DatafeedHealthCheckerTests extends ESTestCase {
         DatafeedProblemStats stats = new DatafeedProblemStats(
             DatafeedHealthChecker.RED_STATUS_FAILURE_COUNT_BOUNDARY + 1,
             Instant.now(),
-            0, null, 0, false
+            0, null, 0, false, 0
         );
         AnomalyDetectionHealth health = DatafeedHealthChecker.checkDatafeed(
-            DatafeedState.STARTED, null, null, null, stats
+            DatafeedState.STARTED, null, null, stats
         );
         assertThat(health.getStatus(), is(HealthStatus.RED));
         assertThat(health.getIssues().get(0).getCount(), is(DatafeedHealthChecker.RED_STATUS_FAILURE_COUNT_BOUNDARY + 1));
@@ -83,10 +82,10 @@ public class DatafeedHealthCheckerTests extends ESTestCase {
 
     public void testAnalysisFailuresBelowBoundaryIsYellow() {
         DatafeedProblemStats stats = new DatafeedProblemStats(0, null,
-            DatafeedHealthChecker.RED_STATUS_FAILURE_COUNT_BOUNDARY, Instant.now(), 0, false
+            DatafeedHealthChecker.RED_STATUS_FAILURE_COUNT_BOUNDARY, Instant.now(), 0, false, 0
         );
         AnomalyDetectionHealth health = DatafeedHealthChecker.checkDatafeed(
-            DatafeedState.STARTED, null, null, null, stats
+            DatafeedState.STARTED, null, null, stats
         );
         assertThat(health.getStatus(), is(HealthStatus.YELLOW));
         assertThat(health.getIssues().get(0).getType(), is(DatafeedHealthChecker.IssueType.DATA_ANALYSIS_ERROR.type));
@@ -94,65 +93,75 @@ public class DatafeedHealthCheckerTests extends ESTestCase {
 
     public void testAnalysisFailuresAboveBoundaryIsRed() {
         DatafeedProblemStats stats = new DatafeedProblemStats(0, null,
-            DatafeedHealthChecker.RED_STATUS_FAILURE_COUNT_BOUNDARY + 1, Instant.now(), 0, false
+            DatafeedHealthChecker.RED_STATUS_FAILURE_COUNT_BOUNDARY + 1, Instant.now(), 0, false, 0
         );
         AnomalyDetectionHealth health = DatafeedHealthChecker.checkDatafeed(
-            DatafeedState.STARTED, null, null, null, stats
+            DatafeedState.STARTED, null, null, stats
         );
         assertThat(health.getStatus(), is(HealthStatus.RED));
     }
 
     public void testFatalAnalysisFailureIsRedEvenBelowBoundary() {
-        // A single fatal analysis failure (e.g. conflict that closed the job) must be RED immediately
-        DatafeedProblemStats stats = new DatafeedProblemStats(0, null, 1, Instant.now(), 0, true);
+        // A single fatal analysis failure (conflict that closed the job) must be RED immediately
+        DatafeedProblemStats stats = new DatafeedProblemStats(0, null, 1, Instant.now(), 0, true, 0);
         AnomalyDetectionHealth health = DatafeedHealthChecker.checkDatafeed(
-            DatafeedState.STARTED, null, null, null, stats
+            DatafeedState.STARTED, null, null, stats
         );
         assertThat(health.getStatus(), is(HealthStatus.RED));
         assertThat(health.getIssues().get(0).getType(), is(DatafeedHealthChecker.IssueType.DATA_ANALYSIS_ERROR.type));
     }
 
     public void testEmptyDataBelowThresholdIsGreen() {
-        DatafeedProblemStats stats = new DatafeedProblemStats(0, null, 0, null, 9, false);
+        DatafeedProblemStats stats = new DatafeedProblemStats(0, null, 0, null, 9, false, 0);
         AnomalyDetectionHealth health = DatafeedHealthChecker.checkDatafeed(
-            DatafeedState.STARTED, null, null, null, stats
+            DatafeedState.STARTED, null, null, stats
         );
         assertThat(health.getStatus(), is(HealthStatus.GREEN));
     }
 
     public void testEmptyDataAtThresholdIsYellow() {
-        DatafeedProblemStats stats = new DatafeedProblemStats(0, null, 0, null, 10, false);
+        DatafeedProblemStats stats = new DatafeedProblemStats(0, null, 0, null, 10, false, 0);
         AnomalyDetectionHealth health = DatafeedHealthChecker.checkDatafeed(
-            DatafeedState.STARTED, null, null, null, stats
+            DatafeedState.STARTED, null, null, stats
         );
         assertThat(health.getStatus(), is(HealthStatus.YELLOW));
         assertThat(health.getIssues().get(0).getType(), is(DatafeedHealthChecker.IssueType.EMPTY_DATA.type));
     }
 
-    public void testDataDelayIsYellow() {
-        // Search interval that ended 2 minutes ago
-        long twoMinutesAgoMs = Instant.now().toEpochMilli() - 120_000L;
-        SearchInterval laggedInterval = new SearchInterval(twoMinutesAgoMs - 60_000L, twoMinutesAgoMs);
+    public void testDelayedDataIsYellow() {
+        // First occurrence: count = 1
+        DatafeedProblemStats stats = new DatafeedProblemStats(0, null, 0, null, 0, false, 1);
         AnomalyDetectionHealth health = DatafeedHealthChecker.checkDatafeed(
-            DatafeedState.STARTED, null, null, laggedInterval, null
+            DatafeedState.STARTED, null, null, stats
         );
         assertThat(health.getStatus(), is(HealthStatus.YELLOW));
+        assertThat(health.getIssues(), hasSize(1));
         assertThat(health.getIssues().get(0).getType(), is(DatafeedHealthChecker.IssueType.DATA_DELAY.type));
+        assertThat(health.getIssues().get(0).getCount(), is(1));
     }
 
-    public void testDataDelayNeverExceedsYellow() {
-        // Even a very large lag must not produce RED
-        long longAgoMs = Instant.now().toEpochMilli() - 3_600_000L; // 1 hour ago
-        SearchInterval laggedInterval = new SearchInterval(longAgoMs - 60_000L, longAgoMs);
+    public void testDelayedDataCountIsPreserved() {
+        // Multiple consecutive delayed buckets — count must be surfaced correctly
+        DatafeedProblemStats stats = new DatafeedProblemStats(0, null, 0, null, 0, false, 5);
         AnomalyDetectionHealth health = DatafeedHealthChecker.checkDatafeed(
-            DatafeedState.STARTED, null, null, laggedInterval, null
+            DatafeedState.STARTED, null, null, stats
+        );
+        assertThat(health.getStatus(), is(HealthStatus.YELLOW));
+        assertThat(health.getIssues().get(0).getCount(), is(5));
+    }
+
+    public void testDelayedDataNeverExceedsYellow() {
+        // Even a very large count must not produce RED
+        DatafeedProblemStats stats = new DatafeedProblemStats(0, null, 0, null, 0, false, 1000);
+        AnomalyDetectionHealth health = DatafeedHealthChecker.checkDatafeed(
+            DatafeedState.STARTED, null, null, stats
         );
         assertThat(health.getStatus(), is(HealthStatus.YELLOW));
     }
 
     public void testNullProblemStatsDoesNotThrow() {
         AnomalyDetectionHealth health = DatafeedHealthChecker.checkDatafeed(
-            DatafeedState.STARTED, null, null, null, null
+            DatafeedState.STARTED, null, null, null
         );
         assertThat(health.getStatus(), is(HealthStatus.GREEN));
     }

@@ -97,6 +97,7 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
             private final Instant analysisFailureFirstTime;
             private final int emptyDataCount;
             private final boolean analysisFailureFatal;
+            private final int delayedDataBucketCount;
 
             public DatafeedProblemStats(
                 int extractionFailureCount,
@@ -104,7 +105,8 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
                 int analysisFailureCount,
                 @Nullable Instant analysisFailureFirstTime,
                 int emptyDataCount,
-                boolean analysisFailureFatal
+                boolean analysisFailureFatal,
+                int delayedDataBucketCount
             ) {
                 this.extractionFailureCount = extractionFailureCount;
                 this.extractionFailureFirstTime = extractionFailureFirstTime;
@@ -112,6 +114,7 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
                 this.analysisFailureFirstTime = analysisFailureFirstTime;
                 this.emptyDataCount = emptyDataCount;
                 this.analysisFailureFatal = analysisFailureFatal;
+                this.delayedDataBucketCount = delayedDataBucketCount;
             }
 
             public DatafeedProblemStats(StreamInput in) throws IOException {
@@ -121,6 +124,7 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
                 this.analysisFailureFirstTime = in.readOptionalInstant();
                 this.emptyDataCount = in.readVInt();
                 this.analysisFailureFatal = in.readBoolean();
+                this.delayedDataBucketCount = in.readVInt();
             }
 
             @Override
@@ -131,6 +135,7 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
                 out.writeOptionalInstant(analysisFailureFirstTime);
                 out.writeVInt(emptyDataCount);
                 out.writeBoolean(analysisFailureFatal);
+                out.writeVInt(delayedDataBucketCount);
             }
 
             public int getExtractionFailureCount() {
@@ -159,6 +164,10 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
                 return analysisFailureFatal;
             }
 
+            public int getDelayedDataBucketCount() {
+                return delayedDataBucketCount;
+            }
+
             @Override
             public boolean equals(Object o) {
                 if (this == o) return true;
@@ -168,6 +177,7 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
                     && analysisFailureCount == that.analysisFailureCount
                     && emptyDataCount == that.emptyDataCount
                     && analysisFailureFatal == that.analysisFailureFatal
+                    && delayedDataBucketCount == that.delayedDataBucketCount
                     && Objects.equals(extractionFailureFirstTime, that.extractionFailureFirstTime)
                     && Objects.equals(analysisFailureFirstTime, that.analysisFailureFirstTime);
             }
@@ -180,7 +190,8 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
                     analysisFailureCount,
                     analysisFailureFirstTime,
                     emptyDataCount,
-                    analysisFailureFatal
+                    analysisFailureFatal,
+                    delayedDataBucketCount
                 );
             }
         }

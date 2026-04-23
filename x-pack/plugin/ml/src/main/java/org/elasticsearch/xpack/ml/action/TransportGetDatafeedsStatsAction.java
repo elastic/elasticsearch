@@ -144,7 +144,6 @@ public class TransportGetDatafeedsStatsAction extends HandledTransportAction<Req
                 stats.getDatafeedState(),
                 stats.getNode(),
                 stats.getAssignmentExplanation(),
-                runningState != null ? runningState.getSearchInterval() : null,
                 runningState != null ? runningState.getProblemStats() : null
             );
             return new DatafeedStats(

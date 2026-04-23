@@ -83,8 +83,6 @@ public class AnthropicChatCompletionActionTests extends ESTestCase {
         var senderFactory = new HttpRequestSender.Factory(createWithEmptySettings(threadPool), clientManager, mockClusterServiceEmpty());
 
         try (var sender = createSender(senderFactory)) {
-            HttpRequestSenderTests.startSynchronously(sender);
-
             String responseJson = """
                 {
                     "id": "msg_01XzZQmG41BMGe5NZ5p2vEWb",
@@ -192,8 +190,6 @@ public class AnthropicChatCompletionActionTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            HttpRequestSenderTests.startSynchronously(sender);
-
             String responseJson = """
                 {
                     "id": "msg_01XzZQmG41BMGe5NZ5p2vEWb",

@@ -107,8 +107,6 @@ public abstract class ChatCompletionActionTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            HttpRequestSenderTests.startSynchronously(sender);
-
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(getResponseJson()));
 
             var action = createAction(getUrl(webServer), sender);

@@ -80,8 +80,6 @@ public class AzureOpenAiCompletionActionTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            HttpRequestSenderTests.startSynchronously(sender);
-
             String responseJson = """
                 {
                     "choices": [

@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecut
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
-import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ChatCompletionActionTests;
@@ -48,8 +47,6 @@ public class MistralChatCompletionActionTests extends ChatCompletionActionTests 
         var senderFactory = new HttpRequestSender.Factory(createWithEmptySettings(threadPool), clientManager, mockClusterServiceEmpty());
 
         try (var sender = createSender(senderFactory)) {
-            HttpRequestSenderTests.startSynchronously(sender);
-
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(getResponseJson()));
 
             var action = createAction(getUrl(webServer), sender);

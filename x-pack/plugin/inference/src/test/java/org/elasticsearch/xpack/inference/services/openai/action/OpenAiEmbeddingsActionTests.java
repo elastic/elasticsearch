@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
-import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.http.sender.TruncatingRequestManager;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
@@ -87,8 +86,6 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
         );
 
         try (var sender = senderFactory.createSender()) {
-            HttpRequestSenderTests.startSynchronously(sender);
-
             String responseJson = """
                 {
                   "object": "list",

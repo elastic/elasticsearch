@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.metadata.DataSourceMetadata;
 import org.elasticsearch.cluster.metadata.DataSourceReference;
 import org.elasticsearch.cluster.metadata.DataSourceSetting;
 import org.elasticsearch.cluster.metadata.Dataset;
-import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -46,7 +45,13 @@ public class DatasetRewriterTests extends ESTestCase {
 
     public void testSingleDatasetRewritesToUnresolvedExternalRelation() {
         DataSource parent = dataSource("s3_parent", Map.of("region", new DataSourceSetting("us-east-1", false)));
-        Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/*.parquet", null, Map.of("format", "parquet"));
+        Dataset dataset = new Dataset(
+            "logs",
+            new DataSourceReference("s3_parent"),
+            "s3://logs/*.parquet",
+            null,
+            Map.of("format", "parquet")
+        );
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
 
         LogicalPlan rewritten = DatasetRewriter.rewrite(relationOf("logs"), project);
@@ -100,10 +105,7 @@ public class DatasetRewriterTests extends ESTestCase {
         Dataset orphan = new Dataset("orphan", new DataSourceReference("ghost_parent"), "s3://x/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of(), Map.of("orphan", orphan));
 
-        VerificationException ex = expectThrows(
-            VerificationException.class,
-            () -> DatasetRewriter.rewrite(relationOf("orphan"), project)
-        );
+        VerificationException ex = expectThrows(VerificationException.class, () -> DatasetRewriter.rewrite(relationOf("orphan"), project));
         assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("dataset [orphan]"));
         assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("unknown data source [ghost_parent]"));
     }

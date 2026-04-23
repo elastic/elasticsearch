@@ -197,7 +197,7 @@ public class BundleChangelogsTask extends DefaultTask {
 
             // Fetch changelog entries from external repositories
             for (ExternalChangelogSource source : externalSources) {
-                List<ChangelogEntry> externalEntries = fetchExternalChangelogs(source, branch, esBcRefForGit);
+                List<ChangelogEntry> externalEntries = fetchExternalChangelogs(source, branch, esBcRefForGit, upstreamRemote);
                 if (externalEntries.isEmpty() == false) {
                     LOGGER.info("Adding {} entries from {}", externalEntries.size(), source.sourceRepo());
                     entries.addAll(externalEntries);
@@ -256,22 +256,25 @@ public class BundleChangelogsTask extends DefaultTask {
      * <p>
      * When {@code bcRefForFilter} is non-null (Elasticsearch {@code --bc-ref} is in use),
      * it must already be resolved for this repository (see {@link #resolveElasticsearchGitRef}).
-     * Entries are filtered like local post-BC YAML files: an entry is kept only if
-     * {@code git log} on {@code bcRefForFilter} in this repository finds the PR, or
-     * {@code git log} on the fetched external branch finds it in commits not newer than
-     * the BC ref's committer date (so ml-cpp-only PRs can match without admitting merges
-     * that landed on the external branch after the BC cut).
+     * Entries with a {@code pr} are kept only when that PR appears in external history not newer
+     * than the BC ref's committer date (see {@link #gitLogHasGrepUntil}). Entries without a
+     * {@code pr} are kept when the changelog file already existed in the external tree at that
+     * cutoff (see {@link #externalChangelogFileExistedAtOrBeforeBc}).
+     * <p>
+     * {@code esUpstreamRemote} strips {@code <remote>/} from {@code branchRef} for {@code git fetch}
+     * (same remote name as {@link GitWrapper#getUpstream()}).
      */
     private List<ChangelogEntry> fetchExternalChangelogs(
         ExternalChangelogSource source,
         String branchRef,
-        @Nullable String bcRefForFilter
+        @Nullable String bcRefForFilter,
+        String esUpstreamRemote
     ) {
         if (isShaRef(branchRef)) {
             LOGGER.info("Skipping external changelog fetch for SHA-valued --branch: {}", branchRef);
             return List.of();
         }
-        String normalizedBranch = normalizeBranchForExternalFetch(branchRef);
+        String normalizedBranch = normalizeBranchForExternalFetch(branchRef, esUpstreamRemote);
 
         try {
             if (bcRefForFilter != null && bcRefForFilter.isBlank() == false) {
@@ -312,14 +315,14 @@ public class BundleChangelogsTask extends DefaultTask {
 
         LOGGER.info("Found {} changelog file(s) in {}:{}", files.size(), source.sourceRepo(), normalizedBranch);
 
-        List<ChangelogEntry> entries = new ArrayList<>();
+        List<ParsedExternalChangelog> parsed = new ArrayList<>();
         for (String filePath : files) {
             try {
                 String content = gitWrapper.runCommand("git", "show", "FETCH_HEAD:" + filePath);
                 ChangelogEntry entry = ChangelogEntry.parse(content);
                 entry.setSourceRepo(source.sourceRepo());
                 applyExternalFilenamePrFallback(filePath, entry);
-                entries.add(entry);
+                parsed.add(new ParsedExternalChangelog(filePath, entry));
             } catch (Exception e) {
                 LOGGER.warn("Failed to parse external changelog {}: {}", filePath, e.getMessage());
             }
@@ -327,23 +330,27 @@ public class BundleChangelogsTask extends DefaultTask {
 
         if (bcRefForFilter != null && bcRefForFilter.isBlank() == false) {
             String bcCommitterIso = committerIsoAtRef(bcRefForFilter);
-            int before = entries.size();
-            entries = entries.stream()
-                .filter(e -> includeExternalChangelogForBuildCandidate(e, externalHead, bcCommitterIso))
+            int before = parsed.size();
+            parsed = parsed.stream()
+                .filter(
+                    p -> includeExternalChangelogForBuildCandidate(p.entry(), externalHead, bcCommitterIso, p.repoRelativePath())
+                )
                 .collect(Collectors.toCollection(ArrayList::new));
-            if (before != entries.size()) {
+            if (before != parsed.size()) {
                 LOGGER.info(
                     "Filtered {} external changelog(s) from {} for BC ref {} ({} remaining)",
-                    before - entries.size(),
+                    before - parsed.size(),
                     source.sourceRepo(),
                     bcRefForFilter,
-                    entries.size()
+                    parsed.size()
                 );
             }
         }
 
-        return entries;
+        return parsed.stream().map(ParsedExternalChangelog::entry).collect(Collectors.toCollection(ArrayList::new));
     }
+
+    private record ParsedExternalChangelog(String repoRelativePath, ChangelogEntry entry) {}
 
     /**
      * For external changelog entries, the {@code pr} field refers to that external repository,
@@ -351,15 +358,39 @@ public class BundleChangelogsTask extends DefaultTask {
      * unrelated ES PR with the same number. We only consult the fetched external tip, capped
      * by the BC ref's committer date (see {@link #gitLogHasGrepUntil}).
      * <p>
-     * Entries without a PR number cannot be checked against the BC cut and are excluded.
+     * When {@code pr} is absent, we keep the entry only if {@code repoRelativePath} already
+     * existed in the external tree at or before the BC committer time (mirroring local
+     * {@code entriesFromBc} behavior).
      */
-    private boolean includeExternalChangelogForBuildCandidate(ChangelogEntry entry, String externalTip, String bcCommitterIso) {
+    private boolean includeExternalChangelogForBuildCandidate(
+        ChangelogEntry entry,
+        String externalTip,
+        String bcCommitterIso,
+        String repoRelativePath
+    ) {
         Integer pr = entry.getPr();
         if (pr == null) {
-            return false;
+            return externalChangelogFileExistedAtOrBeforeBc(externalTip, bcCommitterIso, repoRelativePath);
         }
         String grep = "(#" + pr + ")";
         return gitLogHasGrepUntil(externalTip, grep, bcCommitterIso);
+    }
+
+    /**
+     * True if {@code pathInRepo} is present in the tree at the latest commit on {@code externalTip}'s
+     * history with committer time not newer than {@code bcCommitterIso}.
+     */
+    private boolean externalChangelogFileExistedAtOrBeforeBc(String externalTip, String bcCommitterIso, String pathInRepo) {
+        try {
+            String rev = gitWrapper.runCommand("git", "rev-list", "-n", "1", "--until", bcCommitterIso, externalTip).trim();
+            if (rev.isEmpty()) {
+                return false;
+            }
+            gitWrapper.runCommand("git", "cat-file", "-e", rev + ":" + pathInRepo);
+            return true;
+        } catch (RuntimeException e) {
+            return false;
+        }
     }
 
     /**
@@ -380,7 +411,7 @@ public class BundleChangelogsTask extends DefaultTask {
         try {
             entry.setPr(Integer.parseInt(stem));
         } catch (NumberFormatException e) {
-            // leave unset; BC filtering will drop the entry if needed
+            // leave unset; BC filtering uses tree-at-BC for inclusion when pr is absent
         }
     }
 
@@ -429,11 +460,20 @@ public class BundleChangelogsTask extends DefaultTask {
     /**
      * Normalizes a branch reference for use with external repos. Strips known
      * remote prefixes ({@code upstream/}, {@code origin/}) which are ES-repo-specific,
-     * and rejects raw commit SHAs since they are meaningless for external repositories.
-     * All other refs (including branch names with slashes like {@code feature/foo})
-     * are passed through unchanged.
+     * and when {@code esUpstreamRemote} is set, strips {@code <remote>/} for the
+     * Elasticsearch remote name returned by {@link GitWrapper#getUpstream()} (e.g.
+     * {@code elastic/main} → {@code main}) so {@code git fetch} targets a branch that
+     * exists on the external repository.
+     * <p>
+     * Raw commit SHAs are rejected since they are meaningless for external repositories.
+     * Other refs (including branch names with slashes like {@code feature/foo}) are passed
+     * through except for the prefixes above.
      */
     static String normalizeBranchForExternalFetch(String branchRef) {
+        return normalizeBranchForExternalFetch(branchRef, null);
+    }
+
+    static String normalizeBranchForExternalFetch(String branchRef, @Nullable String esUpstreamRemote) {
         if (isShaRef(branchRef)) {
             throw new IllegalArgumentException(
                 "Cannot use a commit SHA ("
@@ -447,6 +487,12 @@ public class BundleChangelogsTask extends DefaultTask {
         for (String prefix : KNOWN_REMOTE_PREFIXES) {
             if (branchRef.startsWith(prefix)) {
                 return branchRef.substring(prefix.length());
+            }
+        }
+        if (esUpstreamRemote != null && esUpstreamRemote.isBlank() == false) {
+            String remotePrefix = esUpstreamRemote + "/";
+            if (branchRef.startsWith(remotePrefix)) {
+                return branchRef.substring(remotePrefix.length());
             }
         }
         return branchRef;

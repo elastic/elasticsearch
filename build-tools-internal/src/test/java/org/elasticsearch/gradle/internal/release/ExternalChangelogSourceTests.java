@@ -72,6 +72,12 @@ public class ExternalChangelogSourceTests {
     }
 
     @Test
+    public void testNormalizeBranchStripsConfiguredElasticsearchRemote() {
+        assertThat(BundleChangelogsTask.normalizeBranchForExternalFetch("elastic/9.2", "elastic"), equalTo("9.2"));
+        assertThat(BundleChangelogsTask.normalizeBranchForExternalFetch("myfork/feature/x", "myfork"), equalTo("feature/x"));
+    }
+
+    @Test
     public void testNormalizeBranchPreservesSlashesInBranchNames() {
         assertThat(BundleChangelogsTask.normalizeBranchForExternalFetch("feature/foo"), equalTo("feature/foo"));
         assertThat(BundleChangelogsTask.normalizeBranchForExternalFetch("refs/heads/main"), equalTo("refs/heads/main"));

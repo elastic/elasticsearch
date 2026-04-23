@@ -523,7 +523,7 @@ public class GoogleVertexAiEmbeddingsServiceSettingsTests extends AbstractBWCWir
         var maxBatchSize = instance.maxBatchSize();
         var similarity = instance.similarity();
         var rateLimitSettings = instance.rateLimitSettings();
-        switch (randomIntBetween(0, 8)) {
+        switch (randomInt(8)) {
             case 0 -> location = randomValueOtherThan(location, () -> randomAlphaOfLength(10));
             case 1 -> projectId = randomValueOtherThan(projectId, () -> randomAlphaOfLength(10));
             case 2 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(10));

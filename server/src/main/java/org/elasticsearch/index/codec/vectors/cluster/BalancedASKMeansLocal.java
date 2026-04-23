@@ -174,9 +174,6 @@ abstract class BalancedASKMeansLocal extends KMeansLocal {
         int miniBatchSizeLocal = (miniBatchSize < 0) ? Math.absExact(miniBatchSize) * k : miniBatchSize;
         miniBatchSizeLocal = Math.min(miniBatchSizeLocal, n);
 
-        // Tolerance for the relative difference between centroids in two consecutive iterations. Used to check convergence
-        float convergenceRelativeTolerance = (vectors.dimension() < 100) ? 1e-3f : 1e-2f;
-
         int[] localAssignments; // assignments of sampledVectors in the mini batch to centroids
         float[][] distances; // distances from sampledVectors in the mini batch to centroids
         int[] miniBatchSamples = new int[miniBatchSizeLocal]; // stores the samples in the mini batch
@@ -199,9 +196,6 @@ abstract class BalancedASKMeansLocal extends KMeansLocal {
         }
 
         OnlineQuantileEstimator medianEstimator = null; // We cannot initialize the estimator now because we need to know its range.
-
-        float[][] oldCentroids = new float[k][vectors.dimension()];
-        deepCopy(centroids, oldCentroids);
 
         int t = 0;
         for (int epoch = 0; epoch < maxIterations; epoch++) {
@@ -248,12 +242,6 @@ abstract class BalancedASKMeansLocal extends KMeansLocal {
             }
             for (int kk = 0; kk < k; kk++) {
                 cumulativeClusterWeights[kk] *= forgettingFactor;
-            }
-
-            if (normalizedFrobeniusNorm(centroids, oldCentroids) < convergenceRelativeTolerance) {
-                break;
-            } else {
-                deepCopy(centroids, oldCentroids);
             }
         }
 

@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -34,7 +35,6 @@ import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.NodeDisconnectedException;
-import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportRequestOptions.Type;
@@ -269,7 +269,7 @@ public class LeaderChecker {
                     return;
                 }
 
-                if (exp instanceof ReceiveTimeoutTransportException) {
+                if (exp instanceof ElasticsearchTimeoutException) {
                     timeoutCountSinceLastSuccess += 1;
                 } else {
                     rejectedCountSinceLastSuccess += 1;

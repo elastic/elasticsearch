@@ -496,7 +496,8 @@ public class ServerCliTests extends CommandTestCase {
             if (mockSecureSettingsLoader != null) {
                 return mockSecureSettingsLoader;
             }
-            return super.secureSettingsLoader(processInfo);
+            var loader = super.secureSettingsLoader(processInfo);
+            return loader instanceof KeyStoreLoader ? new KeystoreSecureSettingsLoader() : loader;
         }
 
         @Override

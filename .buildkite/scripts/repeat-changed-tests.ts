@@ -45,7 +45,7 @@ export const BATCH_CAPS: Record<TestKind, number> = {
   javaRestTest: 4,
   yamlRestTestSuite: 4,
   yamlRestTestRunner: 1,
-  yamlRestTestCase: 1,
+  yamlRestTestCase: 4,
 };
 
 export interface ClassifiedTest {
@@ -356,7 +356,7 @@ const KIND_LABELS: Record<TestKind, string> = {
   javaRestTest: "java rest tests",
   yamlRestTestRunner: "yaml rest test runner",
   yamlRestTestSuite: "yaml rest tests",
-  yamlRestTestCase: "yaml rest test case",
+  yamlRestTestCase: "yaml rest test cases",
 };
 
 const KIND_KEYS: Record<TestKind, string> = {
@@ -436,12 +436,14 @@ export function generateBatchCommand(batch: ClassifiedTest[]): string {
       return `.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh ${tasks} ${suiteProps}`;
     }
     case "yamlRestTestCase": {
-      // BATCH_CAPS.yamlRestTestCase is 1, so each batch holds exactly one test.
-      // `-Dtests.method` targets a single parameterized yaml case; batching
-      // multiple cases into one gradle invocation would require a different
-      // filter mechanism and is intentionally not attempted here.
-      const test = batch[0];
-      return `.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh ${test.gradleProject}:yamlRestTest --tests ${test.fqcn} -Dtests.method="${test.yamlTest}" --rerun`;
+      // Each parameterized case is addressed by the full `<FQCN>.test {yaml=...}`
+      // form, so multiple cases can be batched into one gradle invocation and
+      // share agent and cluster setup. MutedTestPlugin sets
+      // `failOnNoMatchingTests = false` in CI, making cross-project batching
+      // safe even when a filter matches nothing in some of the selected tasks.
+      const projects = [...new Set(batch.map((t) => `${t.gradleProject}:yamlRestTest`))];
+      const testFilters = batch.map((t) => `--tests "${t.fqcn}.${t.yamlTest}"`).join(" ");
+      return `.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh ${projects.join(" ")} ${testFilters} --rerun`;
     }
   }
 }

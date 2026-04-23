@@ -479,7 +479,51 @@ describe("generateBatchCommand", () => {
       },
     ];
     expect(generateBatchCommand(batch)).toBe(
-      '.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:apm-data:yamlRestTest --tests org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT -Dtests.method="test {yaml=/10_apm/Test template reinstallation}" --rerun'
+      '.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:apm-data:yamlRestTest --tests "org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT.test {yaml=/10_apm/Test template reinstallation}" --rerun'
+    );
+  });
+
+  test("YAML REST test cases batched across projects", () => {
+    const batch: ClassifiedTest[] = [
+      {
+        gradleProject: ":x-pack:plugin:apm-data",
+        kind: "yamlRestTestCase",
+        sourceSet: "yamlRestTest",
+        fqcn: "org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT",
+        yamlTest: "test {yaml=/10_apm/Test template reinstallation}",
+      },
+      {
+        gradleProject: ":x-pack:plugin:ml",
+        kind: "yamlRestTestCase",
+        sourceSet: "yamlRestTest",
+        fqcn: "org.elasticsearch.xpack.ml.MlYamlIT",
+        yamlTest: "test {yaml=ml/anomaly_detectors_get/basic}",
+      },
+    ];
+    expect(generateBatchCommand(batch)).toBe(
+      '.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:apm-data:yamlRestTest :x-pack:plugin:ml:yamlRestTest --tests "org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT.test {yaml=/10_apm/Test template reinstallation}" --tests "org.elasticsearch.xpack.ml.MlYamlIT.test {yaml=ml/anomaly_detectors_get/basic}" --rerun'
+    );
+  });
+
+  test("YAML REST test cases from the same project dedupe the task list", () => {
+    const batch: ClassifiedTest[] = [
+      {
+        gradleProject: ":x-pack:plugin:ml",
+        kind: "yamlRestTestCase",
+        sourceSet: "yamlRestTest",
+        fqcn: "org.elasticsearch.xpack.ml.MlYamlIT",
+        yamlTest: "test {yaml=ml/a}",
+      },
+      {
+        gradleProject: ":x-pack:plugin:ml",
+        kind: "yamlRestTestCase",
+        sourceSet: "yamlRestTest",
+        fqcn: "org.elasticsearch.xpack.ml.MlYamlIT",
+        yamlTest: "test {yaml=ml/b}",
+      },
+    ];
+    expect(generateBatchCommand(batch)).toBe(
+      '.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest --tests "org.elasticsearch.xpack.ml.MlYamlIT.test {yaml=ml/a}" --tests "org.elasticsearch.xpack.ml.MlYamlIT.test {yaml=ml/b}" --rerun'
     );
   });
 });

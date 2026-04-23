@@ -31,12 +31,10 @@ public class DocValuesFieldFactory {
 
     private final MultiValue multiValue;
     private final boolean hasSkipper;
-    private final IndexVersion indexVersion;
 
-    public DocValuesFieldFactory(MultiValue multiValue, boolean hasSkipper, IndexVersion indexVersion) {
+    public DocValuesFieldFactory(MultiValue multiValue, boolean hasSkipper) {
         this.multiValue = multiValue;
         this.hasSkipper = hasSkipper;
-        this.indexVersion = indexVersion;
     }
 
     /**
@@ -64,11 +62,22 @@ public class DocValuesFieldFactory {
     }
 
     /**
+     * Adds a binary doc values field using the current index version's on-disk format. Use this overload for fields whose binary
+     * doc values have always been written in {@link MultiValuedBinaryDocValuesField.SeparateCount SeparateCount} format.
+     */
+    public void addBinaryField(LuceneDocument doc, String name, BytesRef value, ValueOrdering ordering) {
+        addBinaryField(doc, name, value, ordering, IndexVersion.current());
+    }
+
+    /**
      * Adds a binary doc values field. For {@code multi_value=no}, creates a plain {@link BinaryDocValuesField} (single-valued,
      * no companion {@code .counts} field). Otherwise, delegates to {@link MultiValuedBinaryDocValuesField#addToBinaryFieldInDoc}
      * which handles the multi-valued encoding.
+     * <p>
+     * Use this overload for fields that historically stored {@link MultiValuedBinaryDocValuesField.IntegratedCount IntegratedCount} data
+     * (pre-{@link org.elasticsearch.index.IndexVersions#DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES}).
      */
-    public void addBinaryField(LuceneDocument doc, String name, BytesRef value, ValueOrdering ordering) {
+    public void addBinaryField(LuceneDocument doc, String name, BytesRef value, ValueOrdering ordering, IndexVersion indexVersion) {
         if (multiValue.isSingleValued()) {
             doc.add(new BinaryDocValuesField(name, value));
         } else {

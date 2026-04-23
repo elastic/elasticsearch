@@ -1668,7 +1668,7 @@ public final class TextFieldMapper extends FieldMapper {
         this.index = builder.index.getValue();
         this.store = builder.store.getValue();
         this.docValuesParameters = builder.docValuesParameters.getValue();
-        this.dvFactory = new DocValuesFieldFactory(docValuesParameters.multiValue(), false, indexCreatedVersion);
+        this.dvFactory = new DocValuesFieldFactory(docValuesParameters.multiValue(), false);
         this.similarity = builder.similarity.getValue();
         this.indexOptions = builder.indexOptions.getValue();
         this.norms = builder.norms.getValue();
@@ -1771,7 +1771,14 @@ public final class TextFieldMapper extends FieldMapper {
     }
 
     private void storeValueInFallbackField(String fallbackFieldName, BytesRef bytesRef, DocumentParserContext context) {
-        dvFactory.addBinaryField(context.doc(), fallbackFieldName, bytesRef, MultiValuedBinaryDocValuesField.ValueOrdering.SORTED);
+        // pass IndexVersion since fallback fields used to use the IntegratedCounts format
+        dvFactory.addBinaryField(
+            context.doc(),
+            fallbackFieldName,
+            bytesRef,
+            MultiValuedBinaryDocValuesField.ValueOrdering.SORTED,
+            indexCreatedVersion
+        );
     }
 
     /**

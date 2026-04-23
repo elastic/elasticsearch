@@ -659,11 +659,7 @@ public class IpFieldMapper extends FieldMapper {
         super(simpleName, mappedFieldType, builderParams);
         this.indexed = builder.indexed.getValue();
         this.docValuesParameters = builder.docValuesParameters.getValue();
-        this.dvFactory = new DocValuesFieldFactory(
-            docValuesParameters.multiValue(),
-            fieldType().indexType.hasDocValuesSkipper(),
-            builder.indexSettings.getIndexVersionCreated()
-        );
+        this.dvFactory = new DocValuesFieldFactory(docValuesParameters.multiValue(), fieldType().indexType.hasDocValuesSkipper());
         this.stored = builder.stored.getValue();
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.nullValue = builder.parseNullValue();

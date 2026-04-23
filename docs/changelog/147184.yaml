@@ -1,5 +1,0 @@
-area: Data streams
-issues: []
-pr: 147184
-summary: Schedule DLM Frozen transition settings consumer only one time
-type: bug

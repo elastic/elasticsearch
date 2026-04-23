@@ -222,9 +222,9 @@ if (OS.current() == OS.WINDOWS) {
 
   def oldesFixtureConfiguration = project.configurations.oldesFixture
 
-  if (remoteEs79Dist != null) {
-    remoteEs79Fixture = tasks.register("remoteEs79Fixture", AntFixture) {
-      dependsOn project.configurations.oldesFixture, jdks.legacy, remoteEs79Dist
+  def registerRemoteReindex7xFixture = { String taskName, ElasticsearchDistribution dist ->
+    tasks.register(taskName, AntFixture) {
+      dependsOn project.configurations.oldesFixture, jdks.legacy, dist
       executable = "${buildParams.runtimeJavaHome.get()}/bin/java"
       env 'CLASSPATH', "${-> oldesFixtureConfiguration.asPath}"
       env 'JAVA_HOME', jdks.legacy.javaHomePath
@@ -233,7 +233,7 @@ if (OS.current() == OS.WINDOWS) {
       }
       args 'oldes.OldElasticsearch',
         baseDir,
-        "${ -> remoteEs79Dist.extracted.getSingleFile().getPath() }",
+        "${ -> dist.extracted.getSingleFile().getPath() }",
         'false',
         'xpack.security.enabled: false',
         'discovery.type: single-node'
@@ -247,29 +247,12 @@ if (OS.current() == OS.WINDOWS) {
     }
   }
 
+  if (remoteEs79Dist != null) {
+    remoteEs79Fixture = registerRemoteReindex7xFixture("remoteEs79Fixture", remoteEs79Dist)
+  }
+
   if (remoteEs710Dist != null) {
-    remoteEs710Fixture = tasks.register("remoteEs710Fixture", AntFixture) {
-      dependsOn project.configurations.oldesFixture, jdks.legacy, remoteEs710Dist
-      executable = "${buildParams.runtimeJavaHome.get()}/bin/java"
-      env 'CLASSPATH', "${-> oldesFixtureConfiguration.asPath}"
-      env 'JAVA_HOME', jdks.legacy.javaHomePath
-      if (Architecture.current() == Architecture.AARCH64) {
-        env 'ES_JAVA_OPTS', '-Xss512k'
-      }
-      args 'oldes.OldElasticsearch',
-        baseDir,
-        "${ -> remoteEs710Dist.extracted.getSingleFile().getPath() }",
-        'false',
-        'xpack.security.enabled: false',
-        'discovery.type: single-node'
-      if (Architecture.current() == Architecture.AARCH64) {
-        args 'xpack.ml.enabled: false'
-      }
-      maxWaitInSeconds = 120
-      waitCondition = { fixture, ant ->
-        return fixture.portsFile.exists()
-      }
-    }
+    remoteEs710Fixture = registerRemoteReindex7xFixture("remoteEs710Fixture", remoteEs710Dist)
   }
 
   tasks.named("javaRestTest").configure {

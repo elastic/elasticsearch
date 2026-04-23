@@ -150,6 +150,17 @@ final class SamlMetadataResolver implements Releasable, Supplier<EntityDescripto
         return resolver;
     }
 
+    /**
+     * Returns the cached IdP {@link EntityDescriptor} when metadata has been resolved successfully.
+     * This relies on the background refresh thread, and does not block on OpenSAML or network I/O.
+     * If no entity descriptor is available (i.e. the background refresh has failed to resolve one), then this method will
+     * <ul>
+     * <li>attempt to trigger another background metadata refresh (because the realm is being used so the system should check
+     *     whether the resolution problem has been fixed)</li>
+     * <li>possibly log a warning that SAML auth will fail until metadata is available (this logging is throttled)</li>
+     * <li>return an {@link UnresolvedEntity} stand-in.</li>
+     * </ul>
+     */
     @Override
     public EntityDescriptor get() {
         final EntityDescriptor descriptor = cachedEntity.get();
@@ -245,8 +256,8 @@ final class SamlMetadataResolver implements Releasable, Supplier<EntityDescripto
     }
 
     /**
-     * Resolves the entity descriptor from the OpenSAML resolver. If the first resolve returns null,
-     * forces a resolver refresh and retries once (same "refresh when null" behavior as the original code).
+     * Resolves the entity descriptor from the OpenSAML resolver.
+     * If the first resolve returns null, forces a resolver refresh and retries once.
      * Returns a non-null {@link EntityDescriptor} on success; otherwise throws (typically
      * {@link ResolverException} or a SAML exception from {@link SamlUtils#samlException}).
      */

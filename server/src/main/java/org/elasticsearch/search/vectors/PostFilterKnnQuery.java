@@ -134,6 +134,11 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
         return null;
     }
 
+    Query innerQuery() {
+        assert innerQuery instanceof Query : "[innerQuery] should have generated a Query";
+        return (Query) innerQuery;
+    }
+
     @Override
     public void profile(QueryProfiler queryProfiler) {
         queryProfiler.addVectorOpsCount(totalVectorOps);

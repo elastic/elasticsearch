@@ -33,11 +33,15 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FileDataHint;
+import org.apache.lucene.store.FileTypeHint;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RandomAccessInput;
+import org.apache.lucene.store.ReadAdvice;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -57,6 +61,7 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.Numbers.isPowerOfTwo;
@@ -698,7 +703,9 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
                 BloomFilterMetadata bloomFilterMetadata = BloomFilterMetadata.readFrom(metaInput);
                 CodecUtil.checkFooter(metaInput);
 
-                bloomFilterData = directory.openInput(bloomFilterFileName(si, segmentSuffix), context);
+                // Bloom filter files are accessed randomly during point lookups, so sequential pre-fetching would not be beneficial
+                var dataContext = context.withHints(FileTypeHint.DATA, DataAccessHint.RANDOM);
+                bloomFilterData = directory.openInput(bloomFilterFileName(si, segmentSuffix), dataContext);
                 var bloomFilterDataVersion = CodecUtil.checkIndexHeader(
                     bloomFilterData,
                     FORMAT_NAME,

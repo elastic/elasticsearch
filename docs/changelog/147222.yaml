@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 147222
+summary: "FSDirectoryFactory: fix read advice for slices inside CFS"
+type: enhancement

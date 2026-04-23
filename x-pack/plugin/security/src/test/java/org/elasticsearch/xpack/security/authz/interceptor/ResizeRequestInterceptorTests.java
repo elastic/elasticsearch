@@ -14,6 +14,8 @@ import org.elasticsearch.action.admin.indices.shrink.TransportResizeAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.MockLicenseState;
@@ -32,6 +34,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermission
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 
@@ -71,7 +74,9 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
-        AuditTrailService auditTrailService = new AuditTrailService(null, licenseState);
+        var clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(Settings.EMPTY, Set.of(XPackSettings.AUDIT_ENABLED)));
+        AuditTrailService auditTrailService = new AuditTrailService(null, licenseState, clusterService);
         final Authentication authentication = AuthenticationTestHelper.builder()
             .user(new User("john", "role"))
             .realmRef(new RealmRef("realm", "type", "node", null))
@@ -137,7 +142,11 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
-        AuditTrailService auditTrailService = new AuditTrailService(null, licenseState);
+        var noopAuditClusterService = mock(ClusterService.class);
+        when(noopAuditClusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, Set.of(XPackSettings.AUDIT_ENABLED))
+        );
+        AuditTrailService auditTrailService = new AuditTrailService(null, licenseState, noopAuditClusterService);
         final Authentication authentication = AuthenticationTestHelper.builder()
             .user(new User("john", "role"))
             .realmRef(new RealmRef("realm", "type", "node", null))

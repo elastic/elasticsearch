@@ -12,13 +12,11 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.search.SearchTransportService;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.reindex.ReindexRequestBuilder;
-import org.elasticsearch.index.reindex.ReindexSourceSearchContextLostException;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
@@ -40,20 +38,15 @@ import java.util.stream.IntStream;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.junit.Assume.assumeTrue;
-import static org.junit.Assert.assertTrue;
 
 /**
  * Asserts on the errors returned from a reindexing task when the underlying search context is no longer available.
  * {@link SearchContextMissingException} is ordinarily surfaced as a 4xx, but reindex should wrap the failure so the
  * task reports a 5xx.
  * <p>
- * This test covers the <em>point-in-time</em> local reindex path ({@link ReindexPlugin#REINDEX_PIT_SEARCH_FEATURE}):
- * it injects a {@link SearchContextMissingException} on the second shard search phase (the second page after the PIT
- * is open and the first page succeeds). It is skipped when {@link ReindexPlugin#REINDEX_PIT_SEARCH_ENABLED} is
- * {@code false}. Scroll-based pagination is not exercised here: with the PIT feature enabled, local reindex uses PIT;
- * scroll remains for {@linkplain org.elasticsearch.reindex.Reindexer remote reindex} against Elasticsearch before
- * v7.10.0, or when the PIT feature is disabled cluster-wide.
+ * This test covers the <em>point-in-time</em> local reindex path ({@link ReindexPlugin#REINDEX_PIT_SEARCH_FEATURE}).
+ * It injects a {@link SearchContextMissingException} on the second PIT search (the first page after opening the PIT
+ * succeeds, the second fails), and then asserts on the returned error
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class ReindexSearchContextFailureIT extends ESIntegTestCase {
@@ -64,10 +57,10 @@ public class ReindexSearchContextFailureIT extends ESIntegTestCase {
 
     private static final AtomicBoolean INJECT = new AtomicBoolean(false);
     /**
-     * Counts {@link SearchTransportService#QUERY_ACTION_NAME} per shard when injection is on. For PIT reindex, fail on
-     * the second phase so the PIT is open and the first page completes before the injected missing-context error.
+     * Counts {@link TransportSearchAction} invocations when injection is on. For PIT reindex, fail on the second search
+     * (first page after PIT is opened, then second page) so the first page completes before the injected error.
      */
-    private static final AtomicInteger PIT_SHARD_QUERY_INVOCATIONS = new AtomicInteger(0);
+    private static final AtomicInteger PIT_USER_SEARCH_INVOCATIONS = new AtomicInteger(0);
     private static final AtomicBoolean INJECTION_APPLIED = new AtomicBoolean(false);
 
     @Override
@@ -78,7 +71,7 @@ public class ReindexSearchContextFailureIT extends ESIntegTestCase {
     @Before
     public void resetInjectionState() {
         INJECT.set(false);
-        PIT_SHARD_QUERY_INVOCATIONS.set(0);
+        PIT_USER_SEARCH_INVOCATIONS.set(0);
         INJECTION_APPLIED.set(false);
     }
 
@@ -110,6 +103,10 @@ public class ReindexSearchContextFailureIT extends ESIntegTestCase {
         assertTrue("injected search-context failure should have been applied", INJECTION_APPLIED.get());
     }
 
+    private static boolean isPitReindexUserSearchAction(String action) {
+        return TransportSearchAction.NAME.equals(action);
+    }
+
     @SuppressWarnings("unchecked")
     private static <Response extends ActionResponse> void applySearchContextMissingFailure(ActionListener<Response> listener) {
         INJECTION_APPLIED.set(true);
@@ -138,8 +135,7 @@ public class ReindexSearchContextFailureIT extends ESIntegTestCase {
                         chain.proceed(task, action, request, listener);
                         return;
                     }
-                    if (SearchTransportService.QUERY_ACTION_NAME.equals(action)
-                        && PIT_SHARD_QUERY_INVOCATIONS.incrementAndGet() == 2) {
+                    if (isPitReindexUserSearchAction(action) && PIT_USER_SEARCH_INVOCATIONS.incrementAndGet() == 2) {
                         applySearchContextMissingFailure(listener);
                         return;
                     }

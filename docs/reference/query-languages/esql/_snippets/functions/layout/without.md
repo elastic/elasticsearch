@@ -1,6 +1,6 @@
 ```yaml {applies_to}
 serverless: preview
-stack: preview 9.5.0
+stack: preview 9.4.0
 ```
 
 ## Syntax

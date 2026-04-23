@@ -46,7 +46,7 @@ wrapped in an outer aggregation such as `AVG()` or `SUM()`), results are implici
 grouped by every time series dimension and include a `_timeseries` column. You can
 narrow or make this grouping explicit with the
 [`WITHOUT`](/reference/query-languages/esql/functions-operators/grouping-functions/without.md)
-grouping function ({applies_to}`stack: preview 9.5`). Refer to
+grouping function ({applies_to}`stack: preview 9.4`). Refer to
 [Grouping time series](/reference/query-languages/esql/commands/ts.md#grouping-time-series)
 for details and examples.
 

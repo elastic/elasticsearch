@@ -61,14 +61,17 @@ If there is no `STATS` command in the query, the output of the `TS` command gets
 When the first `STATS` after `TS` uses a bare
 [time series aggregation function](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md)
 (that is, a time series function not wrapped in an outer aggregation such as `AVG()` or `SUM()`),
-the rows are implicitly grouped by **every** [dimension](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-series-dimension)
-of the targeted time series indices. The result set includes a `_timeseries` `keyword`
+the rows are implicitly grouped by **all** [dimensions](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-series-dimension)
+of each time series. The result set includes a `_timeseries` `keyword`
 column that contains a JSON-encoded object with the dimension key/value pairs
-identifying each group. For an example, refer to [Group by all dimensions implicitly](#group-by-all-dimensions-implicitly).
+identifying each group. Only the dimensions that are actually present for a given time
+series are included — not every dimension declared in the index mappings — so different
+rows in the result may carry different dimension keys. For an example, refer to
+[Group by all dimensions implicitly](#group-by-all-dimensions-implicitly).
 
 You can make this grouping explicit, or narrow it to a subset of dimensions, using the
 [`WITHOUT`](/reference/query-languages/esql/functions-operators/grouping-functions/without.md)
-grouping function in the `BY` clause ({applies_to}`stack: preview 9.5`):
+grouping function in the `BY` clause ({applies_to}`stack: preview 9.4`):
 
 - `BY WITHOUT(dim1, dim2, ...)` groups by **all** dimensions **except** those listed.
   See [Exclude dimensions with WITHOUT](#exclude-dimensions-with-without).
@@ -82,8 +85,8 @@ For example, `TS k8s | STATS rate(network.total_bytes_in) BY host` is rejected; 
 `BY TBUCKET(1 hour)` or wrap the time series function with an outer aggregation instead.
 
 ::::{note}
-`WITHOUT` can only be used inside a `TS` pipeline. Using it in a `FROM | STATS ... BY WITHOUT(...)`
-query is rejected by the analyzer.
+`WITHOUT` can only be used inside the first `STATS` command under `TS` source. Using it in a `FROM | STATS ... BY WITHOUT(...)`
+query leads to an error.
 ::::
 
 ## Best practices
@@ -170,8 +173,10 @@ TS metrics
 ### Group by all dimensions implicitly
 
 When a bare time series aggregation function is used without a `BY` clause, results are
-implicitly grouped by every dimension and include a `_timeseries` column with the
-dimension key/value pairs:
+implicitly grouped by all dimensions of each time series and include a `_timeseries`
+column with the dimension key/value pairs. Note how the `qa` cluster rows only carry
+`cluster` and `pod` keys, while the `prod` and `staging` rows also include `region` —
+only the dimensions that actually exist for a given time series appear in `_timeseries`:
 
 ```esql
 TS k8s
@@ -181,14 +186,20 @@ TS k8s
 
 | avg:double | _timeseries:keyword |
 | --- | --- |
-| 5.18 | `{"cluster":"staging","pod":"one","region":"us"}` |
-| 4.07 | `{"cluster":"prod","pod":"two","region":["eu","us"]}` |
-| ... | ... |
+| 8.375 | `{"cluster":"prod","pod":"three","region":["eu","us"]}` |
+| 7.262931034482759 | `{"cluster":"qa","pod":"one"}` |
+| 6.870689655172414 | `{"cluster":"qa","pod":"two"}` |
+| 6.635416666666667 | `{"cluster":"qa","pod":"three"}` |
+| 6.46875 | `{"cluster":"staging","pod":"two","region":"us"}` |
+| 5.869791666666667 | `{"cluster":"staging","pod":"three","region":"us"}` |
+| 5.586956521739131 | `{"cluster":"prod","pod":"one","region":["eu","us"]}` |
+| 5.1826923076923075 | `{"cluster":"staging","pod":"one","region":"us"}` |
+| 4.0703125 | `{"cluster":"prod","pod":"two","region":["eu","us"]}` |
 
 ### Exclude dimensions with WITHOUT
 
 Use [`WITHOUT`](/reference/query-languages/esql/functions-operators/grouping-functions/without.md)
-({applies_to}`stack: preview 9.5`) in the `BY` clause to exclude specific dimensions from
+({applies_to}`stack: preview 9.4`) in the `BY` clause to exclude specific dimensions from
 the time series grouping. For example, group by every dimension except `pod`:
 
 ```esql
@@ -202,6 +213,17 @@ TS k8s
 | 15.875 | `{"cluster":"staging","region":"us"}` |
 | 18.625 | `{"cluster":"prod","region":["eu","us"]}` |
 | 26.5 | `{"cluster":"qa"}` |
+
+`WITHOUT` can be combined with
+[`TBUCKET`](/reference/query-languages/esql/functions-operators/grouping-functions/tbucket.md)
+to add a time bucket to the grouping — useful for producing per-interval aggregates
+across the surviving dimensions:
+
+```esql
+TS k8s
+| STATS total_cost = sum(network.cost) BY WITHOUT(pod), tbucket = TBUCKET(1 hour)
+| SORT total_cost
+```
 
 Passing no arguments (`WITHOUT()`) is equivalent to grouping by all dimensions — the same
 as omitting the `BY` clause entirely. Refer to the

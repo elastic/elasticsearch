@@ -1633,7 +1633,6 @@ public class Security extends Plugin
         IPFilter.addSettings(settingsList);
 
         // audit settings
-        settingsList.add(XPackSettings.AUDIT_ENABLED);
         LoggingAuditTrail.registerSettings(settingsList);
 
         // authentication and authorization settings

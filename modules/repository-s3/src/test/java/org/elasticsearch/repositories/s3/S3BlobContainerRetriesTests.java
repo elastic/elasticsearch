@@ -59,6 +59,7 @@ import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.After;
 import org.junit.Before;
@@ -121,6 +122,10 @@ import static org.hamcrest.Matchers.matchesRegex;
  * This class tests how a {@link S3BlobContainer} and its underlying AWS S3 client are retrying requests when reading or writing blobs.
  */
 @SuppressForbidden(reason = "use a http server")
+@TestLogging(
+    value = "org.elasticsearch.entitlement.runtime.policy.PolicyManager.repository-s3.ALL-UNNAMED.software.amazon.awssdk.profiles:ERROR",
+    reason = "reduce WARN spam from ~/.aws/credentials"
+)
 public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTestCase {
 
     private static final int MAX_NUMBER_SNAPSHOT_DELETE_RETRIES = 10;

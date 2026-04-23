@@ -105,17 +105,13 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "Plan \\[ProjectExec\\[\\[<no-fields>.* optimized incorrectly due to missing references",
         "The incoming YAML document exceeds the limit:", // still to investigate, but it seems to be specific to the test framework
         "Data too large", // Circuit breaker exceptions eg. https://github.com/elastic/elasticsearch/issues/130072
-        "long overflow", // https://github.com/elastic/elasticsearch/issues/135759
-        "can't find input for", // https://github.com/elastic/elasticsearch/issues/136596
+        "long overflow", // https://github.com/elastic/elasticsearch/issues/99575
         "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/138231
         // https://github.com/elastic/elasticsearch/issues/142537 for null arguments in clamp() function
         "'field' must not be null in clamp\\(\\)", // clamp/clamp_min/clamp_max reject NULL field from unmapped fields
         "must be \\[boolean, date, ip, string or numeric except unsigned_long or counter types\\]", // type mismatch in top() arguments
         "Does not support yet aggregations over constants", // https://github.com/elastic/elasticsearch/issues/118292
-        "found value \\[.*\\] type \\[unsupported\\]", // https://github.com/elastic/elasticsearch/issues/142761
         "Field \\[.*\\] of type \\[.*\\] does not support match.* queries",
-        // https://github.com/elastic/elasticsearch/issues/145570
-        "function cannot operate on \\[from .*\\], which is not a field from an index mapping",
         // https://github.com/elastic/elasticsearch/issues/145570
         "function cannot operate on \\[.*\\], which is not a field from an index mapping",
         "\\[:\\] operator cannot operate on \\[.*\\], which is not a field from an index mapping",
@@ -138,10 +134,13 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "second argument of .* must be \\[date_nanos or datetime\\], found value \\[@timestamp\\] type \\[.*\\]",
         "expected named expression for grouping; got ",
         "Time-series aggregations require direct use of @timestamp which was not found. If @timestamp was renamed in EVAL, "
-            + "use the original @timestamp field instead.", // https://github.com/elastic/elasticsearch/issues/140607
+            + "use the original @timestamp field instead.", // https://github.com/elastic/elasticsearch/pull/141196
 
-        // Ts-command errors awaiting fixes
-        "Output has changed from \\[.*\\] to \\[.*\\]" // https://github.com/elastic/elasticsearch/issues/134794
+        // _doc field unexpectedly appearing in output after FORK
+        "Output has changed from \\[.*\\] to \\[.*_doc.*\\]", // https://github.com/elastic/elasticsearch/issues/146856
+
+        // TopNOperator type mismatch in ValueExtractor
+        "Expected \\[.*\\] but was \\[.*\\].*ValueExtractor" // https://github.com/elastic/elasticsearch/issues/146850
     );
 
     public static final Set<Pattern> ALLOWED_ERROR_PATTERNS = ALLOWED_ERRORS.stream()
@@ -149,10 +148,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         .map(x -> Pattern.compile(x, Pattern.DOTALL))
         .collect(Collectors.toSet());
 
-    private static final Pattern FULL_TEXT_AFTER_SORT_PATTERN = Pattern.compile(
-        ".*\\[(KQL|QSTR)] function cannot be used after SORT.*",
-        Pattern.DOTALL
-    );
     /**
      * Matches "Unknown column [X]" errors, optionally followed by ", did you mean [Y]?".
      * This error is expected when an unmapped field is used after a schema-fixing command (KEEP, DROP, STATS)
@@ -165,15 +160,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         Pattern.DOTALL
     );
     private static final Pattern UNKNOWN_COLUMN_PATTERN = Pattern.compile(".*Unknown column \\[([^]]+)].*", Pattern.DOTALL);
-    /**
-     * Matches "first argument of [X] is [null] so second argument must also be [null] but was [Y]" errors.
-     * This happens when an unmapped field (which resolves to DataType.NULL) is used in a binary operation
-     * with a non-null typed field. See https://github.com/elastic/elasticsearch/issues/142115
-     */
-    private static final Pattern NULL_TYPE_MISMATCH_PATTERN = Pattern.compile(
-        ".*first argument of \\[([^]]+)] is \\[null] so second argument must also be \\[null] but was \\[.*].*",
-        Pattern.DOTALL
-    );
+
     /**
      * Matches "... argument of [X] must be [Y], found value [Z] type [T]" errors.
      * This happens when an unmapped field ends up with a different data type that doesn't match the one of the function's argument(s).
@@ -236,14 +223,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                         ? execute(command, 0)
                         : execute(previousResult.query() + command, previousResult.depth());
 
-                    // Strip the artificial query approximation columns, that are added after
-                    // query execution, and trailing all other columns. These columns confuse
-                    // follow-up command generation (that try to reference them), and result
-                    // validation (that expect columns added after them).
-                    if (FromGenerator.hasApproximationSettings(result.query())) {
-                        result = stripApproximationColumns(result);
-                    }
-
                     final boolean hasException = result.exception() != null;
                     if (hasException
                         || checkPipelineResults(previousCommands, generator, current, previousResult, result, currentSchema)
@@ -295,14 +274,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                 EsqlQueryGenerator.generatePipeline(MAX_DEPTH, sourceCommand(), mappingInfo, exec, requiresTimeSeries(), this);
             } catch (Exception e) {
                 // query failures are AssertionErrors, if we get here it's an unexpected exception in the query generation
-                boolean knownError = false;
-                for (Pattern allowedError : ALLOWED_ERROR_PATTERNS) {
-                    if (isAllowedError(e.getMessage(), allowedError)) {
-                        knownError = true;
-                        break;
-                    }
-                }
-                if (knownError == false) {
+                if (isAllowedError(e.getMessage()) == false) {
                     StringBuilder message = new StringBuilder();
                     message.append("Generative tests, error generating new command \n");
                     message.append("Previous query: \n");
@@ -362,30 +334,35 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
 
     private record FailureContext(
         String errorMessage,
+        String normalizedErrorMessage,
         String query,
         List<CommandGenerator.CommandDescription> previousCommands,
         List<Column> currentSchema
     ) {
-        FailureContext {
-            previousCommands = previousCommands == null ? List.of() : previousCommands;
-            currentSchema = currentSchema == null ? List.of() : currentSchema;
+        FailureContext(
+            String errorMessage,
+            String query,
+            List<CommandGenerator.CommandDescription> previousCommands,
+            List<Column> currentSchema
+        ) {
+            this(
+                errorMessage,
+                errorMessage == null ? null : normalizeErrorMessage(errorMessage),
+                query,
+                previousCommands == null ? List.of() : previousCommands,
+                currentSchema == null ? List.of() : currentSchema
+            );
         }
     }
 
-    private static final AllowedFailureRule[] ALLOWED_FAILURE_RULES = { ctx -> {
-        for (Pattern allowedError : ALLOWED_ERROR_PATTERNS) {
-            if (isAllowedError(ctx.errorMessage, allowedError)) {
-                return true;
-            }
-        }
-        return false;
-    },
-        ctx -> isUnmappedFieldError(ctx.errorMessage, ctx.query),
-        ctx -> isScalarTypeMismatchError(ctx.errorMessage),
-        ctx -> isFieldFullTextError(ctx.errorMessage, ctx.query, ctx.previousCommands, ctx.currentSchema),
-        ctx -> isFullTextAfterSampleBug(ctx.errorMessage, ctx.query),
-        ctx -> isFullTextAfterWhereBugs(ctx.errorMessage),
-        ctx -> isLenientFalseFailedToCreateFullTextQueryError(ctx.errorMessage, ctx.query), };
+    private static final AllowedFailureRule[] ALLOWED_FAILURE_RULES = {
+        ctx -> matchesAllowedErrorPatterns(ctx.normalizedErrorMessage),
+        ctx -> isUnmappedFieldError(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isScalarTypeMismatchError(ctx.normalizedErrorMessage),
+        ctx -> isFieldFullTextError(ctx.normalizedErrorMessage, ctx.query, ctx.previousCommands, ctx.currentSchema),
+        ctx -> isFullTextAfterWhereBugs(ctx.normalizedErrorMessage),
+        ctx -> isLenientFalseFailedToCreateFullTextQueryError(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isTsOutputChangedError(ctx.normalizedErrorMessage, ctx.query), };
 
     private static boolean isAllowedFailure(FailureContext ctx) {
         if (ctx == null || ctx.errorMessage == null) {
@@ -454,17 +431,29 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         return ERROR_MESSAGE_LINE_BREAK.matcher(errorMessage).replaceAll("");
     }
 
+    protected static boolean isAllowedError(String errorMessage) {
+        if (errorMessage == null) {
+            return false;
+        }
+        return matchesAllowedErrorPatterns(normalizeErrorMessage(errorMessage));
+    }
+
+    private static boolean matchesAllowedErrorPatterns(String normalizedErrorMessage) {
+        for (Pattern allowedError : ALLOWED_ERROR_PATTERNS) {
+            if (allowedError.matcher(normalizedErrorMessage).matches()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     protected static boolean isAllowedError(String errorMessage, Pattern allowedPattern) {
-        String errorWithoutLineBreaks = normalizeErrorMessage(errorMessage);
-        return allowedPattern.matcher(errorWithoutLineBreaks).matches();
+        return allowedPattern.matcher(normalizeErrorMessage(errorMessage)).matches();
     }
 
     /**
      * Checks if the error is a known unmapped field error. This covers:
      * <ul>
-     *   <li>"[KQL|QSTR] function cannot be used after SORT" (https://github.com/elastic/elasticsearch/issues/142959)</li>
-     *   <li>"Rule execution limit [100] reached" - can happen with complex plans involving "nullify" unmapped fields
-     *       (https://github.com/elastic/elasticsearch/issues/142390)</li>
      *   <li>"Unknown column [X], did you mean [Y]?" - both X and Y must be unmapped field names</li>
      *   <li>"Unknown column [X]" (no suggestion) - X must be an unmapped field name</li>
      *   <li>"first argument of [X] is [null] so second argument must also be [null] but was [Y]" -
@@ -481,16 +470,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             return false;
         }
         String errorWithoutLineBreaks = normalizeErrorMessage(errorMessage);
-        if (errorWithoutLineBreaks.contains("Rule execution limit [100] reached")) {
-            return true;
-        }
 
-        Matcher matcher = FULL_TEXT_AFTER_SORT_PATTERN.matcher(errorWithoutLineBreaks);
-        if (matcher.matches()) {
-            return true;
-        }
-
-        matcher = UNKNOWN_COLUMN_WITH_SUGGESTION_PATTERN.matcher(errorWithoutLineBreaks);
+        Matcher matcher = UNKNOWN_COLUMN_WITH_SUGGESTION_PATTERN.matcher(errorWithoutLineBreaks);
         if (matcher.matches()) {
             String unknownColumn = matcher.group(1);
             String suggestedColumn = matcher.group(2);
@@ -501,12 +482,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         if (matcher.matches()) {
             String unknownColumn = matcher.group(1);
             return UNMAPPED_NAMES.contains(unknownColumn);
-        }
-
-        matcher = NULL_TYPE_MISMATCH_PATTERN.matcher(errorWithoutLineBreaks);
-        if (matcher.matches()) {
-            String expression = matcher.group(1);
-            return UNMAPPED_NAMES.stream().anyMatch(expression::contains);
         }
 
         matcher = ANY_TYPE_MISMATCH_PATTERN.matcher(errorWithoutLineBreaks);
@@ -525,8 +500,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      * These errors are acceptable since the generative tests may compose function calls with fields of these types.
      */
     private static boolean isScalarTypeMismatchError(String errorMessage) {
-        String errorWithoutLineBreaks = normalizeErrorMessage(errorMessage);
-        return SCALAR_TYPE_MISMATCH_PATTERN.matcher(errorWithoutLineBreaks).matches();
+        return SCALAR_TYPE_MISMATCH_PATTERN.matcher(errorMessage).matches();
     }
 
     private static final Pattern NOT_A_FIELD_FROM_INDEX_PATTERN = Pattern.compile(
@@ -721,8 +695,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         List<CommandGenerator.CommandDescription> previousCommands,
         List<Column> currentSchema
     ) {
-        String errorWithoutLineBreaks = normalizeErrorMessage(errorMessage);
-        Matcher m = NOT_A_FIELD_FROM_INDEX_PATTERN.matcher(errorWithoutLineBreaks);
+        Matcher m = NOT_A_FIELD_FROM_INDEX_PATTERN.matcher(errorMessage);
         if (m.matches() == false) {
             return false;
         }
@@ -745,15 +718,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         Pattern.DOTALL
     );
 
-    /**
-     * SAMPLE should not block QSTR/KQL when it appears after the WHERE containing them, but currently it does.
-     * See https://github.com/elastic/elasticsearch/issues/142694
-     */
-    static boolean isFullTextAfterSampleBug(String errorMessage, String query) {
-        return FULL_TEXT_AFTER_SAMPLE_PATTERN.matcher(normalizeErrorMessage(errorMessage)).matches()
-            && query.toLowerCase(Locale.ROOT).contains("| sample");
-    }
-
     private static final Pattern FULL_TEXT_AFTER_WHERE_PATTERN = Pattern.compile(
         ".*(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after \\(?(?i:WHERE).*",
         Pattern.DOTALL
@@ -764,8 +728,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      * See https://github.com/elastic/elasticsearch/issues/142710
      */
     static boolean isFullTextAfterWhereBugs(String errorMessage) {
-        String errorWithoutLineBreaks = normalizeErrorMessage(errorMessage);
-        return FULL_TEXT_AFTER_WHERE_PATTERN.matcher(errorWithoutLineBreaks).matches();
+        return FULL_TEXT_AFTER_WHERE_PATTERN.matcher(errorMessage).matches();
     }
 
     private static final Pattern MATCH_LENIENT_FALSE_PATTERN = Pattern.compile(
@@ -779,16 +742,33 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      * Work around a query-building failure in full-text functions when options include {@code {"lenient": false}}.
      */
     static boolean isLenientFalseFailedToCreateFullTextQueryError(String errorMessage, String query) {
-        String errorWithoutLineBreaks = normalizeErrorMessage(errorMessage);
-        if (errorWithoutLineBreaks.contains("failed to create query: For input string") == false) {
+        if (errorMessage.contains("failed to create query: For input string") == false) {
             return false;
         }
         return MATCH_LENIENT_FALSE_PATTERN.matcher(query).find() || QSTR_LENIENT_FALSE_PATTERN.matcher(query).find();
     }
 
+    private static final Pattern TS_OUTPUT_CHANGED_PATTERN = Pattern.compile(
+        ".*Output has changed from \\[.*\\] to \\[.*\\].*",
+        Pattern.DOTALL
+    );
+
+    // https://github.com/elastic/elasticsearch/issues/134794
+    static boolean isTsOutputChangedError(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        if (TS_OUTPUT_CHANGED_PATTERN.matcher(errorMessage).matches() == false) {
+            return false;
+        }
+        String trimmed = query.trim().toUpperCase(Locale.ROOT);
+        return trimmed.startsWith("TS ");
+    }
+
     @Override
     @SuppressWarnings("unchecked")
     public QueryExecuted execute(String query, int depth) {
+        QueryExecuted result;
         try {
             Map<String, Object> json = RestEsqlTestCase.runEsql(
                 new RestEsqlTestCase.RequestObjectBuilder().query(query).build(),
@@ -798,14 +778,20 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             );
             List<Column> outputSchema = outputSchema(json);
             List<List<Object>> values = (List<List<Object>>) json.get("values");
-            return new QueryExecuted(query, depth, outputSchema, values, null);
+            result = new QueryExecuted(query, depth, outputSchema, values, null);
         } catch (Exception e) {
-            return new QueryExecuted(query, depth, null, null, e);
+            result = new QueryExecuted(query, depth, null, null, e);
         } catch (AssertionError ae) {
             // this is for ensureNoWarnings()
-            return new QueryExecuted(query, depth, null, null, new RuntimeException(ae.getMessage()));
+            result = new QueryExecuted(query, depth, null, null, new RuntimeException(ae.getMessage()));
         }
-
+        // Strip the artificial query approximation columns that are added after query execution and trail all
+        // other columns. These columns confuse follow-up command generation (that try to reference them) and
+        // result validation (that expect columns added after them).
+        if (result.query() != null && FromGenerator.hasApproximationSettings(result.query())) {
+            result = stripApproximationColumns(result);
+        }
+        return result;
     }
 
     @SuppressWarnings("unchecked")

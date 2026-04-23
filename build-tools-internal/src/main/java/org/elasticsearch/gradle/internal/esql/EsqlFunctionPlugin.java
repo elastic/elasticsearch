@@ -141,7 +141,9 @@ public class EsqlFunctionPlugin implements Plugin<Project> {
                 test.systemProperty("generateDocs", "assert");
             } else {
                 test.systemProperty("generateDocs", "write");
-                FileTree snippetsTree = project.fileTree(snippetsFolder).matching(p -> p.include("**/types/*.md"));
+                FileTree snippetsTree = project.fileTree(snippetsFolder)
+                    .matching(p -> p.include("**/functions/**/*.md", "**/operators/**/*.md"));
+                FileTree typesTree = project.fileTree(snippetsFolder).matching(p -> p.include("**/types/*.md"));
                 FileTree settingsTree = project.fileTree(snippetsFolder).matching(p -> p.include("**/settings/*.md"));
                 FileTree commandsExamplesTree = project.fileTree(snippetsFolder).matching(p -> p.include("**/*.csv-spec/*.md"));
                 FileTree imagesTree = project.fileTree(imagesFolder).matching(p -> p.include("**/*.svg"));
@@ -156,6 +158,7 @@ public class EsqlFunctionPlugin implements Plugin<Project> {
                             injected,
                             folder,
                             snippetsTree,
+                            typesTree,
                             settingsTree,
                             commandsExamplesTree,
                             snippetsFolder,
@@ -185,12 +188,14 @@ public class EsqlFunctionPlugin implements Plugin<Project> {
         Injected injected,
         String folder,
         FileTree snippetsTree,
+        FileTree typesTree,
         FileTree settingsTree,
         FileTree commandsExamplesTree,
         File snippetsFolder,
         File snippetsDocFolder
     ) {
         int countSnippets = snippetsTree.getFiles().size();
+        int countTypes = typesTree.getFiles().size();
         int countQuerySettings = settingsTree.getFiles().size();
         int countCommandsExamples = commandsExamplesTree.getFiles().size();
         if (countSnippets == 0 && countCommandsExamples == 0 && countQuerySettings == 0) {
@@ -208,7 +213,7 @@ public class EsqlFunctionPlugin implements Plugin<Project> {
                 spec.from(snippetsFolder);
                 spec.into(snippetsDocFolder);
                 spec.include("**/*.md");
-                if (countSnippets <= 100) {
+                if (countTypes <= 100) {
                     spec.preserve(preserveSpec -> preserveSpec.include("**/*.md"));
                 } else {
                     spec.preserve(

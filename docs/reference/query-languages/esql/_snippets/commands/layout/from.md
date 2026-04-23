@@ -94,6 +94,9 @@ FROM employees-00001,other-employees-*
 ```
 
 ### Query remote clusters
+```{applies_to}
+stack: ga
+```
 
 Use the format `<remote_cluster_name>:<target>` to
 [query data streams and indices on remote clusters](/reference/query-languages/esql/esql-cross-clusters.md):
@@ -101,6 +104,14 @@ Use the format `<remote_cluster_name>:<target>` to
 ```esql
 FROM cluster_one:employees-00001,cluster_two:other-employees-*
 ```
+
+### Query across serverless projects
+
+```{applies_to}
+serverless: preview
+```
+
+By default, queries run across the origin project and all linked projects. To learn more, refer to [query across serverless projects](/reference/query-languages/esql/esql-cross-serverless-projects.md#use-index-expressions).
 
 ### Include metadata fields
 

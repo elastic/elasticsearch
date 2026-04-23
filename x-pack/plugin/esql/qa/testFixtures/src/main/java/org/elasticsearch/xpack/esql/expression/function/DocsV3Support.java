@@ -721,10 +721,10 @@ public abstract class DocsV3Support {
                     description.type()
                 );
             }
-            renderTypes(name, description.args());
-            renderParametersList(description.argNames(), description.argDescriptions());
             FunctionInfo info = EsqlFunctionRegistry.functionInfo(definition);
             assert info != null;
+            boolean hasTypes = renderTypes(name, description.args());
+            renderParametersList(description.args());
             renderDescription(description.description(), info.detailedDescription(), info.note());
             Optional<EsqlFunctionRegistry.ArgSignature> mapArgSignature = description.args()
                 .stream()
@@ -736,7 +736,7 @@ public abstract class DocsV3Support {
             }
             boolean hasExamples = renderExamples(info);
             boolean hasAppendix = renderAppendix(info.appendix());
-            renderFullLayout(info, hasExamples, hasAppendix, hasFunctionOptions);
+            renderFullLayout(info, hasTypes, hasExamples, hasAppendix, hasFunctionOptions);
             renderKibanaInlineDocs(name, null, info);
             renderKibanaFunctionDefinition(name, null, info, description.args(), description.variadic(), getObservabilityTier());
         }
@@ -749,7 +749,11 @@ public abstract class DocsV3Support {
 
             for (Map.Entry<String, EsqlFunctionRegistry.MapEntryArgSignature> argSignatureEntry : mapArgSignature.mapParams().entrySet()) {
                 EsqlFunctionRegistry.MapEntryArgSignature arg = argSignatureEntry.getValue();
-                rendered.append("`").append(arg.name()).append("`\n:   ");
+                rendered.append("`").append(arg.name()).append("`");
+                if (arg.appliesTo() != null && arg.appliesTo().isEmpty() == false) {
+                    rendered.append(" {applies_to}`").append(arg.appliesTo()).append("`");
+                }
+                rendered.append("\n:   ");
                 var type = arg.type().replaceAll("[\\[\\]]+", "");
                 rendered.append("(").append(type).append(") ").append(arg.description()).append("\n\n");
             }
@@ -802,6 +806,9 @@ public abstract class DocsV3Support {
 
                 // Only specify serverless if it's preview, using the preview boolean (GA is the default)
                 if (preview) {
+                    if (oneLine) {
+                        appliesToText.append("` {applies_to}`");
+                    }
                     appliesToText.append("serverless: preview");
                     if (false == oneLine) {
                         appliesToText.append('\n');
@@ -813,8 +820,13 @@ public abstract class DocsV3Support {
             return appliesToText.toString();
         }
 
-        private void renderFullLayout(FunctionInfo info, boolean hasExamples, boolean hasAppendix, boolean hasFunctionOptions)
-            throws IOException {
+        private void renderFullLayout(
+            FunctionInfo info,
+            boolean hasTypes,
+            boolean hasExamples,
+            boolean hasAppendix,
+            boolean hasFunctionOptions
+        ) throws IOException {
             // H2 heading generation removed here
             StringBuilder rendered = new StringBuilder(
                 DOCS_WARNING + """
@@ -830,8 +842,11 @@ public abstract class DocsV3Support {
                     .replace("$CATEGORY$", category)
                     .replace("$APPLIES_TO$", makeAppliesToText(Arrays.asList(info.appliesTo()), info.preview(), false))
             );
-            for (String section : new String[] { "parameters", "description", "types" }) {
+            for (String section : new String[] { "parameters", "description" }) {
                 rendered.append(addInclude(section));
+            }
+            if (hasTypes) {
+                rendered.append(addInclude("types"));
             }
             if (hasFunctionOptions) {
                 rendered.append(addInclude("functionNamedParams"));
@@ -1132,7 +1147,7 @@ public abstract class DocsV3Support {
         }
 
         @Override
-        void renderTypes(String name, List<EsqlFunctionRegistry.ArgSignature> args) throws IOException {
+        boolean renderTypes(String name, List<EsqlFunctionRegistry.ArgSignature> args) throws IOException {
             assert args.size() == 2;
             StringBuilder header = new StringBuilder("| ");
             StringBuilder separator = new StringBuilder("| ");
@@ -1161,7 +1176,7 @@ public abstract class DocsV3Support {
             Collections.sort(table);
             if (table.isEmpty()) {
                 logger.info("Warning: No table of types generated for [{}]", name);
-                return;
+                return false;
             }
 
             String rendered = DOCS_WARNING + """
@@ -1171,6 +1186,7 @@ public abstract class DocsV3Support {
             logger.info("Writing function types for [{}]", name);
             logger.debug("{}", rendered);
             writeToTempSnippetsDir("types", rendered);
+            return true;
         }
     }
 
@@ -1240,7 +1256,10 @@ public abstract class DocsV3Support {
             builder.append("serverless: ");
             builder.append(setting.preview() ? "preview" : "ga");
             builder.append("\n");
-            if (setting.serverlessOnly() == false) {
+
+            if (setting.serverlessOnly()) {
+                builder.append("stack: unavailable");
+            } else {
                 builder.append("stack: ");
                 builder.append(setting.preview() ? "preview" : "ga");
                 String since = param != null ? param.since() : mapParam.since();
@@ -1248,8 +1267,8 @@ public abstract class DocsV3Support {
                     builder.append(" ");
                     builder.append(since);
                 }
-                builder.append("\n");
             }
+            builder.append("\n");
             builder.append("```\n");
 
             builder.append(param != null ? param.description() : mapParam.description());
@@ -1268,6 +1287,9 @@ public abstract class DocsV3Support {
                 Collection<EsqlFunctionRegistry.MapEntryArgSignature> mapParams = arg.mapParams().values();
                 for (EsqlFunctionRegistry.MapEntryArgSignature mapArgSignature : mapParams) {
                     builder.append("- `").append(mapArgSignature.name()).append("` ");
+                    if (mapArgSignature.appliesTo() != null && mapArgSignature.appliesTo().isEmpty() == false) {
+                        builder.append("{applies_to}`").append(mapArgSignature.appliesTo()).append("` ");
+                    }
                     builder.append("(`").append(mapArgSignature.type()).append("`): ");
                     builder.append(mapArgSignature.description()).append("\n");
                 }
@@ -1288,7 +1310,7 @@ public abstract class DocsV3Support {
             String exampleContent = loadExampleQuery(example);
             String exampleResult = loadExampleResult(example);
             if (exampleContent != null) {
-                builder.append("## Example\n\n");
+                builder.append("#### Example\n\n");
                 if (example.description().length() > 0) {
                     builder.append(example.description()).append("\n\n");
                 }
@@ -1379,13 +1401,17 @@ public abstract class DocsV3Support {
         return (definition != null) ? RailRoadDiagram.functionSignature(definition) : null;
     }
 
-    void renderParametersList(List<String> argNames, List<String> argDescriptions) throws IOException {
+    void renderParametersList(List<EsqlFunctionRegistry.ArgSignature> args) throws IOException {
         StringBuilder builder = new StringBuilder();
         builder.append(DOCS_WARNING);
         builder.append("## Parameters\n");
-        for (int a = 0; a < argNames.size(); a++) {
-            String description = replaceLinks(argDescriptions.get(a));
-            builder.append("\n`").append(argNames.get(a)).append("`\n:   ").append(description).append('\n');
+        for (EsqlFunctionRegistry.ArgSignature arg : args) {
+            String description = replaceLinks(arg.description());
+            builder.append("\n`").append(arg.name()).append("`");
+            if (arg.appliesTo() != null && arg.appliesTo().isEmpty() == false) {
+                builder.append(" {applies_to}`").append(arg.appliesTo()).append("`");
+            }
+            builder.append("\n:   ").append(description).append('\n');
         }
         builder.append('\n');
         String rendered = builder.toString();
@@ -1404,7 +1430,7 @@ public abstract class DocsV3Support {
         return "## " + title + "\n\n";
     }
 
-    void renderTypes(String name, List<EsqlFunctionRegistry.ArgSignature> args) throws IOException {
+    boolean renderTypes(String name, List<EsqlFunctionRegistry.ArgSignature> args) throws IOException {
         boolean showResultColumn = signatures.get().stream().map(TypeSignature::returnType).anyMatch(Objects::nonNull);
         StringBuilder header = new StringBuilder("| ");
         StringBuilder separator = new StringBuilder("| ");
@@ -1426,12 +1452,13 @@ public abstract class DocsV3Support {
             if (sig.argTypes().size() > argNames.size()) { // skip variadic [test] cases (but not those with optional parameters)
                 continue;
             }
+
             table.add(getTypeRow(args, sig, argNames, showResultColumn));
         }
         Collections.sort(table);
         if (table.isEmpty()) {
             logger.info("Warning: No table of types generated for [{}]", name);
-            return;
+            return false;
         }
 
         String rendered = DOCS_WARNING
@@ -1445,6 +1472,7 @@ public abstract class DocsV3Support {
         logger.info("Writing function types for [{}]", name);
         logger.debug("{}", rendered);
         writeToTempSnippetsDir("types", rendered);
+        return true;
     }
 
     /**

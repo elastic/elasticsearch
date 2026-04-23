@@ -85,6 +85,8 @@ public class MapperFeatures implements FeatureSpecification {
         "mapper.dense_vector.dynamic_template_nested_object_fix"
     );
     public static final NodeFeature ES940_DISK_BBQ = new NodeFeature("mapper.es940_disk_bbq");
+    public static final NodeFeature IGNORED_VALUES_STORED_IN_BINARY_DV = new NodeFeature("mapper.doc_values.ignored_values_in_binary_dv");
+    static final NodeFeature KEYWORD_NORMALIZER_SKIP_STORE_SETTING = new NodeFeature("mapper.keyword.normalizer_skip_store_setting");
     static final NodeFeature BBQ_DISK_BYTE_ELEMENT_TYPE = new NodeFeature("mapper.bbq_disk_byte_element_type");
 
     @Override
@@ -146,8 +148,10 @@ public class MapperFeatures implements FeatureSpecification {
             DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX,
             FLATTENED_MAPPED_SUBFIELDS_FEATURE,
             ES940_DISK_BBQ,
-            BBQ_DISK_BYTE_ELEMENT_TYPE,
-            FLATTENED_PASSTHROUGH_FEATURE
+            FLATTENED_PASSTHROUGH_FEATURE,
+            IGNORED_VALUES_STORED_IN_BINARY_DV,
+            KEYWORD_NORMALIZER_SKIP_STORE_SETTING,
+            BBQ_DISK_BYTE_ELEMENT_TYPE
         );
     }
 }

@@ -21,7 +21,7 @@ iceberg-fixtures/
 │       └── data/                       # Parquet data files
 │           └── part-00000.parquet      # Data file
 └── standalone/                         # Standalone Parquet files (no Iceberg metadata)
-    └── simple.parquet                  # Simple Parquet file for direct reading
+    └── employees.parquet               # Generated at Gradle build time (do not commit); see qa/build.gradle
 ```
 
 ## S3 Path Mapping
@@ -29,7 +29,7 @@ iceberg-fixtures/
 Files are automatically mapped to S3 paths:
 
 - `iceberg-fixtures/db/table/metadata/v1.metadata.json` → `s3://iceberg-test/warehouse/db/table/metadata/v1.metadata.json`
-- `iceberg-fixtures/standalone/simple.parquet` → `s3://iceberg-test/warehouse/standalone/simple.parquet`
+- `iceberg-fixtures/standalone/employees.parquet` → `s3://iceberg-test/warehouse/standalone/employees.parquet` (generated under `build/`; see `qa/build.gradle`)
 
 ## Usage in Tests
 

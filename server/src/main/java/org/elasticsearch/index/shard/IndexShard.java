@@ -1798,6 +1798,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return engine.acquireSearcherSupplier(this::wrapSearcher, scope, splitShardCountSummary);
     }
 
+    /**
+     * Acquires a searcher used for external (client visible) operations.
+     * The searcher is aware of shard splits and will filter documents that have been moved to other shards
+     * according to the provided {@link SplitShardCountSummary}.
+     * @param splitShardCountSummary a summary of the shard routing state seen when the search request was created
+     * @return a searcher
+     */
+    public Engine.Searcher acquireExternalSearcher(String source, SplitShardCountSummary splitShardCountSummary) {
+        readAllowed();
+        markSearcherAccessed();
+        final Engine engine = getEngine();
+        return engine.acquireSearcher(source, Engine.SearcherScope.EXTERNAL, splitShardCountSummary, this::wrapSearcher);
+    }
+
     public Engine.Searcher acquireSearcher(String source) {
         readAllowed();
         markSearcherAccessed();
@@ -3259,6 +3273,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return replicationGroup;
     }
 
+    public boolean hasPeerReplicationTargets() {
+        return this.state() != IndexShardState.CLOSED && getReplicationGroup().containsPeerReplicationTargets();
+    }
+
     /**
      * Returns the pending replication actions for the shard.
      *
@@ -4534,7 +4552,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         @Override
         public void afterRefresh(boolean didRefresh) {
-            if (enableFieldHasValue && (didRefresh || fieldInfos == null)) {
+            if (enableFieldHasValue && didRefresh) {
                 FIELD_INFOS.setRelease(IndexShard.this, loadFieldInfos());
             }
         }

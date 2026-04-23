@@ -14,6 +14,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.action.ActionListener;
@@ -594,7 +595,11 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
     public void testIterateAsyncVisitsLeavesInDocIdOrder() throws Exception {
         int docCount = 200;
         Directory directory = newDirectory();
-        RandomIndexWriter writer = new RandomIndexWriter(random(), directory);
+        RandomIndexWriter writer = new RandomIndexWriter(
+            random(),
+            directory,
+            newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE)
+        );
         for (int i = 0; i < docCount; i++) {
             Document doc = new Document();
             doc.add(new StringField("field", "value" + i, Field.Store.NO));

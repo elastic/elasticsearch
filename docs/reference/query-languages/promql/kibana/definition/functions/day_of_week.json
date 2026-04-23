@@ -1,0 +1,25 @@
+{
+  "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
+  "type" : "time",
+  "name" : "day_of_week",
+  "description" : "returns the day of the week for each of those timestamps (in UTC). Returned values are from 0 to 6, where 0 means Sunday.",
+  "signatures" : [
+    {
+      "params" : [
+        {
+          "name" : "v",
+          "type" : "instant_vector",
+          "optional" : true,
+          "description" : "Optional instant vector input. If omitted, evaluation timestamp is used."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "instant_vector"
+    }
+  ],
+  "examples" : [
+    "day_of_week()"
+  ],
+  "preview" : true,
+  "snapshot_only" : false
+}

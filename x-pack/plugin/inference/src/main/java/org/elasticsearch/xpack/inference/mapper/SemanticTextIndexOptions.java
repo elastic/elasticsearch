@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexVersion;
@@ -74,13 +73,23 @@ public class SemanticTextIndexOptions implements ToXContent {
     public enum SupportedIndexOptions {
         DENSE_VECTOR("dense_vector") {
             @Override
-            public IndexOptions parseIndexOptions(String fieldName, Map<String, Object> map, IndexVersion indexVersion) {
-                return parseDenseVectorIndexOptionsFromMap(fieldName, map, indexVersion);
+            public IndexOptions parseIndexOptions(
+                String fieldName,
+                Map<String, Object> map,
+                IndexVersion indexVersion,
+                boolean experimentalFeaturesEnabled
+            ) {
+                return parseDenseVectorIndexOptionsFromMap(fieldName, map, indexVersion, experimentalFeaturesEnabled);
             }
         },
         SPARSE_VECTOR("sparse_vector") {
             @Override
-            public IndexOptions parseIndexOptions(String fieldName, Map<String, Object> map, IndexVersion indexVersion) {
+            public IndexOptions parseIndexOptions(
+                String fieldName,
+                Map<String, Object> map,
+                IndexVersion indexVersion,
+                boolean experimentalFeaturesEnabled
+            ) {
                 return parseSparseVectorIndexOptionsFromMap(map);
             }
         };
@@ -91,13 +100,23 @@ public class SemanticTextIndexOptions implements ToXContent {
             this.value = value;
         }
 
-        public abstract IndexOptions parseIndexOptions(String fieldName, Map<String, Object> map, IndexVersion indexVersion);
+        public abstract IndexOptions parseIndexOptions(
+            String fieldName,
+            Map<String, Object> map,
+            IndexVersion indexVersion,
+            boolean experimentalFeaturesEnabled
+        );
 
         public static SupportedIndexOptions fromValue(String value) {
             return Arrays.stream(SupportedIndexOptions.values())
                 .filter(option -> option.value.equals(value))
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Unknown index options type [" + value + "]"));
+        }
+
+        @Override
+        public String toString() {
+            return value;
         }
     }
 
@@ -115,31 +134,75 @@ public class SemanticTextIndexOptions implements ToXContent {
         return Strings.toString(this);
     }
 
-    private static DenseVectorFieldMapper.DenseVectorIndexOptions parseDenseVectorIndexOptionsFromMap(
+    private static ExtendedDenseVectorIndexOptions parseDenseVectorIndexOptionsFromMap(
         String fieldName,
         Map<String, Object> map,
-        IndexVersion indexVersion
+        IndexVersion indexVersion,
+        boolean experimentalFeaturesEnabled
     ) {
-        try {
-            Object type = map.remove(TYPE_FIELD);
-            if (type == null) {
-                throw new IllegalArgumentException("Required " + TYPE_FIELD);
+        DenseVectorFieldMapper.ElementType elementType = null;
+        String elementTypeStr = XContentMapValues.nodeStringValue(
+            map.remove(ExtendedDenseVectorIndexOptions.ELEMENT_TYPE_FIELD.getPreferredName())
+        );
+        if (elementTypeStr != null) {
+            elementType = DenseVectorFieldMapper.namesToElementType.get(elementTypeStr);
+            if (elementType == null) {
+                throw new IllegalArgumentException(
+                    "Invalid "
+                        + ExtendedDenseVectorIndexOptions.ELEMENT_TYPE_FIELD
+                        + " ["
+                        + elementTypeStr
+                        + "]; available types are "
+                        + DenseVectorFieldMapper.namesToElementType.keySet()
+                );
             }
-            DenseVectorFieldMapper.VectorIndexType vectorIndexType = DenseVectorFieldMapper.VectorIndexType.fromString(
-                XContentMapValues.nodeStringValue(type, null)
-            ).orElseThrow(() -> new IllegalArgumentException("Unsupported index options " + TYPE_FIELD + " " + type));
-
-            return vectorIndexType.parseIndexOptions(fieldName, map, indexVersion);
-        } catch (Exception exc) {
-            throw new ElasticsearchException(exc);
         }
+
+        DenseVectorFieldMapper.DenseVectorIndexOptions denseVectorIndexOptions = parseBaseDenseVectorIndexOptionsFromMap(
+            fieldName,
+            map,
+            indexVersion,
+            experimentalFeaturesEnabled
+        );
+
+        if (elementType == null && denseVectorIndexOptions == null) {
+            throw new IllegalArgumentException(
+                "Must specify at least [" + ExtendedDenseVectorIndexOptions.ELEMENT_TYPE_FIELD + "] or [" + TYPE_FIELD + "]"
+            );
+        }
+
+        return new ExtendedDenseVectorIndexOptions(denseVectorIndexOptions, elementType);
+    }
+
+    private static DenseVectorFieldMapper.DenseVectorIndexOptions parseBaseDenseVectorIndexOptionsFromMap(
+        String fieldName,
+        Map<String, Object> map,
+        IndexVersion indexVersion,
+        boolean experimentalFeaturesEnabled
+    ) {
+        Object type = map.remove(TYPE_FIELD);
+        if (type == null) {
+            if (map.isEmpty() == false) {
+                throw new IllegalArgumentException(
+                    "["
+                        + TYPE_FIELD
+                        + "] is required when specifying more params than ["
+                        + ExtendedDenseVectorIndexOptions.ELEMENT_TYPE_FIELD
+                        + "]"
+                );
+            }
+
+            return null;
+        }
+
+        DenseVectorFieldMapper.VectorIndexType vectorIndexType = DenseVectorFieldMapper.VectorIndexType.fromString(
+            XContentMapValues.nodeStringValue(type)
+        ).orElseThrow(() -> new IllegalArgumentException("Unsupported index options " + TYPE_FIELD + " " + type));
+
+        return vectorIndexType.parseIndexOptions(fieldName, map, indexVersion, experimentalFeaturesEnabled);
     }
 
     private static SparseVectorFieldMapper.SparseVectorIndexOptions parseSparseVectorIndexOptionsFromMap(Map<String, Object> map) {
-        try {
-            return SparseVectorFieldMapper.SparseVectorIndexOptions.parseFromMap(map);
-        } catch (Exception exc) {
-            throw new ElasticsearchException(exc);
-        }
+        return SparseVectorFieldMapper.SparseVectorIndexOptions.parseFromMap(map);
     }
 }

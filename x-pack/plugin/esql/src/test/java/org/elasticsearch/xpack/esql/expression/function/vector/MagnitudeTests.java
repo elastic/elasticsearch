@@ -23,7 +23,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.closeTo;
 
 @FunctionName("v_magnitude")
 public class MagnitudeTests extends AbstractVectorTestCase {
@@ -63,11 +63,12 @@ public class MagnitudeTests extends AbstractVectorTestCase {
             List<Float> input = randomDenseVector(dimensions);
             float[] array = listToFloatArray(input);
             double expected = scalarFunction.calculateScalar(array);
+            double delta = BASE_DELTA * dimensions;
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(input, DENSE_VECTOR, "vector")),
                 evaluatorName,
                 DOUBLE,
-                equalTo(expected)
+                closeTo(expected, delta)
             );
         }));
 

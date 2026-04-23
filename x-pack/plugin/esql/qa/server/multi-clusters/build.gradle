@@ -21,30 +21,49 @@ dependencies {
   javaRestTestImplementation project(xpackModule('esql:qa:testFixtures'))
   javaRestTestImplementation project(xpackModule('esql:qa:server'))
   javaRestTestImplementation project(xpackModule('esql'))
+
+  clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
+  clusterPlugins project(xpackModule('esql-datasource-csv'))
+  clusterPlugins project(xpackModule('esql-datasource-ndjson'))
+  clusterPlugins project(xpackModule('esql-datasource-http'))
+}
+
+def currentVersion = buildParams.bwcVersions.currentVersion
+
+tasks.register("currentToCurrent", StandaloneRestIntegTestTask) {
+  systemProperty("tests.version.remote_cluster", currentVersion)
+  systemProperty("tests.version.local_cluster", currentVersion)
+  maxParallelForks = 1
+}
+
+tasks.named("bwcTest").configure {
+  if (project.bwc_tests_enabled) {
+    dependsOn tasks.named("currentToCurrent")
+  }
 }
 
 def supportedVersion = bwcVersion -> {
   // CCS in ES|QL available in 8.13
-  return bwcVersion.onOrAfter(Version.fromString("8.13.0"));
+  return bwcVersion.onOrAfter(Version.fromString("8.13.0")) && bwcVersion != currentVersion
 }
 
 buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseName ->
   tasks.register("${baseName}#newToOld", StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.version.remote_cluster", bwcVersion)
+    systemProperty("tests.version.local_cluster", currentVersion)
     maxParallelForks = 1
   }
 
   tasks.register("${baseName}#oldToNew", StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.version.local_cluster", bwcVersion)
+    systemProperty("tests.version.remote_cluster", currentVersion)
     maxParallelForks = 1
   }
 
-  // TODO: avoid running tests twice with the current version
-  tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
+  tasks.register(bwcTaskName(bwcVersion)) {
     dependsOn tasks.named("${baseName}#oldToNew")
     dependsOn tasks.named("${baseName}#newToOld")
-    maxParallelForks = 1
   }
 }

@@ -86,6 +86,12 @@ $$$xpack.ml.max_open_jobs$$$
 `xpack.ml.nightly_maintenance_requests_per_second`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The rate at which the nightly maintenance task deletes expired model snapshots and results. The setting is a proxy to the [`requests_per_second`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-delete-by-query) parameter used in the delete by query requests and controls throttling. When the {{operator-feature}} is enabled, this setting can be updated only by operator users. Valid values must be greater than `0.0` or equal to `-1.0`, where `-1.0` means a default value is used. Defaults to `-1.0`
 
+`xpack.ml.results_index_rollover_max_size`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The maximum size the anomaly detection results indices can reach before being rolled over by the nightly maintenance task. When the {{operator-feature}} is enabled, this setting can be updated only by operator users. Valid values must be greater than or equal to `-1B`. A value of `-1B` means the indices will never be rolled over. A value of `0B` means the indices will always be rolled over, regardless of size. Defaults to `50GB`.
+
+`xpack.ml.idle_job_auto_close_timeout` {applies_to}`stack: ga 9.5`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The duration after which an open anomaly detection job whose configured datafeed is stopped is automatically closed by the nightly maintenance task. The timer is based on the job's most recent `latest_record_timestamp`. Jobs that have never received data and jobs without a configured datafeed are not affected. When the {{operator-feature}} is enabled, this setting can be updated only by operator users. Set to `-1` to disable automatic closing of idle jobs. Defaults to `48h`.
+
 `xpack.ml.node_concurrent_job_allocations`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The maximum number of jobs that can concurrently be in the `opening` state on each node. Typically, jobs spend a small amount of time in this state before they move to `open` state. Jobs that must restore large models when they are opening spend more time in the `opening` state. When the {{operator-feature}} is enabled, this setting can be updated only by operator users. Defaults to `2`.
 
@@ -110,6 +116,15 @@ These settings are for advanced use cases; the default values are generally suff
 
 `xpack.ml.max_ml_node_size`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The maximum node size for {{ml}} nodes in a deployment that supports automatic cluster scaling. If you set it to the maximum possible size of future {{ml}} nodes, when a {{ml}} job is assigned to a lazy node it can check (and fail quickly) when scaling cannot support the size of the job. When the {{operator-feature}} is enabled, this setting can be updated only by operator users. Defaults to `0b`, which means it will be assumed that automatic cluster scaling can add arbitrarily large nodes to the cluster.
+
+$$$xpack.ml.trained_models.graph_validation_enabled$$$
+
+`xpack.ml.trained_models.graph_validation_enabled` {applies_to}`stack: ga 9.4`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Controls whether TorchScript graph validation runs when the `pytorch_inference` native process starts for trained model deployments. When `true` (the default), the process checks the model graph against an allowed operation list before running inference. When `false`, that validation is skipped. Use `false` only as an operational escape hatch—for example, if a supported model fails validation unexpectedly. When the {{operator-feature}} is enabled, this setting can be updated only by operator users.
+
+    ::::{warning}
+    Skipping graph validation reduces assurance that a deployed model only performs expected operations. Only disable validation when you understand the trade-offs.
+    ::::
 
 $$$xpack.ml.model_repository$$$
 

@@ -145,7 +145,7 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
     }
 
     private static int randomValidMaxShards() {
-        return randomIntBetween(10, 100);
+        return randomIntBetween(15, 100);
     }
 
     private Map<String, Object> xContentToMap(ToXContent xcontent) throws IOException {
@@ -165,7 +165,7 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
         final ClusterState clusterState = createClusterState(
             nodesWithIndexAndSearch(numIndexNodes, numSearchNodes),
             maxShardsPerNode,
-            new HealthMetadata(DISK_METADATA, new HealthMetadata.ShardLimits(maxShardsPerNode, 0)),
+            new HealthMetadata(DISK_METADATA, new HealthMetadata.ShardLimits(maxShardsPerNode, 0, 10, 5)),
             indexMetadata
         );
         ClusterServiceUtils.setState(clusterService, clusterState);

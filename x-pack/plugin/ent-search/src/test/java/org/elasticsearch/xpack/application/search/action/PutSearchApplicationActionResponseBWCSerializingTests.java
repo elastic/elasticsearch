@@ -29,7 +29,9 @@ public class PutSearchApplicationActionResponseBWCSerializingTests extends Abstr
 
     @Override
     protected PutSearchApplicationAction.Response mutateInstance(PutSearchApplicationAction.Response instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        return new PutSearchApplicationAction.Response(
+            randomValueOtherThan(instance.result, () -> randomFrom(DocWriteResponse.Result.values()))
+        );
     }
 
     @Override

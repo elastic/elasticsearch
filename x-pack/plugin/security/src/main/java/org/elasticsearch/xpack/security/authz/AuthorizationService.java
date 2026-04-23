@@ -16,6 +16,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -49,10 +50,13 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.search.crossproject.InvalidProjectRoutingException;
 import org.elasticsearch.search.crossproject.NoMatchingProjectException;
+import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LinkedProjectConfigService;
+import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -74,6 +78,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.ParentAct
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.AuthorizedProjectsResolver;
+import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
@@ -82,6 +87,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCa
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -108,6 +114,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED;
 import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ACTION_SCOPE_AUTHORIZATION_KEYS;
@@ -173,7 +180,8 @@ public class AuthorizationService {
         LinkedProjectConfigService linkedProjectConfigService,
         ProjectResolver projectResolver,
         AuthorizedProjectsResolver authorizedProjectsResolver,
-        CrossProjectModeDecider crossProjectModeDecider
+        CrossProjectModeDecider crossProjectModeDecider,
+        ProjectRoutingResolver projectRoutingResolver
     ) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
@@ -182,7 +190,8 @@ public class AuthorizationService {
             settings,
             linkedProjectConfigService,
             resolver,
-            crossProjectModeDecider
+            crossProjectModeDecider,
+            projectRoutingResolver
         );
         this.authcFailureHandler = authcFailureHandler;
         this.threadContext = threadPool.getThreadContext();
@@ -233,11 +242,12 @@ public class AuthorizationService {
     public void retrieveUserPrivileges(
         Subject subject,
         AuthorizationInfo authorizationInfo,
+        RoleReference.ApiKeyRoleType unwrapLimitedRole,
         ActionListener<GetUserPrivilegesResponse> listener
     ) {
         final AuthorizationEngine authorizationEngine = getAuthorizationEngineForSubject(subject);
         // TODO the AuthorizationInfo is associated to the Subject; the argument is redundant and a possible source of conflict
-        authorizationEngine.getUserPrivileges(authorizationInfo, wrapPreservingContext(listener, threadContext));
+        authorizationEngine.getUserPrivileges(authorizationInfo, unwrapLimitedRole, wrapPreservingContext(listener, threadContext));
     }
 
     public void getRoleDescriptorsIntersectionForRemoteCluster(
@@ -506,7 +516,7 @@ public class AuthorizationService {
                 targetProjectListener = new SubscribableListener<>();
                 authorizedProjectsResolver.resolveAuthorizedProjects(targetProjectListener);
             } else {
-                targetProjectListener = SubscribableListener.newSucceeded(TargetProjects.NOT_CROSS_PROJECT);
+                targetProjectListener = SubscribableListener.newSucceeded(TargetProjects.LOCAL_ONLY_FOR_CPS_DISABLED);
             }
 
             targetProjectListener.addListener(ActionListener.wrap(targetProjects -> {
@@ -529,27 +539,19 @@ public class AuthorizationService {
                 ActionListener.run(
                     listener,
                     l -> authzEngine.authorizeIndexAction(requestInfo, authzInfo, resolvedIndicesAsyncSupplier, projectMetadata)
-                        .addListener(
-                            wrapPreservingContext(
-                                new AuthorizationResultListener<>(
-                                    result -> handleIndexActionAuthorizationResult(
-                                        result,
-                                        requestInfo,
-                                        requestId,
-                                        authzInfo,
-                                        authzEngine,
-                                        resolvedIndicesAsyncSupplier,
-                                        projectMetadata,
-                                        l
-                                    ),
-                                    l::onFailure,
-                                    requestInfo,
-                                    requestId,
-                                    authzInfo
-                                ),
-                                threadContext
-                            )
-                        )
+                        .addListener(wrapPreservingContext(new AuthorizationResultListener<>(result -> {
+                            setIndexResolutionException(authzInfo, request, authentication, action);
+                            handleIndexActionAuthorizationResult(
+                                result,
+                                requestInfo,
+                                requestId,
+                                authzInfo,
+                                authzEngine,
+                                resolvedIndicesAsyncSupplier,
+                                projectMetadata,
+                                l
+                            );
+                        }, l::onFailure, requestInfo, requestId, authzInfo), threadContext))
                 );
             }, e -> onAuthorizedResourceLoadFailure(requestId, requestInfo, authzInfo, auditTrail, listener, e)));
         } else {
@@ -576,7 +578,7 @@ public class AuthorizationService {
                 var resolvedIndices = indicesAndAliasesResolver.resolvePITIndices(searchRequest);
                 return SubscribableListener.newSucceeded(resolvedIndices);
             }
-            final ResolvedIndices resolvedIndices = indicesAndAliasesResolver.tryResolveWithoutWildcards(action, request);
+            final ResolvedIndices resolvedIndices = indicesAndAliasesResolver.tryResolveWithoutWildcards(action, request, targetProjects);
             if (resolvedIndices != null) {
                 return SubscribableListener.newSucceeded(resolvedIndices);
             } else {
@@ -611,7 +613,8 @@ public class AuthorizationService {
 
         if (ex instanceof InvalidIndexNameException
             || ex instanceof InvalidSelectorException
-            || ex instanceof UnsupportedSelectorException) {
+            || ex instanceof UnsupportedSelectorException
+            || ex instanceof InvalidProjectRoutingException) {
             logger.info(
                 () -> Strings.format(
                     "failed [%s] action authorization for [%s] due to [%s] exception",
@@ -625,7 +628,9 @@ public class AuthorizationService {
             return;
         }
         auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
-        if (ex instanceof IndexNotFoundException || ex instanceof NoMatchingProjectException) {
+        if (ex instanceof IndexNotFoundException
+            || ex instanceof NoMatchingProjectException
+            || ex instanceof NoSuchRemoteClusterException) {
             listener.onFailure(ex);
         } else {
             listener.onFailure(actionDenied(authentication, authzInfo, action, request, ex));
@@ -711,6 +716,37 @@ public class AuthorizationService {
             );
         } else {
             runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, listener);
+        }
+    }
+
+    private void setIndexResolutionException(
+        AuthorizationInfo authzInfo,
+        TransportRequest request,
+        Authentication authentication,
+        String action
+    ) {
+        if (request instanceof IndicesRequest.Replaceable replaceable) {
+            var indexExpressions = replaceable.getResolvedIndexExpressions();
+            if (indexExpressions != null) {
+                indexExpressions.expressions().forEach(resolved -> {
+                    if (resolved.localExpressions().localIndexResolutionResult() == CONCRETE_RESOURCE_UNAUTHORIZED) {
+                        resolved.localExpressions()
+                            .setExceptionIfUnset(
+                                actionDenied(
+                                    authentication,
+                                    authzInfo,
+                                    action,
+                                    request,
+                                    IndexAuthorizationResult.getFailureDescription(
+                                        List.of(IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER),
+                                        restrictedIndices
+                                    ),
+                                    null
+                                )
+                            );
+                    }
+                });
+            }
         }
     }
 

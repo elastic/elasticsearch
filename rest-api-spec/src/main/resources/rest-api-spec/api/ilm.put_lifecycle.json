@@ -43,7 +43,8 @@
       }
     },
     "body": {
-      "description": "The lifecycle policy definition to register"
+      "description": "The lifecycle policy definition to register",
+      "required": true
     }
   }
 }

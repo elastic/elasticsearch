@@ -69,6 +69,6 @@
     "ROW x = 3892095203\n| EVAL agg_metric = TO_AGGREGATE_METRIC_DOUBLE(x)",
     "ROW x = [5032, 11111, 40814]\n| EVAL agg_metric = TO_AGGREGATE_METRIC_DOUBLE(x)"
   ],
-  "preview" : false,
+  "preview" : true,
   "snapshot_only" : false
 }

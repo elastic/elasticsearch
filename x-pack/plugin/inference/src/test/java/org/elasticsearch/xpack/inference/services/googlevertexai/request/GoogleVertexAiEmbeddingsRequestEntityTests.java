@@ -28,7 +28,7 @@ public class GoogleVertexAiEmbeddingsRequestEntityTests extends ESTestCase {
             List.of("abc"),
             null,
             new GoogleVertexAiEmbeddingsTaskSettings(true, InputType.CLUSTERING),
-            new GoogleVertexAiEmbeddingsServiceSettings("location", "projectId", "modelId", true, null, 10, null, null)
+            new GoogleVertexAiEmbeddingsServiceSettings("location", "projectId", "modelId", true, null, 10, null, null, null)
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -56,7 +56,7 @@ public class GoogleVertexAiEmbeddingsRequestEntityTests extends ESTestCase {
             List.of("abc"),
             InputType.INTERNAL_INGEST,
             new GoogleVertexAiEmbeddingsTaskSettings(null, null),
-            new GoogleVertexAiEmbeddingsServiceSettings("location", "projectId", "modelId", false, null, null, null, null)
+            new GoogleVertexAiEmbeddingsServiceSettings("location", "projectId", "modelId", false, null, null, null, null, null)
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -82,7 +82,7 @@ public class GoogleVertexAiEmbeddingsRequestEntityTests extends ESTestCase {
             List.of("abc"),
             InputType.INTERNAL_INGEST,
             new GoogleVertexAiEmbeddingsTaskSettings(null, null),
-            new GoogleVertexAiEmbeddingsServiceSettings("location", "projectId", "modelId", false, null, 10, null, null)
+            new GoogleVertexAiEmbeddingsServiceSettings("location", "projectId", "modelId", false, null, 10, null, null, null)
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -107,7 +107,7 @@ public class GoogleVertexAiEmbeddingsRequestEntityTests extends ESTestCase {
             List.of("abc"),
             null,
             new GoogleVertexAiEmbeddingsTaskSettings(false, null),
-            new GoogleVertexAiEmbeddingsServiceSettings("location", "projectId", "modelId", false, null, null, null, null)
+            new GoogleVertexAiEmbeddingsServiceSettings("location", "projectId", "modelId", false, null, null, null, null, null)
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -133,7 +133,7 @@ public class GoogleVertexAiEmbeddingsRequestEntityTests extends ESTestCase {
             List.of("abc", "def"),
             InputType.INTERNAL_SEARCH,
             new GoogleVertexAiEmbeddingsTaskSettings(true, InputType.CLUSTERING),
-            new GoogleVertexAiEmbeddingsServiceSettings("location", "projectId", "modelId", true, null, 10, null, null)
+            new GoogleVertexAiEmbeddingsServiceSettings("location", "projectId", "modelId", true, null, 10, null, null, null)
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -165,7 +165,7 @@ public class GoogleVertexAiEmbeddingsRequestEntityTests extends ESTestCase {
             List.of("abc", "def"),
             null,
             new GoogleVertexAiEmbeddingsTaskSettings(true, null),
-            new GoogleVertexAiEmbeddingsServiceSettings("location", "projectId", "modelId", false, null, null, null, null)
+            new GoogleVertexAiEmbeddingsServiceSettings("location", "projectId", "modelId", false, null, null, null, null, null)
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -194,7 +194,7 @@ public class GoogleVertexAiEmbeddingsRequestEntityTests extends ESTestCase {
             List.of("abc", "def"),
             null,
             new GoogleVertexAiEmbeddingsTaskSettings(null, InputType.CLASSIFICATION),
-            new GoogleVertexAiEmbeddingsServiceSettings("location", "projectId", "modelId", false, null, null, null, null)
+            new GoogleVertexAiEmbeddingsServiceSettings("location", "projectId", "modelId", false, null, null, null, null, null)
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);

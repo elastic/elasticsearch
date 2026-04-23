@@ -7,7 +7,9 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -48,6 +50,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -206,12 +209,17 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
             client,
             TransportFieldCapabilitiesAction.TYPE,
             fieldCapabilitiesRequest,
-            listener.delegateFailureAndWrap(
-                (l, fieldCapsResponse) -> l.onResponse(
-                    fieldCapsResponse.getField(timeField).containsKey(DateFieldMapper.DATE_NANOS_CONTENT_TYPE)
-                )
-            )
+            listener.delegateFailureAndWrap((l, fieldCapsResponse) -> l.onResponse(timeFieldIsDateNanos(fieldCapsResponse, timeField)))
         );
+    }
+
+    /**
+     * Whether field caps report {@code timeField} as {@link DateFieldMapper#DATE_NANOS_CONTENT_TYPE} only.
+     * If the field is missing from the response, returns {@code false} (including Date and mixed mappings).
+     */
+    static boolean timeFieldIsDateNanos(FieldCapabilitiesResponse fieldCapsResponse, String timeField) {
+        Map<String, FieldCapabilities> fieldTypes = fieldCapsResponse.getField(timeField);
+        return fieldTypes != null && fieldTypes.containsKey(DateFieldMapper.DATE_NANOS_CONTENT_TYPE);
     }
 
     /** Visible for testing */

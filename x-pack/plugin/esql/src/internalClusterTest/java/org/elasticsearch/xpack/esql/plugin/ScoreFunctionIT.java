@@ -14,13 +14,13 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.kql.KqlPlugin;
 import org.junit.Before;
 
 import java.util.Collection;
 import java.util.List;
 
+import static org.elasticsearch.common.collect.Iterators.toList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.containsString;
 
@@ -29,8 +29,59 @@ public class ScoreFunctionIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setupIndex() {
-        assumeTrue("can run this only when score() function is enabled", EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled());
         createAndPopulateIndex();
+    }
+
+    public void testPushingDownEvalWithScore() {
+        var query = """
+            FROM test
+            | EVAL first_score = score(match(content, "dog")), s = [1]
+            | LIMIT 2
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnTypes(resp.columns(), List.of("text", "integer", "double", "integer"));
+            assertColumnNames(resp.columns(), List.of("content", "id", "first_score", "s"));
+            var results = resp.values();
+            final int expectedNumRows = 2;
+            final int expectedNumColumns = 4;
+            for (int i = 0; i < expectedNumRows; i++) {
+                var row = toList(results.next());
+                assertEquals(expectedNumColumns, row.size());
+                for (var column : row) {
+                    assertNotNull(column);
+                }
+            }
+            if (results.hasNext()) {
+                fail("Expected only 2 rows but got more");
+            }
+        }
+    }
+
+    public void testPushingDownEvalWithNestedScore() {
+        var query = """
+            FROM test
+            | EVAL first_score = TO_INTEGER(0.2 + SCORE(MATCH(content, "dog")))
+            | LIMIT 3
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnTypes(resp.columns(), List.of("text", "integer", "integer"));
+            assertColumnNames(resp.columns(), List.of("content", "id", "first_score"));
+            var results = resp.values();
+            final int expectedRows = 3;
+            final int expectedColumns = 3;
+            for (int i = 0; i < expectedRows; i++) {
+                var row = toList(results.next());
+                assertEquals(expectedColumns, row.size());
+                for (var column : row) {
+                    assertNotNull(column);
+                }
+            }
+            if (results.hasNext()) {
+                fail("Expected only 2 rows but got more");
+            }
+        }
     }
 
     public void testScoreSingleNoMetadata() {

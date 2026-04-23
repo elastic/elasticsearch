@@ -23,6 +23,8 @@ package org.elasticsearch.exponentialhistogram;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -31,9 +33,14 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ExponentialHistogramXContentTests extends ExponentialHistogramTestCase {
 
+    public void testNullHistogram() {
+        assertThat(toJson(null), equalTo("null"));
+        checkRoundTrip(null);
+    }
+
     public void testEmptyHistogram() {
         ExponentialHistogram emptyHistogram = ExponentialHistogram.empty();
-        assertThat(toJson(emptyHistogram), equalTo("{\"scale\":" + emptyHistogram.scale() + ",\"sum\":0.0}"));
+        assertThat(toJson(emptyHistogram), equalTo("{\"scale\":" + emptyHistogram.scale() + "}"));
     }
 
     public void testFullHistogram() {
@@ -62,11 +69,13 @@ public class ExponentialHistogramXContentTests extends ExponentialHistogramTestC
                     + "}"
             )
         );
+        checkRoundTrip(histo);
     }
 
     public void testOnlyZeroThreshold() {
         ExponentialHistogram histo = createAutoReleasedHistogram(b -> b.scale(3).sum(1.1).zeroBucket(ZeroBucket.create(5.0, 0)));
         assertThat(toJson(histo), equalTo("{\"scale\":3,\"sum\":1.1,\"zero\":{\"threshold\":5.0}}"));
+        checkRoundTrip(histo);
     }
 
     public void testOnlyZeroCount() {
@@ -74,6 +83,7 @@ public class ExponentialHistogramXContentTests extends ExponentialHistogramTestC
             b -> b.zeroBucket(ZeroBucket.create(0.0, 7)).scale(2).sum(1.1).min(0).max(0)
         );
         assertThat(toJson(histo), equalTo("{\"scale\":2,\"sum\":1.1,\"min\":0.0,\"max\":0.0,\"zero\":{\"count\":7}}"));
+        checkRoundTrip(histo);
     }
 
     public void testOnlyPositiveBuckets() {
@@ -84,6 +94,7 @@ public class ExponentialHistogramXContentTests extends ExponentialHistogramTestC
             toJson(histo),
             equalTo("{\"scale\":4,\"sum\":1.1,\"min\":0.5,\"max\":2.5,\"positive\":{\"indices\":[-1,2],\"counts\":[3,5]}}")
         );
+        checkRoundTrip(histo);
     }
 
     public void testOnlyNegativeBuckets() {
@@ -94,12 +105,26 @@ public class ExponentialHistogramXContentTests extends ExponentialHistogramTestC
             toJson(histo),
             equalTo("{\"scale\":5,\"sum\":1.1,\"min\":-0.5,\"max\":-0.25,\"negative\":{\"indices\":[-1,2],\"counts\":[4,6]}}")
         );
+        checkRoundTrip(histo);
     }
 
     private static String toJson(ExponentialHistogram histo) {
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             ExponentialHistogramXContent.serialize(builder, histo);
             return Strings.toString(builder);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static void checkRoundTrip(ExponentialHistogram histo) {
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            ExponentialHistogramXContent.serialize(builder, histo);
+            String json = Strings.toString(builder);
+            try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json)) {
+                ExponentialHistogram parsed = ExponentialHistogramXContent.parseForTesting(parser);
+                assertThat(parsed, equalTo(histo));
+            }
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

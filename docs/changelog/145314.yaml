@@ -1,0 +1,6 @@
+pr: 145314
+summary: Fix RecursiveChunkingSettings.validate() logic bug where separator validation was skipped
+area: Inference
+type: bug
+issues:
+ - 144815

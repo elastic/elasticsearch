@@ -14,10 +14,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
+import org.elasticsearch.inference.TopNProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -29,7 +29,7 @@ import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiSt
 /**
  * Defines the rerank task settings for the AzureAiStudio service.
  */
-public class AzureAiStudioRerankTaskSettings implements TaskSettings {
+public class AzureAiStudioRerankTaskSettings implements TaskSettings, TopNProvider {
     public static final String NAME = "azure_ai_studio_rerank_task_settings";
     private static final TransportVersion ML_INFERENCE_AZURE_AI_STUDIO_RERANK_ADDED = TransportVersion.fromName(
         "ml_inference_azure_ai_studio_rerank_added"
@@ -41,9 +41,7 @@ public class AzureAiStudioRerankTaskSettings implements TaskSettings {
         final var returnDocuments = extractOptionalBoolean(map, RETURN_DOCUMENTS_FIELD, validationException);
         final var topN = extractOptionalPositiveInteger(map, TOP_N_FIELD, ModelConfigurations.TASK_SETTINGS, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new AzureAiStudioRerankTaskSettings(returnDocuments, topN);
     }
@@ -87,6 +85,11 @@ public class AzureAiStudioRerankTaskSettings implements TaskSettings {
 
     public Integer topN() {
         return topN;
+    }
+
+    @Override
+    public Integer getTopN() {
+        return topN();
     }
 
     @Override
@@ -145,7 +148,7 @@ public class AzureAiStudioRerankTaskSettings implements TaskSettings {
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        AzureAiStudioRerankRequestTaskSettings requestSettings = AzureAiStudioRerankRequestTaskSettings.fromMap(new HashMap<>(newSettings));
+        AzureAiStudioRerankRequestTaskSettings requestSettings = AzureAiStudioRerankRequestTaskSettings.fromMap(newSettings);
         return of(this, requestSettings);
     }
 }

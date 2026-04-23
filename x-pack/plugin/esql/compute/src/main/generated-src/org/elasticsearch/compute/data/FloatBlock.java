@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.data;
 
 // begin generated imports
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
@@ -21,14 +20,18 @@ import java.io.IOException;
  * Block that stores float values.
  * This class is generated. Edit {@code X-Block.java.st} instead.
  */
-public sealed interface FloatBlock extends Block permits FloatArrayBlock, FloatVectorBlock, ConstantNullBlock, FloatBigArrayBlock {
+public sealed interface FloatBlock extends Block permits FloatArrayBlock, FloatVectorBlock, ConstantNullBlock, FloatBigArrayBlock,
+    org.elasticsearch.compute.data.arrow.FloatArrowBufBlock {
 
     /**
      * Retrieves the float value stored at the given value index.
-     *
-     * <p> Values for a given position are between getFirstValueIndex(position) (inclusive) and
-     * getFirstValueIndex(position) + getValueCount(position) (exclusive).
-     *
+     * <p>
+     *    The {@code valueIndex} for a position is between.
+     * </p>
+     * {@snippet :
+     *    int start = getFirstValueIndex(position);  // @highlight
+     *    int end = start + getValueCount(position);  // @highlight
+     * }
      * @param valueIndex the value index
      * @return the data value (as a float)
      */
@@ -44,6 +47,11 @@ public sealed interface FloatBlock extends Block permits FloatArrayBlock, FloatV
     default boolean hasValue(int position, float value) {
         final var count = getValueCount(position);
         final var startIndex = getFirstValueIndex(position);
+        final var BINARYSEARCH_THRESHOLD = 16;
+        if (count > BINARYSEARCH_THRESHOLD && mvSortedAscending()) {
+            return binarySearch(this, position, count, value) >= 0;
+        }
+
         for (int index = startIndex; index < startIndex + count; index++) {
             if (value == getFloat(index)) {
                 return true;
@@ -52,11 +60,47 @@ public sealed interface FloatBlock extends Block permits FloatArrayBlock, FloatV
         return false;
     }
 
+    /**
+     * Perform a binary search on this block
+     *
+     * @param block to search in
+     * @param startIndex
+     * @param count number of positions to search beyond the startIndex
+     * @param value to search for
+     * @return position or negative number if not found
+     */
+    static int binarySearch(FloatBlock block, int startIndex, int count, float value) {
+        int low = startIndex;
+        int high = count - 1;
+
+        while (low <= high) {
+            int mid = (low + high) >>> 1;
+            float midVal = block.getFloat(mid);
+
+            if (midVal < value) low = mid + 1;
+            else if (midVal > value) high = mid - 1;
+            else return mid; // key found
+        }
+        return -(low + 1);  // key not found.
+    }
+
     @Override
     FloatVector asVector();
 
     @Override
-    FloatBlock filter(int... positions);
+    default FloatBlock slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        try (FloatBlock.Builder builder = blockFactory().newFloatBlockBuilder(endExclusive - beginInclusive)) {
+            builder.copyFrom(this, beginInclusive, endExclusive);
+            return builder.build();
+        }
+    }
+
+    @Override
+    FloatBlock filter(boolean mayContainDuplicates, int... positions);
 
     /**
      * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},

@@ -29,7 +29,6 @@ import org.elasticsearch.search.dfs.DfsKnnResults;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
-import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.vectors.KnnScoreDocQueryBuilder;
 import org.elasticsearch.transport.Transport;
 
@@ -42,7 +41,7 @@ import java.util.Map;
 
 /**
  * This search phase fans out to every shards to execute a distributed search with a pre-collected distributed frequencies for all
- * search terms used in the actual search query. This phase is very similar to a the default query-then-fetch search phase but it doesn't
+ * search terms used in the actual search query. This phase is very similar to the default query-then-fetch search phase, but it doesn't
  * retry on another shard if any of the shards are failing. Failures are treated as shard failures and are counted as a non-successful
  * operation.
  * @see CountedCollector#onFailure(int, SearchShardTarget, Exception)
@@ -55,6 +54,7 @@ class DfsQueryPhase extends SearchPhase {
     private final Client client;
     private final AbstractSearchAsyncAction<?> context;
     private final SearchProgressListener progressListener;
+    private long phaseStartTimeInNanos;
 
     DfsQueryPhase(SearchPhaseResults<SearchPhaseResult> queryResult, Client client, AbstractSearchAsyncAction<?> context) {
         super(NAME);
@@ -72,6 +72,7 @@ class DfsQueryPhase extends SearchPhase {
     @SuppressWarnings("unchecked")
     @Override
     protected void run() {
+        phaseStartTimeInNanos = System.nanoTime();
         List<DfsSearchResult> searchResults = (List<DfsSearchResult>) context.results.getAtomicArray().asList();
         AggregatedDfs dfs = aggregateDfs(searchResults);
         // TODO we can potentially also consume the actual per shard results from the initial phase here in the aggregateDfs
@@ -79,7 +80,7 @@ class DfsQueryPhase extends SearchPhase {
         final CountedCollector<SearchPhaseResult> counter = new CountedCollector<>(
             queryResult,
             searchResults.size(),
-            () -> context.executeNextPhase(NAME, () -> nextPhase(dfs)),
+            () -> onFinish(dfs),
             context
         );
 
@@ -104,9 +105,12 @@ class DfsQueryPhase extends SearchPhase {
                 .sendExecuteQuery(connection, querySearchRequest, context.getTask(), new SearchActionListener<>(shardTarget, shardIndex) {
 
                     @Override
-                    protected void innerOnResponse(QuerySearchResult response) {
+                    protected void innerOnResponse(SearchPhaseResult response) {
                         try {
-                            response.setSearchProfileDfsPhaseResult(dfsResult.searchProfileDfsPhaseResult());
+                            response.queryResult().setSearchProfileDfsPhaseResult(dfsResult.searchProfileDfsPhaseResult());
+                            if (dfsResult.searchTimedOut()) {
+                                response.queryResult().searchTimedOut(true);
+                            }
                             counter.onResult(response);
                         } catch (Exception e) {
                             context.onPhaseFailure(NAME, "", e);
@@ -128,6 +132,12 @@ class DfsQueryPhase extends SearchPhase {
                     }
                 });
         }
+    }
+
+    private void onFinish(AggregatedDfs dfs) {
+        context.getSearchResponseMetrics()
+            .recordSearchPhaseDuration(getName(), System.nanoTime() - phaseStartTimeInNanos, context.getSearchRequestAttributes());
+        context.executeNextPhase(NAME, () -> nextPhase(dfs));
     }
 
     private void shardFailure(
@@ -209,8 +219,13 @@ class DfsQueryPhase extends SearchPhase {
 
         List<DfsKnnResults> mergedResults = new ArrayList<>(source.knnSearch().size());
         for (int i = 0; i < source.knnSearch().size(); i++) {
-            TopDocs mergedTopDocs = TopDocs.merge(source.knnSearch().get(i).k(), topDocsLists.get(i).toArray(new TopDocs[0]));
-            mergedResults.add(new DfsKnnResults(nestedPath.get(i).get(), mergedTopDocs.scoreDocs));
+            List<TopDocs> topDocsList = topDocsLists.get(i);
+            if (topDocsList.isEmpty()) {
+                mergedResults.add(new DfsKnnResults(nestedPath.get(i).get(), new ScoreDoc[0]));
+            } else {
+                TopDocs mergedTopDocs = TopDocs.merge(source.knnSearch().get(i).k(), topDocsList.toArray(new TopDocs[0]));
+                mergedResults.add(new DfsKnnResults(nestedPath.get(i).get(), mergedTopDocs.scoreDocs));
+            }
         }
         return mergedResults;
     }

@@ -10,10 +10,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -52,6 +55,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.stats.common.MemoryUsage;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.outlierdetection.OutlierDetectionStats;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.regression.RegressionStats;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
@@ -61,6 +65,7 @@ import org.elasticsearch.xpack.ml.dataframe.stats.StatsHolder;
 import org.elasticsearch.xpack.ml.utils.persistence.MlParserUtils;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -274,11 +279,23 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
                     MultiSearchResponse.Item itemResponse = itemResponses[i];
                     if (itemResponse.isFailure()) {
                         SearchRequest itemRequest = multiSearchRequest.requests().get(i);
+                        if (recoverableMlShardFailureForStatsSearch(itemRequest, itemResponse.getFailure())) {
+                            logger.warn(
+                                () -> format(
+                                    "[{}] Skipping unreadable ML stats search while shards are unavailable; "
+                                        + "assuming no persisted stats for this sub-request [indices={}]: {}",
+                                    config.getId(),
+                                    Arrays.toString(itemRequest.indices()),
+                                    itemResponse.getFailureMessage()
+                                )
+                            );
+                            continue;
+                        }
                         logger.error(
                             () -> format(
                                 "[%s] Item failure encountered during multi search for request [indices=%s, source=%s]: %s",
                                 config.getId(),
-                                itemRequest.indices(),
+                                Arrays.toString(itemRequest.indices()),
                                 itemRequest.source(),
                                 itemResponse.getFailureMessage()
                             ),
@@ -400,5 +417,49 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
         private RetrievedStatsHolder(List<PhaseProgress> defaultProgress) {
             progress = new StoredProgress(defaultProgress);
         }
+    }
+
+    /**
+     * When {@link TransportStartDataFrameAnalyticsAction} starts a job, it loads stored progress from
+     * {@link MlStatsIndex} and {@link AnomalyDetectorsIndex} before validating the source data. If those ML
+     * system indices exist but shards are not yet assigned (e.g. shortly after index creation), multi-search
+     * fails with {@link NoShardAvailableActionException}. Treat that like missing stats documents so
+     * validation can proceed with default progress (see #138409).
+     */
+    private static boolean recoverableMlShardFailureForStatsSearch(SearchRequest request, Exception failure) {
+        if (targetsMlStatsOrStateIndices(request) == false) {
+            return false;
+        }
+        return isShardNotAvailableFailure(failure);
+    }
+
+    private static boolean targetsMlStatsOrStateIndices(SearchRequest request) {
+        for (String index : request.indices()) {
+            if (index.contains(MlStatsIndex.TEMPLATE_NAME) || index.contains(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isShardNotAvailableFailure(Throwable failure) {
+        Throwable current = failure;
+        while (current != null) {
+            if (current instanceof NoShardAvailableActionException) {
+                return true;
+            }
+            if (current instanceof SearchPhaseExecutionException spe) {
+                ShardSearchFailure[] shardFailures = spe.shardFailures();
+                if (shardFailures != null) {
+                    for (ShardSearchFailure shardFailure : shardFailures) {
+                        if (ExceptionsHelper.unwrapCause(shardFailure.getCause()) instanceof NoShardAvailableActionException) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 }

@@ -1,0 +1,6 @@
+pr: 137744
+summary: Catch `DateTimeException` in `EsqlDataTypeConverter`
+area: ES|QL
+type: bug
+issues:
+ - 137741

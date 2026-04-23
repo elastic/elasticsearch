@@ -40,6 +40,7 @@ import java.util.concurrent.Executor;
 import static org.elasticsearch.cluster.node.DiscoveryNode.STATELESS_ENABLED_SETTING_NAME;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
+import static org.elasticsearch.xpack.downsample.DownsampleActionSingleNodeTests.randomSamplingMethod;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
@@ -87,14 +88,15 @@ public class DownsampleShardPersistentTaskExecutorTests extends ESTestCase {
             .build();
 
         var params = new DownsampleShardTaskParams(
-            new DownsampleConfig(new DateHistogramInterval("1h")),
+            new DownsampleConfig(new DateHistogramInterval("1h"), randomSamplingMethod()),
             shardId.getIndexName(),
             1,
             1,
             shardId,
             Strings.EMPTY_ARRAY,
             Strings.EMPTY_ARRAY,
-            Strings.EMPTY_ARRAY
+            Strings.EMPTY_ARRAY,
+            Map.of()
         );
         var result = executor.getAssignment(params, Set.of(node), clusterState, projectId);
         assertThat(result.getExecutorNode(), equalTo(node.getId()));
@@ -119,14 +121,15 @@ public class DownsampleShardPersistentTaskExecutorTests extends ESTestCase {
 
         var missingShardId = new ShardId(new Index("another_index", "uid"), 0);
         var params = new DownsampleShardTaskParams(
-            new DownsampleConfig(new DateHistogramInterval("1h")),
+            new DownsampleConfig(new DateHistogramInterval("1h"), randomSamplingMethod()),
             missingShardId.getIndexName(),
             1,
             1,
             missingShardId,
             Strings.EMPTY_ARRAY,
             Strings.EMPTY_ARRAY,
-            Strings.EMPTY_ARRAY
+            Strings.EMPTY_ARRAY,
+            Map.of()
         );
         var result = executor.getAssignment(params, Set.of(node), clusterState, projectId);
         assertThat(result.getExecutorNode(), equalTo(node.getId()));
@@ -156,14 +159,15 @@ public class DownsampleShardPersistentTaskExecutorTests extends ESTestCase {
             .build();
 
         var params = new DownsampleShardTaskParams(
-            new DownsampleConfig(new DateHistogramInterval("1h")),
+            new DownsampleConfig(new DateHistogramInterval("1h"), randomSamplingMethod()),
             shardId.getIndexName(),
             1,
             1,
             shardId,
             Strings.EMPTY_ARRAY,
             Strings.EMPTY_ARRAY,
-            Strings.EMPTY_ARRAY
+            Strings.EMPTY_ARRAY,
+            Map.of()
         );
         var result = executor.getAssignment(params, Set.of(indexNode, searchNode), clusterState, projectId);
         assertThat(result.getExecutorNode(), nullValue());

@@ -25,8 +25,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.inference.telemetry.InferenceStats.create;
-import static org.elasticsearch.inference.telemetry.InferenceStats.modelAttributes;
 import static org.elasticsearch.inference.telemetry.InferenceStats.responseAttributes;
+import static org.elasticsearch.inference.telemetry.InferenceStats.serviceAttributes;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.assertArg;
@@ -41,23 +41,20 @@ public class InferenceStatsTests extends ESTestCase {
         return new InferenceStats(mock(), mock(), mock());
     }
 
-    public void testRecordWithModel() {
+    public void testRecordWithService() {
         var longCounter = mock(LongCounter.class);
         var stats = new InferenceStats(longCounter, mock(), mock());
 
-        stats.requestCount().incrementBy(1, modelAttributes(model("service", TaskType.ANY, "modelId")));
+        stats.requestCount().incrementBy(1, serviceAttributes(model("service", TaskType.ANY, "modelId")));
 
-        verify(longCounter).incrementBy(
-            eq(1L),
-            eq(Map.of("service", "service", "task_type", TaskType.ANY.toString(), "model_id", "modelId"))
-        );
+        verify(longCounter).incrementBy(eq(1L), eq(Map.of("service", "service", "task_type", TaskType.ANY.toString())));
     }
 
     public void testRecordWithoutModel() {
         var longCounter = mock(LongCounter.class);
         var stats = new InferenceStats(longCounter, mock(), mock());
 
-        stats.requestCount().incrementBy(1, modelAttributes(model("service", TaskType.ANY, null)));
+        stats.requestCount().incrementBy(1, serviceAttributes(model("service", TaskType.ANY, null)));
 
         verify(longCounter).incrementBy(eq(1L), eq(Map.of("service", "service", "task_type", TaskType.ANY.toString())));
     }
@@ -72,7 +69,7 @@ public class InferenceStatsTests extends ESTestCase {
         var stats = new InferenceStats(mock(), histogramCounter, mock());
 
         Map<String, Object> metricAttributes = new HashMap<>();
-        metricAttributes.putAll(modelAttributes(model("service", TaskType.ANY, "modelId")));
+        metricAttributes.putAll(serviceAttributes(model("service", TaskType.ANY, "modelId")));
         metricAttributes.putAll(responseAttributes(null));
 
         stats.inferenceDuration().record(expectedLong, metricAttributes);
@@ -80,15 +77,14 @@ public class InferenceStatsTests extends ESTestCase {
         verify(histogramCounter).record(eq(expectedLong), assertArg(attributes -> {
             assertThat(attributes.get("service"), is("service"));
             assertThat(attributes.get("task_type"), is(TaskType.ANY.toString()));
-            assertThat(attributes.get("model_id"), is("modelId"));
             assertThat(attributes.get("status_code"), is(200));
-            assertThat(attributes.get("error.type"), nullValue());
+            assertThat(attributes.get("error_type"), nullValue());
         }));
     }
 
     /**
      * "If response status code was sent or received and status indicates an error according to HTTP span status definition,
-     * error.type SHOULD be set to the status code number (represented as a string)"
+     * error_type SHOULD be set to the status code number (represented as a string)"
      * - https://opentelemetry.io/docs/specs/semconv/http/http-metrics/
      */
     public void testRecordDurationWithElasticsearchStatusException() {
@@ -100,7 +96,7 @@ public class InferenceStatsTests extends ESTestCase {
         var expectedError = String.valueOf(statusCode.getStatus());
 
         Map<String, Object> metricAttributes = new HashMap<>();
-        metricAttributes.putAll(modelAttributes(model("service", TaskType.ANY, "modelId")));
+        metricAttributes.putAll(serviceAttributes(model("service", TaskType.ANY, "modelId")));
         metricAttributes.putAll(responseAttributes(exception));
 
         stats.inferenceDuration().record(expectedLong, metricAttributes);
@@ -108,15 +104,14 @@ public class InferenceStatsTests extends ESTestCase {
         verify(histogramCounter).record(eq(expectedLong), assertArg(attributes -> {
             assertThat(attributes.get("service"), is("service"));
             assertThat(attributes.get("task_type"), is(TaskType.ANY.toString()));
-            assertThat(attributes.get("model_id"), is("modelId"));
             assertThat(attributes.get("status_code"), is(statusCode.getStatus()));
-            assertThat(attributes.get("error.type"), is(expectedError));
+            assertThat(attributes.get("error_type"), is(expectedError));
         }));
     }
 
     /**
      * "If the request fails with an error before response status code was sent or received,
-     * error.type SHOULD be set to exception type"
+     * error_type SHOULD be set to exception type"
      * - https://opentelemetry.io/docs/specs/semconv/http/http-metrics/
      */
     public void testRecordDurationWithOtherException() {
@@ -127,7 +122,7 @@ public class InferenceStatsTests extends ESTestCase {
         var expectedError = exception.getClass().getSimpleName();
 
         Map<String, Object> metricAttributes = new HashMap<>();
-        metricAttributes.putAll(modelAttributes(model("service", TaskType.ANY, "modelId")));
+        metricAttributes.putAll(serviceAttributes(model("service", TaskType.ANY, "modelId")));
         metricAttributes.putAll(responseAttributes(exception));
 
         stats.inferenceDuration().record(expectedLong, metricAttributes);
@@ -135,9 +130,8 @@ public class InferenceStatsTests extends ESTestCase {
         verify(histogramCounter).record(eq(expectedLong), assertArg(attributes -> {
             assertThat(attributes.get("service"), is("service"));
             assertThat(attributes.get("task_type"), is(TaskType.ANY.toString()));
-            assertThat(attributes.get("model_id"), is("modelId"));
             assertThat(attributes.get("status_code"), nullValue());
-            assertThat(attributes.get("error.type"), is(expectedError));
+            assertThat(attributes.get("error_type"), is(expectedError));
         }));
     }
 
@@ -152,7 +146,7 @@ public class InferenceStatsTests extends ESTestCase {
         var unparsedModel = new UnparsedModel("inferenceEntityId", TaskType.ANY, "service", Map.of(), Map.of());
 
         Map<String, Object> metricAttributes = new HashMap<>();
-        metricAttributes.putAll(modelAttributes(unparsedModel));
+        metricAttributes.putAll(serviceAttributes(unparsedModel));
         metricAttributes.putAll(responseAttributes(exception));
 
         stats.inferenceDuration().record(expectedLong, metricAttributes);
@@ -162,7 +156,7 @@ public class InferenceStatsTests extends ESTestCase {
             assertThat(attributes.get("task_type"), is(TaskType.ANY.toString()));
             assertThat(attributes.get("model_id"), nullValue());
             assertThat(attributes.get("status_code"), is(statusCode.getStatus()));
-            assertThat(attributes.get("error.type"), is(expectedError));
+            assertThat(attributes.get("error_type"), is(expectedError));
         }));
     }
 
@@ -176,7 +170,7 @@ public class InferenceStatsTests extends ESTestCase {
         var unparsedModel = new UnparsedModel("inferenceEntityId", TaskType.ANY, "service", Map.of(), Map.of());
 
         Map<String, Object> metricAttributes = new HashMap<>();
-        metricAttributes.putAll(modelAttributes(unparsedModel));
+        metricAttributes.putAll(serviceAttributes(unparsedModel));
         metricAttributes.putAll(responseAttributes(exception));
 
         stats.inferenceDuration().record(expectedLong, metricAttributes);
@@ -186,7 +180,7 @@ public class InferenceStatsTests extends ESTestCase {
             assertThat(attributes.get("task_type"), is(TaskType.ANY.toString()));
             assertThat(attributes.get("model_id"), nullValue());
             assertThat(attributes.get("status_code"), nullValue());
-            assertThat(attributes.get("error.type"), is(expectedError));
+            assertThat(attributes.get("error_type"), is(expectedError));
         }));
     }
 
@@ -205,7 +199,7 @@ public class InferenceStatsTests extends ESTestCase {
             assertThat(attributes.get("task_type"), nullValue());
             assertThat(attributes.get("model_id"), nullValue());
             assertThat(attributes.get("status_code"), is(statusCode.getStatus()));
-            assertThat(attributes.get("error.type"), is(expectedError));
+            assertThat(attributes.get("error_type"), is(expectedError));
         }));
     }
 
@@ -223,7 +217,7 @@ public class InferenceStatsTests extends ESTestCase {
             assertThat(attributes.get("task_type"), nullValue());
             assertThat(attributes.get("model_id"), nullValue());
             assertThat(attributes.get("status_code"), nullValue());
-            assertThat(attributes.get("error.type"), is(expectedError));
+            assertThat(attributes.get("error_type"), is(expectedError));
         }));
     }
 

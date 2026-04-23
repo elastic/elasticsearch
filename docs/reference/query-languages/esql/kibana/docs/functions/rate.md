@@ -5,5 +5,5 @@ Calculates the per-second average rate of increase of a [counter](docs-content:/
 
 ```esql
 TS k8s
-| STATS max(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute)
+| STATS max_rate=MAX(RATE(network.total_bytes_in)) BY time_bucket = TBUCKET(5minute)
 ```

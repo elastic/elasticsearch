@@ -13,7 +13,6 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -70,7 +69,7 @@ import java.util.Objects;
  * "https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-simple-query-string-query.html"
  * > online documentation</a>.
  */
-public final class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQueryStringBuilder> {
+public final class SimpleQueryStringBuilder extends LeafQueryBuilder<SimpleQueryStringBuilder> {
 
     /** Default for using lenient query parsing.*/
     public static final boolean DEFAULT_LENIENT = false;
@@ -91,8 +90,6 @@ public final class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQ
 
     /** Name for (de-)serialization. */
     public static final String NAME = "simple_query_string";
-
-    public static final TransportVersion TYPE_FIELD_ADDED_VERSION = TransportVersions.V_8_10_X;
 
     private static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match");
     private static final ParseField ANALYZE_WILDCARD_FIELD = new ParseField("analyze_wildcard");
@@ -167,11 +164,7 @@ public final class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQ
         settings.fuzzyPrefixLength(in.readVInt());
         settings.fuzzyMaxExpansions(in.readVInt());
         settings.fuzzyTranspositions(in.readBoolean());
-        if (in.getTransportVersion().onOrAfter(TYPE_FIELD_ADDED_VERSION)) {
-            this.type = MultiMatchQueryBuilder.Type.readFromStream(in);
-        } else {
-            this.type = DEFAULT_TYPE;
-        }
+        this.type = MultiMatchQueryBuilder.Type.readFromStream(in);
     }
 
     @Override
@@ -194,9 +187,7 @@ public final class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQ
         out.writeVInt(settings.fuzzyPrefixLength());
         out.writeVInt(settings.fuzzyMaxExpansions());
         out.writeBoolean(settings.fuzzyTranspositions());
-        if (out.getTransportVersion().onOrAfter(TYPE_FIELD_ADDED_VERSION)) {
-            type.writeTo(out);
-        }
+        type.writeTo(out);
     }
 
     /** Returns the text to parse the query from. */
@@ -404,7 +395,7 @@ public final class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQ
     }
 
     @Override
-    protected Query doToQuery(SearchExecutionContext context) throws IOException {
+    public Query doToQuery(SearchExecutionContext context) throws IOException {
         Settings newSettings = new Settings(settings);
         final Map<String, Float> resolvedFieldsAndWeights;
         boolean isAllField;

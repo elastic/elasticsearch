@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.security.transport;
 
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -16,6 +15,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
+
+import java.security.GeneralSecurityException;
+import java.security.cert.CertificateException;
 
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
@@ -34,7 +36,7 @@ public class CrossClusterApiKeySignatureManagerTests extends ESTestCase {
             .put(Node.NODE_NAME_SETTING.getKey(), randomAlphaOfLengthBetween(3, 8));
     }
 
-    public void testSignAndVerifyPKCS12orBCFKS() {
+    public void testSignAndVerifyPKCS12orBCFKS() throws GeneralSecurityException {
         var builder = Settings.builder()
             .put("cluster.remote.my_remote.signing.keystore.alias", "wholelottakey")
             .put("path.home", createTempDir())
@@ -48,7 +50,7 @@ public class CrossClusterApiKeySignatureManagerTests extends ESTestCase {
         assertTrue(manager.verifier().verify(signature, "a_header"));
     }
 
-    public void testSignAndVerifyDifferentPayloadFailsPKCS12orBCFKS() {
+    public void testSignAndVerifyDifferentPayloadFailsPKCS12orBCFKS() throws GeneralSecurityException {
         var builder = Settings.builder()
             .put("cluster.remote.my_remote.signing.keystore.alias", "wholelottakey")
             .put("path.home", createTempDir())
@@ -62,7 +64,7 @@ public class CrossClusterApiKeySignatureManagerTests extends ESTestCase {
         assertFalse(manager.verifier().verify(signature, "another_header"));
     }
 
-    public void testSignAndVerifyRSAorEC() {
+    public void testSignAndVerifyRSAorEC() throws GeneralSecurityException {
         var builder = Settings.builder()
             .put("path.home", createTempDir())
             .put(Node.NODE_NAME_SETTING.getKey(), randomAlphaOfLengthBetween(3, 8));
@@ -74,7 +76,7 @@ public class CrossClusterApiKeySignatureManagerTests extends ESTestCase {
         assertTrue(manager.verifier().verify(signature, "a_header"));
     }
 
-    public void testSignAndVerifyDifferentPayloadFailsRSAorEC() {
+    public void testSignAndVerifyDifferentPayloadFailsRSAorEC() throws GeneralSecurityException {
         var builder = Settings.builder()
             .put("path.home", createTempDir())
             .put(Node.NODE_NAME_SETTING.getKey(), randomAlphaOfLengthBetween(3, 8));
@@ -86,7 +88,7 @@ public class CrossClusterApiKeySignatureManagerTests extends ESTestCase {
         assertFalse(manager.verifier().verify(signature, "another_header"));
     }
 
-    public void testSignAndVerifyWrongKeyRSAorEC() {
+    public void testSignAndVerifyWrongKeyRSAorEC() throws GeneralSecurityException {
         var builder = Settings.builder()
             .put("cluster.remote.my_remote2.signing.keystore.alias", "ainttalkinboutkeys")
             .put("path.home", createTempDir())
@@ -111,7 +113,7 @@ public class CrossClusterApiKeySignatureManagerTests extends ESTestCase {
         );
     }
 
-    public void testSignAndVerifyManipulatedSignatureStringRSAorEC() {
+    public void testSignAndVerifyManipulatedSignatureStringRSAorEC() throws GeneralSecurityException {
         var builder = Settings.builder()
             .put("path.home", createTempDir())
             .put(Node.NODE_NAME_SETTING.getKey(), randomAlphaOfLengthBetween(3, 8));
@@ -196,8 +198,35 @@ public class CrossClusterApiKeySignatureManagerTests extends ESTestCase {
 
         var signature = signer.sign("test");
         assertThat(signature.certificates(), arrayWithSize(1));
-        var exception = assertThrows(ElasticsearchSecurityException.class, () -> verifier.verify(signature, "test"));
-        assertThat(exception.getMessage(), containsString("Failed to verify signature from "));
+        var exception = assertThrows(GeneralSecurityException.class, () -> verifier.verify(signature, "test"));
+        assertThat(
+            exception.getMessage(),
+            containsString(
+                inFipsJvm() ? "Unable to construct a valid chain" : "unable to find valid certification path to requested target"
+            )
+        );
+    }
+
+    public void testSignAndVerifyExpiredCertFails() {
+        var builder = Settings.builder()
+            .put("path.home", createTempDir())
+            .put(Node.NODE_NAME_SETTING.getKey(), randomAlphaOfLengthBetween(3, 8));
+
+        builder.put(
+            "cluster.remote.signing.certificate_authorities",
+            getDataPath("/org/elasticsearch/xpack/security/signature/expired_cert.crt")
+        )
+            .put(
+                "cluster.remote.my_remote.signing.certificate",
+                getDataPath("/org/elasticsearch/xpack/security/signature/expired_cert.crt")
+            )
+            .put("cluster.remote.my_remote.signing.key", getDataPath("/org/elasticsearch/xpack/security/signature/expired_key.key"));
+
+        var manager = new CrossClusterApiKeySignatureManager(TestEnvironment.newEnvironment(builder.build()));
+        var signature = manager.signerForClusterAlias("my_remote").sign("a_header");
+        var verifier = manager.verifier();
+        var exception = assertThrows(CertificateException.class, () -> verifier.verify(signature, "test"));
+        assertThat(exception.getMessage(), containsString(inFipsJvm() ? "certificate expired on" : "NotAfter"));
     }
 
     private void addStorePathToBuilder(String storeName, String password, String passwordFips, Settings.Builder builder) {

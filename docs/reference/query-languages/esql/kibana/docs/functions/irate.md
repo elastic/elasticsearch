@@ -5,5 +5,5 @@ Calculates the irate of a counter field. irate is the per-second rate of increas
 
 ```esql
 TS k8s | WHERE pod == "one"
-| STATS irate_bytes_in = sum(irate(network.total_bytes_in)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
+| STATS irate_bytes_in = SUM(IRATE(network.total_bytes_in)) BY cluster, time_bucket = TBUCKET(10minute)
 ```

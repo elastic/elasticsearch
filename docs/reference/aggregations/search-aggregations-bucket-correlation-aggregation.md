@@ -58,6 +58,7 @@ A `bucket_correlation` aggregation looks like this in isolation:
   }
 }
 ```
+% NOTCONSOLE
 
 1. The buckets containing the values to correlate against.
 2. The correlation function definition.
@@ -116,6 +117,7 @@ POST correlate_latency/_search?size=0&filter_path=aggregations
   }
 }
 ```
+% TEST[setup:correlate_latency]
 
 1. The term buckets containing a range aggregation and the bucket correlation aggregation. Both are utilized to calculate the correlation of the term values with the latency.
 2. The range aggregation on the latency field. The ranges were created referencing the percentiles of the latency field.

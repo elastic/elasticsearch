@@ -34,6 +34,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
@@ -290,6 +291,44 @@ public class FeatureFactoryTests extends ESTestCase {
         final Geometry geometry = WellKnownText.fromWKT(StandardValidator.instance(true), true, reader.readLine());
         final FeatureFactory builder = new FeatureFactory(0, 0, 0, 4096, 5);
         assertThat(builder.getFeatures(geometry), iterableWithSize(1));
+    }
+
+    public void testVectorTilesDoNotContainOriginWithSimplifiableGeometries() {
+        Polygon polygon = new Polygon(
+            new LinearRing(
+                new double[] { -94.491034, -94.493892, -94.399587, -94.483604, -94.491034 },
+                new double[] { -72.522177, -72.491761, -72.607412, -72.545519, -72.522177 }
+            )
+        );
+
+        final FeatureFactory builder = new FeatureFactory(0, 0, 0, 4096, 5);
+
+        var mvtGeometry = builder.getMvtGeometry(polygon);
+        var coordinates = mvtGeometry.getCoordinates();
+        var containsCenter = Arrays.stream(coordinates).anyMatch(c -> c.x == 2048 && c.y == 2048);
+        assertFalse("Coordinate (2048,2048) only occurs if we are converting the first / last coordinate twice", containsCenter);
+    }
+
+    public void testVectorTilesDoNotContainOriginWithComplexGeometries() throws IOException, ParseException {
+        // make sure we can parse big polygons
+        var is = new GZIPInputStream(getClass().getResourceAsStream("Antarctica.wkt.gz"));
+        final BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
+        final Geometry geometry = WellKnownText.fromWKT(StandardValidator.instance(true), true, reader.readLine());
+        final FeatureFactory builder = new FeatureFactory(0, 0, 0, 4096, 5);
+
+        var mvtGeometry = builder.getMvtGeometry(geometry);
+        var coordinates = mvtGeometry.getCoordinates();
+        var containsCenter = Arrays.stream(coordinates).anyMatch(c -> c.x == 2048 && c.y == 2048);
+        assertFalse("Coordinate (2048,2048) only occurs if we are converting the first / last coordinate twice", containsCenter);
+    }
+
+    public void testVectorTilesDoNotContainOriginWithNonSimplifiableGeometries() {
+        Polygon polygon = new Polygon(new LinearRing(new double[] { -10, 10, 10, -10, -10 }, new double[] { -10, -10, 10, 10, -10 }));
+        final FeatureFactory builder = new FeatureFactory(0, 0, 0, 4096, 5);
+        var mvtGeometry = builder.getMvtGeometry(polygon);
+        var coordinates = mvtGeometry.getCoordinates();
+        var containsCenter = Arrays.stream(coordinates).anyMatch(c -> c.x == 2048 && c.y == 2048);
+        assertFalse("Coordinate (2048,2048) only occurs if we are converting the first / last coordinate twice", containsCenter);
     }
 
     public void testPolygonOrientation() throws IOException {

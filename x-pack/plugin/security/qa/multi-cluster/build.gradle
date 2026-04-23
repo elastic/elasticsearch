@@ -27,6 +27,11 @@ dependencies {
   clusterModules project(':x-pack:plugin:ml')
   clusterModules project(xpackModule('ilm'))
   clusterModules(project(":modules:ingest-common"))
+  // dependencies for inference tests
+  clusterModules project(':x-pack:plugin:ilm')
+  clusterModules project(':x-pack:plugin:ml')
+  clusterModules project(':x-pack:plugin:inference')
+  clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
 }
 
 tasks.named("javaRestTest") {

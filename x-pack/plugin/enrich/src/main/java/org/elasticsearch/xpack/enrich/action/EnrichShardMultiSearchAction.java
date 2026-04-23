@@ -238,7 +238,7 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
                 Map<String, Object> runtimeFields = emptyMap();
                 final SearchExecutionContext context = indexService.newSearchExecutionContext(shardId.id(), 0, searcher, () -> {
                     throw new UnsupportedOperationException();
-                }, null, runtimeFields);
+                }, null, runtimeFields, null, null);
                 final MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[request.multiSearchRequest.requests().size()];
                 StoredFields storedFields = searcher.storedFields();
                 for (int i = 0; i < request.multiSearchRequest.requests().size(); i++) {

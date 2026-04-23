@@ -90,6 +90,7 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
     public void testDefaultMetaFields() {
         var searchExecutionContext = mock(SearchExecutionContext.class);
         when(searchExecutionContext.indexVersionCreated()).thenReturn(IndexVersion.current());
+        when(searchExecutionContext.getIndexSettings()).thenReturn(ESTestCase.defaultIndexSettings());
 
         securityIndexReaderWrapper = new SecurityIndexReaderWrapper(
             id -> searchExecutionContext,

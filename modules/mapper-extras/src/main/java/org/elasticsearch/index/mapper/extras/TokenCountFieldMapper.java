@@ -42,10 +42,19 @@ public class TokenCountFieldMapper extends FieldMapper {
         return (TokenCountFieldMapper) in;
     }
 
+    public static final FieldMapper.DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new FieldMapper.DocValuesParameter.Values(
+        true,
+        FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
+        FieldMapper.DocValuesParameter.Values.MultiValue.SORTED
+    );
+
     public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> index = Parameter.indexParam(m -> toType(m).index, true);
-        private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
+        private final FieldMapper.DocValuesParameter docValuesParameters = FieldMapper.DocValuesParameter.sorted(
+            DEFAULT_DOC_VALUES_PARAMS,
+            m -> toType(m).docValuesParameters()
+        );
         private final Parameter<Boolean> store = Parameter.storeParam(m -> toType(m).store, false);
 
         private final Parameter<NamedAnalyzer> analyzer = Parameter.analyzerParam("analyzer", true, m -> toType(m).analyzer, () -> null);
@@ -73,7 +82,12 @@ public class TokenCountFieldMapper extends FieldMapper {
 
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] { index, hasDocValues, store, analyzer, nullValue, enablePositionIncrements, meta };
+            return new Parameter<?>[] { index, docValuesParameters, store, analyzer, nullValue, enablePositionIncrements, meta };
+        }
+
+        @Override
+        public String contentType() {
+            return CONTENT_TYPE;
         }
 
         @Override
@@ -85,7 +99,7 @@ public class TokenCountFieldMapper extends FieldMapper {
                 context.buildFullName(leafName()),
                 index.getValue(),
                 store.getValue(),
-                hasDocValues.getValue(),
+                docValuesParameters.getValue().enabled(),
                 nullValue.getValue(),
                 meta.getValue(),
                 context.isSourceSynthetic()
@@ -133,7 +147,7 @@ public class TokenCountFieldMapper extends FieldMapper {
     public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
 
     private final boolean index;
-    private final boolean hasDocValues;
+    private final FieldMapper.DocValuesParameter.Values docValuesParameters;
     private final boolean store;
     private final NamedAnalyzer analyzer;
     private final boolean enablePositionIncrements;
@@ -145,7 +159,7 @@ public class TokenCountFieldMapper extends FieldMapper {
         this.enablePositionIncrements = builder.enablePositionIncrements.getValue();
         this.nullValue = builder.nullValue.getValue();
         this.index = builder.index.getValue();
-        this.hasDocValues = builder.hasDocValues.getValue();
+        this.docValuesParameters = builder.docValuesParameters.getValue();
         this.store = builder.store.getValue();
     }
 
@@ -164,7 +178,13 @@ public class TokenCountFieldMapper extends FieldMapper {
             tokenCount = countPositions(analyzer, fullPath(), value, enablePositionIncrements);
         }
 
-        NumberFieldMapper.NumberType.INTEGER.addFields(context.doc(), fieldType().name(), tokenCount, index, hasDocValues, store);
+        NumberFieldMapper.NumberType.INTEGER.addFields(
+            context.doc(),
+            fieldType().name(),
+            tokenCount,
+            IndexType.points(index, docValuesParameters.enabled()),
+            store
+        );
     }
 
     /**
@@ -202,6 +222,10 @@ public class TokenCountFieldMapper extends FieldMapper {
      */
     public String analyzer() {
         return analyzer.name();
+    }
+
+    public FieldMapper.DocValuesParameter.Values docValuesParameters() {
+        return docValuesParameters;
     }
 
     @Override

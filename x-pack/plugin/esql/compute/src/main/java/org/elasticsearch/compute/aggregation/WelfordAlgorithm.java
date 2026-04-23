@@ -73,7 +73,16 @@ public final class WelfordAlgorithm {
         count += countValue;
     }
 
-    public double evaluate() {
-        return count < 2 ? 0 : Math.sqrt(m2 / count);
+    /**
+     * Evaluate the variance or standard deviation.
+     * @param stdDev if true, compute standard deviation, otherwise variance
+     * @return
+     */
+    public double evaluate(boolean stdDev) {
+        if (stdDev == false) {
+            return count < 2 ? 0 : m2 / count;
+        } else {
+            return count < 2 ? 0 : Math.sqrt(m2 / count);
+        }
     }
 }

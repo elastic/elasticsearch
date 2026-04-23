@@ -290,6 +290,24 @@ emp_no:integer | a:keyword                         | b:keyword                  
 10005          | null                              | null                               | null           | null
 ;
 
+multiPatterns
+required_capability: grok_multi_pattern
+row text = "XYZ extractme" | grok text "ABC %{WORD:foo}","XYZ %{WORD:bar}" | keep foo, bar;
+
+foo:keyword | bar:keyword
+null        | extractme
+;
+
+multiPatterns2
+required_capability: grok_multi_pattern
+from employees | sort emp_no asc | eval full_name = concat(first_name, " ", last_name) | grok full_name "Georgi %{WORD:georgis_last_name}", "%{WORD:first_name} %{WORD:last_name}" | keep full_name, first_name, last_name, georgis_last_name | limit 3;
+
+full_name:keyword      | first_name:keyword   | last_name:keyword | georgis_last_name:keyword 
+Georgi Facello         | null                 | null              | Facello
+Bezalel Simmel         | Bezalel              | Simmel            | null
+Parto Bamford          | Parto                | Bamford           | null
+;
+
 overwriteInputName
 required_capability: grok_dissect_masking
 row text = "123 abc", int = 5 | sort int asc | grok text "%{NUMBER:text:int} %{WORD:description}" | keep text, int, description;
@@ -303,7 +321,8 @@ avoidAttributesRemoval
 required_capability: union_types
 required_capability: join_lookup_v12
 required_capability: keep_regex_extract_attributes
-from multivalue_points,h*,messa* 
+
+from multivalue_points,heights,histogram*,host*,messa*
 | eval  `card` = true, PbehoQUqKSF = "VLGjhcgNkQiEVyCLo", DsxMWtGL = true, qSxTIvUorMim = true, `location` = 8593178066470220111, type = -446161601, FSkGQkgmS = false 
 | eval  PbehoQUqKSF = 753987034, HLNMQfQj = true, `within` = true, `id` = "JDKKkYwhhh", lk = null, aecuvjTkgZza = 510616700, aDAMpuVtNX = null, qCopgNZPt = "AjhJUtZefqKdJYH", BxHHlFoA = "isBrmhKLc"
 | rename message as message 
@@ -329,3 +348,161 @@ BkQXJRMeAM:long
 4325287503714500302
 ;
 
+
+nullInputRow
+required_capability: str_commands_accept_null
+
+ROW n = null
+| GROK n "%{WORD:abc}"
+;
+
+n:null | abc:keyword
+  null | null
+;
+
+nullInput
+required_capability: str_commands_accept_null
+
+FROM employees
+| EVAL n = null
+| GROK n "%{WORD:abc}"
+| WHERE emp_no == 10001
+| KEEP n, abc
+;
+
+n:null | abc:keyword
+  null | null
+;
+
+pruneAllGrokFields
+ROW message = "2023-01-23T12:15:00Z 192.168.1.1 user@example.com 42"
+| GROK message "%{TIMESTAMP_ISO8601:date} %{IP:ip} %{EMAILADDRESS:email} %{NUMBER:num:int}"
+| KEEP message
+;
+
+message:keyword
+2023-01-23T12:15:00Z 192.168.1.1 user@example.com 42
+;
+
+
+pruneAllGrokFieldsFromEmployees
+FROM employees
+| EVAL full_name = CONCAT(first_name, " ", last_name)
+| GROK full_name "%{WORD:extracted_first} %{WORD:extracted_last}"
+| KEEP emp_no, full_name
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer | full_name:keyword
+10001          | Georgi Facello
+10002          | Bezalel Simmel
+10003          | Parto Bamford
+;
+
+
+pruneAllGrokFieldsViaDrop
+FROM apps
+| EVAL concat = CONCAT(id::string, " ", name)
+| GROK concat "%{WORD:extracted_first} %{WORD:extracted_last}"
+| DROP extracted_first, extracted_last, concat
+| SORT id
+| LIMIT 3
+;
+
+id:integer	| name:keyword	| version:version
+1         	| aaaaa       	| 1              
+2         	| bbbbb       	| 2.1            
+3         	| ccccc       	| 2.3.4     
+;
+
+
+pruneGrokFieldsShadowedByEval
+ROW message = "2023-01-23T12:15:00Z 192.168.1.1 user@example.com 42"
+| GROK message "%{TIMESTAMP_ISO8601:date} %{IP:ip} %{EMAILADDRESS:email} %{NUMBER:num:int}"
+| EVAL date = "overwritten", ip = "overwritten", email = "overwritten", num = 0
+| KEEP message, date
+;
+
+message:keyword                                            | date:keyword
+2023-01-23T12:15:00Z 192.168.1.1 user@example.com 42      | overwritten
+;
+
+
+prunePartialGrokFieldsViaDrop
+ROW message = "2023-01-23T12:15:00Z 192.168.1.1 user@example.com 42"
+| GROK message "%{TIMESTAMP_ISO8601:date} %{IP:ip} %{EMAILADDRESS:email} %{NUMBER:num:int}"
+| DROP ip, email, num
+;
+
+message:keyword                                            | date:keyword
+2023-01-23T12:15:00Z 192.168.1.1 user@example.com 42      | 2023-01-23T12:15:00Z
+;
+
+
+pruneGrokFieldsUsedInFilter
+ROW message = "2023-01-23T12:15:00Z 192.168.1.1 user@example.com 42"
+| GROK message "%{TIMESTAMP_ISO8601:date} %{IP:ip} %{EMAILADDRESS:email} %{NUMBER:num:int}"
+| WHERE ip == "192.168.1.1"
+| KEEP message, ip
+;
+
+message:keyword                                            | ip:keyword
+2023-01-23T12:15:00Z 192.168.1.1 user@example.com 42      | 192.168.1.1
+;
+
+
+pruneGrokFieldRedefinedBeforeStats
+FROM employees
+| EVAL full_name = CONCAT(first_name, " ", last_name)
+| GROK full_name "%{WORD:extracted_first} %{WORD:extracted_last}"
+| EVAL extracted_first = "constant", extracted_last = "constant"
+| STATS count = COUNT(*) BY extracted_first
+;
+
+count:long | extracted_first:keyword
+100        | constant
+;
+
+
+pruneGrokWithInlineStatsPrunedEntirely
+required_capability: inline_stats
+FROM employees
+| EVAL full_name = CONCAT(first_name, " ", last_name)
+| GROK full_name "%{WORD:extracted_first} %{WORD:extracted_last}"
+| INLINE STATS avg_salary = AVG(salary) BY extracted_last
+| EVAL avg_salary = emp_no
+| KEEP emp_no, avg_salary
+| SORT emp_no
+| LIMIT 5
+;
+
+emp_no:integer | avg_salary:integer
+10001          | 10001
+10002          | 10002
+10003          | 10003
+10004          | 10004
+10005          | 10005
+;
+
+
+pruneGrokWithLookupJoin
+required_capability: join_lookup_v12
+FROM employees
+| EVAL language_code = languages
+| EVAL full_name = CONCAT(first_name, " ", last_name)
+| GROK full_name "%{WORD:extracted_first} %{WORD:extracted_last}"
+| LOOKUP JOIN languages_lookup ON language_code
+| DROP extracted_first, extracted_last, full_name
+| KEEP emp_no, language_name
+| SORT emp_no
+| LIMIT 5
+;
+
+emp_no:integer | language_name:keyword
+10001          | French
+10002          | null
+10003          | German
+10004          | null
+10005          | English
+;

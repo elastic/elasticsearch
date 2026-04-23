@@ -1,0 +1,2 @@
+from all_types, (from all_types | stats cnt = count(*) by x = date_trunc(1 day, date))
+| keep x, cnt, date

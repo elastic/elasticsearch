@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.health.ClusterIndexHealthTests;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -161,7 +160,7 @@ public class ClusterHealthResponsesTests extends AbstractXContentSerializingTest
         TimeValue pendingTaskInQueueTime = TimeValue.timeValueMillis(randomIntBetween(1000, 100000));
         ClusterHealthResponse clusterHealth = new ClusterHealthResponse(
             "bla",
-            new String[] { Metadata.ALL },
+            new String[0], // Use empty array since clusterState has no indices
             clusterState,
             clusterState.metadata().getProject().id(),
             pendingTasks,

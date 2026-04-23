@@ -14,10 +14,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
+import org.elasticsearch.inference.TopNProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -28,7 +28,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
  * Defines the task settings for the JinaAI rerank service.
  *
  */
-public class JinaAIRerankTaskSettings implements TaskSettings {
+public class JinaAIRerankTaskSettings implements TaskSettings, TopNProvider {
 
     public static final String NAME = "jinaai_rerank_task_settings";
     public static final String RETURN_DOCUMENTS = "return_documents";
@@ -51,8 +51,10 @@ public class JinaAIRerankTaskSettings implements TaskSettings {
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
+        validationException.throwIfValidationErrorsExist();
+
+        if (returnDocuments == null && topNDocumentsOnly == null) {
+            return EMPTY_SETTINGS;
         }
 
         return of(topNDocumentsOnly, returnDocuments);
@@ -147,13 +149,18 @@ public class JinaAIRerankTaskSettings implements TaskSettings {
         return topNDocumentsOnly;
     }
 
+    @Override
+    public Integer getTopN() {
+        return getTopNDocumentsOnly();
+    }
+
     public Boolean getReturnDocuments() {
         return returnDocuments;
     }
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        JinaAIRerankTaskSettings updatedSettings = JinaAIRerankTaskSettings.fromMap(new HashMap<>(newSettings));
+        JinaAIRerankTaskSettings updatedSettings = JinaAIRerankTaskSettings.fromMap(newSettings);
         return JinaAIRerankTaskSettings.of(this, updatedSettings);
     }
 }

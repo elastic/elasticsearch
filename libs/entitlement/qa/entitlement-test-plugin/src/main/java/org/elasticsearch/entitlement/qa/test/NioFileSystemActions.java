@@ -35,44 +35,42 @@ class NioFileSystemActions {
         new DummyImplementations.DummyFileSystemProvider();
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedExceptionIfDenied = IOException.class)
     static void checkNewFileSystemFromUri() throws IOException {
         try (var fs = FileSystems.getDefault().provider().newFileSystem(URI.create("/dummy/path"), Map.of())) {}
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
-    static void checkNewFileSystemFromPath() {
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedExceptionIfDenied = IOException.class)
+    static void checkNewFileSystemFromPath() throws IOException {
         var fs = FileSystems.getDefault().provider();
-        try (var newFs = fs.newFileSystem(Path.of("/dummy/path"), Map.of())) {} catch (IOException e) {
-            // When entitled, we expect to throw IOException, as the path is not valid - we don't really want to create a FS
-        }
+        try (var newFs = fs.newFileSystem(Path.of("/dummy/path"), Map.of())) {}
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkNewInputStream() throws IOException {
         var fs = FileSystems.getDefault().provider();
         try (var is = fs.newInputStream(FileCheckActions.readFile())) {}
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkNewOutputStream() throws IOException {
         var fs = FileSystems.getDefault().provider();
         try (var os = fs.newOutputStream(FileCheckActions.readWriteFile())) {}
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkNewFileChannelRead() throws IOException {
         var fs = FileSystems.getDefault().provider();
         try (var fc = fs.newFileChannel(FileCheckActions.readFile(), Set.of(StandardOpenOption.READ))) {}
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkNewFileChannelWrite() throws IOException {
         var fs = FileSystems.getDefault().provider();
         try (var fc = fs.newFileChannel(FileCheckActions.readWriteFile(), Set.of(StandardOpenOption.WRITE))) {}
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkNewAsynchronousFileChannel() throws IOException {
         var fs = FileSystems.getDefault().provider();
         try (
@@ -84,26 +82,26 @@ class NioFileSystemActions {
         ) {}
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkNewByteChannel() throws IOException {
         var fs = FileSystems.getDefault().provider();
         try (var bc = fs.newByteChannel(FileCheckActions.readWriteFile(), Set.of(StandardOpenOption.WRITE))) {}
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkNewDirectoryStream() throws IOException {
         var fs = FileSystems.getDefault().provider();
         try (var bc = fs.newDirectoryStream(FileCheckActions.readDir(), entry -> false)) {}
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkCreateDirectory() throws IOException {
         var fs = FileSystems.getDefault().provider();
         var directory = EntitledActions.createTempDirectoryForWrite();
         fs.createDirectory(directory.resolve("subdir"));
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkCreateSymbolicLink() throws IOException {
         var fs = FileSystems.getDefault().provider();
         var directory = EntitledActions.createTempDirectoryForWrite();
@@ -114,7 +112,7 @@ class NioFileSystemActions {
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkCreateLink() throws IOException {
         var fs = FileSystems.getDefault().provider();
         var directory = EntitledActions.createTempDirectoryForWrite();
@@ -125,35 +123,35 @@ class NioFileSystemActions {
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkDelete() throws IOException {
         var fs = FileSystems.getDefault().provider();
         var file = EntitledActions.createTempFileForWrite();
         fs.delete(file);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkDeleteIfExists() throws IOException {
         var fs = FileSystems.getDefault().provider();
         var file = EntitledActions.createTempFileForWrite();
         fs.deleteIfExists(file);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkReadSymbolicLink() throws IOException {
         var fs = FileSystems.getDefault().provider();
         var link = EntitledActions.createTempSymbolicLink();
         fs.readSymbolicLink(link);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkCopy() throws IOException {
         var fs = FileSystems.getDefault().provider();
         var directory = EntitledActions.createTempDirectoryForWrite();
         fs.copy(FileCheckActions.readFile(), directory.resolve("copied"));
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkMove() throws IOException {
         var fs = FileSystems.getDefault().provider();
         var directory = EntitledActions.createTempDirectoryForWrite();
@@ -161,56 +159,56 @@ class NioFileSystemActions {
         fs.move(file, directory.resolve("moved"));
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkIsSameFile() throws IOException {
         var fs = FileSystems.getDefault().provider();
         fs.isSameFile(FileCheckActions.readWriteFile(), FileCheckActions.readFile());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkIsHidden() throws IOException {
         var fs = FileSystems.getDefault().provider();
         fs.isHidden(FileCheckActions.readFile());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkGetFileStore() throws IOException {
         var fs = FileSystems.getDefault().provider();
         var file = EntitledActions.createTempFileForRead();
         var store = fs.getFileStore(file);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkCheckAccess() throws IOException {
         var fs = FileSystems.getDefault().provider();
         fs.checkAccess(FileCheckActions.readFile());
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
-    static void checkGetFileAttributeView() {
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, isExpectedDefaultNull = true)
+    static FileOwnerAttributeView checkGetFileAttributeView() {
         var fs = FileSystems.getDefault().provider();
-        fs.getFileAttributeView(FileCheckActions.readFile(), FileOwnerAttributeView.class);
+        return fs.getFileAttributeView(FileCheckActions.readFile(), FileOwnerAttributeView.class);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkReadAttributesWithClass() throws IOException {
         var fs = FileSystems.getDefault().provider();
         fs.readAttributes(FileCheckActions.readFile(), BasicFileAttributes.class);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkReadAttributesWithString() throws IOException {
         var fs = FileSystems.getDefault().provider();
         fs.readAttributes(FileCheckActions.readFile(), "*");
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkReadAttributesIfExists() throws IOException {
         var fs = FileSystems.getDefault().provider();
         fs.readAttributesIfExists(FileCheckActions.readFile(), BasicFileAttributes.class);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkSetAttribute() throws IOException {
         var fs = FileSystems.getDefault().provider();
         var file = EntitledActions.createTempFileForWrite();
@@ -221,10 +219,10 @@ class NioFileSystemActions {
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void checkExists() {
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "false", expectedDefaultType = boolean.class)
+    static boolean checkExists() {
         var fs = FileSystems.getDefault().provider();
-        fs.exists(FileCheckActions.readFile());
+        return fs.exists(FileCheckActions.readFile());
     }
 
     private NioFileSystemActions() {}

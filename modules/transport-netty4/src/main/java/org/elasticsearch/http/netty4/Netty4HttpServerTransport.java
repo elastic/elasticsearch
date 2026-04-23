@@ -19,11 +19,14 @@ import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.FixedRecvByteBufAllocator;
 import io.netty.channel.RecvByteBufAllocator;
+import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.channel.socket.nio.NioChannelOption;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpMessage;
+import io.netty.handler.codec.http.HttpObject;
+import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseEncoder;
@@ -38,6 +41,8 @@ import io.netty.util.ResourceLeakDetector;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.ThreadWatchdog;
@@ -107,6 +112,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     private volatile ServerBootstrap serverBootstrap;
     private volatile SharedGroupFactory.SharedGroup sharedGroup;
 
+    private final TlsHandshakeThrottleManager tlsHandshakeThrottleManager;
+
     public Netty4HttpServerTransport(
         Settings settings,
         NetworkService networkService,
@@ -144,6 +151,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
         this.readTimeoutMillis = Math.toIntExact(SETTING_HTTP_READ_TIMEOUT.get(settings).getMillis());
 
+        this.tlsHandshakeThrottleManager = new TlsHandshakeThrottleManager(clusterSettings, telemetryProvider.getMeterRegistry());
+
         ByteSizeValue receivePredictor = Netty4Plugin.SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE.get(settings);
         recvByteBufAllocator = new FixedRecvByteBufAllocator(receivePredictor.bytesAsInt());
 
@@ -168,6 +177,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     protected void startInternal() {
         boolean success = false;
         try {
+            tlsHandshakeThrottleManager.start();
+
             sharedGroup = sharedGroupFactory.getHttpGroup();
             serverBootstrap = new ServerBootstrap();
 
@@ -231,6 +242,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             if (acceptChannelPredicate != null) {
                 acceptChannelPredicate.setBoundAddress(boundAddress());
             }
+
             success = true;
         } finally {
             if (success == false) {
@@ -250,6 +262,9 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
     @Override
     protected void stopInternal() {
+        if (tlsHandshakeThrottleManager.lifecycleState() != Lifecycle.State.INITIALIZED) {
+            tlsHandshakeThrottleManager.stop();
+        }
         if (sharedGroup != null) {
             sharedGroup.shutdown();
             sharedGroup = null;
@@ -329,7 +344,29 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                     );
             }
             if (tlsConfig.isTLSEnabled()) {
-                ch.pipeline().addLast("ssl", new SslHandler(tlsConfig.createServerSSLEngine()));
+                final var sslHandler = new SslHandler(tlsConfig.createServerSSLEngine());
+                final var tlsHandshakeThrottle = transport.tlsHandshakeThrottleManager.getThrottleForCurrentThread();
+
+                if (tlsHandshakeThrottle == null) {
+                    // throttling currently disabled
+                    ch.pipeline().addLast("ssl", sslHandler);
+                } else {
+                    final var handshakeCompletePromise = new SubscribableListener<Void>();
+                    ch.pipeline()
+                        // accumulate data until the initial handshake
+                        .addLast(
+                            "initial-tls-handshake-throttle",
+                            tlsHandshakeThrottle.newHandshakeThrottleHandler(handshakeCompletePromise)
+                        )
+                        // actually do the TLS processing
+                        .addLast("ssl", sslHandler)
+                        // watch for the completion of this channel's initial handshake at which point we can release one for another
+                        // channel
+                        .addLast(
+                            "initial-tls-handshake-completion-watcher",
+                            tlsHandshakeThrottle.newHandshakeCompletionWatcher(handshakeCompletePromise)
+                        );
+                }
             }
             final var threadWatchdogActivityTracker = transport.threadWatchdog.getActivityTrackerForCurrentThread();
             ch.pipeline()
@@ -383,21 +420,39 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                     );
             }
 
-            ch.pipeline()
-                .addLast("decoder_compress", new HttpContentDecompressor()) // this handles request body decompression
-                .addLast("encoder", new HttpResponseEncoder() {
-                    @Override
-                    protected boolean isContentAlwaysEmpty(HttpResponse msg) {
-                        // non-chunked responses (Netty4HttpResponse extends Netty's DefaultFullHttpResponse) with chunked transfer
-                        // encoding are only sent by us in response to HEAD requests and must always have an empty body
-                        if (msg instanceof Netty4FullHttpResponse netty4FullHttpResponse && HttpUtil.isTransferEncodingChunked(msg)) {
-                            assert netty4FullHttpResponse.content().isReadable() == false;
-                            return true;
-                        }
-                        return super.isContentAlwaysEmpty(msg);
+            ch.pipeline().addLast("decoder_compress", new HttpContentDecompressor() { // this handles request body decompression
+                private String currentUri;
+
+                @Override
+                protected void decode(ChannelHandlerContext ctx, HttpObject msg, java.util.List<Object> out) throws Exception {
+                    if (msg instanceof HttpRequest request) {
+                        currentUri = request.uri();
                     }
-                })
-                .addLast(new Netty4HttpContentSizeHandler(decoder, handlingSettings.maxContentLength()));
+                    super.decode(ctx, msg, out);
+                }
+
+                @Override
+                protected EmbeddedChannel newContentDecoder(String contentEncoding) throws Exception {
+                    if (currentUri != null && currentUri.startsWith("/_prometheus") && "snappy".equalsIgnoreCase(contentEncoding)) {
+                        // Prometheus remote write uses raw Snappy block format, not the framed
+                        // format that Netty's SnappyFrameDecoder expects. Skip auto-decompression
+                        // and let the application layer handle it.
+                        return null;
+                    }
+                    return super.newContentDecoder(contentEncoding);
+                }
+            }).addLast("encoder", new HttpResponseEncoder() {
+                @Override
+                protected boolean isContentAlwaysEmpty(HttpResponse msg) {
+                    // non-chunked responses (Netty4HttpResponse extends Netty's DefaultFullHttpResponse) with chunked transfer
+                    // encoding are only sent by us in response to HEAD requests and must always have an empty body
+                    if (msg instanceof Netty4FullHttpResponse netty4FullHttpResponse && HttpUtil.isTransferEncodingChunked(msg)) {
+                        assert netty4FullHttpResponse.content().isReadable() == false;
+                        return true;
+                    }
+                    return super.isContentAlwaysEmpty(msg);
+                }
+            }).addLast(new Netty4HttpContentSizeHandler(decoder, handlingSettings.maxContentLength()));
 
             if (handlingSettings.compression()) {
                 ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.compressionLevel()) {

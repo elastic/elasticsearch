@@ -12,11 +12,23 @@ package org.elasticsearch.transport;
 import org.elasticsearch.cluster.metadata.ProjectId;
 
 import java.util.Collection;
+import java.util.Optional;
 
 /**
  * Service for registering {@link LinkedProjectConfigListener}s to be notified of changes to linked project configurations.
  */
 public interface LinkedProjectConfigService {
+
+    /**
+     * Interface for providing a {@link LinkedProjectConfigService} instance via SPI.
+     */
+    interface Provider {
+        /**
+         * @return An {@link Optional} populated with a {@link LinkedProjectConfigService} instance, or {@link Optional#empty()} if it is
+         * not possible to create an instance in the current runtime environment.
+         */
+        Optional<LinkedProjectConfigService> create();
+    }
 
     /**
      * Listener interface for receiving updates about linked project configurations.
@@ -31,20 +43,13 @@ public interface LinkedProjectConfigService {
         void updateLinkedProject(LinkedProjectConfig config);
 
         /**
-         * Called when the boolean skip_unavailable setting has changed for a linked project configuration.
-         * Note that skip_unavailable may not be supported in all contexts where linked projects are used.
+         * Called when a previously linked project has been unlinked.
          *
-         * @param originProjectId The {@link ProjectId} of the owning project that has the linked project configuration.
-         * @param linkedProjectId The {@link ProjectId} of the linked project.
-         * @param linkedProjectAlias The alias used for the linked project.
-         * @param skipUnavailable The new value of the skip_unavailable setting.
+         * @param originProjectId The {@link ProjectId} for the origin project.
+         * @param linkedProjectId The {@link ProjectId} for the linked project.
+         * @param linkedProjectAlias The linked project alias.
          */
-        default void skipUnavailableChanged(
-            ProjectId originProjectId,
-            ProjectId linkedProjectId,
-            String linkedProjectAlias,
-            boolean skipUnavailable
-        ) {}
+        void remove(ProjectId originProjectId, ProjectId linkedProjectId, String linkedProjectAlias);
     }
 
     /**

@@ -12,6 +12,7 @@ package org.elasticsearch.reservedstate.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsUpdater;
@@ -49,15 +50,24 @@ public class ReservedClusterSettingsAction implements ReservedClusterStateHandle
     }
 
     @SuppressWarnings("unchecked")
-    private static ClusterUpdateSettingsRequest prepare(Object input, Set<String> previouslySet) {
+    private ClusterUpdateSettingsRequest prepare(Object input, Set<String> previouslySet) {
         // load the new settings into a builder so their paths are normalized
-        @SuppressWarnings("unchecked")
         Settings.Builder newSettings = Settings.builder().loadFromMap((Map<String, ?>) input);
 
         // now the new and old settings can be compared to find which are missing for deletion
         Set<String> toDelete = new HashSet<>(previouslySet);
         toDelete.removeAll(newSettings.keys());
-        toDelete.forEach(k -> newSettings.put(k, (String) null));
+        for (String key : toDelete) {
+            if (clusterSettings.get(key) != null) {
+                newSettings.put(key, (String) null);
+            } else {
+                // The setting no longer exists in the registry (e.g. it was renamed or removed).
+                // Skip nulling it out — validation would fail since the setting is unknown.
+                // Omitting it from newSettings means it won't appear in currentKeys, so it will
+                // be silently dropped from the reserved state metadata.
+                logger.info("Previously reserved cluster setting [{}] no longer exists; removing from reserved state", key);
+            }
+        }
 
         final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = new ClusterUpdateSettingsRequest(
             RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
@@ -90,6 +100,11 @@ public class ReservedClusterSettingsAction implements ReservedClusterStateHandle
             .collect(Collectors.toSet());
 
         return new TransformState(state, currentKeys);
+    }
+
+    @Override
+    public ClusterState remove(TransformState prevState) throws Exception {
+        return transform(Map.of(), prevState).state();
     }
 
     @Override

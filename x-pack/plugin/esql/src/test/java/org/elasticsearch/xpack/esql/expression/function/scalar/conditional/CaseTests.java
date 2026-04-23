@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
 
@@ -31,7 +33,9 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
@@ -41,6 +45,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
     private static final List<DataType> TYPES;
     static {
         List<DataType> t = Stream.of(
+            DataType.AGGREGATE_METRIC_DOUBLE,
             DataType.KEYWORD,
             DataType.TEXT,
             DataType.BOOLEAN,
@@ -60,12 +65,17 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
             DataType.GEOHASH,
             DataType.GEOTILE,
             DataType.GEOHEX,
+            DataType.EXPONENTIAL_HISTOGRAM,
+            DataType.TDIGEST,
+            DataType.HISTOGRAM,
             DataType.NULL
         ).collect(Collectors.toList());
         if (Build.current().isSnapshot()) {
             t.addAll(
                 DataType.UNDER_CONSTRUCTION.stream()
-                    .filter(type -> type != DataType.AGGREGATE_METRIC_DOUBLE && type != DataType.DENSE_VECTOR)
+                    .filter(type -> type != DataType.DENSE_VECTOR)
+                    .filter(type -> type != DataType.DATE_RANGE) // TODO(pr/133309): implement
+                    .filter(type -> type != DataType.PARTIAL_AGG)
                     .toList()
             );
         }
@@ -127,6 +137,15 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                 )
             );
         }
+        FunctionAppliesTo histogramPreviewAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
+        FunctionAppliesTo histogramGaAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.4.0", "", true);
+        suppliers = TestCaseSupplier.mapTestCases(suppliers, tc -> tc.withData(tc.getData().stream().map(typedData -> {
+            DataType type = typedData.type();
+            if (type == DataType.HISTOGRAM || type == DataType.EXPONENTIAL_HISTOGRAM || type == DataType.TDIGEST) {
+                return typedData.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo);
+            }
+            return typedData;
+        }).toList()));
         return parameterSuppliersFromTypedData(suppliers);
     }
 
@@ -808,14 +827,14 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
             return;
         }
         if (extra().expectedPartialFold.size() == 1) {
-            assertThat(c.partiallyFold(FoldContext.small()), equalTo(extra().expectedPartialFold.get(0).asField()));
+            assertThat(c.partiallyFold(FoldContext.small()), equalToIgnoringIds(extra().expectedPartialFold.get(0).asField()));
             return;
         }
         Case expected = build(
             Source.synthetic("expected"),
             extra().expectedPartialFold.stream().map(TestCaseSupplier.TypedData::asField).toList()
         );
-        assertThat(c.partiallyFold(FoldContext.small()), equalTo(expected));
+        assertThat(c.partiallyFold(FoldContext.small()), equalToIgnoringIds(expected));
     }
 
     private static Function<TestCaseSupplier.TestCase, TestCaseSupplier.TestCase> addWarnings(List<String> warnings) {

@@ -208,6 +208,7 @@ import org.elasticsearch.search.aggregations.pipeline.SerialDiffPipelineAggregat
 import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.SumBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.diversification.DiversifyRetrieverBuilder;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.ExplainPhase;
@@ -259,6 +260,7 @@ import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.search.vectors.ExactKnnQueryBuilder;
 import org.elasticsearch.search.vectors.KnnScoreDocQueryBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
+import org.elasticsearch.search.vectors.LookupQueryVectorBuilder;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -1038,6 +1040,16 @@ public class SearchModule {
     }
 
     private void registerQueryVectorBuilders(List<SearchPlugin> plugins) {
+        namedXContents.add(
+            new NamedXContentRegistry.Entry(QueryVectorBuilder.class, LookupQueryVectorBuilder.NAME, LookupQueryVectorBuilder::fromXContent)
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                QueryVectorBuilder.class,
+                LookupQueryVectorBuilder.NAME.getPreferredName(),
+                LookupQueryVectorBuilder::new
+            )
+        );
         registerFromPlugin(plugins, SearchPlugin::getQueryVectorBuilders, this::registerQueryVectorBuilder);
     }
 
@@ -1087,6 +1099,7 @@ public class SearchModule {
         registerRetriever(new RetrieverSpec<>(StandardRetrieverBuilder.NAME, StandardRetrieverBuilder::fromXContent));
         registerRetriever(new RetrieverSpec<>(KnnRetrieverBuilder.NAME, KnnRetrieverBuilder::fromXContent));
         registerRetriever(new RetrieverSpec<>(RescorerRetrieverBuilder.NAME, RescorerRetrieverBuilder::fromXContent));
+        registerRetriever(new RetrieverSpec<>(DiversifyRetrieverBuilder.NAME, DiversifyRetrieverBuilder::fromXContent));
 
         registerFromPlugin(plugins, SearchPlugin::getRetrievers, this::registerRetriever);
     }

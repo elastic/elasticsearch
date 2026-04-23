@@ -15,15 +15,7 @@ public interface MachineLearningExtension {
 
     default void configure(Settings settings) {}
 
-    boolean useIlm();
-
     boolean includeNodeInfo();
-
-    boolean isAnomalyDetectionEnabled();
-
-    boolean isDataFrameAnalyticsEnabled();
-
-    boolean isNlpEnabled();
 
     default boolean disableInferenceProcessCache() {
         return false;

@@ -191,6 +191,6 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
     }
 
     private static String syntheticName(Expression expression, Expression func, int counter) {
-        return TemporaryNameUtils.temporaryName(expression, func, counter);
+        return TemporaryNameGenerator.temporaryName(expression, func, counter);
     }
 }

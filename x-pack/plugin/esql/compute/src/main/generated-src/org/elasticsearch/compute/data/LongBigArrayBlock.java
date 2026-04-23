@@ -92,7 +92,7 @@ public final class LongBigArrayBlock extends AbstractArrayBlock implements LongB
     }
 
     @Override
-    public LongBlock filter(int... positions) {
+    public LongBlock filter(boolean mayContainDuplicates, int... positions) {
         try (var builder = blockFactory().newLongBlockBuilder(positions.length)) {
             for (int pos : positions) {
                 if (isNull(pos)) {

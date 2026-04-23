@@ -15,6 +15,7 @@ for BRANCH in "${BRANCHES[@]}"; do
   BUILD_JSON=$(curl -sH "Authorization: Bearer ${BUILDKITE_API_TOKEN}" "https://api.buildkite.com/v2/organizations/elastic/pipelines/${INTAKE_PIPELINE_SLUG}/builds?branch=${BRANCH}&state=passed&per_page=1" | jq '.[0] | {commit: .commit, url: .web_url}')
   LAST_GOOD_COMMIT=$(echo "${BUILD_JSON}" | jq -r '.commit')
 
+
   # Put a delay between each branch's set of pipelines by prepending each non-first branch with a sleep
   # This is to smooth out the spike in agent requests
   if [[ "$IS_FIRST" != "true" && "$SKIP_DELAY" != "true" ]]; then

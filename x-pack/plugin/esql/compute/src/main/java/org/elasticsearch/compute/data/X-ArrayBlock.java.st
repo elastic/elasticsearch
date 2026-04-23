@@ -12,6 +12,9 @@ $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
 import org.apache.lucene.util.RamUsageEstimator;
+$if(BytesRef)$
+import org.elasticsearch.common.bytes.PagedBytesCursor;
+$endif$
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BytesRefArray;
@@ -133,8 +136,15 @@ $else$
 $endif$
     }
 
+$if(BytesRef)$
     @Override
-    public $Type$Block filter(int... positions) {
+    public PagedBytesCursor get(int valueIndex, PagedBytesCursor scratch) {
+        return vector.get(valueIndex, scratch);
+    }
+
+$endif$
+    @Override
+    public $Type$Block filter(boolean mayContainDuplicates, int... positions) {
 $if(BytesRef)$
         final BytesRef scratch = new BytesRef();
 $endif$

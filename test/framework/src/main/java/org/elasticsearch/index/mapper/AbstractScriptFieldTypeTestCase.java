@@ -24,6 +24,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -61,6 +62,7 @@ import java.util.function.BiConsumer;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -476,34 +478,23 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         }
     }
 
-    protected final List<Object> blockLoaderReadValuesFromColumnAtATimeReader(DirectoryReader reader, MappedFieldType fieldType, int offset)
-        throws IOException {
-        return blockLoaderReadValuesFromColumnAtATimeReader(Settings.EMPTY, reader, fieldType, offset);
-    }
-
-    protected final List<Object> blockLoaderReadValuesFromColumnAtATimeReader(
-        Settings settings,
-        DirectoryReader reader,
-        MappedFieldType fieldType,
-        int offset
-    ) throws IOException {
-        BlockLoader loader = fieldType.blockLoader(blContext(settings, true));
-        List<Object> all = new ArrayList<>();
+    protected final void assertColumnAtATimeReaderNotSupported(DirectoryReader reader, MappedFieldType fieldType) throws IOException {
+        BlockLoader loader = fieldType.blockLoader(blContext(Settings.EMPTY, true));
         for (LeafReaderContext ctx : reader.leaves()) {
-            TestBlock block = (TestBlock) loader.columnAtATimeReader(ctx).read(TestBlock.factory(), TestBlock.docs(ctx), offset, false);
-            for (int i = 0; i < block.size(); i++) {
-                all.add(block.get(i));
-            }
+            assertThat(loader.columnAtATimeReader(ctx), nullValue());
         }
-        return all;
-    }
-
-    protected final List<Object> blockLoaderReadValuesFromRowStrideReader(DirectoryReader reader, MappedFieldType fieldType)
-        throws IOException {
-        return blockLoaderReadValuesFromRowStrideReader(Settings.EMPTY, reader, fieldType, false);
     }
 
     protected final List<Object> blockLoaderReadValuesFromRowStrideReader(
+        CircuitBreaker breaker,
+        DirectoryReader reader,
+        MappedFieldType fieldType
+    ) throws IOException {
+        return blockLoaderReadValuesFromRowStrideReader(breaker, Settings.EMPTY, reader, fieldType, false);
+    }
+
+    protected final List<Object> blockLoaderReadValuesFromRowStrideReader(
+        CircuitBreaker breaker,
         Settings settings,
         DirectoryReader reader,
         MappedFieldType fieldType,
@@ -512,21 +503,25 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         BlockLoader loader = fieldType.blockLoader(blContext(settings, fieldOnlyMappedAsRuntimeField));
         List<Object> all = new ArrayList<>();
         for (LeafReaderContext ctx : reader.leaves()) {
-            BlockLoader.RowStrideReader blockReader = loader.rowStrideReader(ctx);
-            BlockLoader.Builder builder = loader.builder(TestBlock.factory(), ctx.reader().numDocs());
+            try (
+                BlockLoader.RowStrideReader blockReader = loader.rowStrideReader(breaker, ctx);
+                BlockLoader.Builder builder = loader.builder(TestBlock.factory(), ctx.reader().numDocs());
+            ) {
 
-            assert loader.rowStrideStoredFieldSpec().requiresSource() == false;
-            BlockLoaderStoredFieldsFromLeafLoader storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
-                StoredFieldLoader.fromSpec(loader.rowStrideStoredFieldSpec()).getLoader(ctx, null),
-                null
-            );
-            for (int i = 0; i < ctx.reader().numDocs(); i++) {
-                storedFields.advanceTo(i);
-                blockReader.read(i, storedFields, builder);
-            }
-            TestBlock block = (TestBlock) builder.build();
-            for (int i = 0; i < block.size(); i++) {
-                all.add(block.get(i));
+                assert loader.rowStrideStoredFieldSpec().requiresSource() == false
+                    || loader.rowStrideStoredFieldSpec().sourcePaths().isEmpty() == false;
+                BlockLoaderStoredFieldsFromLeafLoader storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
+                    StoredFieldLoader.fromSpec(loader.rowStrideStoredFieldSpec()).getLoader(ctx, null),
+                    null
+                );
+                for (int i = 0; i < ctx.reader().numDocs(); i++) {
+                    storedFields.advanceTo(i);
+                    blockReader.read(i, storedFields, builder);
+                }
+                TestBlock block = (TestBlock) builder.build();
+                for (int i = 0; i < block.size(); i++) {
+                    all.add(block.get(i));
+                }
             }
         }
         return all;
@@ -535,20 +530,10 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
     protected MappedFieldType.BlockLoaderContext blContext(Settings settings, boolean fieldOnlyMappedAsRuntimeField) {
         String indexName = "test_index";
         var imd = IndexMetadata.builder(indexName).settings(ESTestCase.indexSettings(IndexVersion.current(), 1, 1).put(settings)).build();
-        return new MappedFieldType.BlockLoaderContext() {
-            @Override
-            public String indexName() {
-                return indexName;
-            }
-
+        return new DummyBlockLoaderContext(indexName) {
             @Override
             public IndexSettings indexSettings() {
                 return new IndexSettings(imd, settings);
-            }
-
-            @Override
-            public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
-                return MappedFieldType.FieldExtractPreference.NONE;
             }
 
             @Override
@@ -559,21 +544,6 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
                     null,
                     SourceProvider.fromLookup(MappingLookup.EMPTY, null, SourceFieldMetrics.NOOP)
                 ).lookup();
-            }
-
-            @Override
-            public Set<String> sourcePaths(String name) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public String parentField(String field) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
-                return FieldNamesFieldMapper.FieldNamesFieldType.get(true);
             }
         };
     }
@@ -634,8 +604,8 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         );
         parser.nextToken();
         var nameValue = new IgnoredSourceFieldMapper.NameValue("test", 0, XContentDataHelper.encodeToken(parser), doc);
-        var ignoredSourceFormat = IgnoredSourceFieldMapper.ignoredSourceFormat(IndexVersion.current());
-        ignoredSourceFormat.writeIgnoredFields(List.of(nameValue));
+        var ignoredSourceFormat = IgnoredSourceFieldMapper.ignoredSourceFormat(createIndexSettings(IndexVersion.current(), Settings.EMPTY));
+        ignoredSourceFormat.writeIgnoredFields(List.of(nameValue), IndexVersion.current(), false);
         return doc;
     }
 }

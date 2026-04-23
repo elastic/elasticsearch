@@ -65,12 +65,16 @@ public class SemanticInferenceMetadataFieldsMapper extends InferenceMetadataFiel
             Map<String, ValueFetcher> fieldFetchers = new HashMap<>();
             for (var inferenceField : mappingLookup.inferenceFields().keySet()) {
                 MappedFieldType ft = mappingLookup.getFieldType(inferenceField);
-                if (ft instanceof SemanticTextFieldMapper.SemanticTextFieldType semanticTextFieldType) {
-                    fieldFetchers.put(inferenceField, semanticTextFieldType.valueFetcherWithInferenceResults(bitSetCache, searcher, false));
-                } else {
-                    throw new IllegalArgumentException(
-                        "Invalid inference field [" + ft.name() + "]. Expected field type [semantic_text] but got [" + ft.typeName() + "]"
+                if (ft instanceof SemanticFieldMapper.SemanticFieldType semanticFieldType) {
+                    var valueFetcher = new SemanticFieldValueFetcher(
+                        semanticFieldType,
+                        bitSetCache,
+                        searcher,
+                        SemanticFieldValueFetcher.Mode.FULL_FIELD
                     );
+                    fieldFetchers.put(inferenceField, valueFetcher);
+                } else {
+                    throw new IllegalArgumentException("Field [" + ft.name() + "] is not an inference field");
                 }
             }
             if (fieldFetchers.isEmpty()) {
@@ -121,11 +125,6 @@ public class SemanticInferenceMetadataFieldsMapper extends InferenceMetadataFiel
     }
 
     @Override
-    protected String contentType() {
-        return CONTENT_TYPE;
-    }
-
-    @Override
     protected boolean supportsParsingObject() {
         return true;
     }
@@ -147,16 +146,14 @@ public class SemanticInferenceMetadataFieldsMapper extends InferenceMetadataFiel
                 String[] fieldNameParts = fieldName.split("\\.");
                 setPath(context.path(), fieldNameParts);
                 var mapper = context.mappingLookup().getMapper(fieldName);
-                if (mapper instanceof SemanticTextFieldMapper fieldMapper) {
+                if (mapper instanceof SemanticFieldMapper fieldMapper) {
                     XContentLocation xContentLocation = context.parser().getTokenLocation();
                     var input = fieldMapper.parseSemanticTextField(context);
                     if (input != null) {
                         fieldMapper.parseCreateFieldFromContext(context, input, xContentLocation);
                     }
                 } else {
-                    throw new IllegalArgumentException(
-                        "Field [" + fieldName + "] is not a [" + SemanticTextFieldMapper.CONTENT_TYPE + "] field"
-                    );
+                    throw new IllegalArgumentException("Field [" + fieldName + "] is not an inference field");
                 }
             }
         } finally {

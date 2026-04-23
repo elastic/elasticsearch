@@ -8,10 +8,7 @@
  */
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.CoreMatchers.hasItems;
@@ -36,14 +33,5 @@ public class GetRequestTests extends ESTestCase {
             assertEquals(1, validate.validationErrors().size());
             assertThat(validate.validationErrors(), hasItems("id is missing"));
         }
-    }
-
-    public void testForceSyntheticUnsupported() {
-        GetRequest request = new GetRequest("index", "id");
-        request.setForceSyntheticSource(true);
-        StreamOutput out = new BytesStreamOutput();
-        out.setTransportVersion(TransportVersions.V_8_3_0);
-        Exception e = expectThrows(IllegalArgumentException.class, () -> request.writeTo(out));
-        assertEquals(e.getMessage(), "force_synthetic_source is not supported before 8.4.0");
     }
 }

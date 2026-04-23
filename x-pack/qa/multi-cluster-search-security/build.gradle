@@ -1,5 +1,14 @@
-tasks.register("integTest") {
-  subprojects.each {
-    dependsOn "${it.name}:integTest"
-  }
+apply plugin: 'elasticsearch.internal-yaml-rest-test' // for basic/trial license YAML tests
+apply plugin: 'elasticsearch.internal-java-rest-test' // for restricted-trust Java tests
+
+tasks.named("yamlRestTest").configure {
+  usesDefaultDistribution("Multi-cluster search security tests require the default distribution")
+}
+
+dependencies {
+  javaRestTestImplementation(testArtifact(project(xpackModule('core')))) // access to test certificates from x-pack:plugin:core test resources
+}
+
+tasks.named("javaRestTest").configure {
+  usesDefaultDistribution("Multi-cluster search security tests require the default distribution")
 }

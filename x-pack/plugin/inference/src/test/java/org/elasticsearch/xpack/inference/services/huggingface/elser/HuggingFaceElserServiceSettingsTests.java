@@ -15,13 +15,15 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -34,7 +36,7 @@ public class HuggingFaceElserServiceSettingsTests extends AbstractWireSerializin
     public void testFromMap() {
         var url = "https://www.abc.com";
         var serviceSettings = HuggingFaceElserServiceSettings.fromMap(
-            new HashMap<>(Map.of(HuggingFaceElserServiceSettings.URL, url)),
+            new HashMap<>(Map.of(ServiceFields.URL, url)),
             ConfigurationParseContext.PERSISTENT
         );
 
@@ -45,7 +47,7 @@ public class HuggingFaceElserServiceSettingsTests extends AbstractWireSerializin
         var thrownException = expectThrows(
             ValidationException.class,
             () -> HuggingFaceElserServiceSettings.fromMap(
-                new HashMap<>(Map.of(HuggingFaceElserServiceSettings.URL, "")),
+                new HashMap<>(Map.of(ServiceFields.URL, "")),
                 ConfigurationParseContext.PERSISTENT
             )
         );
@@ -55,7 +57,7 @@ public class HuggingFaceElserServiceSettingsTests extends AbstractWireSerializin
             containsString(
                 Strings.format(
                     "Validation Failed: 1: [service_settings] Invalid value empty string. [%s] must be a non-empty string;",
-                    HuggingFaceElserServiceSettings.URL
+                    ServiceFields.URL
                 )
             )
         );
@@ -70,10 +72,7 @@ public class HuggingFaceElserServiceSettingsTests extends AbstractWireSerializin
         assertThat(
             thrownException.getMessage(),
             containsString(
-                Strings.format(
-                    "Validation Failed: 1: [service_settings] does not contain the required setting [%s];",
-                    HuggingFaceElserServiceSettings.URL
-                )
+                Strings.format("Validation Failed: 1: [service_settings] does not contain the required setting [%s];", ServiceFields.URL)
             )
         );
     }
@@ -83,7 +82,7 @@ public class HuggingFaceElserServiceSettingsTests extends AbstractWireSerializin
         var thrownException = expectThrows(
             ValidationException.class,
             () -> HuggingFaceElserServiceSettings.fromMap(
-                new HashMap<>(Map.of(HuggingFaceElserServiceSettings.URL, url)),
+                new HashMap<>(Map.of(ServiceFields.URL, url)),
                 ConfigurationParseContext.PERSISTENT
             )
         );
@@ -91,17 +90,13 @@ public class HuggingFaceElserServiceSettingsTests extends AbstractWireSerializin
         assertThat(
             thrownException.getMessage(),
             containsString(
-                Strings.format(
-                    "Validation Failed: 1: [service_settings] Invalid url [%s] received for field [%s]",
-                    url,
-                    HuggingFaceElserServiceSettings.URL
-                )
+                Strings.format("Validation Failed: 1: [service_settings] Invalid url [%s] received for field [%s]", url, ServiceFields.URL)
             )
         );
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
-        var serviceSettings = new HuggingFaceElserServiceSettings(ServiceUtils.createUri("url"), new RateLimitSettings(3));
+        var serviceSettings = new HuggingFaceElserServiceSettings(createUri("url"), new RateLimitSettings(3));
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
@@ -123,6 +118,12 @@ public class HuggingFaceElserServiceSettingsTests extends AbstractWireSerializin
 
     @Override
     protected HuggingFaceElserServiceSettings mutateInstance(HuggingFaceElserServiceSettings instance) throws IOException {
-        return randomValueOtherThan(instance, HuggingFaceElserServiceSettingsTests::createRandom);
+        if (randomBoolean()) {
+            var uri = randomValueOtherThan(instance.uri(), () -> createUri(randomAlphaOfLength(15)));
+            return new HuggingFaceElserServiceSettings(uri, instance.rateLimitSettings());
+        } else {
+            var rateLimitSettings = randomValueOtherThan(instance.rateLimitSettings(), RateLimitSettingsTests::createRandom);
+            return new HuggingFaceElserServiceSettings(instance.uri(), rateLimitSettings);
+        }
     }
 }

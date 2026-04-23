@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 144425
+summary: Fix BUCKET date rounding selection
+type: bug

@@ -27,11 +27,11 @@ import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_IN
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_SCALE;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_INDEX;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_SCALE;
-import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.adjustScale;
 import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.compareExponentiallyScaledValues;
 import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.computeIndex;
 import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.exponentiallyScaledToDoubleValue;
 import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.normalizeScale;
+import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.reduceScale;
 
 /**
  * Represents the bucket for values around zero in an exponential histogram.
@@ -60,6 +60,11 @@ public final class ZeroBucket {
      */
     private double realThreshold;
 
+    /**
+     * True if the zero threshold was created from an index/scale pair, false if it was created from a real-valued threshold.
+     */
+    private final boolean isIndexBased;
+
     private final long count;
     // A singleton for an empty zero bucket with the smallest possible threshold.
     private static final ZeroBucket MINIMAL_EMPTY = new ZeroBucket(MIN_INDEX, MIN_SCALE, 0);
@@ -70,6 +75,7 @@ public final class ZeroBucket {
         this.scale = MAX_SCALE;
         this.realThreshold = zeroThreshold;
         this.count = count;
+        this.isIndexBased = false;
     }
 
     private ZeroBucket(long index, int scale, long count) {
@@ -79,12 +85,14 @@ public final class ZeroBucket {
         this.scale = scale;
         this.realThreshold = Double.NaN; // compute lazily when needed
         this.count = count;
+        this.isIndexBased = true;
     }
 
     private ZeroBucket(ZeroBucket toCopy, long newCount) {
         this.realThreshold = toCopy.realThreshold;
         this.index = toCopy.index;
         this.scale = toCopy.scale;
+        this.isIndexBased = toCopy.isIndexBased;
         this.count = newCount;
     }
 
@@ -161,6 +169,13 @@ public final class ZeroBucket {
 
     public long count() {
         return count;
+    }
+
+    /**
+     * @return True if the zero threshold was created from an index/scale pair, false if it was created from a real-valued threshold.
+     */
+    public boolean isIndexBased() {
+        return isIndexBased;
     }
 
     /**
@@ -251,6 +266,14 @@ public final class ZeroBucket {
         }
     }
 
+    public ZeroBucket withCount(long newCount) {
+        if (isIndexBased()) {
+            return new ZeroBucket(index, scale, newCount);
+        } else {
+            return new ZeroBucket(realThreshold, newCount);
+        }
+    }
+
     @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
@@ -264,8 +287,8 @@ public final class ZeroBucket {
     @Override
     public int hashCode() {
         int normalizedScale = normalizeScale(index(), scale);
-        int scaleAdjustment = normalizedScale - scale;
-        long normalizedIndex = adjustScale(index(), scale, scaleAdjustment);
+        int scaleReduction = scale - normalizedScale;
+        long normalizedIndex = reduceScale(index(), scaleReduction);
 
         int result = normalizedScale;
         result = 31 * result + Long.hashCode(normalizedIndex);

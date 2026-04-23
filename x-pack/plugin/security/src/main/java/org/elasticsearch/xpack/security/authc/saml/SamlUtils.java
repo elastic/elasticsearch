@@ -9,11 +9,12 @@ package org.elasticsearch.xpack.security.authc.saml;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.XmlUtils;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.support.RestorableContextClassLoader;
+import org.opensaml.core.config.InitializationException;
 import org.opensaml.core.config.InitializationService;
 import org.opensaml.core.xml.XMLObject;
 import org.opensaml.core.xml.XMLObjectBuilderFactory;
@@ -36,12 +37,10 @@ import java.io.InputStream;
 import java.io.StringWriter;
 import java.io.Writer;
 import java.net.URISyntaxException;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -62,6 +61,7 @@ import javax.xml.validation.Validator;
 public class SamlUtils {
 
     private static final String SAML_EXCEPTION_KEY = "es.security.saml";
+    private static final String SAML_UNSOLICITED_RESPONSE_KEY = "es.security.saml.unsolicited_in_response_to";
     private static final String SAML_MARSHALLING_ERROR_STRING = "_unserializable_";
 
     private static final AtomicBoolean INITIALISED = new AtomicBoolean(false);
@@ -76,21 +76,17 @@ public class SamlUtils {
      * The initialization happens within do privileged block as the underlying Apache XML security library has a permission check.
      * The initialization happens with a specific context classloader as OpenSAML loads resources from its jar file.
      */
-    static void initialize(Logger logger) throws PrivilegedActionException {
+    static void initialize(Logger logger) throws InitializationException {
         if (INITIALISED.compareAndSet(false, true)) {
             // We want to force these classes to be loaded _before_ we fiddle with the context classloader
             LoggerFactory.getLogger(InitializationService.class);
-            SpecialPermission.check();
-            AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-                logger.debug("Initializing OpenSAML");
-                try (RestorableContextClassLoader ignore = new RestorableContextClassLoader(InitializationService.class)) {
-                    InitializationService.initialize();
-                    // Force load this now, because it has a static field that needs to run inside the doPrivileged block
-                    var ignore2 = new X509CertificateBuilder().buildObject();
-                }
-                logger.debug("Initialized OpenSAML");
-                return null;
-            });
+            logger.debug("Initializing OpenSAML");
+            try (RestorableContextClassLoader ignore = new RestorableContextClassLoader(InitializationService.class)) {
+                InitializationService.initialize();
+                // Force load this now, because it has a static field that needs to run inside the context classloader block
+                var ignore2 = new X509CertificateBuilder().buildObject();
+            }
+            logger.debug("Initialized OpenSAML");
             builderFactory = XMLObjectProviderRegistrySupport.getBuilderFactory();
         }
     }
@@ -101,7 +97,7 @@ public class SamlUtils {
      * simple authentication failure (with a clear cause)
      */
     public static ElasticsearchSecurityException samlException(String msg, Object... args) {
-        final ElasticsearchSecurityException exception = new ElasticsearchSecurityException(msg, args);
+        final ElasticsearchSecurityException exception = new ElasticsearchSecurityException(msg, RestStatus.UNAUTHORIZED, args);
         exception.addMetadata(SAML_EXCEPTION_KEY);
         return exception;
     }
@@ -110,8 +106,29 @@ public class SamlUtils {
      * @see #samlException(String, Object...)
      */
     public static ElasticsearchSecurityException samlException(String msg, Exception cause, Object... args) {
-        final ElasticsearchSecurityException exception = new ElasticsearchSecurityException(msg, cause, args);
+        final ElasticsearchSecurityException exception = new ElasticsearchSecurityException(msg, RestStatus.UNAUTHORIZED, cause, args);
         exception.addMetadata(SAML_EXCEPTION_KEY);
+        return exception;
+    }
+
+    /**
+     * Constructs exception for a specific case where the in-response-to value in the SAML content does not match any of the values
+     * provided by the client. One example situation when this can happen is when user spent too much time on the IdP site, and meanwhile
+     * the cookie storing the initial request id has expired (the default timeout is 2 minutes; this is the time in which browsers by
+     * default allow sending cookies on requests originating from a different domain, which in this case means callback from IdP). In that
+     * case the IdP would send a SAML response which content includes an in-response-to value matching the initial request id, however that
+     * initial request id is now gone, so the client sends an empty in-response-to parameter causing a mismatch between the two.
+     */
+    static ElasticsearchSecurityException samlUnsolicitedInResponseToException(
+        String samlContentInResponseTo,
+        Collection<String> expectedInResponseTos
+    ) {
+        final ElasticsearchSecurityException exception = samlException(
+            "SAML content is in-response-to [{}] but expected one of {} ",
+            samlContentInResponseTo,
+            expectedInResponseTos
+        );
+        exception.addMetadata(SAML_UNSOLICITED_RESPONSE_KEY, samlContentInResponseTo);
         return exception;
     }
 

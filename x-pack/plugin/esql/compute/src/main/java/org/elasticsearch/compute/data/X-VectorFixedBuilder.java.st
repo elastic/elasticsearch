@@ -50,7 +50,7 @@ public final class $Type$VectorFixedBuilder implements $Type$Vector.FixedBuilder
         return size == 1
             ? Constant$Type$Vector.RAM_BYTES_USED
             : $Type$ArrayVector.BASE_RAM_BYTES_USED + RamUsageEstimator.alignObjectSize(
-                (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + size * $BYTES$
+                (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) size * $BYTES$
             );
     }
 

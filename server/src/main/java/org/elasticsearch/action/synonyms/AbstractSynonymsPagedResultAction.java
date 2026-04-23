@@ -182,6 +182,10 @@ public abstract class AbstractSynonymsPagedResultAction<T extends ActionResponse
             result = 31 * result + Arrays.hashCode(resultList);
             return result;
         }
+
+        PagedResult<? extends Writeable> getResults() {
+            return new PagedResult<>(totalCount, resultList);
+        }
     }
 
 }

@@ -55,6 +55,7 @@ Here is an example that adds the parsed date to the `timestamp` field based on t
   ]
 }
 ```
+% NOTCONSOLE
 
 ### Example using templated parameters [date-processor-templated-example]
 
@@ -76,6 +77,7 @@ The `timezone` and `locale` processor parameters are templated. This means that 
   ]
 }
 ```
+% NOTCONSOLE
 
 ### Example dealing with short timezone abbreviations safely [date-processor-short-timezone-example]
 

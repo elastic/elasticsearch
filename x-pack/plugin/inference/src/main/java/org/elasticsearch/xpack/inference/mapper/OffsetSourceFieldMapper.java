@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
-import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -118,6 +117,11 @@ public class OffsetSourceFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public OffsetSourceFieldMapper build(MapperBuilderContext context) {
             return new OffsetSourceFieldMapper(
                 leafName(),
@@ -144,11 +148,6 @@ public class OffsetSourceFieldMapper extends FieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
-        }
-
-        @Override
-        public boolean fieldHasValue(FieldInfos fieldInfos) {
-            return fieldInfos.fieldInfo(name()) != null;
         }
 
         @Override

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.simdvec.internal.vectorization;
 
+import org.apache.lucene.util.BytesRef;
+
 public interface ESVectorUtilSupport {
 
     /**
@@ -16,9 +18,27 @@ public interface ESVectorUtilSupport {
      */
     short B_QUERY = 4;
 
+    /** Calculates the dot product of the given float arrays. */
+    float dotProduct(float[] a, float[] b);
+
+    /** Returns the sum of squared differences of the two vectors. */
+    float squareDistance(float[] a, float[] b);
+
+    /** Returns the sum of squared differences over {@code [offset, offset + length)}. */
+    float squareDistance(float[] a, float[] b, int offset, int length);
+
+    /** Calculates the cosine of the given byte arrays. */
+    float cosine(byte[] a, byte[] b);
+
+    /** Calculates the dot product of the given byte arrays. */
+    float dotProduct(byte[] a, byte[] b);
+
+    /** Returns the sum of squared differences of the two vectors. */
+    float squareDistance(byte[] a, byte[] b);
+
     /**
      * Compute dot product between {@code q} and {@code d}
-     * @param q query vector, {@link #B_QUERY}-bit quantized and striped (see {@code BQSpaceUtils.transposeHalfByte})
+     * @param q query vector, {@link #B_QUERY}-bit quantized and striped (see {@code ESVectorUtil.transposeHalfByte})
      * @param d data vector, 1-bit quantized
      */
     long ipByteBinByte(byte[] q, byte[] d);
@@ -52,6 +72,8 @@ public interface ESVectorUtilSupport {
 
     void squareDistanceBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, float[] distances);
 
+    void squareDistanceBulk(float[] query, int queryOffset, int length, float[] v0, float[] v1, float[] v2, float[] v3, float[] distances);
+
     void soarDistanceBulk(
         float[] v1,
         float[] c0,
@@ -66,7 +88,21 @@ public interface ESVectorUtilSupport {
 
     void packAsBinary(int[] vector, byte[] packed);
 
+    void packDibit(int[] vector, byte[] packed);
+
     void transposeHalfByte(int[] q, byte[] quantQueryByte);
 
     int indexOf(byte[] bytes, int offset, int length, byte marker);
+
+    int codePointCount(BytesRef bytesRef);
+
+    boolean contains(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength);
+
+    void linearCombination(float scaleOther, float[] other, float scaleDest, float[] dest);
+
+    float logSumExpNQT(float[] vector);
+
+    float logSumExpNQTDiff(float[] v1, float[] v2, float eps);
+
+    void pow2DiffAndScaleNQT(float[] v1, float[] v2, float a, float eps, float[] result);
 }

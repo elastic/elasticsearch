@@ -23,11 +23,11 @@ import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.inference.InferenceUtils;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -53,7 +53,12 @@ public class TestModel extends Model {
 
     public static TestModel createRandomInstance(TaskType taskType, List<SimilarityMeasure> excludedSimilarities, int maxDimensions) {
         if (taskType == TaskType.TEXT_EMBEDDING) {
-            var elementType = randomFrom(DenseVectorFieldMapper.ElementType.values());
+            // TODO: bfloat16
+            var elementType = randomFrom(
+                DenseVectorFieldMapper.ElementType.FLOAT,
+                DenseVectorFieldMapper.ElementType.BYTE,
+                DenseVectorFieldMapper.ElementType.BIT
+            );
             var dimensions = DenseVectorFieldMapperTestUtils.randomCompatibleDimensions(elementType, maxDimensions);
 
             List<SimilarityMeasure> supportedSimilarities = new ArrayList<>(
@@ -142,12 +147,12 @@ public class TestModel extends Model {
             String model = ServiceUtils.removeAsType(map, "model", String.class);
 
             if (model == null) {
-                validationException.addValidationError(ServiceUtils.missingSettingErrorMsg("model", ModelConfigurations.SERVICE_SETTINGS));
+                validationException.addValidationError(
+                    InferenceUtils.missingSettingErrorMsg("model", ModelConfigurations.SERVICE_SETTINGS)
+                );
             }
 
-            if (validationException.validationErrors().isEmpty() == false) {
-                throw validationException;
-            }
+            validationException.throwIfValidationErrorsExist();
 
             return new TestServiceSettings(model, null, null, null);
         }
@@ -267,7 +272,7 @@ public class TestModel extends Model {
 
         @Override
         public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-            return TestTaskSettings.fromMap(new HashMap<>(newSettings));
+            return TestTaskSettings.fromMap(newSettings);
         }
     }
 
@@ -281,12 +286,10 @@ public class TestModel extends Model {
             String apiKey = ServiceUtils.removeAsType(map, "api_key", String.class);
 
             if (apiKey == null) {
-                validationException.addValidationError(ServiceUtils.missingSettingErrorMsg("api_key", ModelSecrets.SECRET_SETTINGS));
+                validationException.addValidationError(InferenceUtils.missingSettingErrorMsg("api_key", ModelSecrets.SECRET_SETTINGS));
             }
 
-            if (validationException.validationErrors().isEmpty() == false) {
-                throw validationException;
-            }
+            validationException.throwIfValidationErrorsExist();
 
             return new TestSecretSettings(apiKey);
         }

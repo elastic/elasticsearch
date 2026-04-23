@@ -24,7 +24,7 @@ public interface InferenceServiceResults extends NamedWriteable, ChunkedToXConte
 
     /**
      * <p>Transform the result to match the format required for the TransportCoordinatedInferenceAction.
-     * TransportCoordinatedInferenceAction expects an ml plugin TextEmbeddingResults or SparseEmbeddingResults.</p>
+     * TransportCoordinatedInferenceAction expects an ml plugin DenseEmbeddingResults or SparseEmbeddingResults.</p>
      */
     default List<? extends InferenceResults> transformToCoordinationFormat() {
         throw new UnsupportedOperationException("transformToCoordinationFormat() is not implemented");

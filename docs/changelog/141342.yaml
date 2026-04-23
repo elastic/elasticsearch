@@ -1,0 +1,5 @@
+pr: 141342
+summary: Add dynamic bloom filter sizing based on document count
+area: Codec
+type: enhancement
+issues: []

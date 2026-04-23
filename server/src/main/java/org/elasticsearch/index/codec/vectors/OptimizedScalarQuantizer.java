@@ -109,7 +109,7 @@ public class OptimizedScalarQuantizer {
     }
 
     public QuantizationResult scalarQuantize(float[] vector, float[] residualDestination, int[] destination, byte bits, float[] centroid) {
-        assert similarityFunction != COSINE || VectorUtil.isUnitVector(vector);
+        assert similarityFunction != COSINE || BQVectorUtils.isUnitVector(vector);
         assert similarityFunction != COSINE || VectorUtil.isUnitVector(centroid);
         assert vector.length <= destination.length;
         assert bits > 0 && bits <= 8;
@@ -186,6 +186,10 @@ public class OptimizedScalarQuantizer {
             float bOpt = (float) ((m0 * dbx - m1 * dax) / det);
             // If there is no change in the interval, we can stop
             if ((Math.abs(initInterval[0] - aOpt) < 1e-8 && Math.abs(initInterval[1] - bOpt) < 1e-8)) {
+                return true;
+            }
+            if (bOpt < aOpt) {
+                // This can happen if the optimal interval is very small and we have numerical instability, in which case we can stop
                 return true;
             }
             double newLoss = ESVectorUtil.calculateOSQLoss(vector, aOpt, bOpt, points, norm2, lambda, destination);

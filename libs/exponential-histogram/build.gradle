@@ -7,8 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-// TODO: publish this when ready?
-//apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.internal-test-artifact'
 
@@ -17,7 +16,9 @@ dependencies {
   api project(':libs:x-content')
   api "org.apache.lucene:lucene-core:${versions.lucene}"
 
-  testImplementation(project(":test:framework"))
+  testImplementation(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'exponential-histogram'
+  }
   testImplementation('ch.obermuhlner:big-math:2.3.2')
   testImplementation('org.apache.commons:commons-math3:3.6.1')
   testImplementation project(':libs:x-content:impl')

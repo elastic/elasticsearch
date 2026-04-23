@@ -8,17 +8,22 @@ package org.elasticsearch.index.engine.frozen;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValuesSkipper;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.time.ZoneOffset;
+import java.util.Map;
 
 public class RewriteCachingDirectoryReaderTests extends ESTestCase {
 
@@ -32,15 +37,18 @@ public class RewriteCachingDirectoryReaderTests extends ESTestCase {
                     if (i > 0 && rarely()) {
                         rarely = true;
                         doc.add(new LongPoint("rarely", 1));
+                        doc.add(NumericDocValuesField.indexedField("rarely_skipper", 1));
                     } else {
                         long value = randomLongBetween(0, 10000);
                         doc.add(new LongPoint("test", value));
                         doc.add(new LongPoint("test_const", 1));
+                        doc.add(NumericDocValuesField.indexedField("skipper", value));
                     }
                     writer.addDocument(doc);
                 }
                 try (DirectoryReader reader = DirectoryReader.open(writer)) {
                     RewriteCachingDirectoryReader cachingDirectoryReader = new RewriteCachingDirectoryReader(dir, reader.leaves(), null);
+
                     if (rarely) {
                         assertArrayEquals(
                             PointValues.getMaxPackedValue(reader, "rarely"),
@@ -51,6 +59,18 @@ public class RewriteCachingDirectoryReaderTests extends ESTestCase {
                             PointValues.getMinPackedValue(cachingDirectoryReader, "rarely")
                         );
                         assertEquals(PointValues.size(reader, "rarely"), PointValues.size(cachingDirectoryReader, "rarely"));
+                        assertEquals(
+                            DocValuesSkipper.globalDocCount(reader, "rarely_skipper"),
+                            DocValuesSkipper.globalDocCount(cachingDirectoryReader, "rarely_skipper")
+                        );
+                        assertEquals(
+                            DocValuesSkipper.globalMaxValue(reader, "rarely_skipper"),
+                            DocValuesSkipper.globalMaxValue(cachingDirectoryReader, "rarely_skipper")
+                        );
+                        assertEquals(
+                            DocValuesSkipper.globalMinValue(reader, "rarely_skipper"),
+                            DocValuesSkipper.globalMinValue(cachingDirectoryReader, "rarely_skipper")
+                        );
                     }
                     assertArrayEquals(
                         PointValues.getMaxPackedValue(reader, "test"),
@@ -72,6 +92,19 @@ public class RewriteCachingDirectoryReaderTests extends ESTestCase {
 
                     assertEquals(PointValues.size(reader, "test"), PointValues.size(cachingDirectoryReader, "test"));
                     assertEquals(PointValues.size(reader, "test_const"), PointValues.size(cachingDirectoryReader, "test_const"));
+
+                    assertEquals(
+                        DocValuesSkipper.globalDocCount(reader, "skipper"),
+                        DocValuesSkipper.globalDocCount(cachingDirectoryReader, "skipper")
+                    );
+                    assertEquals(
+                        DocValuesSkipper.globalMinValue(reader, "skipper"),
+                        DocValuesSkipper.globalMinValue(cachingDirectoryReader, "skipper")
+                    );
+                    assertEquals(
+                        DocValuesSkipper.globalMaxValue(reader, "skipper"),
+                        DocValuesSkipper.globalMaxValue(cachingDirectoryReader, "skipper")
+                    );
                 }
             }
         }
@@ -82,42 +115,53 @@ public class RewriteCachingDirectoryReaderTests extends ESTestCase {
             try (IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig())) {
                 Document doc = new Document();
                 doc.add(new LongPoint("test", 5));
+                doc.add(NumericDocValuesField.indexedField("skipper", 5));
                 writer.addDocument(doc);
                 if (randomBoolean()) {
                     writer.flush();
                 }
                 doc = new Document();
                 doc.add(new LongPoint("test", 0));
+                doc.add(NumericDocValuesField.indexedField("skipper", 0));
                 writer.addDocument(doc);
                 if (randomBoolean()) {
                     writer.flush();
                 }
                 doc = new Document();
                 doc.add(new LongPoint("test", 10));
+                doc.add(NumericDocValuesField.indexedField("skipper", 10));
                 writer.addDocument(doc);
                 try (DirectoryReader reader = DirectoryReader.open(writer)) {
                     RewriteCachingDirectoryReader cachingDirectoryReader = new RewriteCachingDirectoryReader(dir, reader.leaves(), null);
-                    DateFieldMapper.DateFieldType dateFieldType = new DateFieldMapper.DateFieldType("test");
-                    QueryRewriteContext context = new QueryRewriteContext(parserConfig(), null, () -> 0);
-                    MappedFieldType.Relation relation = dateFieldType.isFieldWithinQuery(
-                        cachingDirectoryReader,
-                        0,
-                        10,
-                        true,
-                        true,
-                        ZoneOffset.UTC,
-                        null,
-                        context
+                    assertRelations(new DateFieldMapper.DateFieldType("test"), cachingDirectoryReader);
+                    assertRelations(
+                        new DateFieldMapper.DateFieldType(
+                            "skipper",
+                            IndexType.skippers(),
+                            false,
+                            false,
+                            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+                            DateFieldMapper.Resolution.MILLISECONDS,
+                            null,
+                            null,
+                            Map.of()
+                        ),
+                        cachingDirectoryReader
                     );
-                    assertEquals(relation, MappedFieldType.Relation.WITHIN);
-
-                    relation = dateFieldType.isFieldWithinQuery(cachingDirectoryReader, 3, 11, true, true, ZoneOffset.UTC, null, context);
-                    assertEquals(relation, MappedFieldType.Relation.INTERSECTS);
-
-                    relation = dateFieldType.isFieldWithinQuery(cachingDirectoryReader, 10, 11, false, true, ZoneOffset.UTC, null, context);
-                    assertEquals(relation, MappedFieldType.Relation.DISJOINT);
                 }
             }
         }
+    }
+
+    private void assertRelations(DateFieldMapper.DateFieldType dateFieldType, IndexReader reader) throws IOException {
+        QueryRewriteContext context = new QueryRewriteContext(parserConfig(), null, () -> 0);
+        MappedFieldType.Relation relation = dateFieldType.isFieldWithinQuery(reader, 0, 10, true, true, ZoneOffset.UTC, null, context);
+        assertEquals(MappedFieldType.Relation.WITHIN, relation);
+
+        relation = dateFieldType.isFieldWithinQuery(reader, 3, 11, true, true, ZoneOffset.UTC, null, context);
+        assertEquals(MappedFieldType.Relation.INTERSECTS, relation);
+
+        relation = dateFieldType.isFieldWithinQuery(reader, 10, 11, false, true, ZoneOffset.UTC, null, context);
+        assertEquals(MappedFieldType.Relation.DISJOINT, relation);
     }
 }

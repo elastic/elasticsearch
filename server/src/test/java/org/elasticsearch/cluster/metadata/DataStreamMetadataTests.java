@@ -47,7 +47,24 @@ public class DataStreamMetadataTests extends AbstractChunkedSerializingTestCase<
 
     @Override
     protected DataStreamMetadata mutateInstance(DataStreamMetadata instance) {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        Map<String, DataStream> dataStreams = instance.dataStreams();
+        Map<String, DataStreamAlias> dataStreamAliases = instance.getDataStreamAliases();
+        switch (between(0, 1)) {
+            case 0 -> dataStreams = randomValueOtherThan(
+                dataStreams,
+                () -> IntStream.range(0, randomIntBetween(0, 5))
+                    .boxed()
+                    .collect(Collectors.toUnmodifiableMap(i -> randomAlphaOfLength(5), i -> DataStreamTestHelper.randomInstance()))
+            );
+            case 1 -> dataStreamAliases = randomValueOtherThan(
+                dataStreamAliases,
+                () -> IntStream.range(0, randomIntBetween(0, 5))
+                    .mapToObj(i -> DataStreamTestHelper.randomAliasInstance())
+                    .collect(Collectors.toUnmodifiableMap(DataStreamAlias::getName, Function.identity()))
+            );
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new DataStreamMetadata(ImmutableOpenMap.builder(dataStreams).build(), ImmutableOpenMap.builder(dataStreamAliases).build());
     }
 
     @Override

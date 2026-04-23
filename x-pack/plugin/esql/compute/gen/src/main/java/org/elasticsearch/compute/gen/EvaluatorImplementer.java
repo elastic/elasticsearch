@@ -51,6 +51,7 @@ public class EvaluatorImplementer {
     private final ProcessFunction processFunction;
     private final ClassName implementation;
     private final boolean processOutputsMultivalued;
+    private final boolean vectorsUnsupported;
     private final boolean allNullsIsNull;
 
     public EvaluatorImplementer(
@@ -69,6 +70,9 @@ public class EvaluatorImplementer {
             declarationType.getSimpleName() + extraName + "Evaluator"
         );
         this.processOutputsMultivalued = this.processFunction.hasBlockType;
+        boolean anyParameterNotSupportingVectors = this.processFunction.args.stream().anyMatch(a -> a.supportsVectorReadAccess() == false);
+        boolean returnTypeWithoutVectorSupport = vectorType(elementType(this.processFunction.resultDataType(true))) == null;
+        vectorsUnsupported = processOutputsMultivalued || anyParameterNotSupportingVectors || returnTypeWithoutVectorSupport;
         this.allNullsIsNull = allNullsIsNull;
     }
 
@@ -101,7 +105,7 @@ public class EvaluatorImplementer {
         builder.addMethod(eval());
         builder.addMethod(processFunction.baseRamBytesUsed());
 
-        if (processOutputsMultivalued) {
+        if (vectorsUnsupported) {
             if (processFunction.args.stream().anyMatch(x -> x instanceof FixedArgument == false)) {
                 builder.addMethod(realEval(true));
             }
@@ -145,10 +149,11 @@ public class EvaluatorImplementer {
         builder.addModifiers(Modifier.PUBLIC).returns(BLOCK).addParameter(PAGE, "page");
         processFunction.args.forEach(a -> a.evalToBlock(builder));
         String invokeBlockEval = invokeRealEval(true);
-        if (processOutputsMultivalued) {
+        if (vectorsUnsupported) {
             builder.addStatement(invokeBlockEval);
         } else {
-            processFunction.args.forEach(a -> a.resolveVectors(builder, invokeBlockEval));
+            // TODO: consider passing an onAllNull to skip processing when all values are null
+            processFunction.args.forEach(a -> a.resolveVectors(builder, b -> b.addStatement(invokeBlockEval), null));
             builder.addStatement(invokeRealEval(false));
         }
         processFunction.args.forEach(a -> a.closeEvalToBlock(builder));
@@ -272,13 +277,7 @@ public class EvaluatorImplementer {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("warnings");
         builder.addModifiers(Modifier.PRIVATE).returns(WARNINGS);
         builder.beginControlFlow("if (warnings == null)");
-        builder.addStatement("""
-            this.warnings = Warnings.createWarnings(
-                driverContext.warningsMode(),
-                source.source().getLineNumber(),
-                source.source().getColumnNumber(),
-                source.text()
-            )""");
+        builder.addStatement("this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source)");
         builder.endControlFlow();
         builder.addStatement("return warnings");
         return builder.build();

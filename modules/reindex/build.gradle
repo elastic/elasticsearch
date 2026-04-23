@@ -30,8 +30,10 @@ testClusters.configureEach {
   module ':modules:parent-join'
   module ':modules:lang-painless'
   module ':modules:rest-root'
+  // Registers reindex PIT cluster features (ReindexManagementFeatures) and management REST APIs
+  module ':modules:reindex-management'
   // Whitelist reindexing from the local node so we can test reindex-from-remote.
-  setting 'reindex.remote.whitelist', '127.0.0.1:*'
+  setting 'reindex.remote.whitelist', '127.0.0.1:*,[::1]:*'
 }
 
 dependencies {
@@ -40,10 +42,15 @@ dependencies {
   // for parent/child testing
   testImplementation project(':modules:parent-join')
   testImplementation project(':modules:rest-root')
+  // for data stream integration tests
+  internalClusterTestImplementation project(':modules:data-streams')
+  // registers reindex relocation and pit search node features
+  internalClusterTestImplementation project(':modules:reindex-management')
 
   clusterModules project(':modules:lang-painless')
   clusterModules project(':modules:parent-join')
   clusterModules project(":modules:rest-root")
+  clusterModules project(':modules:reindex-management')
 }
 
 restResources {
@@ -54,7 +61,7 @@ restResources {
 }
 
 configurations {
-  basicRestSpecs {
+  restTests {
     attributes {
       attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
     }
@@ -62,7 +69,7 @@ configurations {
 }
 
 artifacts {
-  basicRestSpecs(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
+  restTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }
 
 tasks.named("thirdPartyAudit").configure {

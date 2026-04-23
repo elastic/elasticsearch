@@ -1,0 +1,73 @@
+// Tests for ESQL WITHOUT grouping function.
+// WITHOUT(dim1, dim2, ...) groups by all time-series dimensions except those listed.
+
+
+without_single_dimension
+required_capability: esql_without_grouping
+TS k8s 
+| STATS total_cost = sum(network.cost) BY WITHOUT(pod) 
+| SORT total_cost;
+
+total_cost:double | _timeseries:keyword
+15.875            | "{""cluster"":""staging"",""region"":""us""}"
+18.625            | "{""cluster"":""prod"",""region"":[""eu"",""us""]}"
+26.5              | "{""cluster"":""qa""}"
+;
+
+
+without_multiple_dimensions
+required_capability: esql_without_grouping
+TS k8s 
+| STATS total_cost = sum(network.cost) BY WITHOUT(pod, region) 
+| SORT total_cost;
+
+total_cost:double | _timeseries:keyword
+15.875            | "{""cluster"":""staging""}"
+18.625            | "{""cluster"":""prod""}"
+26.5              | "{""cluster"":""qa""}"
+;
+
+
+without_empty_equivalent_group_by_all
+required_capability: esql_without_grouping
+TS k8s 
+| STATS total_cost = sum(network.cost) BY WITHOUT() 
+| SORT total_cost;
+
+total_cost:double | _timeseries:keyword
+0.0               | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+1.75              | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
+4.625             | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
+6.25              | "{""cluster"":""qa"",""pod"":""one""}"
+7.875             | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+9.375             | "{""cluster"":""qa"",""pod"":""two""}"
+9.5               | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
+10.75             | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+10.875            | "{""cluster"":""qa"",""pod"":""three""}"
+;
+
+
+without_avg
+required_capability: esql_without_grouping
+TS k8s 
+| STATS avg_cost = avg(network.cost) BY WITHOUT(pod, region) 
+| SORT avg_cost;
+
+avg_cost:double        | _timeseries:keyword
+5.291666666666667      | "{""cluster"":""staging""}"
+6.208333333333333      | "{""cluster"":""prod""}"
+8.833333333333334      | "{""cluster"":""qa""}"
+;
+
+
+without_max
+required_capability: esql_without_grouping
+TS k8s 
+| STATS max_cost = max(network.cost) BY WITHOUT(pod, region) 
+| SORT max_cost;
+
+max_cost:double | _timeseries:keyword
+9.5             | "{""cluster"":""staging""}"
+10.75           | "{""cluster"":""prod""}"
+10.875          | "{""cluster"":""qa""}"
+;

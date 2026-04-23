@@ -520,7 +520,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
     ) {
         UpdateTrainedModelDeploymentAction.Request updateRequest = new UpdateTrainedModelDeploymentAction.Request(deploymentId);
         updateRequest.setNumberOfAllocations(numberOfAllocations);
-        updateRequest.setIsInternal(true);
+        updateRequest.setSource(UpdateTrainedModelDeploymentAction.Request.Source.ADAPTIVE_ALLOCATIONS);
         ClientHelper.executeAsyncWithOrigin(
             client,
             ClientHelper.ML_ORIGIN,

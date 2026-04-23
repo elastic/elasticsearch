@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
-import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -52,13 +51,8 @@ public class DataStreamLifecycleDownsampleDisruptionIT extends DownsamplingInteg
 
         final String dataStreamName = "metrics-foo";
         DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
-            .downsampling(
-                List.of(
-                    new DataStreamLifecycle.DownsamplingRound(
-                        TimeValue.timeValueMillis(0),
-                        new DownsampleConfig(new DateHistogramInterval("5m"))
-                    )
-                )
+            .downsamplingRounds(
+                List.of(new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueMillis(0), new DateHistogramInterval("5m")))
             )
             .buildTemplate();
         setupTSDBDataStreamAndIngestDocs(

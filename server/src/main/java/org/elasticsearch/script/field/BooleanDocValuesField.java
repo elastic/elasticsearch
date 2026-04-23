@@ -9,9 +9,9 @@
 
 package org.elasticsearch.script.field;
 
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -24,7 +24,7 @@ public class BooleanDocValuesField extends AbstractScriptFieldFactory<Boolean>
         DocValuesScriptFieldFactory,
         ScriptDocValues.Supplier<Boolean> {
 
-    private final SortedNumericDocValues input;
+    private final SortedNumericLongValues input;
     private final String name;
 
     private boolean[] values = new boolean[0];
@@ -34,7 +34,7 @@ public class BooleanDocValuesField extends AbstractScriptFieldFactory<Boolean>
     // as a delegate to this field class
     private ScriptDocValues.Booleans booleans = null;
 
-    public BooleanDocValuesField(SortedNumericDocValues input, String name) {
+    public BooleanDocValuesField(SortedNumericLongValues input, String name) {
         this.input = input;
         this.name = name;
     }

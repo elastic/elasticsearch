@@ -9,39 +9,60 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
+import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 import static java.util.Collections.emptyList;
 
 /**
  * Similar to {@link Present}, but it is used to check the presence of values over a time series in the given field.
  */
-public class PresentOverTime extends TimeSeriesAggregateFunction {
+public class PresentOverTime extends TimeSeriesAggregateFunction
+    implements
+        AggregateMetricDoubleNativeSupport,
+        SurrogateExpression,
+        ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "PresentOverTime",
         PresentOverTime::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(PresentOverTime.class)
+        .binary(PresentOverTime::new)
+        .name("present_over_time");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .withinSeriesOverTime(PresentOverTime::new)
+        .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
+        .description("Returns 1 if the range vector has any elements, otherwise returns an empty vector.")
+        .example("present_over_time(http_requests_total[5m])")
+        .name("present_over_time");
 
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "boolean" },
         description = "Calculates the presence of a field in the output result over time range.",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
-        preview = true,
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") },
         examples = { @Example(file = "k8s-timeseries", tag = "present_over_time") }
     )
     public PresentOverTime(
@@ -61,20 +82,30 @@ public class PresentOverTime extends TimeSeriesAggregateFunction {
                 "geohash",
                 "geotile",
                 "geohex",
+                "histogram",
                 "integer",
                 "ip",
                 "keyword",
                 "long",
                 "text",
                 "unsigned_long",
-                "version" }
-        ) Expression field
+                "version",
+                "exponential_histogram",
+                "tdigest" },
+            description = "the metric field to calculate the value for"
+        ) Expression field,
+        @Param(
+            name = "window",
+            type = { "time_duration" },
+            description = "the time window over which to compute the present over time",
+            optional = true
+        ) Expression window
     ) {
-        this(source, field, Literal.TRUE);
+        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW));
     }
 
-    public PresentOverTime(Source source, Expression field, Expression filter) {
-        super(source, field, filter, emptyList());
+    public PresentOverTime(Source source, Expression field, Expression filter, Expression window) {
+        super(source, field, filter, window, emptyList());
     }
 
     private PresentOverTime(StreamInput in) throws IOException {
@@ -88,17 +119,17 @@ public class PresentOverTime extends TimeSeriesAggregateFunction {
 
     @Override
     public PresentOverTime withFilter(Expression filter) {
-        return new PresentOverTime(source(), field(), filter);
+        return new PresentOverTime(source(), field(), filter, window());
     }
 
     @Override
     protected NodeInfo<PresentOverTime> info() {
-        return NodeInfo.create(this, PresentOverTime::new, field(), filter());
+        return NodeInfo.create(this, PresentOverTime::new, field(), filter(), window());
     }
 
     @Override
     public PresentOverTime replaceChildren(List<Expression> newChildren) {
-        return new PresentOverTime(source(), newChildren.get(0), newChildren.get(1));
+        return new PresentOverTime(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
     @Override
@@ -112,7 +143,17 @@ public class PresentOverTime extends TimeSeriesAggregateFunction {
     }
 
     @Override
+    public Expression surrogate() {
+        return perTimeSeriesAggregation();
+    }
+
+    @Override
+    public AggregatorFunctionSupplier supplier() {
+        return perTimeSeriesAggregation().supplier();
+    }
+
+    @Override
     public Present perTimeSeriesAggregation() {
-        return new Present(source(), field(), filter());
+        return new Present(source(), field(), filter(), window());
     }
 }

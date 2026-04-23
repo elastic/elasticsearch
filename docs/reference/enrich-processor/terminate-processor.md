@@ -29,4 +29,5 @@ $$$terminate-options$$$
   }
 }
 ```
+% NOTCONSOLE
 

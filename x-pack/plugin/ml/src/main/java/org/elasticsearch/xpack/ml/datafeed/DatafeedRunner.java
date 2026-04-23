@@ -27,6 +27,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
+import org.elasticsearch.xpack.core.ml.datafeed.CrossClusterSearchStatsSnapshot;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
@@ -152,11 +153,43 @@ public class DatafeedRunner {
         datafeedContextProvider.buildDatafeedContext(task.getDatafeedId(), datafeedContextListener);
     }
 
+    /**
+     * Stops a running datafeed on this node using default auto-close behavior for lookback-only datafeeds.
+     *
+     * @param task    the persistent datafeed task whose in-memory runner should be stopped
+     * @param reason  short label for logs and audits explaining why the datafeed is stopping (for example {@code
+     *                stop_datafeed (api)} or cancellation reason)
+     * @param timeout maximum time to wait when acquiring the datafeed job lock before proceeding with shutdown
+     */
     public void stopDatafeed(TransportStartDatafeedAction.DatafeedTask task, String reason, TimeValue timeout) {
+        stopDatafeed(task, reason, timeout, null);
+    }
+
+    /**
+     * Stops a running datafeed on this node, optionally overriding whether the associated anomaly detection job is
+     * auto-closed when the datafeed finishes stopping.
+     *
+     * @param task                 the persistent datafeed task whose in-memory runner should be stopped
+     * @param reason               short label for logs and audits explaining why the datafeed is stopping
+     * @param timeout              maximum time to wait when acquiring the datafeed job lock before proceeding with
+     *                             shutdown
+     * @param autoCloseJobOverride when non-null, whether to submit a {@link CloseJobAction} after the datafeed stops;
+     *                             when {@code null}, the default applies (lookback-only datafeeds, i.e. an {@code end_time}
+     *                             is set, auto-close when stopped, which matches natural lookback completion without
+     *                             realtime). API stops pass {@link Boolean#FALSE} when the stop request has
+     *                             {@code close_job=false} so the job remains open as documented
+     */
+    public void stopDatafeed(
+        TransportStartDatafeedAction.DatafeedTask task,
+        String reason,
+        TimeValue timeout,
+        Boolean autoCloseJobOverride
+    ) {
         logger.info("[{}] attempt to stop datafeed [{}] [{}]", reason, task.getDatafeedId(), task.getAllocationId());
         Holder holder = runningDatafeedsOnThisNode.remove(task.getAllocationId());
         if (holder != null) {
-            holder.stop(reason, timeout, null);
+            boolean autoCloseJob = autoCloseJobOverride != null ? autoCloseJobOverride : task.isLookbackOnly();
+            holder.stop(reason, timeout, null, autoCloseJob, null);
         }
     }
 
@@ -225,6 +258,11 @@ public class DatafeedRunner {
     public SearchInterval getSearchInterval(TransportStartDatafeedAction.DatafeedTask task) {
         Holder holder = runningDatafeedsOnThisNode.get(task.getAllocationId());
         return holder == null ? null : holder.datafeedJob.getSearchInterval();
+    }
+
+    public CrossClusterSearchStatsSnapshot getCrossClusterStats(TransportStartDatafeedAction.DatafeedTask task) {
+        Holder holder = runningDatafeedsOnThisNode.get(task.getAllocationId());
+        return holder == null ? null : holder.datafeedJob.getCrossClusterSearchStats().snapshot();
     }
 
     // Important: Holder must be created and assigned to DatafeedTask before setting state to started,

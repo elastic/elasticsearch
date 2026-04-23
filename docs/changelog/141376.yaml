@@ -1,0 +1,5 @@
+pr: 141376
+summary: "This changes extends the `read` index privilege to consistently cover all actions required to run cross-cluster search (CCS) queries. Users with the `read` index privilege will be able to run CCS queries irrespective of the `ccs_minimize_roundtrips` query parameter."
+area: Security
+type: bug
+issues: []

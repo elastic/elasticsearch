@@ -1,0 +1,6 @@
+from all_types
+| eval u = v_cosine(dense_vector, [4, 5, 6])
+| fork
+    (eval s = length(text) | keep s, u, keyword)
+    (eval t = v_dot_product(dense_vector, [1, 2, 3]) | keep t, u, keyword)
+| eval x = length(keyword)

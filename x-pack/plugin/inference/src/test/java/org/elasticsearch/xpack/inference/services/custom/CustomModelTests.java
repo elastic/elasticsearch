@@ -14,7 +14,7 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.custom.response.CustomResponseParser;
-import org.elasticsearch.xpack.inference.services.custom.response.TextEmbeddingResponseParser;
+import org.elasticsearch.xpack.inference.services.custom.response.DenseEmbeddingResponseParser;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.hamcrest.MatcherAssert;
 
@@ -94,7 +94,7 @@ public class CustomModelTests extends ESTestCase {
     public static CustomModel getTestModel() {
         return getTestModel(
             TaskType.TEXT_EMBEDDING,
-            new TextEmbeddingResponseParser("$.result.embeddings[*].embedding", CustomServiceEmbeddingType.FLOAT)
+            new DenseEmbeddingResponseParser("$.result.embeddings[*].embedding", CustomServiceEmbeddingType.FLOAT)
         );
     }
 

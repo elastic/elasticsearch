@@ -20,7 +20,6 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
@@ -110,7 +109,7 @@ public class AzureOpenAiCompletionActionTests extends ESTestCase {
             var action = createAction("resource", "deployment", "apiversion", user, apiKey, sender, "id");
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new ChatCompletionInput(List.of(completionInput)), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new ChatCompletionInput(List.of(completionInput)), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -141,7 +140,7 @@ public class AzureOpenAiCompletionActionTests extends ESTestCase {
         var action = createAction("resource", "deployment", "apiVersion", "user", "apikey", sender, "id");
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new ChatCompletionInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+        action.execute(new ChatCompletionInput(List.of("abc")), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -161,7 +160,7 @@ public class AzureOpenAiCompletionActionTests extends ESTestCase {
         var action = createAction("resource", "deployment", "apiVersion", "user", "apikey", sender, "id");
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new ChatCompletionInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+        action.execute(new ChatCompletionInput(List.of("abc")), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -175,7 +174,7 @@ public class AzureOpenAiCompletionActionTests extends ESTestCase {
         var action = createAction("resource", "deployment", "apiVersion", "user", "apikey", sender, "id");
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new ChatCompletionInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+        action.execute(new ChatCompletionInput(List.of("abc")), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -192,7 +191,7 @@ public class AzureOpenAiCompletionActionTests extends ESTestCase {
         String inferenceEntityId
     ) {
         try {
-            var model = createCompletionModel(resourceName, deploymentId, apiVersion, user, apiKey, null, inferenceEntityId);
+            var model = createCompletionModel(resourceName, deploymentId, apiVersion, user, apiKey, null, inferenceEntityId, threadPool);
             model.setUri(new URI(getUrl(webServer)));
             var requestCreator = new AzureOpenAiCompletionRequestManager(model, threadPool);
             var errorMessage = constructFailedToSendRequestMessage("Azure OpenAI completion");

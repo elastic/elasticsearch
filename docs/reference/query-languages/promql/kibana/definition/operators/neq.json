@@ -1,0 +1,86 @@
+{
+  "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/operators/",
+  "type" : "operator",
+  "operator" : "!=",
+  "name" : "neq",
+  "description" : "Compares elements for inequality. By default, acts as a filter. With the bool modifier, returns 0 or 1.",
+  "signatures" : [
+    {
+      "params" : [
+        {
+          "name" : "lhs",
+          "type" : "instant_vector",
+          "optional" : false,
+          "description" : "Instant vector."
+        },
+        {
+          "name" : "rhs",
+          "type" : "instant_vector",
+          "optional" : false,
+          "description" : "Instant vector."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "instant_vector"
+    },
+    {
+      "params" : [
+        {
+          "name" : "lhs",
+          "type" : "instant_vector",
+          "optional" : false,
+          "description" : "Instant vector."
+        },
+        {
+          "name" : "rhs",
+          "type" : "scalar",
+          "optional" : false,
+          "description" : "Scalar."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "instant_vector"
+    },
+    {
+      "params" : [
+        {
+          "name" : "lhs",
+          "type" : "scalar",
+          "optional" : false,
+          "description" : "Scalar."
+        },
+        {
+          "name" : "rhs",
+          "type" : "instant_vector",
+          "optional" : false,
+          "description" : "Instant vector."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "instant_vector"
+    },
+    {
+      "params" : [
+        {
+          "name" : "lhs",
+          "type" : "scalar",
+          "optional" : false,
+          "description" : "Scalar."
+        },
+        {
+          "name" : "rhs",
+          "type" : "scalar",
+          "optional" : false,
+          "description" : "Scalar."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "scalar"
+    }
+  ],
+  "examples" : [
+    "requests_error != 0"
+  ],
+  "preview" : true,
+  "snapshot_only" : false
+}

@@ -26,7 +26,7 @@ public final class PruneUnusedIndexMode extends OptimizerRules.OptimizerRule<EsR
     protected LogicalPlan rule(EsRelation r) {
         if (r.indexMode() == IndexMode.TIME_SERIES) {
             if (Expressions.anyMatch(r.output(), a -> MetadataAttribute.TSID_FIELD.equals(((Attribute) a).name())) == false) {
-                return new EsRelation(r.source(), r.indexPattern(), IndexMode.STANDARD, r.indexNameWithModes(), r.output());
+                return r.withIndexMode(IndexMode.STANDARD);
             }
         }
         return r;

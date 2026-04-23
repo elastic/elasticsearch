@@ -24,8 +24,7 @@
           "parts": {
             "model_id": {
               "type": "string",
-              "description": "The unique identifier of the trained model.",
-              "required": true
+              "description": "The unique identifier of the trained model."
             }
           }
         }
@@ -44,7 +43,8 @@
       }
     },
     "body": {
-      "description": "The stop deployment parameters"
+      "description": "The stop deployment parameters",
+      "required": false
     }
   }
 }

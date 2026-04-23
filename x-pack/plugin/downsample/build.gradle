@@ -15,6 +15,7 @@ dependencies {
   compileOnly project(xpackModule('core'))
   testImplementation project(':modules:data-streams')
   testImplementation project(xpackModule('ilm'))
+  compileOnly project(xpackModule('analytics'))
   compileOnly project(xpackModule('mapper-aggregate-metric'))
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(xpackModule('ccr'))

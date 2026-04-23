@@ -29,15 +29,16 @@ import org.elasticsearch.core.Releasables;
 // end generated imports
 
 /**
- * A rate grouping aggregation definition for $type$. This implementation supports the `irate` and `idelta` functions.
+ * An irate grouping aggregation definition for $type$.
  * This class is generated. Edit `X-IrateAggregator.java.st` instead.
  */
 @GroupingAggregator(
     value = { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "$TYPE$_BLOCK") }
 )
 public class Irate$Type$Aggregator {
-    public static $Type$IrateGroupingState initGrouping(DriverContext driverContext, boolean isDelta) {
-        return new $Type$IrateGroupingState(driverContext.bigArrays(), driverContext.breaker(), isDelta);
+    public static $Type$IrateGroupingState initGrouping(DriverContext driverContext, boolean isDateNanos) {
+        final int dateFactor = isDateNanos ? 1_000_000_000 : 1000;
+        return new $Type$IrateGroupingState(driverContext.bigArrays(), driverContext.breaker(), dateFactor);
     }
 
     public static void combine($Type$IrateGroupingState current, int groupId, $type$ value, long timestamp) {
@@ -87,13 +88,13 @@ public class Irate$Type$Aggregator {
         private final BigArrays bigArrays;
         private final CircuitBreaker breaker;
         private long stateBytes; // for individual states
-        private final boolean isDelta;
+        private final int dateFactor;
 
-        $Type$IrateGroupingState(BigArrays bigArrays, CircuitBreaker breaker, boolean isDelta) {
+        $Type$IrateGroupingState(BigArrays bigArrays, CircuitBreaker breaker, int dateFactor) {
             this.bigArrays = bigArrays;
             this.breaker = breaker;
             this.states = bigArrays.newObjectArray(1);
-            this.isDelta = isDelta;
+            this.dateFactor = dateFactor;
         }
 
         void ensureCapacity(int groupId) {
@@ -101,7 +102,7 @@ public class Irate$Type$Aggregator {
         }
 
         void adjustBreaker(long bytes) {
-            breaker.addEstimateBytesAndMaybeBreak(bytes, "<<rate aggregation>>");
+            breaker.addEstimateBytesAndMaybeBreak(bytes, "<<irate aggregation>>");
             stateBytes += bytes;
             assert stateBytes >= 0 : stateBytes;
         }
@@ -155,7 +156,6 @@ public class Irate$Type$Aggregator {
             Releasables.close(states, () -> adjustBreaker(-stateBytes));
         }
 
-        @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             assert blocks.length >= offset + 2 : "blocks=" + blocks.length + ",offset=" + offset;
             final BlockFactory blockFactory = driverContext.blockFactory();
@@ -201,18 +201,13 @@ public class Irate$Type$Aggregator {
                         rates.appendNull();
                         continue;
                     }
-                    if (isDelta) {
-                        // delta: just return the difference
-                        rates.appendDouble(state.lastValue - state.secondLastValue);
-                    } else {
-                        // When the last value is less than the previous one, we assume a reset
-                        // and use the last value directly.
-                        final double ydiff = state.lastValue >= state.secondLastValue
-                            ? state.lastValue - state.secondLastValue
-                            : state.lastValue;
-                        final long xdiff = state.lastTimestamp - state.secondLastTimestamp;
-                        rates.appendDouble(ydiff / xdiff * 1000);
-                    }
+                    // When the last value is less than the previous one, we assume a reset
+                    // and use the last value directly.
+                    final double ydiff = state.lastValue >= state.secondLastValue
+                        ? state.lastValue - state.secondLastValue
+                        : state.lastValue;
+                    final long xdiff = state.lastTimestamp - state.secondLastTimestamp;
+                    rates.appendDouble(ydiff / xdiff * dateFactor);
                 }
                 return rates.build();
             }

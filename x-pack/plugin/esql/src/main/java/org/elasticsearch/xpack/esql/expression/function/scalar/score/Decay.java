@@ -12,9 +12,10 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.script.ScoreScriptUtils;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -45,11 +47,13 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FOURTH;
@@ -61,6 +65,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateNanos;
@@ -82,6 +87,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isTimeDuration;
 public class Decay extends EsqlScalarFunction implements OptionalArgument, PostOptimizationVerificationAware {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Decay", Decay::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Decay.class).quaternary(Decay::new).name("decay");
 
     public static final String ORIGIN = "origin";
     public static final String SCALE = "scale";
@@ -106,7 +112,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
     private static final Double DEFAULT_CARTESIAN_POINT_OFFSET = 0.0;
     private static final Long DEFAULT_TEMPORAL_OFFSET = 0L;
 
-    private static final Double DEFAULT_DECAY = 0.5;
+    private static final double DEFAULT_DECAY = 0.5;
 
     private static final BytesRef DEFAULT_FUNCTION = new BytesRef("linear");
 
@@ -120,7 +126,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
     @FunctionInfo(
         returnType = "double",
         preview = true,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") },
         description = "Calculates a relevance score that decays based on the distance of a numeric, spatial or date type value "
             + "from a target origin, using configurable decay functions.",
         detailedDescription = """
@@ -155,6 +161,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         ) Expression scale,
         @MapParam(
             name = "options",
+            description = "(Optional) Additional options such as `decay`, `offset` and `type`.",
             params = {
                 @MapParam.MapParamEntry(
                     name = OFFSET,
@@ -206,14 +213,31 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         return ENTRY.name;
     }
 
+    Expression value() {
+        return value;
+    }
+
+    Expression origin() {
+        return origin;
+    }
+
+    Expression scale() {
+        return scale;
+    }
+
+    Expression options() {
+        return options;
+    }
+
     @Override
     protected TypeResolution resolveType() {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
 
-        return validateValue().and(() -> validateOriginAndScale(value.dataType()))
-            .and(() -> Options.resolveWithMultipleDataTypesAllowed(options, source(), FOURTH, ALLOWED_OPTIONS));
+        return validateValue().and(() -> Options.resolveWithMultipleDataTypesAllowed(options, source(), FOURTH, ALLOWED_OPTIONS))
+            .and(() -> validateOriginScaleAndOffset(value.dataType()))
+            .and(this::validateTypeOption);
     }
 
     private TypeResolution validateValue() {
@@ -222,32 +246,98 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         );
     }
 
-    private TypeResolution validateOriginAndScale(DataType valueType) {
+    private TypeResolution validateOriginScaleAndOffset(DataType valueType) {
         if (isSpatialPoint(valueType)) {
             boolean isGeoPoint = isGeoPoint(valueType);
 
-            return validateOriginAndScale(
+            return validateOriginScaleAndOffset(
                 DataType::isSpatialPoint,
                 "spatial point",
+                isGeoPoint ? DataType::isString : DataType::isNumeric,
+                isGeoPoint ? "keyword or text" : "numeric",
                 isGeoPoint ? DataType::isString : DataType::isNumeric,
                 isGeoPoint ? "keyword or text" : "numeric"
             );
         } else if (isMillisOrNanos(valueType)) {
-            return validateOriginAndScale(DataType::isMillisOrNanos, "datetime or date_nanos", DataType::isTimeDuration, "time_duration");
+            return validateOriginScaleAndOffset(
+                DataType::isMillisOrNanos,
+                "datetime or date_nanos",
+                DataType::isTimeDuration,
+                "time_duration",
+                DataType::isTimeDuration,
+                "time_duration"
+            );
         } else {
-            return validateOriginAndScale(DataType::isNumeric, "numeric", DataType::isNumeric, "numeric");
+            return validateOriginScaleAndOffset(
+                DataType::isNumeric,
+                "numeric",
+                DataType::isNumeric,
+                "numeric",
+                DataType::isNumeric,
+                "numeric"
+            );
         }
     }
 
-    private TypeResolution validateOriginAndScale(
+    private TypeResolution validateOriginScaleAndOffset(
         Predicate<DataType> originPredicate,
         String originDesc,
         Predicate<DataType> scalePredicate,
-        String scaleDesc
+        String scaleDesc,
+        Predicate<DataType> offsetPredicate,
+        String offsetDesc
     ) {
+        if (options != null) {
+            Expression offset = ((MapExpression) options).keyFoldedMap().get(OFFSET);
+            if (offset != null && offset.dataType() != NULL && offsetPredicate.test((offset).dataType()) == false) {
+                return new TypeResolution(
+                    format(null, "{} option has invalid type, expected [{}], found [{}]", OFFSET, offsetDesc, offset.dataType().typeName())
+                );
+            }
+        }
+
         return isNotNull(origin, sourceText(), SECOND).and(isType(origin, originPredicate, sourceText(), SECOND, originDesc))
             .and(isNotNull(scale, sourceText(), THIRD))
             .and(isType(scale, scalePredicate, sourceText(), THIRD, scaleDesc));
+    }
+
+    private TypeResolution validateTypeOption() {
+        if (options == null) {
+            return TypeResolution.TYPE_RESOLVED;
+        }
+
+        Expression decayType = ((MapExpression) options).keyFoldedMap().get(TYPE);
+
+        if (decayType == null || decayType.dataType() == NULL) {
+            return TypeResolution.TYPE_RESOLVED;
+        }
+
+        if (decayType.dataType() != KEYWORD) {
+            return new TypeResolution(
+                format(
+                    null,
+                    "{} option has invalid type, expected [{}], found [{}]",
+                    TYPE,
+                    KEYWORD.typeName(),
+                    decayType.dataType().typeName()
+                )
+            );
+        }
+
+        String decayTypeName = BytesRefs.toString(decayType.fold(FoldContext.small())).toLowerCase(Locale.ROOT);
+
+        if (DecayFunction.BY_NAME.containsKey(decayTypeName) == false) {
+            return new TypeResolution(
+                format(
+                    null,
+                    "{} option has invalid value, expected one of [gauss, linear, exp], found [{}]",
+                    TYPE,
+                    decayType.source().text()
+                )
+            );
+        }
+
+        return TypeResolution.TYPE_RESOLVED;
     }
 
     @Override
@@ -266,7 +356,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         DataType valueDataType = value.dataType();
         Options.populateMapWithExpressionsMultipleDataTypesAllowed(
             (MapExpression) options,
@@ -276,7 +366,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
             ALLOWED_OPTIONS
         );
 
-        EvalOperator.ExpressionEvaluator.Factory valueFactory = toEvaluator.apply(value);
+        ExpressionEvaluator.Factory valueFactory = toEvaluator.apply(value);
 
         Expression offsetExpr = (Expression) resolvedOptions.get(OFFSET);
         Expression decayExpr = (Expression) resolvedOptions.get(DECAY);
@@ -288,34 +378,34 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         Object originFolded = origin.fold(foldCtx);
         Object scaleFolded = getFoldedScale(foldCtx, valueDataType);
         Object offsetFolded = getOffset(foldCtx, valueDataType, offsetExpr);
-        Double decayFolded = decayExpr != null ? (Double) decayExpr.fold(foldCtx) : DEFAULT_DECAY;
+        double decayFolded = decayExpr != null ? ((Number) decayExpr.fold(foldCtx)).doubleValue() : DEFAULT_DECAY;
         DecayFunction decayFunction = DecayFunction.fromBytesRef(typeExpr != null ? (BytesRef) typeExpr.fold(foldCtx) : DEFAULT_FUNCTION);
 
         return switch (valueDataType) {
             case INTEGER -> new DecayIntEvaluator.Factory(
                 source(),
                 valueFactory,
-                (Integer) originFolded,
-                (Integer) scaleFolded,
-                (Integer) offsetFolded,
+                ((Number) originFolded).intValue(),
+                ((Number) scaleFolded).intValue(),
+                ((Number) offsetFolded).intValue(),
                 decayFolded,
                 decayFunction
             );
             case DOUBLE -> new DecayDoubleEvaluator.Factory(
                 source(),
                 valueFactory,
-                (Double) originFolded,
-                (Double) scaleFolded,
-                (Double) offsetFolded,
+                ((Number) originFolded).doubleValue(),
+                ((Number) scaleFolded).doubleValue(),
+                ((Number) offsetFolded).doubleValue(),
                 decayFolded,
                 decayFunction
             );
             case LONG -> new DecayLongEvaluator.Factory(
                 source(),
                 valueFactory,
-                (Long) originFolded,
-                (Long) scaleFolded,
-                (Long) offsetFolded,
+                ((Number) originFolded).longValue(),
+                ((Number) scaleFolded).longValue(),
+                ((Number) offsetFolded).longValue(),
                 decayFolded,
                 decayFunction
             );

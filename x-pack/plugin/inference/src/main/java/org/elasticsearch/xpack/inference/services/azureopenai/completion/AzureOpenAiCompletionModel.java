@@ -11,12 +11,14 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiModel;
-import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings;
+import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.action.AzureOpenAiActionVisitor;
 import org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiUtils;
+import org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretSettings;
 
 import java.net.URISyntaxException;
 import java.util.Map;
@@ -28,8 +30,7 @@ public class AzureOpenAiCompletionModel extends AzureOpenAiModel {
             return model;
         }
 
-        var requestTaskSettings = AzureOpenAiCompletionRequestTaskSettings.fromMap(taskSettings);
-        return new AzureOpenAiCompletionModel(model, AzureOpenAiCompletionTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
+        return new AzureOpenAiCompletionModel(model, model.getTaskSettings().updatedTaskSettings(taskSettings));
     }
 
     public AzureOpenAiCompletionModel(
@@ -39,15 +40,17 @@ public class AzureOpenAiCompletionModel extends AzureOpenAiModel {
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secrets,
-        ConfigurationParseContext context
+        ConfigurationParseContext context,
+        ThreadPool threadPool
     ) {
         this(
             inferenceEntityId,
             taskType,
             service,
             AzureOpenAiCompletionServiceSettings.fromMap(serviceSettings, context),
-            AzureOpenAiCompletionTaskSettings.fromMap(taskSettings),
-            AzureOpenAiSecretSettings.fromMap(secrets)
+            AzureOpenAiCompletionTaskSettings.fromMap(taskSettings, context),
+            AzureOpenAiSecretSettings.fromMap(secrets),
+            threadPool
         );
     }
 
@@ -58,13 +61,18 @@ public class AzureOpenAiCompletionModel extends AzureOpenAiModel {
         String service,
         AzureOpenAiCompletionServiceSettings serviceSettings,
         AzureOpenAiCompletionTaskSettings taskSettings,
-        @Nullable AzureOpenAiSecretSettings secrets
+        @Nullable AzureOpenAiSecretSettings secrets,
+        ThreadPool threadPool
     ) {
-        super(
+        this(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
             new ModelSecrets(secrets),
-            serviceSettings
+            threadPool
         );
+    }
+
+    public AzureOpenAiCompletionModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets, ThreadPool threadPool) {
+        super(modelConfigurations, modelSecrets, (AzureOpenAiServiceSettings) modelConfigurations.getServiceSettings(), threadPool);
         try {
             this.uri = buildUriString();
         } catch (URISyntaxException e) {
@@ -88,11 +96,6 @@ public class AzureOpenAiCompletionModel extends AzureOpenAiModel {
     @Override
     public AzureOpenAiCompletionTaskSettings getTaskSettings() {
         return (AzureOpenAiCompletionTaskSettings) super.getTaskSettings();
-    }
-
-    @Override
-    public AzureOpenAiSecretSettings getSecretSettings() {
-        return (AzureOpenAiSecretSettings) super.getSecretSettings();
     }
 
     @Override

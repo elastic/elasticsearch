@@ -10,21 +10,23 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.request.comple
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
+import org.elasticsearch.xpack.inference.external.request.ChatCompletionRequest;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionModel;
-import org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiRequest;
+import org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiRequestUtils;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-public class GoogleVertexAiUnifiedChatCompletionRequest implements GoogleVertexAiRequest {
+public class GoogleVertexAiUnifiedChatCompletionRequest implements ChatCompletionRequest {
 
     private final GoogleVertexAiChatCompletionModel model;
     private final UnifiedChatInput unifiedChatInput;
@@ -37,11 +39,13 @@ public class GoogleVertexAiUnifiedChatCompletionRequest implements GoogleVertexA
     }
 
     @Override
-    public HttpRequest createHttpRequest() {
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         HttpPost httpPost = new HttpPost(uri);
 
         ToXContentObject requestEntity;
-        requestEntity = createRequestEntity();
+        requestEntity = model.getServiceSettings()
+            .provider()
+            .createRequestEntity(unifiedChatInput, extractModelId(), model.getTaskSettings());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(Strings.toString(requestEntity).getBytes(StandardCharsets.UTF_8));
         httpPost.setEntity(byteEntity);
@@ -49,25 +53,20 @@ public class GoogleVertexAiUnifiedChatCompletionRequest implements GoogleVertexA
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
 
         decorateWithAuth(httpPost);
-        return new HttpRequest(httpPost, getInferenceEntityId());
+        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }
 
-    private ToXContentObject createRequestEntity() {
-        switch (model.getServiceSettings().provider()) {
-            case ANTHROPIC -> {
-                return new GoogleModelGardenAnthropicChatCompletionRequestEntity(unifiedChatInput, model.getTaskSettings());
-            }
-            case GOOGLE -> {
-                return new GoogleVertexAiUnifiedChatCompletionRequestEntity(unifiedChatInput, model.getTaskSettings().thinkingConfig());
-            }
-            case null, default -> throw new ElasticsearchException(
-                "Unsupported Google Model Garden provider: " + model.getServiceSettings().provider()
-            );
-        }
+    /**
+     * Extracts the model ID to be used for the request. If the request contains a model ID, it is preferred.
+     * Otherwise, the model ID from the configuration is used.
+     * @return the model ID to be used for the request
+     */
+    private String extractModelId() {
+        return unifiedChatInput.getRequest().model() != null ? unifiedChatInput.getRequest().model() : model.getServiceSettings().modelId();
     }
 
     public void decorateWithAuth(HttpPost httpPost) {
-        GoogleVertexAiRequest.decorateWithBearerToken(httpPost, model.getSecretSettings());
+        GoogleVertexAiRequestUtils.decorateWithBearerToken(httpPost, model.getSecretSettings());
     }
 
     @Override
@@ -95,5 +94,10 @@ public class GoogleVertexAiUnifiedChatCompletionRequest implements GoogleVertexA
     @Override
     public String getInferenceEntityId() {
         return model.getInferenceEntityId();
+    }
+
+    @Override
+    public TaskType getTaskType() {
+        return model.getTaskType();
     }
 }

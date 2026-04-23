@@ -21,8 +21,7 @@
           "methods": [
             "GET",
             "POST"
-          ],
-          "parts": {}
+          ]
         },
         {
           "path": "/_ml/data_frame/analytics/{id}/_preview",

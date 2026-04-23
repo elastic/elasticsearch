@@ -177,6 +177,11 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable, Releasa
     int route(IndexRouting indexRouting);
 
     /**
+     * Pick the appropriate target shard id this request should be routed to during resharding.
+     */
+    int rerouteAtSourceDuringResharding(IndexRouting indexRouting);
+
+    /**
      * Resolves the write index that should receive this request
      * based on the provided index abstraction.
      *

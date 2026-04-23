@@ -7,60 +7,46 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.analysis.Analyzer;
-import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
-import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
-import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.TestAnalyzer;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
-import org.elasticsearch.xpack.esql.index.IndexResolution;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.junit.BeforeClass;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
+import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultInferenceResolution;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.hamcrest.Matchers.containsString;
 
 public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
-    protected static EsqlParser parser;
     protected static LogicalOptimizerContext logicalOptimizerCtx;
     protected static LogicalPlanOptimizer logicalOptimizer;
 
+    protected static LogicalPlanOptimizer logicalOptimizerWithLatestVersion;
+
     protected static Map<String, EsField> mapping;
-    protected static Analyzer analyzer;
-    protected static Map<String, EsField> mappingAirports;
-    protected static Analyzer analyzerAirports;
-    protected static Map<String, EsField> mappingTypes;
-    protected static Analyzer analyzerTypes;
-    protected static Map<String, EsField> mappingExtra;
-    protected static Analyzer analyzerExtra;
-    protected static Map<String, EsField> metricMapping;
-    protected static Analyzer metricsAnalyzer;
-    protected static Analyzer multiIndexAnalyzer;
-    protected static Analyzer sampleDataIndexAnalyzer;
 
-    protected static EnrichResolution enrichResolution;
+    public static class TestSubstitutionOnlyOptimizer extends LogicalPlanOptimizer {
+        // A static instance of this would break the EsqlNodeSubclassTests because its initialization requires a Random instance.
 
-    public static class SubstitutionOnlyOptimizer extends LogicalPlanOptimizer {
-        public static SubstitutionOnlyOptimizer INSTANCE = new SubstitutionOnlyOptimizer(unboundLogicalOptimizerContext());
-
-        SubstitutionOnlyOptimizer(LogicalOptimizerContext optimizerContext) {
-            super(optimizerContext);
+        public TestSubstitutionOnlyOptimizer() {
+            super(unboundLogicalOptimizerContext());
         }
 
         @Override
@@ -71,129 +57,132 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
 
     @BeforeClass
     public static void init() {
-        parser = new EsqlParser();
         logicalOptimizerCtx = unboundLogicalOptimizerContext();
         logicalOptimizer = new LogicalPlanOptimizer(logicalOptimizerCtx);
-        enrichResolution = new EnrichResolution();
-        AnalyzerTestUtils.loadEnrichPolicyResolution(enrichResolution, "languages_idx", "id", "languages_idx", "mapping-languages.json");
-
-        // Most tests used data from the test index, so we load it here, and use it in the plan() function.
+        logicalOptimizerWithLatestVersion = new LogicalPlanOptimizer(
+            new LogicalOptimizerContext(logicalOptimizerCtx.configuration(), logicalOptimizerCtx.foldCtx(), TransportVersion.current())
+        );
         mapping = loadMapping("mapping-basic.json");
-        EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
-        IndexResolution getIndexResult = IndexResolution.valid(test);
-        analyzer = new Analyzer(
-            new AnalyzerContext(
-                EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
-                getIndexResult,
-                defaultLookupResolution(),
-                enrichResolution,
-                emptyInferenceResolution()
-            ),
-            TEST_VERIFIER
-        );
+    }
 
-        // Some tests use data from the airports index, so we load it here, and use it in the plan_airports() function.
-        mappingAirports = loadMapping("mapping-airports.json");
-        EsIndex airports = new EsIndex("airports", mappingAirports, Map.of("airports", IndexMode.STANDARD));
-        IndexResolution getIndexResultAirports = IndexResolution.valid(airports);
-        analyzerAirports = new Analyzer(
-            new AnalyzerContext(
-                EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
-                getIndexResultAirports,
-                defaultLookupResolution(),
-                enrichResolution,
-                emptyInferenceResolution()
-            ),
-            TEST_VERIFIER
-        );
+    protected static TestAnalyzer analyzerWithEnrichPolicies() {
+        return analyzer().addEnrichPolicy(MATCH_TYPE, "languages_idx", "id", "languages_idx", "mapping-languages.json")
+            .addEnrichPolicy(Enrich.Mode.REMOTE, MATCH_TYPE, "languages_remote", "id", "languages_idx", "mapping-languages.json")
+            .addEnrichPolicy(Enrich.Mode.COORDINATOR, MATCH_TYPE, "languages_coordinator", "id", "languages_idx", "mapping-languages.json");
+    }
 
-        // Some tests need additional types, so we load that index here and use it in the plan_types() function.
-        mappingTypes = loadMapping("mapping-all-types.json");
-        EsIndex types = new EsIndex("types", mappingTypes, Map.of("types", IndexMode.STANDARD));
-        IndexResolution getIndexResultTypes = IndexResolution.valid(types);
-        analyzerTypes = new Analyzer(
-            new AnalyzerContext(
-                EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
-                getIndexResultTypes,
-                enrichResolution,
-                defaultInferenceResolution()
-            ),
-            TEST_VERIFIER
-        );
+    protected static TestAnalyzer defaultAnalyzer() {
+        return analyzerWithEnrichPolicies().addEmployees("test").addEmployees().addLanguagesLookup().addTestLookup().addSpatialLookup();
+    }
 
-        // Some tests use mappings from mapping-extra.json to be able to test more types so we load it here
-        mappingExtra = loadMapping("mapping-extra.json");
-        EsIndex extra = new EsIndex("extra", mappingExtra, Map.of("extra", IndexMode.STANDARD));
-        IndexResolution getIndexResultExtra = IndexResolution.valid(extra);
-        analyzerExtra = new Analyzer(
-            new AnalyzerContext(
-                EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
-                getIndexResultExtra,
-                enrichResolution,
-                emptyInferenceResolution()
-            ),
-            TEST_VERIFIER
-        );
+    protected static TestAnalyzer airportsAnalyzer() {
+        return analyzerWithEnrichPolicies().addAirports().addLanguagesLookup().addTestLookup().addSpatialLookup();
+    }
 
-        metricMapping = loadMapping("k8s-mappings.json");
-        var metricsIndex = IndexResolution.valid(new EsIndex("k8s", metricMapping, Map.of("k8s", IndexMode.TIME_SERIES)));
-        metricsAnalyzer = new Analyzer(
-            new AnalyzerContext(
-                EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
-                metricsIndex,
-                enrichResolution,
-                emptyInferenceResolution()
-            ),
-            TEST_VERIFIER
-        );
+    protected static TestAnalyzer typesAnalyzer() {
+        return analyzerWithEnrichPolicies().addAnalysisTestsInferenceResolution().addIndex("types", "mapping-all-types.json");
+    }
 
+    protected static TestAnalyzer extraAnalyzer() {
+        return analyzerWithEnrichPolicies().addIndex("extra", "mapping-extra.json");
+    }
+
+    protected static TestAnalyzer metricsAnalyzer() {
+        return analyzerWithEnrichPolicies().addIndex("exp_histo_sample", "exp_histo_sample-mappings.json", IndexMode.TIME_SERIES)
+            .addIndex("tdigest_timeseries_index", "tdigest_timeseries_index-mappings.json", IndexMode.TIME_SERIES)
+            .addK8s();
+    }
+
+    protected static TestAnalyzer multiIndexAnalyzer() {
         var multiIndexMapping = loadMapping("mapping-basic.json");
         multiIndexMapping.put(
             "partial_type_keyword",
             new EsField("partial_type_keyword", KEYWORD, emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
         );
-        var multiIndex = IndexResolution.valid(
-            new EsIndex(
-                "multi_index",
-                multiIndexMapping,
-                Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
-                Set.of("partial_type_keyword")
-            )
+        var multiIndex = new EsIndex(
+            "multi_index",
+            multiIndexMapping,
+            Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
+            Map.of(),
+            Map.of(),
+            Map.of("partial_type_keyword", Set.of("test2"))
         );
-        multiIndexAnalyzer = new Analyzer(
-            new AnalyzerContext(
-                EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
-                multiIndex,
-                enrichResolution,
-                emptyInferenceResolution()
-            ),
-            TEST_VERIFIER
-        );
+        return analyzerWithEnrichPolicies().addIndex(multiIndex);
+    }
 
-        var sampleDataMapping = loadMapping("mapping-sample_data.json");
-        var sampleDataIndex = IndexResolution.valid(
-            new EsIndex("sample_data", sampleDataMapping, Map.of("sample_data", IndexMode.STANDARD))
+    protected static TestAnalyzer unionIndexAnalyzer() {
+        var typesToIndices_languages = new LinkedHashMap<String, Set<String>>();
+        typesToIndices_languages.put("byte", Set.of("union_types_index"));
+        typesToIndices_languages.put("integer", Set.of("union_types_index_incompatible"));
+        EsField languages = new InvalidMappedField("languages", typesToIndices_languages);
+
+        var typesToIndices_lastName = new LinkedHashMap<String, Set<String>>();
+        typesToIndices_lastName.put("text", Set.of("union_types_index"));
+        typesToIndices_lastName.put("keyword", Set.of("union_types_index_incompatible"));
+        EsField lastName = new InvalidMappedField("last_name", typesToIndices_lastName);
+
+        var typesToIndices_salaryChange = new LinkedHashMap<String, Set<String>>();
+        typesToIndices_salaryChange.put("float", Set.of("union_types_index"));
+        typesToIndices_salaryChange.put("double", Set.of("union_types_index_incompatible"));
+        EsField salaryChange = new InvalidMappedField("salary_change", typesToIndices_salaryChange);
+
+        var typesToIndices_firstName = new LinkedHashMap<String, Set<String>>();
+        typesToIndices_firstName.put("text", Set.of("union_types_index"));
+        typesToIndices_firstName.put("keyword", Set.of("union_types_index_incompatible"));
+        EsField firstName = new InvalidMappedField("first_name", typesToIndices_firstName);
+
+        EsField idField = new EsField("id", KEYWORD, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
+        var unionIndex = new EsIndex(
+            "union_types_index*",
+            Map.of("languages", languages, "last_name", lastName, "salary_change", salaryChange, "first_name", firstName, "id", idField),
+            Map.of("union_types_index", IndexMode.STANDARD, "union_types_index_incompatible", IndexMode.STANDARD),
+            Map.of("", List.of("union_types_index*")),
+            Map.of("", List.of("union_types_index_incompatible", "union_types_index")),
+            Map.of()
         );
-        sampleDataIndexAnalyzer = new Analyzer(
-            new AnalyzerContext(
-                EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
-                sampleDataIndex,
-                enrichResolution,
-                emptyInferenceResolution()
-            ),
-            TEST_VERIFIER
-        );
+        return analyzerWithEnrichPolicies().addAnalysisTestsInferenceResolution()
+            .addIndex(unionIndex)
+            .addLanguagesLookup()
+            .addTestLookup()
+            .addSpatialLookup();
+    }
+
+    protected static TestAnalyzer sampleDataAnalyzer() {
+        return analyzerWithEnrichPolicies().addSampleData();
+    }
+
+    protected static TestAnalyzer subqueryAnalyzer() {
+        return analyzerWithEnrichPolicies().addEmployees("test")
+            .addLanguages()
+            .addSampleData()
+            .addDefaultIncompatible()
+            .addIndex("colors", "mapping-colors.json")
+            .addK8sDownsampled()
+            .addRemoteMissingIndex()
+            .addEmptyIndex()
+            .addNoFieldsIndex()
+            .addLanguagesLookup()
+            .addTestLookup()
+            .addSpatialLookup();
+    }
+
+    protected static TestAnalyzer baseConversionAnalyzer() {
+        return analyzerWithEnrichPolicies().addIndex("base_conversion", "mapping-base_conversion.json")
+            .addLanguagesLookup()
+            .addTestLookup()
+            .addSpatialLookup();
+    }
+
+    protected LogicalPlan optimize(LogicalPlan plan) {
+        return logicalOptimizer.optimize(plan);
     }
 
     protected LogicalPlan optimizedPlan(String query) {
         return plan(query);
+    }
+
+    protected LogicalPlan optimizedPlan(String query, TransportVersion transportVersion) {
+        return optimize(defaultAnalyzer().minimumTransportVersion(transportVersion).buildAnalyzer().analyze(TEST_PARSER.parseQuery(query)));
     }
 
     protected LogicalPlan plan(String query) {
@@ -201,44 +190,53 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     protected LogicalPlan plan(String query, LogicalPlanOptimizer optimizer) {
-        var analyzed = analyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG));
-        // System.out.println(analyzed);
-        var optimized = optimizer.optimize(analyzed);
-        // System.out.println(optimized);
-        return optimized;
+        return optimizer.optimize(defaultAnalyzer().query(query));
     }
 
     protected LogicalPlan planAirports(String query) {
-        var analyzed = analyzerAirports.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG));
-        // System.out.println(analyzed);
-        var optimized = logicalOptimizer.optimize(analyzed);
-        // System.out.println(optimized);
-        return optimized;
+        return optimize(airportsAnalyzer().query(query));
     }
 
     protected LogicalPlan planExtra(String query) {
-        var analyzed = analyzerExtra.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG));
-        // System.out.println(analyzed);
-        var optimized = logicalOptimizer.optimize(analyzed);
-        // System.out.println(optimized);
-        return optimized;
+        return optimize(extraAnalyzer().query(query));
     }
 
     protected LogicalPlan planTypes(String query) {
-        return logicalOptimizer.optimize(analyzerTypes.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
+        return optimize(typesAnalyzer().query(query));
+    }
+
+    protected LogicalPlan planMetrics(String query) {
+        return logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer().query(query));
     }
 
     protected LogicalPlan planMultiIndex(String query) {
-        return logicalOptimizer.optimize(multiIndexAnalyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
+        return optimize(multiIndexAnalyzer().query(query));
+    }
+
+    protected LogicalPlan planUnionIndex(String query) {
+        return optimize(unionIndexAnalyzer().query(query));
     }
 
     protected LogicalPlan planSample(String query) {
-        var analyzed = sampleDataIndexAnalyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG));
-        return logicalOptimizer.optimize(analyzed);
+        return optimize(sampleDataAnalyzer().query(query));
+    }
+
+    protected LogicalPlan planSubquery(String query) {
+        return optimize(subqueryAnalyzer().query(query));
     }
 
     @Override
     protected List<String> filteredWarnings() {
         return withDefaultLimitWarning(super.filteredWarnings());
     }
+
+    protected <T extends Throwable> void failPlan(String esql, Class<T> exceptionClass, String reason) {
+        var e = expectThrows(exceptionClass, () -> plan(esql));
+        assertThat(e.getMessage(), containsString(reason));
+    }
+
+    protected void failPlan(String esql, String reason) {
+        failPlan(esql, VerificationException.class, reason);
+    }
+
 }

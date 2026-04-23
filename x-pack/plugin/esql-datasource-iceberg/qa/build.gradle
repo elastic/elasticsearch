@@ -1,0 +1,149 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: org.elasticsearch.gradle.internal.precommit.CheckstylePrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenApisPrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsPrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.FilePermissionsPrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.LoggerUsagePrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.TestingConventionsPrecommitPlugin
+
+configurations.all {
+  resolutionStrategy.force "io.airlift:aircompressor:${versions.aircompressor}"
+}
+
+dependencies {
+  // Test fixtures and spec reader infrastructure from ESQL
+  javaRestTestImplementation project(xpackModule('esql:qa:testFixtures'))
+  javaRestTestImplementation project(xpackModule('esql:qa:server'))
+  javaRestTestImplementation project(xpackModule('esql'))
+  javaRestTestImplementation(project(path: xpackModule('esql'), configuration: 'testRuntimeElements'))
+  
+  // S3 fixture infrastructure for mocking S3 operations
+  javaRestTestImplementation project(':test:fixtures:s3-fixture')
+  javaRestTestImplementation project(':test:fixtures:aws-fixture-utils')
+  
+  // Apache Iceberg with Parquet support - use same versions as parent module
+  javaRestTestImplementation("org.apache.iceberg:iceberg-core:${versions.iceberg}") {
+    exclude group: 'com.github.ben-manes.caffeine', module: 'caffeine'
+    exclude group: 'commons-codec', module: 'commons-codec'
+    exclude group: 'org.slf4j', module: 'slf4j-api'
+    exclude group: 'org.checkerframework', module: 'checker-qual'
+  }
+  javaRestTestImplementation("org.apache.iceberg:iceberg-aws:${versions.iceberg}") {
+    exclude group: 'software.amazon.awssdk', module: 'bundle'
+    exclude group: 'commons-codec', module: 'commons-codec'
+    exclude group: 'org.slf4j', module: 'slf4j-api'
+    exclude group: 'org.checkerframework', module: 'checker-qual'
+  }
+  javaRestTestImplementation("org.apache.iceberg:iceberg-parquet:${versions.iceberg}") {
+    exclude group: 'org.apache.parquet', module: 'parquet-hadoop'
+    exclude group: 'org.apache.parquet', module: 'parquet-column'
+    exclude group: 'org.apache.parquet', module: 'parquet-avro'
+    exclude group: 'org.apache.parquet', module: 'parquet-format-structures'
+    exclude group: 'org.apache.parquet', module: 'parquet-common'
+    exclude group: 'org.apache.parquet', module: 'parquet-encoding'
+    exclude group: 'org.apache.parquet', module: 'parquet-jackson'
+    exclude group: 'commons-codec', module: 'commons-codec'
+    exclude group: 'org.slf4j', module: 'slf4j-api'
+    exclude group: 'org.checkerframework', module: 'checker-qual'
+  }
+  javaRestTestImplementation("org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}")
+  javaRestTestImplementation('com.github.ben-manes.caffeine:caffeine:2.9.3') {
+    exclude group: 'org.checkerframework', module: 'checker-qual'
+  }
+  
+  // Repository S3 module for cluster
+  clusterModules project(':modules:repository-s3')
+  clusterPlugins project(':plugins:mapper-size')
+  clusterPlugins project(':plugins:mapper-murmur3')
+  clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
+
+  // The Iceberg datasource plugin under test
+  clusterPlugins project(xpackModule('esql-datasource-iceberg'))
+  clusterPlugins project(xpackModule('esql-datasource-s3'))
+}
+
+// Standalone Parquet under iceberg-fixtures/standalone/ is generated from esql:qa:testFixtures CSV basenames.
+def testFixturesProject = project(xpackModule('esql:qa:testFixtures'))
+def testFixturesDataDir = testFixturesProject.file('src/main/resources/data')
+def serverProject = project(xpackModule('esql:qa:server'))
+def standaloneParquetFixturesRoot = file("${buildDir}/iceberg-standalone-parquet-fixtures")
+def standaloneParquetFromCsv = ['employees']
+
+def generateIcebergStandaloneParquetTasks = []
+standaloneParquetFromCsv.each { baseName ->
+  def taskName = "generateStandaloneParquet_${baseName}"
+  def csvInput = new File(testFixturesDataDir, "${baseName}.csv")
+  def parquetOut = file("${standaloneParquetFixturesRoot}/iceberg-fixtures/standalone/${baseName}.parquet")
+  tasks.register(taskName, JavaExec) {
+    dependsOn serverProject.tasks.named('compileParquetFixtureGeneratorJava')
+    dependsOn testFixturesProject.tasks.named('processResources')
+    classpath = serverProject.configurations.parquetFixtureGenerator + serverProject.sourceSets.parquetFixtureGenerator.output
+    mainClass = 'org.elasticsearch.xpack.esql.datasources.ParquetFixtureGenerator'
+    args = [csvInput.path, parquetOut.path]
+    inputs.file(csvInput)
+    outputs.file(parquetOut)
+    systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+  }
+  generateIcebergStandaloneParquetTasks.add(tasks.named(taskName))
+}
+
+tasks.register('generateStandaloneParquetFixtures') {
+  dependsOn generateIcebergStandaloneParquetTasks
+}
+
+sourceSets.javaRestTest.resources.srcDir standaloneParquetFixturesRoot
+
+tasks.named('processJavaRestTestResources').configure {
+  dependsOn 'generateStandaloneParquetFixtures'
+}
+
+// Test resources (iceberg-fixtures) are now local to this module
+// in src/javaRestTest/resources/
+
+// InteractiveFixtureManual is intentionally not named with an IT suffix to prevent automatic execution;
+// it is a manual interactive testing tool, not a regular integration test.
+tasks.named('javaRestTestTestingConventions').configure {
+  baseClass 'org.elasticsearch.test.rest.ESRestTestCase'
+  suffix 'IT'
+  suffix 'Manual'
+}
+
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.parquet'
+  exclude '**/*.avro'
+  exclude '**/.*.crc'
+}
+
+tasks.named('javaRestTest') {
+  dependsOn 'generateStandaloneParquetFixtures'
+  usesDefaultDistribution("to be triaged")
+  maxParallelForks = 1
+  enabled = buildParams.snapshotBuild
+  
+  // Increase timeouts for S3/Iceberg operations which may take longer than standard queries
+  systemProperty 'tests.rest.client_timeout', '60'
+  systemProperty 'tests.rest.socket_timeout', '60'
+  
+  // Enable more verbose logging for debugging
+  testLogging {
+    events = ["passed", "skipped", "failed"]
+    exceptionFormat = "full"
+    showStandardStreams = false
+  }
+}
+
+restResources {
+  restApi {
+    include '_common', 'bulk', 'get', 'indices', 'esql', 'xpack', 'cluster', 'capabilities', 'index'
+  }
+  restTests {
+    includeXpack 'esql'
+  }
+}

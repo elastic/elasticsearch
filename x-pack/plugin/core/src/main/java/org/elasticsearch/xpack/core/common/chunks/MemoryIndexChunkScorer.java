@@ -7,9 +7,10 @@
 
 package org.elasticsearch.xpack.core.common.chunks;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Field;
+import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
@@ -22,6 +23,8 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.QueryBuilder;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Strings;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -32,27 +35,74 @@ import java.util.List;
  */
 public class MemoryIndexChunkScorer {
 
-    private static final String CONTENT_FIELD = "content";
+    public static final String CONTENT_FIELD = "content";
 
-    private final StandardAnalyzer analyzer;
+    private final Analyzer analyzer;
 
     public MemoryIndexChunkScorer() {
         // TODO: Allow analyzer to be customizable and/or read from the field mapping
-        this.analyzer = new StandardAnalyzer();
+        this(new StandardAnalyzer());
     }
 
     /**
-     * Creates an in-memory index of chunks, or chunks, returns ordered, scored list.
+     * @param analyzer the analyzer used for indexing chunks and parsing query text.
+     */
+    public MemoryIndexChunkScorer(Analyzer analyzer) {
+        assert analyzer != null : "Analyzer should be set";
+        this.analyzer = analyzer;
+    }
+
+    public Analyzer analyzer() {
+        return analyzer;
+    }
+
+    /**
+     * Parses {@code queryText} into a boolean-OR query over {@link #CONTENT_FIELD}
+     * using this scorer's analyzer. Returns {@code null} when no terms survive
+     * analysis (e.g. all stop-words).
+     */
+    public Query buildQuery(String queryText) {
+        return new QueryBuilder(analyzer).createBooleanQuery(CONTENT_FIELD, queryText, BooleanClause.Occur.SHOULD);
+    }
+
+    /**
+     * Creates an in-memory index of chunks, scores them against the query text, and
+     * returns the top results ordered by relevance.
      *
      * @param chunks the list of text chunks to score
-     * @param inferenceText the query text to compare against
+     * @param queryText the query text to compare against
      * @param maxResults maximum number of results to return
+     * @param backfillResults if true, backfills no matches with the first chunks in the list with scores of 0
      * @return list of scored chunks ordered by relevance
-     * @throws IOException on failure scoring chunks
+     * @throws ElasticsearchException on failure scoring chunks
      */
-    public List<ScoredChunk> scoreChunks(List<String> chunks, String inferenceText, int maxResults) throws IOException {
-        if (chunks == null || chunks.isEmpty() || inferenceText == null || inferenceText.trim().isEmpty()) {
+    public List<ScoredChunk> scoreChunks(List<String> chunks, String queryText, int maxResults, boolean backfillResults) {
+        if (chunks == null || chunks.isEmpty() || queryText == null || Strings.isNullOrBlank(queryText)) {
             return new ArrayList<>();
+        }
+        Query query = buildQuery(queryText);
+        return scoreChunks(chunks, query, maxResults, backfillResults);
+    }
+
+    /**
+     * Scores chunks against a pre-built {@link Query}.
+     *
+     * @param chunks the list of text chunks to score
+     * @param query the Lucene query to score against; if {@code null} no chunks will match
+     * @param maxResults maximum number of results to return
+     * @param backfillResults if true, backfills no matches with the first chunks in the list with scores of 0
+     * @return list of scored chunks ordered by relevance
+     * @throws ElasticsearchException on failure scoring chunks
+     */
+    public List<ScoredChunk> scoreChunks(List<String> chunks, Query query, int maxResults, boolean backfillResults) {
+        if (chunks == null || chunks.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        if (query == null) {
+            return backfillResults
+                ? chunks.subList(0, Math.min(maxResults, chunks.size())).stream().map(c -> new ScoredChunk(c, 0.0f)).toList()
+                : new ArrayList<>();
         }
 
         try (Directory directory = new ByteBuffersDirectory()) {
@@ -60,7 +110,7 @@ public class MemoryIndexChunkScorer {
             try (IndexWriter writer = new IndexWriter(directory, config)) {
                 for (String chunk : chunks) {
                     Document doc = new Document();
-                    doc.add(new TextField(CONTENT_FIELD, chunk, Field.Store.YES));
+                    doc.add(new TextField(CONTENT_FIELD, chunk, Store.NO));
                     writer.addDocument(doc);
                 }
                 writer.commit();
@@ -68,31 +118,25 @@ public class MemoryIndexChunkScorer {
 
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-
-                org.apache.lucene.util.QueryBuilder qb = new QueryBuilder(analyzer);
-                Query query = qb.createBooleanQuery(CONTENT_FIELD, inferenceText, BooleanClause.Occur.SHOULD);
                 int numResults = Math.min(maxResults, chunks.size());
                 TopDocs topDocs = searcher.search(query, numResults);
 
                 List<ScoredChunk> scoredChunks = new ArrayList<>();
                 for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
-                    Document doc = reader.storedFields().document(scoreDoc.doc);
-                    String content = doc.get(CONTENT_FIELD);
-                    scoredChunks.add(new ScoredChunk(content, scoreDoc.score));
+                    scoredChunks.add(new ScoredChunk(chunks.get(scoreDoc.doc), scoreDoc.score));
                 }
 
-                // It's possible that no chunks were scorable (for example, a semantic match that does not have a lexical match).
-                // In this case, we'll return the first N chunks with a score of 0.
-                // TODO: consider parameterizing this
-                return scoredChunks.isEmpty() == false
-                    ? scoredChunks
-                    : chunks.subList(0, Math.min(maxResults, chunks.size())).stream().map(c -> new ScoredChunk(c, 0.0f)).toList();
+                return backfillResults && scoredChunks.isEmpty()
+                    ? chunks.subList(0, Math.min(maxResults, chunks.size())).stream().map(c -> new ScoredChunk(c, 0.0f)).toList()
+                    : scoredChunks;
             }
+        } catch (IOException e) {
+            throw new ElasticsearchException("Failed to score chunks", e);
         }
     }
 
-    /**
-     * Represents a chunk with its relevance score.
-     */
-    public record ScoredChunk(String content, float score) {}
+    @Override
+    public String toString() {
+        return getClass().getSimpleName();
+    }
 }

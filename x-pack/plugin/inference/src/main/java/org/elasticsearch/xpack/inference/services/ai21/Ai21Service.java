@@ -33,12 +33,14 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.ai21.action.Ai21ActionCreator;
 import org.elasticsearch.xpack.inference.services.ai21.completion.Ai21ChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.ai21.completion.Ai21ChatCompletionModelCreator;
 import org.elasticsearch.xpack.inference.services.ai21.completion.Ai21ChatCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.ai21.request.Ai21ChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
@@ -53,7 +55,6 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidTaskTypeException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
@@ -63,7 +64,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNot
  * using AI21 models. It supports completion and chat completion tasks.
  * The service uses Ai21ActionCreator to create actions for executing inference requests.
  */
-public class Ai21Service extends SenderService {
+public class Ai21Service extends SenderService<Ai21Model> {
     public static final String NAME = "ai21";
 
     private static final String SERVICE_NAME = "AI21";
@@ -76,6 +77,13 @@ public class Ai21Service extends SenderService {
     private static final TransportVersion ML_INFERENCE_AI21_COMPLETION_ADDED = TransportVersion.fromName(
         "ml_inference_ai21_completion_added"
     );
+    private static final Ai21ChatCompletionModelCreator COMPLETION_MODEL_CREATOR = new Ai21ChatCompletionModelCreator();
+    private static final Map<TaskType, ModelCreator<? extends Ai21Model>> MODEL_CREATORS = Map.of(
+        TaskType.CHAT_COMPLETION,
+        COMPLETION_MODEL_CREATOR,
+        TaskType.COMPLETION,
+        COMPLETION_MODEL_CREATOR
+    );
 
     public Ai21Service(
         HttpRequestSender.Factory factory,
@@ -86,7 +94,7 @@ public class Ai21Service extends SenderService {
     }
 
     public Ai21Service(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
-        super(factory, serviceComponents, clusterService);
+        super(factory, serviceComponents, clusterService, MODEL_CREATORS);
     }
 
     @Override
@@ -147,7 +155,13 @@ public class Ai21Service extends SenderService {
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
     ) {
+        // Should never be called
         throw new UnsupportedOperationException("AI21 service does not support chunked inference");
+    }
+
+    @Override
+    protected boolean supportsChunkedInfer() {
+        return false;
     }
 
     @Override
@@ -189,25 +203,14 @@ public class Ai21Service extends SenderService {
     }
 
     @Override
-    public Ai21Model parsePersistedConfigWithSecrets(
-        String modelId,
-        TaskType taskType,
-        Map<String, Object> config,
-        Map<String, Object> secrets
-    ) {
-        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
-        Map<String, Object> secretSettingsMap = removeFromMapOrDefaultEmpty(secrets, ModelSecrets.SECRET_SETTINGS);
-
-        return createModelFromPersistent(modelId, taskType, serviceSettingsMap, secretSettingsMap);
-    }
-
-    @Override
-    public Ai21Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
-        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
-
-        return createModelFromPersistent(modelId, taskType, serviceSettingsMap, null);
+    public Ai21Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+        return retrieveModelCreatorFromMapOrThrow(
+            MODEL_CREATORS,
+            config.getInferenceEntityId(),
+            config.getTaskType(),
+            config.getService(),
+            ConfigurationParseContext.REQUEST
+        ).createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     @Override
@@ -221,27 +224,22 @@ public class Ai21Service extends SenderService {
     }
 
     private static Ai21Model createModel(
-        String modelId,
+        String inferenceId,
         TaskType taskType,
         Map<String, Object> serviceSettings,
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        switch (taskType) {
-            case CHAT_COMPLETION, COMPLETION:
-                return new Ai21ChatCompletionModel(modelId, taskType, NAME, serviceSettings, secretSettings, context);
-            default:
-                throw createInvalidTaskTypeException(modelId, NAME, taskType, context);
-        }
-    }
-
-    private Ai21Model createModelFromPersistent(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> serviceSettings,
-        Map<String, Object> secretSettings
-    ) {
-        return createModel(inferenceEntityId, taskType, serviceSettings, secretSettings, ConfigurationParseContext.PERSISTENT);
+        return retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceId, taskType, NAME, context).createFromMaps(
+            inferenceId,
+            taskType,
+            NAME,
+            serviceSettings,
+            null,
+            null,
+            secretSettings,
+            context
+        );
     }
 
     /**

@@ -1,0 +1,193 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.publish'
+
+esplugin {
+  name = 'esql-datasource-azure'
+  description = 'Azure Blob Storage provider for ESQL external data sources'
+  classname = 'org.elasticsearch.xpack.esql.datasource.azure.AzureDataSourcePlugin'
+  extendedPlugins = ['x-pack-esql', 'esql-datasource-netty-commons']
+}
+
+base {
+  archivesName = 'esql-datasource-azure'
+}
+
+// Aligned with modules/repository-azure
+versions << [
+  'azureReactorNetty': '1.0.45',
+]
+
+dependencies {
+  // SPI interfaces from ESQL core
+  compileOnly project(path: xpackModule('esql'))
+  compileOnly project(path: xpackModule('esql-core'))
+  compileOnly project(path: xpackModule('core'))
+  compileOnly project(':server')
+
+  // Azure Blob Storage - minimal set, versions aligned with repository-azure
+  implementation 'com.azure:azure-storage-blob:12.27.1'
+  implementation 'com.azure:azure-storage-common:12.26.1'
+  implementation 'com.azure:azure-core:1.51.0'
+  implementation 'com.azure:azure-identity:1.13.2'
+  implementation 'com.azure:azure-core-http-netty:1.15.3'
+  implementation "io.projectreactor.netty:reactor-netty-core:${versions.azureReactorNetty}"
+  implementation "io.projectreactor.netty:reactor-netty-http:${versions.azureReactorNetty}"
+  implementation "io.projectreactor:reactor-core:3.4.38"
+  // Netty jars provided by esql-datasource-netty-commons via extendedPlugins classloader delegation
+  compileOnly project(path: xpackModule('esql-datasource-netty-commons'))
+  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:${versions.jackson}"
+  implementation "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.jackson}"
+  implementation "org.reactivestreams:reactive-streams:${versions.reactive_streams}"
+
+  testImplementation project(':test:framework')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /azure-.*/, to: 'azure'
+  mapping from: /reactor-netty-.*/, to: 'reactor-netty'
+  mapping from: /reactor-core.*/, to: 'reactor-core'
+  mapping from: /jackson-.*/, to: 'jackson'
+  mapping from: /reactive-streams.*/, to: 'reactive-streams'
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+    // from reactor-netty metric collection
+    'io.micrometer.core.instrument.Clock',
+    'io.micrometer.core.instrument.Counter',
+    'io.micrometer.core.instrument.Counter$Builder',
+    'io.micrometer.core.instrument.DistributionSummary',
+    'io.micrometer.core.instrument.DistributionSummary$Builder',
+    'io.micrometer.core.instrument.Gauge',
+    'io.micrometer.core.instrument.Gauge$Builder',
+    'io.micrometer.core.instrument.Meter',
+    'io.micrometer.core.instrument.Meter$Type',
+    'io.micrometer.core.instrument.MeterRegistry',
+    'io.micrometer.core.instrument.Metrics',
+    'io.micrometer.core.instrument.Tag',
+    'io.micrometer.core.instrument.Tags',
+    'io.micrometer.core.instrument.Timer',
+    'io.micrometer.core.instrument.Timer$Builder',
+    'io.micrometer.core.instrument.Timer$Sample',
+    'io.micrometer.core.instrument.binder.jvm.ExecutorServiceMetrics',
+    'io.micrometer.core.instrument.composite.CompositeMeterRegistry',
+    'io.micrometer.core.instrument.search.Search',
+    'io.micrometer.context.ContextAccessor',
+
+    // from reactor-core kotlin extensions
+    'kotlin.collections.ArraysKt',
+    'kotlin.jvm.JvmClassMappingKt',
+    'kotlin.jvm.functions.Function0',
+    'kotlin.jvm.functions.Function1',
+    'kotlin.jvm.internal.FunctionReference',
+    'kotlin.jvm.internal.Intrinsics',
+    'kotlin.jvm.internal.Reflection',
+    'kotlin.jvm.internal.markers.KMappedMarker',
+    'kotlin.reflect.KClass',
+    'kotlin.reflect.KDeclarationContainer',
+    'kotlin.sequences.Sequence',
+
+    // from io.netty.util.internal.Hidden (netty-common optional dependency, referenced by reactor-core)
+    'reactor.blockhound.BlockHound$Builder',
+    'reactor.blockhound.integration.BlockHoundIntegration',
+
+    // from reactor.netty (references Netty classes not in netty-commons)
+    'io.netty.channel.kqueue.KQueue',
+    'io.netty.channel.kqueue.KQueueDatagramChannel',
+    'io.netty.channel.kqueue.KQueueServerSocketChannel',
+    'io.netty.channel.kqueue.KQueueSocketChannel',
+    'io.netty.incubator.channel.uring.IOUring',
+    'io.netty.incubator.channel.uring.IOUringDatagramChannel',
+    'io.netty.incubator.channel.uring.IOUringServerSocketChannel',
+    'io.netty.incubator.channel.uring.IOUringSocketChannel',
+
+    // from reactor.netty.http.server.HttpServer (reactor-netty)
+    'io.netty.handler.codec.haproxy.HAProxyMessage',
+    'io.netty.handler.codec.haproxy.HAProxyMessageDecoder',
+
+    // from jackson-dataformat-xml (woodstox/stax2)
+    'org.codehaus.stax2.LocationInfo',
+    'org.codehaus.stax2.XMLStreamLocation2',
+    'org.codehaus.stax2.XMLStreamReader2',
+    'org.codehaus.stax2.XMLStreamWriter2',
+    'org.codehaus.stax2.ri.Stax2ReaderAdapter',
+    'org.codehaus.stax2.ri.Stax2WriterAdapter',
+    'org.codehaus.stax2.typed.Base64Variant',
+    'org.codehaus.stax2.typed.Base64Variants',
+
+    // from azure-identity (msal4j optional)
+    'com.microsoft.aad.msal4j.AbstractClientApplicationBase',
+    'com.microsoft.aad.msal4j.AppTokenProviderParameters',
+    'com.microsoft.aad.msal4j.AuthenticationResultMetadata',
+    'com.microsoft.aad.msal4j.AuthorizationCodeParameters',
+    'com.microsoft.aad.msal4j.AuthorizationCodeParameters$AuthorizationCodeParametersBuilder',
+    'com.microsoft.aad.msal4j.ClaimsRequest',
+    'com.microsoft.aad.msal4j.ClientCredentialFactory',
+    'com.microsoft.aad.msal4j.ClientCredentialParameters',
+    'com.microsoft.aad.msal4j.ClientCredentialParameters$ClientCredentialParametersBuilder',
+    'com.microsoft.aad.msal4j.ConfidentialClientApplication',
+    'com.microsoft.aad.msal4j.ConfidentialClientApplication$Builder',
+    'com.microsoft.aad.msal4j.DeviceCode',
+    'com.microsoft.aad.msal4j.DeviceCodeFlowParameters',
+    'com.microsoft.aad.msal4j.DeviceCodeFlowParameters$DeviceCodeFlowParametersBuilder',
+    'com.microsoft.aad.msal4j.HttpMethod',
+    'com.microsoft.aad.msal4j.HttpRequest',
+    'com.microsoft.aad.msal4j.HttpResponse',
+    'com.microsoft.aad.msal4j.IAccount',
+    'com.microsoft.aad.msal4j.IAuthenticationResult',
+    'com.microsoft.aad.msal4j.IHttpClient',
+    'com.microsoft.aad.msal4j.IHttpResponse',
+    'com.microsoft.aad.msal4j.ITokenCacheAccessAspect',
+    'com.microsoft.aad.msal4j.ITokenCacheAccessContext',
+    'com.microsoft.aad.msal4j.InteractiveRequestParameters',
+    'com.microsoft.aad.msal4j.InteractiveRequestParameters$InteractiveRequestParametersBuilder',
+    'com.microsoft.aad.msal4j.OnBehalfOfParameters',
+    'com.microsoft.aad.msal4j.OnBehalfOfParameters$OnBehalfOfParametersBuilder',
+    'com.microsoft.aad.msal4j.Prompt',
+    'com.microsoft.aad.msal4j.PublicClientApplication',
+    'com.microsoft.aad.msal4j.PublicClientApplication$Builder',
+    'com.microsoft.aad.msal4j.RefreshTokenParameters',
+    'com.microsoft.aad.msal4j.RefreshTokenParameters$RefreshTokenParametersBuilder',
+    'com.microsoft.aad.msal4j.RequestedClaimAdditionalInfo',
+    'com.microsoft.aad.msal4j.SilentParameters',
+    'com.microsoft.aad.msal4j.SilentParameters$SilentParametersBuilder',
+    'com.microsoft.aad.msal4j.SystemBrowserOptions',
+    'com.microsoft.aad.msal4j.SystemBrowserOptions$SystemBrowserOptionsBuilder',
+    'com.microsoft.aad.msal4j.TokenProviderResult',
+    'com.microsoft.aad.msal4j.UserAssertion',
+    'com.microsoft.aad.msal4j.UserNamePasswordParameters',
+    'com.microsoft.aad.msal4j.UserNamePasswordParameters$UserNamePasswordParametersBuilder',
+    'com.microsoft.aad.msal4jextensions.PersistenceSettings',
+    'com.microsoft.aad.msal4jextensions.PersistenceSettings$Builder',
+    'com.microsoft.aad.msal4jextensions.PersistenceTokenCacheAccessAspect',
+    'com.microsoft.aad.msal4jextensions.persistence.CacheFileAccessor',
+    'com.microsoft.aad.msal4jextensions.persistence.linux.ISecurityLibrary',
+    'com.microsoft.aad.msal4jextensions.persistence.mac.KeyChainAccessor',
+
+    // from azure-storage (JNA - optional)
+    'com.sun.jna.LastErrorException',
+    'com.sun.jna.Native',
+    'com.sun.jna.Platform',
+    'com.sun.jna.Pointer',
+    'com.sun.jna.Structure',
+    'com.sun.jna.Structure$ByReference',
+    'com.sun.jna.platform.win32.Crypt32Util',
+    'com.sun.jna.platform.win32.Kernel32',
+    'com.sun.jna.platform.win32.Kernel32Util',
+    'com.sun.jna.platform.win32.WinBase$FILETIME',
+    'com.sun.jna.win32.StdCallLibrary',
+    'com.sun.jna.win32.W32APIOptions',
+  )
+
+  ignoreViolations(
+    'reactor.core.publisher.Traces$SharedSecretsCallSiteSupplierFactory$TracingException',
+  )
+}

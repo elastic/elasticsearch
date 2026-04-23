@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+  - 136267
+pr: 142406
+summary: ESQL - Improve search performance by adding min competitive aware collection when using multiple shards / threads
+type: enhancement

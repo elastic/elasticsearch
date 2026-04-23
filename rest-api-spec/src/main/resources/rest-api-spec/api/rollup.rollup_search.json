@@ -6,6 +6,10 @@
     },
     "stability": "experimental",
     "visibility": "public",
+    "deprecated": {
+      "version": "8.11.0",
+      "description": "Rollup APIs are deprecated, use downsampling with time series data stream instead"
+    },
     "headers": {
       "accept": [
         "application/json"
@@ -34,6 +38,7 @@
     "params": {
       "typed_keys": {
         "type": "boolean",
+        "default": false,
         "description": "Specify whether aggregation and suggester names should be prefixed by their respective types in the response"
       },
       "rest_total_hits_as_int": {

@@ -25,6 +25,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlattenedFieldType;
 
@@ -38,7 +39,19 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
     private static final Mapper.IgnoreAbove IGNORE_ABOVE = new Mapper.IgnoreAbove(null, IndexMode.STANDARD);
 
     private static RootFlattenedFieldType createDefaultFieldType(int ignoreAbove) {
-        return new RootFlattenedFieldType("field", true, true, Collections.emptyMap(), false, false, new Mapper.IgnoreAbove(ignoreAbove));
+        return new RootFlattenedFieldType(
+            "field",
+            IndexType.terms(true, true),
+            Collections.emptyMap(),
+            false,
+            false,
+            new Mapper.IgnoreAbove(ignoreAbove),
+            true,
+            false,
+            null,
+            false,
+            FlattenedFieldMapper.PreserveLeafArrays.LOSSY
+        );
     }
 
     public void testValueForDisplay() {
@@ -60,23 +73,51 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
 
         RootFlattenedFieldType unsearchable = new RootFlattenedFieldType(
             "field",
-            false,
-            true,
+            IndexType.terms(false, true),
             Collections.emptyMap(),
             false,
             false,
-            IGNORE_ABOVE
+            IGNORE_ABOVE,
+            true,
+            randomBoolean(),
+            null,
+            false,
+            FlattenedFieldMapper.PreserveLeafArrays.LOSSY
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("field", null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 
     public void testExistsQuery() {
-        RootFlattenedFieldType ft = new RootFlattenedFieldType("field", true, false, Collections.emptyMap(), false, false, IGNORE_ABOVE);
-        assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, new BytesRef("field"))), ft.existsQuery(null));
+        RootFlattenedFieldType noDv = new RootFlattenedFieldType(
+            "field",
+            IndexType.terms(true, false),
+            Collections.emptyMap(),
+            false,
+            false,
+            IGNORE_ABOVE,
+            true,
+            randomBoolean(),
+            null,
+            false,
+            FlattenedFieldMapper.PreserveLeafArrays.LOSSY
+        );
+        assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, new BytesRef("field"))), noDv.existsQuery(null));
 
-        RootFlattenedFieldType withDv = new RootFlattenedFieldType("field", true, true, Collections.emptyMap(), false, false, IGNORE_ABOVE);
-        assertEquals(new FieldExistsQuery("field"), withDv.existsQuery(null));
+        RootFlattenedFieldType withDv = new RootFlattenedFieldType(
+            "field",
+            IndexType.terms(true, true),
+            Collections.emptyMap(),
+            false,
+            false,
+            IGNORE_ABOVE,
+            true,
+            randomBoolean(),
+            null,
+            false,
+            FlattenedFieldMapper.PreserveLeafArrays.LOSSY
+        );
+        assertEquals(new FieldExistsQuery("field._keyed"), withDv.existsQuery(null));
     }
 
     public void testFuzzyQuery() {

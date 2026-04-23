@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.esql.expression.function.grouping;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
+import org.apache.lucene.tests.util.TimeUnits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.time.DateUtils;
@@ -18,23 +20,32 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigurationFunctionTestCase;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.time.Period;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.test.ReadableMatchers.matchesDateMillis;
+import static org.elasticsearch.test.ReadableMatchers.matchesDateNanos;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTruncTests.makeTruncDurationTestCases;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTruncTests.makeTruncPeriodTestCases;
 import static org.hamcrest.Matchers.equalTo;
 
-public class BucketTests extends AbstractScalarFunctionTestCase {
+// The amount of date trunc cases sometimes exceed the 20 minutes
+@TimeoutSuite(millis = 60 * TimeUnits.MINUTE)
+public class BucketTests extends AbstractConfigurationFunctionTestCase {
     public BucketTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -43,6 +54,7 @@ public class BucketTests extends AbstractScalarFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         dateCases(suppliers, "fixed date", () -> DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-02-17T09:00:00.00Z"));
+        dateRoundingHandlesNonNestedCalendarUnits(suppliers);
         dateNanosCases(suppliers, "fixed date nanos", () -> DateUtils.toLong(Instant.parse("2023-02-17T09:00:00.00Z")));
         dateCasesWithSpan(
             suppliers,
@@ -76,13 +88,13 @@ public class BucketTests extends AbstractScalarFunctionTestCase {
             Duration.ofDays(1L),
             "[86400000 in Z][fixed]"
         );
+        dateTruncCases(suppliers);
         numberCases(suppliers, "fixed long", DataType.LONG, () -> 100L);
         numberCasesWithSpan(suppliers, "fixed long with span", DataType.LONG, () -> 100L);
         numberCases(suppliers, "fixed int", DataType.INTEGER, () -> 100);
         numberCasesWithSpan(suppliers, "fixed int with span", DataType.INTEGER, () -> 100);
         numberCases(suppliers, "fixed double", DataType.DOUBLE, () -> 100.0);
         numberCasesWithSpan(suppliers, "fixed double with span", DataType.DOUBLE, () -> 100.);
-        // TODO make errorsForCasesWithoutExamples do something sensible for 4+ parameters
         return parameterSuppliersFromTypedData(
             anyNullIsNull(
                 suppliers,
@@ -113,7 +125,7 @@ public class BucketTests extends AbstractScalarFunctionTestCase {
                             + "rounding=Rounding[DAY_OF_MONTH in Z][fixed to midnight]]",
                         DataType.DATETIME,
                         resultsMatcher(args)
-                    );
+                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC));
                 }));
                 // same as above, but a low bucket count and datetime bounds that match it (at hour span)
                 suppliers.add(new TestCaseSupplier(name, List.of(DataType.DATETIME, DataType.INTEGER, fromType, toType), () -> {
@@ -127,10 +139,136 @@ public class BucketTests extends AbstractScalarFunctionTestCase {
                         "DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding[3600000 in Z][fixed]]",
                         DataType.DATETIME,
                         equalTo(Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).build().prepareForUnknown().round(date.getAsLong()))
-                    );
+                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC));
                 }));
             }
         }
+    }
+
+    private static void dateRoundingHandlesNonNestedCalendarUnits(List<TestCaseSupplier> suppliers) {
+        suppliers.add(
+            new TestCaseSupplier(
+                "month boundary can still be weekly",
+                List.of(DataType.DATETIME, DataType.INTEGER, DataType.DATETIME, DataType.DATETIME),
+                () -> {
+                    long date = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2024-02-01T12:00:00Z");
+                    List<TestCaseSupplier.TypedData> args = new ArrayList<>();
+                    args.add(new TestCaseSupplier.TypedData(date, DataType.DATETIME, "field"));
+                    args.add(new TestCaseSupplier.TypedData(1, DataType.INTEGER, "buckets").forceLiteral());
+                    args.add(dateBound("from", DataType.DATETIME, "2024-01-31T00:00:00Z"));
+                    args.add(dateBound("to", DataType.DATETIME, "2024-02-02T00:00:00Z"));
+                    return new TestCaseSupplier.TestCase(
+                        args,
+                        Matchers.containsString("rounding=Rounding[WEEK_OF_WEEKYEAR in Z][fixed to midnight]"),
+                        DataType.DATETIME,
+                        equalTo(Rounding.builder(Rounding.DateTimeUnit.WEEK_OF_WEEKYEAR).build().prepareForUnknown().round(date))
+                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC));
+                }
+            )
+        );
+
+        suppliers.add(
+            new TestCaseSupplier(
+                "week boundary can still be monthly",
+                List.of(DataType.DATETIME, DataType.INTEGER, DataType.DATETIME, DataType.DATETIME),
+                () -> {
+                    long date = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2024-01-08T12:00:00Z");
+                    List<TestCaseSupplier.TypedData> args = new ArrayList<>();
+                    args.add(new TestCaseSupplier.TypedData(date, DataType.DATETIME, "field"));
+                    args.add(new TestCaseSupplier.TypedData(1, DataType.INTEGER, "buckets").forceLiteral());
+                    args.add(dateBound("from", DataType.DATETIME, "2024-01-07T00:00:00Z"));
+                    args.add(dateBound("to", DataType.DATETIME, "2024-01-09T00:00:00Z"));
+                    return new TestCaseSupplier.TestCase(
+                        args,
+                        Matchers.containsString("rounding=Rounding[MONTH_OF_YEAR in Z][fixed to midnight]"),
+                        DataType.DATETIME,
+                        equalTo(Rounding.builder(Rounding.DateTimeUnit.MONTH_OF_YEAR).build().prepareForUnknown().round(date))
+                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC));
+                }
+            )
+        );
+    }
+
+    private static void dateTruncCases(List<TestCaseSupplier> suppliers) {
+        makeTruncPeriodTestCases().stream().map(data -> {
+            List<TestCaseSupplier> caseSuppliers = new ArrayList<>();
+
+            caseSuppliers.add(
+                new TestCaseSupplier(
+                    data.testCaseNameForMillis(),
+                    List.of(DataType.DATETIME, DataType.DATE_PERIOD),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(data.inputDateAsMillis(), DataType.DATETIME, "field"),
+                            new TestCaseSupplier.TypedData(data.period(), DataType.DATE_PERIOD, "interval").forceLiteral()
+                        ),
+                        Matchers.startsWith("DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
+                        DataType.DATETIME,
+                        matchesDateMillis(data.expectedDate())
+                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
+                )
+            );
+
+            if (data.canBeConvertedToNanos()) {
+                caseSuppliers.add(
+                    new TestCaseSupplier(
+                        data.testCaseNameForNanos(),
+                        List.of(DataType.DATE_NANOS, DataType.DATE_PERIOD),
+                        () -> new TestCaseSupplier.TestCase(
+                            List.of(
+                                new TestCaseSupplier.TypedData(data.inputDateAsNanos(), DataType.DATE_NANOS, "field"),
+                                new TestCaseSupplier.TypedData(data.period(), DataType.DATE_PERIOD, "interval").forceLiteral()
+                            ),
+                            Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
+                            DataType.DATE_NANOS,
+                            matchesDateNanos(data.expectedDate())
+                        ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
+                    )
+                );
+            }
+
+            return caseSuppliers;
+        }).forEach(suppliers::addAll);
+
+        makeTruncDurationTestCases().stream().map(data -> {
+            List<TestCaseSupplier> caseSuppliers = new ArrayList<>();
+
+            caseSuppliers.add(
+                new TestCaseSupplier(
+                    data.testCaseNameForMillis(),
+                    List.of(DataType.DATETIME, DataType.TIME_DURATION),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(data.inputDateAsMillis(), DataType.DATETIME, "field"),
+                            new TestCaseSupplier.TypedData(data.duration(), DataType.TIME_DURATION, "interval").forceLiteral()
+                        ),
+                        Matchers.startsWith("DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
+                        DataType.DATETIME,
+                        matchesDateMillis(data.expectedDate())
+                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
+                )
+            );
+
+            if (data.canBeConvertedToNanos()) {
+                caseSuppliers.add(
+                    new TestCaseSupplier(
+                        data.testCaseNameForNanos(),
+                        List.of(DataType.DATE_NANOS, DataType.TIME_DURATION),
+                        () -> new TestCaseSupplier.TestCase(
+                            List.of(
+                                new TestCaseSupplier.TypedData(data.inputDateAsNanos(), DataType.DATE_NANOS, "field"),
+                                new TestCaseSupplier.TypedData(data.duration(), DataType.TIME_DURATION, "interval").forceLiteral()
+                            ),
+                            Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
+                            DataType.DATE_NANOS,
+                            matchesDateNanos(data.expectedDate())
+                        ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
+                    )
+                );
+            }
+
+            return caseSuppliers;
+        }).forEach(suppliers::addAll);
     }
 
     private static TestCaseSupplier.TypedData dateBound(String name, DataType type, String date) {
@@ -160,7 +298,7 @@ public class BucketTests extends AbstractScalarFunctionTestCase {
                 "DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding" + spanStr + "]",
                 DataType.DATETIME,
                 resultsMatcher(args)
-            );
+            ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC));
         }));
     }
 
@@ -181,7 +319,7 @@ public class BucketTests extends AbstractScalarFunctionTestCase {
                 Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
                 DataType.DATE_NANOS,
                 resultsMatcher(args)
-            );
+            ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC));
         }));
     }
 
@@ -200,7 +338,7 @@ public class BucketTests extends AbstractScalarFunctionTestCase {
                         Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
                         DataType.DATE_NANOS,
                         resultsMatcher(args)
-                    );
+                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC));
                 }));
                 // same as above, but a low bucket count and datetime bounds that match it (at hour span)
                 suppliers.add(new TestCaseSupplier(name, List.of(DataType.DATE_NANOS, DataType.INTEGER, fromType, toType), () -> {
@@ -214,7 +352,7 @@ public class BucketTests extends AbstractScalarFunctionTestCase {
                         Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
                         DataType.DATE_NANOS,
                         equalTo(Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).build().prepareForUnknown().round(date.getAsLong()))
-                    );
+                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC));
                 }));
             }
         }
@@ -317,14 +455,14 @@ public class BucketTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected Expression build(Source source, List<Expression> args) {
+    protected Expression buildWithConfiguration(Source source, List<Expression> args, Configuration configuration) {
         Expression from = null;
         Expression to = null;
         if (args.size() > 2) {
             from = args.get(2);
             to = args.get(3);
         }
-        return new Bucket(source, args.get(0), args.get(1), from, to);
+        return new Bucket(source, args.get(0), args.get(1), from, to, configuration);
     }
 
     /**
@@ -332,16 +470,16 @@ public class BucketTests extends AbstractScalarFunctionTestCase {
      * have to supply them. But you have to supply them in some cases. It depends on
      * the signatures. And when we're rendering the signatures for kibana it's more
      * correct to say that all parameters are required. They'll render like
-     * <pre>{@code
-     * | field | buckets | from | to | result |
-     * | --- | --- | --- | --- | --- |
-     * | date | date_period | | | date |
-     * | date | time_duration | | | date |
-     * | date | integer | date | date | date |
-     * | double | double | | | double |
-     * | double | integer | double | double | double |
+     * {@snippet lang="markdown" :
+     * | field    | buckets         | from     | to       | result   |
+     * | -------- | --------------- | -------- | -------- | -------- |
+     * | `date`   | `date_period`   |          |          | `date`   |
+     * | `date`   | `time_duration` |          |          | `date`   |
+     * | `date`   | `integer`       | `date`   | `date`   | `date`   |
+     * | `double` | `double`        |          |          | `double` |
+     * | `double` | `integer`       | `double` | `double` | `double` |
      * ...
-     * }</pre>
+     * }
      * And all of those listed versions *are* required.
      */
     public static EsqlFunctionRegistry.ArgSignature patchKibanaSignature(EsqlFunctionRegistry.ArgSignature arg) {

@@ -13,6 +13,9 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Nullable;
+
+import java.io.IOException;
 
 /**
  * A @link {@link StreamOutput} that is backed by a {@link BytesRef}.
@@ -44,6 +47,21 @@ public class BytesRefStreamOutput extends StreamOutput implements Accountable {
     @Override
     public void writeBytes(byte[] b, int offset, int length) {
         builder.append(b, offset, length);
+    }
+
+    @Override
+    public void writeString(String str) throws IOException {
+        StreamOutputHelper.writeString(str, this);
+    }
+
+    @Override
+    public void writeOptionalString(@Nullable String str) throws IOException {
+        StreamOutputHelper.writeOptionalString(str, this);
+    }
+
+    @Override
+    public void writeGenericString(String value) throws IOException {
+        StreamOutputHelper.writeGenericString(value, this);
     }
 
     @Override

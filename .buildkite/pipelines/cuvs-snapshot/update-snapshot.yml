@@ -2,11 +2,12 @@ steps:
   - label: "Smoke test and update new cuVS snapshot"
     command: .buildkite/scripts/cuvs-snapshot/update-current-snapshot-version.sh
     agents:
-      provider: gcp
-      image: family/elasticsearch-ubuntu-2404-nvidia
-      machineType: g2-standard-16
-      zones: us-central1-b,us-central1-c
-      diskSizeGb: 150
+      provider: aws
+      imagePrefix: elasticsearch-aws-ubuntu-2404-nvidia
+      instanceType: g6.2xlarge
+      diskSizeGb: 350
+      diskType: gp3
+      diskName: /dev/sda1
   - wait: ~
   - trigger: "elasticsearch-cuvs-run-tests"
     build:

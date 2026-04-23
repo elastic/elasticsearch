@@ -53,6 +53,7 @@ public class InternalDistributionModuleCheckTaskProvider {
         "org.elasticsearch.base",
         "org.elasticsearch.cli",
         "org.elasticsearch.entitlement",
+        "org.elasticsearch.exponentialhistogram",
         "org.elasticsearch.geo",
         "org.elasticsearch.grok",
         "org.elasticsearch.logging",
@@ -63,6 +64,7 @@ public class InternalDistributionModuleCheckTaskProvider {
         "org.elasticsearch.server",
         "org.elasticsearch.simdvec",
         "org.elasticsearch.tdigest",
+        "org.elasticsearch.useragent.api",
         "org.elasticsearch.xcontent"
     );
 

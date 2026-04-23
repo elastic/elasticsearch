@@ -13,7 +13,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
-import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
+import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
 
 public class LlamaEmbeddingsModelTests extends ESTestCase {
     public static LlamaEmbeddingsModel createEmbeddingsModel(String modelId, String url, String apiKey) {

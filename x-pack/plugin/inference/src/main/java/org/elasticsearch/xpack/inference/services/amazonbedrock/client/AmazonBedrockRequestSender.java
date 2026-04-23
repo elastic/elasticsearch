@@ -63,10 +63,13 @@ public class AmazonBedrockRequestSender implements Sender {
             this.serviceComponents = Objects.requireNonNull(serviceComponents);
             Objects.requireNonNull(clusterService);
 
+            var executorServiceSettings = new RequestExecutorServiceSettings(serviceComponents.settings());
+            executorServiceSettings.init(clusterService);
+
             executorService = new AmazonBedrockRequestExecutorService(
                 serviceComponents.threadPool(),
                 startCompleted,
-                new RequestExecutorServiceSettings(serviceComponents.settings(), clusterService),
+                executorServiceSettings,
                 requestSender
             );
 

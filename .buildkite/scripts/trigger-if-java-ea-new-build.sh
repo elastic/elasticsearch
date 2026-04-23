@@ -13,7 +13,7 @@
 RECENT_TIME_WINDOW=${RECENT_TIME_WINDOW:-24}
 
 # Extract current JDK major version from bundled_jdk in version.properties
-CURRENT_JDK=$(grep "^bundled_jdk =" build-tools-internal/version.properties | cut -d'=' -f2 | tr -d ' ' | cut -d'.' -f1)
+CURRENT_JDK=$(grep "^bundled_jdk =" build-tools-internal/version.properties | cut -d'=' -f2 | tr -d ' ' | cut -d'+' -f1 | cut -d'.' -f1)
 TARGET_JDK=$((CURRENT_JDK + 1))
 
 echo "Current JDK major version: $CURRENT_JDK"
@@ -51,10 +51,6 @@ echo "Latest JDK ${TARGET_JDK} build from ES archive:"
 echo "  Timestamp: $TIMESTAMP"
 echo "  JDK Identifier: $JDK_IDENTIFIER"
 
-# Set variables for use in the pipeline trigger
-jdkbuild="$JDK_IDENTIFIER"
-jdk_timestamp="$TIMESTAMP"
-
 # Check if timestamp is within last 24 hours
 CURRENT_TIME=$(date +%s)
 BUILD_TIME=$(date -d "$TIMESTAMP" +%s 2>/dev/null || date -j -f "%Y-%m-%dT%H:%M:%S" "${TIMESTAMP%Z}" +%s 2>/dev/null || echo "0")
@@ -80,13 +76,13 @@ echo "SHOULD_TRIGGER: $SHOULD_TRIGGER"
 
 if [[ "$SHOULD_TRIGGER" == "true" ]]; then
   EFFECTIVE_START_DATE=$(date -u -d "@$BUILD_TIME" +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date -u -r "$BUILD_TIME" +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || echo "")
-  
+
   # Use "master" branch for elasticsearch-performance-esbench-jdk when BUILDKITE_BRANCH is "main"
   TRIGGER_BRANCH="$BUILDKITE_BRANCH"
   if [[ "$BUILDKITE_BRANCH" == "main" ]]; then
     TRIGGER_BRANCH="master"
   fi
-  
+
   echo "Triggering performance-esbench-jdk for new jdk build $JDK_IDENTIFIER"
   cat << EOF | buildkite-agent pipeline upload
 steps:
@@ -98,5 +94,7 @@ steps:
     env:
       EFFECTIVE_START_DATE: "$EFFECTIVE_START_DATE"
       EXECUTION_MODE: "start-run"
+      JDK_VERSION: "$TARGET_JDK"
+      JDK_IDENTIFIER: "$JDK_IDENTIFIER"
 EOF
 fi

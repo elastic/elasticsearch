@@ -1,0 +1,32 @@
+{
+  "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/operators/",
+  "type" : "operator",
+  "operator" : "or",
+  "name" : "or",
+  "description" : "Returns all elements from the left vector plus elements from the right vector that have no matching label sets in the left.",
+  "signatures" : [
+    {
+      "params" : [
+        {
+          "name" : "lhs",
+          "type" : "instant_vector",
+          "optional" : false,
+          "description" : "Instant vector."
+        },
+        {
+          "name" : "rhs",
+          "type" : "instant_vector",
+          "optional" : false,
+          "description" : "Instant vector."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "instant_vector"
+    }
+  ],
+  "examples" : [
+    "vector1 or vector2"
+  ],
+  "preview" : true,
+  "snapshot_only" : false
+}

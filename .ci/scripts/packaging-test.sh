@@ -61,9 +61,14 @@ sudo bash -c 'cat > /etc/sudoers.d/elasticsearch_vars'  << SUDOERS_VARS
 SUDOERS_VARS
 sudo chmod 0440 /etc/sudoers.d/elasticsearch_vars
 
-# Bats tests still use this locationa
+# Bats tests still use this location
 sudo rm -Rf /elasticsearch
 sudo mkdir -p /elasticsearch/qa/ && sudo chown jenkins /elasticsearch/qa/ && ln -s $PWD/qa/vagrant /elasticsearch/qa/
+
+#
+if [[ -z "${WORKSPACE}" ]]; then
+  WORKSPACE=$(pwd)
+fi
 
 # Ensure since we're running as root that we can do git operations in this directory
 # See: https://git-scm.com/docs/git-config/2.35.2#Documentation/git-config.txt-safedirectory
@@ -72,11 +77,19 @@ git config --global --add safe.directory $WORKSPACE
 # sudo sets it's own PATH thus we use env to override that and call sudo annother time so we keep the secure root PATH
 # run with --continue to run both bats and java tests even if one fails
 # be explicit about Gradle home dir so we use the same even with sudo
+
+# Pass TESTS_SEED as Java system property if available
+TESTS_SEED_PARAM=""
+if [[ -n "${TESTS_SEED:-}" ]]; then
+  TESTS_SEED_PARAM="-Dtests.seed=$TESTS_SEED"
+  echo "Using test seed: $TESTS_SEED"
+fi
+
 sudo -E env \
   PATH=$BUILD_JAVA_HOME/bin:`sudo bash -c 'echo -n $PATH'` \
   --unset=ES_JAVA_HOME \
   --unset=JAVA_HOME \
   SYSTEM_JAVA_HOME=`readlink -f -n $BUILD_JAVA_HOME` \
   DOCKER_CONFIG="${HOME}/.docker" \
-  ./gradlew -g $HOME/.gradle --console=plain --scan --parallel --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ --continue $@
+  ./gradlew -g $HOME/.gradle --console=plain --scan --parallel --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ $TESTS_SEED_PARAM --continue $@
 

@@ -10,6 +10,9 @@ package org.elasticsearch.compute.data;
 // begin generated imports
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+$if(BytesRef)$
+import org.elasticsearch.common.bytes.PagedBytesCursor;
+$endif$
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.$Array$;
@@ -28,8 +31,12 @@ $if(BytesRef)$
     private BytesRefArray values;
 
     BytesRefBlockBuilder(int estimatedSize, BigArrays bigArrays, BlockFactory blockFactory) {
+        this(estimatedSize, bigArrays, blockFactory, 0L);
+    }
+
+    BytesRefBlockBuilder(int estimatedSize, BigArrays bigArrays, BlockFactory blockFactory, long byteHint) {
         super(blockFactory);
-        values = new BytesRefArray(Math.max(estimatedSize, 2), bigArrays);
+        values = new BytesRefArray(Math.max(estimatedSize, 2), bigArrays, byteHint);
     }
 
 $else$
@@ -38,7 +45,7 @@ $else$
     $Type$BlockBuilder(int estimatedSize, BlockFactory blockFactory) {
         super(blockFactory);
         int initialSize = Math.max(estimatedSize, 2);
-        adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + initialSize * elementSize());
+        adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) initialSize * elementSize());
         values = new $type$[initialSize];
     }
 $endif$
@@ -57,6 +64,18 @@ $endif$
         return this;
     }
 
+$if(BytesRef)$
+    @Override
+    public BytesRefBlockBuilder append(PagedBytesCursor value) {
+        ensureCapacity();
+        values.append(value);
+        hasNonNullValue = true;
+        valueCount++;
+        updatePosition();
+        return this;
+    }
+
+$endif$
     @Override
     protected int elementSize() {
         return $if(BytesRef)$-1$else$$BYTES$$endif$;

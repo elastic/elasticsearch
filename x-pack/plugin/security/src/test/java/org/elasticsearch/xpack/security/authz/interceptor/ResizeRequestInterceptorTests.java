@@ -8,8 +8,9 @@ package org.elasticsearch.xpack.security.authz.interceptor;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.shrink.ResizeAction;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
+import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.action.admin.indices.shrink.TransportResizeAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -39,7 +40,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
-import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
@@ -68,7 +68,6 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
         MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
         when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
-        when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(true);
         ThreadPool threadPool = mock(ThreadPool.class);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
@@ -105,13 +104,17 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
 
         ResizeRequestInterceptor resizeRequestInterceptor = new ResizeRequestInterceptor(
             threadPool,
-            licenseState,
             auditTrailService,
             dlsFlsFeatureEnabled
         );
 
         PlainActionFuture<Void> plainActionFuture = new PlainActionFuture<>();
-        RequestInfo requestInfo = new RequestInfo(authentication, new ResizeRequest("bar", "foo"), ResizeAction.NAME, null);
+        RequestInfo requestInfo = new RequestInfo(
+            authentication,
+            new ResizeRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, randomFrom(ResizeType.values()), "foo", "bar"),
+            TransportResizeAction.TYPE.name(),
+            null
+        );
         AuthorizationEngine mockEngine = mock(AuthorizationEngine.class);
         doAnswer(invocationOnMock -> {
             ActionListener<AuthorizationResult> listener = (ActionListener<AuthorizationResult>) invocationOnMock.getArguments()[3];
@@ -131,7 +134,6 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
         MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
         when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
-        when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(true);
         ThreadPool threadPool = mock(ThreadPool.class);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
@@ -142,12 +144,17 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
             .build();
         IndicesAccessControl accessControl = new IndicesAccessControl(true, Collections.emptyMap());
         new SecurityContext(Settings.EMPTY, threadContext).putIndicesAccessControl(accessControl);
-        ResizeRequestInterceptor resizeRequestInterceptor = new ResizeRequestInterceptor(threadPool, licenseState, auditTrailService, true);
+        ResizeRequestInterceptor resizeRequestInterceptor = new ResizeRequestInterceptor(threadPool, auditTrailService, true);
 
         AuthorizationEngine mockEngine = mock(AuthorizationEngine.class);
         {
             PlainActionFuture<Void> plainActionFuture = new PlainActionFuture<>();
-            RequestInfo requestInfo = new RequestInfo(authentication, new ResizeRequest("target", "source"), ResizeAction.NAME, null);
+            RequestInfo requestInfo = new RequestInfo(
+                authentication,
+                new ResizeRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, randomFrom(ResizeType.values()), "source", "target"),
+                TransportResizeAction.TYPE.name(),
+                null
+            );
             doAnswer(invocationOnMock -> {
                 ActionListener<AuthorizationResult> listener = (ActionListener<AuthorizationResult>) invocationOnMock.getArguments()[3];
                 listener.onResponse(AuthorizationResult.deny());
@@ -172,7 +179,12 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
         // swap target and source for success
         {
             PlainActionFuture<Void> plainActionFuture = new PlainActionFuture<>();
-            RequestInfo requestInfo = new RequestInfo(authentication, new ResizeRequest("source", "target"), ResizeAction.NAME, null);
+            RequestInfo requestInfo = new RequestInfo(
+                authentication,
+                new ResizeRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, randomFrom(ResizeType.values()), "target", "source"),
+                TransportResizeAction.TYPE.name(),
+                null
+            );
             doAnswer(invocationOnMock -> {
                 ActionListener<AuthorizationResult> listener = (ActionListener<AuthorizationResult>) invocationOnMock.getArguments()[3];
                 listener.onResponse(AuthorizationResult.granted());

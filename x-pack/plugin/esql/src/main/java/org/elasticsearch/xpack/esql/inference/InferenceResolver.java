@@ -63,7 +63,6 @@ public class InferenceResolver {
      * @param listener Callback to receive the resolution results
      */
     public void resolveInferenceIds(LogicalPlan plan, ActionListener<InferenceResolution> listener) {
-
         resolveInferenceIds(collectInferenceIds(plan), listener);
     }
 

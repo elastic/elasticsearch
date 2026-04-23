@@ -1,7 +1,0 @@
-pr: 136105
-summary: Fix a breaker bug
-area: ES|QL
-type: bug
-issues:
- - 135224
- - 135260

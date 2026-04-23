@@ -9,8 +9,6 @@
 
 package org.elasticsearch.test.cluster.local;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.test.cluster.LogType;
@@ -65,6 +63,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.Map.entry;
 import static java.util.function.Predicate.not;
 import static org.elasticsearch.test.cluster.local.distribution.DistributionType.DEFAULT;
 import static org.elasticsearch.test.cluster.util.OS.WINDOWS;
@@ -105,7 +104,9 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
     protected abstract H createHandle(Path baseWorkingDir, S spec);
 
     public static class Node {
-        private final ObjectMapper objectMapper;
+        private static final int TOOL_SCRIPT_RETRY_TIMES = OS.current() == WINDOWS ? 15 : 0;
+        private static final int TOOL_SCRIPT_RETRY_DELAY_MS = OS.current() == WINDOWS ? 500 : 0;
+
         private final Path baseWorkingDir;
         private final DistributionResolver distributionResolver;
         private final LocalNodeSpec spec;
@@ -116,7 +117,6 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         private final Path logsDir;
         private final Path configDir;
         private final Path tempDir;
-        private final boolean usesSecureSecretsFile;
         private final int debugPort;
 
         private Path distributionDir;
@@ -128,18 +128,10 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         private Set<Resource> roleFileListeners = new HashSet<>();
 
         public Node(Path baseWorkingDir, DistributionResolver distributionResolver, LocalNodeSpec spec) {
-            this(baseWorkingDir, distributionResolver, spec, null, false);
+            this(baseWorkingDir, distributionResolver, spec, null);
         }
 
-        public Node(
-            Path baseWorkingDir,
-            DistributionResolver distributionResolver,
-            LocalNodeSpec spec,
-            String suffix,
-            boolean usesSecureSecretsFile
-        ) {
-            this.usesSecureSecretsFile = usesSecureSecretsFile;
-            this.objectMapper = new ObjectMapper();
+        public Node(Path baseWorkingDir, DistributionResolver distributionResolver, LocalNodeSpec spec, String suffix) {
             this.baseWorkingDir = baseWorkingDir;
             this.distributionResolver = distributionResolver;
             this.spec = spec;
@@ -178,13 +170,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             }
 
             writeConfiguration();
-            if (usesSecureSecretsFile) {
-                writeSecureSecretsFile();
-            } else {
-                createKeystore();
-                addKeystoreSettings();
-                addKeystoreFiles();
-            }
+            configureKeystore();
             configureSecurity();
 
             startElasticsearch();
@@ -488,15 +474,16 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         }
 
         public void updateStoredSecureSettings() {
-            if (usesSecureSecretsFile) {
-                throw new UnsupportedOperationException("updating stored secure settings is not supported in serverless test clusters");
-            }
             final Path keystoreFile = workingDir.resolve("config").resolve("elasticsearch.keystore");
             try {
                 Files.deleteIfExists(keystoreFile);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
+            configureKeystore();
+        }
+
+        public void configureKeystore() {
             createKeystore();
             addKeystoreSettings();
             addKeystoreFiles();
@@ -553,29 +540,6 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                 ).waitFor();
             } catch (InterruptedException | IOException e) {
                 throw new RuntimeException(e);
-            }
-        }
-
-        private void writeSecureSecretsFile() {
-            if (spec.getKeystoreFiles().isEmpty() == false) {
-                throw new IllegalStateException(
-                    "Non-string secure secrets are not supported in serverless. Secrets: ["
-                        + spec.getKeystoreFiles().keySet().stream().collect(Collectors.joining(","))
-                        + "]"
-                );
-            }
-            Map<String, String> secrets = spec.resolveKeystore();
-            if (secrets.isEmpty() == false) {
-                try {
-                    Path secretsFile = configDir.resolve("secrets/secrets.json");
-                    Files.createDirectories(secretsFile.getParent());
-                    Map<String, Object> secretsFileContent = new HashMap<>();
-                    secretsFileContent.put("secrets", secrets);
-                    secretsFileContent.put("metadata", Map.of("version", "1", "compatibility", spec.getVersion().toString()));
-                    Files.writeString(secretsFile, objectMapper.writeValueAsString(secretsFileContent));
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
             }
         }
 
@@ -879,7 +843,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
 
             environment = environment.entrySet()
                 .stream()
-                .map(p -> Map.entry(p.getKey(), p.getValue().replace("${ES_PATH_CONF}", configDir.toString())))
+                .map(p -> entry(p.getKey(), p.getValue().replace("${ES_PATH_CONF}", configDir.toString())))
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
             String featureFlagProperties = "";
@@ -966,22 +930,33 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         }
 
         private void runToolScript(String tool, String input, String... args) {
-            try {
-                int exit = ProcessUtils.exec(
-                    input,
-                    distributionDir,
-                    distributionDir.resolve("bin")
-                        .resolve(OS.<String>conditional(c -> c.onWindows(() -> tool + ".bat").onUnix(() -> tool))),
-                    getEnvironmentVariables(),
-                    false,
-                    args
-                ).waitFor();
+            int attempt = 0;
+            while (true) {
+                try {
+                    int exit = ProcessUtils.exec(
+                        input,
+                        distributionDir,
+                        distributionDir.resolve("bin")
+                            .resolve(OS.<String>conditional(c -> c.onWindows(() -> tool + ".bat").onUnix(() -> tool))),
+                        getEnvironmentVariables(),
+                        false,
+                        args
+                    ).waitFor();
 
-                if (exit != 0) {
-                    throw new RuntimeException("Execution of " + tool + " failed with exit code " + exit);
+                    if (exit == 0) {
+                        return;
+                    }
+
+                    if (attempt >= TOOL_SCRIPT_RETRY_TIMES) {
+                        throw new RuntimeException("Execution of " + tool + " failed with exit code " + exit);
+                    }
+
+                    attempt++;
+                    LOGGER.warn("Execution of {} failed with exit code {}, retrying ({}/{})", tool, exit, attempt, TOOL_SCRIPT_RETRY_TIMES);
+                    Thread.sleep(TOOL_SCRIPT_RETRY_DELAY_MS);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
                 }
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
             }
         }
 

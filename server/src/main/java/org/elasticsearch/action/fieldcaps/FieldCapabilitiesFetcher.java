@@ -16,6 +16,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -109,7 +110,9 @@ class FieldCapabilitiesFetcher {
             searcher,
             () -> nowInMillis,
             null,
-            runtimeFields
+            runtimeFields,
+            null,
+            null
         );
         var indexMode = searchExecutionContext.getIndexSettings().getMode();
         if (searcher != null && canMatchShard(shardId, indexFilter, nowInMillis, searchExecutionContext) == false) {
@@ -168,6 +171,7 @@ class FieldCapabilitiesFetcher {
         var fieldInfos = indexShard.getFieldInfos();
         includeEmptyFields = includeEmptyFields || enableFieldHasValue == false;
         Map<String, IndexFieldCapabilities> responseMap = new HashMap<>();
+        Map<String, ObjectMapper> objectMappers = context.getMappingLookup().objectMappers();
         for (Map.Entry<String, MappedFieldType> entry : context.getAllFields()) {
             final String field = entry.getKey();
             MappedFieldType ft = entry.getValue();
@@ -204,8 +208,8 @@ class FieldCapabilitiesFetcher {
                         break;
                     }
                     // checks if the parent field contains sub-fields
-                    if (context.getFieldType(parentField) == null) {
-                        // no field type, it must be an object field
+                    if (context.getFieldType(parentField) == null && isUnderSubobjectsFalseMapper(parentField, objectMappers) == false) {
+                        // no field type and not under a subobjects:false context, it must be an object field
                         String type = context.nestedLookup().getNestedMappers().get(parentField) != null ? "nested" : "object";
                         IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                             parentField,
@@ -240,6 +244,24 @@ class FieldCapabilitiesFetcher {
             if ("+dimension".equals(filter)) {
                 return true;
             }
+        }
+        return false;
+    }
+
+    /**
+     * Returns true if the given field path falls under an object mapper with {@code subobjects: false}.
+     * In that case, dot-separated segments in the field name are literal parts of the name (not object hierarchy),
+     * so intermediate segments should not be synthesized as implicit object fields.
+     */
+    private static boolean isUnderSubobjectsFalseMapper(String fieldPath, Map<String, ObjectMapper> objectMappers) {
+        int dotIndex = fieldPath.lastIndexOf('.');
+        while (dotIndex > -1) {
+            String ancestor = fieldPath.substring(0, dotIndex);
+            ObjectMapper ancestorMapper = objectMappers.get(ancestor);
+            if (ancestorMapper != null) {
+                return ancestorMapper.subobjects() == ObjectMapper.Subobjects.DISABLED;
+            }
+            dotIndex = ancestor.lastIndexOf('.');
         }
         return false;
     }

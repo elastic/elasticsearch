@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.openai.completion;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -73,9 +72,7 @@ public class OpenAiChatCompletionServiceSettings extends FilteredXContentObject 
             context
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new OpenAiChatCompletionServiceSettings(modelId, uri, organizationId, maxInputTokens, rateLimitSettings);
     }
@@ -118,12 +115,7 @@ public class OpenAiChatCompletionServiceSettings extends FilteredXContentObject 
         this.uri = createOptionalUri(in.readOptionalString());
         this.organizationId = in.readOptionalString();
         this.maxInputTokens = in.readOptionalVInt();
-
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            rateLimitSettings = new RateLimitSettings(in);
-        } else {
-            rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
-        }
+        this.rateLimitSettings = new RateLimitSettings(in);
     }
 
     @Override
@@ -187,7 +179,7 @@ public class OpenAiChatCompletionServiceSettings extends FilteredXContentObject 
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_14_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -196,10 +188,7 @@ public class OpenAiChatCompletionServiceSettings extends FilteredXContentObject 
         out.writeOptionalString(uri != null ? uri.toString() : null);
         out.writeOptionalString(organizationId);
         out.writeOptionalVInt(maxInputTokens);
-
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            rateLimitSettings.writeTo(out);
-        }
+        rateLimitSettings.writeTo(out);
     }
 
     @Override

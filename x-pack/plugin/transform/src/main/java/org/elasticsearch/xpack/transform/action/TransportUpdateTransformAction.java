@@ -21,6 +21,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -55,6 +56,8 @@ import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
 import org.elasticsearch.xpack.transform.transforms.TransformTask;
 
 import java.util.List;
+import java.util.Objects;
+import java.util.function.BooleanSupplier;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.transform.utils.SecondaryAuthorizationUtils.getSecurityHeadersPreferringSecondary;
@@ -70,6 +73,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
     private final ThreadPool threadPool;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Settings destIndexSettings;
+    private final BooleanSupplier hasLinkedProjects;
 
     @Inject
     public TransportUpdateTransformAction(
@@ -81,7 +85,8 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         ClusterService clusterService,
         TransformServices transformServices,
         Client client,
-        TransformExtensionHolder transformExtensionHolder
+        TransformExtensionHolder transformExtensionHolder,
+        ProjectResolver projectResolver
     ) {
         super(
             UpdateTransformAction.NAME,
@@ -103,6 +108,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         this.threadPool = threadPool;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.destIndexSettings = transformExtensionHolder.getTransformExtension().getTransformDestinationIndexSettings();
+        this.hasLinkedProjects = () -> transformServices.hasLinkedProjects().apply(projectResolver.getProjectId());
     }
 
     @Override
@@ -158,6 +164,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                     request.isDeferValidation(),
                     false, // dryRun
                     true, // checkAccess
+                    hasLinkedProjects.getAsBoolean(),
                     request.getTimeout(),
                     destIndexSettings,
                     ActionListener.wrap(updateResult -> {
@@ -167,12 +174,15 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                         auditor.info(updatedConfig.getId(), "Updated transform.");
                         logger.info("[{}] Updated transform [{}]", updatedConfig.getId(), updateResult.getStatus());
 
+                        auditProjectRoutingChanges(originalConfig, updatedConfig);
+
                         checkTransformConfigAndLogWarnings(updatedConfig);
 
                         boolean updateChangesSettings = update.changesSettings(originalConfig);
                         boolean updateChangesHeaders = update.changesHeaders(originalConfig);
                         boolean updateChangesDestIndex = update.changesDestIndex(originalConfig);
-                        if (updateChangesSettings || updateChangesHeaders || updateChangesDestIndex) {
+                        boolean updateFrequency = update.changesFrequency(originalConfig);
+                        if (updateChangesSettings || updateChangesHeaders || updateChangesDestIndex || updateFrequency) {
                             PersistentTasksCustomMetadata.PersistentTask<?> transformTask = TransformTask.getTransformTask(
                                 request.getId(),
                                 clusterState
@@ -238,6 +248,32 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         );
     }
 
+    private void auditProjectRoutingChanges(TransformConfig originalConfig, TransformConfig updatedConfig) {
+        if (Objects.equals(originalConfig.getSource().getProjectRouting(), updatedConfig.getSource().getProjectRouting()) == false) {
+            var originalProjectRouting = originalConfig.getSource().getProjectRouting();
+            var updatedProjectRouting = updatedConfig.getSource().getProjectRouting();
+
+            if (originalProjectRouting == null) {
+                auditor.info(updatedConfig.getId(), format("project_routing has been set to [%s].", updatedProjectRouting));
+                logger.info("[{}] project_routing has been set to [{}].", updatedConfig.getId(), updatedProjectRouting);
+            } else if (updatedProjectRouting == null) {
+                auditor.info(updatedConfig.getId(), format("project_routing [%s] has been removed.", originalProjectRouting));
+                logger.info("[{}] project_routing [{}] has been removed.", updatedConfig.getId(), originalProjectRouting);
+            } else {
+                auditor.info(
+                    updatedConfig.getId(),
+                    format("project_routing updated from [%s] to [%s].", originalProjectRouting, updatedProjectRouting)
+                );
+                logger.info(
+                    "[{}] project_routing updated from [{}] to [{}].",
+                    updatedConfig.getId(),
+                    originalProjectRouting,
+                    updatedProjectRouting
+                );
+            }
+        }
+    }
+
     private void checkTransformConfigAndLogWarnings(TransformConfig config) {
         final Function function = FunctionFactory.create(config);
         List<String> warnings = TransformConfigLinter.getWarnings(function, config.getSource(), config.getSyncConfig());
@@ -258,6 +294,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         transformTask.applyNewSettings(request.getConfig().getSettings());
         transformTask.applyNewAuthState(request.getAuthState());
         transformTask.checkAndResetDestinationIndexBlock(request.getConfig());
+        transformTask.applyNewFrequency(request.getConfig());
         listener.onResponse(new Response(request.getConfig()));
     }
 

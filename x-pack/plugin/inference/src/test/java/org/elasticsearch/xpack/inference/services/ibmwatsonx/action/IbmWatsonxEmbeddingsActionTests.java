@@ -20,7 +20,6 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
@@ -44,7 +43,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests.buildExpectationFloat;
+import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
@@ -113,11 +112,7 @@ public class IbmWatsonxEmbeddingsActionTests extends ESTestCase {
             var action = createAction(getUrl(webServer), apiKey, model, projectId, uri, apiVersion, sender);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(
-                new EmbeddingsInput(List.of(input), InputTypeTests.randomWithNull()),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            action.execute(new EmbeddingsInput(List.of(input), InputTypeTests.randomWithNull()), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -143,11 +138,7 @@ public class IbmWatsonxEmbeddingsActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), apiKey, model, projectId, uri, apiVersion, sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(
-            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
-            InferenceAction.Request.DEFAULT_TIMEOUT,
-            listener
-        );
+        action.execute(new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -172,11 +163,7 @@ public class IbmWatsonxEmbeddingsActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), apiKey, model, projectId, uri, apiVersion, sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(
-            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
-            InferenceAction.Request.DEFAULT_TIMEOUT,
-            listener
-        );
+        action.execute(new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -196,11 +183,7 @@ public class IbmWatsonxEmbeddingsActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), apiKey, model, projectId, uri, apiVersion, sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(
-            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
-            InferenceAction.Request.DEFAULT_TIMEOUT,
-            listener
-        );
+        action.execute(new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 

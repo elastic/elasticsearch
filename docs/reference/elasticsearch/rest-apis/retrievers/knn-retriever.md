@@ -18,9 +18,13 @@ A kNN retriever returns top documents from a [k-nearest neighbor search (kNN)](d
 
 
 `query_vector`
-:   (Required if `query_vector_builder` is not defined, array of `float`)
+:   (Required if `query_vector_builder` is not defined, array of `float` or string)
 
-    Query vector. Must have the same number of dimensions as the vector field you are searching against. Must be either an array of floats or a hex-encoded byte vector.
+    Query vector. Must have the same number of dimensions as the vector field you are searching against.
+    Must be one of:
+      - An array of floats
+      - A hex-encoded byte vector (one byte per dimension; for `bit`, one byte per 8 dimensions). {applies_to}`stack: ga 9.0-9.3`
+      - A base64-encoded vector string. Base64 supports `float` and `bfloat16` (big-endian), `byte`, and `bit` encodings depending on the target field type. {applies_to}`stack: ga 9.4` {applies_to}`serverless: ga`
 
 
 `query_vector_builder`
@@ -66,7 +70,7 @@ A kNN retriever returns top documents from a [k-nearest neighbor search (kNN)](d
     Read more here: [knn similarity search](docs-content://solutions/search/vector/knn.md#knn-similarity-search)
 
 
-`rescore_vector` {applies_to}`stack: preview 9.0, ga 9.1`
+`rescore_vector` {applies_to}`stack: preview =9.0, ga 9.1+`
 :   (Optional, object) Apply oversampling and rescoring to quantized vectors.
 
 ::::{note}
@@ -93,6 +97,88 @@ The parameters `query_vector` and `query_vector_builder` cannot be used together
 
 
 ## Example [knn-retriever-example]
+
+<!--
+```console
+PUT /restaurants
+{
+  "mappings": {
+    "properties": {
+      "region": { "type": "keyword" },
+      "year": { "type": "keyword" },
+      "vector": {
+        "type": "dense_vector",
+        "dims": 3
+      }
+    }
+  }
+}
+
+POST /restaurants/_bulk?refresh
+{"index":{}}
+{"region": "Austria", "year": "2019", "vector": [10, 22, 77]}
+{"index":{}}
+{"region": "France", "year": "2019", "vector": [10, 22, 78]}
+{"index":{}}
+{"region": "Austria", "year": "2020", "vector": [10, 22, 79]}
+{"index":{}}
+{"region": "France", "year": "2020", "vector": [10, 22, 80]}
+
+PUT /movies
+
+PUT /books
+{
+  "mappings": {
+    "properties": {
+      "title": {
+        "type": "text",
+        "copy_to": "title_semantic"
+      },
+      "description": {
+        "type": "text",
+        "copy_to": "description_semantic"
+      },
+      "title_semantic": {
+        "type": "semantic_text"
+      },
+      "description_semantic": {
+        "type": "semantic_text"
+      }
+    }
+  }
+}
+
+PUT _query_rules/my-ruleset
+{
+    "rules": [
+        {
+            "rule_id": "my-rule1",
+            "type": "pinned",
+            "criteria": [
+                {
+                    "type": "exact",
+                    "metadata": "query_string",
+                    "values": [ "pugs" ]
+                }
+            ],
+            "actions": {
+                "ids": [
+                    "id1"
+                ]
+            }
+        }
+    ]
+}
+```
+% TESTSETUP
+
+```console
+DELETE /restaurants
+DELETE /movies
+DELETE /books
+```
+% TEARDOWN
+-->
 
 ```console
 GET /restaurants/_search

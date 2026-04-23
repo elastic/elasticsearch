@@ -35,7 +35,10 @@ public class FieldNamesFieldMapperTests extends MetadataMapperTestCase {
     }
 
     @Override
-    protected void registerParameters(ParameterChecker checker) throws IOException {}
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        // enabled is deprecated and throws on 8.0+ indices; tested separately in testUsingEnabledSettingThrows
+        checker.registerIgnoredParameter("enabled");
+    }
 
     private static void assertFieldNames(Set<String> expected, ParsedDocument doc) {
         assertThat(TermVectorsService.getValues(doc.rootDoc().getFields("_field_names")), containsInAnyOrder(expected.toArray()));
@@ -86,7 +89,7 @@ public class FieldNamesFieldMapperTests extends MetadataMapperTestCase {
      */
     public void testUsingEnabledBefore8() throws Exception {
         DocumentMapper docMapper = createDocumentMapper(
-            IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0),
+            IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.V_8_0_0),
             topMapping(b -> b.startObject("_field_names").field("enabled", false).endObject())
         );
 
@@ -103,7 +106,7 @@ public class FieldNamesFieldMapperTests extends MetadataMapperTestCase {
      */
     public void testMergingMappingsBefore8() throws Exception {
         MapperService mapperService = createMapperService(
-            IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0),
+            IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.V_8_0_0),
             mapping(b -> {})
         );
 

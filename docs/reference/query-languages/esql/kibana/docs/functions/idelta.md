@@ -5,5 +5,5 @@ Calculates the idelta of a gauge. idelta is the absolute change between the last
 
 ```esql
 TS k8s
-| STATS events = sum(idelta(events_received)) by pod, time_bucket = bucket(@timestamp, 10minute)
+| STATS events = SUM(IDELTA(events_received)) by pod, time_bucket = TBUCKET(10minute)
 ```

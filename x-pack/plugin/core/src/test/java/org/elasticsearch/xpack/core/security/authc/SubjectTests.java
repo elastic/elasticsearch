@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.store.RoleKey;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference.ApiKeyRoleReference;
+import org.elasticsearch.xpack.core.security.authz.store.RoleReference.BwcApiKeyRoleReference;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference.FixedRoleReference;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference.NamedRoleReference;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference.ServiceAccountRoleReference;
@@ -29,11 +30,13 @@ import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_REALM_TYPE;
@@ -52,6 +55,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.isA;
 
 public class SubjectTests extends ESTestCase {
+    private static final TransportVersion VERSION_7_0_0 = TransportVersion.fromId(7_00_00_99);
 
     public void testGetRoleReferencesForRegularUser() {
         final User user = new User("joe", "role_a", "role_b");
@@ -283,6 +287,50 @@ public class SubjectTests extends ESTestCase {
         assertThat(fixedRoleReference.id(), equalTo(expectedKey));
     }
 
+    public void testGetRoleReferencesForApiKeyBwc() {
+        Map<String, Object> authMetadata = new HashMap<>();
+        final String apiKeyId = randomAlphaOfLength(12);
+        authMetadata.put(AuthenticationField.API_KEY_ID_KEY, apiKeyId);
+        authMetadata.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLength(12));
+        boolean emptyApiKeyRoleDescriptor = randomBoolean();
+        Map<String, Object> roleARDMap = Map.of("cluster", List.of("monitor"));
+        authMetadata.put(
+            API_KEY_ROLE_DESCRIPTORS_KEY,
+            (emptyApiKeyRoleDescriptor)
+                ? randomFrom(Arrays.asList(null, Collections.emptyMap()))
+                : Collections.singletonMap("a role", roleARDMap)
+        );
+
+        Map<String, Object> limitedRdMap = Map.of("cluster", List.of("all"));
+        authMetadata.put(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, Collections.singletonMap("limited role", limitedRdMap));
+
+        final Subject subject = new Subject(
+            new User("joe"),
+            new Authentication.RealmRef(API_KEY_REALM_NAME, API_KEY_REALM_TYPE, "node"),
+            VERSION_7_0_0,
+            authMetadata
+        );
+
+        final RoleReferenceIntersection roleReferenceIntersection = subject.getRoleReferenceIntersection(getAnonymousUser());
+        final List<RoleReference> roleReferences = roleReferenceIntersection.getRoleReferences();
+
+        if (emptyApiKeyRoleDescriptor) {
+            assertThat(roleReferences, contains(isA(BwcApiKeyRoleReference.class)));
+            final BwcApiKeyRoleReference limitedByRoleReference = (BwcApiKeyRoleReference) roleReferences.get(0);
+            assertThat(limitedByRoleReference.getApiKeyId(), equalTo(apiKeyId));
+            assertThat(limitedByRoleReference.getRoleDescriptorsMap(), equalTo(authMetadata.get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)));
+        } else {
+            assertThat(roleReferences, contains(isA(BwcApiKeyRoleReference.class), isA(BwcApiKeyRoleReference.class)));
+            final BwcApiKeyRoleReference roleReference = (BwcApiKeyRoleReference) roleReferences.get(0);
+            assertThat(roleReference.getApiKeyId(), equalTo(apiKeyId));
+            assertThat(roleReference.getRoleDescriptorsMap(), equalTo(authMetadata.get(API_KEY_ROLE_DESCRIPTORS_KEY)));
+
+            final BwcApiKeyRoleReference limitedByRoleReference = (BwcApiKeyRoleReference) roleReferences.get(1);
+            assertThat(limitedByRoleReference.getApiKeyId(), equalTo(apiKeyId));
+            assertThat(limitedByRoleReference.getRoleDescriptorsMap(), equalTo(authMetadata.get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)));
+        }
+    }
+
     public void testGetFleetApiKeyRoleReferenceBwcBugFix() {
         final BytesReference roleBytes = new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}");
         final BytesReference limitedByRoleBytes = new BytesArray("{}");
@@ -310,7 +358,7 @@ public class SubjectTests extends ESTestCase {
         final List<RoleReference> roleReferences = roleReferenceIntersection.getRoleReferences();
         assertThat(roleReferences, contains(isA(ApiKeyRoleReference.class), isA(ApiKeyRoleReference.class)));
         final ApiKeyRoleReference limitedByRoleReference = (ApiKeyRoleReference) roleReferences.get(1);
-        assertThat(limitedByRoleReference.getRoleDescriptorsBytes(), equalTo(FLEET_SERVER_ROLE_DESCRIPTOR_BYTES_V_7_14));
+        assertThat(limitedByRoleReference.getRoleDescriptorsBytes(), equalBytes(FLEET_SERVER_ROLE_DESCRIPTOR_BYTES_V_7_14));
     }
 
     private AnonymousUser getAnonymousUser() {

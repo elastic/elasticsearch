@@ -9,40 +9,44 @@ import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import java.time.DateTimeException;
+import java.time.ZoneId;
 import java.time.temporal.TemporalAmount;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Sub}.
+ * {@link ExpressionEvaluator} implementation for {@link Sub}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class SubDatetimesEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class SubDatetimesEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(SubDatetimesEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator datetime;
+  private final ExpressionEvaluator datetime;
 
   private final TemporalAmount temporalAmount;
+
+  private final ZoneId zoneId;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public SubDatetimesEvaluator(Source source, EvalOperator.ExpressionEvaluator datetime,
-      TemporalAmount temporalAmount, DriverContext driverContext) {
+  public SubDatetimesEvaluator(Source source, ExpressionEvaluator datetime,
+      TemporalAmount temporalAmount, ZoneId zoneId, DriverContext driverContext) {
     this.source = source;
     this.datetime = datetime;
     this.temporalAmount = temporalAmount;
+    this.zoneId = zoneId;
     this.driverContext = driverContext;
   }
 
@@ -80,7 +84,7 @@ public final class SubDatetimesEvaluator implements EvalOperator.ExpressionEvalu
         }
         long datetime = datetimeBlock.getLong(datetimeBlock.getFirstValueIndex(p));
         try {
-          result.appendLong(Sub.processDatetimes(datetime, this.temporalAmount));
+          result.appendLong(Sub.processDatetimes(datetime, this.temporalAmount, this.zoneId));
         } catch (ArithmeticException | DateTimeException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -95,7 +99,7 @@ public final class SubDatetimesEvaluator implements EvalOperator.ExpressionEvalu
       position: for (int p = 0; p < positionCount; p++) {
         long datetime = datetimeVector.getLong(p);
         try {
-          result.appendLong(Sub.processDatetimes(datetime, this.temporalAmount));
+          result.appendLong(Sub.processDatetimes(datetime, this.temporalAmount, this.zoneId));
         } catch (ArithmeticException | DateTimeException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -107,7 +111,7 @@ public final class SubDatetimesEvaluator implements EvalOperator.ExpressionEvalu
 
   @Override
   public String toString() {
-    return "SubDatetimesEvaluator[" + "datetime=" + datetime + ", temporalAmount=" + temporalAmount + "]";
+    return "SubDatetimesEvaluator[" + "datetime=" + datetime + ", temporalAmount=" + temporalAmount + ", zoneId=" + zoneId + "]";
   }
 
   @Override
@@ -117,38 +121,36 @@ public final class SubDatetimesEvaluator implements EvalOperator.ExpressionEvalu
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory datetime;
+    private final ExpressionEvaluator.Factory datetime;
 
     private final TemporalAmount temporalAmount;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory datetime,
-        TemporalAmount temporalAmount) {
+    private final ZoneId zoneId;
+
+    public Factory(Source source, ExpressionEvaluator.Factory datetime,
+        TemporalAmount temporalAmount, ZoneId zoneId) {
       this.source = source;
       this.datetime = datetime;
       this.temporalAmount = temporalAmount;
+      this.zoneId = zoneId;
     }
 
     @Override
     public SubDatetimesEvaluator get(DriverContext context) {
-      return new SubDatetimesEvaluator(source, datetime.get(context), temporalAmount, context);
+      return new SubDatetimesEvaluator(source, datetime.get(context), temporalAmount, zoneId, context);
     }
 
     @Override
     public String toString() {
-      return "SubDatetimesEvaluator[" + "datetime=" + datetime + ", temporalAmount=" + temporalAmount + "]";
+      return "SubDatetimesEvaluator[" + "datetime=" + datetime + ", temporalAmount=" + temporalAmount + ", zoneId=" + zoneId + "]";
     }
   }
 }

@@ -32,14 +32,16 @@ cat libs/entitlement/tools/jdk-api-extractor/api.diff | grep '^+[^+]' | sed 's/^
 
 # review new additions next for critical ones that should require entitlements
 # once done, remove all lines that are not considered critical and run the public-callers-finder to report
-# the transitive public surface for these additions
-./gradlew :libs:entitlement:tools:public-callers-finder:run -Druntime.java=25 --args="api-jdk25-additions.tsv true"
+# the transitive public surface for these additions to identify methods that are node already covered by entitlements
+./gradlew :libs:entitlement:tools:public-callers-finder:run -Druntime.java=25 --args="api-jdk25-additions.tsv --transitive --check-instrumentation"
 ```
 
 ### Optional arguments:
 
 - `--deprecations-only`: reports public deprecations (by means of `@Deprecated`)
 - `--include-incubator`: include incubator modules (e.g. `jdk.incubator.vector`)
+
+If `-Druntime.java` is not provided, the bundled JDK is used.
 
 ```bash
 ./gradlew :libs:entitlement:tools:jdk-api-extractor:run -Druntime.java=24 --args="deprecations-jdk24.tsv --deprecations-only"

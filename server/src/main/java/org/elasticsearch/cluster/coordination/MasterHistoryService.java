@@ -137,25 +137,31 @@ public class MasterHistoryService {
                         node,
                         MasterHistoryAction.NAME,
                         new MasterHistoryAction.Request(),
-                        TransportRequestOptions.timeout(remoteMasterHistoryTimeout),
-                        new ActionListenerResponseHandler<>(ActionListener.runBefore(new ActionListener<>() {
+                        TransportRequestOptions.EMPTY,
+                        new ActionListenerResponseHandler<>(
+                            ActionListener.addTimeout(
+                                remoteMasterHistoryTimeout,
+                                transportService.getThreadPool(),
+                                TransportResponseHandler.TRANSPORT_WORKER,
+                                ActionListener.runBefore(new ActionListener<>() {
+                                    @Override
+                                    public void onResponse(MasterHistoryAction.Response response) {
+                                        long endTime = System.nanoTime();
+                                        logger.trace("Received history from {} in {}", node, TimeValue.timeValueNanos(endTime - startTime));
+                                        remoteHistoryOrException = new RemoteHistoryOrException(
+                                            response.getMasterHistory(),
+                                            currentTimeMillisSupplier.getAsLong()
+                                        );
+                                    }
 
-                            @Override
-                            public void onResponse(MasterHistoryAction.Response response) {
-                                long endTime = System.nanoTime();
-                                logger.trace("Received history from {} in {}", node, TimeValue.timeValueNanos(endTime - startTime));
-                                remoteHistoryOrException = new RemoteHistoryOrException(
-                                    response.getMasterHistory(),
-                                    currentTimeMillisSupplier.getAsLong()
-                                );
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                logger.warn("Exception in master history request to master node", e);
-                                remoteHistoryOrException = new RemoteHistoryOrException(e, currentTimeMillisSupplier.getAsLong());
-                            }
-                        }, () -> Releasables.close(releasable)),
+                                    @Override
+                                    public void onFailure(Exception e) {
+                                        logger.warn("Exception in master history request to master node", e);
+                                        remoteHistoryOrException = new RemoteHistoryOrException(e, currentTimeMillisSupplier.getAsLong());
+                                    }
+                                }, () -> Releasables.close(releasable)),
+                                () -> { /* TODO cancel the remote task? */}
+                            ),
                             MasterHistoryAction.Response::new,
                             TransportResponseHandler.TRANSPORT_WORKER
                         )

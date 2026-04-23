@@ -44,6 +44,7 @@ POST /_sql?format=csv
   "fetch_size": 5
 }
 ```
+% TEST[setup:library]
 
 which returns:
 
@@ -55,6 +56,7 @@ Frank Herbert,Dune,604,1965-06-01T00:00:00.000Z
 Alastair Reynolds,Revelation Space,585,2000-03-15T00:00:00.000Z
 James S.A. Corey,Leviathan Wakes,561,2011-06-02T00:00:00.000Z
 ```
+% TESTRESPONSE[non_json]
 
 or:
 
@@ -65,6 +67,7 @@ POST /_sql?format=csv&delimiter=%3b
     "fetch_size": 5
 }
 ```
+% TEST[setup:library]
 
 which returns:
 
@@ -76,7 +79,7 @@ Frank Herbert;Dune;604;1965-06-01T00:00:00.000Z
 Alastair Reynolds;Revelation Space;585;2000-03-15T00:00:00.000Z
 James S.A. Corey;Leviathan Wakes;561;2011-06-02T00:00:00.000Z
 ```
-
+% TESTRESPONSE[non_json]
 
 ## JSON [_json]
 
@@ -87,6 +90,7 @@ POST /_sql?format=json
   "fetch_size": 5
 }
 ```
+% TEST[setup:library]
 
 Which returns:
 
@@ -108,7 +112,7 @@ Which returns:
   "cursor": "sDXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAAEWWWdrRlVfSS1TbDYtcW9lc1FJNmlYdw==:BAFmBmF1dGhvcgFmBG5hbWUBZgpwYWdlX2NvdW50AWYMcmVsZWFzZV9kYXRl+v///w8="
 }
 ```
-
+% TESTRESPONSE[s/sDXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAAEWWWdrRlVfSS1TbDYtcW9lc1FJNmlYdw==:BAFmBmF1dGhvcgFmBG5hbWUBZgpwYWdlX2NvdW50AWYMcmVsZWFzZV9kYXRl\+v\/\/\/w8=/$body.cursor/]
 
 ## TSV [_tsv]
 
@@ -119,6 +123,7 @@ POST /_sql?format=tsv
   "fetch_size": 5
 }
 ```
+% TEST[setup:library]
 
 Which returns:
 
@@ -130,7 +135,8 @@ Frank Herbert	Dune	604	1965-06-01T00:00:00.000Z
 Alastair Reynolds	Revelation Space	585	2000-03-15T00:00:00.000Z
 James S.A. Corey	Leviathan Wakes	561	2011-06-02T00:00:00.000Z
 ```
-
+% TESTRESPONSE[s/\t/ /]
+% TESTRESPONSE[non_json]
 
 ## TXT [_txt]
 
@@ -141,6 +147,7 @@ POST /_sql?format=txt
   "fetch_size": 5
 }
 ```
+% TEST[setup:library]
 
 Which returns:
 
@@ -153,7 +160,8 @@ Frank Herbert    |Dune                |604            |1965-06-01T00:00:00.000Z
 Alastair Reynolds|Revelation Space    |585            |2000-03-15T00:00:00.000Z
 James S.A. Corey |Leviathan Wakes     |561            |2011-06-02T00:00:00.000Z
 ```
-
+% TESTRESPONSE[s/\|/\\|/ s/\+/\\+/]
+% TESTRESPONSE[non_json]
 
 ## YAML [_yaml]
 
@@ -164,6 +172,7 @@ POST /_sql?format=yaml
   "fetch_size": 5
 }
 ```
+% TEST[setup:library]
 
 Which returns:
 
@@ -200,5 +209,5 @@ rows:
   - "2011-06-02T00:00:00.000Z"
 cursor: "sDXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAAEWWWdrRlVfSS1TbDYtcW9lc1FJNmlYdw==:BAFmBmF1dGhvcgFmBG5hbWUBZgpwYWdlX2NvdW50AWYMcmVsZWFzZV9kYXRl+v///w8="
 ```
-
+% TESTRESPONSE[s/sDXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAAEWWWdrRlVfSS1TbDYtcW9lc1FJNmlYdw==:BAFmBmF1dGhvcgFmBG5hbWUBZgpwYWdlX2NvdW50AWYMcmVsZWFzZV9kYXRl\+v\/\/\/w8=/$body.cursor/]
 

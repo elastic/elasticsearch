@@ -12,7 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -21,10 +21,14 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
@@ -38,22 +42,31 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
  */
 public class ClampMax extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ClampMax", ClampMax::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ClampMax.class).binary(ClampMax::new).name("clamp_max");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .binaryValueTransformation(PromqlFunctionDefinition.MAX_SCALAR, ClampMax::new)
+        .description("Clamps the sample values of all elements to have an upper limit of max.")
+        .example("clamp_max(http_requests_total, 100)")
+        .name("clamp_max");
+
+    private DataType resolvedType;
 
     @FunctionInfo(
-        returnType = { "double", "integer", "long", "double", "unsigned_long", "keyword", "ip", "boolean", "date", "version" },
-        description = "Returns clamps the values of all input samples clamped to have an upper limit of max.",
-        examples = @Example(file = "k8s-timeseries-clamp", tag = "clamp-max")
+        returnType = { "double", "integer", "long", "unsigned_long", "double", "keyword", "ip", "boolean", "date", "version" },
+        description = "Limits (or clamps) all input sample values to an upper bound of max. Any value above max is reduced to max.",
+        examples = @Example(file = "k8s-timeseries-clamp", tag = "clamp-max"),
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") }
     )
     public ClampMax(
         Source source,
         @Param(
             name = "field",
-            type = { "double", "integer", "long", "double", "unsigned_long", "keyword", "ip", "boolean", "date", "version" },
+            type = { "double", "integer", "long", "unsigned_long", "double", "keyword", "ip", "boolean", "date", "version" },
             description = "field to clamp."
         ) Expression field,
         @Param(
             name = "max",
-            type = { "double", "integer", "long", "double", "unsigned_long", "keyword", "ip", "boolean", "date", "version" },
+            type = { "double", "integer", "long", "unsigned_long", "double", "keyword", "ip", "boolean", "date", "version" },
             description = "The max value to clamp data into."
         ) Expression max
     ) {
@@ -78,7 +91,10 @@ public class ClampMax extends EsqlScalarFunction {
 
     @Override
     public DataType dataType() {
-        return children().getFirst().dataType();
+        if (resolvedType == null && resolveType().resolved() == false) {
+            throw new EsqlIllegalArgumentException("Unable to resolve data type for clamp_max");
+        }
+        return resolvedType;
     }
 
     @Override
@@ -88,8 +104,8 @@ public class ClampMax extends EsqlScalarFunction {
         }
 
         var field = children().get(0);
-        var min = children().get(1);
-        var fieldDataType = field.dataType();
+        var max = children().get(1);
+        var fieldDataType = field.dataType().noText();
         TypeResolution resolution = TypeResolutions.isType(
             field,
             t -> t.isNumeric() || t == DataType.BOOLEAN || t.isDate() || DataType.isString(t) || t == DataType.IP || t == DataType.VERSION,
@@ -104,14 +120,23 @@ public class ClampMax extends EsqlScalarFunction {
             return new TypeResolution("'field' must not be null in clamp()");
         }
         resolution = TypeResolutions.isType(
-            min,
-            t -> t.isNumeric() ? fieldDataType.isNumeric() : t.noText() == fieldDataType,
+            max,
+            t -> t.isNumeric() ? fieldDataType.isNumeric() : t.noText() == fieldDataType.noText(),
             sourceText(),
             TypeResolutions.ParamOrdinal.SECOND,
             fieldDataType.typeName()
         );
         if (resolution.unresolved()) {
             return resolution;
+        }
+        if (fieldDataType.isNumeric() == false) {
+            resolvedType = fieldDataType;
+        } else if (fieldDataType.estimatedSize() == max.dataType().estimatedSize()) {
+            // When the types are equally wide, prefer rational numbers
+            resolvedType = fieldDataType.isRationalNumber() ? fieldDataType : max.dataType();
+        } else {
+            // Otherwise, prefer the wider type
+            resolvedType = fieldDataType.estimatedSize() > max.dataType().estimatedSize() ? fieldDataType : max.dataType();
         }
         return TypeResolution.TYPE_RESOLVED;
     }
@@ -133,21 +158,22 @@ public class ClampMax extends EsqlScalarFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        // force datatype initialization
-        var outputType = dataType();
+        var outputType = PlannerUtils.toElementType(dataType());
 
-        var max = children().get(1);
-        var maxF = outputType != max.dataType()
-            ? Cast.cast(source(), max.dataType(), outputType, toEvaluator.apply(max))
-            : toEvaluator.apply(max);
+        var fieldEval = PlannerUtils.toElementType(children().getFirst().dataType()) != outputType
+            ? Cast.cast(source(), children().getFirst().dataType(), dataType(), toEvaluator.apply(children().get(0)))
+            : toEvaluator.apply(children().getFirst());
+        var maxEval = PlannerUtils.toElementType(children().get(1).dataType()) != outputType
+            ? Cast.cast(source(), children().get(1).dataType(), dataType(), toEvaluator.apply(children().get(1)))
+            : toEvaluator.apply(children().get(1));
 
-        return switch (PlannerUtils.toElementType(outputType)) {
-            case BOOLEAN -> new ClampMaxBooleanEvaluator.Factory(source(), toEvaluator.apply(children().get(0)), maxF);
-            case DOUBLE -> new ClampMaxDoubleEvaluator.Factory(source(), toEvaluator.apply(children().get(0)), maxF);
-            case INT -> new ClampMaxIntegerEvaluator.Factory(source(), toEvaluator.apply(children().get(0)), maxF);
-            case LONG -> new ClampMaxLongEvaluator.Factory(source(), toEvaluator.apply(children().get(0)), maxF);
-            case BYTES_REF -> new ClampMaxBytesRefEvaluator.Factory(source(), toEvaluator.apply(children().get(0)), maxF);
-            default -> throw EsqlIllegalArgumentException.illegalDataType(outputType);
+        return switch (outputType) {
+            case BOOLEAN -> new ClampMaxBooleanEvaluator.Factory(source(), fieldEval, maxEval);
+            case DOUBLE -> new ClampMaxDoubleEvaluator.Factory(source(), fieldEval, maxEval);
+            case INT -> new ClampMaxIntegerEvaluator.Factory(source(), fieldEval, maxEval);
+            case LONG -> new ClampMaxLongEvaluator.Factory(source(), fieldEval, maxEval);
+            case BYTES_REF -> new ClampMaxBytesRefEvaluator.Factory(source(), fieldEval, maxEval);
+            default -> throw EsqlIllegalArgumentException.illegalDataType(dataType());
         };
     }
 

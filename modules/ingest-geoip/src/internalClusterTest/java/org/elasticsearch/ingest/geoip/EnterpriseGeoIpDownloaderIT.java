@@ -98,10 +98,7 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    @TestLogging(
-        reason = "understanding why ipinfo asn database sometimes is not loaded",
-        value = "org.elasticsearch.ingest.geoip.DatabaseNodeService:TRACE"
-    )
+    @TestLogging(reason = "For debugging tricky race conditions", value = "org.elasticsearch.ingest.geoip:TRACE")
     public void testEnterpriseDownloaderTask() throws Exception {
         /*
          * This test starts the enterprise geoip downloader task, and creates a database configuration. Then it creates an ingest

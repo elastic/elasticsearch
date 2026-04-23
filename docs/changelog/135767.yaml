@@ -1,5 +1,0 @@
-pr: 135767
-summary: Pass fix size instead of `maxPageSize` to `LuceneTopNOperator` scorer
-area: ES|QL
-type: bug
-issues: []

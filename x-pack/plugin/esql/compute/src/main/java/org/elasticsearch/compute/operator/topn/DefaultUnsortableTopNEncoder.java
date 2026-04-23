@@ -18,7 +18,7 @@ import java.nio.ByteOrder;
  * A {@link TopNEncoder} that doesn't encode values so they are sortable but is
  * capable of encoding any values.
  */
-public final class DefaultUnsortableTopNEncoder implements TopNEncoder {
+public class DefaultUnsortableTopNEncoder implements TopNEncoder {
     public static final VarHandle LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.nativeOrder());
     public static final VarHandle INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.nativeOrder());
     public static final VarHandle FLOAT = MethodHandles.byteArrayViewVarHandle(float[].class, ByteOrder.nativeOrder());
@@ -174,11 +174,9 @@ public final class DefaultUnsortableTopNEncoder implements TopNEncoder {
     }
 
     @Override
-    public int encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
-        final int offset = bytesRefBuilder.length();
+    public void encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
         encodeVInt(value.length, bytesRefBuilder);
         bytesRefBuilder.append(value);
-        return bytesRefBuilder.length() - offset;
     }
 
     @Override
@@ -193,8 +191,8 @@ public final class DefaultUnsortableTopNEncoder implements TopNEncoder {
     }
 
     @Override
-    public TopNEncoder toSortable() {
-        return TopNEncoder.DEFAULT_SORTABLE;
+    public TopNEncoder toSortable(boolean asc) {
+        return TopNEncoder.DEFAULT_SORTABLE.toSortable(asc);
     }
 
     @Override

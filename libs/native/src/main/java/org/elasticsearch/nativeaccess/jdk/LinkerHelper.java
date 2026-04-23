@@ -37,8 +37,16 @@ class LinkerHelper {
         return SYMBOL_LOOKUP.find(function).orElseThrow(() -> new LinkageError("Native function " + function + " could not be found"));
     }
 
+    static MemorySegment functionAddressOrNull(String function) {
+        return SYMBOL_LOOKUP.find(function).orElse(null);
+    }
+
     static MethodHandle downcallHandle(String function, FunctionDescriptor functionDescriptor, Linker.Option... options) {
         return LINKER.downcallHandle(functionAddress(function), functionDescriptor, options);
+    }
+
+    static MethodHandle downcallHandle(MemorySegment functionAddress, FunctionDescriptor functionDescriptor, Linker.Option... options) {
+        return LINKER.downcallHandle(functionAddress, functionDescriptor, options);
     }
 
     static MethodHandle upcallHandle(Class<?> clazz, String methodName, FunctionDescriptor functionDescriptor) {

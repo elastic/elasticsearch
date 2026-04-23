@@ -49,7 +49,7 @@ PUT /index/_mapping
   }
 }
 ```
-
+% TEST[continued]
 
 ## Available similarities [_available_similarities]
 
@@ -72,16 +72,16 @@ Type name: `BM25`
 
 ### DFR similarity [dfr]
 
-Similarity that implements the [divergence from randomness](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/search/similarities/DFRSimilarity.md) framework. This similarity has the following options:
+Similarity that implements the [divergence from randomness](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/search/similarities/DFRSimilarity.html) framework. This similarity has the following options:
 
 `basic_model`
-:   Possible values: [`g`](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/search/similarities/BasicModelG.md), [`if`](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/search/similarities/BasicModelIF.md), [`in`](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/search/similarities/BasicModelIn.md) and [`ine`](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/search/similarities/BasicModelIne.md).
+:   Possible values: [`g`](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/search/similarities/BasicModelG.html), [`if`](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/search/similarities/BasicModelIF.html), [`in`](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/search/similarities/BasicModelIn.html) and [`ine`](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/search/similarities/BasicModelIne.html).
 
 `after_effect`
-:   Possible values: [`b`](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/search/similarities/AfterEffectB.md) and [`l`](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/search/similarities/AfterEffectL.md).
+:   Possible values: [`b`](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/search/similarities/AfterEffectB.html) and [`l`](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/search/similarities/AfterEffectL.html).
 
 `normalization`
-:   Possible values: [`no`](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/search/similarities/Normalization.NoNormalization.md), [`h1`](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/search/similarities/NormalizationH1.md), [`h2`](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/search/similarities/NormalizationH2.md), [`h3`](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/search/similarities/NormalizationH3.md) and [`z`](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/search/similarities/NormalizationZ.md).
+:   Possible values: [`no`](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/search/similarities/Normalization.NoNormalization.html), [`h1`](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/search/similarities/NormalizationH1.html), [`h2`](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/search/similarities/NormalizationH2.html), [`h3`](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/search/similarities/NormalizationH3.html) and [`z`](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/search/similarities/NormalizationZ.html).
 
 All options but the first option need a normalization value.
 
@@ -93,7 +93,7 @@ Type name: `DFR`
 Similarity that implements the [divergence from independence](https://trec.nist.gov/pubs/trec21/papers/irra.web.nb.pdf) model. This similarity has the following options:
 
 `independence_measure`
-:   Possible values [`standardized`](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/search/similarities/IndependenceStandardized.md), [`saturated`](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/search/similarities/IndependenceSaturated.md), [`chisquared`](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/search/similarities/IndependenceChiSquared.md).
+:   Possible values [`standardized`](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/search/similarities/IndependenceStandardized.html), [`saturated`](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/search/similarities/IndependenceSaturated.html), [`chisquared`](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/search/similarities/IndependenceChiSquared.html).
 
 When using this similarity, it is highly recommended **not** to remove stop words to get good relevance. Also beware that terms whose frequency is less than the expected frequency will get a score equal to 0.
 
@@ -102,13 +102,13 @@ Type name: `DFI`
 
 ### IB similarity. [ib]
 
-[Information based model](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/search/similarities/IBSimilarity.md) . The algorithm is based on the concept that the information content in any symbolic *distribution* sequence is primarily determined by the repetitive usage of its basic elements. For written texts this challenge would correspond to comparing the writing styles of different authors. This similarity has the following options:
+[Information based model](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/search/similarities/IBSimilarity.html) . The algorithm is based on the concept that the information content in any symbolic *distribution* sequence is primarily determined by the repetitive usage of its basic elements. For written texts this challenge would correspond to comparing the writing styles of different authors. This similarity has the following options:
 
 `distribution`
-:   Possible values: [`ll`](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/search/similarities/DistributionLL.md) and [`spl`](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/search/similarities/DistributionSPL.md).
+:   Possible values: [`ll`](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/search/similarities/DistributionLL.html) and [`spl`](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/search/similarities/DistributionSPL.html).
 
 `lambda`
-:   Possible values: [`df`](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/search/similarities/LambdaDF.md) and [`ttf`](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/search/similarities/LambdaTTF.md).
+:   Possible values: [`df`](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/search/similarities/LambdaDF.html) and [`ttf`](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/search/similarities/LambdaTTF.html).
 
 `normalization`
 :   Same as in `DFR` similarity.
@@ -118,7 +118,7 @@ Type name: `IB`
 
 ### LM Dirichlet similarity. [lm_dirichlet]
 
-[LM Dirichlet similarity](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/search/similarities/LMDirichletSimilarity.md) . This similarity has the following options:
+[LM Dirichlet similarity](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/search/similarities/LMDirichletSimilarity.html) . This similarity has the following options:
 
 `mu`
 :   Default to `2000`.
@@ -130,7 +130,7 @@ Type name: `LMDirichlet`
 
 ### LM Jelinek Mercer similarity. [lm_jelinek_mercer]
 
-[LM Jelinek Mercer similarity](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/search/similarities/LMJelinekMercerSimilarity.md) . The algorithm attempts to capture important patterns in the text, while leaving out noise. This similarity has the following options:
+[LM Jelinek Mercer similarity](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/search/similarities/LMJelinekMercerSimilarity.html) . The algorithm attempts to capture important patterns in the text, while leaving out noise. This similarity has the following options:
 
 `lambda`
 :   The optimal value depends on both the collection and the query. The optimal value is around `0.1` for title queries and `0.7` for long queries. Default to `0.1`. When value approaches `0`, documents that match more query terms will be ranked higher than those that match fewer terms.
@@ -279,6 +279,8 @@ Which yields:
   }
 }
 ```
+% TESTRESPONSE[s/"took": 12/"took" : $body.took/]
+% TESTRESPONSE[s/OzrdjxNtQGaqs4DmioFw9A/$body.hits.hits.0._node/]
 
 ::::{warning}
 While scripted similarities provide a lot of flexibility, there is a set of rules that they need to satisfy. Failing to do so could make Elasticsearch silently return wrong top hits or fail with internal errors at search time:
@@ -363,4 +365,4 @@ PUT /index/_settings
 
 POST /index/_open
 ```
-
+% TEST[continued]

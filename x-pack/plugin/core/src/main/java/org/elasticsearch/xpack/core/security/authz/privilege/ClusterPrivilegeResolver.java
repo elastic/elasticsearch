@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.ilm.action.GetStatusAction;
 import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
+import org.elasticsearch.xpack.core.security.action.apikey.CloneApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
@@ -94,6 +95,7 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> MANAGE_SERVICE_ACCOUNT_PATTERN = Set.of("cluster:admin/xpack/security/service_account/*");
     private static final Set<String> MANAGE_USER_PROFILE_PATTERN = Set.of("cluster:admin/xpack/security/profile/*");
     private static final Set<String> GRANT_API_KEY_PATTERN = Set.of(GrantApiKeyAction.NAME + "*");
+    private static final Set<String> CLONE_API_KEY_PATTERN = Set.of(CloneApiKeyAction.NAME + "*");
     private static final Set<String> MONITOR_PATTERN = Set.of(
         "cluster:monitor/*",
         GetIndexTemplatesAction.NAME,
@@ -113,6 +115,16 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> MONITOR_ESQL_PATTERN = Set.of("cluster:monitor/xpack/esql/*");
     // intentionally cluster:monitor/stats* to match cluster:monitor/stats, cluster:monitor/stats[n] and cluster:monitor/stats/remote
     private static final Set<String> MONITOR_STATS_PATTERN = Set.of("cluster:monitor/stats*");
+    private static final Set<String> READ_PROJECT_ROUTING_PATTERN = Set.of(
+        // covers tags endpoint and other project metadata endpoints
+        "cluster:monitor/project/*",
+        "cluster:monitor/project_routing/*"
+    );
+    private static final Set<String> MANAGE_PROJECT_ROUTING_PATTERN = Set.of(
+        "cluster:monitor/project/*",
+        "cluster:monitor/project_routing/*",
+        "cluster:admin/project_routing/*"
+    );
 
     private static final Set<String> ALL_CLUSTER_PATTERN = Set.of(
         "cluster:*",
@@ -272,6 +284,10 @@ public class ClusterPrivilegeResolver {
         MANAGE_INGEST_PIPELINE_PATTERN
     );
     public static final NamedClusterPrivilege READ_PIPELINE = new ActionClusterPrivilege("read_pipeline", READ_PIPELINE_PATTERN);
+    public static final NamedClusterPrivilege READ_PROJECT_ROUTING = new ActionClusterPrivilege(
+        "read_project_routing",
+        READ_PROJECT_ROUTING_PATTERN
+    );
     public static final NamedClusterPrivilege TRANSPORT_CLIENT = new ActionClusterPrivilege("transport_client", TRANSPORT_CLIENT_PATTERN);
     public static final NamedClusterPrivilege MANAGE_SECURITY = new ActionClusterPrivilege(
         "manage_security",
@@ -312,9 +328,14 @@ public class ClusterPrivilegeResolver {
         MANAGE_USER_PROFILE_PATTERN
     );
     public static final NamedClusterPrivilege GRANT_API_KEY = new ActionClusterPrivilege("grant_api_key", GRANT_API_KEY_PATTERN);
+    public static final NamedClusterPrivilege CLONE_API_KEY = new ActionClusterPrivilege("clone_api_key", CLONE_API_KEY_PATTERN);
     public static final NamedClusterPrivilege MANAGE_PIPELINE = new ActionClusterPrivilege(
         "manage_pipeline",
         Set.of("cluster:admin" + "/ingest/pipeline/*")
+    );
+    public static final NamedClusterPrivilege MANAGE_PROJECT_ROUTING = new ActionClusterPrivilege(
+        "manage_project_routing",
+        MANAGE_PROJECT_ROUTING_PATTERN
     );
     public static final NamedClusterPrivilege MANAGE_AUTOSCALING = new ActionClusterPrivilege(
         "manage_autoscaling",
@@ -446,6 +467,7 @@ public class ClusterPrivilegeResolver {
             MANAGE_IDX_TEMPLATES,
             MANAGE_INGEST_PIPELINES,
             READ_PIPELINE,
+            READ_PROJECT_ROUTING,
             TRANSPORT_CLIENT,
             MANAGE_SECURITY,
             READ_SECURITY,
@@ -453,9 +475,11 @@ public class ClusterPrivilegeResolver {
             MANAGE_OIDC,
             MANAGE_API_KEY,
             GRANT_API_KEY,
+            CLONE_API_KEY,
             MANAGE_SERVICE_ACCOUNT,
             MANAGE_USER_PROFILE,
             MANAGE_PIPELINE,
+            MANAGE_PROJECT_ROUTING,
             MANAGE_ROLLUP,
             MANAGE_AUTOSCALING,
             MANAGE_CCR,

@@ -18,7 +18,6 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
 final class ExchangeBuffer {
-
     private final Queue<Page> queue = new ConcurrentLinkedQueue<>();
     // uses a separate counter for size for CAS; and ConcurrentLinkedQueue#size is not a constant time operation.
     private final AtomicInteger queueSize = new AtomicInteger();
@@ -48,14 +47,16 @@ final class ExchangeBuffer {
         }
         if (noMoreInputs) {
             // O(N) but acceptable because it only occurs with the stop API, and the queue size should be very small.
-            if (queue.removeIf(p -> p == page)) {
-                page.releaseBlocks();
-                final int size = queueSize.decrementAndGet();
-                if (size == maxSize - 1) {
-                    notifyNotFull();
-                }
-                if (size == 0) {
-                    completionFuture.onResponse(null);
+            if (page.batchMetadata() == null) {
+                if (queue.removeIf(p -> p == page)) {
+                    page.releaseBlocks();
+                    final int size = queueSize.decrementAndGet();
+                    if (size == maxSize - 1) {
+                        notifyNotFull();
+                    }
+                    if (size == 0) {
+                        completionFuture.onResponse(null);
+                    }
                 }
             }
         }

@@ -7,6 +7,8 @@
 package org.elasticsearch.xpack.textstructure.structurefinder;
 
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -14,9 +16,14 @@ import org.junit.Before;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.stream.Collectors;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 
 public abstract class TextStructureTestCase extends ESTestCase {
 
@@ -38,6 +45,11 @@ public abstract class TextStructureTestCase extends ESTestCase {
         "class":"ml","method":"core::SomeNoiseMaker","file":"Noisemaker.cc","line":333}
         {"logger":"controller","timestamp":1478261151445,"level":"INFO","pid":42,"thread":"0x7fff7d2a8000","message":"message 2",\
         "class":"ml","method":"core::SomeNoiseMaker","file":"Noisemaker.cc","line":333}
+        """;
+
+    protected static final String NESTED_NDJSON_SAMPLE = """
+        {"host": {"id": 1, "category": "NETWORKING DEVICE"}, "timestamp": "1478261151445"}
+        {"host": {"id": 2, "category": "COMPUTE NODE"}, "timestamp": "1478261151445"}
         """;
 
     protected static final String PIPE_DELIMITED_SAMPLE = """
@@ -89,8 +101,25 @@ public abstract class TextStructureTestCase extends ESTestCase {
 
     // This doesn't need closing because it has an infinite timeout
     protected static final TimeoutChecker NOOP_TIMEOUT_CHECKER = new TimeoutChecker("unit test", null, null);
+    protected static final ClusterSettings CLUSTER_SETTINGS = new ClusterSettings(
+        Settings.EMPTY,
+        ClusterSettings.BUILT_IN_CLUSTER_SETTINGS
+    );
 
     protected List<String> explanation;
+
+    protected void assertKeyAndMappedType(Map<String, Object> mappings, String expectedKey, String expectedType) {
+        assertThat(mappings, hasKey(expectedKey));
+        assertThat(mappings.get(expectedKey), equalTo(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, expectedType)));
+    }
+
+    protected void assertKeyAndMappedTime(Map<String, Object> mappings, String expectedKey, String expectedType, String expectedFormat) {
+        assertThat(mappings, hasKey(expectedKey));
+        Map<String, String> expectedTimeMapping = new HashMap<>();
+        expectedTimeMapping.put(TextStructureUtils.MAPPING_TYPE_SETTING, expectedType);
+        expectedTimeMapping.put(TextStructureUtils.MAPPING_FORMAT_SETTING, expectedFormat);
+        assertThat(mappings.get(expectedKey), equalTo(expectedTimeMapping));
+    }
 
     @Before
     public void initExplanation() {

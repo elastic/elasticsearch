@@ -528,7 +528,8 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
                 inferredFailureSnapshot,
                 snapshotInfoSuccess.snapshotId(),
                 snapshotInfoFailure1.snapshotId(),
-                snapshotInfoFailure2.snapshotId()
+                snapshotInfoFailure2.snapshotId(),
+                initiatingSnapshot
             )
         );
         var inProgress = Map.of(policyId, List.of(stillRunning));

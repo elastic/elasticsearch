@@ -1,6 +1,0 @@
-pr: 133074
-summary: Adds transport-only flag to always include indices in the field caps transport
-  response
-area: Mapping
-type: enhancement
-issues: []

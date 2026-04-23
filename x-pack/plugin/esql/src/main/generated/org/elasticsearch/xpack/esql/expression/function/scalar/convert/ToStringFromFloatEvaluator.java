@@ -13,28 +13,28 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.FloatVector;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToString}.
+ * {@link ExpressionEvaluator} implementation for {@link ToString}.
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToStringFromFloatEvaluator extends AbstractConvertFunction.AbstractEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToStringFromFloatEvaluator.class);
 
-  private final EvalOperator.ExpressionEvaluator flt;
+  private final ExpressionEvaluator flt;
 
-  public ToStringFromFloatEvaluator(Source source, EvalOperator.ExpressionEvaluator flt,
+  public ToStringFromFloatEvaluator(Source source, ExpressionEvaluator flt,
       DriverContext driverContext) {
     super(driverContext, source);
     this.flt = flt;
   }
 
   @Override
-  public EvalOperator.ExpressionEvaluator next() {
+  public ExpressionEvaluator next() {
     return flt;
   }
 
@@ -110,12 +110,12 @@ public final class ToStringFromFloatEvaluator extends AbstractConvertFunction.Ab
     return baseRamBytesUsed;
   }
 
-  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  public static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory flt;
+    private final ExpressionEvaluator.Factory flt;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory flt) {
+    public Factory(Source source, ExpressionEvaluator.Factory flt) {
       this.source = source;
       this.flt = flt;
     }

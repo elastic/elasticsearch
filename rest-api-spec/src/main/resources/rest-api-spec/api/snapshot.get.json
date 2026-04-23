@@ -72,7 +72,7 @@
         "description": "Allows setting a sort order for the result. Defaults to start_time"
       },
       "size": {
-        "type": "integer",
+        "type": "int",
         "default": 0,
         "description": "Maximum number of snapshots to return. Defaults to 0 which means return all that match without limit."
       },
@@ -94,7 +94,7 @@
         "description": "Offset identifier to start pagination from as returned by the 'next' field in the response body."
       },
       "offset": {
-        "type": "integer",
+        "type": "int",
         "default": 0,
         "description": "Numeric offset to start pagination based on the snapshots matching the request. Defaults to 0"
       },
@@ -109,7 +109,14 @@
       },
       "state": {
         "type": "list",
-        "description": "Filter snapshots by a comma-separated list of states. Valid state values are 'SUCCESS', 'IN_PROGRESS', 'FAILED', 'PARTIAL', or 'INCOMPATIBLE'."
+        "description": "Filter snapshots by a comma-separated list of states. Valid state values are 'SUCCESS', 'IN_PROGRESS', 'FAILED', 'PARTIAL', or 'INCOMPATIBLE'.",
+        "options": [
+          "IN_PROGRESS",
+          "SUCCESS",
+          "FAILED",
+          "PARTIAL",
+          "INCOMPATIBLE"
+        ]
       }
     }
   }

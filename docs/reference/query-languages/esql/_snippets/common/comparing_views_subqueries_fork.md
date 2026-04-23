@@ -22,8 +22,7 @@ All of these approaches to parallel processing are bound by the same maximum bra
 The `FORK` command never includes a `FROM` command, and relies entirely on an existing query to provide the incoming columns.
 This also means that all branches will receive identical incoming data, the same columns and the same rows.
 This is not true of subqueries or views, which can receive completely different columns and rows from their own `FROM` commands.
-Nested branches are not allowed, which means `FORK` branches cannot contain other `FORK` commands.
-In fact it is not allowed to use more than one `FORK` command in the same query.
+Only one `FORK` command is allowed per query, so nested branches are not possible.
 This limitation is partially true for views and subqueries, but to a lesser extent as described below.
 
 ### Differences between views and subqueries

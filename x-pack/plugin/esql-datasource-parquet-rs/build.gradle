@@ -28,14 +28,15 @@ dependencies {
   // Native access for Rust FFI
   compileOnly project(':libs:native')
 
-  // Arrow C Data Interface for schema FFI
-  implementation("org.apache.arrow:arrow-c-data:18.3.0") {
-    exclude group: 'org.slf4j'
-  }
-  implementation(project(':libs:arrow'))
-
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
+
+  // Arrow C Data Interface — used in tests to validate schema FFI output.
+  // The PR will promote these to implementation when production code uses them.
+  testImplementation("org.apache.arrow:arrow-c-data:18.3.0") {
+    exclude group: 'org.slf4j'
+  }
+  testImplementation(project(':libs:arrow'))
 
   // Parquet writing for test fixtures
   testImplementation("org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}")
@@ -45,20 +46,6 @@ dependencies {
   // references GeospatialStatistics which requires JTS. Normally resolved transitively
   // via esql-core, but this module does not depend on esql-core.
   testImplementation("org.locationtech.jts:jts-core:1.20.0")
-}
-
-tasks.named("thirdPartyAudit").configure {
-  ignoreMissingClasses()
-}
-
-tasks.named("dependencyLicenses").configure {
-  mapping from: /arrow-.*/, to: 'arrow'
-  mapping from: /parquet-.*/, to: 'parquet'
-  mapping from: /hadoop-.*/, to: 'hadoop'
-  mapping from: /jackson-.*/, to: 'jackson'
-  mapping from: /slf4j-.*/, to: 'slf4j'
-  mapping from: /checker-qual.*/, to: 'checker-qual'
-  mapping from: /flatbuffers-.*/, to: 'flatbuffers'
 }
 
 tasks.named("test").configure {

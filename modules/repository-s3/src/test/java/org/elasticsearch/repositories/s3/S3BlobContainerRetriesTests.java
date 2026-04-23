@@ -87,9 +87,9 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.IntConsumer;
 import java.util.regex.Pattern;
 
@@ -501,7 +501,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final int nbErrors = 2; // we want all requests to fail at least once
         final CountDown countDownInitiate = new CountDown(nbErrors);
         final AtomicInteger counterUploads = new AtomicInteger(0);
-        final AtomicLong bytesReceived = new AtomicLong(0L);
+        final ConcurrentHashMap<String, Integer> bytesReceivedByPart = new ConcurrentHashMap<>();
         final CountDown countDownComplete = new CountDown(nbErrors);
 
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "write_large_blob_streaming"), exchange -> {
@@ -529,7 +529,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 BytesReference bytes = Streams.readFully(exchange.getRequestBody());
 
                 if (counterUploads.incrementAndGet() % 2 == 0) {
-                    bytesReceived.addAndGet(bytes.length());
+                    bytesReceivedByPart.computeIfAbsent(s3Request.getQueryParamOnce("partNumber"), ignored -> bytes.length());
                     exchange.getResponseHeaders().add("ETag", getBase16MD5Digest(bytes));
                     exchange.sendResponseHeaders(HttpStatus.SC_OK, -1);
                     exchange.close();
@@ -592,7 +592,8 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             }
         });
 
-        assertEquals(blobSize, bytesReceived.get());
+        final long totalBytesReceived = bytesReceivedByPart.values().stream().mapToLong(Integer::longValue).sum();
+        assertEquals(blobSize, totalBytesReceived);
     }
 
     public void testMaxConnections() throws InterruptedException, IOException {

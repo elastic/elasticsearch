@@ -1067,6 +1067,24 @@ PromQL avg aggregation:
   - length: {values: 1}
 
 ---
+PromQL unknown function error:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [promql_resolve_unkown]
+      reason: "PromQL support"
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'PROMQL index=test step=1m result=(non_existent_function(k8s.pod.network.tx))'
+
+  - match: { error.reason: '/(verification_exception:\ )?Found\ 1\ problem\nline\ [0-9]+:[0-9]+:\ Unknown\ PromQL\ function\ \[non_existent_function\]/' }
+
+---
 Stats on aggregate_metric_double with no count, but has sum:
   - requires:
       test_runner_features: [ capabilities ]

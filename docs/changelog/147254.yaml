@@ -1,0 +1,5 @@
+area: Reindex
+issues: []
+pr: 147254
+summary: "[8.19] Fix Reindexing Slicing Bug"
+type: bug

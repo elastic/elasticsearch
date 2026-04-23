@@ -24,20 +24,20 @@ import static org.hamcrest.Matchers.nullValue;
 public class JobHealthCheckerTests extends ESTestCase {
 
     public void testClosedJobIsGreen() {
-        AnomalyDetectionHealth health = JobHealthChecker.checkJob(JobState.CLOSED, null, null, null);
+        AnomalyDetectionHealth health = JobHealthChecker.checkJob(JobState.CLOSED, null, null, null, null);
         assertThat(health.getStatus(), is(HealthStatus.GREEN));
         assertThat(health.getIssues(), nullValue());
     }
 
     public void testOpenedJobWithNoIssuesIsGreen() {
         ModelSizeStats modelSizeStats = new ModelSizeStats.Builder("job").setMemoryStatus(MemoryStatus.OK).build();
-        AnomalyDetectionHealth health = JobHealthChecker.checkJob(JobState.OPENED, null, null, modelSizeStats);
+        AnomalyDetectionHealth health = JobHealthChecker.checkJob(JobState.OPENED, null, null, null, modelSizeStats);
         assertThat(health.getStatus(), is(HealthStatus.GREEN));
         assertThat(health.getIssues(), nullValue());
     }
 
     public void testFailedJobIsRed() {
-        AnomalyDetectionHealth health = JobHealthChecker.checkJob(JobState.FAILED, null, "task failed due to exception", null);
+        AnomalyDetectionHealth health = JobHealthChecker.checkJob(JobState.FAILED, null, null, "task failed due to exception", null);
         assertThat(health.getStatus(), is(HealthStatus.RED));
         assertThat(health.getIssues(), hasSize(1));
         assertThat(health.getIssues().get(0).getType(), is(JobHealthChecker.IssueType.JOB_TASK_FAILED.type));
@@ -49,6 +49,7 @@ public class JobHealthCheckerTests extends ESTestCase {
             JobState.OPENING,
             null,
             "not enough nodes with ML enabled",
+            null,
             null
         );
         assertThat(health.getStatus(), is(HealthStatus.RED));
@@ -58,7 +59,7 @@ public class JobHealthCheckerTests extends ESTestCase {
 
     public void testModelMemorySoftLimitIsYellow() {
         ModelSizeStats modelSizeStats = new ModelSizeStats.Builder("job").setMemoryStatus(MemoryStatus.SOFT_LIMIT).build();
-        AnomalyDetectionHealth health = JobHealthChecker.checkJob(JobState.OPENED, null, null, modelSizeStats);
+        AnomalyDetectionHealth health = JobHealthChecker.checkJob(JobState.OPENED, null, null, null, modelSizeStats);
         assertThat(health.getStatus(), is(HealthStatus.YELLOW));
         assertThat(health.getIssues(), hasSize(1));
         assertThat(health.getIssues().get(0).getType(), is(JobHealthChecker.IssueType.MODEL_MEMORY_SOFT_LIMIT.type));
@@ -66,7 +67,7 @@ public class JobHealthCheckerTests extends ESTestCase {
 
     public void testModelMemoryHardLimitIsRed() {
         ModelSizeStats modelSizeStats = new ModelSizeStats.Builder("job").setMemoryStatus(MemoryStatus.HARD_LIMIT).build();
-        AnomalyDetectionHealth health = JobHealthChecker.checkJob(JobState.OPENED, null, null, modelSizeStats);
+        AnomalyDetectionHealth health = JobHealthChecker.checkJob(JobState.OPENED, null, null, null, modelSizeStats);
         assertThat(health.getStatus(), is(HealthStatus.RED));
         assertThat(health.getIssues(), hasSize(1));
         assertThat(health.getIssues().get(0).getType(), is(JobHealthChecker.IssueType.MODEL_MEMORY_HARD_LIMIT.type));
@@ -77,16 +78,15 @@ public class JobHealthCheckerTests extends ESTestCase {
             .setMemoryStatus(MemoryStatus.OK)
             .setCategorizationStatus(CategorizationStatus.WARN)
             .build();
-        AnomalyDetectionHealth health = JobHealthChecker.checkJob(JobState.OPENED, null, null, modelSizeStats);
+        AnomalyDetectionHealth health = JobHealthChecker.checkJob(JobState.OPENED, null, null, null, modelSizeStats);
         assertThat(health.getStatus(), is(HealthStatus.YELLOW));
         assertThat(health.getIssues(), hasSize(1));
         assertThat(health.getIssues().get(0).getType(), is(JobHealthChecker.IssueType.CATEGORIZATION_WARNING.type));
     }
 
     public void testHardLimitTakesPrecedenceOverSoftLimit() {
-        // Hard limit is RED; soft limit is YELLOW — hard limit should win
         ModelSizeStats modelSizeStats = new ModelSizeStats.Builder("job").setMemoryStatus(MemoryStatus.HARD_LIMIT).build();
-        AnomalyDetectionHealth health = JobHealthChecker.checkJob(JobState.OPENED, null, null, modelSizeStats);
+        AnomalyDetectionHealth health = JobHealthChecker.checkJob(JobState.OPENED, null, null, null, modelSizeStats);
         assertThat(health.getStatus(), is(HealthStatus.RED));
     }
 
@@ -96,14 +96,14 @@ public class JobHealthCheckerTests extends ESTestCase {
             .setMemoryStatus(MemoryStatus.HARD_LIMIT)
             .setCategorizationStatus(CategorizationStatus.WARN)
             .build();
-        AnomalyDetectionHealth health = JobHealthChecker.checkJob(JobState.OPENED, null, null, modelSizeStats);
+        AnomalyDetectionHealth health = JobHealthChecker.checkJob(JobState.OPENED, null, null, null, modelSizeStats);
         assertThat(health.getStatus(), is(HealthStatus.RED));
         assertThat(health.getIssues(), notNullValue());
         assertThat(health.getIssues().size(), is(2));
     }
 
     public void testNullModelSizeStatsDoesNotThrow() {
-        AnomalyDetectionHealth health = JobHealthChecker.checkJob(JobState.OPENED, null, null, null);
+        AnomalyDetectionHealth health = JobHealthChecker.checkJob(JobState.OPENED, null, null, null, null);
         assertThat(health.getStatus(), is(HealthStatus.GREEN));
         assertThat(health.getIssues(), nullValue());
     }

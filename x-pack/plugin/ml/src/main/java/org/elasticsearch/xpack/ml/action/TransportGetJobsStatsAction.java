@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction.Response.JobStats;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
+import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
@@ -155,6 +156,8 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
             DiscoveryNode node = state.nodes().get(pTask.getExecutorNode());
             JobState jobState = MlTasks.getJobState(jobId, tasks);
             String assignmentExplanation = pTask.getAssignment().getExplanation();
+            JobTaskState jobTaskState = (JobTaskState) pTask.getState();
+            String failureReason = jobTaskState != null ? jobTaskState.getReason() : null;
             TimeValue openTime = processManager.jobOpenTime(task).map(value -> TimeValue.timeValueSeconds(value.getSeconds())).orElse(null);
             jobResultsProvider.getForecastStats(jobId, parentTaskId, forecastStats -> {
                 JobStats jobStats = new JobStats(
@@ -167,7 +170,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
                     assignmentExplanation,
                     openTime,
                     timingStats,
-                    JobHealthChecker.checkJob(jobState, node, assignmentExplanation, modelSizeStats)
+                    JobHealthChecker.checkJob(jobState, node, assignmentExplanation, failureReason, modelSizeStats)
                 );
                 listener.onResponse(new QueryPage<>(Collections.singletonList(jobStats), 1, Job.RESULTS_FIELD));
             }, listener::onFailure);
@@ -220,8 +223,11 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
                                     JobState jobState = MlTasks.getJobState(jobId, tasks);
                                     PersistentTasksCustomMetadata.PersistentTask<?> pTask = MlTasks.getJobTask(jobId, tasks);
                                     String assignmentExplanation = null;
+                                    String failureReason = null;
                                     if (pTask != null) {
                                         assignmentExplanation = pTask.getAssignment().getExplanation();
+                                        JobTaskState jobTaskState = (JobTaskState) pTask.getState();
+                                        failureReason = jobTaskState != null ? jobTaskState.getReason() : null;
                                     }
                                     jobStats.set(
                                         slot,
@@ -235,7 +241,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
                                             assignmentExplanation,
                                             null,
                                             timingStats,
-                                            JobHealthChecker.checkJob(jobState, null, assignmentExplanation, modelSizeStats)
+                                            JobHealthChecker.checkJob(jobState, null, assignmentExplanation, failureReason, modelSizeStats)
                                         )
                                     );
                                     if (counter.decrementAndGet() == 0) {

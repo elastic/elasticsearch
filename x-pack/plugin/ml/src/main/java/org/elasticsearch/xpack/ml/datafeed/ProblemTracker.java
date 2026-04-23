@@ -42,6 +42,7 @@ class ProblemTracker {
     private volatile Instant extractionFailureFirstTime;
     private volatile int analysisFailureCount;
     private volatile Instant analysisFailureFirstTime;
+    private volatile boolean analysisFailureFatal;
 
     ProblemTracker(AnomalyDetectionAuditor auditor, String jobId, long numberOfSearchesInADay) {
         this.auditor = Objects.requireNonNull(auditor);
@@ -60,6 +61,9 @@ class ProblemTracker {
             analysisFailureFirstTime = Instant.now();
         }
         analysisFailureCount++;
+        if (error.shouldStop) {
+            analysisFailureFatal = true;
+        }
         reportProblem(Messages.JOB_AUDIT_DATAFEED_DATA_ANALYSIS_ERROR, ExceptionsHelper.unwrapCause(error).getMessage());
     }
 
@@ -111,6 +115,7 @@ class ProblemTracker {
         extractionFailureFirstTime = null;
         analysisFailureCount = 0;
         analysisFailureFirstTime = null;
+        analysisFailureFatal = false;
     }
 
     public boolean hasProblems() {
@@ -149,6 +154,11 @@ class ProblemTracker {
     /** @return timestamp of the first analysis failure in the current streak, or {@code null} if none. */
     public Instant getAnalysisFailureFirstTime() {
         return analysisFailureFirstTime;
+    }
+
+    /** @return true if any analysis failure in the current streak was fatal (e.g. a conflict exception meaning the job was closed). */
+    public boolean isAnalysisFailureFatal() {
+        return analysisFailureFatal;
     }
 
     /** @return number of consecutive empty data cycles since the last non-empty result. */

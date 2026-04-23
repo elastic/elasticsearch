@@ -38,7 +38,7 @@ public class DatafeedHealthCheckerTests extends ESTestCase {
     }
 
     public void testStartedWithNoIssuesIsGreen() {
-        DatafeedProblemStats stats = new DatafeedProblemStats(0, null, 0, null, 0);
+        DatafeedProblemStats stats = new DatafeedProblemStats(0, null, 0, null, 0, false);
         AnomalyDetectionHealth health = DatafeedHealthChecker.checkDatafeed(
             DatafeedState.STARTED, null, null, null, stats
         );
@@ -58,7 +58,7 @@ public class DatafeedHealthCheckerTests extends ESTestCase {
         DatafeedProblemStats stats = new DatafeedProblemStats(
             DatafeedHealthChecker.RED_STATUS_FAILURE_COUNT_BOUNDARY,
             Instant.now(),
-            0, null, 0
+            0, null, 0, false
         );
         AnomalyDetectionHealth health = DatafeedHealthChecker.checkDatafeed(
             DatafeedState.STARTED, null, null, null, stats
@@ -72,7 +72,7 @@ public class DatafeedHealthCheckerTests extends ESTestCase {
         DatafeedProblemStats stats = new DatafeedProblemStats(
             DatafeedHealthChecker.RED_STATUS_FAILURE_COUNT_BOUNDARY + 1,
             Instant.now(),
-            0, null, 0
+            0, null, 0, false
         );
         AnomalyDetectionHealth health = DatafeedHealthChecker.checkDatafeed(
             DatafeedState.STARTED, null, null, null, stats
@@ -83,7 +83,7 @@ public class DatafeedHealthCheckerTests extends ESTestCase {
 
     public void testAnalysisFailuresBelowBoundaryIsYellow() {
         DatafeedProblemStats stats = new DatafeedProblemStats(0, null,
-            DatafeedHealthChecker.RED_STATUS_FAILURE_COUNT_BOUNDARY, Instant.now(), 0
+            DatafeedHealthChecker.RED_STATUS_FAILURE_COUNT_BOUNDARY, Instant.now(), 0, false
         );
         AnomalyDetectionHealth health = DatafeedHealthChecker.checkDatafeed(
             DatafeedState.STARTED, null, null, null, stats
@@ -94,7 +94,7 @@ public class DatafeedHealthCheckerTests extends ESTestCase {
 
     public void testAnalysisFailuresAboveBoundaryIsRed() {
         DatafeedProblemStats stats = new DatafeedProblemStats(0, null,
-            DatafeedHealthChecker.RED_STATUS_FAILURE_COUNT_BOUNDARY + 1, Instant.now(), 0
+            DatafeedHealthChecker.RED_STATUS_FAILURE_COUNT_BOUNDARY + 1, Instant.now(), 0, false
         );
         AnomalyDetectionHealth health = DatafeedHealthChecker.checkDatafeed(
             DatafeedState.STARTED, null, null, null, stats
@@ -102,8 +102,18 @@ public class DatafeedHealthCheckerTests extends ESTestCase {
         assertThat(health.getStatus(), is(HealthStatus.RED));
     }
 
+    public void testFatalAnalysisFailureIsRedEvenBelowBoundary() {
+        // A single fatal analysis failure (e.g. conflict that closed the job) must be RED immediately
+        DatafeedProblemStats stats = new DatafeedProblemStats(0, null, 1, Instant.now(), 0, true);
+        AnomalyDetectionHealth health = DatafeedHealthChecker.checkDatafeed(
+            DatafeedState.STARTED, null, null, null, stats
+        );
+        assertThat(health.getStatus(), is(HealthStatus.RED));
+        assertThat(health.getIssues().get(0).getType(), is(DatafeedHealthChecker.IssueType.DATA_ANALYSIS_ERROR.type));
+    }
+
     public void testEmptyDataBelowThresholdIsGreen() {
-        DatafeedProblemStats stats = new DatafeedProblemStats(0, null, 0, null, 9);
+        DatafeedProblemStats stats = new DatafeedProblemStats(0, null, 0, null, 9, false);
         AnomalyDetectionHealth health = DatafeedHealthChecker.checkDatafeed(
             DatafeedState.STARTED, null, null, null, stats
         );
@@ -111,7 +121,7 @@ public class DatafeedHealthCheckerTests extends ESTestCase {
     }
 
     public void testEmptyDataAtThresholdIsYellow() {
-        DatafeedProblemStats stats = new DatafeedProblemStats(0, null, 0, null, 10);
+        DatafeedProblemStats stats = new DatafeedProblemStats(0, null, 0, null, 10, false);
         AnomalyDetectionHealth health = DatafeedHealthChecker.checkDatafeed(
             DatafeedState.STARTED, null, null, null, stats
         );

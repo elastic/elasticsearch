@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeSta
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Computes the {@link AnomalyDetectionHealth} for a single anomaly detection job
@@ -63,6 +64,7 @@ public final class JobHealthChecker {
      * @param state                 the current {@link JobState}
      * @param node                  the node the job is assigned to, or {@code null} if unassigned
      * @param assignmentExplanation the assignment explanation string from the persistent task, may be {@code null}
+     * @param failureReason         the failure reason from {@code JobTaskState}, populated when state is FAILED, may be {@code null}
      * @param modelSizeStats        current model size stats, or {@code null} if not yet available
      * @return the computed health object; never {@code null}
      */
@@ -70,6 +72,7 @@ public final class JobHealthChecker {
         JobState state,
         @Nullable DiscoveryNode node,
         @Nullable String assignmentExplanation,
+        @Nullable String failureReason,
         @Nullable ModelSizeStats modelSizeStats
     ) {
         if (state == JobState.CLOSED) {
@@ -96,7 +99,7 @@ public final class JobHealthChecker {
             issues.add(new AnomalyDetectionHealthIssue(
                 IssueType.JOB_TASK_FAILED.type,
                 IssueType.JOB_TASK_FAILED.title,
-                assignmentExplanation,
+                failureReason,
                 1,
                 null
             ));
@@ -110,7 +113,7 @@ public final class JobHealthChecker {
                 issues.add(new AnomalyDetectionHealthIssue(
                     IssueType.MODEL_MEMORY_HARD_LIMIT.type,
                     IssueType.MODEL_MEMORY_HARD_LIMIT.title,
-                    null,
+                    hardLimitDetails(modelSizeStats),
                     1,
                     null
                 ));
@@ -119,7 +122,7 @@ public final class JobHealthChecker {
                 issues.add(new AnomalyDetectionHealthIssue(
                     IssueType.MODEL_MEMORY_SOFT_LIMIT.type,
                     IssueType.MODEL_MEMORY_SOFT_LIMIT.title,
-                    null,
+                    softLimitDetails(modelSizeStats),
                     1,
                     null
                 ));
@@ -130,7 +133,7 @@ public final class JobHealthChecker {
                 issues.add(new AnomalyDetectionHealthIssue(
                     IssueType.CATEGORIZATION_WARNING.type,
                     IssueType.CATEGORIZATION_WARNING.title,
-                    null,
+                    categorizationDetails(modelSizeStats),
                     1,
                     null
                 ));
@@ -142,6 +145,49 @@ public final class JobHealthChecker {
             return AnomalyDetectionHealth.GREEN;
         }
         return new AnomalyDetectionHealth(maxStatus, issues);
+    }
+
+    private static String softLimitDetails(ModelSizeStats modelSizeStats) {
+        Long memoryLimit = modelSizeStats.getModelBytesMemoryLimit();
+        if (memoryLimit == null) {
+            return "The model is using aggressive pruning to stay within the memory limit. Results accuracy may be reduced.";
+        }
+        return "Job requires approximately "
+            + modelSizeStats.getModelBytes()
+            + " bytes of memory. The limit is "
+            + memoryLimit
+            + " bytes. The model is using aggressive pruning to stay within the limit. Results accuracy may be reduced.";
+    }
+
+    private static String hardLimitDetails(ModelSizeStats modelSizeStats) {
+        Long memoryLimit = modelSizeStats.getModelBytesMemoryLimit();
+        Long bytesExceeded = modelSizeStats.getModelBytesExceeded();
+        if (memoryLimit == null) {
+            return "The model has exceeded its memory limit. Some model data may have been dropped.";
+        }
+        String base = "Job requires approximately "
+            + modelSizeStats.getModelBytes()
+            + " bytes of memory. The limit is "
+            + memoryLimit
+            + " bytes.";
+        if (bytesExceeded != null && bytesExceeded > 0) {
+            base += " An estimated " + bytesExceeded + " bytes of model memory have been dropped.";
+        }
+        return base;
+    }
+
+    private static String categorizationDetails(ModelSizeStats modelSizeStats) {
+        return "Categorization status is ["
+            + modelSizeStats.getCategorizationStatus().name().toLowerCase(Locale.ROOT)
+            + "]. Total categories: "
+            + modelSizeStats.getTotalCategoryCount()
+            + ", frequent: "
+            + modelSizeStats.getFrequentCategoryCount()
+            + ", rare: "
+            + modelSizeStats.getRareCategoryCount()
+            + ", dead: "
+            + modelSizeStats.getDeadCategoryCount()
+            + ".";
     }
 
     private static HealthStatus max(HealthStatus a, HealthStatus b) {

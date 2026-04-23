@@ -281,7 +281,8 @@ public class DatafeedRunner {
             pt.getExtractionFailureFirstTime(),
             pt.getAnalysisFailureCount(),
             pt.getAnalysisFailureFirstTime(),
-            pt.getEmptyDataCount()
+            pt.getEmptyDataCount(),
+            pt.isAnalysisFailureFatal()
         );
     }
 

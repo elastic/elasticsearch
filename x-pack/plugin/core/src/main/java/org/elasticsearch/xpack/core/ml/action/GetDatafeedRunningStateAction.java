@@ -96,19 +96,22 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
             @Nullable
             private final Instant analysisFailureFirstTime;
             private final int emptyDataCount;
+            private final boolean analysisFailureFatal;
 
             public DatafeedProblemStats(
                 int extractionFailureCount,
                 @Nullable Instant extractionFailureFirstTime,
                 int analysisFailureCount,
                 @Nullable Instant analysisFailureFirstTime,
-                int emptyDataCount
+                int emptyDataCount,
+                boolean analysisFailureFatal
             ) {
                 this.extractionFailureCount = extractionFailureCount;
                 this.extractionFailureFirstTime = extractionFailureFirstTime;
                 this.analysisFailureCount = analysisFailureCount;
                 this.analysisFailureFirstTime = analysisFailureFirstTime;
                 this.emptyDataCount = emptyDataCount;
+                this.analysisFailureFatal = analysisFailureFatal;
             }
 
             public DatafeedProblemStats(StreamInput in) throws IOException {
@@ -117,6 +120,7 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
                 this.analysisFailureCount = in.readVInt();
                 this.analysisFailureFirstTime = in.readOptionalInstant();
                 this.emptyDataCount = in.readVInt();
+                this.analysisFailureFatal = in.readBoolean();
             }
 
             @Override
@@ -126,6 +130,7 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
                 out.writeVInt(analysisFailureCount);
                 out.writeOptionalInstant(analysisFailureFirstTime);
                 out.writeVInt(emptyDataCount);
+                out.writeBoolean(analysisFailureFatal);
             }
 
             public int getExtractionFailureCount() {
@@ -150,6 +155,10 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
                 return emptyDataCount;
             }
 
+            public boolean isAnalysisFailureFatal() {
+                return analysisFailureFatal;
+            }
+
             @Override
             public boolean equals(Object o) {
                 if (this == o) return true;
@@ -158,6 +167,7 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
                 return extractionFailureCount == that.extractionFailureCount
                     && analysisFailureCount == that.analysisFailureCount
                     && emptyDataCount == that.emptyDataCount
+                    && analysisFailureFatal == that.analysisFailureFatal
                     && Objects.equals(extractionFailureFirstTime, that.extractionFailureFirstTime)
                     && Objects.equals(analysisFailureFirstTime, that.analysisFailureFirstTime);
             }
@@ -169,7 +179,8 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
                     extractionFailureFirstTime,
                     analysisFailureCount,
                     analysisFailureFirstTime,
-                    emptyDataCount
+                    emptyDataCount,
+                    analysisFailureFatal
                 );
             }
         }

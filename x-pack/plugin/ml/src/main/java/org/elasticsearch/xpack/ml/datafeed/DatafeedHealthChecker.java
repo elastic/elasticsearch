@@ -114,10 +114,11 @@ public final class DatafeedHealthChecker {
                 maxStatus = max(maxStatus, severity);
             }
 
-            // DATA_ANALYSIS_ERROR: escalates to RED after RED_STATUS_FAILURE_COUNT_BOUNDARY failures
+            // DATA_ANALYSIS_ERROR: RED immediately if any failure was fatal (conflict closed the job),
+            // or after RED_STATUS_FAILURE_COUNT_BOUNDARY cumulative failures
             int analysisCount = problemStats.getAnalysisFailureCount();
             if (analysisCount > 0) {
-                HealthStatus severity = analysisCount > RED_STATUS_FAILURE_COUNT_BOUNDARY
+                HealthStatus severity = (problemStats.isAnalysisFailureFatal() || analysisCount > RED_STATUS_FAILURE_COUNT_BOUNDARY)
                     ? HealthStatus.RED
                     : HealthStatus.YELLOW;
                 issues.add(new AnomalyDetectionHealthIssue(

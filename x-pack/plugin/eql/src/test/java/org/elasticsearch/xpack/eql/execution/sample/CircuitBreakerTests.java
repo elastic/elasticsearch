@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.eql.execution.sample;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -32,6 +33,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -68,6 +70,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -169,6 +172,87 @@ public class CircuitBreakerTests extends ESTestCase {
             assertEquals(0, eqlCircuitBreaker.getTrippedCount()); // the circuit breaker shouldn't trip
             assertEquals(0, eqlCircuitBreaker.getUsed()); // the circuit breaker memory should be clear
         }
+    }
+
+    /**
+     * Regression test for <a href="https://github.com/elastic/elasticsearch/issues/146187">#146187</a>:
+     * when the search has already completed successfully and the subsequent PIT close fails,
+     * the failure must not be propagated back to the outer listener, which has already been invoked.
+     */
+    public void testCloseFailureDoesNotInvokeListenerTwice() {
+        QueryClient client = new QueryClient() {
+            @Override
+            public void query(QueryRequest r, ActionListener<SearchResponse> l) {
+                SearchHits hits = SearchHits.unpooled(SearchHits.EMPTY, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0.0f);
+                ActionListener.respondAndRelease(l, SearchResponseUtils.successfulResponse(hits));
+            }
+
+            @Override
+            public void close(ActionListener<Boolean> closed) {
+                closed.onFailure(new IllegalStateException("simulated PIT close failure"));
+            }
+
+            @Override
+            public void fetchHits(Iterable<List<HitReference>> refs, ActionListener<List<List<SearchHit>>> listener) {
+                listener.onResponse(Collections.emptyList());
+            }
+        };
+
+        SampleIterator iterator = new SampleIterator(
+            client,
+            mockCriteria(),
+            randomIntBetween(10, 500),
+            new Limit(1000, 0),
+            CIRCUIT_BREAKER,
+            1,
+            randomBoolean()
+        );
+
+        AtomicInteger responses = new AtomicInteger();
+        AtomicInteger failures = new AtomicInteger();
+        iterator.execute(ActionListener.assertOnce(wrap(p -> responses.incrementAndGet(), ex -> failures.incrementAndGet())));
+        assertEquals(1, responses.get());
+        assertEquals(0, failures.get());
+    }
+
+    /**
+     * When both the sample query and the subsequent PIT close fail, the outer listener
+     * must still be invoked exactly once (with the query failure), and the close failure
+     * must be swallowed/logged rather than re-delivered.
+     */
+    public void testQueryAndCloseFailureDoesNotInvokeListenerTwice() {
+        QueryClient client = new QueryClient() {
+            @Override
+            public void query(QueryRequest r, ActionListener<SearchResponse> l) {
+                l.onFailure(new IllegalStateException("simulated query failure"));
+            }
+
+            @Override
+            public void close(ActionListener<Boolean> closed) {
+                closed.onFailure(new IllegalStateException("simulated PIT close failure"));
+            }
+
+            @Override
+            public void fetchHits(Iterable<List<HitReference>> refs, ActionListener<List<List<SearchHit>>> listener) {
+                listener.onResponse(Collections.emptyList());
+            }
+        };
+
+        SampleIterator iterator = new SampleIterator(
+            client,
+            mockCriteria(),
+            randomIntBetween(10, 500),
+            new Limit(1000, 0),
+            CIRCUIT_BREAKER,
+            1,
+            randomBoolean()
+        );
+
+        AtomicInteger responses = new AtomicInteger();
+        AtomicInteger failures = new AtomicInteger();
+        iterator.execute(ActionListener.assertOnce(wrap(p -> responses.incrementAndGet(), ex -> failures.incrementAndGet())));
+        assertEquals(0, responses.get());
+        assertEquals(1, failures.get());
     }
 
     private Sample mockSample() {

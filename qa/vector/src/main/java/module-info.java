@@ -21,5 +21,4 @@ module org.elasticsearch.test.knn {
     requires org.apache.lucene.misc;
     requires org.elasticsearch.gpu;
     requires google.cloud.storage;
-    requires org.apache.commons.text;
 }

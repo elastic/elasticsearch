@@ -4343,7 +4343,7 @@ a:long | languages:integer
 2      | 1
 ;
 
-Sum expression with constant multiple clauses integer
+sumExpressionWithConstantMultipleClausesInteger
 FROM employees
 | STATS s1 = SUM(salary + 1), s2 = SUM(salary + 2)
 ;
@@ -4352,7 +4352,7 @@ s1:long  | s2:long
 4824955  | 4825055
 ;
 
-Sum expression with constant three clauses share one sv pair
+sumExpressionWithConstantThreeClausesShareOneSvPair
 FROM employees
 | STATS s1 = SUM(salary + 1), s2 = SUM(salary + 2), s3 = SUM(salary + 3)
 ;
@@ -4361,7 +4361,7 @@ s1:long  | s2:long  | s3:long
 4824955  | 4825055  | 4825155
 ;
 
-Sum expression with constant multiple clauses only single valued
+sumExpressionWithConstantMultipleClausesOnlySingleValued
 FROM employees
 | WHERE mv_count(salary_change) == 1
 | STATS s1 = round(SUM(salary_change + 1.0), 2), s2 = round(SUM(salary_change + 2.0), 2)
@@ -4371,7 +4371,7 @@ s1:double | s2:double
 -1.47     | 22.53
 ;
 
-Sum expression with constant multiple clauses subtraction
+sumExpressionWithConstantMultipleClausesSubtraction
 FROM employees
 | STATS s1 = SUM(salary + 1), s2 = SUM(salary - 2)
 ;
@@ -4380,7 +4380,7 @@ s1:long  | s2:long
 4824955  | 4824655
 ;
 
-Sum expression with constant minus field
+sumExpressionWithConstantMinusField
 FROM employees
 | STATS s1 = SUM(salary + 1), s2 = SUM(3 - salary)
 ;
@@ -4389,7 +4389,7 @@ s1:long  | s2:long
 4824955  | -4824555
 ;
 
-Sum expression with constant multiple clauses multi-value warning
+sumExpressionWithConstantMultipleClausesMultiValueWarning
 required_capability: rewrite_sum_of_expression_plus_constant
 row salary_change = [1.1, 2.2]
 | stats s1 = sum(salary_change + 1.0), s2 = sum(salary_change + 2.0)
@@ -4401,7 +4401,7 @@ s1:double | s2:double
 null       | null
 ;
 
-Sum expression with constant on null field
+sumExpressionWithConstantOnNullField
 FROM employees
 | WHERE salary_change IS NULL
 | STATS s = SUM(salary_change + 1.0)
@@ -4411,7 +4411,7 @@ s:double
 null
 ;
 
-Sum expression with constant multiple clauses with group by
+sumExpressionWithConstantMultipleClausesWithGroupBy
 FROM employees
 | STATS s1 = SUM(salary + 1), s2 = SUM(salary + 2) BY languages
 | SORT languages
@@ -4426,7 +4426,7 @@ s1:long  | s2:long  | languages:integer
 525206   | 525216   | null
 ;
 
-Sum expression with constant alongside bare sum of same field
+sumExpressionWithConstantAlongsideBareSumOfSameField
 FROM employees
 | STATS s1 = SUM(salary + 1), bare = SUM(salary), s2 = SUM(salary + 2)
 ;
@@ -4435,7 +4435,7 @@ s1:long  | bare:long | s2:long
 4824955  | 4824855   | 4825055
 ;
 
-Sum expression with constant duplicate alias shadowing
+sumExpressionWithConstantDuplicateAliasShadowing
 required_capability: stats_alias_collision_warnings
 FROM employees
 | STATS s = SUM(salary + 1), s = SUM(salary + 2)
@@ -4446,7 +4446,7 @@ s:long
 4825055
 ;
 
-Sum expression with constant foldable cast in constant position
+sumExpressionWithConstantFoldableCastInConstantPosition
 FROM employees
 | STATS s1 = SUM(salary + "1.0"::int), s2 = SUM(salary + TO_INTEGER("2"))
 ;
@@ -4455,7 +4455,7 @@ s1:long  | s2:long
 4824955  | 4825055
 ;
 
-Sum expression with null in data expression position
+sumExpressionWithNullInDataExpressionPosition
 FROM employees
 | STATS s1 = SUM(salary + null + 1), s2 = SUM(salary + null + 2)
 ;
@@ -4464,7 +4464,7 @@ s1:long | s2:long
 null    | null
 ;
 
-Sum expression with constant multiple clauses by grouping alias
+sumExpressionWithConstantMultipleClausesByGroupingAlias
 FROM employees
 | STATS s1 = SUM(salary + 1), s2 = SUM(salary + 2) BY l = languages
 | SORT l
@@ -4479,7 +4479,7 @@ s1:long  | s2:long  | l:integer
 525206   | 525216   | null
 ;
 
-Sum expression with constant count alongside
+sumExpressionWithConstantCountAlongside
 FROM employees
 | STATS s1 = SUM(salary + 1), c = COUNT(salary), s2 = SUM(salary + 2)
 ;
@@ -4488,7 +4488,7 @@ s1:long  | c:long | s2:long
 4824955  | 100    | 4825055
 ;
 
-Sum expression with constant shadowed bare sum
+sumExpressionWithConstantShadowedBareSum
 required_capability: stats_alias_collision_warnings
 FROM employees
 | STATS s1 = SUM(salary + 1), c = SUM(salary), c = COUNT(salary), s2 = SUM(salary + 2)

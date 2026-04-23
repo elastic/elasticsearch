@@ -11,6 +11,7 @@ package org.elasticsearch.rest.action.synonyms;
 
 import org.elasticsearch.action.synonyms.GetSynonymsAction;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -19,15 +20,14 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetSynonymsAction extends BaseRestHandler {
 
-    private static final Integer DEFAULT_FROM_PARAM = 0;
-    private static final Integer DEFAULT_SIZE_PARAM = 10;
+    private static final int DEFAULT_FROM_PARAM = 0;
+    private static final int DEFAULT_SIZE_PARAM = 10;
 
     @Override
     public String getName() {
@@ -48,9 +48,9 @@ public class RestGetSynonymsAction extends BaseRestHandler {
         int size = restRequest.paramAsInt("size", DEFAULT_SIZE_PARAM);
         int from = restRequest.paramAsInt("from", DEFAULT_FROM_PARAM);
         String searchAfterRaw = restRequest.param("search_after");
-        String searchAfter = (searchAfterRaw == null || searchAfterRaw.isBlank()) ? null : searchAfterRaw;
+        String searchAfter = Strings.isNullOrBlank(searchAfterRaw) ? null : searchAfterRaw;
         GetSynonymsAction.Request request;
-        if (from != 0) {
+        if (from != DEFAULT_FROM_PARAM) {
             // Legacy offset-based pagination (also catches negative from, which validation will reject)
             request = new GetSynonymsAction.Request(synonymsSet, from, size);
         } else {
@@ -58,10 +58,5 @@ public class RestGetSynonymsAction extends BaseRestHandler {
             request = new GetSynonymsAction.Request(synonymsSet, searchAfter, size);
         }
         return channel -> client.execute(GetSynonymsAction.INSTANCE, request, new RestToXContentListener<>(channel));
-    }
-
-    @Override
-    public Set<String> supportedCapabilities() {
-        return SynonymCapabilities.GET_SYNONYM_CAPABILITIES;
     }
 }

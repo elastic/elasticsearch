@@ -12,6 +12,7 @@ package org.elasticsearch.action.synonyms;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.synonyms.PagedResult;
 import org.elasticsearch.synonyms.SynonymRule;
 import org.elasticsearch.synonyms.SynonymsManagementAPIService;
@@ -33,6 +34,7 @@ public class GetSynonymsAction extends AbstractSynonymsPagedResultAction<GetSyno
 
     public static class Request extends AbstractSynonymsPagedResultAction.Request {
         private final String synonymsSetId;
+        @Nullable
         private final String searchAfter;
 
         public Request(StreamInput in) throws IOException {
@@ -54,7 +56,7 @@ public class GetSynonymsAction extends AbstractSynonymsPagedResultAction<GetSyno
         }
 
         /** Cursor-based request. {@code searchAfter} is {@code null} on the first page. */
-        public Request(String synonymsSetId, String searchAfter, int size) {
+        public Request(String synonymsSetId, @Nullable String searchAfter, int size) {
             super(0, size);
             Objects.requireNonNull(synonymsSetId, "Synonym set ID cannot be null");
             this.synonymsSetId = synonymsSetId;
@@ -74,6 +76,7 @@ public class GetSynonymsAction extends AbstractSynonymsPagedResultAction<GetSyno
             return synonymsSetId;
         }
 
+        @Nullable
         public String searchAfter() {
             return searchAfter;
         }

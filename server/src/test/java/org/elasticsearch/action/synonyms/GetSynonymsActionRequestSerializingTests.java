@@ -9,14 +9,28 @@
 
 package org.elasticsearch.action.synonyms;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 
 public class GetSynonymsActionRequestSerializingTests extends AbstractWireSerializingTestCase<GetSynonymsAction.Request> {
+
+    private final boolean cursorBased;
+
+    public GetSynonymsActionRequestSerializingTests(boolean cursorBased) {
+        this.cursorBased = cursorBased;
+    }
+
+    @ParametersFactory(argumentFormatting = "cursorBased=%s")
+    public static List<Object[]> parameters() {
+        return List.of(new Object[] { true }, new Object[] { false });
+    }
 
     @Override
     protected Writeable.Reader<GetSynonymsAction.Request> instanceReader() {
@@ -27,39 +41,49 @@ public class GetSynonymsActionRequestSerializingTests extends AbstractWireSerial
     protected GetSynonymsAction.Request createTestInstance() {
         String synonymsSetId = randomIdentifier();
         int size = randomIntBetween(0, Integer.MAX_VALUE);
-        if (randomBoolean()) {
-            // legacy offset-based: from is always > 0 so the two paths are distinguishable
-            return new GetSynonymsAction.Request(synonymsSetId, randomIntBetween(1, Integer.MAX_VALUE), size);
-        } else {
-            // cursor-based: from is always 0, searchAfter may be null (first page) or a rule ID
+        if (cursorBased) {
             return new GetSynonymsAction.Request(synonymsSetId, randomBoolean() ? null : randomIdentifier(), size);
+        } else {
+            return new GetSynonymsAction.Request(synonymsSetId, randomIntBetween(0, Integer.MAX_VALUE), size);
         }
     }
 
     @Override
     protected GetSynonymsAction.Request mutateInstance(GetSynonymsAction.Request instance) throws IOException {
         String synonymsSetId = instance.synonymsSetId();
-        int from = instance.from();
         int size = instance.size();
-        String searchAfter = instance.searchAfter();
-        if (from > 0) {
-            // legacy instance — mutate one of the three legacy fields
-            switch (between(0, 2)) {
-                case 0 -> synonymsSetId = randomValueOtherThan(synonymsSetId, () -> randomIdentifier());
-                case 1 -> from = randomValueOtherThan(from, () -> randomIntBetween(1, Integer.MAX_VALUE));
-                case 2 -> size = randomValueOtherThan(size, () -> randomIntBetween(0, Integer.MAX_VALUE));
+        if (cursorBased) {
+            String searchAfter = instance.searchAfter();
+            return switch (between(0, 2)) {
+                case 0 -> new GetSynonymsAction.Request(randomValueOtherThan(synonymsSetId, () -> randomIdentifier()), searchAfter, size);
+                case 1 -> new GetSynonymsAction.Request(
+                    synonymsSetId,
+                    randomValueOtherThan(searchAfter, () -> randomBoolean() ? null : randomIdentifier()),
+                    size
+                );
+                case 2 -> new GetSynonymsAction.Request(
+                    synonymsSetId,
+                    searchAfter,
+                    randomValueOtherThan(size, () -> randomIntBetween(0, Integer.MAX_VALUE))
+                );
                 default -> throw new AssertionError("Illegal randomisation branch");
-            }
-            return new GetSynonymsAction.Request(synonymsSetId, from, size);
+            };
         } else {
-            // cursor instance — mutate one of the three cursor fields
-            switch (between(0, 2)) {
-                case 0 -> synonymsSetId = randomValueOtherThan(synonymsSetId, () -> randomIdentifier());
-                case 1 -> size = randomValueOtherThan(size, () -> randomIntBetween(0, Integer.MAX_VALUE));
-                case 2 -> searchAfter = randomValueOtherThan(searchAfter, () -> randomBoolean() ? null : randomIdentifier());
+            int from = instance.from();
+            return switch (between(0, 2)) {
+                case 0 -> new GetSynonymsAction.Request(randomValueOtherThan(synonymsSetId, () -> randomIdentifier()), from, size);
+                case 1 -> new GetSynonymsAction.Request(
+                    synonymsSetId,
+                    randomValueOtherThan(from, () -> randomIntBetween(0, Integer.MAX_VALUE)),
+                    size
+                );
+                case 2 -> new GetSynonymsAction.Request(
+                    synonymsSetId,
+                    from,
+                    randomValueOtherThan(size, () -> randomIntBetween(0, Integer.MAX_VALUE))
+                );
                 default -> throw new AssertionError("Illegal randomisation branch");
-            }
-            return new GetSynonymsAction.Request(synonymsSetId, searchAfter, size);
+            };
         }
     }
 

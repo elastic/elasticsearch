@@ -148,12 +148,8 @@ setup:
 ---
 "Cursor-based pagination with search_after":
   - requires:
-      test_runner_features: [ capabilities ]
-      capabilities:
-        - method: GET
-          path: /_synonyms/{synonymsSet}
-          capabilities: [ synonyms_get_search_after ]
-      reason: "synonyms_get_search_after capability needed"
+      cluster_features: [ synonyms.get.search_after ]
+      reason: "cursor-based pagination via search_after requires synonyms.get.search_after"
 
   # First page: size=2, no search_after
   - do:
@@ -181,12 +177,8 @@ setup:
 ---
 "search_after on first page with exact page size returns cursor":
   - requires:
-      test_runner_features: [ capabilities ]
-      capabilities:
-        - method: GET
-          path: /_synonyms/{synonymsSet}
-          capabilities: [ synonyms_get_search_after ]
-      reason: "synonyms_get_search_after capability needed"
+      cluster_features: [ synonyms.get.search_after ]
+      reason: "cursor-based pagination via search_after requires synonyms.get.search_after"
 
   # Request exactly all 3 rules in one page — client uses last id as cursor
   - do:
@@ -209,14 +201,29 @@ setup:
   - length: { synonyms_set: 0 }
 
 ---
+"search_after on empty synonym set returns empty page":
+  - requires:
+      cluster_features: [ synonyms.get.search_after ]
+      reason: "cursor-based pagination via search_after requires synonyms.get.search_after"
+
+  - do:
+      synonyms.put_synonym:
+        id: empty-synonym-set
+        body:
+          synonyms_set: []
+
+  - do:
+      synonyms.get_synonym:
+        id: empty-synonym-set
+
+  - match: { count: 0 }
+  - length: { synonyms_set: 0 }
+
+---
 "from and search_after cannot be combined":
   - requires:
-      test_runner_features: [ capabilities ]
-      capabilities:
-        - method: GET
-          path: /_synonyms/{synonymsSet}
-          capabilities: [ synonyms_get_search_after ]
-      reason: "synonyms_get_search_after capability needed"
+      cluster_features: [ synonyms.get.search_after ]
+      reason: "cursor-based pagination via search_after requires synonyms.get.search_after"
 
   - do:
       catch: bad_request
@@ -224,6 +231,8 @@ setup:
         id: test-get-synonyms
         from: 1
         search_after: "test-id-1"
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "[from] and [search_after] cannot be used together" }
 
   - do:
       catch: bad_request
@@ -231,3 +240,5 @@ setup:
         id: test-get-synonyms
         from: 0
         search_after: "test-id-1"
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "[from] and [search_after] cannot be used together" }

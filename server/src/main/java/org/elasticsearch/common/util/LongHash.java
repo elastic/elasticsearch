@@ -124,4 +124,8 @@ public final class LongHash extends AbstractHash implements LongHashTable {
         }
     }
 
+    @Override
+    public long ramBytesUsed() {
+        return ids.ramBytesUsed() + keys.ramBytesUsed();
+    }
 }

@@ -12,6 +12,7 @@ package org.elasticsearch.swisshash;
 import jdk.incubator.vector.ByteVector;
 import jdk.incubator.vector.VectorSpecies;
 
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.LongHashTable;
@@ -234,7 +235,7 @@ public final class LongSwissHash extends SwissHash implements LongHashTable {
      * <p> This uses one page from the {@link PageCacheRecycler} for the
      * {@code ids}.
      */
-    final class SmallCore extends Core {
+    final class SmallCore extends Core implements Accountable {
         static final float FILL_FACTOR = 0.6F;
 
         private final byte[] idPage;
@@ -341,6 +342,11 @@ public final class LongSwissHash extends SwissHash implements LongHashTable {
         private int id(int slot) {
             return (int) INT_HANDLE.get(idPage, idOffset(slot));
         }
+
+        @Override
+        public long ramBytesUsed() {
+            return idPage.length;
+        }
     }
 
     /**
@@ -351,7 +357,7 @@ public final class LongSwissHash extends SwissHash implements LongHashTable {
      * can be sure the array and offset into the array can be calculated by right
      * shifts.
      */
-    final class BigCore extends Core {
+    final class BigCore extends Core implements Accountable {
         static final float FILL_FACTOR = 0.875F;
 
         private static final byte EMPTY = (byte) 0x80; // empty slot
@@ -591,6 +597,11 @@ public final class LongSwissHash extends SwissHash implements LongHashTable {
             final int idOffset = idOffset(slot);
             return (int) INT_HANDLE.get(idPages[idOffset >> PAGE_SHIFT], idOffset & PAGE_MASK);
         }
+
+        @Override
+        public long ramBytesUsed() {
+            return (long)idPages.length * PageCacheRecycler.PAGE_SIZE_IN_BYTES + controlData.length;
+        }
     }
 
     /**
@@ -619,5 +630,11 @@ public final class LongSwissHash extends SwissHash implements LongHashTable {
 
     private int slot(final int hash) {
         return hash & mask;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        final long keySizeInBytes = (long) keyPages.length * PageCacheRecycler.PAGE_SIZE_IN_BYTES;
+        return keySizeInBytes + (bigCore != null ? bigCore.ramBytesUsed() : smallCore.ramBytesUsed());
     }
 }

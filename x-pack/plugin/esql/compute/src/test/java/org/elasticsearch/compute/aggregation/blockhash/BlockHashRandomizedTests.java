@@ -81,6 +81,11 @@ public class BlockHashRandomizedTests extends ComputeTestCase {
              * those.
              */
             List.of(new Basic(ElementType.LONG), new Basic(ElementType.BYTES_REF)),
+            // Adaptive block hashes
+            List.of(new Basic(ElementType.INT), new Basic(ElementType.BYTES_REF)),
+            List.of(new Basic(ElementType.BYTES_REF), new Basic(ElementType.INT)),
+            List.of(new Basic(ElementType.INT), new Basic(ElementType.LONG)),
+            List.of(new Basic(ElementType.LONG), new Basic(ElementType.INT)),
             /*
              * Any random source.
              */
@@ -190,7 +195,7 @@ public class BlockHashRandomizedTests extends ComputeTestCase {
                 oracle.add(randomBlocks);
                 int[] batchCount = new int[1];
                 // PackedValuesBlockHash always chunks but the normal single value ones don't
-                boolean usingSingle = forcePackedHash == false && types.size() == 1;
+                boolean usingSingle = forcePackedHash == false && (types.size() == 1 || blockHash instanceof AdaptiveBlockHash);
                 BlockHashTests.hash(false, blockHash, ordsAndKeys -> {
                     if (usingSingle == false) {
                         assertThat(ordsAndKeys.ords().getTotalValueCount(), lessThanOrEqualTo(emitBatchSize));

@@ -303,11 +303,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
     private static void validateOrder(Map<String, Object> options) {
         Object value = options.get(ORDER);
         if (value != null && SCORE_ORDER.equals(value) == false && DOC_ORDER.equals(value) == false) {
-            throw new InvalidArgumentException("'{}' option must be '{}' or '{}', found [{}]"
-                , ORDER
-                , SCORE_ORDER
-                , DOC_ORDER
-                , value);
+            throw new InvalidArgumentException("'{}' option must be '{}' or '{}', found [{}]", ORDER, SCORE_ORDER, DOC_ORDER, value);
         }
     }
 
@@ -328,11 +324,13 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
     private static void validateEncoder(Map<String, Object> options) {
         Object value = options.get(ENCODER);
         if (value != null && DEFAULT_ENCODER.equals(value) == false && HTML_ENCODER.equals(value) == false) {
-            throw new InvalidArgumentException("'{}' option must be '{}' or '{}', found [{}]"
-                , ENCODER
-                , DEFAULT_ENCODER
-                , HTML_ENCODER
-                , value);
+            throw new InvalidArgumentException(
+                "'{}' option must be '{}' or '{}', found [{}]",
+                ENCODER,
+                DEFAULT_ENCODER,
+                HTML_ENCODER,
+                value
+            );
         }
     }
 

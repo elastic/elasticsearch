@@ -378,9 +378,7 @@ public class BundleChangelogsTask extends DefaultTask {
      * date not newer than {@code untilIsoInclusive} ({@code git show -s --format=%cI} form).
      */
     private boolean gitLogHasGrepUntil(String ref, String grep, String untilIsoInclusive) {
-        return gitWrapper.runCommand("git", "log", ref, "--grep", grep, "--until", untilIsoInclusive, "-n", "1")
-            .trim()
-            .isEmpty() == false;
+        return gitWrapper.runCommand("git", "log", ref, "--grep", grep, "--until", untilIsoInclusive, "-n", "1").trim().isEmpty() == false;
     }
 
     private String committerIsoAtRef(String ref) {

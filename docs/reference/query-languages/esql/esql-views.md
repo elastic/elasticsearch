@@ -16,6 +16,15 @@ When the main query is executed, all referenced views are also executed independ
 This ensures up-to-date results from all source indexes referenced by both the main query and the view definitions themselves.
 The final output combines all these results into a single list, including any duplicate rows.
 
+## When to use views
+
+Views are a good fit when you want to:
+
+* **Reuse a named query.** Wrap a frequently used ES|QL pipeline as a view and reference it by name, instead of repeating the same query in every request.
+* **Abstract common transformations.** Centralize renames, type conversions, or derived fields so consumers see a consistent set of columns without needing to know the underlying source structure.
+* **Combine pre-processed data sources.** Define one view per source, each with its own filters or aggregations, and query them together in a single `FROM` clause.
+* **Simplify queries for downstream tools.** Dashboards, alerts, or ad-hoc analysts can query `FROM my_view` without needing to know the indices or processing commands behind it.
+
 ## Defining views
 
 Define a view using the REST API:
@@ -67,7 +76,7 @@ in the `FROM` clause.
 
 Fields that exist in one source but not another are filled with `null` values.
 
-### Nesting and Branching
+### Nesting and branching
 
 If a view definition contains a reference to another view, that is called a nested view.
 ES|QL allows nesting to a depth of 10.
@@ -88,15 +97,12 @@ This means that nested branching has restrictions:
 Views have certain limitations:
 * Commands that also generate branched query plans are usually not allowed within views, unless the branch points can be merged:
   * `FORK`
-  * [subqueries](/reference/query-languages/esql/esql-subquery.md)
-* Cross-cluster search:
+  * [subqueries](esql-subquery.md)
+* [Cross-cluster search](esql-cross-clusters.md):
   * Remote views in CCS are not allowed (ie. `FROM cluster:view` will only match remote indexes with the name `view`. If a remote view is found, the query will fail).
   * If a remote index matches a local view name, the query will fail.
 * Serverless and Cross-project search:
-  * Views are currently disabled in serverless
-  * The plan to enable views in serverless will include limitations:
-    * Remote views in CPS will not be allowed (ie. `FROM view` will only match origin project views, and if linked project views with that name are found, the query will fail).
-    * If a linked project contains a view with the same name as a local view or index, the query will fail.
+  * Views are initially unavailable in serverless
 * Query parameters are not allowed in the view definition, and therefore query parameters in the main query will never impact the view results.
 
 Views are in tech-preview and there are a number of known issues, or behavior that is likely to change in the future:
@@ -121,7 +127,8 @@ Now we can query these together with a query like:
 :::{include} _snippets/commands/examples/views.csv-spec/views_country_filtered.md
 :::
 
-Note how documents from multiple views are not combined. Since we know these views all have a `count` column, we could `SUM` those.
+The same country might appear in multiple views, producing multiple rows.
+We could combine these with a `STATS` command, using `SUM(count) BY country`.
 
 ### Using wildcards
 
@@ -165,31 +172,14 @@ Outside the view it generates `null` values.
 Note that this is a known limitation of the current tech-preview, and is anticipated to be addressed in a future update,
 at which point `METADATA _index` will contain the name of the view.
 
-## Comparing views to subqueries
+## Comparing views, subqueries and FORK
 
-There are many similarities and differences between views and subqueries.
-
-### Similarities
-
-Both views and subqueries will process the entire set of query definitions at query time, resulting in an up-to-date response when source indexes are changed and the query is re-run.
-Columns from the results of views and subqueries are merged into the main query, expanding the table of results, and inserting `null` values if any view or subquery has different columns than the others.
-Complex processing commands can be used inside both views and subqueries, as detailed in the [description of subqueries](/reference/query-languages/esql/esql-subquery.md#description).
-In theory, neither is capable of supporting nested branching (ie. subqueries within subqueries), however views do support this to some extent, as detailed below.
-
-### Differences
-
-Views have names, and these names are unique within the index namespace. This means a view cannot have the same name as an index, and vice versa.
-Views can be nested within one another, as long as neither of the following two rules are broken:
-* Cyclic references are not allowed. For example, if `viewA` references `viewB` and `viewB` references `viewC` it is not allowed to have `viewC` reference `viewA`.
-  * Detection of cyclic references is done at main query execution time
-* Multiple branching points do not exist
-
-This last point highlights a difference between views and subqueries.
-While subqueries simply disallow the use of further subqueries or `FORK` within a subquery, views will allow this under limited conditions.
+:::{include} _snippets/common/comparing_views_subqueries_fork.md
+:::
 
 ## Query compaction
 
-Consider the case where we defined a view that contains subqueries:
+Consider two views, each defined as a pair of subqueries:
 
 ```console
 PUT /_query/view/view_x
@@ -204,8 +194,6 @@ PUT /_query/view/view_x
 }
 ```
 
-And another view that contains further sub-queries
-
 ```console
 PUT /_query/view/view_y
 {
@@ -219,76 +207,45 @@ PUT /_query/view/view_y
 }
 ```
 
-If we attempt to use these together:
+Used together in a single `FROM` clause:
 
 ```esql
 FROM other-events, view_x, view_y
 | STATS count(msg) BY level
 ```
 
-This will be resolved initially to a query plan that has two levels of branching:
-* Top of plan does the stats
-  * Next level has three branches
-    * Read data from `other-events`
-    * Read data from `view_x`, which means running the query inside `view_x` which itself contains two branches
-      * Read data from `app-events-*` and keep two columns
-      * Read data from `auth-events-*` and keep two columns
-    * Read data from `view_y`, which means running the query inside `view_y` which itself contains two branches
-      * Read data from `nginx-events-*` and keep two columns
-      * Read data from `apache-events-*` and keep two columns
+This initially resolves to a plan with two levels of branching — three outer branches, two of which branch again inside their view definitions:
 
-So we have three branches, two of which each have a further two branches. This is not allowed. The subquery version of this will fail:
-
-```esql
-FROM
-    other-events,
-    (
-        FROM (
-            FROM app-events-* | KEEP msg, level
-        ), (
-            FROM auth-events-* | KEEP msg, level
-        )
-    ),
-    (
-        FROM (
-            FROM nginx-events-* | KEEP msg, level
-        ), (
-            FROM apache-events-* | KEEP msg, level
-        )
-    )
-| STATS count(msg) BY level
+```mermaid
+flowchart TD
+    S["STATS count(msg) BY level"]
+    S --> O["other-events"]
+    S --> VX["view_x"]
+    S --> VY["view_y"]
+    VX --> AX["app-events-*"]
+    VX --> AU["auth-events-*"]
+    VY --> NG["nginx-events-*"]
+    VY --> AP["apache-events-*"]
 ```
 
-But views have an optimization that allows for compaction of nested branches to the same level.
-This means the query will be transformed to instead be a single set of five branches:
+ES|QL allows only one branch level per query, so the equivalent subquery-only form would fail. Views, however, apply **query compaction**: the inner view branches are flattened into the outer branch set, producing a single-level plan with five branches:
 
-* Top of plan does the stats
-    * Next level has five branches
-        * Read data from `other-events`
-        * Read data from `app-events-*` and keep two columns
-        * Read data from `auth-events-*` and keep two columns
-        * Read data from `nginx-events-*` and keep two columns
-        * Read data from `apache-events-*` and keep two columns
-
-This would be as if the user had used the subquery like this:
-
-```esql
-FROM
-    other-events,
-    FROM (
-        FROM app-events-* | KEEP msg, level
-    ), (
-        FROM auth-events-* | KEEP msg, level
-    )
-    FROM (
-        FROM nginx-events-* | KEEP msg, level
-    ), (
-        FROM apache-events-* | KEEP msg, level
-    )
-| STATS count(msg) BY level
+```mermaid
+flowchart TD
+    S["STATS count(msg) BY level"]
+    S --> O["other-events"]
+    S --> AX["app-events-*"]
+    S --> AU["auth-events-*"]
+    S --> NG["nginx-events-*"]
+    S --> AP["apache-events-*"]
 ```
 
-This query will not fail.
+Compaction does **not** apply if the view definition contains any commands after its subqueries — those commands would need to run on the combined branch output, so the branch level cannot be collapsed and the query will fail.
 
-However, it is important to notice that this compaction will not happen if the view definition contains any commands after the subqueries.
-In that case the branches cannot be combined and the query will fail.
+## Related pages
+
+* [Query multiple sources](/reference/query-languages/esql/esql-multi.md): high-level overview of combining data from multiple indices, clusters, subqueries, and views.
+* [Combine result sets with subqueries](/reference/query-languages/esql/esql-subquery.md): the closest alternative to views, without a persisted definition.
+* [`FROM` command](/reference/query-languages/esql/commands/from.md): full reference for index expressions, where view names are used.
+* [`FORK` command](/reference/query-languages/esql/commands/fork.md): the other branching construct in ES|QL, which shares the branching limits described above.
+* [Query multiple indices](/reference/query-languages/esql/esql-multi-index.md): how index patterns, wildcards, and date math combine sources in a single `FROM`.

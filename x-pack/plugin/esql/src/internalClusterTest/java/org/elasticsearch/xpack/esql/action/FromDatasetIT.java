@@ -1,0 +1,198 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.action;
+
+import org.elasticsearch.cluster.metadata.DataSourceMetadata;
+import org.elasticsearch.cluster.metadata.DataSourceSetting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.plugins.ExtensiblePlugin;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
+import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.junit.After;
+import org.junit.Before;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+
+/**
+ * End-to-end integration for {@code FROM <dataset>}: creates a data source and a dataset via the
+ * CRUD API, both pointing at a local CSV fixture, and runs a {@code FROM <name>} query against
+ * them. Proves that the parser → dataset rewriter → external-source resolver → analyzer →
+ * execution pipeline wires up the way the PR description claims.
+ */
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false, minNumDataNodes = 1)
+public class FromDatasetIT extends AbstractEsqlIntegTestCase {
+
+    private static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(30);
+    private Path csvFixture;
+
+    public static final class EsqlEnterpriseWithDatasourceExtensions extends EsqlPluginWithEnterpriseOrTrialLicense {
+        @Override
+        public void loadExtensions(ExtensiblePlugin.ExtensionLoader loader) {
+            super.loadExtensions(loader);
+        }
+    }
+
+    /** Minimal pass-through validator registered for type {@code test}; accepts any resource scheme. */
+    public static final class TestDataSourcePlugin extends Plugin implements DataSourcePlugin {
+        @Override
+        public Map<String, DataSourceValidator> datasourceValidators(Settings settings) {
+            return Map.of("test", new TestValidator());
+        }
+    }
+
+    private static final class TestValidator implements DataSourceValidator {
+        @Override
+        public String type() {
+            return "test";
+        }
+
+        @Override
+        public Map<String, DataSourceSetting> validateDatasource(Map<String, Object> datasourceSettings) {
+            Map<String, DataSourceSetting> out = new HashMap<>();
+            for (Map.Entry<String, Object> e : datasourceSettings.entrySet()) {
+                out.put(e.getKey(), new DataSourceSetting(e.getValue(), e.getKey().startsWith("secret_")));
+            }
+            return out;
+        }
+
+        @Override
+        public Map<String, Object> validateDataset(
+            Map<String, DataSourceSetting> datasourceSettings,
+            String resource,
+            Map<String, Object> datasetSettings
+        ) {
+            return datasetSettings == null ? Map.of() : new HashMap<>(datasetSettings);
+        }
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.remove(EsqlPluginWithEnterpriseOrTrialLicense.class);
+        plugins.add(EsqlEnterpriseWithDatasourceExtensions.class);
+        plugins.add(HttpDataSourcePlugin.class);
+        plugins.add(CsvDataSourcePlugin.class);
+        plugins.add(TestDataSourcePlugin.class);
+        return plugins;
+    }
+
+    @Override
+    protected QueryPragmas getPragmas() {
+        return QueryPragmas.EMPTY;
+    }
+
+    @Before
+    public void writeFixture() throws IOException {
+        csvFixture = createTempFile("dataset-fixture-", ".csv");
+        Files.writeString(csvFixture, String.join("\n", "emp_no:integer,first_name:keyword", "1,Alice", "2,Bob", "3,Carol") + "\n");
+    }
+
+    @After
+    public void cleanupRegistry() throws Exception {
+        try {
+            client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest("employees"))
+                .get(30, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (Exception ignored) {}
+        try {
+            client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest("local_ds"))
+                .get(30, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (Exception ignored) {}
+    }
+
+    public void testFromDatasetReadsCsvFixture() throws Exception {
+        assumeTrue("requires external data sources feature flag", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM employees | SORT emp_no | LIMIT 10"), TIMEOUT)) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns, hasSize(2));
+            assertThat(columns.get(0).name(), equalTo("emp_no"));
+            assertThat(columns.get(1).name(), equalTo("first_name"));
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            assertThat(rows.get(0).get(0), equalTo(1));
+            assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
+            assertThat(rows.get(1).get(0), equalTo(2));
+            assertThat(rows.get(1).get(1).toString(), equalTo("Bob"));
+            assertThat(rows.get(2).get(0), equalTo(3));
+            assertThat(rows.get(2).get(1).toString(), equalTo("Carol"));
+        }
+    }
+
+    public void testFromMixedIndexAndDatasetRejected() throws Exception {
+        assumeTrue("requires external data sources feature flag", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
+            )
+        );
+
+        Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("FROM some_real_index, employees | LIMIT 1"), TIMEOUT));
+        Throwable cause = ex;
+        while (cause != null && cause.getMessage() != null && cause.getMessage().contains("mixing indices and datasets") == false) {
+            cause = cause.getCause();
+        }
+        assertThat("error chain should contain Phase-1 mix-rejection", cause, org.hamcrest.Matchers.notNullValue());
+    }
+
+    private static PutDataSourceAction.Request putDataSourceRequest(String name, Map<String, Object> settings) {
+        return new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, name, "test", null, new HashMap<>(settings));
+    }
+
+    private static PutDatasetAction.Request putDatasetRequest(
+        String name,
+        String dataSource,
+        String resource,
+        Map<String, Object> settings
+    ) {
+        return new PutDatasetAction.Request(TIMEOUT, TIMEOUT, name, dataSource, resource, null, new HashMap<>(settings));
+    }
+
+    private static DeleteDataSourceAction.Request deleteDataSourceRequest(String name) {
+        return new DeleteDataSourceAction.Request(TIMEOUT, TIMEOUT, new String[] { name });
+    }
+
+    private static DeleteDatasetAction.Request deleteDatasetRequest(String name) {
+        return new DeleteDatasetAction.Request(TIMEOUT, TIMEOUT, new String[] { name });
+    }
+}

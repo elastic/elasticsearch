@@ -191,7 +191,13 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
 
             final String skipName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, skipExtension);
             skip = state.directory.createOutput(skipName, state.context);
-            CodecUtil.writeIndexHeader(skip, skipCodec, formatConfig.version(), state.segmentInfo.getId(), state.segmentSuffix);
+            CodecUtil.writeIndexHeader(
+                skip,
+                skipCodec,
+                TSDBDocValuesFormatConfig.VERSION_CURRENT,
+                state.segmentInfo.getId(),
+                state.segmentSuffix
+            );
 
             maxDoc = state.segmentInfo.maxDoc();
             this.enableOptimizedMerge = enableOptimizedMerge;

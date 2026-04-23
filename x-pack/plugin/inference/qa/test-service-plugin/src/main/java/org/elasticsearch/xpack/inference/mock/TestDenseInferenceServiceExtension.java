@@ -132,7 +132,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
                 return;
             }
             switch (model.getConfigurations().getTaskType()) {
-                case TEXT_EMBEDDING, EMBEDDING -> {
+                case TEXT_EMBEDDING -> {
                     ServiceSettings modelServiceSettings = model.getServiceSettings();
                     listener.onResponse(makeTextEmbeddingResults(input, modelServiceSettings));
                 }

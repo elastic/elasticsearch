@@ -18,6 +18,8 @@ import org.apache.lucene.util.FixedBitSet;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.search.vectors.KnnSearchBuilder.NUM_CANDS_LIMIT;
+
 public class DiversifyingChildrenIVFKnnFloatVectorQuery extends IVFKnnFloatVectorQuery {
 
     private final BitSetProducer parentsFilter;
@@ -74,7 +76,7 @@ public class DiversifyingChildrenIVFKnnFloatVectorQuery extends IVFKnnFloatVecto
 
     @Override
     public DiversifyingChildrenIVFKnnFloatVectorQuery createPostFilterDelegate(float filterSelectivity) {
-        int scaledK = (int) Math.ceil(k / filterSelectivity);
+        int scaledK = Math.min(NUM_CANDS_LIMIT, (int) Math.ceil(k / filterSelectivity));
         float visitOversampling = Math.max(1.1f, 1.2f / filterSelectivity);
         float scaledVisitRatio = providedVisitRatio > 0f ? Math.min(1.0f, providedVisitRatio * visitOversampling) : 0f;
         return new DiversifyingChildrenIVFKnnFloatVectorQuery(

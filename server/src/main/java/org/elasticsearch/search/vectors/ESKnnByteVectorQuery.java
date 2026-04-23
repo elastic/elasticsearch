@@ -85,13 +85,13 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryPro
 
     @Override
     public Query createInnerQuery(IndexReader reader, int[] docsVisited) {
-        var excludeDocsFilter = new ExcludeDocsQuery(docsVisited, reader);
+        Query filter = docsVisited != null ? new ExcludeDocsQuery(docsVisited, reader) : null;
         return new ESKnnByteVectorQuery(
             field,
             getTargetCopy(),
             kParam,
             numCandsParam,
-            excludeDocsFilter,
+            filter,
             searchStrategy,
             earlyTermination,
             docsVisited

@@ -107,14 +107,13 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             return MatchNoDocsQuery.INSTANCE;
         }
 
-        IVFCollectorManager collectorManager = getKnnCollectorManager(Math.round(2f * k), indexSearcher);
         if (filterWeight != null) {
             Query postFilterQuery = createPostFilterQuery(indexSearcher, filter, k, field, getParentsFilter());
             if (postFilterQuery != null) {
                 return postFilterQuery;
             }
         }
-
+        IVFCollectorManager collectorManager = getKnnCollectorManager(Math.round(2f * k), indexSearcher);
         return executeSearch(indexSearcher, leaves, filterWeight, collectorManager, providedVisitRatio);
     }
 

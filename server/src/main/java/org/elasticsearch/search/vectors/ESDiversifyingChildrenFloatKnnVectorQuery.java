@@ -102,11 +102,11 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
 
     @Override
     public Query createInnerQuery(IndexReader reader, int[] docsVisited) {
-        var excludeDocsFilter = new ExcludeDocsQuery(docsVisited, reader);
+        Query filter = docsVisited != null ? new ExcludeDocsQuery(docsVisited, reader) : null;
         return new ESDiversifyingChildrenFloatKnnVectorQuery(
             field,
             getTargetCopy(),
-            excludeDocsFilter,
+            filter,
             kParam,
             numCands,
             parentsFilter,

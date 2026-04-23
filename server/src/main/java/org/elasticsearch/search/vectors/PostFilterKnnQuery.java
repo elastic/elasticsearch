@@ -81,7 +81,7 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             .build();
         Query rewritten = searcher.rewrite(booleanQuery);
         if (rewritten.getClass() == MatchNoDocsQuery.class) {
-            return null;
+            return MatchNoDocsQuery.INSTANCE;
         }
         var filterWeight = searcher.createWeight(rewritten, ScoreMode.COMPLETE_NO_SCORES, 1f);
 
@@ -92,11 +92,10 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
         assert delegate instanceof PostFilterableKnnQuery;
         for (int round = 0; round < MAX_ROUNDS; round++) {
             TopDocs topDocs = searcher.search(delegate, Integer.MAX_VALUE);
-            vectorOps += ((PostFilterableKnnQuery) delegate).vectorOpsCount();
-
             if (topDocs.scoreDocs.length == 0) {
                 break;
             }
+            vectorOps += ((PostFilterableKnnQuery) delegate).vectorOpsCount();
 
             // accumulate this round's doc IDs into the running sorted array
             int[] roundDocs = new int[topDocs.scoreDocs.length];
@@ -238,10 +237,6 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
     @Override
     public void profile(QueryProfiler queryProfiler) {
         queryProfiler.addVectorOpsCount(totalVectorOps);
-    }
-
-    public long getTotalVectorOps() {
-        return totalVectorOps;
     }
 
     @Override

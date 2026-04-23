@@ -653,7 +653,8 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
 
     public static <T extends Node<?>> T makeNode(Class<? extends T> nodeClass) throws Exception {
         if (Modifier.isAbstract(nodeClass.getModifiers())) {
-            nodeClass = randomFrom(innerSubclassesOf(nodeClass));
+            var subclasses = innerSubclassesOf(nodeClass);
+            nodeClass = randomValueOtherThanMany(UNRESOLVED_CLASSES::contains, () -> randomFrom(subclasses));
         }
         Class<?> testSubclassFor = testClassFor(nodeClass);
         if (testSubclassFor != null) {

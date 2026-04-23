@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
@@ -217,11 +218,11 @@ class PushDownUtils {
     public static boolean shouldPushDownPipelineBreakerIntoForkBranch(LogicalPlan plan) {
         // We only push down a pipeline breaker when:
         // 1. There is an OrderBy that is not followed by a Limit.
-        // 2. There is no PipelineBreaker, but we have an EsRelation. If no EsRelation is found.
+        // 2. There is no PipelineBreaker, but we have a source relation (EsRelation or ExternalRelation).
         // We should not push a pipeline breaker like LIMIT into the fork branch, since it will
         // be removed by other optimizations.
         Holder<Boolean> hasPipelineBreaker = new Holder<>(false);
-        Holder<Boolean> hasEsRelation = new Holder<>(false);
+        Holder<Boolean> hasSourceRelation = new Holder<>(false);
         Holder<Boolean> hasUnboundedOrderBy = new Holder<>(false);
         Holder<Boolean> hasLimit = new Holder<>(false);
 
@@ -229,8 +230,8 @@ class PushDownUtils {
             if (p instanceof PipelineBreaker && p instanceof OrderBy == false) {
                 hasPipelineBreaker.set(true);
             }
-            if (p instanceof EsRelation) {
-                hasEsRelation.set(true);
+            if (p instanceof EsRelation || p instanceof ExternalRelation) {
+                hasSourceRelation.set(true);
             }
 
             if (p instanceof Limit) {
@@ -246,7 +247,7 @@ class PushDownUtils {
             return true;
         }
 
-        return hasEsRelation.get() && hasPipelineBreaker.get() == false;
+        return hasSourceRelation.get() && hasPipelineBreaker.get() == false;
     }
 
     public static Map<Expression, Expression> outputMap(LogicalPlan plan, LogicalPlan otherPlan) {

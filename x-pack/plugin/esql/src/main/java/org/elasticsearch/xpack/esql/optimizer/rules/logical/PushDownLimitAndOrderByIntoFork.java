@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
@@ -43,10 +44,17 @@ public class PushDownLimitAndOrderByIntoFork extends OptimizerRules.Parameterize
         }
 
         OrderBy orderBy = (OrderBy) limit.child();
-        if (orderBy.child() instanceof Fork == false || orderBy.child() instanceof UnionAll) {
+        if (orderBy.child() instanceof Fork == false) {
             return limit;
         }
         Fork fork = (Fork) orderBy.child();
+
+        // Legacy skip for subquery-shape UnionAll (non-leaf branches). Extending that path
+        // is out of scope. Direct-leaf UnionAll (heterogeneous FROM via DatasetRewriter)
+        // falls through so SORT+LIMIT reaches each leaf as source-level TopN pushdown.
+        if (fork instanceof UnionAll && fork.children().stream().allMatch(c -> c instanceof LeafPlan) == false) {
+            return limit;
+        }
 
         List<LogicalPlan> newForkChildren = new ArrayList<>();
         boolean changed = false;

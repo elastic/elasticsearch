@@ -21,12 +21,14 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -221,6 +223,13 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
 
     // TODO: see ResolveUnmapped#patchFork comment
     private static LogicalPlan pruneColumnsInFork(Fork fork, AttributeSet.Builder used) {
+        // The per-branch prune logic below assumes each branch has a top-level Project (Fork's and subquery-UnionAll's shape).
+        // For a UnionAll whose branches are all direct LeafPlan nodes (EsRelation/ExternalRelation from heterogeneous
+        // FROM via DatasetRewriter), that assumption doesn't hold and changing the subquery behavior trips existing
+        // alignment-sensitive tests. Keep the legacy early-return for the subquery UnionAll shape.
+        if (fork instanceof UnionAll && fork.children().stream().allMatch(c -> c instanceof LeafPlan) == false) {
+            return fork;
+        }
         // prune the output attributes of fork based on usage from the rest of the plan
         boolean forkOutputChanged = false;
         AttributeSet.Builder builder = AttributeSet.builder();

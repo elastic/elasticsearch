@@ -84,25 +84,23 @@ public final class JobHealthChecker {
 
         // ASSIGNMENT_FAILED: job is not assigned to a node
         if (node == null && state == JobState.OPENING) {
-            issues.add(new AnomalyDetectionHealthIssue(
-                IssueType.ASSIGNMENT_FAILED.type,
-                IssueType.ASSIGNMENT_FAILED.title,
-                assignmentExplanation,
-                1,
-                null
-            ));
+            issues.add(
+                new AnomalyDetectionHealthIssue(
+                    IssueType.ASSIGNMENT_FAILED.type,
+                    IssueType.ASSIGNMENT_FAILED.title,
+                    assignmentExplanation,
+                    1,
+                    null
+                )
+            );
             maxStatus = max(maxStatus, IssueType.ASSIGNMENT_FAILED.severity);
         }
 
         // JOB_TASK_FAILED: the job's persistent task is in failed state
         if (state == JobState.FAILED) {
-            issues.add(new AnomalyDetectionHealthIssue(
-                IssueType.JOB_TASK_FAILED.type,
-                IssueType.JOB_TASK_FAILED.title,
-                failureReason,
-                1,
-                null
-            ));
+            issues.add(
+                new AnomalyDetectionHealthIssue(IssueType.JOB_TASK_FAILED.type, IssueType.JOB_TASK_FAILED.title, failureReason, 1, null)
+            );
             maxStatus = max(maxStatus, IssueType.JOB_TASK_FAILED.severity);
         }
 
@@ -110,33 +108,39 @@ public final class JobHealthChecker {
         if (modelSizeStats != null) {
             MemoryStatus memoryStatus = modelSizeStats.getMemoryStatus();
             if (memoryStatus == MemoryStatus.HARD_LIMIT) {
-                issues.add(new AnomalyDetectionHealthIssue(
-                    IssueType.MODEL_MEMORY_HARD_LIMIT.type,
-                    IssueType.MODEL_MEMORY_HARD_LIMIT.title,
-                    hardLimitDetails(modelSizeStats),
-                    1,
-                    null
-                ));
+                issues.add(
+                    new AnomalyDetectionHealthIssue(
+                        IssueType.MODEL_MEMORY_HARD_LIMIT.type,
+                        IssueType.MODEL_MEMORY_HARD_LIMIT.title,
+                        hardLimitDetails(modelSizeStats),
+                        1,
+                        null
+                    )
+                );
                 maxStatus = max(maxStatus, IssueType.MODEL_MEMORY_HARD_LIMIT.severity);
             } else if (memoryStatus == MemoryStatus.SOFT_LIMIT) {
-                issues.add(new AnomalyDetectionHealthIssue(
-                    IssueType.MODEL_MEMORY_SOFT_LIMIT.type,
-                    IssueType.MODEL_MEMORY_SOFT_LIMIT.title,
-                    softLimitDetails(modelSizeStats),
-                    1,
-                    null
-                ));
+                issues.add(
+                    new AnomalyDetectionHealthIssue(
+                        IssueType.MODEL_MEMORY_SOFT_LIMIT.type,
+                        IssueType.MODEL_MEMORY_SOFT_LIMIT.title,
+                        softLimitDetails(modelSizeStats),
+                        1,
+                        null
+                    )
+                );
                 maxStatus = max(maxStatus, IssueType.MODEL_MEMORY_SOFT_LIMIT.severity);
             }
 
             if (modelSizeStats.getCategorizationStatus() == CategorizationStatus.WARN) {
-                issues.add(new AnomalyDetectionHealthIssue(
-                    IssueType.CATEGORIZATION_WARNING.type,
-                    IssueType.CATEGORIZATION_WARNING.title,
-                    categorizationDetails(modelSizeStats),
-                    1,
-                    null
-                ));
+                issues.add(
+                    new AnomalyDetectionHealthIssue(
+                        IssueType.CATEGORIZATION_WARNING.type,
+                        IssueType.CATEGORIZATION_WARNING.title,
+                        categorizationDetails(modelSizeStats),
+                        1,
+                        null
+                    )
+                );
                 maxStatus = max(maxStatus, IssueType.CATEGORIZATION_WARNING.severity);
             }
         }

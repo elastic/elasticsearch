@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Categorizati
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats.MemoryStatus;
 
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -45,13 +44,7 @@ public class JobHealthCheckerTests extends ESTestCase {
     }
 
     public void testOpeningJobWithoutNodeIsRed() {
-        AnomalyDetectionHealth health = JobHealthChecker.checkJob(
-            JobState.OPENING,
-            null,
-            "not enough nodes with ML enabled",
-            null,
-            null
-        );
+        AnomalyDetectionHealth health = JobHealthChecker.checkJob(JobState.OPENING, null, "not enough nodes with ML enabled", null, null);
         assertThat(health.getStatus(), is(HealthStatus.RED));
         assertThat(health.getIssues(), hasSize(1));
         assertThat(health.getIssues().get(0).getType(), is(JobHealthChecker.IssueType.ASSIGNMENT_FAILED.type));
@@ -74,8 +67,7 @@ public class JobHealthCheckerTests extends ESTestCase {
     }
 
     public void testCategorizationWarnIsYellow() {
-        ModelSizeStats modelSizeStats = new ModelSizeStats.Builder("job")
-            .setMemoryStatus(MemoryStatus.OK)
+        ModelSizeStats modelSizeStats = new ModelSizeStats.Builder("job").setMemoryStatus(MemoryStatus.OK)
             .setCategorizationStatus(CategorizationStatus.WARN)
             .build();
         AnomalyDetectionHealth health = JobHealthChecker.checkJob(JobState.OPENED, null, null, null, modelSizeStats);
@@ -92,8 +84,7 @@ public class JobHealthCheckerTests extends ESTestCase {
 
     public void testMultipleIssuesWorstStatusWins() {
         // Both HARD_LIMIT (RED) and CATEGORIZATION_WARNING (YELLOW) — overall must be RED
-        ModelSizeStats modelSizeStats = new ModelSizeStats.Builder("job")
-            .setMemoryStatus(MemoryStatus.HARD_LIMIT)
+        ModelSizeStats modelSizeStats = new ModelSizeStats.Builder("job").setMemoryStatus(MemoryStatus.HARD_LIMIT)
             .setCategorizationStatus(CategorizationStatus.WARN)
             .build();
         AnomalyDetectionHealth health = JobHealthChecker.checkJob(JobState.OPENED, null, null, null, modelSizeStats);

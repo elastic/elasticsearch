@@ -164,7 +164,8 @@ public class GetDatafeedStatsActionResponseTests extends AbstractWireSerializing
             null,
             null,
             null,
-            new GetDatafeedRunningStateAction.Response.RunningState(true, true, null, cpsStats)
+            new GetDatafeedRunningStateAction.Response.RunningState(true, true, null, cpsStats, null),
+            null
         );
 
         XContentType xContentType = randomFrom(XContentType.values());
@@ -194,7 +195,8 @@ public class GetDatafeedStatsActionResponseTests extends AbstractWireSerializing
             null,
             null,
             null,
-            new GetDatafeedRunningStateAction.Response.RunningState(true, true, null, null)
+            new GetDatafeedRunningStateAction.Response.RunningState(true, true, null),
+            null
         );
 
         XContentType xContentType = randomFrom(XContentType.values());

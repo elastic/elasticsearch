@@ -84,13 +84,15 @@ public final class DatafeedHealthChecker {
 
         // ASSIGNMENT_FAILED: datafeed is starting but has no node assigned
         if (node == null && datafeedState == DatafeedState.STARTING) {
-            issues.add(new AnomalyDetectionHealthIssue(
-                IssueType.ASSIGNMENT_FAILED.type,
-                IssueType.ASSIGNMENT_FAILED.title,
-                assignmentExplanation,
-                1,
-                null
-            ));
+            issues.add(
+                new AnomalyDetectionHealthIssue(
+                    IssueType.ASSIGNMENT_FAILED.type,
+                    IssueType.ASSIGNMENT_FAILED.title,
+                    assignmentExplanation,
+                    1,
+                    null
+                )
+            );
             maxStatus = max(maxStatus, IssueType.ASSIGNMENT_FAILED.severity);
         }
 
@@ -98,16 +100,16 @@ public final class DatafeedHealthChecker {
             // DATA_EXTRACTION_ERROR: escalates to RED after RED_STATUS_FAILURE_COUNT_BOUNDARY failures
             int extractionCount = problemStats.getExtractionFailureCount();
             if (extractionCount > 0) {
-                HealthStatus severity = extractionCount > RED_STATUS_FAILURE_COUNT_BOUNDARY
-                    ? HealthStatus.RED
-                    : HealthStatus.YELLOW;
-                issues.add(new AnomalyDetectionHealthIssue(
-                    IssueType.DATA_EXTRACTION_ERROR.type,
-                    IssueType.DATA_EXTRACTION_ERROR.title,
-                    null,
-                    extractionCount,
-                    problemStats.getExtractionFailureFirstTime()
-                ));
+                HealthStatus severity = extractionCount > RED_STATUS_FAILURE_COUNT_BOUNDARY ? HealthStatus.RED : HealthStatus.YELLOW;
+                issues.add(
+                    new AnomalyDetectionHealthIssue(
+                        IssueType.DATA_EXTRACTION_ERROR.type,
+                        IssueType.DATA_EXTRACTION_ERROR.title,
+                        null,
+                        extractionCount,
+                        problemStats.getExtractionFailureFirstTime()
+                    )
+                );
                 maxStatus = max(maxStatus, severity);
             }
 
@@ -118,39 +120,37 @@ public final class DatafeedHealthChecker {
                 HealthStatus severity = (problemStats.isAnalysisFailureFatal() || analysisCount > RED_STATUS_FAILURE_COUNT_BOUNDARY)
                     ? HealthStatus.RED
                     : HealthStatus.YELLOW;
-                issues.add(new AnomalyDetectionHealthIssue(
-                    IssueType.DATA_ANALYSIS_ERROR.type,
-                    IssueType.DATA_ANALYSIS_ERROR.title,
-                    null,
-                    analysisCount,
-                    problemStats.getAnalysisFailureFirstTime()
-                ));
+                issues.add(
+                    new AnomalyDetectionHealthIssue(
+                        IssueType.DATA_ANALYSIS_ERROR.type,
+                        IssueType.DATA_ANALYSIS_ERROR.title,
+                        null,
+                        analysisCount,
+                        problemStats.getAnalysisFailureFirstTime()
+                    )
+                );
                 maxStatus = max(maxStatus, severity);
             }
 
             // EMPTY_DATA: YELLOW only after 10 consecutive empty cycles
             int emptyCount = problemStats.getEmptyDataCount();
             if (emptyCount >= 10) {
-                issues.add(new AnomalyDetectionHealthIssue(
-                    IssueType.EMPTY_DATA.type,
-                    IssueType.EMPTY_DATA.title,
-                    null,
-                    emptyCount,
-                    null
-                ));
+                issues.add(new AnomalyDetectionHealthIssue(IssueType.EMPTY_DATA.type, IssueType.EMPTY_DATA.title, null, emptyCount, null));
                 maxStatus = max(maxStatus, IssueType.EMPTY_DATA.severity);
             }
 
             // DATA_DELAY: delayed data detected by the DelayedDataDetector in the last triggered check
             int delayedCount = problemStats.getDelayedDataBucketCount();
             if (delayedCount > 0) {
-                issues.add(new AnomalyDetectionHealthIssue(
-                    IssueType.DATA_DELAY.type,
-                    IssueType.DATA_DELAY.title,
-                    delayedDataDetails(problemStats),
-                    delayedCount,
-                    problemStats.getDelayedDataFirstOccurrence()
-                ));
+                issues.add(
+                    new AnomalyDetectionHealthIssue(
+                        IssueType.DATA_DELAY.type,
+                        IssueType.DATA_DELAY.title,
+                        delayedDataDetails(problemStats),
+                        delayedCount,
+                        problemStats.getDelayedDataFirstOccurrence()
+                    )
+                );
                 maxStatus = max(maxStatus, IssueType.DATA_DELAY.severity);
             }
         }

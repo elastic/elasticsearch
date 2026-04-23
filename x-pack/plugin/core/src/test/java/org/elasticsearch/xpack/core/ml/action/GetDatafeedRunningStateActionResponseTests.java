@@ -27,7 +27,8 @@ public class GetDatafeedRunningStateActionResponseTests extends AbstractWireSeri
             randomBoolean(),
             randomBoolean(),
             randomBoolean() ? null : SearchIntervalTests.createRandom(),
-            randomBoolean() ? null : randomCrossClusterStats()
+            randomBoolean() ? null : randomCrossClusterStats(),
+            null
         );
     }
 

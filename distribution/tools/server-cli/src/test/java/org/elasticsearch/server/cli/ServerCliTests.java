@@ -385,7 +385,7 @@ public class ServerCliTests extends CommandTestCase {
     }
 
     private KeystoreSecureSettingsLoader setupMockKeystoreLoader() {
-        var loader = new KeystoreSecureSettingsLoader();
+        var loader = new KeystoreSecureSettingsLoader(new KeyStoreLoader());
         this.mockSecureSettingsLoader = loader;
         return loader;
     }
@@ -496,7 +496,8 @@ public class ServerCliTests extends CommandTestCase {
             if (mockSecureSettingsLoader != null) {
                 return mockSecureSettingsLoader;
             }
-            return super.secureSettingsLoader(processInfo);
+            var loader = super.secureSettingsLoader(processInfo);
+            return loader instanceof KeyStoreLoader ksl ? new KeystoreSecureSettingsLoader(ksl) : loader;
         }
 
         @Override
@@ -555,15 +556,20 @@ public class ServerCliTests extends CommandTestCase {
         }
     }
 
-    static class KeystoreSecureSettingsLoader extends KeyStoreLoader {
+    static class KeystoreSecureSettingsLoader implements SecureSettingsLoader {
+        private final KeyStoreLoader delegate;
         boolean loaded = false;
         LoadedSecrets secrets = null;
         String password = null;
         boolean bootstrapped = false;
 
+        KeystoreSecureSettingsLoader(KeyStoreLoader delegate) {
+            this.delegate = delegate;
+        }
+
         @Override
         public LoadedSecrets load(Environment environment, Terminal terminal) throws Exception {
-            var result = super.load(environment, terminal);
+            var result = delegate.load(environment, terminal);
             loaded = true;
             secrets = result;
             password = result.password().get().toString();
@@ -577,7 +583,12 @@ public class ServerCliTests extends CommandTestCase {
             if (inFipsJvm() && (password == null || password.isEmpty())) {
                 return KeyStoreWrapper.create();
             }
-            return super.bootstrap(environment, password);
+            return delegate.bootstrap(environment, password);
+        }
+
+        @Override
+        public boolean supportsSecurityAutoConfiguration() {
+            return delegate.supportsSecurityAutoConfiguration();
         }
     }
 }

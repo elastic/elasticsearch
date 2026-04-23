@@ -5,13 +5,26 @@
  * 2.0.
  */
 
-apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.publish'
 
 versions << [
   'hadoop' : '3.4.3',
 ]
 
+esplugin {
+  name = 'esql-datasource-parquet-rs'
+  description = 'Rust FFI foundation for parquet-rs backed Parquet support in ESQL'
+  classname = 'org.elasticsearch.xpack.esql.datasource.parquet.parquetrs.ParquetRsPlugin'
+}
+
+base {
+  archivesName = 'esql-datasource-parquet-rs'
+}
+
 dependencies {
+  compileOnly project(':server')
+
   // Native access for Rust FFI
   compileOnly project(':libs:native')
 
@@ -22,6 +35,7 @@ dependencies {
   implementation(project(':libs:arrow'))
 
   testImplementation project(':test:framework')
+  testImplementation(testArtifact(project(xpackModule('core'))))
 
   // Parquet writing for test fixtures
   testImplementation("org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}")
@@ -31,10 +45,6 @@ dependencies {
   // references GeospatialStatistics which requires JTS. Normally resolved transitively
   // via esql-core, but this module does not depend on esql-core.
   testImplementation("org.locationtech.jts:jts-core:1.20.0")
-}
-
-tasks.named('forbiddenApisMain').configure {
-  replaceSignatureFiles 'jdk-signatures'
 }
 
 tasks.named("thirdPartyAudit").configure {
@@ -52,5 +62,5 @@ tasks.named("dependencyLicenses").configure {
 }
 
 tasks.named("test").configure {
-  jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED') // WHY IS THIS NEEDED?
+  jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
 }

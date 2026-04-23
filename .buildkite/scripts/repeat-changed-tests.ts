@@ -187,12 +187,12 @@ export function generateBatchCommand(batch: ClassifiedTest[]): string {
     case "test": {
       const projects = [...new Set(batch.map((t) => `${t.gradleProject}:test`))];
       const testFilters = batch.map((t) => `--tests ${t.fqcn}`).join(" ");
-      return `.ci/scripts/run-gradle.sh -Dtests.iters=100 ${projects.join(" ")} ${testFilters}`;
+      return `.ci/scripts/run-gradle.sh -Dtests.iters=100 -Dtests.timeoutSuite=3600000! ${projects.join(" ")} ${testFilters}`;
     }
     case "internalClusterTest": {
       const projects = [...new Set(batch.map((t) => `${t.gradleProject}:internalClusterTest`))];
       const testFilters = batch.map((t) => `--tests ${t.fqcn}`).join(" ");
-      return `.ci/scripts/run-gradle.sh -Dtests.iters=20 ${projects.join(" ")} ${testFilters}`;
+      return `.ci/scripts/run-gradle.sh -Dtests.iters=20 -Dtests.timeoutSuite=3600000! ${projects.join(" ")} ${testFilters}`;
     }
     case "javaRestTest": {
       const projects = [...new Set(batch.map((t) => `${t.gradleProject}:javaRestTest`))];

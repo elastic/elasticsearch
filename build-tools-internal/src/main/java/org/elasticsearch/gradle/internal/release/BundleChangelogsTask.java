@@ -328,7 +328,7 @@ public class BundleChangelogsTask extends DefaultTask {
             String bcCommitterIso = committerIsoAtRef(bcRefForFilter);
             int before = entries.size();
             entries = entries.stream()
-                .filter(e -> includeExternalChangelogForBuildCandidate(e, bcRefForFilter, externalHead, bcCommitterIso))
+                .filter(e -> includeExternalChangelogForBuildCandidate(e, externalHead, bcCommitterIso))
                 .collect(Collectors.toCollection(ArrayList::new));
             if (before != entries.size()) {
                 LOGGER.info(
@@ -345,28 +345,19 @@ public class BundleChangelogsTask extends DefaultTask {
     }
 
     /**
-     * Mirrors {@code git log bcRef --grep "(#pr)"} used for local changelog YAML files that
-     * were added after the BC: keep the entry if the PR shows up in ES history at the BC ref,
-     * or in the fetched external repository history up to the BC ref's committer date (so
-     * {@code git log externalTip --grep} alone cannot admit PRs merged after the BC on the
-     * external branch).
+     * For external changelog entries, the {@code pr} field refers to that external repository,
+     * not Elasticsearch; {@code git log} on the ES repo at {@code --bc-ref} could match an
+     * unrelated ES PR with the same number. We only consult the fetched external tip, capped
+     * by the BC ref's committer date (see {@link #gitLogHasGrepUntil}).
      * <p>
      * Entries without a PR number cannot be checked against the BC cut and are excluded.
      */
-    private boolean includeExternalChangelogForBuildCandidate(
-        ChangelogEntry entry,
-        String bcRef,
-        String externalTip,
-        String bcCommitterIso
-    ) {
+    private boolean includeExternalChangelogForBuildCandidate(ChangelogEntry entry, String externalTip, String bcCommitterIso) {
         Integer pr = entry.getPr();
         if (pr == null) {
             return false;
         }
         String grep = "(#" + pr + ")";
-        if (gitLogHasGrep(bcRef, grep)) {
-            return true;
-        }
         return gitLogHasGrepUntil(externalTip, grep, bcCommitterIso);
     }
 
@@ -405,10 +396,6 @@ public class BundleChangelogsTask extends DefaultTask {
             return ref;
         }
         return upstreamRemote + "/" + ref;
-    }
-
-    private boolean gitLogHasGrep(String ref, String grep) {
-        return gitWrapper.runCommand("git", "log", ref, "--grep", grep).trim().isEmpty() == false;
     }
 
     /**

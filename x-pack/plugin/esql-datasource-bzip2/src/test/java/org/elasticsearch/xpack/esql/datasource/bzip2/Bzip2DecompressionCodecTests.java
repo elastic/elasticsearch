@@ -17,6 +17,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 /**
  * Unit tests for {@link Bzip2DecompressionCodec}.
@@ -80,14 +81,27 @@ public class Bzip2DecompressionCodecTests extends ESTestCase {
     }
 
     public void testDecompressHeaderValidation() throws IOException {
-        byte[] notBzip2 = "XX".getBytes(StandardCharsets.UTF_8);
+        // 4 bytes of non-bzip2 data: the header check reads up to 4 bytes and must reject either a
+        // wrong magic or a block-size digit outside [1-9]. Also covers bytes that pass the 'BZ'
+        // prefix but fail on the 'h' / digit bytes.
         Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        IOException e = expectThrows(IOException.class, () -> {
-            try (var s = codec.decompress(new ByteArrayInputStream(notBzip2))) {
-                s.readAllBytes();
-            }
-        });
-        assertNotNull(e.getMessage());
+        for (byte[] notBzip2 : List.of(
+            "XXXX".getBytes(StandardCharsets.UTF_8),
+            "BZxx".getBytes(StandardCharsets.UTF_8),
+            "BZh0".getBytes(StandardCharsets.UTF_8),
+            new byte[] { 'B', 'Z' }
+        )) {
+            IOException e = expectThrows(IOException.class, () -> {
+                try (var s = codec.decompress(new ByteArrayInputStream(notBzip2))) {
+                    s.readAllBytes();
+                }
+            });
+            assertNotNull(e.getMessage());
+            assertTrue(
+                "expected BZip2 header-validation message, got: " + e.getMessage(),
+                e.getMessage().contains("BZip2") || e.getMessage().contains("BZh")
+            );
+        }
     }
 
     /** Rationale: some real-world .bz2 files are several bzip2 members concatenated; a single member must not truncate NDJSON. */

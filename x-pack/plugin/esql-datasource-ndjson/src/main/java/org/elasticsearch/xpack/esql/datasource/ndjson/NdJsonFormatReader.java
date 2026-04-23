@@ -21,8 +21,10 @@ import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.SequenceInputStream;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -97,30 +99,20 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
      * range does not start at a record boundary (non-first splits). This prevents the inferrer
      * from tripping over the truncated record fragment that precedes the first newline in a
      * mid-file split.
+     *
+     * <p>Package-visible for testing.
      */
-    private static InputStream openForSchemaInference(StorageObject object, boolean skipFirstLine) throws IOException {
+    static InputStream openForSchemaInference(StorageObject object, boolean skipFirstLine) throws IOException {
         InputStream stream = object.newStream();
         if (skipFirstLine == false) {
             return stream;
         }
         try {
-            int b;
-            while ((b = stream.read()) != -1) {
-                if (b == '\n') {
-                    return stream;
-                }
-                if (b == '\r') {
-                    stream.mark(1);
-                    int next = stream.read();
-                    if (next != '\n' && next != -1) {
-                        if (stream.markSupported()) {
-                            stream.reset();
-                        } else {
-                            return new java.io.SequenceInputStream(new java.io.ByteArrayInputStream(new byte[] { (byte) next }), stream);
-                        }
-                    }
-                    return stream;
-                }
+            LineScan scan = scanForTerminator(stream);
+            if (scan.peekedByte() != -1) {
+                // The byte that followed a lone CR was read from the stream and is the first
+                // byte of the next record; prepend it so the returned stream starts there.
+                return new SequenceInputStream(new ByteArrayInputStream(new byte[] { (byte) scan.peekedByte() }), stream);
             }
             return stream;
         } catch (IOException e) {
@@ -225,32 +217,48 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
 
     @Override
     public long findNextRecordBoundary(InputStream stream) throws IOException {
+        // The caller only cares about the byte offset of the terminator; a lone CR followed by
+        // some non-LF byte may have been consumed from the stream by the scanner, but the
+        // caller discards the stream after this call so that is acceptable.
+        return scanForTerminator(stream).consumed();
+    }
+
+    /** Outcome of a single scan for the next record terminator. */
+    record LineScan(long consumed, int peekedByte) {
+        /** Sentinel returned when the stream ended before any terminator. */
+        static final LineScan EOF = new LineScan(-1, -1);
+    }
+
+    /**
+     * Reads one byte at a time from {@code in} until a record terminator (LF, CRLF, or lone CR)
+     * is consumed. Returns {@link LineScan#consumed} as the number of bytes read through-and-
+     * including the terminator; for the lone-CR case the byte that follows (which is the first
+     * byte of the next record) is read from the stream and exposed via {@link LineScan#peekedByte}
+     * so callers can preserve it. Returns {@link LineScan#EOF} if the stream ends before any
+     * terminator is seen.
+     *
+     * <p>Single source of truth for the three NDJSON line-terminator consumers:
+     * {@link NdJsonPageIterator#skipToNextLine}, {@link #findNextRecordBoundary}, and
+     * {@link #openForSchemaInference}.
+     */
+    static LineScan scanForTerminator(InputStream in) throws IOException {
         long consumed = 0;
-        byte[] buf = new byte[8192];
-        int bytesRead;
-        while ((bytesRead = stream.read(buf, 0, buf.length)) > 0) {
-            for (int i = 0; i < bytesRead; i++) {
-                consumed++;
-                if (buf[i] == '\n') {
-                    return consumed;
+        int b;
+        while ((b = in.read()) != -1) {
+            consumed++;
+            if (b == '\n') {
+                return new LineScan(consumed, -1);
+            }
+            if (b == '\r') {
+                int next = in.read();
+                if (next == '\n') {
+                    return new LineScan(consumed + 1, -1);
                 }
-                if (buf[i] == '\r') {
-                    if (i + 1 < bytesRead) {
-                        if (buf[i + 1] == '\n') {
-                            i++;
-                            consumed++;
-                        }
-                    } else {
-                        int next = stream.read();
-                        if (next == '\n') {
-                            consumed++;
-                        }
-                    }
-                    return consumed;
-                }
+                // EOF after CR is reported as a clean terminator with no peeked byte.
+                return new LineScan(consumed, next);
             }
         }
-        return -1;
+        return LineScan.EOF;
     }
 
     @Override

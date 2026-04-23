@@ -13,11 +13,11 @@ import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PushbackInputStream;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
@@ -248,6 +248,17 @@ public class Bzip2DecompressionCodec implements SplittableDecompressionCodec {
      * <p>The single-byte read path is used for all reads because the Hadoop-style
      * decompressor's bulk read can return END_OF_BLOCK (-2) which is not a valid
      * return value for standard {@link InputStream#read(byte[], int, int)}.
+     *
+     * <p>Protocol cross-references (prose because the splitter and reader live in sibling
+     * plugin modules that are not javadoc-visible here):
+     * <ul>
+     *   <li>Splitter side — {@code FileSplitProvider.tryBlockAlignedSplits} in the {@code esql}
+     *       module emits disjoint macro-splits and marks every non-first split as needing
+     *       skip-first-line handling.</li>
+     *   <li>Reader side — {@code NdJsonPageIterator.skipToNextLine} in the
+     *       {@code esql-datasource-ndjson} module drops the leading partial line on every
+     *       non-first split, balancing the finish-current-line bytes emitted here.</li>
+     * </ul>
      */
     static class BlockBoundedDecompressStream extends InputStream {
         private static final byte LF = (byte) '\n';
@@ -296,6 +307,10 @@ public class Bzip2DecompressionCodec implements SplittableDecompressionCodec {
             if (len == 0) {
                 return 0;
             }
+            // Aligns with InputStream.read(byte[], int, int): throw IOOBE on bad args.
+            // Run after the len==0 short-circuit so callers passing a null buf with len==0
+            // (legal per the contract) don't trip on a spurious NPE in checkFromIndexSize.
+            Objects.checkFromIndexSize(off, len, buf.length);
             if (done) {
                 return -1;
             }
@@ -309,17 +324,6 @@ public class Bzip2DecompressionCodec implements SplittableDecompressionCodec {
                 count++;
             }
             return count == 0 ? -1 : count;
-        }
-
-        @Override
-        public byte[] readAllBytes() throws IOException {
-            ByteArrayOutputStream buf = new ByteArrayOutputStream();
-            byte[] tmp = new byte[8192];
-            int n;
-            while ((n = read(tmp, 0, tmp.length)) > 0) {
-                buf.write(tmp, 0, n);
-            }
-            return buf.toByteArray();
         }
 
         @Override
@@ -371,6 +375,10 @@ public class Bzip2DecompressionCodec implements SplittableDecompressionCodec {
             if (len == 0) {
                 return 0;
             }
+            // Aligns with InputStream.read(byte[], int, int): throw IOOBE on bad args.
+            // Run after the len==0 short-circuit so callers passing a null buf with len==0
+            // (legal per the contract) don't trip on a spurious NPE in checkFromIndexSize.
+            Objects.checkFromIndexSize(off, len, buf.length);
             if (done) {
                 return -1;
             }

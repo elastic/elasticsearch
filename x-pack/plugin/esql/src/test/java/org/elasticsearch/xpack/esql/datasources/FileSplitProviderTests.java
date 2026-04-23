@@ -1260,6 +1260,43 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals("Last split is marked last", "true", last.config().get(FileSplitProvider.LAST_SPLIT_KEY));
     }
 
+    /**
+     * Small-file fast path: when the block boundaries fit inside a single macro-split target, the
+     * splitter must emit exactly one {@link FileSplit} that covers the whole file and carries
+     * both the first- and last-split markers. Exercises the {@code isLastMacroSplit && m == 0}
+     * branch of {@code tryBlockAlignedSplits}.
+     */
+    public void testBlockAlignedSingleMacroSplit() {
+        long fileLength = 1_000_000L; // well under DEFAULT_MACRO_SPLIT_TARGET (32 MB)
+        long[] boundaries = { 0L, 200_000L, 500_000L, 800_000L };
+
+        DecompressionCodecRegistry codecRegistry = new DecompressionCodecRegistry();
+        codecRegistry.register(new FakeSplittableCodec(boundaries));
+
+        StorageProviderRegistry storageRegistry = createMockStorageRegistry();
+        FormatReaderRegistry formatRegistry = new FormatReaderRegistry(codecRegistry);
+
+        FileSplitProvider splitter = new FileSplitProvider(
+            FileSplitProvider.DEFAULT_TARGET_SPLIT_SIZE,
+            codecRegistry,
+            storageRegistry,
+            formatRegistry,
+            Settings.EMPTY
+        );
+
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/small.ndjson.bz2"), fileLength, Instant.EPOCH);
+        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.ndjson.bz2");
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of());
+        List<ExternalSplit> splits = splitter.discoverSplits(ctx);
+
+        assertEquals("Small file must produce a single macro-split", 1, splits.size());
+        FileSplit only = (FileSplit) splits.get(0);
+        assertEquals("Single split must start at offset 0", 0L, only.offset());
+        assertEquals("Single split must cover the full file", fileLength, only.length());
+        assertEquals("Single split must carry the first-split marker", "true", only.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
+        assertEquals("Single split must carry the last-split marker", "true", only.config().get(FileSplitProvider.LAST_SPLIT_KEY));
+    }
+
     /** Fake SplittableDecompressionCodec returning canned block boundaries, for unit-testing split logic. */
     private static final class FakeSplittableCodec implements SplittableDecompressionCodec {
         private final long[] boundaries;

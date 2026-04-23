@@ -19,6 +19,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2TestHelpers.reassembleLineAligned;
+
 /**
  * Integration tests for bzip2 split decompression with NDJSON and CSV data,
  * verifying that block-by-block decompression produces identical output to
@@ -135,36 +137,6 @@ public class Bzip2NdJsonSplitIntegrationTests extends ESTestCase {
             String reassembled = reassembleLineAligned(codec, object, boundaries, compressed.length);
             assertEquals("Block size " + blockSize + " split decompression should match", ndjson, reassembled);
         }
-    }
-
-    private static String reassembleLineAligned(
-        Bzip2DecompressionCodec codec,
-        ByteArrayStorageObject object,
-        long[] boundaries,
-        long fileLength
-    ) throws IOException {
-        ByteArrayOutputStream reassembled = new ByteArrayOutputStream();
-        for (int i = 0; i < boundaries.length; i++) {
-            long start = boundaries[i];
-            long end = (i + 1 < boundaries.length) ? boundaries[i + 1] : fileLength;
-            try (InputStream stream = codec.decompressRange(object, start, end)) {
-                byte[] bytes = stream.readAllBytes();
-                byte[] aligned = i == 0 ? bytes : skipFirstLine(bytes);
-                reassembled.write(aligned);
-            }
-        }
-        return reassembled.toString(StandardCharsets.UTF_8);
-    }
-
-    private static byte[] skipFirstLine(byte[] bytes) {
-        for (int i = 0; i < bytes.length; i++) {
-            if (bytes[i] == '\n') {
-                byte[] out = new byte[bytes.length - i - 1];
-                System.arraycopy(bytes, i + 1, out, 0, out.length);
-                return out;
-            }
-        }
-        return new byte[0];
     }
 
     private static byte[] generateNdJsonData(int lines) {

@@ -87,6 +87,7 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature ES940_DISK_BBQ = new NodeFeature("mapper.es940_disk_bbq");
     public static final NodeFeature IP_MAPPER_CARDINALITY_OPTION = new NodeFeature("mapper.ip.doc_values_cardinality_option");
     public static final NodeFeature IGNORED_VALUES_STORED_IN_BINARY_DV = new NodeFeature("mapper.doc_values.ignored_values_in_binary_dv");
+    static final NodeFeature KEYWORD_NORMALIZER_SKIP_STORE_SETTING = new NodeFeature("mapper.keyword.normalizer_skip_store_setting");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -149,7 +150,8 @@ public class MapperFeatures implements FeatureSpecification {
             ES940_DISK_BBQ,
             FLATTENED_PASSTHROUGH_FEATURE,
             IGNORED_VALUES_STORED_IN_BINARY_DV,
-            IP_MAPPER_CARDINALITY_OPTION
+            IP_MAPPER_CARDINALITY_OPTION,
+            KEYWORD_NORMALIZER_SKIP_STORE_SETTING
         );
     }
 }

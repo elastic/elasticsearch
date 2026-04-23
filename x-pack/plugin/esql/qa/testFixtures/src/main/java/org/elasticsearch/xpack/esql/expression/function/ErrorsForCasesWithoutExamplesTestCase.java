@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
@@ -94,7 +93,6 @@ public abstract class ErrorsForCasesWithoutExamplesTestCase extends ESTestCase {
             if (expression instanceof AggregateFunction af && af.field().dataType() == DataType.NULL) {
                 continue;
             }
-
             assertTrue("expected unresolved " + expression, expression.typeResolved().unresolved());
             assertThat(expression.typeResolved().message(), expectedTypeErrorMatcher(validPerPosition, signature));
             checked++;

@@ -63,10 +63,10 @@ public class BulkByScrollTask extends CancellableTask {
     private final boolean relocatedTask;
     // if task is a slice, RelocationOrigin won't be correct because it won't be the leader here, but it's overridden in the leader state
     private final ResumeInfo.RelocationOrigin relocationOrigin;
+    private final RelocationProgress relocationProgress = new RelocationProgress();
     private volatile LeaderBulkByScrollTaskState leaderState;
     private volatile WorkerBulkByScrollTaskState workerState;
     private volatile boolean relocationRequested = false;
-    private final RelocationProgress relocationProgress = new RelocationProgress();
 
     public BulkByScrollTask(
         TaskId taskId,

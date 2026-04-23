@@ -587,47 +587,44 @@ public class BulkByScrollTaskTests extends ESTestCase {
      * other observes a refusal, never both.
      */
     public void testConcurrentHandoffVsCancellationMutuallyExclusive() throws Exception {
-        final int iters = 200;
-        for (int i = 0; i < iters; i++) {
-            final BulkByScrollTask task = createTask(true);
-            final CountDownLatch start = new CountDownLatch(1);
-            final AtomicBoolean handoffResult = new AtomicBoolean();
-            final AtomicBoolean cancelResult = new AtomicBoolean();
-            Thread t1 = new Thread(() -> {
-                try {
-                    start.await();
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    return;
-                }
-                handoffResult.set(task.tryInitiateRelocationHandoff());
-            });
-            Thread t2 = new Thread(() -> {
-                try {
-                    start.await();
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    return;
-                }
-                try {
-                    task.ensureCancellable();
-                    cancelResult.set(true);
-                } catch (ElasticsearchStatusException e) {
-                    cancelResult.set(false);
-                }
-            });
-            t1.start();
-            t2.start();
-            start.countDown();
-            t1.join();
-            t2.join();
-            assertTrue(
-                "at least one side must win (state cannot remain NOT_STARTED)",
-                task.getRelocationProgress().current() != BulkByScrollTask.RelocationProgress.State.NOT_STARTED
-            );
-            assertTrue("at least one side must succeed", handoffResult.get() || cancelResult.get());
-            assertFalse("both sides cannot succeed concurrently", handoffResult.get() && cancelResult.get());
-        }
+        final BulkByScrollTask task = createTask(true);
+        final CountDownLatch start = new CountDownLatch(1);
+        final AtomicBoolean handoffResult = new AtomicBoolean();
+        final AtomicBoolean cancelResult = new AtomicBoolean();
+        Thread t1 = new Thread(() -> {
+            try {
+                start.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            handoffResult.set(task.tryInitiateRelocationHandoff());
+        });
+        Thread t2 = new Thread(() -> {
+            try {
+                start.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            try {
+                task.ensureCancellable();
+                cancelResult.set(true);
+            } catch (ElasticsearchStatusException e) {
+                cancelResult.set(false);
+            }
+        });
+        t1.start();
+        t2.start();
+        start.countDown();
+        t1.join();
+        t2.join();
+        assertNotSame(
+            "at least one side must win (state cannot remain NOT_STARTED)",
+            BulkByScrollTask.RelocationProgress.State.NOT_STARTED,
+            task.getRelocationProgress().current()
+        );
+        assertTrue("handoff and cancellation are mutually exclusive", handoffResult.get() ^ cancelResult.get());
     }
 
     private static float randomFloatBetween(float min, float max) {

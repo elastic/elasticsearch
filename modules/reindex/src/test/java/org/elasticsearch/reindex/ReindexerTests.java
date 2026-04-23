@@ -625,8 +625,12 @@ public class ReindexerTests extends ESTestCase {
             Mockito.<org.elasticsearch.transport.TransportResponseHandler<?>>any()
         );
         // The listener fails with a TaskCancelledException
-        assertThat(expectThrows(Exception.class, future::actionGet), instanceOf(TaskCancelledException.class));
-        assertThat(expectThrows(Exception.class, onRelocationFuture::actionGet), instanceOf(TaskCancelledException.class));
+        Exception exception = expectThrows(Exception.class, future::actionGet);
+        assertThat(exception, instanceOf(TaskCancelledException.class));
+        assertThat(exception.getMessage(), containsString("task cancelled before relocation handoff could begin"));
+        Exception onRelocationException = expectThrows(Exception.class, onRelocationFuture::actionGet);
+        assertThat(onRelocationException, instanceOf(TaskCancelledException.class));
+        assertThat(onRelocationException.getMessage(), containsString("task cancelled before relocation handoff could begin"));
     }
 
     public void testExecuteFailsWhenSourceTaskResultStorageFails() throws Exception {

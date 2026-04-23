@@ -69,6 +69,7 @@ public class CancelTasksRelocationIT extends ESIntegTestCase {
 
     private final int bulkSize = randomIntBetween(1, 4);
     private final int numOfSlices = randomIntBetween(1, 4);
+    // RPS takes slices and batch size into account to approximate ~1s per slice
     private final int requestsPerSecond = randomIntBetween(bulkSize * numOfSlices, 20);
     private final int numberOfDocumentsThatTakes60SecondsToIngest = 60 * requestsPerSecond;
 

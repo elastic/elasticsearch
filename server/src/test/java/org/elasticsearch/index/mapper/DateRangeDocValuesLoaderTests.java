@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class DateRangeDocValuesLoaderTests extends ESTestCase {
@@ -57,8 +56,8 @@ public class DateRangeDocValuesLoaderTests extends ESTestCase {
                     var block = (TestBlock) reader.read(TestBlock.factory(), TestBlock.docs(0, 1, 2), 0, false);
 
                     assertThat(block.size(), equalTo(3));
-                    // Doc 0: non-null range present — to is stored as upper+1 (half-open [from, to)).
-                    assertThat(block.get(0), notNullValue());
+                    // Doc 0: [1000, 2000] inclusive stored as half-open [1000, 2001) in the block.
+                    assertThat(block.get(0), equalTo(List.of(1000L, 2001L)));
                     // Doc 1: zero ranges encoded — must produce null, not skip the position.
                     assertThat(block.get(1), nullValue());
                     // Doc 2: no doc value — null.

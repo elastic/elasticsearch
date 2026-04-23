@@ -28,11 +28,11 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
-import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -1252,10 +1252,7 @@ public class FileSplitProviderTests extends ESTestCase {
                 prev.offset() + prev.length(),
                 cur.offset()
             );
-            assertNull(
-                "Only the first split may carry the first-split marker",
-                cur.config().get(FileSplitProvider.FIRST_SPLIT_KEY)
-            );
+            assertNull("Only the first split may carry the first-split marker", cur.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
         }
 
         FileSplit last = (FileSplit) splits.get(splits.size() - 1);

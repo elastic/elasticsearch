@@ -153,11 +153,7 @@ public class Bzip2SplittableCodecTests extends ESTestCase {
             long[] boundaries = codec.findBlockBoundaries(object, 0, compressed.length);
 
             String reassembled = reassembleLineAligned(codec, object, boundaries, compressed.length);
-            assertEquals(
-                "Block size " + blockSize + " should reassemble correctly",
-                new String(data, StandardCharsets.UTF_8),
-                reassembled
-            );
+            assertEquals("Block size " + blockSize + " should reassemble correctly", new String(data, StandardCharsets.UTF_8), reassembled);
         }
     }
 

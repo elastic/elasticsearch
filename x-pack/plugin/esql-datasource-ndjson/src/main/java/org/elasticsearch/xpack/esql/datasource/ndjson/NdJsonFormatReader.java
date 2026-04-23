@@ -116,10 +116,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
                         if (stream.markSupported()) {
                             stream.reset();
                         } else {
-                            return new java.io.SequenceInputStream(
-                                new java.io.ByteArrayInputStream(new byte[] { (byte) next }),
-                                stream
-                            );
+                            return new java.io.SequenceInputStream(new java.io.ByteArrayInputStream(new byte[] { (byte) next }), stream);
                         }
                     }
                     return stream;

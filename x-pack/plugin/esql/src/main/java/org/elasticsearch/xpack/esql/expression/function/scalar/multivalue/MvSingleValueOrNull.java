@@ -36,12 +36,14 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRep
  * Internal optimizer function that returns an expression's value if it is single-valued, or null if it is multi-valued.
  * <p>
  * This is not a user-visible function; it is injected by the query planner to enable rewrites such as:
+ * </p>
  * <pre>
  *   | STATS s1 = SUM(expr + c1), s2 = SUM(expr + c2)
  *   →
  *   | STATS svSum = SUM(SINGLE_VALUE_OR_NULL(expr)), svCount = COUNT(SINGLE_VALUE_OR_NULL(expr))
  *   | EVAL s1 = svSum + c1 * svCount, s2 = svSum + c2 * svCount
  * </pre>
+ * <p>
  * which applies when two or more {@code SUM(expr ± c)} expressions share the same {@code expr}.
  * The wrapped expression is not limited to field references — it can be any expression whose result
  * may be multi-valued.

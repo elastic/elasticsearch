@@ -60,9 +60,9 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  * In-JVM IT for data source + dataset CRUD. Covers scenarios that need direct ClusterService
  * access — gateway persistence across restart, CyclicBarrier-coordinated races, delete-racing-put
- * ordering — which are not expressible at the REST layer. REST-level coverage
- * (HTTP status codes, secret masking on the wire, validator error shape) lives in
- * {@link org.elasticsearch.xpack.esql.qa.single_node.DataSourceCrudRestIT}.
+ * ordering — which are not expressible at the REST layer. REST-level coverage (HTTP status codes,
+ * secret masking on the wire, validator error shape) lives in {@code DataSourceCrudRestIT} in the
+ * {@code x-pack:plugin:esql:qa:server:single-node} project.
  */
 @ESIntegTestCase.ClusterScope(scope = SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false, minNumDataNodes = 1)
 public class DataSourceCrudIT extends ESIntegTestCase {

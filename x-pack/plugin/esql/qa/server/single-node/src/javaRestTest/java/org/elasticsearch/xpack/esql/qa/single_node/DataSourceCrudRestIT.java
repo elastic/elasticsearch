@@ -34,7 +34,8 @@ import static org.hamcrest.Matchers.not;
  * End-to-end REST coverage for the CRUD API against a cluster with {@code esql-datasource-s3}
  * loaded. Exercises the HTTP layer: status codes, secret masking on the wire, validator error
  * shape. Scenarios needing direct ClusterService access (gateway persistence, race coordination)
- * live in {@link org.elasticsearch.xpack.esql.datasources.datasource.DataSourceCrudIT}.
+ * live in {@code DataSourceCrudIT} in the {@code x-pack:plugin:esql} project's internalClusterTest
+ * source set.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class DataSourceCrudRestIT extends ESRestTestCase {

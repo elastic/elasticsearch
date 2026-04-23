@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.ccq;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.http.HttpHost;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Randomness;
@@ -53,6 +54,8 @@ import static org.hamcrest.Matchers.nullValue;
 public class MultiClusterTimeSeriesIT extends ESRestTestCase {
 
     static final List<String> REQUIRED_CAPABILITIES = List.of("ts_command_v0");
+    static final List<String> WINDOW_REQUIRED_CAPABILITIES = List.of("ts_command_v0", "fix_ime_series_window_backward");
+    static final Version BACKWARD_WINDOWS_VERSION = Version.fromString("9.5.0");
 
     static ElasticsearchCluster remoteCluster = Clusters.remoteCluster();
     static ElasticsearchCluster localCluster = Clusters.localCluster(remoteCluster);
@@ -165,7 +168,11 @@ public class MultiClusterTimeSeriesIT extends ESRestTestCase {
     }
 
     public void testRateAndTBucket() throws Exception {
-        assumeTrue("TS command not supported", capabilitiesSupportedNewAndOld(REQUIRED_CAPABILITIES));
+        assumeTrue(
+            "Backward window semantics are not supported on old CCS nodes",
+            Clusters.bwcVersion().onOrAfter(BACKWARD_WINDOWS_VERSION)
+        );
+        assumeTrue("TS command not supported", capabilitiesSupportedNewAndOld(WINDOW_REQUIRED_CAPABILITIES));
 
         boolean includeCCSMetadata = includeCCSMetadata();
 
@@ -185,7 +192,11 @@ public class MultiClusterTimeSeriesIT extends ESRestTestCase {
     }
 
     public void testAvgOverTime() throws Exception {
-        assumeTrue("TS command not supported", capabilitiesSupportedNewAndOld(REQUIRED_CAPABILITIES));
+        assumeTrue(
+            "Backward window semantics are not supported on old CCS nodes",
+            Clusters.bwcVersion().onOrAfter(BACKWARD_WINDOWS_VERSION)
+        );
+        assumeTrue("TS command not supported", capabilitiesSupportedNewAndOld(WINDOW_REQUIRED_CAPABILITIES));
 
         boolean includeCCSMetadata = includeCCSMetadata();
 
@@ -203,7 +214,11 @@ public class MultiClusterTimeSeriesIT extends ESRestTestCase {
     }
 
     public void testIRate() throws Exception {
-        assumeTrue("TS command not supported", capabilitiesSupportedNewAndOld(REQUIRED_CAPABILITIES));
+        assumeTrue(
+            "Backward window semantics are not supported on old CCS nodes",
+            Clusters.bwcVersion().onOrAfter(BACKWARD_WINDOWS_VERSION)
+        );
+        assumeTrue("TS command not supported", capabilitiesSupportedNewAndOld(WINDOW_REQUIRED_CAPABILITIES));
 
         boolean includeCCSMetadata = includeCCSMetadata();
 

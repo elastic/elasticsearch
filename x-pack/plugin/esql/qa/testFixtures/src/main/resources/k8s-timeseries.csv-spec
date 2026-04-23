@@ -1477,6 +1477,7 @@ required_capability: ts_command_v0
 required_capability: tbucket_from_to
 required_capability: rate_with_interpolation_v2
 required_capability: fix_tbucket_target_count_window_validation
+required_capability: fix_ime_series_window_backward
 
 TS k8s
 | STATS sum_rate=sum(rate(network.total_bytes_in, 10m)) BY time_bucket = TBUCKET(20, "2024-05-10T00:00:00Z", "2024-05-10T01:00:00Z")
@@ -1494,6 +1495,7 @@ tsLastOverTimeWithWindowAndTBucketTargetCount
 required_capability: ts_command_v0
 required_capability: tbucket_from_to
 required_capability: fix_tbucket_target_count_window_validation
+required_capability: fix_ime_series_window_backward
 
 TS k8s
 | STATS max_cost=max(last_over_time(network.cost, 10 minute)) BY time_bucket = TBUCKET(20, "2024-05-10T00:00:00Z", "2024-05-10T01:00:00Z"), cluster

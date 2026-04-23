@@ -9,12 +9,10 @@ package org.elasticsearch.xpack.esql.qa.mixed;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
-import org.junit.AfterClass;
-import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -46,20 +44,7 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
             ? System.getProperty("tests.old_cluster_version").replace("-SNAPSHOT", "")
             : null
     );
-
-    private static TestFeatureService oldClusterTestFeatureService = null;
-
-    @Before
-    public void extractOldClusterFeatures() {
-        if (oldClusterTestFeatureService == null) {
-            oldClusterTestFeatureService = testFeatureService;
-        }
-    }
-
-    @AfterClass
-    public static void cleanUp() {
-        oldClusterTestFeatureService = null;
-    }
+    private static final Version BACKWARD_WINDOWS_VERSION = Version.fromString("9.5.0");
 
     public MixedClusterEsqlSpecIT(
         String fileName,
@@ -74,6 +59,11 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
 
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
+        CsvTestUtils.assumeFalseLogging(
+            "Backward window semantics are not supported on mixed old nodes",
+            bwcVersion.before(BACKWARD_WINDOWS_VERSION)
+                && testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.FIX_IME_SERIES_WINDOW_BACKWARD.capabilityName())
+        );
         super.shouldSkipTest(testName);
         assumeTrue("Test " + testName + " is skipped on " + bwcVersion, isEnabled(testName, instructions, bwcVersion));
     }

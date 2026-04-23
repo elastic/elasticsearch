@@ -234,6 +234,7 @@ tx:long | cluster:keyword | time_bucket:datetime
 
 sum_over_time_with_window_promql
 required_capability: promql_command_v0
+required_capability: fix_ime_series_window_backward
 
 PROMQL index=k8s step=5m tx=(sum by (cluster) (sum_over_time(network.bytes_in{pod="one"}[10m])))
 | SORT step, cluster
@@ -261,6 +262,7 @@ sum_over_time_with_tstep_window
 required_capability: ts_command_v0
 required_capability: time_series_window_v1
 required_capability: tstep
+required_capability: fix_ime_series_window_backward
 request_time_filter: 2024-05-10T00:00:00.000Z,2024-05-10T00:25:00.000Z
 
 TS k8s

@@ -14,10 +14,8 @@ import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
-import org.elasticsearch.core.DirectAccessInput;
 import org.elasticsearch.simdvec.MemorySegmentAccessInputAccess;
 
 import java.io.IOException;
@@ -35,7 +33,7 @@ public abstract sealed class ByteVectorScorer extends RandomVectorScorer.Abstrac
     final int vectorByteSize;
     final IndexInput input;
     final MemorySegment query;
-    byte[] scratch;
+    final FixedSizeScratch scratch;
 
     public static Optional<RandomVectorScorer> create(VectorSimilarityFunction sim, ByteVectorValues values, byte[] queryVector) {
         if (SUPPORTS_HEAP_SEGMENTS == false) {
@@ -48,18 +46,15 @@ public abstract sealed class ByteVectorScorer extends RandomVectorScorer.Abstrac
         }
         input = FilterIndexInput.unwrapOnlyTest(input);
         input = MemorySegmentAccessInputAccess.unwrap(input);
-        if (input instanceof MemorySegmentAccessInput || input instanceof DirectAccessInput) {
-            IndexInputUtils.checkInputType(input);
-            checkInvariants(values.size(), values.getVectorByteLength(), input);
+        IndexInputUtils.checkInputType(input);
+        checkInvariants(values.size(), values.getVectorByteLength(), input);
 
-            return switch (sim) {
-                case COSINE -> Optional.of(new CosineScorer(input, values, queryVector));
-                case DOT_PRODUCT -> Optional.of(new DotProductScorer(input, values, queryVector));
-                case EUCLIDEAN -> Optional.of(new EuclideanScorer(input, values, queryVector));
-                case MAXIMUM_INNER_PRODUCT -> Optional.of(new MaxInnerProductScorer(input, values, queryVector));
-            };
-        }
-        return Optional.empty();
+        return switch (sim) {
+            case COSINE -> Optional.of(new CosineScorer(input, values, queryVector));
+            case DOT_PRODUCT -> Optional.of(new DotProductScorer(input, values, queryVector));
+            case EUCLIDEAN -> Optional.of(new EuclideanScorer(input, values, queryVector));
+            case MAXIMUM_INNER_PRODUCT -> Optional.of(new MaxInnerProductScorer(input, values, queryVector));
+        };
     }
 
     ByteVectorScorer(IndexInput input, ByteVectorValues values, byte[] queryVector) {
@@ -69,13 +64,7 @@ public abstract sealed class ByteVectorScorer extends RandomVectorScorer.Abstrac
         this.dimensions = values.dimension();
         this.vectorByteSize = values.getVectorByteLength();
         this.query = MemorySegment.ofArray(queryVector);
-    }
-
-    byte[] getScratch(int length) {
-        if (scratch == null || scratch.length < length) {
-            scratch = new byte[length];
-        }
-        return scratch;
+        this.scratch = new FixedSizeScratch(vectorByteSize);
     }
 
     static void checkInvariants(int maxOrd, int vectorByteLength, IndexInput input) {
@@ -103,9 +92,13 @@ public abstract sealed class ByteVectorScorer extends RandomVectorScorer.Abstrac
         for (int i = 0; i < numNodes; i++) {
             offsets[i] = (long) nodes[i] * vectorByteSize;
         }
-        return IndexInputUtils.withSliceAddresses(input, offsets, vectorByteSize, numNodes, a -> {
-            sparseScorer.score(a, query, dimensions, numNodes, MemorySegment.ofArray(scores));
-        });
+        return IndexInputUtils.withSliceAddresses(
+            input,
+            offsets,
+            vectorByteSize,
+            numNodes,
+            a -> sparseScorer.score(a, query, dimensions, numNodes, MemorySegment.ofArray(scores))
+        );
     }
 
     public static final class DotProductScorer extends ByteVectorScorer {
@@ -124,10 +117,12 @@ public abstract sealed class ByteVectorScorer extends RandomVectorScorer.Abstrac
             checkOrdinal(node);
             long byteOffset = (long) node * vectorByteSize;
             input.seek(byteOffset);
-            return IndexInputUtils.withSlice(input, vectorByteSize, this::getScratch, seg -> {
-                float dp = dotProductI8(query, seg, dimensions);
-                return normalize(dp);
-            });
+            return IndexInputUtils.withSlice(
+                input,
+                vectorByteSize,
+                scratch::getScratch,
+                seg -> normalize(dotProductI8(query, seg, dimensions))
+            );
         }
 
         @Override
@@ -159,7 +154,7 @@ public abstract sealed class ByteVectorScorer extends RandomVectorScorer.Abstrac
             checkOrdinal(node);
             long byteOffset = (long) node * vectorByteSize;
             input.seek(byteOffset);
-            return IndexInputUtils.withSlice(input, vectorByteSize, this::getScratch, seg -> {
+            return IndexInputUtils.withSlice(input, vectorByteSize, scratch::getScratch, seg -> {
                 float cos = cosineI8(query, seg, dimensions);
                 return normalize(cos);
             });
@@ -190,7 +185,7 @@ public abstract sealed class ByteVectorScorer extends RandomVectorScorer.Abstrac
             checkOrdinal(node);
             long byteOffset = (long) node * vectorByteSize;
             input.seek(byteOffset);
-            return IndexInputUtils.withSlice(input, vectorByteSize, this::getScratch, seg -> {
+            return IndexInputUtils.withSlice(input, vectorByteSize, scratch::getScratch, seg -> {
                 float sqDist = squareDistanceI8(query, seg, dimensions);
                 return VectorUtil.normalizeDistanceToUnitInterval(sqDist);
             });
@@ -221,7 +216,7 @@ public abstract sealed class ByteVectorScorer extends RandomVectorScorer.Abstrac
             checkOrdinal(node);
             long byteOffset = (long) node * vectorByteSize;
             input.seek(byteOffset);
-            return IndexInputUtils.withSlice(input, vectorByteSize, this::getScratch, seg -> {
+            return IndexInputUtils.withSlice(input, vectorByteSize, scratch::getScratch, seg -> {
                 float dp = dotProductI8(query, seg, dimensions);
                 return VectorUtil.scaleMaxInnerProductScore(dp);
             });

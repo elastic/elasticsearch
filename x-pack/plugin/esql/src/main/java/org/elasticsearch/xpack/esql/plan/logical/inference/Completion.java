@@ -96,7 +96,8 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
         LogicalPlan child,
         Expression inferenceId,
         Expression rowLimit,
-        TimeValue timeout, Expression prompt,
+        TimeValue timeout,
+        Expression prompt,
         Attribute targetField,
         MapExpression taskSettings
     ) {
@@ -112,7 +113,8 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
             in.readNamedWriteable(LogicalPlan.class),
             in.readNamedWriteable(Expression.class),
             in.getTransportVersion().supports(ESQL_INFERENCE_ROW_LIMIT) ? in.readNamedWriteable(Expression.class) : DEFAULT_ROW_LIMIT,
-            in.getTransportVersion().supports(ESQL_INFERENCE_ACCEPT_TIMEOUT) ? in.readOptionalTimeValue() : null, in.readNamedWriteable(Expression.class),
+            in.getTransportVersion().supports(ESQL_INFERENCE_ACCEPT_TIMEOUT) ? in.readOptionalTimeValue() : null,
+            in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Attribute.class),
             // COMPLETION is coordinator-only and should not be serialized in normal operation.
             // Deserialization is kept for rolling upgrade safety. Since old versions don't
@@ -210,7 +212,8 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
             child(),
             inferenceId(),
             rowLimit(),
-            timeout(), prompt,
+            timeout(),
+            prompt,
             this.renameTargetField(newNames.get(0)),
             taskSettings
         );
@@ -248,7 +251,26 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, (source, child, inferenceId, rowLimit, prompt1, targetField1, taskSettings1, timeout) -> new Completion(source, child, inferenceId, rowLimit, timeout, prompt1, targetField1, taskSettings1), child(), inferenceId(), rowLimit(), prompt, targetField, taskSettings, timeout());
+        return NodeInfo.create(
+            this,
+            (source, child, inferenceId, rowLimit, prompt1, targetField1, taskSettings1, timeout) -> new Completion(
+                source,
+                child,
+                inferenceId,
+                rowLimit,
+                timeout,
+                prompt1,
+                targetField1,
+                taskSettings1
+            ),
+            child(),
+            inferenceId(),
+            rowLimit(),
+            prompt,
+            targetField,
+            taskSettings,
+            timeout()
+        );
     }
 
     @Override

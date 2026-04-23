@@ -30,7 +30,8 @@ public class CompletionSerializationTests extends AbstractLogicalPlanSerializati
             randomChild(0),
             randomInferenceId(),
             randomRowLimit(),
-                randomTimeout(), randomPrompt(),
+            randomTimeout(),
+            randomPrompt(),
             randomAttribute(),
             randomTaskSettings()
         );

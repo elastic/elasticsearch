@@ -82,7 +82,8 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
         LogicalPlan child,
         Expression inferenceId,
         Expression rowLimit,
-        TimeValue timeout, Expression queryText,
+        TimeValue timeout,
+        Expression queryText,
         List<Alias> rerankFields,
         Attribute scoreAttribute
     ) {
@@ -98,7 +99,8 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
             in.readNamedWriteable(LogicalPlan.class),
             in.readNamedWriteable(Expression.class),
             in.getTransportVersion().supports(ESQL_INFERENCE_ROW_LIMIT) ? in.readNamedWriteable(Expression.class) : DEFAULT_ROW_LIMIT,
-            in.getTransportVersion().supports(ESQL_INFERENCE_ACCEPT_TIMEOUT) ? in.readOptionalTimeValue() : null, in.readNamedWriteable(Expression.class),
+            in.getTransportVersion().supports(ESQL_INFERENCE_ACCEPT_TIMEOUT) ? in.readOptionalTimeValue() : null,
+            in.readNamedWriteable(Expression.class),
             in.readCollectionAsList(Alias::new),
             in.readNamedWriteable(Attribute.class)
         );
@@ -196,7 +198,8 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
             child(),
             inferenceId(),
             rowLimit(),
-            timeout(), queryText,
+            timeout(),
+            queryText,
             rerankFields,
             this.renameScoreAttribute(newNames.get(0))
         );
@@ -231,7 +234,26 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, (source, child, inferenceId, rowLimit, queryText1, rerankFields1, scoreAttribute1, timeout) -> new Rerank(source, child, inferenceId, rowLimit, timeout, queryText1, rerankFields1, scoreAttribute1), child(), inferenceId(), rowLimit(), queryText, rerankFields, scoreAttribute, timeout());
+        return NodeInfo.create(
+            this,
+            (source, child, inferenceId, rowLimit, queryText1, rerankFields1, scoreAttribute1, timeout) -> new Rerank(
+                source,
+                child,
+                inferenceId,
+                rowLimit,
+                timeout,
+                queryText1,
+                rerankFields1,
+                scoreAttribute1
+            ),
+            child(),
+            inferenceId(),
+            rowLimit(),
+            queryText,
+            rerankFields,
+            scoreAttribute,
+            timeout()
+        );
     }
 
     @Override

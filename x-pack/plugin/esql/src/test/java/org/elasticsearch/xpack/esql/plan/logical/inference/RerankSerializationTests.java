@@ -34,7 +34,8 @@ public class RerankSerializationTests extends AbstractLogicalPlanSerializationTe
             child,
             string(randomIdentifier()),
             randomRowLimit(),
-                randomTimeout(), string(randomIdentifier()),
+            randomTimeout(),
+            string(randomIdentifier()),
             randomFields(),
             scoreAttribute()
         );

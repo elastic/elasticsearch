@@ -51,7 +51,6 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
         private static final ParseField DESCRIPTION = new ParseField("description");
         private static final ParseField SETTINGS = new ParseField("settings");
 
-        /** Context for {@link #PARSER}: fields not in the request body (come from URL path + headers). */
         public record ParseContext(String name, TimeValue masterNodeTimeout, TimeValue ackTimeout) {}
 
         @SuppressWarnings("unchecked")

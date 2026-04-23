@@ -13,10 +13,8 @@ import org.elasticsearch.common.ValidationException;
 import java.util.Map;
 
 /**
- * Validates data source and dataset settings at CRUD time. Each plugin provides a stateless
- * singleton implementation. Called synchronously from the transport thread — no blocking I/O.
- * {@link #validateDataset} sees plaintext secrets: implementations MUST NOT log, persist
- * outside cluster state, or leak them in exception messages.
+ * Validates data source + dataset settings at CRUD time. No blocking I/O. {@link #validateDataset}
+ * sees plaintext secrets — do not log, persist, or leak them.
  */
 public interface DataSourceValidator {
 
@@ -30,9 +28,8 @@ public interface DataSourceValidator {
     Map<String, DataSourceSetting> validateDatasource(Map<String, Object> datasourceSettings);
 
     /**
-     * Validates dataset settings against the parent. Returns plain values only — datasets never
-     * carry secrets. The parent's settings are passed so implementations can cross-check
-     * region / auth / format. Throws {@link ValidationException} if invalid.
+     * Validates dataset settings. Returns plain values — datasets carry no secrets. Parent passed for
+     * cross-checks. Throws {@link ValidationException} if invalid.
      */
     Map<String, Object> validateDataset(
         Map<String, DataSourceSetting> datasourceSettings,

@@ -337,9 +337,6 @@ tests:
 - class: org.elasticsearch.lucene.FullClusterRestartSystemIndexCompatibilityIT
   method: testAsyncSearchIndexMigration {p0=8.19.0}
   issue: https://github.com/elastic/elasticsearch/issues/146849
-- class: org.elasticsearch.action.admin.cluster.tasks.ListTasksIT
-  method: testWaitForCompletion
-  issue: https://github.com/elastic/elasticsearch/issues/146859
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testWatcherWithApiKey {cluster=OLD}
   issue: https://github.com/elastic/elasticsearch/issues/146861

@@ -20,7 +20,7 @@ public class TrackingBytesRefRecyclerTests extends ESTestCase {
         final var recycler = new TrackingBytesRefRecycler(new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE), null);
         final var page = recycler.obtain();
         page.close();
-        final var ex = expectThrows(IllegalStateException.class, page::close);
-        assertThat(ex.getMessage(), containsString("Double release"));
+        final var e = expectThrows(IllegalStateException.class, page::close);
+        assertThat(e.getMessage(), containsString("Double release"));
     }
 }

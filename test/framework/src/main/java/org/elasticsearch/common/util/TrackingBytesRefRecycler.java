@@ -64,7 +64,7 @@ public class TrackingBytesRefRecycler implements Recycler<BytesRef> {
     public Recycler.V<BytesRef> obtain() {
         final Recycler.V<BytesRef> page = delegate.obtain();
         if (breaker != null) {
-            breaker.addWithoutBreaking(PageCacheRecycler.BYTE_PAGE_SIZE);
+            breaker.addWithoutBreaking(pageSize());
         }
         final Object key = new Object();
         ACQUIRED_PAGES.add(key);
@@ -87,7 +87,7 @@ public class TrackingBytesRefRecycler implements Recycler<BytesRef> {
                     throw new IllegalStateException("Double release. Original release attached as cause", originalRelease.get());
                 }
                 if (breaker != null) {
-                    breaker.addWithoutBreaking(-PageCacheRecycler.BYTE_PAGE_SIZE);
+                    breaker.addWithoutBreaking(-pageSize());
                 }
                 ACQUIRED_PAGES.remove(key);
                 page.close();

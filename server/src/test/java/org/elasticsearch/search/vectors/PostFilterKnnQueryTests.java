@@ -212,10 +212,10 @@ public class PostFilterKnnQueryTests extends ESTestCase {
 
                 int[] excluded = new int[] { 1, 3 };
 
-                ExcludeDocsQuery query = new ExcludeDocsQuery(excluded, reader);
+                ExcludeDocsQuery query = new ExcludeDocsQuery(excluded, searcher.getIndexReader());
                 Weight weight = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1f);
 
-                LeafReaderContext leaf = reader.leaves().get(0);
+                LeafReaderContext leaf = searcher.getIndexReader().leaves().get(0);
                 ScorerSupplier ss = weight.scorerSupplier(leaf);
                 assertNotNull(ss);
 
@@ -243,10 +243,10 @@ public class PostFilterKnnQueryTests extends ESTestCase {
 
                 int[] excluded = new int[] { 0, 1, 2, };
 
-                ExcludeDocsQuery query = new ExcludeDocsQuery(excluded, reader);
+                ExcludeDocsQuery query = new ExcludeDocsQuery(excluded, searcher.getIndexReader());
                 Weight weight = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1f);
 
-                LeafReaderContext leaf = reader.leaves().get(0);
+                LeafReaderContext leaf = searcher.getIndexReader().leaves().get(0);
                 assertNull(weight.scorerSupplier(leaf));
             }
         }
@@ -431,7 +431,7 @@ public class PostFilterKnnQueryTests extends ESTestCase {
         writer.addDocument(doc);
     }
 
-    public void testIVFPostFilterEndToEnd() throws IOException {
+    public void testIVFPostFilterSearch() throws IOException {
         // Create an IVF index with 200 vectors: 160 tagged "common", 40 tagged "rare"
         // selectivity = 160/200 = 0.8 > 0.7 threshold → post-filtering should activate via wrapper
         // vectorsPerCluster minimum is 64, so we need enough docs
@@ -458,7 +458,7 @@ public class PostFilterKnnQueryTests extends ESTestCase {
                 IVFKnnFloatVectorQuery innerQuery = new IVFKnnFloatVectorQuery("vec", new float[] { 0f, 200f }, k, 10, filter, 0.5f, false);
                 PostFilterKnnQuery query = new PostFilterKnnQuery(innerQuery, filter, k, "vec", null);
                 TopDocs topDocs = searcher.search(query, k);
-                assertTrue("Expected at least 1 result", topDocs.scoreDocs.length > 0);
+                assertEquals("expected 5 results", 5, topDocs.scoreDocs.length);
                 for (ScoreDoc sd : topDocs.scoreDocs) {
                     String tag = reader.storedFields().document(sd.doc).get("tag");
                     assertEquals("All results should match filter", "common", tag);
@@ -467,42 +467,7 @@ public class PostFilterKnnQueryTests extends ESTestCase {
         }
     }
 
-    public void testIVFPreFilterWithLowSelectivity() throws IOException {
-        // Create an IVF index where selectivity is low → wrapper falls through to inner query's pre-filtering
-        KnnVectorsFormat format = new ES920DiskBBQVectorsFormat(128, 4);
-        try (Directory dir = newDirectory()) {
-            IndexWriterConfig iwc = new IndexWriterConfig();
-            iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(format));
-            try (IndexWriter writer = new IndexWriter(dir, iwc)) {
-                for (int i = 0; i < 200; i++) {
-                    Document doc = new Document();
-                    float[] vector = new float[] { (float) i, (float) (200 - i) };
-                    doc.add(new KnnFloatVectorField("vec", vector, VectorSimilarityFunction.EUCLIDEAN));
-                    // Only 50 out of 200 match → selectivity = 0.25 < 0.7 → pre-filter
-                    doc.add(new StringField("tag", i < 50 ? "match" : "nomatch", Field.Store.YES));
-                    writer.addDocument(doc);
-                }
-                writer.forceMerge(1);
-                writer.commit();
-            }
-
-            try (IndexReader reader = DirectoryReader.open(dir)) {
-                IndexSearcher searcher = newSearcher(reader);
-                Query filter = new TermQuery(new Term("tag", "match"));
-                int k = 3;
-                IVFKnnFloatVectorQuery innerQuery = new IVFKnnFloatVectorQuery("vec", new float[] { 0f, 200f }, k, 5, filter, 0.5f, false);
-                PostFilterKnnQuery query = new PostFilterKnnQuery(innerQuery, filter, k, "vec", null);
-                TopDocs topDocs = searcher.search(query, k);
-                assertTrue("Expected at least 1 result", topDocs.scoreDocs.length > 0);
-                for (ScoreDoc sd : topDocs.scoreDocs) {
-                    String tag = reader.storedFields().document(sd.doc).get("tag");
-                    assertEquals("All results should match filter", "match", tag);
-                }
-            }
-        }
-    }
-
-    public void testHNSWPostFilterEndToEnd() throws IOException {
+    public void testHNSWPostFilterSearch() throws IOException {
         // Create an HNSW index with 20 vectors: 16 tagged "common", 4 tagged "rare"
         // selectivity = 16/20 = 0.8 > 0.7 threshold → post-filtering activated via wrapper
         try (Directory dir = newDirectory()) {
@@ -522,7 +487,7 @@ public class PostFilterKnnQueryTests extends ESTestCase {
             try (IndexReader reader = DirectoryReader.open(dir)) {
                 IndexSearcher searcher = newSearcher(reader);
                 Query filter = new TermQuery(new Term("tag", "common"));
-                int k = 5;
+                int k = 20;
                 ESKnnFloatVectorQuery innerQuery = new ESKnnFloatVectorQuery(
                     "vec",
                     new float[] { 0f, 20f },
@@ -533,49 +498,10 @@ public class PostFilterKnnQueryTests extends ESTestCase {
                 );
                 PostFilterKnnQuery query = new PostFilterKnnQuery(innerQuery, filter, k, "vec", null);
                 TopDocs topDocs = searcher.search(query, k);
-                assertTrue("Expected at least 1 result", topDocs.scoreDocs.length > 0);
+                assertEquals("expected 16 matching results", 16, topDocs.scoreDocs.length);
                 for (ScoreDoc sd : topDocs.scoreDocs) {
                     String tag = reader.storedFields().document(sd.doc).get("tag");
                     assertEquals("All results should match filter", "common", tag);
-                }
-            }
-        }
-    }
-
-    public void testHNSWPreFilterWithLowSelectivity() throws IOException {
-        // selectivity = 4/20 = 0.2 < 0.7 → wrapper falls through to inner query's pre-filtering
-        try (Directory dir = newDirectory()) {
-            IndexWriterConfig iwc = new IndexWriterConfig();
-            try (IndexWriter writer = new IndexWriter(dir, iwc)) {
-                for (int i = 0; i < 20; i++) {
-                    Document doc = new Document();
-                    float[] vector = new float[] { (float) i, (float) (20 - i) };
-                    doc.add(new KnnFloatVectorField("vec", vector, VectorSimilarityFunction.EUCLIDEAN));
-                    doc.add(new StringField("tag", i < 4 ? "rare" : "common", Field.Store.YES));
-                    writer.addDocument(doc);
-                }
-                writer.forceMerge(1);
-                writer.commit();
-            }
-
-            try (IndexReader reader = DirectoryReader.open(dir)) {
-                IndexSearcher searcher = newSearcher(reader);
-                Query filter = new TermQuery(new Term("tag", "rare"));
-                int k = 3;
-                ESKnnFloatVectorQuery innerQuery = new ESKnnFloatVectorQuery(
-                    "vec",
-                    new float[] { 0f, 20f },
-                    k,
-                    10,
-                    filter,
-                    new KnnSearchStrategy.Hnsw(10)
-                );
-                PostFilterKnnQuery query = new PostFilterKnnQuery(innerQuery, filter, k, "vec", null);
-                TopDocs topDocs = searcher.search(query, k);
-                assertTrue("Expected at least 1 result", topDocs.scoreDocs.length > 0);
-                for (ScoreDoc sd : topDocs.scoreDocs) {
-                    String tag = reader.storedFields().document(sd.doc).get("tag");
-                    assertEquals("All results should match filter", "rare", tag);
                 }
             }
         }

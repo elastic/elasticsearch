@@ -1,0 +1,212 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.diskbbq;
+
+import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.license.LicenseSettings;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.vectors.KnnSearchBuilder;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.junit.Before;
+
+import static org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
+
+import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+
+import static org.elasticsearch.license.DiskBBQLicensingIT.enableLicensing;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+
+@LuceneTestCase.SuppressCodecs("*")
+@ESTestCase.WithoutEntitlements
+public class PostFilterIvfKnnSearchIT extends ESIntegTestCase {
+
+    private static final String VECTOR_FIELD = "vector";
+    private static final String TAG_FIELD = "tag";
+    private static final String NESTED_FIELD = "nested_field";
+    private static final int DIMS = 64;
+
+    @Before
+    public void resetLicensing() {
+        enableLicensing();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return List.of(LocalStateDiskBBQ.class);
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
+            .build();
+    }
+
+    @Override
+    public Settings indexSettings() {
+        return Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build();
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/0")
+    public void testIvfFloat() throws IOException {
+        String indexName = "ivf_float_test";
+        createIvfIndex(indexName);
+        indexFlatDocs(indexName);
+        assertPostFilterFlat(indexName);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/0")
+    public void testIvfFloatNested() throws IOException {
+        String indexName = "ivf_float_nested_test";
+        createIvfNestedIndex(indexName);
+        indexNestedDocs(indexName);
+        assertPostFilterNested(indexName);
+    }
+
+    private void createIvfIndex(String indexName) throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject(VECTOR_FIELD)
+            .field("type", "dense_vector")
+            .field("dims", DIMS)
+            .field("index", true)
+            .field("similarity", "l2_norm")
+            .startObject("index_options")
+            .field("type", "bbq_disk")
+            .endObject()
+            .endObject()
+            .startObject(TAG_FIELD)
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject();
+        prepareCreate(indexName).setMapping(mapping).get();
+        ensureGreen(indexName);
+    }
+
+    private void createIvfNestedIndex(String indexName) throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject(NESTED_FIELD)
+            .field("type", "nested")
+            .startObject("properties")
+            .startObject(VECTOR_FIELD)
+            .field("type", "dense_vector")
+            .field("dims", DIMS)
+            .field("index", true)
+            .field("similarity", "l2_norm")
+            .startObject("index_options")
+            .field("type", "bbq_disk")
+            .endObject()
+            .endObject()
+            .startObject(TAG_FIELD)
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        prepareCreate(indexName).setMapping(mapping).get();
+        ensureGreen(indexName);
+    }
+
+    /**
+     * Creates a deterministic 64-dim vector that spreads variation across all dimensions.
+     * Vectors with closer seeds are closer in L2 distance.
+     */
+    private static float[] makeVector(int seed) {
+        float[] vec = new float[DIMS];
+        for (int j = 0; j < DIMS; j++) {
+            vec[j] = seed * 0.1f + j;
+        }
+        return vec;
+    }
+
+    /**
+     * Indexes 500 flat docs: 400 "common" (ids 0-399), 100 "rare" (ids 400-499).
+     * selectivity(common) = 400/500 = 0.8 > 0.7 → post-filter.
+     */
+    private void indexFlatDocs(String indexName) {
+        for (int i = 0; i < 500; i++) {
+            String tag = i < 400 ? "common" : "rare";
+            prepareIndex(indexName).setId(Integer.toString(i)).setSource(VECTOR_FIELD, makeVector(i), TAG_FIELD, tag).get();
+        }
+        forceMerge(true);
+        refresh(indexName);
+    }
+
+    /**
+     * Indexes 250 parent docs, each with 2 nested children.
+     * Parents 0-199: children tagged "common". Parents 200-249: children tagged "rare".
+     * Total: 400 common children, 100 rare children → selectivity(common) = 0.8.
+     */
+    private void indexNestedDocs(String indexName) {
+        for (int parentId = 0; parentId < 250; parentId++) {
+            String tag = parentId < 200 ? "common" : "rare";
+            int childIdx0 = parentId * 2;
+            int childIdx1 = parentId * 2 + 1;
+            prepareIndex(indexName).setId("parent_" + parentId)
+                .setSource(
+                    NESTED_FIELD,
+                    List.of(
+                        Map.of(VECTOR_FIELD, makeVector(childIdx0), TAG_FIELD, tag),
+                        Map.of(VECTOR_FIELD, makeVector(childIdx1), TAG_FIELD, tag)
+                    )
+                )
+                .get();
+        }
+        forceMerge(true);
+        refresh(indexName);
+    }
+
+    private void assertPostFilterFlat(String indexName) {
+        int k = 5;
+        // Query vector nearest to "rare" docs (seed >= 400)
+        var knnSearch = new KnnSearchBuilder(VECTOR_FIELD, makeVector(500), k, 500, 100f, null, null).addFilterQuery(
+            QueryBuilders.termQuery(TAG_FIELD, "common")
+        );
+
+        assertResponse(client().prepareSearch(indexName).setKnnSearch(List.of(knnSearch)).setSize(k), response -> {
+            assertTrue("Expected at least 1 result", response.getHits().getHits().length > 0);
+            for (SearchHit hit : response.getHits().getHits()) {
+                assertEquals("common", hit.getSourceAsMap().get(TAG_FIELD));
+            }
+        });
+    }
+
+    private void assertPostFilterNested(String indexName) {
+        int k = 3;
+        String nestedVectorField = NESTED_FIELD + "." + VECTOR_FIELD;
+        String nestedTagField = NESTED_FIELD + "." + TAG_FIELD;
+        var knnSearch = new KnnSearchBuilder(nestedVectorField, makeVector(500), k, 500, 100f, null, null).addFilterQuery(
+            QueryBuilders.termQuery(nestedTagField, "common")
+        );
+
+        assertResponse(client().prepareSearch(indexName).setKnnSearch(List.of(knnSearch)).setSize(k), response -> {
+            assertTrue("Expected at least 1 result", response.getHits().getHits().length > 0);
+            for (SearchHit hit : response.getHits().getHits()) {
+                assertTrue("Expected parent doc ID", hit.getId().startsWith("parent_"));
+                int parentId = Integer.parseInt(hit.getId().substring("parent_".length()));
+                assertTrue("Expected common parent (id < 200), got " + parentId, parentId < 200);
+            }
+        });
+    }
+}

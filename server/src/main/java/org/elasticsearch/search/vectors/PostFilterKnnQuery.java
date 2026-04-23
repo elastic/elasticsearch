@@ -87,7 +87,7 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             if (topDocs.scoreDocs.length == 0) {
                 break;
             }
-            vectorOps += postFilterQuery.totalVectorOps();
+            vectorOps += ((PostFilterableKnnQuery) delegate).totalVectorOps();
 
             // accumulate this round's doc IDs into the running sorted array
             int[] roundDocs = new int[topDocs.scoreDocs.length];

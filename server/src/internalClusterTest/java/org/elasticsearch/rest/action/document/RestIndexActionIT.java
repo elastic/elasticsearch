@@ -26,6 +26,7 @@ import org.elasticsearch.test.rest.ObjectPath;
 import java.io.InputStreamReader;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.hamcrest.Matchers.both;
@@ -145,11 +146,11 @@ public class RestIndexActionIT extends ESIntegTestCase {
     public void testSliceBehaviorRespectsIndexTemplateSetting() throws Exception {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
 
-        final String disabledTemplateName = "slice-template-disabled-" + randomAlphaOfLength(6).toLowerCase();
-        final String disabledPattern = "slice-template-disabled-" + randomAlphaOfLength(6).toLowerCase() + "-*";
+        final String disabledTemplateName = "slice-template-disabled-" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+        final String disabledPattern = "slice-template-disabled-" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT) + "-*";
         final String disabledIndex = disabledPattern.replace("*", "000001");
         Request putDisabledTemplate = new Request("PUT", "/_index_template/" + disabledTemplateName);
-        putDisabledTemplate.setJsonEntity("""
+        putDisabledTemplate.setJsonEntity(String.format(Locale.ROOT, """
             {
               "index_patterns": ["%s"],
               "template": {
@@ -157,7 +158,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
                   "index.slice.enabled": false
                 }
               }
-            }""".formatted(disabledPattern));
+            }""", disabledPattern));
         getRestClient().performRequest(putDisabledTemplate);
 
         Request disabledSliceWrite = new Request("POST", "/" + disabledIndex + "/_doc/1");
@@ -175,11 +176,11 @@ public class RestIndexActionIT extends ESIntegTestCase {
         );
         assertThat(disabledResponse, containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
 
-        final String enabledTemplateName = "slice-template-enabled-" + randomAlphaOfLength(6).toLowerCase();
-        final String enabledPattern = "slice-template-enabled-" + randomAlphaOfLength(6).toLowerCase() + "-*";
+        final String enabledTemplateName = "slice-template-enabled-" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+        final String enabledPattern = "slice-template-enabled-" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT) + "-*";
         final String enabledIndex = enabledPattern.replace("*", "000001");
         Request putEnabledTemplate = new Request("PUT", "/_index_template/" + enabledTemplateName);
-        putEnabledTemplate.setJsonEntity("""
+        putEnabledTemplate.setJsonEntity(String.format(Locale.ROOT, """
             {
               "index_patterns": ["%s"],
               "template": {
@@ -187,7 +188,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
                   "index.slice.enabled": true
                 }
               }
-            }""".formatted(enabledPattern));
+            }""", enabledPattern));
         getRestClient().performRequest(putEnabledTemplate);
 
         Request enabledSliceWrite = new Request("POST", "/" + enabledIndex + "/_doc/1");

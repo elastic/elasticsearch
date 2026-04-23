@@ -79,7 +79,7 @@ So, for example, a single index pattern could reference four views and four subq
 but adding just one more view or subquery would exceed the allowed limit and the query will fail.
 
 Branching and nesting are allowed in combination as long as there is never more than one branch point.
-This means that nested branching is not allowed under some circumstance:
+This means that nested branching has restrictions:
 * A view can contain subqueries, but then that view cannot be used together with other views, and all subqueries can only reference nested views that contain no further branching.
 * A subquery can contain views, but then those views must themselves contain no branches (no subqueries or `FORK`)
 

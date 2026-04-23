@@ -32,7 +32,7 @@ import java.util.Objects;
  * so that pipeline breakers (Aggregate, Limit, TopN) above it are distributed to data nodes
  * via ExchangeExec. On data nodes, {@code localPlan()} expands the FragmentExec through
  * LocalMapper into {@link ExternalSourceExec}, enabling local optimizations such as
- * filter pushdown via FilterPushdownRegistry.
+ * filter pushdown via {@link org.elasticsearch.xpack.esql.datasources.spi.FormatReader#filterPushdownSupport()}.
  * <p>
  * The {@link ExecutesOn.Coordinator} marker is retained for logical plan validation
  * (e.g., Enrich/Join hoist rules that inspect whether a relation executes on the coordinator).

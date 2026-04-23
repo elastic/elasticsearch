@@ -9,11 +9,14 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.mapper.FieldMapper.DocValuesParameter.Values.MultiValue;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.IntegratedCount;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.SeparateCount;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.ValueOrdering;
@@ -364,6 +367,26 @@ public class MultiValuedBinaryDocValuesFieldTests extends ESTestCase {
         assertEquals(1, ((SeparateCount) doc1.getFields("field").getFirst()).count());
         assertEquals(1, doc2.getFields("field").size());
         assertEquals(1, ((SeparateCount) doc2.getFields("field").getFirst()).count());
+    }
+
+    // =====================================================================================================================================
+    // multi_value=no tests
+    // =====================================================================================================================================
+
+    public void testMultiValueNoUsesBinaryDocValuesFieldWithRawBytes() {
+        // given
+        LuceneDocument doc = new LuceneDocument();
+        BytesRef value = new BytesRef(randomAlphanumericOfLength(10));
+
+        // when — use DocValuesFieldFactory which handles multi_value=no branching
+        DocValuesFieldFactory factory = new DocValuesFieldFactory(MultiValue.NO, false, IndexVersion.current());
+        factory.addBinaryField(doc, "field", value, ValueOrdering.SORTED_UNIQUE);
+
+        // then — field is stored as a plain BinaryDocValuesField with the raw value
+        IndexableField storedField = doc.getField("field");
+        assertNotNull(storedField);
+        assertTrue(storedField instanceof BinaryDocValuesField);
+        assertEquals(value, storedField.binaryValue());
     }
 
 }

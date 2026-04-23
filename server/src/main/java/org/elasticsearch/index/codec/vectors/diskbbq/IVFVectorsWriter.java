@@ -165,6 +165,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
 
     public abstract CentroidSupplier createCentroidSupplier(
         IndexInput centroidsInput,
+        CentroidSlices centroidSlices,
         int numCentroids,
         FieldInfo fieldInfo,
         float[] globalCentroid
@@ -191,7 +192,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             Preconditioner preconditioner = createPreconditioner(fieldWriter.fieldInfo().getVectorDimension());
             if (fieldWriter.delegate == null) {
                 // field is not float, we just write meta information
-                writeMeta(fieldWriter.fieldInfo, 0, 0, 0, 0, 0, null, 0, 0);
+                writeMeta(fieldWriter.fieldInfo, 0, 0, 0, 0, 0, null, 0, 0, 0, 0);
                 continue;
             }
             // build a float vector values with random access
@@ -251,7 +252,9 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                 postingListLength,
                 globalCentroid,
                 preconditionerOffset,
-                preconditionerLength
+                preconditionerLength,
+                0,
+                0
             );
         }
     }
@@ -314,7 +317,8 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
      * @return a {@link CentroidAssignments} instance with one centroid and
      *         all vectors assigned to it
      */
-    private CentroidAssignments buildFlatCentroidAssignments(FieldInfo fieldInfo, FloatVectorValues floatVectorValues) throws IOException {
+    protected final CentroidAssignments buildFlatCentroidAssignments(FieldInfo fieldInfo, FloatVectorValues floatVectorValues)
+        throws IOException {
         int dimension = fieldInfo.getVectorDimension();
         int count = floatVectorValues.size();
         float[] centroid = new float[dimension];
@@ -339,7 +343,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             mergeOneFieldIVF(fieldInfo, mergeState);
         } else {
             // we simply write information that the field is present but we don't do anything with it.
-            writeMeta(fieldInfo, 0, 0, 0, 0, 0, null, 0, 0);
+            writeMeta(fieldInfo, 0, 0, 0, 0, 0, null, 0, 0, 0, 0);
         }
         // we merge the vectors at the end so we only have two copies of the vectors on disk at the same time.
         rawVectorDelegate.mergeOneField(fieldInfo, mergeState);
@@ -354,7 +358,9 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         long postingListLength,
         float[] globalCentroid,
         long preconditionerOffset,
-        long preconditionerLength
+        long preconditionerLength,
+        int numberOfSlices,
+        int maxSliceSize
     ) throws IOException {
         ivfMeta.writeInt(field.number);
         ivfMeta.writeString(rawVectorFormatName);
@@ -375,7 +381,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             ivfMeta.writeBytes(buffer.array(), buffer.array().length);
             ivfMeta.writeInt(Float.floatToIntBits(ESVectorUtil.dotProduct(globalCentroid, globalCentroid)));
         }
-        doWriteMeta(ivfMeta, field, numCentroids, preconditionerOffset, preconditionerLength);
+        doWriteMeta(ivfMeta, field, numCentroids, preconditionerOffset, preconditionerLength, numberOfSlices, maxSliceSize);
     }
 
     protected abstract void doWriteMeta(
@@ -383,7 +389,9 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         FieldInfo field,
         int numCentroids,
         long preconditionerOffset,
-        long preconditionerLength
+        long preconditionerLength,
+        int numberOfSlices,
+        int maxSliceSize
     ) throws IOException;
 
     @SuppressForbidden(reason = "require usage of Lucene's IOUtils#deleteFilesIgnoringExceptions(...)")
@@ -433,7 +441,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         }
         if (numVectors == 0) {
             long centroidOffset = ivfCentroids.getFilePointer();
-            writeMeta(fieldInfo, 0, centroidOffset, 0, 0, 0, null, 0, 0);
+            writeMeta(fieldInfo, 0, centroidOffset, 0, 0, 0, null, 0, 0, 0, 0);
             return;
         }
         // now open the temp file and build the index structures. It is expected these files to be read in sequential order.
@@ -458,6 +466,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             final int[] assignments;
             final int[] overspillAssignments;
             final float[] calculatedGlobalCentroid;
+            final CentroidSlices centroidSlices;
             String centroidTempName = null;
             IndexOutput centroidTemp = null;
             try {
@@ -474,6 +483,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                 assignments = centroidAssignments.assignments();
                 calculatedGlobalCentroid = centroidAssignments.globalCentroid();
                 overspillAssignments = centroidAssignments.overspillAssignments();
+                centroidSlices = centroidAssignments.centroidSlices();
             } catch (Throwable t) {
                 if (centroidTempName != null) {
                     IOUtils.closeWhileHandlingException(centroidTemp);
@@ -484,7 +494,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             try {
                 if (numCentroids == 0) {
                     centroidOffset = ivfCentroids.getFilePointer();
-                    writeMeta(fieldInfo, 0, centroidOffset, 0, 0, 0, null, 0, 0);
+                    writeMeta(fieldInfo, 0, centroidOffset, 0, 0, 0, null, 0, 0, 0, 0);
                     CodecUtil.writeFooter(centroidTemp);
                     IOUtils.close(centroidTemp);
                     return;
@@ -495,6 +505,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                 try (IndexInput centroidsInput = mergeState.segmentInfo.dir.openInput(centroidTempName, IOContext.DEFAULT)) {
                     CentroidSupplier centroidSupplier = createCentroidSupplier(
                         centroidsInput,
+                        centroidSlices,
                         numCentroids,
                         fieldInfo,
                         calculatedGlobalCentroid
@@ -527,6 +538,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                     long preconditionerOffset = ivfCentroids.getFilePointer();
                     writePreconditioner(preconditioner, ivfCentroids);
                     long preconditionerLength = ivfCentroids.getFilePointer() - preconditionerOffset;
+                    assert centroidSlices == null || centroidSlices.sliceOffsets().length > 0;
                     // write meta
                     writeMeta(
                         fieldInfo,
@@ -537,7 +549,9 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                         postingListLength,
                         calculatedGlobalCentroid,
                         preconditionerOffset,
-                        preconditionerLength
+                        preconditionerLength,
+                        centroidSlices == null ? 0 : centroidSlices.sliceOffsets().length,
+                        centroidSlices == null ? 0 : centroidSlices.maxSliceSize()
                     );
                 }
             } finally {

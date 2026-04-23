@@ -125,6 +125,13 @@ public class WriteLoadConstraintSettings {
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Boolean> CLUSTER_INFO_WRITE_LOAD_FORECASTER_ENABLED_SETTING = Setting.boolSetting(
+        "cluster_info_write_load_forecaster.enabled",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private static RatioValue parseMaxSingleShardRatio(String sValue) {
         RatioValue parsedValue = RatioValue.parseRatioValue(sValue);
         double parsedRatio = parsedValue.getAsRatio();
@@ -177,6 +184,7 @@ public class WriteLoadConstraintSettings {
     private volatile double hotspotUtilizationThreshold;
     private volatile String hotspotUtilizationThresholdString;
     private volatile double hotspotMaxShardWriteLoadProportionThreshold;
+    private volatile String hotspotMaxShardWriteLoadProportionThresholdString;
 
     public WriteLoadConstraintSettings(ClusterSettings clusterSettings) {
         clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_ENABLED_SETTING, status -> this.writeLoadDeciderStatus = status);
@@ -196,6 +204,7 @@ public class WriteLoadConstraintSettings {
         });
         clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_HOTSPOT_MAX_SHARD_WRITE_LOAD_PROPORTION_THRESHOLD_SETTING, value -> {
             hotspotMaxShardWriteLoadProportionThreshold = value.getAsRatio();
+            hotspotMaxShardWriteLoadProportionThresholdString = value.formatNoTrailingZerosPercent();
         });
     }
 
@@ -233,6 +242,10 @@ public class WriteLoadConstraintSettings {
      */
     public double getHotspotMaxShardWriteLoadProportionThreshold() {
         return this.hotspotMaxShardWriteLoadProportionThreshold;
+    }
+
+    public String getHotspotMaxShardWriteLoadProportionThresholdString() {
+        return this.hotspotMaxShardWriteLoadProportionThresholdString;
     }
 
     /**

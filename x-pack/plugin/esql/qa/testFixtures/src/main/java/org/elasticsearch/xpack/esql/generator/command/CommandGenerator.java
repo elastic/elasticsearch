@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.generator.command;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
+import org.elasticsearch.xpack.esql.generator.GenerationContext;
 import org.elasticsearch.xpack.esql.generator.LookupIdx;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 
@@ -49,7 +50,8 @@ public interface CommandGenerator {
             List<CommandDescription> previousCommands,
             List<Column> previousOutput,
             QuerySchema schema,
-            QueryExecutor executor
+            QueryExecutor executor,
+            GenerationContext context
         ) {
             return EMPTY_DESCRIPTION;
         }
@@ -77,6 +79,8 @@ public interface CommandGenerator {
      * @param previousOutput   the output returned by the query so far.
      * @param schema           The columns returned by the query so far. It contains name and type information for each column.
      * @param executor
+     * @param context          generation-time state (e.g. subquery nesting depth). Generators that recurse into
+     *                         {@link EsqlQueryGenerator#generatePipeline} must forward (or derive a child of) this value.
      * @return All the details about the generated command. See {@link CommandDescription}.
      * If something goes wrong and for some reason you can't generate a command, you should return {@link CommandGenerator#EMPTY_DESCRIPTION}
      */
@@ -84,7 +88,8 @@ public interface CommandGenerator {
         List<CommandDescription> previousCommands,
         List<Column> previousOutput,
         QuerySchema schema,
-        QueryExecutor executor
+        QueryExecutor executor,
+        GenerationContext context
     );
 
     /**

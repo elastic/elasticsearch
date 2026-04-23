@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.esql.generator.command.source;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
+import org.elasticsearch.xpack.esql.generator.GenerationContext;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
+import org.elasticsearch.xpack.esql.generator.SubqueryBuilder;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
 import java.util.HashMap;
@@ -33,6 +35,8 @@ public class FromGenerator implements CommandGenerator {
      */
     public static final String UNMAPPED_FIELDS_ENABLED = "unmappedFieldsEnabled";
 
+    public static final String HAS_SUBQUERY = "hasSubquery";
+
     public static final String SET_UNMAPPED_FIELDS_PREFIX = "SET unmapped_fields=\"nullify\";";
 
     public static final String SET_APPROXIMATION_PREFIX = "SET approximation=";
@@ -52,23 +56,27 @@ public class FromGenerator implements CommandGenerator {
         List<CommandDescription> previousCommands,
         List<Column> previousOutput,
         QuerySchema schema,
-        QueryExecutor executor
+        QueryExecutor executor,
+        GenerationContext context
     ) {
-        boolean useUnmappedFields = shouldAddUnmappedFieldWithProbabilityIncrease(3);
+        // SET prefixes are only legal at the top level of a query — never emit them inside a subquery.
+        boolean useUnmappedFields = context.inSubquery() == false && shouldAddUnmappedFieldWithProbabilityIncrease(3);
         StringBuilder result = new StringBuilder();
         if (useUnmappedFields) {
             result.append(SET_UNMAPPED_FIELDS_PREFIX);
         }
-        boolean setQueryApproximation = EsqlCapabilities.Cap.APPROXIMATION_V7.isEnabled()
+        boolean setQueryApproximation = context.inSubquery() == false
+            && EsqlCapabilities.Cap.APPROXIMATION_V7.isEnabled()
             && randomDouble() < QUERY_APPROXIMATION_SETTING_PROBABILITY;
         if (setQueryApproximation) {
             result.append(randomQueryApproximationSettings());
         }
-        appendFromClause(result, schema);
+        boolean hasSubquery = appendFromCommand(result, schema, executor, context);
         String query = result.toString();
-        Map<String, Object> context = new HashMap<>();
-        context.put(UNMAPPED_FIELDS_ENABLED, useUnmappedFields);
-        return new CommandDescription("from", this, query, context);
+        Map<String, Object> commandContext = new HashMap<>();
+        commandContext.put(UNMAPPED_FIELDS_ENABLED, useUnmappedFields);
+        commandContext.put(HAS_SUBQUERY, hasSubquery);
+        return new CommandDescription("from", this, query, commandContext);
     }
 
     @Override
@@ -83,17 +91,45 @@ public class FromGenerator implements CommandGenerator {
         return VALIDATION_OK;
     }
 
-    protected static void appendFromClause(StringBuilder result, QuerySchema schema) {
+    protected static final double SUBQUERY_PROBABILITY = 0.15;
+
+    protected static final int MAX_SUBQUERY_DEPTH = 2;
+
+    /**
+     * Appends the {@code from <sources>} portion of the command and returns whether the resulting plan
+     * tree contains a subquery. Callers should propagate this into the {@link CommandDescription} context
+     * map under {@link #HAS_SUBQUERY} so downstream commands can react.
+     */
+    protected static boolean appendFromCommand(
+        StringBuilder result,
+        QuerySchema schema,
+        QueryExecutor executor,
+        GenerationContext context
+    ) {
         result.append("from ");
-        int items = randomIntBetween(1, 3);
+        // Force single-source inside any subquery. This avoids the ESQL "Nested subqueries are not supported"
+        // error when a multi-source FROM ends up under another. We give up generating standalone
+        // `FROM (FROM a, b)` patterns (which ESQL would actually accept), but it keeps the rule trivial.
+        int items = context.inSubquery() ? 1 : randomIntBetween(1, 3);
         List<String> availableIndices = schema.baseIndices();
+        boolean hasSubquery = false;
         for (int i = 0; i < items; i++) {
-            String pattern = EsqlQueryGenerator.indexPattern(availableIndices.get(randomIntBetween(0, availableIndices.size() - 1)));
             if (i > 0) {
                 result.append(",");
             }
+            if (context.subqueryDepth() < MAX_SUBQUERY_DEPTH && randomDouble() < SUBQUERY_PROBABILITY) {
+                SubqueryBuilder.SubqueryResult sub = SubqueryBuilder.build(context, schema, executor);
+                if (sub != null) {
+                    result.append(sub.queryText());
+                    hasSubquery = true;
+                    continue;
+                }
+                // Fall through to a plain index pattern if subquery generation failed.
+            }
+            String pattern = EsqlQueryGenerator.indexPattern(availableIndices.get(randomIntBetween(0, availableIndices.size() - 1)));
             result.append(pattern);
         }
+        return hasSubquery;
     }
 
     protected String randomQueryApproximationSettings() {

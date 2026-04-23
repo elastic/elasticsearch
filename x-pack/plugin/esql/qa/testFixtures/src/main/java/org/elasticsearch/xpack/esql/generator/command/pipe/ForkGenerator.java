@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.esql.generator.command.pipe;
 
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
+import org.elasticsearch.xpack.esql.generator.GenerationContext;
 import org.elasticsearch.xpack.esql.generator.QueryExecuted;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
+import org.elasticsearch.xpack.esql.generator.command.source.FromGenerator;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,13 +32,19 @@ public class ForkGenerator implements CommandGenerator {
         List<CommandDescription> previousCommands,
         List<Column> previousOutput,
         QuerySchema schema,
-        QueryExecutor executor
+        QueryExecutor executor,
+        GenerationContext context
     ) {
         // FORK can only be allowed once - so we skip adding another FORK if we already have one
-        // otherwise, most generated queries would only result in a validation error
+        // otherwise, most generated queries would only result in a validation error.
+        // FORK also rejects any UnionAll/Subquery descendant ("FORK after subquery is not supported"),
+        // so skip if any earlier command flagged that it produced a subquery.
         StringBuilder completeCommand = new StringBuilder();
         for (CommandDescription command : previousCommands) {
             if (command.commandName().equals(FORK)) {
+                return EMPTY_DESCRIPTION;
+            }
+            if (Boolean.TRUE.equals(command.context().get(FromGenerator.HAS_SUBQUERY))) {
                 return EMPTY_DESCRIPTION;
             }
 
@@ -100,7 +108,8 @@ public class ForkGenerator implements CommandGenerator {
                     List<CommandDescription> previousCommands,
                     List<Column> previousOutput,
                     QuerySchema schema,
-                    QueryExecutor executor
+                    QueryExecutor executor,
+                    GenerationContext context
                 ) {
                     return new CommandDescription(FORK, this, completeCommand.toString(), Map.of());
                 }
@@ -118,7 +127,7 @@ public class ForkGenerator implements CommandGenerator {
                 }
             };
 
-            EsqlQueryGenerator.generatePipeline(3, gen, schema, exec, false, executor);
+            EsqlQueryGenerator.generatePipeline(3, gen, schema, exec, false, executor, context);
             if (exec.previousCommands().size() > 1) {
                 String previousCmd = exec.previousCommands()
                     .stream()

@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
+import org.elasticsearch.xpack.esql.generator.GenerationContext;
 import org.elasticsearch.xpack.esql.generator.LookupIdx;
 import org.elasticsearch.xpack.esql.generator.LookupIdxColumn;
 import org.elasticsearch.xpack.esql.generator.QueryExecuted;
@@ -140,7 +141,13 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "Output has changed from \\[.*\\] to \\[.*_doc.*\\]", // https://github.com/elastic/elasticsearch/issues/146856
 
         // TopNOperator type mismatch in ValueExtractor
-        "Expected \\[.*\\] but was \\[.*\\].*ValueExtractor" // https://github.com/elastic/elasticsearch/issues/146850
+        "Expected \\[.*\\] but was \\[.*\\].*ValueExtractor", // https://github.com/elastic/elasticsearch/issues/146850
+
+        // Mixing a subquery with plain index patterns in a multi-source FROM can surface fields whose types
+        // differ across branches. Plain FROM a, b would resolve these via union types, but the subquery-aware
+        // resolution (EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_CONFLICT_RESOLUTION) rejects
+        // them outright. The generator has no cheap way to predict these cross-branch collisions.
+        "has conflicting data types in subqueries"
     );
 
     public static final Set<Pattern> ALLOWED_ERROR_PATTERNS = ALLOWED_ERRORS.stream()
@@ -271,7 +278,15 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                 QueryExecuted previousResult;
             };
             try {
-                EsqlQueryGenerator.generatePipeline(MAX_DEPTH, sourceCommand(), mappingInfo, exec, requiresTimeSeries(), this);
+                EsqlQueryGenerator.generatePipeline(
+                    MAX_DEPTH,
+                    sourceCommand(),
+                    mappingInfo,
+                    exec,
+                    requiresTimeSeries(),
+                    this,
+                    GenerationContext.root()
+                );
             } catch (Exception e) {
                 // query failures are AssertionErrors, if we get here it's an unexpected exception in the query generation
                 if (isAllowedError(e.getMessage()) == false) {

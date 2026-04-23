@@ -168,11 +168,23 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
         try {
             final String dataName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, dataExtension);
             data = state.directory.createOutput(dataName, state.context);
-            CodecUtil.writeIndexHeader(data, dataCodec, formatConfig.versionCurrent(), state.segmentInfo.getId(), state.segmentSuffix);
+            CodecUtil.writeIndexHeader(
+                data,
+                dataCodec,
+                TSDBDocValuesFormatConfig.VERSION_CURRENT,
+                state.segmentInfo.getId(),
+                state.segmentSuffix
+            );
 
             final String metaName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, metaExtension);
             meta = state.directory.createOutput(metaName, state.context);
-            CodecUtil.writeIndexHeader(meta, metaCodec, formatConfig.versionCurrent(), state.segmentInfo.getId(), state.segmentSuffix);
+            CodecUtil.writeIndexHeader(
+                meta,
+                metaCodec,
+                TSDBDocValuesFormatConfig.VERSION_CURRENT,
+                state.segmentInfo.getId(),
+                state.segmentSuffix
+            );
             meta.writeByte((byte) formatConfig.numericBlockShift());
 
             maxDoc = state.segmentInfo.maxDoc();
@@ -499,7 +511,7 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
                 data,
                 blockAddressesStart,
                 metaCodecName,
-                formatConfig.versionCurrent(),
+                TSDBDocValuesFormatConfig.VERSION_CURRENT,
                 formatConfig.directMonotonicBlockShift()
             );
         }

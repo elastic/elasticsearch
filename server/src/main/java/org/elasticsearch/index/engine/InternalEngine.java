@@ -1406,9 +1406,9 @@ public class InternalEngine extends Engine {
     }
 
     private static boolean assertNoDuplicateUids(List<Index> operations) {
-        Set<BytesRef> seen = new HashSet<>(operations.size());
+        final Set<BytesRef> seenUids = new HashSet<>(operations.size());
         for (Index op : operations) {
-            if (seen.add(op.uid()) == false) {
+            if (seenUids.add(op.uid()) == false) {
                 throw new AssertionError("Duplicate uid [" + op.id() + "] in batch — caller must bail to sequential for duplicates");
             }
         }

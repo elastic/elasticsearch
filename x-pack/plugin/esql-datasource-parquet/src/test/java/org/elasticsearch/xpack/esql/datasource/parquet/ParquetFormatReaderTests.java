@@ -1652,7 +1652,106 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertEquals("Reading all ranges should produce the same total as a full read", totalRowsDirect, totalRowsFromRanges);
     }
 
+    /**
+     * Regression test for a row over-read bug: row groups must map to exactly one split.
+     * Previously {@code SplitRange.length} was built from
+     * {@code BlockMetaData.getTotalByteSize()} (uncompressed size), causing ranges to overlap
+     * in byte space. Parquet's {@code withRange(rangeStart, rangeEnd)} filter then selected
+     * each row group from multiple adjacent splits, producing duplicate rows on read.
+     * <p>
+     * Constructs a multi-row-group Snappy-compressed Parquet file (where uncompressed is
+     * meaningfully larger than compressed), verifies the split set is non-overlapping in
+     * byte space, and verifies that reading every split exactly once sums to the true row
+     * count with no duplication and no drops.
+     */
+    public void testReadRangeCoverageIsExactlyOneRowCountTotal() throws Exception {
+        int numRows = 5_000;
+        byte[] parquetData = createCompressibleMultiRowGroupFile(numRows, CompressionCodecName.SNAPPY);
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
+        assertTrue("Need at least 3 ranges for this regression test, got " + ranges.size(), ranges.size() >= 3);
+
+        // Byte ranges must be sorted and non-overlapping (end_i <= start_{i+1}).
+        long lastEnd = Long.MIN_VALUE;
+        for (RangeAwareFormatReader.SplitRange r : ranges) {
+            assertTrue("Range length must be positive", r.length() > 0);
+            assertTrue(
+                "Ranges must be sorted and non-overlapping: offset=" + r.offset() + ", previous end=" + lastEnd,
+                r.offset() >= lastEnd
+            );
+            lastEnd = r.offset() + r.length();
+        }
+
+        // Sum rows emitted across all splits and compare to the true row count.
+        int totalRowsFromRanges = 0;
+        for (RangeAwareFormatReader.SplitRange range : ranges) {
+            long rangeStart = range.offset();
+            long rangeEnd = rangeStart + range.length();
+            try (
+                CloseableIterator<Page> iterator = reader.readRange(
+                    storageObject,
+                    null,
+                    1000,
+                    rangeStart,
+                    rangeEnd,
+                    List.of(),
+                    ErrorPolicy.STRICT
+                )
+            ) {
+                while (iterator.hasNext()) {
+                    totalRowsFromRanges += iterator.next().getPositionCount();
+                }
+            }
+        }
+
+        assertEquals("Sum of rows across splits must equal the row count written", numRows, totalRowsFromRanges);
+    }
+
     // --- Test helpers ---
+
+    /**
+     * Creates a multi-row-group Parquet file whose uncompressed row-group sizes are meaningfully
+     * larger than the on-disk compressed sizes. The payload is a highly repetitive string, so
+     * codecs such as Snappy compress it dramatically. Used to exercise the split-range length
+     * contract (compressed bytes) vs uncompressed byte reporting in Parquet metadata.
+     */
+    private byte[] createCompressibleMultiRowGroupFile(int numRows, CompressionCodecName codec) throws IOException {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("payload")
+            .named("test_schema");
+
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        OutputFile outputFile = createOutputFile(outputStream);
+        SimpleGroupFactory groupFactory = new SimpleGroupFactory(schema);
+
+        // Highly compressible: 512 bytes of a single character.
+        String payload = "a".repeat(512);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withType(schema)
+                .withCompressionCodec(codec)
+                .withRowGroupSize(8 * 1024L)
+                .withPageSize(512)
+                .build()
+        ) {
+            for (int i = 0; i < numRows; i++) {
+                Group g = groupFactory.newGroup();
+                g.add("id", (long) i);
+                g.add("payload", payload);
+                writer.write(g);
+            }
+        }
+        return outputStream.toByteArray();
+    }
 
     private static byte[] toFloat16Bytes(float value) {
         short float16 = Float.floatToFloat16(value);

@@ -1,5 +1,6 @@
 area: Reindex
-issues: []
+issues:
+ - 146741
 pr: 147254
-summary: "[8.19] Fix Reindexing Slicing Bug"
+summary: Fixes a bug in AbstractAsyncBulkByScrollAction which removed the scroll parameter from the search request when the request was sliced, and max docs <= scroll size 
 type: bug

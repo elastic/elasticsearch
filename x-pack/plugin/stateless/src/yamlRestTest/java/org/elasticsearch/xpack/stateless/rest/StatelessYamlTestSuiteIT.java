@@ -51,9 +51,18 @@ public class StatelessYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     private static ElasticsearchCluster createCluster() {
         final var clusterBuilder = StatelessElasticsearchCluster.local()
+            // Self-managed stateless modules
+            .module("stateless")
+            .module("secure-settings")
+            .module("stateless-health-shards-availability")
+            .module("stateless-master-failover")
+            .module("stateless-no-wait-for-active-shards")
+            .module("stateless-sigterm")
+            // Upstream modules required by YAML tests
+            .module("data-streams")
+            .module("mapper-extras")
             .setting("xpack.ml.enabled", "false")
             .setting("xpack.watcher.enabled", "false")
-            .setting("rest.internal.reshard_allowed", "true")
             .user("admin-user", "x-pack-test-password");
         return clusterBuilder.build();
     }

@@ -56,6 +56,11 @@ public class StatelessLogsDBRestIT extends ESRestTestCase {
 
     @ClassRule
     public static final ElasticsearchCluster cluster = StatelessElasticsearchCluster.local()
+        .module("stateless")
+        .module("data-streams")
+        .module("logsdb")
+        .module("secure-settings")
+        .setting("cluster.logsdb.enabled", "true")
         .user(TEST_OPERATOR_USER, TEST_PASSWORD)
         .user(TEST_REGULAR_USER, TEST_PASSWORD, User.ROOT_USER_ROLE, false)
         .build();

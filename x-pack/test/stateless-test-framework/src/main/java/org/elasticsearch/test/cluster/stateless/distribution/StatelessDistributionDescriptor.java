@@ -21,6 +21,7 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionDescriptor;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 
 public class StatelessDistributionDescriptor implements DistributionDescriptor {
@@ -42,8 +43,17 @@ public class StatelessDistributionDescriptor implements DistributionDescriptor {
 
     @Override
     public Path getDistributionDir() {
-        // Stateless distributions do not include a version in the path.
-        return delegate.getDistributionDir().getParent().resolve("elasticsearch");
+        Path defaultDir = delegate.getDistributionDir();
+        if (Files.exists(defaultDir)) {
+            // The upstream distribution uses the standard elasticsearch-<version> directory layout.
+            return defaultDir;
+        }
+        // Serverless distributions do not include a version in the path.
+        Path serverlessDir = defaultDir.getParent().resolve("elasticsearch");
+        if (Files.exists(serverlessDir) == false) {
+            throw new IllegalStateException("Could not locate elasticsearch distribution. Tried: " + defaultDir + " and " + serverlessDir);
+        }
+        return serverlessDir;
     }
 
     @Override

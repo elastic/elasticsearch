@@ -37,6 +37,8 @@ public class SigtermShutdownIT extends ESRestTestCase {
 
     @ClassRule
     public static StatelessElasticsearchCluster cluster = StatelessElasticsearchCluster.local()
+        .module("stateless")
+        .module("stateless-sigterm")
         .setting("xpack.ml.enabled", "false")
         .user("admin-user", "x-pack-test-password")
         .setting("xpack.watcher.enabled", "false")

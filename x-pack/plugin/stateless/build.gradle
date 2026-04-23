@@ -100,10 +100,6 @@ tasks {
         systemProperty("es.searchable.snapshot.shared_cache.write_buffer.size", "256kb")
     }
 
-    yamlRestTest {
-        usesDefaultDistribution("to be triaged")
-    }
-
     register<Test>("statelessS3ThirdPartyTests") {
         val testSourceSet = sourceSets.getByName(SourceSet.TEST_SOURCE_SET_NAME)
         setTestClassesDirs(testSourceSet.getOutput().getClassesDirs())
@@ -115,9 +111,5 @@ tasks {
         systemProperty("test.s3.bucket", System.getenv("stateless_aws_s3_bucket"))
         systemProperty("test.s3.region", System.getenv("stateless_aws_s3_region"))
         systemProperty("test.s3.base_path", System.getenv("stateless_aws_s3_base_path"))
-    }
-
-    javaRestTest {
-        usesDefaultDistribution("to be triaged")
     }
 }

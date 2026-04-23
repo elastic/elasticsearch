@@ -508,6 +508,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
   method: testTransform {class org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec}
   issue: https://github.com/elastic/elasticsearch/issues/147273
+- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
+  method: testReplaceChildren {class org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate}
+  issue: https://github.com/elastic/elasticsearch/issues/147280
+- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
+  method: testReplaceChildren {class org.elasticsearch.xpack.esql.plan.logical.OrderBy}
+  issue: https://github.com/elastic/elasticsearch/issues/147281
 
 # Examples:
 #

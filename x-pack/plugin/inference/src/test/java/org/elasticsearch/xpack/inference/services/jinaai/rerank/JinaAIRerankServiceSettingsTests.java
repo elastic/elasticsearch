@@ -27,7 +27,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
+import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhitespaceInJsonString;
 import static org.hamcrest.Matchers.is;
 
 public class JinaAIRerankServiceSettingsTests extends AbstractBWCWireSerializationTestCase<JinaAIRerankServiceSettings> {
@@ -109,15 +109,14 @@ public class JinaAIRerankServiceSettingsTests extends AbstractBWCWireSerializati
         serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        var expected = stripWhitespace(Strings.format("""
+        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString(Strings.format("""
             {
                 "model_id": "%s",
                 "rate_limit": {
                     "requests_per_minute": %d
                 }
             }
-            """, TEST_MODEL_ID, TEST_RATE_LIMIT));
-        assertThat(xContentResult, is(expected));
+            """, TEST_MODEL_ID, TEST_RATE_LIMIT)));
     }
 
     @Override

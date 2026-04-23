@@ -65,11 +65,11 @@ public class JinaAIServiceSettings extends FilteredXContentObject implements Ser
             // URI is no longer part of service settings since it's only used for testing
             in.readOptionalString();
             // ModelID was incorrectly being serialized as optional
-            this.modelId = in.readOptionalString();
+            modelId = in.readOptionalString();
         } else {
-            this.modelId = in.readString();
+            modelId = in.readString();
         }
-        this.rateLimitSettings = new RateLimitSettings(in);
+        rateLimitSettings = new RateLimitSettings(in);
     }
 
     @Nullable

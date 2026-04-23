@@ -33,8 +33,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
 import static org.elasticsearch.inference.EmbeddingRequest.JINA_AI_EMBEDDING_TASK_ADDED;
+import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhitespaceInJsonString;
 import static org.elasticsearch.xpack.inference.Utils.randomSimilarityMeasure;
 import static org.elasticsearch.xpack.inference.services.ConfigurationParseContext.PERSISTENT;
 import static org.elasticsearch.xpack.inference.services.ConfigurationParseContext.REQUEST;
@@ -74,6 +74,7 @@ public class JinaAIEmbeddingServiceSettingsTests extends AbstractBWCWireSerializ
 
     private static final int TEST_RATE_LIMIT = 500;
     private static final int INITIAL_TEST_RATE_LIMIT = 100;
+    private static final int DEFAULT_RATE_LIMIT = 2000;
 
     public static JinaAIEmbeddingServiceSettings createRandom() {
         SimilarityMeasure similarityMeasure = randomBoolean() ? null : randomSimilarityMeasure();
@@ -117,19 +118,19 @@ public class JinaAIEmbeddingServiceSettingsTests extends AbstractBWCWireSerializ
         );
     }
 
-    public void testFromMap_AllFields_CreatesSettingsCorrectly_persistentContext() {
+    public void testFromMap_Persistent_AllFields_CreatesSettingsCorrectly() {
         testFromMap(randomNonNegativeInt(), PERSISTENT);
     }
 
-    public void testFromMap_AllFields_CreatesSettingsCorrectly_requestContext() {
+    public void testFromMap_Request_AllFields_CreatesSettingsCorrectly() {
         testFromMap(randomNonNegativeInt(), REQUEST);
     }
 
-    public void testFromMap_AllFields_CreatesSettingsCorrectly_requestContext_nullDimensions() {
+    public void testFromMap_Request_NoDimensions_CreatesSettingsCorrectly() {
         testFromMap(null, REQUEST);
     }
 
-    private static void testFromMap(Integer dimensions, ConfigurationParseContext parseContext) {
+    private static void testFromMap(Integer dimensions, ConfigurationParseContext context) {
         var similarity = randomSimilarityMeasure();
         var maxInputTokens = randomNonNegativeInt();
         var model = randomAlphanumericOfLength(8);
@@ -148,14 +149,14 @@ public class JinaAIEmbeddingServiceSettingsTests extends AbstractBWCWireSerializ
         );
 
         boolean dimensionsSetByUser;
-        if (parseContext == REQUEST) {
+        if (context == REQUEST) {
             dimensionsSetByUser = dimensions != null;
         } else {
             dimensionsSetByUser = randomBoolean();
             settingsMap.put(DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
         }
 
-        var serviceSettings = JinaAIEmbeddingServiceSettings.fromMap(settingsMap, parseContext);
+        var serviceSettings = JinaAIEmbeddingServiceSettings.fromMap(settingsMap, context);
 
         assertThat(
             serviceSettings,
@@ -181,7 +182,7 @@ public class JinaAIEmbeddingServiceSettingsTests extends AbstractBWCWireSerializ
             serviceSettings,
             is(
                 new JinaAIEmbeddingServiceSettings(
-                    new JinaAIServiceSettings(TEST_MODEL_ID, null),
+                    new JinaAIServiceSettings(TEST_MODEL_ID, new RateLimitSettings(DEFAULT_RATE_LIMIT)),
                     null,
                     null,
                     null,
@@ -194,11 +195,9 @@ public class JinaAIEmbeddingServiceSettingsTests extends AbstractBWCWireSerializ
     }
 
     public void testFromMap_NoModelId_ThrowsValidationError() {
-        var settingsMap = buildServiceSettingsMap(null, TEST_SIMILARITY, null, null, null, null, null, null);
-
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> JinaAIEmbeddingServiceSettings.fromMap(settingsMap, randomFrom(ConfigurationParseContext.values()))
+            () -> JinaAIEmbeddingServiceSettings.fromMap(new HashMap<>(), randomFrom(ConfigurationParseContext.values()))
         );
 
         assertThat(thrownException.validationErrors().size(), is(1));
@@ -230,7 +229,7 @@ public class JinaAIEmbeddingServiceSettingsTests extends AbstractBWCWireSerializ
         );
     }
 
-    public void testFromMap_nonPositiveDimensions_throwsError() {
+    public void testFromMap_NonPositiveDimensions_ThrowsError() {
         var dimensions = randomIntBetween(-5, 0);
         var thrownException = expectThrows(
             ValidationException.class,
@@ -336,30 +335,30 @@ public class JinaAIEmbeddingServiceSettingsTests extends AbstractBWCWireSerializ
         String xContentResult = Strings.toString(builder);
         assertThat(
             xContentResult,
-            is(
-                stripWhitespace(
-                    Strings.format(
-                        """
-                            {
-                                "model_id": "%s",
-                                "rate_limit": {"requests_per_minute": %d},
-                                "dimensions": %d,
-                                "embedding_type": "%s",
-                                "max_input_tokens": %d,
-                                "similarity": "%s",
-                                "multimodal_model": %b,
-                                "dimensions_set_by_user": %b
-                            }
-                            """,
-                        TEST_MODEL_ID,
-                        TEST_RATE_LIMIT,
-                        TEST_DIMENSIONS,
-                        TEST_EMBEDDING_TYPE,
-                        TEST_MAX_INPUT_TOKENS,
-                        TEST_SIMILARITY,
-                        TEST_MULTIMODAL_MODEL,
-                        TEST_DIMENSIONS_SET_BY_USER
-                    )
+            equalToIgnoringWhitespaceInJsonString(
+                Strings.format(
+                    """
+                        {
+                            "model_id": "%s",
+                            "rate_limit": {
+                                "requests_per_minute": %d
+                            },
+                            "dimensions": %d,
+                            "embedding_type": "%s",
+                            "max_input_tokens": %d,
+                            "similarity": "%s",
+                            "multimodal_model": %b,
+                            "dimensions_set_by_user": %b
+                        }
+                        """,
+                    TEST_MODEL_ID,
+                    TEST_RATE_LIMIT,
+                    TEST_DIMENSIONS,
+                    TEST_EMBEDDING_TYPE,
+                    TEST_MAX_INPUT_TOKENS,
+                    TEST_SIMILARITY,
+                    TEST_MULTIMODAL_MODEL,
+                    TEST_DIMENSIONS_SET_BY_USER
                 )
             )
         );

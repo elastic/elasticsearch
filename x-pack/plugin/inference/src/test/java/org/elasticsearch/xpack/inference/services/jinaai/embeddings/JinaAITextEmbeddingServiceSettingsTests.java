@@ -32,7 +32,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
+import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhitespaceInJsonString;
 import static org.elasticsearch.xpack.inference.Utils.randomSimilarityMeasure;
 import static org.elasticsearch.xpack.inference.services.ConfigurationParseContext.PERSISTENT;
 import static org.elasticsearch.xpack.inference.services.ConfigurationParseContext.REQUEST;
@@ -71,6 +71,7 @@ public class JinaAITextEmbeddingServiceSettingsTests extends AbstractBWCWireSeri
 
     private static final int TEST_RATE_LIMIT = 500;
     private static final int INITIAL_TEST_RATE_LIMIT = 100;
+    private static final int DEFAULT_RATE_LIMIT = 2000;
 
     public static JinaAITextEmbeddingServiceSettings createRandom() {
         SimilarityMeasure similarityMeasure = randomBoolean() ? null : randomSimilarityMeasure();
@@ -110,15 +111,15 @@ public class JinaAITextEmbeddingServiceSettingsTests extends AbstractBWCWireSeri
         );
     }
 
-    public void testFromMap_AllFields_CreatesSettingsCorrectly_persistentContext() {
+    public void testFromMap_Persistent_AllFields_CreatesSettingsCorrectly() {
         testFromMap(randomNonNegativeInt(), PERSISTENT);
     }
 
-    public void testFromMap_AllFields_CreatesSettingsCorrectly_requestContext() {
+    public void testFromMap_Request_AllFields_CreatesSettingsCorrectly() {
         testFromMap(randomNonNegativeInt(), REQUEST);
     }
 
-    public void testFromMap_AllFields_CreatesSettingsCorrectly_requestContext_nullDimensions() {
+    public void testFromMap_Request_NoDimensions_AllFields_CreatesSettingsCorrectly() {
         testFromMap(null, REQUEST);
     }
 
@@ -163,7 +164,7 @@ public class JinaAITextEmbeddingServiceSettingsTests extends AbstractBWCWireSeri
             serviceSettings,
             is(
                 new JinaAITextEmbeddingServiceSettings(
-                    new JinaAIServiceSettings(TEST_MODEL_ID, null),
+                    new JinaAIServiceSettings(TEST_MODEL_ID, new RateLimitSettings(DEFAULT_RATE_LIMIT)),
                     null,
                     null,
                     null,
@@ -175,11 +176,9 @@ public class JinaAITextEmbeddingServiceSettingsTests extends AbstractBWCWireSeri
     }
 
     public void testFromMap_NoModelId_ThrowsValidationError() {
-        var settingsMap = buildServiceSettingsMap(null, TEST_SIMILARITY, null, null, null, null, null);
-
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> JinaAITextEmbeddingServiceSettings.fromMap(settingsMap, randomFrom(ConfigurationParseContext.values()))
+            () -> JinaAITextEmbeddingServiceSettings.fromMap(new HashMap<>(), randomFrom(ConfigurationParseContext.values()))
         );
 
         assertThat(thrownException.validationErrors().size(), is(1));
@@ -194,7 +193,7 @@ public class JinaAITextEmbeddingServiceSettingsTests extends AbstractBWCWireSeri
         var thrownException = expectThrows(
             ValidationException.class,
             () -> JinaAITextEmbeddingServiceSettings.fromMap(
-                new HashMap<>(Map.of(MODEL_ID, "model", EMBEDDING_TYPE, embeddingType)),
+                new HashMap<>(Map.of(MODEL_ID, TEST_MODEL_ID, EMBEDDING_TYPE, embeddingType)),
                 randomFrom(ConfigurationParseContext.values())
             )
         );
@@ -216,7 +215,7 @@ public class JinaAITextEmbeddingServiceSettingsTests extends AbstractBWCWireSeri
         var thrownException = expectThrows(
             ValidationException.class,
             () -> JinaAITextEmbeddingServiceSettings.fromMap(
-                new HashMap<>(Map.of(MODEL_ID, "model", SIMILARITY, similarity)),
+                new HashMap<>(Map.of(MODEL_ID, TEST_MODEL_ID, SIMILARITY, similarity)),
                 randomFrom(ConfigurationParseContext.values())
             )
         );
@@ -233,7 +232,7 @@ public class JinaAITextEmbeddingServiceSettingsTests extends AbstractBWCWireSeri
         var thrownException = expectThrows(
             ValidationException.class,
             () -> JinaAITextEmbeddingServiceSettings.fromMap(
-                new HashMap<>(Map.of(MODEL_ID, "model", DIMENSIONS, dimensions)),
+                new HashMap<>(Map.of(MODEL_ID, TEST_MODEL_ID, DIMENSIONS, dimensions)),
                 randomFrom(ConfigurationParseContext.values())
             )
         );
@@ -246,8 +245,7 @@ public class JinaAITextEmbeddingServiceSettingsTests extends AbstractBWCWireSeri
     }
 
     public void testFromMap_doesNotRemoveMultimodalModelField() {
-        var model = "model";
-        HashMap<String, Object> settingsMap = new HashMap<>(Map.of(MODEL_ID, model, MULTIMODAL_MODEL, true));
+        HashMap<String, Object> settingsMap = new HashMap<>(Map.of(MODEL_ID, TEST_MODEL_ID, MULTIMODAL_MODEL, true));
         var serviceSettings = JinaAITextEmbeddingServiceSettings.fromMap(settingsMap, randomFrom(ConfigurationParseContext.values()));
 
         assertThat(serviceSettings.isMultimodal(), is(false));
@@ -316,28 +314,28 @@ public class JinaAITextEmbeddingServiceSettingsTests extends AbstractBWCWireSeri
         String xContentResult = Strings.toString(builder);
         assertThat(
             xContentResult,
-            is(
-                stripWhitespace(
-                    Strings.format(
-                        """
-                            {
-                                "model_id": "%s",
-                                "rate_limit": {"requests_per_minute": %d},
-                                "dimensions": %d,
-                                "embedding_type": "%s",
-                                "max_input_tokens": %d,
-                                "similarity": "%s",
-                                "dimensions_set_by_user": %b
-                            }
-                            """,
-                        TEST_MODEL_ID,
-                        TEST_RATE_LIMIT,
-                        TEST_DIMENSIONS,
-                        TEST_EMBEDDING_TYPE,
-                        TEST_MAX_INPUT_TOKENS,
-                        TEST_SIMILARITY,
-                        TEST_DIMENSIONS_SET_BY_USER
-                    )
+            equalToIgnoringWhitespaceInJsonString(
+                Strings.format(
+                    """
+                        {
+                            "model_id": "%s",
+                            "rate_limit": {
+                                "requests_per_minute": %d
+                            },
+                            "dimensions": %d,
+                            "embedding_type": "%s",
+                            "max_input_tokens": %d,
+                            "similarity": "%s",
+                            "dimensions_set_by_user": %b
+                        }
+                        """,
+                    TEST_MODEL_ID,
+                    TEST_RATE_LIMIT,
+                    TEST_DIMENSIONS,
+                    TEST_EMBEDDING_TYPE,
+                    TEST_MAX_INPUT_TOKENS,
+                    TEST_SIMILARITY,
+                    TEST_DIMENSIONS_SET_BY_USER
                 )
             )
         );
@@ -358,16 +356,18 @@ public class JinaAITextEmbeddingServiceSettingsTests extends AbstractBWCWireSeri
         serviceSettings.toXContentFragmentOfExposedFields(builder, null);
         builder.endObject();
         String xContentResult = Strings.toString(builder);
-        assertThat(xContentResult, is(stripWhitespace(Strings.format("""
+        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString(Strings.format("""
             {
                 "model_id": "%s",
-                "rate_limit": {"requests_per_minute": %d},
+                "rate_limit": {
+                    "requests_per_minute": %d
+                },
                 "dimensions": %d,
                 "embedding_type": "%s",
                 "max_input_tokens": %d,
                 "similarity": "%s"
             }
-            """, TEST_MODEL_ID, TEST_RATE_LIMIT, TEST_DIMENSIONS, TEST_EMBEDDING_TYPE, TEST_MAX_INPUT_TOKENS, TEST_SIMILARITY))));
+            """, TEST_MODEL_ID, TEST_RATE_LIMIT, TEST_DIMENSIONS, TEST_EMBEDDING_TYPE, TEST_MAX_INPUT_TOKENS, TEST_SIMILARITY)));
     }
 
     public void testUpdate() {

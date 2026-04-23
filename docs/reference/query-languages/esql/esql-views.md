@@ -233,7 +233,7 @@ This will be resolved initially to a query plan that has two levels of branching
     * Read data from `view_x`, which means running the query inside `view_x` which itself contains two branches
       * Read data from `app-events-*` and keep two columns
       * Read data from `auth-events-*` and keep two columns
-    * Read data from `view_y`, which means running the query inside `view_x` which itself contains two branches
+    * Read data from `view_y`, which means running the query inside `view_y` which itself contains two branches
       * Read data from `nginx-events-*` and keep two columns
       * Read data from `apache-events-*` and keep two columns
 

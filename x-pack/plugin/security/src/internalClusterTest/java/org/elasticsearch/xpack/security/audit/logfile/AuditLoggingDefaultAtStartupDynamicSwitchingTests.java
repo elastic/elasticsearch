@@ -22,10 +22,7 @@ public class AuditLoggingDefaultAtStartupDynamicSwitchingTests extends AuditLogg
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .remove(XPackSettings.AUDIT_ENABLED.getKey())
-            .build();
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).remove(XPackSettings.AUDIT_ENABLED.getKey()).build();
     }
 
     public void testFlippingAuditLogFalseToTrueToFalse() throws IOException {

@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;

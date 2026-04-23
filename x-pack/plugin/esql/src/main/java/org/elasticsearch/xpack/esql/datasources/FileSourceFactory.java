@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 /**
  * Framework-internal factory that bridges the building-block registries
@@ -146,6 +147,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 ? format.filterPushdownSupport()
                 : null;
 
+            Executor readExecutor = context.fileReadExecutor() != null ? context.fileReadExecutor() : context.executor();
             return new AsyncExternalSourceOperatorFactory(
                 storage,
                 format,
@@ -154,14 +156,13 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 context.batchSize(),
                 context.maxBufferSize(),
                 context.rowLimit(),
-                context.executor(),
+                readExecutor,
                 context.fileList(),
                 context.partitionColumnNames(),
                 partitionValues,
                 context.sliceQueue(),
                 errorPolicy,
                 context.parsingParallelism(),
-                null,
                 pushedExpressions,
                 pushdownSupport
             );

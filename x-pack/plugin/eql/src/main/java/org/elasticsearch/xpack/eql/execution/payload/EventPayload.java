@@ -25,8 +25,9 @@ public class EventPayload extends AbstractPayload {
         SearchHits hits = response.getHits();
         values = new ArrayList<>(hits.getHits().length);
         for (SearchHit hit : hits) {
-            // TODO: remove unpooled usage
-            values.add(new Event(hit.asUnpooled()));
+            // Event takes refcount ownership of _source via Event(SearchHit) (retain on pooled bytes, wrap otherwise).
+            // SearchResponse is still valid here; later EqlSearchResponse / Event release paths drop refs after use.
+            values.add(new Event(hit));
         }
     }
 

@@ -15,6 +15,7 @@ import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -24,7 +25,8 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.xcontent.json.JsonStringEncoder;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.esql.arrow.ArrowToBlockConverter;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -43,6 +45,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -109,26 +112,25 @@ public class ParquetRsFormatReader implements FormatReader {
         return new ParquetRsFormatReader(blockFactory, pushedExpressions, serializeConfig(config));
     }
 
+    /**
+     * Serializes the config map as JSON for consumption by the native side. Values keep their
+     * natural JSON types (string, number, boolean, ...) — the Rust {@code StorageConfig} decides
+     * how to interpret them rather than having Java silently coerce everything to strings.
+     */
     private static String serializeConfig(Map<String, Object> config) {
-        JsonStringEncoder encoder = JsonStringEncoder.getInstance();
-        StringBuilder sb = new StringBuilder("{");
-        boolean first = true;
-        for (Map.Entry<String, Object> entry : config.entrySet()) {
-            if (entry.getValue() == null) {
-                continue;
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            builder.startObject();
+            for (Map.Entry<String, Object> entry : config.entrySet()) {
+                if (entry.getValue() == null) {
+                    continue;
+                }
+                builder.field(entry.getKey(), entry.getValue());
             }
-            if (first == false) {
-                sb.append(',');
-            }
-            sb.append('"');
-            encoder.quoteAsString(entry.getKey(), sb);
-            sb.append("\":\"");
-            encoder.quoteAsString(String.valueOf(entry.getValue()), sb);
-            sb.append('"');
-            first = false;
+            builder.endObject();
+            return Strings.toString(builder);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to serialize parquet-rs config", e);
         }
-        sb.append('}');
-        return sb.toString();
     }
 
     @Override

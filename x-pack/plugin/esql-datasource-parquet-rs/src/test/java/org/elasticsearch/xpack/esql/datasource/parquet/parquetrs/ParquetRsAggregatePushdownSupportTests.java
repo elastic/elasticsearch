@@ -55,7 +55,7 @@ public class ParquetRsAggregatePushdownSupportTests extends ESTestCase {
     }
 
     public void testCountComplexExpressionNotPushable() {
-        // COUNT(age + 1) cannot be answered from file stats: the predicate must reject it
+        // COUNT(LENGTH(name)) cannot be answered from file stats: the predicate must reject it
         // even though the executor would harmlessly skip pushdown at runtime.
         Expression complex = new Length(SRC, kwField("name"));
         assertEquals(Pushability.NO, push(new Count(SRC, complex)));

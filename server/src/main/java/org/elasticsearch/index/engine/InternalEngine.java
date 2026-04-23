@@ -1821,11 +1821,12 @@ public class InternalEngine extends Engine {
             assert useLuceneUpdateDocument == false || indexIntoLucene
                 : "use lucene update is set to true, but we're not indexing into lucene";
             assert (indexIntoLucene && earlyResultOnPreFlightError != null) == false
-                : "can only index into lucene or have a preflight result but not both."
-                    + "indexIntoLucene: "
-                    + indexIntoLucene
-                    + "  earlyResultOnPreFlightError:"
-                    + earlyResultOnPreFlightError;
+                : Strings.format(
+                    "can only index into lucene or have a preflight result but not both."
+                        + " indexIntoLucene: %s, earlyResultOnPreFlightError: %s",
+                    indexIntoLucene,
+                    earlyResultOnPreFlightError
+                );
             assert reservedDocs == 0 || indexIntoLucene || addStaleOpToLucene : reservedDocs;
             this.currentNotFoundOrDeleted = currentNotFoundOrDeleted;
             this.useLuceneUpdateDocument = useLuceneUpdateDocument;
@@ -2212,11 +2213,12 @@ public class InternalEngine extends Engine {
             DeleteResult earlyResultOnPreflightError
         ) {
             assert (deleteFromLucene && earlyResultOnPreflightError != null) == false
-                : "can only delete from lucene or have a preflight result but not both."
-                    + "deleteFromLucene: "
-                    + deleteFromLucene
-                    + "  earlyResultOnPreFlightError:"
-                    + earlyResultOnPreflightError;
+                : Strings.format(
+                    "can only delete from lucene or have a preflight result but not both."
+                        + " deleteFromLucene: %s, earlyResultOnPreflightError: %s",
+                    deleteFromLucene,
+                    earlyResultOnPreflightError
+                );
             this.deleteFromLucene = deleteFromLucene;
             this.addStaleOpToLucene = addStaleOpToLucene;
             this.currentlyDeleted = currentlyDeleted;

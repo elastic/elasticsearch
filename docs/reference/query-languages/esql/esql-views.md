@@ -97,7 +97,7 @@ Views have certain limitations:
   * The plan to enable views in serverless will include limitations:
     * Remote views in CPS will not be allowed (ie. `FROM view` will only match origin project views, and if linked project views with that name are found, the query will fail).
     * If a linked project contains a view with the same name as a local view or index, the query will fail.
-* Query parameters are not allowed in the view definition, and therefor query parameters in the main query will never impact the view results.
+* Query parameters are not allowed in the view definition, and therefore query parameters in the main query will never impact the view results.
 
 Views are in tech-preview and there are a number of known issues, or behavior that is likely to change in the future:
 * Query DSL filtering on the main query will currently affect the source indices in the view definition, and this will change in later releases.

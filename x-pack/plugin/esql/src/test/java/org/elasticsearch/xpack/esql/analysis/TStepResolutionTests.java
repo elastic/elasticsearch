@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor;
 
 import java.time.Instant;
@@ -18,6 +19,7 @@ import static org.hamcrest.Matchers.containsString;
 public class TStepResolutionTests extends ESTestCase {
 
     public void testTstepUsesRequestTimestampBounds() {
+        assumeTStepEnabled();
         var bounds = new QueryDslTimestampBoundsExtractor.TimestampBounds(
             Instant.parse("2023-10-23T12:15:00Z"),
             Instant.parse("2023-10-23T13:55:01.543Z")
@@ -31,6 +33,7 @@ public class TStepResolutionTests extends ESTestCase {
     }
 
     public void testTstepFailsWithoutRequestTimestampBounds() {
+        assumeTStepEnabled();
         EsqlTestUtils.analyzer().addSampleData().error("""
             FROM sample_data
             | STATS c = COUNT(*) BY b = TSTEP(1 hour)
@@ -39,6 +42,7 @@ public class TStepResolutionTests extends ESTestCase {
     }
 
     public void testTstepFailsWithTrangeInQuery() {
+        assumeTStepEnabled();
         var bounds = new QueryDslTimestampBoundsExtractor.TimestampBounds(
             Instant.parse("2023-10-23T12:15:00Z"),
             Instant.parse("2023-10-23T13:55:01.543Z")
@@ -49,5 +53,9 @@ public class TStepResolutionTests extends ESTestCase {
             | STATS c = COUNT(*) BY b = TSTEP(1 hour)
             | LIMIT 10
             """, containsString("cannot be used together with TRANGE"));
+    }
+
+    private static void assumeTStepEnabled() {
+        assumeTrue("TSTEP requires corresponding capability", EsqlCapabilities.Cap.TSTEP.isEnabled());
     }
 }

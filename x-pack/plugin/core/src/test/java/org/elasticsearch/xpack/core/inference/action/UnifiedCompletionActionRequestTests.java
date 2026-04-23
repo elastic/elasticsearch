@@ -7,14 +7,12 @@
 
 package org.elasticsearch.xpack.core.inference.action;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.InferenceContext;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
@@ -22,10 +20,8 @@ import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED;
-import static org.elasticsearch.test.BWCVersions.DEFAULT_BWC_VERSIONS;
 import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.INFERENCE_REQUEST_PER_TASK_TIMEOUT_ADDED;
 import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
 import static org.hamcrest.Matchers.is;
@@ -128,31 +124,12 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
     }
 
     public void testMultimodalContentIsNotBackwardsCompatible() throws IOException {
-        var unsupportedVersions = DEFAULT_BWC_VERSIONS.stream()
-            .filter(Predicate.not(version -> version.supports(MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED)))
-            .toList();
-        for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
-            var testInstance = createTestInstance();
-            for (var unsupportedVersion : unsupportedVersions) {
-                if (testInstance.getUnifiedCompletionRequest().containsMultimodalContent()) {
-                    var statusException = assertThrows(
-                        ElasticsearchStatusException.class,
-                        () -> copyWriteable(testInstance, getNamedWriteableRegistry(), instanceReader(), unsupportedVersion)
-                    );
-                    assertThat(statusException.status(), is(RestStatus.BAD_REQUEST));
-                    assertThat(
-                        statusException.getMessage(),
-                        is(
-                            "Cannot send a multimodal chat completion request to an older node. "
-                                + "Please wait until all nodes are upgraded before using multimodal chat completion inputs"
-                        )
-                    );
-                } else {
-                    // If the instance doesn't contain multimodal content, assert that it can still be serialized
-                    assertBwcSerialization(testInstance, unsupportedVersion);
-                }
-            }
-        }
+        testSerializationIsNotBackwardsCompatible(
+            MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED,
+            i -> i.getUnifiedCompletionRequest().containsMultimodalContent(),
+            "Cannot send a multimodal chat completion request to an older node. "
+                + "Please wait until all nodes are upgraded before using multimodal chat completion inputs"
+        );
     }
 
     @Override

@@ -20,6 +20,7 @@ dependencies {
     compileOnly project(':server')
     testImplementation project(':test:framework')
 
+    internalClusterTestImplementation testArtifact(project(':x-pack:plugin:stateless'))
     internalClusterTestImplementation testArtifact(project(':x-pack:plugin:stateless'), 'internalClusterTest')
     javaRestTestImplementation project(':x-pack:plugin:stateless-no-wait-for-active-shards')
     javaRestTestImplementation project(':x-pack:test:stateless-test-framework')

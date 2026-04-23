@@ -27,6 +27,7 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.S
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_EXCLUDE_SUB_FIELDS_FROM_FIELD_CAPS;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_INDEX_OPTIONS;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_INDEX_OPTIONS_WITH_DEFAULTS;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_PREVENT_LEGACY_FORMAT_NEW_INDICES;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_SPARSE_VECTOR_INDEX_OPTIONS;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_SUPPORT_CHUNKING_CONFIG;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_UPDATABLE_INFERENCE_ID;
@@ -144,7 +145,8 @@ public class InferenceFeatures implements FeatureSpecification {
                 TEXT_SIMILARITY_RERANKER_INFERENCE_ID_CHUNKING,
                 TEXT_SIMILARITY_RERANKER_COMPREHENSIVE_TOP_N_HANDLING,
                 EMBEDDING_QUERY_VECTOR_BUILDER_FEATURE,
-                SEMANTIC_TEXT_ELEMENT_TYPE_IN_INDEX_OPTIONS
+                SEMANTIC_TEXT_ELEMENT_TYPE_IN_INDEX_OPTIONS,
+                SEMANTIC_TEXT_PREVENT_LEGACY_FORMAT_NEW_INDICES
             )
         );
         testFeatures.addAll(getFeatures());

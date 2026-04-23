@@ -638,8 +638,26 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     public void testUserCanQueryViewWhileHavingDlsOnUnderlyingIndices() throws Exception {
-        Response resp = runESQLCommand("view_index_dls_user", "FROM view-user1 | STATS sum=sum(value)");
-        assertOK(resp);
+        assertOK(runESQLCommand("view_index_dls_user", "FROM view-user1 | STATS sum=sum(value)"));
+    }
+
+    public void testViewWithIndexExclusionInBody() throws Exception {
+        createView("test-admin", "view-with-exclusion", "FROM index-user*,-index-user2 | KEEP value, org");
+        Response resp = assertOK(runESQLCommand("test-admin", "FROM view-with-exclusion | STATS sum=sum(value)"));
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "sum", "type", "double"))));
+        // index-user1 (12+31=43) only; index-user2 must be excluded
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(43.0d))));
+    }
+
+    public void testViewWithIndexExclusionInFromClause() throws Exception {
+        createView("test-admin", "view-all-users", "FROM index-user* | KEEP value, org");
+        Response resp = assertOK(runESQLCommand("test-admin", "FROM view-all-users,-index-user2 | STATS sum=sum(value)"));
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "sum", "type", "double"))));
+        // The view is an isolated subquery — FROM-level exclusions do not penetrate into it.
+        // -index-user2 is silently dropped because there are no non-view indices to apply it to.
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(115.0d))));
     }
 
     public void testDocumentLevelSecurity() throws Exception {

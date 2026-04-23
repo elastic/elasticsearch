@@ -173,9 +173,9 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
         final DataType tsType = timestamp().dataType();
         final boolean isDateNanos = tsType == DataType.DATE_NANOS;
         return switch (type) {
-            case COUNTER_LONG -> new RateLongGroupingAggregatorFunction.FunctionSupplier(false, isDateNanos);
-            case COUNTER_INTEGER -> new RateIntGroupingAggregatorFunction.FunctionSupplier(false, isDateNanos);
-            case COUNTER_DOUBLE -> new RateDoubleGroupingAggregatorFunction.FunctionSupplier(false, isDateNanos);
+            case COUNTER_LONG -> new RateLongGroupingAggregatorFunction.FunctionSupplier(false, isDateNanos, source());
+            case COUNTER_INTEGER -> new RateIntGroupingAggregatorFunction.FunctionSupplier(false, isDateNanos, source());
+            case COUNTER_DOUBLE -> new RateDoubleGroupingAggregatorFunction.FunctionSupplier(false, isDateNanos, source());
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

@@ -83,12 +83,6 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
     }
 
     @Override
-    public Query rewrite(IndexSearcher indexSearcher) throws IOException {
-        var maybePostFilter = maybeRewriteAsPostFilter(indexSearcher, filter, kParam, field, parentsFilter);
-        return maybePostFilter == null ? super.rewrite(indexSearcher) : maybePostFilter;
-    }
-
-    @Override
     protected TopDocs mergeLeafResults(TopDocs[] perLeafResults) {
         TopDocs topK = TopDocs.merge(kParam, perLeafResults);
         vectorOpsCount = topK.totalHits.value();
@@ -101,7 +95,7 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
     }
 
     @Override
-    public Query createInnerQuery(IndexReader reader, int[] docsVisited) {
+    public Query createRetryQuery(IndexReader reader, int[] docsVisited) {
         Query filter = docsVisited != null ? new ExcludeDocsQuery(docsVisited, reader) : null;
         return new ESDiversifyingChildrenByteKnnVectorQuery(
             field,
@@ -117,7 +111,7 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
     }
 
     @Override
-    public PostFilterableKnnQuery createPostFilterDelegate(float filterSelectivity) {
+    public Query createPostFilterDelegate(float filterSelectivity) {
         int scaledK = (int) Math.min(NUM_CANDS_LIMIT, Math.ceil(kParam / filterSelectivity));
         int scaledNumCands = (int) Math.min(NUM_CANDS_LIMIT, Math.ceil((double) numCands / filterSelectivity));
         return new ESDiversifyingChildrenByteKnnVectorQuery(
@@ -134,11 +128,6 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
     }
 
     @Override
-    public long vectorOpsCount() {
-        return vectorOpsCount;
-    }
-
-    @Override
     public int countTotalVectors(List<LeafReaderContext> leaves) throws IOException {
         int totalVectors = 0;
         for (LeafReaderContext leaf : leaves) {
@@ -148,6 +137,11 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
             }
         }
         return totalVectors;
+    }
+
+    @Override
+    public long totalVectorOps() {
+        return vectorOpsCount;
     }
 
     // --- Accessors ---

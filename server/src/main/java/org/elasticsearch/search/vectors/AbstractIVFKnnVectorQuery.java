@@ -25,7 +25,6 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.Bits;
@@ -41,6 +40,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.LongAccumulator;
 
 import static org.elasticsearch.search.vectors.AbstractMaxScoreKnnCollector.LEAST_COMPETITIVE;
+import static org.elasticsearch.search.vectors.KnnQueryUtils.createFilterWeight;
 
 abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerProvider, PostFilterableKnnQuery {
 
@@ -106,19 +106,8 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         if (filter != null && filterWeight == null) {
             return MatchNoDocsQuery.INSTANCE;
         }
-
-        if (filterWeight != null) {
-            Query postFilterQuery = createPostFilterQuery(indexSearcher, filter, k, field, getParentsFilter());
-            if (postFilterQuery != null) {
-                return postFilterQuery;
-            }
-        }
         IVFCollectorManager collectorManager = getKnnCollectorManager(Math.round(2f * k), indexSearcher);
         return executeSearch(indexSearcher, leaves, filterWeight, collectorManager, providedVisitRatio);
-    }
-
-    protected BitSetProducer getParentsFilter() {
-        return null;
     }
 
     private Query executeSearch(

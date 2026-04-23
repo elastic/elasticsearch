@@ -70,12 +70,7 @@ public class DiversifyingChildrenIVFKnnFloatVectorQuery extends IVFKnnFloatVecto
     }
 
     @Override
-    protected BitSetProducer getParentsFilter() {
-        return parentsFilter;
-    }
-
-    @Override
-    public DiversifyingChildrenIVFKnnFloatVectorQuery createPostFilterDelegate(float filterSelectivity) {
+    public Query createPostFilterDelegate(float filterSelectivity) {
         int scaledK = Math.min(NUM_CANDS_LIMIT, (int) Math.ceil(k / filterSelectivity));
         float visitOversampling = Math.max(1.1f, 1.2f / filterSelectivity);
         float scaledVisitRatio = providedVisitRatio > 0f ? Math.min(1.0f, providedVisitRatio * visitOversampling) : 0f;
@@ -93,7 +88,7 @@ public class DiversifyingChildrenIVFKnnFloatVectorQuery extends IVFKnnFloatVecto
     }
 
     @Override
-    public Query createInnerQuery(IndexReader reader, int[] previousDocs) {
+    public Query createRetryQuery(IndexReader reader, int[] previousDocs) {
         Map<Integer, FixedBitSet> mergedSkip = mergeSkipCentroids();
         return new DiversifyingChildrenIVFKnnFloatVectorQuery(
             field,

@@ -182,7 +182,7 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
     }
 
     @Override
-    public Query createInnerQuery(IndexReader reader, int[] previousDocs) {
+    public Query createRetryQuery(IndexReader reader, int[] previousDocs) {
         Map<Integer, FixedBitSet> mergedSkip = mergeSkipCentroids();
         return new IVFKnnFloatSlicedVectorQuery(
             field,

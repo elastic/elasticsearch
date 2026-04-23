@@ -66,12 +66,6 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryPro
     }
 
     @Override
-    public Query rewrite(IndexSearcher indexSearcher) throws IOException {
-        var maybePostFilter = maybeRewriteAsPostFilter(indexSearcher, filter, kParam, field, null);
-        return maybePostFilter == null ? super.rewrite(indexSearcher) : maybePostFilter;
-    }
-
-    @Override
     protected TopDocs mergeLeafResults(TopDocs[] perLeafResults) {
         TopDocs topK = TopDocs.merge(kParam, perLeafResults);
         vectorOpsCount = topK.totalHits.value();
@@ -84,7 +78,7 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryPro
     }
 
     @Override
-    public Query createInnerQuery(IndexReader reader, int[] docsVisited) {
+    public Query createRetryQuery(IndexReader reader, int[] docsVisited) {
         Query filter = docsVisited != null ? new ExcludeDocsQuery(docsVisited, reader) : null;
         return new ESKnnByteVectorQuery(
             field,
@@ -99,15 +93,10 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryPro
     }
 
     @Override
-    public PostFilterableKnnQuery createPostFilterDelegate(float filterSelectivity) {
+    public Query createPostFilterDelegate(float filterSelectivity) {
         int scaledK = (int) Math.min(NUM_CANDS_LIMIT, Math.ceil(kParam / filterSelectivity));
         int scaledNumCands = (int) Math.min(NUM_CANDS_LIMIT, Math.ceil((double) numCandsParam / filterSelectivity));
         return new ESKnnByteVectorQuery(field, getTargetCopy(), scaledK, scaledNumCands, null, searchStrategy, earlyTermination, null);
-    }
-
-    @Override
-    public long vectorOpsCount() {
-        return vectorOpsCount;
     }
 
     @Override
@@ -120,6 +109,11 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryPro
             }
         }
         return totalVectors;
+    }
+
+    @Override
+    public long totalVectorOps() {
+        return vectorOpsCount;
     }
 
     public int kParam() {

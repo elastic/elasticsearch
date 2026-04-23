@@ -9,37 +9,26 @@
 
 package org.elasticsearch.search.vectors;
 
-import com.carrotsearch.hppc.IntHashSet;
-
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.ReaderUtil;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
-import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
-import java.util.List;
 import java.util.Objects;
 
-import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
+import static org.elasticsearch.search.vectors.KnnQueryUtils.applyFilter;
+import static org.elasticsearch.search.vectors.KnnQueryUtils.computeSelectivity;
+import static org.elasticsearch.search.vectors.KnnQueryUtils.createFilterWeight;
+import static org.elasticsearch.search.vectors.KnnQueryUtils.deduplicateByParent;
+import static org.elasticsearch.search.vectors.KnnQueryUtils.mergeResults;
 
 /**
  * A query that wraps a {@link PostFilterableKnnQuery} and applies post-filtering with retry.
@@ -76,26 +65,29 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
 
     @Override
     public Query rewrite(IndexSearcher searcher) throws IOException {
-        var booleanQuery = new BooleanQuery.Builder().add(filter, BooleanClause.Occur.FILTER)
-            .add(new FieldExistsQuery(field), BooleanClause.Occur.FILTER)
-            .build();
-        Query rewritten = searcher.rewrite(booleanQuery);
-        if (rewritten.getClass() == MatchNoDocsQuery.class) {
-            return MatchNoDocsQuery.INSTANCE;
+        var filterWeight = createFilterWeight(searcher, filter, field);
+        // need to check if this is actually a valid candidate for post filtering
+        var postFilterQuery = maybeCreatePostFilterQuery(searcher, filterWeight);
+        if (postFilterQuery == null) {
+            return ((Query) innerQuery).rewrite(searcher);
         }
-        var filterWeight = searcher.createWeight(rewritten, ScoreMode.COMPLETE_NO_SCORES, 1f);
+        assert postFilterQuery instanceof PostFilterableKnnQuery : "[createPostFilterQuery] should have generated a PostFilterableKnnQuery";
+        return postFilterRewrite(searcher, (PostFilterableKnnQuery) postFilterQuery, filterWeight);
+    }
 
+    private Query postFilterRewrite(IndexSearcher searcher, PostFilterableKnnQuery postFilterQuery, Weight filterWeight)
+        throws IOException {
         ScoreDoc[] scoreDocs = new ScoreDoc[0];
         int[] seenDocs = new int[0];
         long vectorOps = 0;
-        Query delegate = innerQuery.createInnerQuery(searcher.getIndexReader(), null);
+        Query delegate = postFilterQuery.createRetryQuery(searcher.getIndexReader(), null);
         assert delegate instanceof PostFilterableKnnQuery;
         for (int round = 0; round < MAX_ROUNDS; round++) {
             TopDocs topDocs = searcher.search(delegate, Integer.MAX_VALUE);
             if (topDocs.scoreDocs.length == 0) {
                 break;
             }
-            vectorOps += ((PostFilterableKnnQuery) delegate).vectorOpsCount();
+            vectorOps += postFilterQuery.totalVectorOps();
 
             // accumulate this round's doc IDs into the running sorted array
             int[] roundDocs = new int[topDocs.scoreDocs.length];
@@ -117,7 +109,7 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             if (scoreDocs.length >= k) {
                 break;
             }
-            delegate = ((PostFilterableKnnQuery) delegate).createInnerQuery(searcher.getIndexReader(), seenDocs);
+            delegate = ((PostFilterableKnnQuery) delegate).createRetryQuery(searcher.getIndexReader(), seenDocs);
         }
         this.totalVectorOps = vectorOps;
         if (scoreDocs.length == 0) {
@@ -129,109 +121,17 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
         return new KnnScoreDocQuery(scoreDocs, searcher.getIndexReader());
     }
 
-    /**
-     * Applies the filter to ScoreDocs with global doc IDs. Groups docs by leaf for efficient
-     * filter iterator advancement, then returns passing docs sorted by score descending.
-     */
-    static ScoreDoc[] applyFilter(ScoreDoc[] scoreDocs, Weight filterWeight, IndexSearcher searcher) throws IOException {
-        List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
-
-        // group docs by leaf ordinal
-        @SuppressWarnings({ "unchecked", "rawtypes" })
-        List<ScoreDoc>[] byLeaf = new List[leaves.size()];
-        for (ScoreDoc sd : scoreDocs) {
-            int leafOrd = ReaderUtil.subIndex(sd.doc, leaves);
-            if (byLeaf[leafOrd] == null) {
-                byLeaf[leafOrd] = new ArrayList<>();
-            }
-            byLeaf[leafOrd].add(sd);
+    private Query maybeCreatePostFilterQuery(IndexSearcher searcher, Weight filterWeight) throws IOException {
+        var leaves = searcher.getIndexReader().leaves();
+        int totalVectors = innerQuery.countTotalVectors(leaves);
+        if (filterWeight == null) {
+            return null;
         }
-
-        // filter each leaf separately
-        List<ScoreDoc> passingDocs = new ArrayList<>();
-        for (int leafOrd = 0; leafOrd < leaves.size(); leafOrd++) {
-            if (byLeaf[leafOrd] == null) continue;
-            LeafReaderContext ctx = leaves.get(leafOrd);
-            ScorerSupplier ss = filterWeight.scorerSupplier(ctx);
-            if (ss == null) continue;
-
-            DocIdSetIterator filterIter = ss.get(NO_MORE_DOCS).iterator();
-            List<ScoreDoc> leafDocs = byLeaf[leafOrd];
-            leafDocs.sort(Comparator.comparingInt(sd -> sd.doc));
-
-            int filterDoc = -1;
-            for (ScoreDoc sd : leafDocs) {
-                int localDoc = sd.doc - ctx.docBase;
-                if (filterDoc < localDoc) {
-                    filterDoc = filterIter.advance(localDoc);
-                }
-                if (filterDoc == localDoc) {
-                    passingDocs.add(sd);
-                }
-                if (filterDoc == NO_MORE_DOCS) break;
-            }
+        float selectivity = computeSelectivity(filterWeight, leaves, totalVectors);
+        if (selectivity >= POST_FILTERING_THRESHOLD) {
+            return innerQuery.createPostFilterDelegate(selectivity);
         }
-
-        // srot back by score descending
-        passingDocs.sort((a, b) -> Float.compare(b.score, a.score));
-        return passingDocs.toArray(new ScoreDoc[0]);
-    }
-
-    /**
-     * Deduplicates results by parent document, keeping only the highest-scoring child per parent.
-     * Input must be sorted by score descending (first child seen per parent wins).
-     */
-    static ScoreDoc[] deduplicateByParent(ScoreDoc[] docs, IndexReader reader, BitSetProducer parentsFilter) throws IOException {
-        List<LeafReaderContext> leaves = reader.leaves();
-        IntHashSet seenParents = new IntHashSet();
-        List<ScoreDoc> deduped = new ArrayList<>();
-        for (ScoreDoc sd : docs) {
-            int leafOrd = ReaderUtil.subIndex(sd.doc, leaves);
-            LeafReaderContext ctx = leaves.get(leafOrd);
-            BitSet parentBitSet = parentsFilter.getBitSet(ctx);
-            if (parentBitSet == null) continue;
-            int localDoc = sd.doc - ctx.docBase;
-            int parentDoc = parentBitSet.nextSetBit(localDoc);
-            if (parentDoc == DocIdSetIterator.NO_MORE_DOCS) continue;
-            int globalParent = parentDoc + ctx.docBase;
-            if (seenParents.add(globalParent)) {
-                deduped.add(sd);
-            }
-        }
-        return deduped.toArray(new ScoreDoc[0]);
-    }
-
-    static ScoreDoc[] mergeResults(ScoreDoc[] existing, ScoreDoc[] newResults) {
-        if (existing.length == 0) return newResults;
-        if (newResults.length == 0) return existing;
-
-        IntHashSet seen = new IntHashSet(existing.length + newResults.length);
-        List<ScoreDoc> merged = new ArrayList<>(existing.length + newResults.length);
-        int i = 0, j = 0;
-        while (i < existing.length && j < newResults.length) {
-            ScoreDoc next;
-            if (existing[i].score >= newResults[j].score) {
-                next = existing[i++];
-            } else {
-                next = newResults[j++];
-            }
-            if (seen.add(next.doc)) {
-                merged.add(next);
-            }
-        }
-        while (i < existing.length) {
-            if (seen.add(existing[i].doc)) {
-                merged.add(existing[i]);
-            }
-            i++;
-        }
-        while (j < newResults.length) {
-            if (seen.add(newResults[j].doc)) {
-                merged.add(newResults[j]);
-            }
-            j++;
-        }
-        return merged.toArray(new ScoreDoc[0]);
+        return null;
     }
 
     @Override

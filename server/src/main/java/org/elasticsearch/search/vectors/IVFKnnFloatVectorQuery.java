@@ -140,6 +140,11 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
     }
 
     @Override
+    public long totalVectorOps() {
+        return vectorOpsCount;
+    }
+
+    @Override
     protected void preconditionQuery(LeafReaderContext context) throws IOException {
         if (isQueryPreconditioned) {
             // already preconditioned
@@ -235,7 +240,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
     }
 
     @Override
-    public PostFilterableKnnQuery createPostFilterDelegate(float filterSelectivity) {
+    public Query createPostFilterDelegate(float filterSelectivity) {
         int scaledK = Math.min(NUM_CANDS_LIMIT, (int) Math.ceil(k / filterSelectivity));
         float visitOversampling = Math.max(1.1f, 1.2f / filterSelectivity);
         float scaledVisitRatio = providedVisitRatio > 0f ? Math.min(1.0f, providedVisitRatio * visitOversampling) : 0f;
@@ -252,14 +257,8 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
     }
 
     @Override
-    public Query createInnerQuery(IndexReader reader, int[] docsVisited) {
+    public Query createRetryQuery(IndexReader reader, int[] docsVisited) {
         Map<Integer, FixedBitSet> mergedSkip = mergeSkipCentroids();
         return new IVFKnnFloatVectorQuery(field, originalQuery, k, numCands, null, providedVisitRatio, doPrecondition, mergedSkip);
     }
-
-    @Override
-    public long vectorOpsCount() {
-        return vectorOpsCount;
-    }
-
 }

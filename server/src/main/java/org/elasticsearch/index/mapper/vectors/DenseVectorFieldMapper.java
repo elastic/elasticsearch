@@ -92,6 +92,8 @@ import org.elasticsearch.search.vectors.ESDiversifyingChildrenFloatKnnVectorQuer
 import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.IVFKnnFloatVectorQuery;
+import org.elasticsearch.search.vectors.PostFilterKnnQuery;
+import org.elasticsearch.search.vectors.PostFilterableKnnQuery;
 import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.search.vectors.VectorSimilarityQuery;
@@ -3075,6 +3077,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     )
                     : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, filter, searchStrategy, hnswEarlyTermination);
             }
+            if (filter != null && knnQuery instanceof PostFilterableKnnQuery pfknnQuery) {
+                knnQuery = new PostFilterKnnQuery(pfknnQuery, filter, k, name(), parentFilter);
+            }
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
                     knnQuery,
@@ -3124,6 +3129,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         hnswEarlyTermination
                     )
                     : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, filter, searchStrategy, hnswEarlyTermination);
+            }
+            if (filter != null && knnQuery instanceof PostFilterableKnnQuery pfknnQuery) {
+                knnQuery = new PostFilterKnnQuery(pfknnQuery, filter, k, name(), parentFilter);
             }
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
@@ -3222,6 +3230,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         hnswEarlyTermination
                     )
                     : new ESKnnFloatVectorQuery(name(), queryVector, adjustedK, numCands, filter, knnSearchStrategy, hnswEarlyTermination);
+            }
+            if (filter != null && knnQuery instanceof PostFilterableKnnQuery pfknnQuery) {
+                knnQuery = new PostFilterKnnQuery(pfknnQuery, filter, adjustedK, name(), parentFilter);
             }
             if (rescore) {
                 knnQuery = RescoreKnnVectorQuery.fromInnerQuery(

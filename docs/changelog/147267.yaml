@@ -1,0 +1,6 @@
+area: Infra/Core
+issues:
+ - 143694
+pr: 147267
+summary: Fix OOME happening on `SearchResponse#toString()`
+type: bug

@@ -268,6 +268,27 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM view-1-*),(FROM index-2-*,-*a),(FROM view-2-*,index-1-*,-*b)")));
     }
 
+    /**
+     * A user-written subquery inside a view body carries its own scope. When its parent view is
+     * composed with sibling outer patterns, the subquery's exclusion must not widen to the outer
+     * patterns.
+     * <p>
+     * Without the fix in {@code tryFlattenViewUnionAll}'s fork-child branch, the inner subquery's
+     * {@code -*b} would merge with the outer {@code inner-b} pattern and wrongly exclude it.
+     */
+    public void testUserSubqueryExclusionInViewBodyDoesNotLeakToOuter() {
+        assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        addIndex("outer-a");
+        addIndex("outer-b");
+        addIndex("inner-a");
+        addIndex("inner-b");
+        addView("my_view", "FROM outer-*, (FROM inner-*,-*b)");
+        LogicalPlan plan = query("FROM my_view, inner-b");
+        // The -*b in the inner subquery must only exclude -*b from matches of inner-*, not from the
+        // outer inner-b pattern. Each scope-carrying UR stays in its own branch.
+        assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM inner-b,outer-*),(FROM inner-*,-*b)")));
+    }
+
     public void testExclusionMultipleViews() {
         addView("view1", "FROM emp1");
         addView("view2", "FROM emp2");

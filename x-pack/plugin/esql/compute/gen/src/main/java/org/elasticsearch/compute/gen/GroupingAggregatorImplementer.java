@@ -472,10 +472,7 @@ public class GroupingAggregatorImplementer {
             } else {
                 TypeName typeName = a.type();
                 boolean isVector = valuesAreVector && a.supportsVectorReadAccess();
-                builder.addParameter(
-                    isVector ? vectorType(typeName) : blockType(typeName),
-                    isVector ? a.vectorName() : a.blockName()
-                );
+                builder.addParameter(isVector ? vectorType(typeName) : blockType(typeName), isVector ? a.vectorName() : a.blockName());
             }
         }
         for (Argument a : aggParams) {

@@ -168,8 +168,87 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
 
     public void testFromMixedIndexAndDataset() throws Exception {
         assumeTrue("requires external data sources feature flag", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
+        setupMixedSources();
 
-        // Seed a real ES index with a single compatible row.
+        try (var response = run(syncEsqlQueryRequest("FROM local_emps,employees | SORT emp_no"), TIMEOUT)) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns, hasSize(2));
+            assertThat(columns.get(0).name(), equalTo("emp_no"));
+            assertThat(columns.get(1).name(), equalTo("first_name"));
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(4));
+            // CSV dataset rows (1,2,3) + one ES index row (99)
+            assertThat(rows.get(0).get(0), equalTo(1));
+            assertThat(rows.get(1).get(0), equalTo(2));
+            assertThat(rows.get(2).get(0), equalTo(3));
+            assertThat(rows.get(3).get(0), equalTo(99));
+            assertThat(rows.get(3).get(1).toString(), equalTo("Diana"));
+        }
+    }
+
+    public void testFromMixedWithFilter() throws Exception {
+        assumeTrue("requires external data sources feature flag", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
+        setupMixedSources();
+
+        // WHERE must filter rows coming out of both branches of the heterogeneous union.
+        try (var response = run(syncEsqlQueryRequest("FROM local_emps,employees | WHERE emp_no >= 2 | SORT emp_no"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            assertThat(rows.get(0).get(0), equalTo(2));
+            assertThat(rows.get(0).get(1).toString(), equalTo("Bob"));
+            assertThat(rows.get(1).get(0), equalTo(3));
+            assertThat(rows.get(2).get(0), equalTo(99));
+        }
+    }
+
+    public void testFromMixedWithCountAggregation() throws Exception {
+        assumeTrue("requires external data sources feature flag", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
+        setupMixedSources();
+
+        // COUNT(*) over the union should sum rows from the index + the dataset.
+        try (var response = run(syncEsqlQueryRequest("FROM local_emps,employees | STATS c = COUNT(*)"), TIMEOUT)) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns, hasSize(1));
+            assertThat(columns.get(0).name(), equalTo("c"));
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(4L));
+        }
+    }
+
+    public void testFromMultipleDatasetsAndIndex() throws Exception {
+        assumeTrue("requires external data sources feature flag", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
+        setupMixedSources();
+
+        // Second CSV fixture — different rows, same schema.
+        Path secondFixture = createTempFile("dataset-fixture-2-", ".csv");
+        Files.writeString(secondFixture, String.join("\n", "emp_no:integer,first_name:keyword", "50,Eve", "51,Frank") + "\n");
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("employees_eu", "local_ds", secondFixture.toUri().toString(), Map.of("format", "csv"))
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM local_emps,employees,employees_eu | SORT emp_no"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(6));
+            assertThat(rows.get(0).get(0), equalTo(1));
+            assertThat(rows.get(1).get(0), equalTo(2));
+            assertThat(rows.get(2).get(0), equalTo(3));
+            assertThat(rows.get(3).get(0), equalTo(50));
+            assertThat(rows.get(4).get(0), equalTo(51));
+            assertThat(rows.get(5).get(0), equalTo(99));
+        }
+
+        try {
+            client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest("employees_eu"))
+                .get(30, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (Exception ignored) {}
+    }
+
+    private void setupMixedSources() {
         client().admin().indices().prepareCreate("local_emps").setMapping("emp_no", "type=integer", "first_name", "type=keyword").get();
         client().prepareIndex("local_emps").setSource("emp_no", 99, "first_name", "Diana").setRefreshPolicy(IMMEDIATE).get();
 
@@ -180,22 +259,6 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
                 putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
             )
         );
-
-        try (var response = run(syncEsqlQueryRequest("FROM local_emps,employees | SORT emp_no"), TIMEOUT)) {
-            List<? extends ColumnInfo> columns = response.columns();
-            assertThat(columns, hasSize(2));
-            assertThat(columns.get(0).name(), equalTo("emp_no"));
-            assertThat(columns.get(1).name(), equalTo("first_name"));
-
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(4));
-            // rows from the CSV dataset (1..3) + the one row from the ES index (99)
-            assertThat(rows.get(0).get(0), equalTo(1));
-            assertThat(rows.get(1).get(0), equalTo(2));
-            assertThat(rows.get(2).get(0), equalTo(3));
-            assertThat(rows.get(3).get(0), equalTo(99));
-            assertThat(rows.get(3).get(1).toString(), equalTo("Diana"));
-        }
     }
 
     private static PutDataSourceAction.Request putDataSourceRequest(String name, Map<String, Object> settings) {

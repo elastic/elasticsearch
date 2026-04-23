@@ -109,7 +109,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
         IVFCollectorManager collectorManager = getKnnCollectorManager(Math.round(2f * k), indexSearcher);
         if (filterWeight != null) {
-            Query postFilterQuery = createPostFilterQuery(leaves, filterWeight, k, reader, getParentsFilter());
+            Query postFilterQuery = createPostFilterQuery(indexSearcher, filter, k, field, getParentsFilter());
             if (postFilterQuery != null) {
                 return postFilterQuery;
             }

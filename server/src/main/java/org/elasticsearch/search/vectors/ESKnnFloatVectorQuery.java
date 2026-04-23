@@ -100,8 +100,8 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
 
     @Override
     public PostFilterableKnnQuery createPostFilterDelegate(float filterSelectivity) {
-        int scaledK = (int) Math.max(NUM_CANDS_LIMIT, Math.ceil(kParam / filterSelectivity));
-        int scaledNumCands = (int) Math.max(NUM_CANDS_LIMIT, Math.ceil((double) numCandsParam / filterSelectivity));
+        int scaledK = (int) Math.min(NUM_CANDS_LIMIT, Math.ceil(kParam / filterSelectivity));
+        int scaledNumCands = (int) Math.min(NUM_CANDS_LIMIT, Math.ceil((double) numCandsParam / filterSelectivity));
         return new ESKnnFloatVectorQuery(field, getTargetCopy(), scaledK, scaledNumCands, null, searchStrategy, earlyTermination, null);
     }
 

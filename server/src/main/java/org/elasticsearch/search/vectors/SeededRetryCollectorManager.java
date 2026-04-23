@@ -76,20 +76,22 @@ class SeededRetryCollectorManager implements KnnCollectorManager {
         int docBase = ctx.docBase;
         int maxDoc = ctx.reader().maxDoc();
 
-        // Collect and sort local doc IDs for this leaf
-        int[] localDocIds = new int[seedDocs.length];
-        int count = 0;
-        for (int doc : seedDocs) {
-            int localDoc = doc - docBase;
-            if (localDoc >= 0 && localDoc < maxDoc) {
-                localDocIds[count++] = localDoc;
-            }
-        }
+        // Binary search for the range of seedDocs falling in [docBase, docBase+maxDoc).
+        // seedDocs is sorted, so this avoids allocating and scanning all seeds per leaf.
+        int end = docBase + maxDoc;
+        int fromIdx = Arrays.binarySearch(seedDocs, docBase);
+        if (fromIdx < 0) fromIdx = -fromIdx - 1;
+        int toIdx = Arrays.binarySearch(seedDocs, fromIdx, seedDocs.length, end);
+        if (toIdx < 0) toIdx = -toIdx - 1;
+        int count = toIdx - fromIdx;
         if (count == 0) {
             return null;
         }
-        localDocIds = Arrays.copyOf(localDocIds, count);
-        Arrays.sort(localDocIds);
+        // seedDocs is sorted, so localDocIds are already sorted after subtracting docBase
+        int[] localDocIds = new int[count];
+        for (int i = 0; i < count; i++) {
+            localDocIds[i] = seedDocs[fromIdx + i] - docBase;
+        }
 
         // Map doc IDs to vector ordinals via the vector values iterator
         KnnVectorValues.DocIndexIterator docIndexIter = getDocIndexIterator(ctx);

@@ -52,6 +52,9 @@ class ExcludeDocsQuery extends Query {
 
             @Override
             public ScorerSupplier scorerSupplier(LeafReaderContext context) {
+                if (excludedDocs == null) {
+                    return null;
+                }
                 int leafMaxDoc = context.reader().maxDoc();
                 int docBase = context.docBase;
                 int end = docBase + leafMaxDoc;
@@ -84,7 +87,7 @@ class ExcludeDocsQuery extends Query {
 
     @Override
     public String toString(String field) {
-        return "ExcludeDocsQuery[excluded=" + excludedDocs.length + "]";
+        return "ExcludeDocsQuery[excluded=" + Arrays.toString(excludedDocs) + "]";
     }
 
     @Override

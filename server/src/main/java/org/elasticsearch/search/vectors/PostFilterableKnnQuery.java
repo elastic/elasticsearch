@@ -66,18 +66,18 @@ public interface PostFilterableKnnQuery {
         return totalVectors > 0 ? Math.min(1f, (float) filterCost / totalVectors) : 0f;
     }
 
-    default Query createPostFilterQuery(
-        List<LeafReaderContext> leaves,
-        Weight filterWeight,
-        int k,
-        IndexReader reader,
-        BitSetProducer parentsBitset
-    ) throws IOException {
+    default Query createPostFilterQuery(IndexSearcher searcher, Query filter, int k, String field, BitSetProducer parentsBitset)
+        throws IOException {
+        var leaves = searcher.getIndexReader().leaves();
         int totalVectors = countTotalVectors(leaves);
+        var filterWeight = createFilterWeight(searcher, filter, field);
+        if (filterWeight == null) {
+            return null;
+        }
         float selectivity = computeSelectivity(filterWeight, leaves, totalVectors);
         if (selectivity >= POST_FILTERING_THRESHOLD) {
             PostFilterableKnnQuery delegate = createPostFilterDelegate(selectivity);
-            return new PostFilterKnnQuery(delegate, filterWeight, k, reader, parentsBitset);
+            return new PostFilterKnnQuery(delegate, filter, k, field, parentsBitset);
         }
         return null;
     }
@@ -99,8 +99,7 @@ public interface PostFilterableKnnQuery {
     default Query maybeRewriteAsPostFilter(IndexSearcher indexSearcher, Query filter, int k, String field, BitSetProducer parentBitSet)
         throws IOException {
         if (filter != null && filter instanceof ExcludeDocsQuery == false) {
-            Weight filterWeight = createFilterWeight(indexSearcher, filter, field);
-            return createPostFilterQuery(indexSearcher.getLeafContexts(), filterWeight, k, indexSearcher.getIndexReader(), parentBitSet);
+            return createPostFilterQuery(indexSearcher, filter, k, field, parentBitSet);
         }
         return null;
     }

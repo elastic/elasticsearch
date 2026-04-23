@@ -14,8 +14,12 @@ import com.carrotsearch.hppc.IntHashSet;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
@@ -55,30 +59,36 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
     static final int MAX_ROUNDS = 5;
 
     private final PostFilterableKnnQuery innerQuery;
-    private final Weight filterWeight;
+    private final Query filter;
     private final int k;
+    private final String field;
     private long totalVectorOps;
     private final BitSetProducer parentsFilter;
 
-    public PostFilterKnnQuery(
-        PostFilterableKnnQuery innerQuery,
-        Weight filterWeight,
-        int k,
-        IndexReader reader,
-        BitSetProducer parentsFilter
-    ) {
+    public PostFilterKnnQuery(PostFilterableKnnQuery innerQuery, Query filter, int k, String field, BitSetProducer parentsFilter) {
+        assert filter != null : "filter must not be null for PostFilterKnnQuery";
         this.innerQuery = innerQuery;
-        this.filterWeight = filterWeight;
+        this.filter = filter;
         this.k = k;
+        this.field = field;
         this.parentsFilter = parentsFilter;
     }
 
     @Override
     public Query rewrite(IndexSearcher searcher) throws IOException {
+        var booleanQuery = new BooleanQuery.Builder().add(filter, BooleanClause.Occur.FILTER)
+            .add(new FieldExistsQuery(field), BooleanClause.Occur.FILTER)
+            .build();
+        Query rewritten = searcher.rewrite(booleanQuery);
+        if (rewritten.getClass() == MatchNoDocsQuery.class) {
+            return null;
+        }
+        var filterWeight = searcher.createWeight(rewritten, ScoreMode.COMPLETE_NO_SCORES, 1f);
+
         ScoreDoc[] scoreDocs = new ScoreDoc[0];
         int[] seenDocs = new int[0];
         long vectorOps = 0;
-        Query delegate = innerQuery.createInnerQuery(searcher.getIndexReader(), seenDocs);
+        Query delegate = innerQuery.createInnerQuery(searcher.getIndexReader(), null);
         assert delegate instanceof PostFilterableKnnQuery;
         for (int round = 0; round < MAX_ROUNDS; round++) {
             TopDocs topDocs = searcher.search(delegate, Integer.MAX_VALUE);
@@ -88,7 +98,7 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
                 break;
             }
 
-            // Accumulate this round's doc IDs into the running sorted array
+            // accumulate this round's doc IDs into the running sorted array
             int[] roundDocs = new int[topDocs.scoreDocs.length];
             for (int i = 0; i < topDocs.scoreDocs.length; i++) {
                 roundDocs[i] = topDocs.scoreDocs[i].doc;
@@ -259,13 +269,13 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
         // and never needs cache matching.
         return k == that.k
             && innerQuery.equals(that.innerQuery)
-            && filterWeight == that.filterWeight
+            && Objects.equals(filter, that.filter)
             && Objects.equals(parentsFilter, that.parentsFilter);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), innerQuery, k, System.identityHashCode(filterWeight), parentsFilter);
+        return Objects.hash(classHash(), innerQuery, k, filter, parentsFilter);
     }
 
 }

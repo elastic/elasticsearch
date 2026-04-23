@@ -118,8 +118,8 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
 
     @Override
     public PostFilterableKnnQuery createPostFilterDelegate(float filterSelectivity) {
-        int scaledK = (int) Math.max(NUM_CANDS_LIMIT, Math.ceil(kParam / filterSelectivity));
-        int scaledNumCands = (int) Math.max(NUM_CANDS_LIMIT, Math.ceil((double) numCands / filterSelectivity));
+        int scaledK = (int) Math.min(NUM_CANDS_LIMIT, Math.ceil(kParam / filterSelectivity));
+        int scaledNumCands = (int) Math.min(NUM_CANDS_LIMIT, Math.ceil((double) numCands / filterSelectivity));
         return new ESDiversifyingChildrenByteKnnVectorQuery(
             field,
             getTargetCopy(),

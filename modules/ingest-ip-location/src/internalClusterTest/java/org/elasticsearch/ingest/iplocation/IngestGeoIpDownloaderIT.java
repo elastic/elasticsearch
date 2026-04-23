@@ -26,6 +26,7 @@ import org.elasticsearch.ingest.geoip.GeoIpTaskState;
 import org.elasticsearch.ingest.geoip.IngestGeoIpPlugin;
 import org.elasticsearch.ingest.geoip.IpLocationTestHelper;
 import org.elasticsearch.ingest.geoip.stats.GeoIpStatsAction;
+import org.elasticsearch.iplocation.api.IpLocationConsumer;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.IngestPlugin;
@@ -413,17 +414,14 @@ public class IngestGeoIpDownloaderIT extends AbstractGeoIpIT {
     }
 
     private void awaitAllNodesDownloadedDatabases() throws Exception {
-        assertBusy(() -> {
-            GeoIpStatsAction.Response response = client().execute(GeoIpStatsAction.INSTANCE, new GeoIpStatsAction.Request()).actionGet();
-            assertThat(response.getNodes(), not(empty()));
-
-            for (GeoIpStatsAction.NodeResponse nodeResponse : response.getNodes()) {
-                assertThat(
-                    nodeResponse.getDatabases(),
-                    containsInAnyOrder("GeoLite2-Country.mmdb", "GeoLite2-City.mmdb", "GeoLite2-ASN.mmdb", "MyCustomGeoLite2-City.mmdb")
-                );
-            }
-        });
+        IpLocationTestHelper.awaitAllRelevantNodesDownloadedDatabases(
+            client(),
+            IpLocationConsumer.INGEST,
+            "GeoLite2-Country.mmdb",
+            "GeoLite2-City.mmdb",
+            "GeoLite2-ASN.mmdb",
+            "MyCustomGeoLite2-City.mmdb"
+        );
     }
 
     private GeoIpTaskState getGeoIpTaskState() {

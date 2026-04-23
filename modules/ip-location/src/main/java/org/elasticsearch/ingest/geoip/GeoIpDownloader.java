@@ -87,11 +87,6 @@ public class GeoIpDownloader extends AbstractGeoIpDownloader {
     protected volatile GeoIpTaskState state;
     private volatile GeoIpDownloaderStats stats = GeoIpDownloaderStats.EMPTY;
     private final Supplier<Boolean> eagerDownloadSupplier;
-    /*
-     * Whether at least one consumer has requested database downloads for this project. When false, databases are not downloaded
-     * (unless configured to eagerly download).
-     */
-    private final Supplier<Boolean> downloadRequestedSupplier;
 
     private final ProjectId projectId;
 
@@ -109,7 +104,6 @@ public class GeoIpDownloader extends AbstractGeoIpDownloader {
         Map<String, String> headers,
         Supplier<TimeValue> pollIntervalSupplier,
         Supplier<Boolean> eagerDownloadSupplier,
-        Supplier<Boolean> downloadRequestedSupplier,
         ProjectId projectId
     ) {
         super(id, type, action, description, parentTask, headers, threadPool, pollIntervalSupplier);
@@ -118,7 +112,6 @@ public class GeoIpDownloader extends AbstractGeoIpDownloader {
         this.clusterService = clusterService;
         this.endpoint = ENDPOINT_SETTING.get(settings);
         this.eagerDownloadSupplier = eagerDownloadSupplier;
-        this.downloadRequestedSupplier = downloadRequestedSupplier;
         this.projectId = projectId;
     }
 
@@ -153,7 +146,10 @@ public class GeoIpDownloader extends AbstractGeoIpDownloader {
                 return;
             }
         }
-        if (eagerDownloadSupplier.get() || downloadRequestedSupplier.get()) {
+        IpLocationDownloadConsumers consumers = clusterState.getMetadata()
+            .getProject(projectId)
+            .custom(IpLocationDownloadConsumers.TYPE, IpLocationDownloadConsumers.EMPTY);
+        if (eagerDownloadSupplier.get() || consumers.hasConsumers()) {
             logger.trace("Updating geoip databases");
             List<Map<String, Object>> response = fetchDatabasesOverview();
             for (Map<String, Object> res : response) {

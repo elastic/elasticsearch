@@ -148,17 +148,9 @@ public class IngestGeoIpPlugin extends Plugin
             services.client(),
             new HttpClient(),
             services.clusterService(),
-            services.threadPool(),
-            databaseRegistry.get()
+            services.threadPool()
         );
         geoIpDownloaderTaskExecutor.init();
-
-        databaseRegistry.get().setOnDemandDownloadTrigger(projectId -> {
-            GeoIpDownloader downloader = geoIpDownloaderTaskExecutor.getTask(projectId);
-            if (downloader != null) {
-                downloader.requestRunOnDemand();
-            }
-        });
 
         // Note that `ingest.geoip.downloader.enabled` is not yet truly a per-project cluster setting.
         // When it becomes project-scoped in cluster state, registration should use a project-aware path.
@@ -204,7 +196,8 @@ public class IngestGeoIpPlugin extends Plugin
             new ActionHandler(GeoIpStatsAction.INSTANCE, GeoIpStatsTransportAction.class),
             new ActionHandler(GetDatabaseConfigurationAction.INSTANCE, TransportGetDatabaseConfigurationAction.class),
             new ActionHandler(DeleteDatabaseConfigurationAction.INSTANCE, TransportDeleteDatabaseConfigurationAction.class),
-            new ActionHandler(PutDatabaseConfigurationAction.INSTANCE, TransportPutDatabaseConfigurationAction.class)
+            new ActionHandler(PutDatabaseConfigurationAction.INSTANCE, TransportPutDatabaseConfigurationAction.class),
+            new ActionHandler(RequestIpLocationDownloadsAction.INSTANCE, TransportRequestIpLocationDownloadsAction.class)
         );
     }
 
@@ -230,6 +223,11 @@ public class IngestGeoIpPlugin extends Plugin
                 new ParseField(IngestGeoIpMetadata.TYPE),
                 IngestGeoIpMetadata::fromXContent
             ),
+            new NamedXContentRegistry.Entry(
+                Metadata.ProjectCustom.class,
+                new ParseField(IpLocationDownloadConsumers.TYPE),
+                IpLocationDownloadConsumers::fromXContent
+            ),
             new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(GEOIP_DOWNLOADER), GeoIpTaskParams::fromXContent),
             new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(GEOIP_DOWNLOADER), GeoIpTaskState::fromXContent),
             new NamedXContentRegistry.Entry(
@@ -250,6 +248,16 @@ public class IngestGeoIpPlugin extends Plugin
         return List.of(
             new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata::new),
             new NamedWriteableRegistry.Entry(NamedDiff.class, IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.GeoIpMetadataDiff::new),
+            new NamedWriteableRegistry.Entry(
+                Metadata.ProjectCustom.class,
+                IpLocationDownloadConsumers.TYPE,
+                IpLocationDownloadConsumers::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                NamedDiff.class,
+                IpLocationDownloadConsumers.TYPE,
+                IpLocationDownloadConsumers.IpLocationDownloadConsumersDiff::new
+            ),
             new NamedWriteableRegistry.Entry(PersistentTaskState.class, GEOIP_DOWNLOADER, GeoIpTaskState::new),
             new NamedWriteableRegistry.Entry(PersistentTaskParams.class, GEOIP_DOWNLOADER, GeoIpTaskParams::new),
             new NamedWriteableRegistry.Entry(PersistentTaskState.class, ENTERPRISE_GEOIP_DOWNLOADER, EnterpriseGeoIpTaskState::new),

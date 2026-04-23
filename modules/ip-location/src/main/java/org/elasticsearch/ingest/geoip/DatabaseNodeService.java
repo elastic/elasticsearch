@@ -11,6 +11,7 @@ package org.elasticsearch.ingest.geoip;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
@@ -18,6 +19,7 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -40,6 +42,7 @@ import org.elasticsearch.ingest.geoip.stats.CacheStats;
 import org.elasticsearch.iplocation.api.DatabaseAvailabilityListener;
 import org.elasticsearch.iplocation.api.IpDataLookup;
 import org.elasticsearch.iplocation.api.IpDataLookupInfo;
+import org.elasticsearch.iplocation.api.IpLocationConsumer;
 import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchHit;
@@ -63,6 +66,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -113,9 +117,7 @@ public final class DatabaseNodeService implements IpLocationService, IpDatabaseP
     private final ProjectResolver projectResolver;
 
     private final ConcurrentMap<ProjectId, ConcurrentMap<String, DatabaseReaderLazyLoader>> databases = new ConcurrentHashMap<>();
-    private final Set<ProjectId> downloadRequested = ConcurrentHashMap.newKeySet();
     private final List<DatabaseAvailabilityListener> listeners = new CopyOnWriteArrayList<>();
-    private volatile Consumer<ProjectId> onDemandDownloadTrigger = pid -> {};
 
     DatabaseNodeService(
         Environment environment,
@@ -152,10 +154,6 @@ public final class DatabaseNodeService implements IpLocationService, IpDatabaseP
         this.genericExecutor = genericExecutor;
         this.clusterService = clusterService;
         this.projectResolver = projectResolver;
-    }
-
-    void setOnDemandDownloadTrigger(Consumer<ProjectId> trigger) {
-        this.onDemandDownloadTrigger = trigger;
     }
 
     public void initialize(String nodeId, ResourceWatcherService resourceWatcher) throws IOException {
@@ -285,16 +283,51 @@ public final class DatabaseNodeService implements IpLocationService, IpDatabaseP
             return;
         }
 
-        // Clean up download requests for projects that have been removed from the cluster state
-        downloadRequested.removeIf(pid -> state.metadata().hasProject(pid) == false);
-
-        if (downloadRequested.isEmpty()) {
-            logger.trace("Not checking databases because no consumer has requested downloads on this node");
+        var localNode = state.nodes().getLocalNode();
+        if (localNode == null) {
+            logger.trace("skipping checkDatabases: local node not yet available in cluster state");
             return;
         }
+        state.forEachProject(projectState -> {
+            // Three-state read semantic for IpLocationDownloadConsumers:
+            // absent -> the cluster state doesn't yet carry consumer tracking for this project (e.g. during
+            // a rolling upgrade from a version that didn't write this custom). Preserve any
+            // previously loaded databases and skip this project until the master populates the
+            // custom; pruning here would delete local database files and silently degrade ingest.
+            // present+empty-> authoritatively "no consumers want IP databases" for this project — prune local loaders.
+            // present+non-empty -> apply the consumer / node-role matching below.
+            IpLocationDownloadConsumers consumers = projectState.metadata().custom(IpLocationDownloadConsumers.TYPE);
+            if (consumers == null) {
+                return;
+            }
+            if (consumers.hasRelevantConsumer(localNode)) {
+                checkDatabases(projectState);
+            } else {
+                ConcurrentMap<String, DatabaseReaderLazyLoader> projectDatabases = databases.get(projectState.projectId());
+                if (projectDatabases != null) {
+                    // Snapshot the key set before iterating: removeStaleEntries mutates the same ConcurrentHashMap.
+                    removeStaleEntries(projectState.projectId(), Set.copyOf(projectDatabases.keySet()));
+                    // This node no longer serves this project; drop the now-empty outer entry so we don't
+                    // re-enter this branch on every subsequent cluster-state update just to no-op.
+                    databases.remove(projectState.projectId());
+                }
+            }
+        });
 
-        // Optimization: only load the .geoip_databases for projects that are allocated to this node
-        state.forEachProject(this::checkDatabases);
+        // Release loaders for projects that have been removed from the cluster state entirely. The forEachProject
+        // pass above only visits projects that are still present, so without this sweep both the in-memory
+        // `databases` map and the per-project on-disk directories for deleted projects would leak. Iterating with
+        // ConcurrentHashMap's weakly-consistent iterator (and Iterator#remove) avoids snapshotting the key set.
+        Set<ProjectId> livingProjects = state.metadata().projects().keySet();
+        Iterator<Map.Entry<ProjectId, ConcurrentMap<String, DatabaseReaderLazyLoader>>> it = databases.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<ProjectId, ConcurrentMap<String, DatabaseReaderLazyLoader>> entry = it.next();
+            if (livingProjects.contains(entry.getKey()) == false) {
+                // Snapshot the key set before iterating: removeStaleEntries mutates the same ConcurrentHashMap.
+                removeStaleEntries(entry.getKey(), Set.copyOf(entry.getValue().keySet()));
+                it.remove();
+            }
+        }
     }
 
     void checkDatabases(ProjectState projectState) {
@@ -674,22 +707,65 @@ public final class DatabaseNodeService implements IpLocationService, IpDatabaseP
         listeners.add(listener);
     }
 
+    /**
+     * Submits a master-routed cluster state update to register {@code consumer} for {@code projectIdStr} in
+     * {@link IpLocationDownloadConsumers}. Short-circuits with no allocation or network I/O when the consumer
+     * is already registered in the local cluster state, so it is safe to call repeatedly.
+     * <p>
+     * Despite the short-circuit, callers should trigger this as early as possible and avoid races between
+     * nodes to minimize redundant transport actions during the brief window before cluster state propagates:
+     * <ul>
+     *   <li><b>Ingest consumer</b> ({@code ClusterStateListener}): guard with {@code event.localNodeMaster()}
+     *       so only the master fires the request when ingest pipeline metadata changes.</li>
+     *   <li><b>ES|QL consumer</b>: call at query plan creation time on the <em>coordinating node</em>, and
+     *       also at execution time for reliability &mdash; since query plans may be cached, the execution-time
+     *       call provides automatic retry if the initial call at plan creation failed (e.g. no master available).</li>
+     * </ul>
+     */
     @Override
-    public void requestDownloads(String projectIdStr) {
-        ProjectId pid = ProjectId.fromId(projectIdStr);
-        if (downloadRequested.add(pid)) {
-            onDemandDownloadTrigger.accept(pid);
-            checkDatabases(clusterService.state());
+    public void requestDownloads(String projectIdStr, IpLocationConsumer consumer) {
+        ProjectId projectId = ProjectId.fromId(projectIdStr);
+        Metadata metadata = clusterService.state().metadata();
+        if (metadata.hasProject(projectId) == false) {
+            return;
         }
+        IpLocationDownloadConsumers current = metadata.getProject(projectId).custom(IpLocationDownloadConsumers.TYPE);
+        if (current != null && current.contains(consumer)) {
+            return;
+        }
+        submitConsumerUpdate(projectId, consumer, RequestIpLocationDownloadsAction.Request.Operation.REGISTER);
     }
 
     @Override
-    public void cancelDownloadRequest(String projectIdStr) {
-        downloadRequested.remove(ProjectId.fromId(projectIdStr));
+    public void cancelDownloadRequest(String projectIdStr, IpLocationConsumer consumer) {
+        ProjectId projectId = ProjectId.fromId(projectIdStr);
+        Metadata metadata = clusterService.state().metadata();
+        if (metadata.hasProject(projectId) == false) {
+            return;
+        }
+        IpLocationDownloadConsumers current = metadata.getProject(projectId).custom(IpLocationDownloadConsumers.TYPE);
+        if (current == null || current.contains(consumer) == false) {
+            return;
+        }
+        submitConsumerUpdate(projectId, consumer, RequestIpLocationDownloadsAction.Request.Operation.UNREGISTER);
     }
 
-    boolean isDownloadRequested(String projectIdStr) {
-        return downloadRequested.contains(ProjectId.fromId(projectIdStr));
+    private void submitConsumerUpdate(
+        ProjectId projectId,
+        IpLocationConsumer consumer,
+        RequestIpLocationDownloadsAction.Request.Operation operation
+    ) {
+        // Failures are logged on the master by TransportRequestIpLocationDownloadsAction; no need to double-log here.
+        client.execute(
+            RequestIpLocationDownloadsAction.INSTANCE,
+            new RequestIpLocationDownloadsAction.Request(
+                RequestIpLocationDownloadsAction.Request.INFINITE_MASTER_NODE_TIMEOUT,
+                projectId,
+                consumer,
+                operation
+            ),
+            ActionListener.noop()
+        );
     }
 
     /**

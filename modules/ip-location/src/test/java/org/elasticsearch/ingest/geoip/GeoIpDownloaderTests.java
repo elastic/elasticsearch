@@ -36,6 +36,7 @@ import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStats;
+import org.elasticsearch.iplocation.api.IpLocationConsumer;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.persistent.PersistentTaskResponse;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -66,7 +67,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 
@@ -129,7 +129,6 @@ public class GeoIpDownloaderTests extends ESTestCase {
             Map.of(),
             () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
             () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY),
-            () -> true,
             projectId
         ) {
             {
@@ -302,7 +301,6 @@ public class GeoIpDownloaderTests extends ESTestCase {
             Map.of(),
             () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
             () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY),
-            () -> true,
             projectId
         ) {
             @Override
@@ -354,7 +352,6 @@ public class GeoIpDownloaderTests extends ESTestCase {
             Map.of(),
             () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
             () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY),
-            () -> true,
             projectId
         ) {
             @Override
@@ -408,7 +405,6 @@ public class GeoIpDownloaderTests extends ESTestCase {
             Map.of(),
             () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
             () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY),
-            () -> true,
             projectId
         ) {
             @Override
@@ -459,7 +455,6 @@ public class GeoIpDownloaderTests extends ESTestCase {
             Map.of(),
             () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
             () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY),
-            () -> true,
             projectId
         ) {
             @Override
@@ -505,7 +500,6 @@ public class GeoIpDownloaderTests extends ESTestCase {
             Map.of(),
             () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
             () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY),
-            () -> true,
             projectId
         ) {
             @Override
@@ -540,7 +534,6 @@ public class GeoIpDownloaderTests extends ESTestCase {
             Map.of(),
             () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
             () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY),
-            () -> true,
             projectId
         ) {
             @Override
@@ -571,7 +564,6 @@ public class GeoIpDownloaderTests extends ESTestCase {
         builder.close();
         when(httpClient.getBytes("a.b?elastic_geoip_service_tos=agree")).thenReturn(baos.toByteArray());
         Iterator<Map<String, Object>> it = maps.iterator();
-        final AtomicBoolean downloadRequested = new AtomicBoolean(false);
         geoIpDownloader = new GeoIpDownloader(
             client,
             httpClient,
@@ -586,7 +578,6 @@ public class GeoIpDownloaderTests extends ESTestCase {
             Map.of(),
             () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
             () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY),
-            downloadRequested::get,
             projectId
         ) {
             @Override
@@ -594,9 +585,16 @@ public class GeoIpDownloaderTests extends ESTestCase {
                 assertEquals(it.next(), databaseInfo);
             }
         };
+        // No consumers in cluster state — should skip downloading
         geoIpDownloader.updateDatabases();
         assertTrue(it.hasNext());
-        downloadRequested.set(true);
+        // Add a consumer to cluster state — should proceed with downloads
+        ClusterState stateWithConsumers = createClusterState(
+            projectId,
+            new PersistentTasksCustomMetadata(1L, Map.of()),
+            IpLocationDownloadConsumers.EMPTY.withConsumer(IpLocationConsumer.INGEST)
+        );
+        when(clusterService.state()).thenReturn(stateWithConsumers);
         geoIpDownloader.updateDatabases();
         assertFalse(it.hasNext());
     }

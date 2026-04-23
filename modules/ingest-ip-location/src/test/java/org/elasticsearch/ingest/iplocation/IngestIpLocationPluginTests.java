@@ -16,6 +16,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -26,6 +28,7 @@ import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.iplocation.api.IpLocationConsumer;
 import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -38,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -50,6 +54,7 @@ public class IngestIpLocationPluginTests extends ESTestCase {
      * Creates an IngestIpLocationPlugin wired with a mock IpLocationService, ready for clusterChanged() testing.
      * Returns both the plugin and the mock service so tests can verify interactions.
      */
+    @SuppressWarnings("NewClassNamingConvention")
     private record PluginWithMocks(IngestIpLocationPlugin plugin, IpLocationService service) {}
 
     private static PluginWithMocks createPluginWithMocks() {
@@ -77,12 +82,36 @@ public class IngestIpLocationPluginTests extends ESTestCase {
         return new PluginWithMocks(plugin, ipLocationService);
     }
 
-    private static ClusterState clusterStateWithProject(ProjectId projectId, ProjectMetadata projectMetadata) {
-        return ClusterState.builder(new ClusterName("test")).putProjectMetadata(projectMetadata).build();
+    private static final DiscoveryNodes MASTER_NODES = DiscoveryNodes.builder()
+        .add(DiscoveryNodeUtils.create("_id1"))
+        .localNodeId("_id1")
+        .masterNodeId("_id1")
+        .build();
+
+    /**
+     * Two-node view where the local node ({@code _id1}) is <em>not</em> the master yet; used as the
+     * {@code previousState} for tests that simulate a master handover to the local node.
+     */
+    private static final DiscoveryNodes REMOTE_MASTER_NODES = DiscoveryNodes.builder()
+        .add(DiscoveryNodeUtils.create("_id1"))
+        .add(DiscoveryNodeUtils.create("_id2"))
+        .localNodeId("_id1")
+        .masterNodeId("_id2")
+        .build();
+
+    private static ClusterState clusterStateWithProject(ProjectMetadata projectMetadata) {
+        return ClusterState.builder(new ClusterName("test")).putProjectMetadata(projectMetadata).nodes(MASTER_NODES).build();
+    }
+
+    private static ClusterState clusterStateWithProjectAndNodes(ProjectMetadata projectMetadata) {
+        return ClusterState.builder(new ClusterName("test"))
+            .putProjectMetadata(projectMetadata)
+            .nodes(IngestIpLocationPluginTests.REMOTE_MASTER_NODES)
+            .build();
     }
 
     private static ClusterState emptyClusterState() {
-        return ClusterState.builder(new ClusterName("test")).build();
+        return ClusterState.builder(new ClusterName("test")).nodes(MASTER_NODES).build();
     }
 
     public void testProjectWithGeoipPipelineRequestsDownloads() throws IOException {
@@ -95,9 +124,9 @@ public class IngestIpLocationPluginTests extends ESTestCase {
             Map.of("_id1", new PipelineConfiguration("_id1", new BytesArray(pipelineJson), XContentType.JSON))
         );
         ProjectMetadata projectMeta = ProjectMetadata.builder(projectId).putCustom(IngestMetadata.TYPE, ingestMetadata).build();
-        ClusterState state1 = clusterStateWithProject(projectId, projectMeta);
+        ClusterState state1 = clusterStateWithProject(projectMeta);
         mocks.plugin.clusterChanged(new ClusterChangedEvent("test", state1, emptyClusterState()));
-        verify(mocks.service).requestDownloads(projectId.id());
+        verify(mocks.service).requestDownloads(projectId.id(), IpLocationConsumer.INGEST);
     }
 
     public void testProjectWithoutGeoipPipelineDoesNotRequestDownloads() throws IOException {
@@ -105,9 +134,9 @@ public class IngestIpLocationPluginTests extends ESTestCase {
         ProjectId projectId = randomProjectIdOrDefault();
 
         ProjectMetadata projectMeta = ProjectMetadata.builder(projectId).build();
-        ClusterState state1 = clusterStateWithProject(projectId, projectMeta);
+        ClusterState state1 = clusterStateWithProject(projectMeta);
         mocks.plugin.clusterChanged(new ClusterChangedEvent("test", state1, emptyClusterState()));
-        verify(mocks.service, never()).requestDownloads(anyString());
+        verify(mocks.service, never()).requestDownloads(anyString(), any(IpLocationConsumer.class));
     }
 
     public void testPipelineRemovedWithinProject() throws IOException {
@@ -121,16 +150,87 @@ public class IngestIpLocationPluginTests extends ESTestCase {
             Map.of("_id1", new PipelineConfiguration("_id1", new BytesArray(pipelineJson), XContentType.JSON))
         );
         ProjectMetadata projectMeta1 = ProjectMetadata.builder(projectId).putCustom(IngestMetadata.TYPE, ingestMetadata).build();
-        ClusterState state1 = clusterStateWithProject(projectId, projectMeta1);
+        ClusterState state1 = clusterStateWithProject(projectMeta1);
         mocks.plugin.clusterChanged(new ClusterChangedEvent("test", state1, emptyClusterState()));
-        verify(mocks.service).requestDownloads(projectId.id());
+        verify(mocks.service).requestDownloads(projectId.id(), IpLocationConsumer.INGEST);
 
         // State 2: project still exists, but pipeline removed -> downloads cancelled
         var emptyIngestMetadata = new IngestMetadata(Map.of());
         ProjectMetadata projectMeta2 = ProjectMetadata.builder(projectId).putCustom(IngestMetadata.TYPE, emptyIngestMetadata).build();
-        ClusterState state2 = clusterStateWithProject(projectId, projectMeta2);
+        ClusterState state2 = clusterStateWithProject(projectMeta2);
         mocks.plugin.clusterChanged(new ClusterChangedEvent("test", state2, state1));
-        verify(mocks.service).cancelDownloadRequest(projectId.id());
+        verify(mocks.service).cancelDownloadRequest(projectId.id(), IpLocationConsumer.INGEST);
+    }
+
+    /**
+     * Simulates the hand-over of master to the local node while the project already has a geoip pipeline
+     * and the {@code IpLocationDownloadConsumers} custom is absent (as it would be right after a 9.4 -> 9.5
+     * master upgrade: the old 9.4 master never wrote the custom). The plugin must register the
+     * {@link IpLocationConsumer#INGEST} consumer; otherwise ingest nodes would silently lose their
+     * databases and never get fresh updates.
+     *
+     * <p>The two states share the same {@code ProjectMetadata} instance, so per-project metadata guards
+     * (ingest / indices) report no change. Without an explicit "became master" bootstrap branch, the
+     * existing logic bails out early and this test fails.
+     */
+    public void testBootstrapsIngestConsumerWhenBecomingMasterWithGeoipPipeline() throws IOException {
+        var mocks = createPluginWithMocks();
+        ProjectId projectId = randomProjectIdOrDefault();
+
+        String pipelineJson = """
+            {"processors":[{"geoip":{"field":"ip"}}]}""";
+        var ingestMetadata = new IngestMetadata(
+            Map.of("_id1", new PipelineConfiguration("_id1", new BytesArray(pipelineJson), XContentType.JSON))
+        );
+        ProjectMetadata projectMeta = ProjectMetadata.builder(projectId).putCustom(IngestMetadata.TYPE, ingestMetadata).build();
+
+        ClusterState previousState = clusterStateWithProjectAndNodes(projectMeta);
+        ClusterState currentState = clusterStateWithProject(projectMeta);
+
+        mocks.plugin.clusterChanged(new ClusterChangedEvent("test", currentState, previousState));
+        verify(mocks.service).requestDownloads(projectId.id(), IpLocationConsumer.INGEST);
+    }
+
+    /**
+     * Steady-state event on a long-running master: same project, same pipeline, no metadata change.
+     * The bootstrap must not fire — otherwise every unrelated cluster state update would re-scan
+     * pipelines and re-submit a master-routed transport action.
+     */
+    public void testNoBootstrapWhenAlreadyMasterAndNoMetadataChanges() throws IOException {
+        var mocks = createPluginWithMocks();
+        ProjectId projectId = randomProjectIdOrDefault();
+
+        String pipelineJson = """
+            {"processors":[{"geoip":{"field":"ip"}}]}""";
+        var ingestMetadata = new IngestMetadata(
+            Map.of("_id1", new PipelineConfiguration("_id1", new BytesArray(pipelineJson), XContentType.JSON))
+        );
+        ProjectMetadata projectMeta = ProjectMetadata.builder(projectId).putCustom(IngestMetadata.TYPE, ingestMetadata).build();
+
+        ClusterState previousState = clusterStateWithProject(projectMeta);
+        ClusterState currentState = clusterStateWithProject(projectMeta);
+
+        mocks.plugin.clusterChanged(new ClusterChangedEvent("test", currentState, previousState));
+        verify(mocks.service, never()).requestDownloads(anyString(), any(IpLocationConsumer.class));
+        verify(mocks.service, never()).cancelDownloadRequest(anyString(), any(IpLocationConsumer.class));
+    }
+
+    /**
+     * Hand-over to the local node, but the project has no geoip pipeline. The bootstrap must not register
+     * {@link IpLocationConsumer#INGEST} — there is nothing to download for this project.
+     */
+    public void testNoBootstrapWhenBecomingMasterWithoutGeoipPipeline() throws IOException {
+        var mocks = createPluginWithMocks();
+        ProjectId projectId = randomProjectIdOrDefault();
+
+        ProjectMetadata projectMeta = ProjectMetadata.builder(projectId).build();
+
+        ClusterState previousState = clusterStateWithProjectAndNodes(projectMeta);
+        ClusterState currentState = clusterStateWithProject(projectMeta);
+
+        mocks.plugin.clusterChanged(new ClusterChangedEvent("test", currentState, previousState));
+        verify(mocks.service, never()).requestDownloads(anyString(), any(IpLocationConsumer.class));
+        verify(mocks.service, never()).cancelDownloadRequest(anyString(), any(IpLocationConsumer.class));
     }
 
     public void testHasAtLeastOneGeoipProcessorWhenDownloadDatabaseOnPipelineCreationIsFalse() throws IOException {

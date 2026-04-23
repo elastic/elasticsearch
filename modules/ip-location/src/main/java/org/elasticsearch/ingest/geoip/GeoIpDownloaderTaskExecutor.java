@@ -88,27 +88,19 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
     private final Settings settings;
-    private final DatabaseNodeService databaseNodeService;
     @FixForMultiProject(description = "These settings need to be project-scoped")
     private volatile TimeValue pollInterval;
     private volatile boolean eagerDownload;
     private final ConcurrentHashMap<ProjectId, GeoIpDownloader> tasks = new ConcurrentHashMap<>();
     private final ProjectResolver projectResolver;
 
-    GeoIpDownloaderTaskExecutor(
-        Client client,
-        HttpClient httpClient,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        DatabaseNodeService databaseNodeService
-    ) {
+    GeoIpDownloaderTaskExecutor(Client client, HttpClient httpClient, ClusterService clusterService, ThreadPool threadPool) {
         super(GEOIP_DOWNLOADER, threadPool.generic());
         this.client = new OriginSettingClient(client, IngestGeoIpPlugin.ORIGIN);
         this.httpClient = httpClient;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.settings = clusterService.getSettings();
-        this.databaseNodeService = databaseNodeService;
         this.pollInterval = POLL_INTERVAL_SETTING.get(settings);
         this.eagerDownload = EAGER_DOWNLOAD_SETTING.get(settings);
         this.projectResolver = client.projectResolver();
@@ -192,14 +184,22 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             headers,
             () -> pollInterval,
             () -> eagerDownload,
-            () -> databaseNodeService.isDownloadRequested(projectId.id()),
             projectId
         );
     }
 
     /**
-     * On each cluster state update, cleans up stale task entries when projects are removed or tasks
-     * are removed from cluster state.
+     * On each cluster state update:
+     * <ol>
+     *   <li>Cleans up stale task entries when projects are removed or tasks
+     *       are removed from cluster state.</li>
+     *   <li>When a project transitions from "no registered IP location consumers" (custom absent or empty)
+     *       to having at least one registered consumer in {@link IpLocationDownloadConsumers}, triggers an
+     *       immediate download run so the newly-registered consumer doesn't have to wait until the next
+     *       periodic poll. Subsequent changes within the non-empty state (additional consumers added, or
+     *       one of multiple consumers removed) do not trigger an on-demand run: the downloader is already
+     *       polling, and only "any consumer present?" — not which or how many — affects what it fetches.</li>
+     * </ol>
      *
      * The persistent task is started and stopped by {@link org.elasticsearch.persistent.PersistentTaskLifecycleManager}.
      * After the task is removed from cluster state (successfully or already absent), that manager invokes
@@ -216,12 +216,35 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         }
 
         final var projects = event.state().metadata().projects();
+        final var previousProjects = event.previousState().metadata().projects();
 
         tasks.keySet()
             .removeIf(
                 p -> projects.containsKey(p) == false
                     || PersistentTasksCustomMetadata.getTaskWithId(projects.get(p), getTaskIdForProject(p)) == null
             );
+
+        for (var entry : projects.entrySet()) {
+            // looking for a state transition from either non-existing project or IpLocationDownloadConsumers, or empty
+            // IpLocationDownloadConsumers, to existing and non-empty IpLocationDownloadConsumers
+            ProjectId projectId = entry.getKey();
+            IpLocationDownloadConsumers current = entry.getValue()
+                .custom(IpLocationDownloadConsumers.TYPE, IpLocationDownloadConsumers.EMPTY);
+            if (current.hasConsumers() == false) {
+                continue;
+            }
+            ProjectMetadata previousProject = previousProjects.get(projectId);
+            IpLocationDownloadConsumers previous = previousProject == null
+                ? IpLocationDownloadConsumers.EMPTY
+                : previousProject.custom(IpLocationDownloadConsumers.TYPE, IpLocationDownloadConsumers.EMPTY);
+            if (previous.hasConsumers()) {
+                continue;
+            }
+            GeoIpDownloader downloader = tasks.get(projectId);
+            if (downloader != null) {
+                downloader.requestRunOnDemand();
+            }
+        }
     }
 
     /**

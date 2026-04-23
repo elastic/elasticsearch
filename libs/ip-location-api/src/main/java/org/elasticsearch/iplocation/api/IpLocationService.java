@@ -72,23 +72,37 @@ public interface IpLocationService {
     void addDatabaseAvailabilityListener(DatabaseAvailabilityListener listener);
 
     /**
-     * Request that the service begins downloading databases for a project.
-     * On the first call per project (transition from not-requested to requested),
-     * triggers an immediate on-demand download run in addition to enabling
-     * periodic downloads. Idempotent for subsequent calls.
+     * Request that an {@link IpLocationConsumer} be registered as needing IP databases for the given project.
+     * The implementation decides which nodes are relevant for the consumer and may trigger an immediate
+     * download in addition to enabling periodic downloads.
+     * <p>
+     * Idempotent: calling repeatedly with the same arguments has no additional effect. Implementations
+     * are not required to perform any work &mdash; {@link #NOOP} and other bridging implementations may ignore
+     * the call entirely.
      *
      * @param projectId the project id string
+     * @param consumer  the consumer type requesting the download
+     * @implNote Implementations that back this on cluster state (e.g. master-routed state updates) are
+     * asynchronous and best-effort: the call returns immediately after submitting the update request,
+     * before it has been applied, and failures in applying the update are not propagated to the caller.
+     * Observable side effects on ingest nodes are eventually consistent. Callers must not treat method
+     * return as confirmation that registration has taken effect.
      */
-    void requestDownloads(String projectId);
+    void requestDownloads(String projectId, IpLocationConsumer consumer);
 
     /**
-     * Cancel the download request for a project. Periodic downloads for this
-     * project will stop on the next downloader run (unless eagerDownload is
-     * enabled separately). Does not stop any in-progress download.
+     * Request that a previously {@link #requestDownloads requested} consumer be unregistered for the given
+     * project. Downloads stop only when all consumers for that project have unregistered. Does not
+     * interrupt an in-progress download.
+     * <p>
+     * Idempotent: safe to call repeatedly. {@link #NOOP} and other bridging implementations may ignore the call.
      *
      * @param projectId the project id string
+     * @param consumer  the consumer type cancelling its request
+     * @implNote Same async, best-effort, eventually-consistent contract as {@link #requestDownloads} for
+     * implementations backed by cluster-state updates.
      */
-    void cancelDownloadRequest(String projectId);
+    void cancelDownloadRequest(String projectId, IpLocationConsumer consumer);
 
     IpLocationService NOOP = new IpLocationService() {
         @Override
@@ -105,9 +119,9 @@ public interface IpLocationService {
         public void addDatabaseAvailabilityListener(DatabaseAvailabilityListener l) {}
 
         @Override
-        public void requestDownloads(String p) {}
+        public void requestDownloads(String p, IpLocationConsumer c) {}
 
         @Override
-        public void cancelDownloadRequest(String p) {}
+        public void cancelDownloadRequest(String p, IpLocationConsumer c) {}
     };
 }

@@ -23,6 +23,7 @@ import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.iplocation.api.IpLocationConsumer;
 import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -77,9 +78,28 @@ public class IngestIpLocationPlugin extends Plugin implements IngestPlugin, Clus
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        // Avoid scanning incomplete metadata before state is fully recovered
         if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             return;
+        }
+
+        // Only the master node needs to update download consumer metadata — all nodes see the
+        // same ingest/index metadata, so having every node fire a transport action is redundant.
+        if (event.localNodeMaster() == false) {
+            return;
+        }
+
+        // Bootstrap on master handover: a previous master from an older version may not have written
+        // the IpLocationDownloadConsumers custom (introduced in 9.5). On every master election, re-scan
+        // each project's pipelines and re-register INGEST for projects that have a geoip processor.
+        // This is a safe way for an upgraded master to recover the consumer set without the custom
+        // being already present in cluster state, and is idempotent for 9.5 -> 9.5 handovers since
+        // requestDownloads short-circuits when INGEST is already registered.
+        if (event.previousState().nodes().isLocalNodeElectedMaster() == false) {
+            for (var projectMetadata : event.state().metadata().projects().values()) {
+                if (hasAtLeastOneGeoipProcessor(projectMetadata)) {
+                    ipLocationService.requestDownloads(projectMetadata.id().id(), IpLocationConsumer.INGEST);
+                }
+            }
         }
 
         if (event.metadataChanged() == false) {
@@ -107,11 +127,9 @@ public class IngestIpLocationPlugin extends Plugin implements IngestPlugin, Clus
             }
 
             if (hasAtLeastOneGeoipProcessor(projectMetadata)) {
-                // idempotent and noop if downloads are already requested, so safe to call on every cluster state update
-                ipLocationService.requestDownloads(projectId.id());
+                ipLocationService.requestDownloads(projectId.id(), IpLocationConsumer.INGEST);
             } else {
-                // idempotent and noop if downloads are already cancelled, so safe to call on every cluster state update
-                ipLocationService.cancelDownloadRequest(projectId.id());
+                ipLocationService.cancelDownloadRequest(projectId.id(), IpLocationConsumer.INGEST);
             }
         }
     }

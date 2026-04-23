@@ -9,6 +9,8 @@
 
 package org.elasticsearch.ingest.geoip;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.maxmind.db.InvalidDatabaseException;
 
 import org.apache.lucene.search.TotalHits;
@@ -22,12 +24,15 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -49,6 +54,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.iplocation.api.IpLocationConsumer;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -60,7 +66,9 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
@@ -68,7 +76,6 @@ import org.mockito.stubbing.Answer;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -80,8 +87,11 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
@@ -108,10 +118,50 @@ import static org.mockito.Mockito.when;
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS") // Don't randomly add 'extra' files to directory.
 public class DatabaseNodeServiceTests extends ESTestCase {
 
+    /**
+     * Each test runs twice: once as a single-project setup (legacy behaviour) and once as a multi-project setup.
+     */
+    @ParametersFactory(shuffle = false)
+    public static Iterable<Object[]> parameters() {
+        return List.of(new Object[] { false }, new Object[] { true });
+    }
+
+    /**
+     * Default number of chunks each test database is split into. Tests that use this constant configure
+     * {@link GeoIpTaskState.Metadata} with {@code firstChunk}/{@code lastChunk} such that
+     * {@code lastChunk - firstChunk + 1 == CHUNKS_PER_DATABASE}, and {@link #mockSearches} is invoked
+     * with the same range. One {@code search} call is issued per chunk, so this is also the expected
+     * number of {@code search} invocations when a database is fully fetched.
+     */
+    private static final int CHUNKS_PER_DATABASE = 10;
+
+    private static final Settings WATCHER_SETTINGS = Settings.builder()
+        .put("resource.reload.interval.high", TimeValue.timeValueMillis(100))
+        .build();
+
+    /**
+     * Shared across all tests and both parameter values: constructing a {@link TestThreadPool} is the dominant
+     * cost of this suite's fixture. {@link ResourceWatcherService#close()} only cancels its own scheduled
+     * futures, so each test still gets a fresh watcher service on top of this shared pool.
+     */
+    private static ThreadPool threadPool;
+
+    @BeforeClass
+    public static void setupThreadPool() {
+        threadPool = new TestThreadPool(DatabaseNodeServiceTests.class.getSimpleName());
+    }
+
+    @AfterClass
+    public static void shutdownThreadPool() {
+        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+        threadPool = null;
+    }
+
+    private final boolean multiProject;
+
     private Client client;
     private ProjectClient projectClient;
     private Path geoIpTmpDir;
-    private ThreadPool threadPool;
     private DatabaseNodeService databaseNodeService;
     private ResourceWatcherService resourceWatcherService;
     private ClusterService clusterService;
@@ -120,10 +170,12 @@ public class DatabaseNodeServiceTests extends ESTestCase {
 
     private final Collection<Releasable> toRelease = new CopyOnWriteArrayList<>();
 
+    public DatabaseNodeServiceTests(@Name("multiProject") boolean multiProject) {
+        this.multiProject = multiProject;
+    }
+
     @Before
     public void setup() throws IOException {
-        // cover for multi-project enable/disabled
-        boolean multiProject = randomBoolean();
         projectId = multiProject ? randomProjectIdOrDefault() : ProjectId.DEFAULT;
         projectResolver = multiProject ? TestProjectResolvers.singleProject(projectId) : TestProjectResolvers.DEFAULT_PROJECT_ONLY;
         final Path geoIpConfigDir = createTempDir();
@@ -131,9 +183,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         ConfigDatabases configDatabases = new ConfigDatabases(geoIpConfigDir, cache);
         copyDefaultDatabases(geoIpConfigDir, configDatabases);
 
-        threadPool = new TestThreadPool(ConfigDatabases.class.getSimpleName());
-        Settings settings = Settings.builder().put("resource.reload.interval.high", TimeValue.timeValueMillis(100)).build();
-        resourceWatcherService = new ResourceWatcherService(settings, threadPool);
+        resourceWatcherService = new ResourceWatcherService(WATCHER_SETTINGS, threadPool);
 
         projectClient = mock(ProjectClient.class);
         client = mock(Client.class);
@@ -158,7 +208,6 @@ public class DatabaseNodeServiceTests extends ESTestCase {
     @After
     public void cleanup() {
         resourceWatcherService.close();
-        threadPool.shutdownNow();
         Releasables.close(toRelease);
         toRelease.clear();
         verify(client, Mockito.atLeast(0)).projectClient(any());
@@ -167,16 +216,17 @@ public class DatabaseNodeServiceTests extends ESTestCase {
 
     public void testCheckDatabases() throws Exception {
         String md5 = mockSearches("GeoIP2-City.mmdb", 5, 14);
-        String taskId = getTaskId(projectId, projectResolver.supportsMultipleProjects());
-        PersistentTask<?> task = new PersistentTask<>(taskId, GeoIpDownloader.GEOIP_DOWNLOADER, new GeoIpTaskParams(), 1, null);
-        task = new PersistentTask<>(task, new GeoIpTaskState(Map.of("GeoIP2-City.mmdb", new GeoIpTaskState.Metadata(10, 5, 14, md5, 10))));
-        PersistentTasksCustomMetadata tasksCustomMetadata = new PersistentTasksCustomMetadata(1L, Map.of(taskId, task));
+        PersistentTasksCustomMetadata tasksCustomMetadata = geoIpDownloaderTask(
+            projectId,
+            "GeoIP2-City.mmdb",
+            new GeoIpTaskState.Metadata(10, 5, 14, md5, 10)
+        );
 
-        ClusterState state = createClusterState(projectId, tasksCustomMetadata);
+        IpLocationDownloadConsumers consumers = IpLocationDownloadConsumers.EMPTY.withConsumer(IpLocationConsumer.INGEST);
+        ClusterState state = createClusterState(projectId, tasksCustomMetadata, consumers);
 
         List<String> notifiedDatabases = new ArrayList<>();
         databaseNodeService.addDatabaseAvailabilityListener((pid, dbFile) -> notifiedDatabases.add(dbFile));
-        databaseNodeService.requestDownloads(projectId.id());
 
         assertThat(databaseNodeService.getDatabase(projectId, "GeoIP2-City.mmdb"), nullValue());
         // Nothing should be downloaded, since the database is no longer valid (older than 30 days)
@@ -189,19 +239,19 @@ public class DatabaseNodeServiceTests extends ESTestCase {
             assertEquals(0, files.count());
         }
 
-        task = new PersistentTask<>(
-            task,
-            new GeoIpTaskState(Map.of("GeoIP2-City.mmdb", new GeoIpTaskState.Metadata(10, 5, 14, md5, System.currentTimeMillis())))
+        tasksCustomMetadata = geoIpDownloaderTask(
+            projectId,
+            "GeoIP2-City.mmdb",
+            new GeoIpTaskState.Metadata(10, 5, 14, md5, System.currentTimeMillis())
         );
-        tasksCustomMetadata = new PersistentTasksCustomMetadata(1L, Map.of(taskId, task));
 
-        state = createClusterState(projectId, tasksCustomMetadata);
+        state = createClusterState(projectId, tasksCustomMetadata, consumers);
 
         // Database should be downloaded
         databaseNodeService.checkDatabases(state);
         database = databaseNodeService.getDatabaseReaderLazyLoader(projectId, "GeoIP2-City.mmdb");
         assertThat(database, notNullValue());
-        verify(projectClient, times(10)).search(any());
+        verify(projectClient, times(CHUNKS_PER_DATABASE)).search(any());
         try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
             assertThat(files.count(), greaterThanOrEqualTo(1L));
         }
@@ -211,12 +261,13 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         expectThrows(InvalidDatabaseException.class, database::get);
     }
 
-    public void testCheckDatabases_dontCheckDatabaseWhenNoDownloadRequested() throws Exception {
+    public void testCheckDatabases_dontCheckDatabaseWhenConsumersCustomAbsent() throws Exception {
         String md5 = mockSearches("GeoIP2-City.mmdb", 0, 9);
-        String taskId = getTaskId(projectId, projectResolver.supportsMultipleProjects());
-        PersistentTask<?> task = new PersistentTask<>(taskId, GeoIpDownloader.GEOIP_DOWNLOADER, new GeoIpTaskParams(), 1, null);
-        task = new PersistentTask<>(task, new GeoIpTaskState(Map.of("GeoIP2-City.mmdb", new GeoIpTaskState.Metadata(0L, 0, 9, md5, 10))));
-        PersistentTasksCustomMetadata tasksCustomMetadata = new PersistentTasksCustomMetadata(1L, Map.of(taskId, task));
+        PersistentTasksCustomMetadata tasksCustomMetadata = geoIpDownloaderTask(
+            projectId,
+            "GeoIP2-City.mmdb",
+            new GeoIpTaskState.Metadata(0L, 0, 9, md5, 10)
+        );
 
         ClusterState state = createClusterState(projectId, tasksCustomMetadata);
 
@@ -231,17 +282,22 @@ public class DatabaseNodeServiceTests extends ESTestCase {
 
     public void testCheckDatabases_dontCheckDatabaseWhenNoDatabasesIndex() throws Exception {
         String md5 = mockSearches("GeoIP2-City.mmdb", 0, 9);
-        String taskId = getTaskId(projectId, projectResolver.supportsMultipleProjects());
-        PersistentTask<?> task = new PersistentTask<>(taskId, GeoIpDownloader.GEOIP_DOWNLOADER, new GeoIpTaskParams(), 1, null);
-        task = new PersistentTask<>(task, new GeoIpTaskState(Map.of("GeoIP2-City.mmdb", new GeoIpTaskState.Metadata(0L, 0, 9, md5, 10))));
-        PersistentTasksCustomMetadata tasksCustomMetadata = new PersistentTasksCustomMetadata(1L, Map.of(taskId, task));
+        PersistentTasksCustomMetadata tasksCustomMetadata = geoIpDownloaderTask(
+            projectId,
+            "GeoIP2-City.mmdb",
+            new GeoIpTaskState.Metadata(0L, 0, 9, md5, 10)
+        );
 
+        IpLocationDownloadConsumers consumers = IpLocationDownloadConsumers.EMPTY.withConsumer(IpLocationConsumer.INGEST);
         ClusterState state = ClusterState.builder(new ClusterName("name"))
-            .putProjectMetadata(ProjectMetadata.builder(projectId).putCustom(TYPE, tasksCustomMetadata))
+            .putProjectMetadata(
+                ProjectMetadata.builder(projectId)
+                    .putCustom(TYPE, tasksCustomMetadata)
+                    .putCustom(IpLocationDownloadConsumers.TYPE, consumers)
+            )
             .nodes(new DiscoveryNodes.Builder().add(DiscoveryNodeUtils.create("_id1")).localNodeId("_id1"))
             .build();
 
-        databaseNodeService.requestDownloads(projectId.id());
         databaseNodeService.checkDatabases(state);
         assertThat(databaseNodeService.getDatabase(projectId, "GeoIP2-City.mmdb"), nullValue());
         verify(projectClient, never()).search(any());
@@ -250,20 +306,332 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         }
     }
 
-    public void testCheckDatabases_dontCheckDatabaseWhenGeoIpDownloadTask() throws Exception {
+    public void testCheckDatabases_dontCheckDatabaseWhenNoGeoIpDownloadTask() throws Exception {
         PersistentTasksCustomMetadata tasksCustomMetadata = new PersistentTasksCustomMetadata(0L, Map.of());
 
-        ClusterState state = createClusterState(projectId, tasksCustomMetadata);
+        IpLocationDownloadConsumers consumers = IpLocationDownloadConsumers.EMPTY.withConsumer(IpLocationConsumer.INGEST);
+        ClusterState state = createClusterState(projectId, tasksCustomMetadata, consumers);
 
         mockSearches("GeoIP2-City.mmdb", 0, 9);
 
-        databaseNodeService.requestDownloads(projectId.id());
         databaseNodeService.checkDatabases(state);
         assertThat(databaseNodeService.getDatabase(projectId, "GeoIP2-City.mmdb"), nullValue());
         verify(projectClient, never()).search(any());
         try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
             assertThat(files.toList(), empty());
         }
+    }
+
+    public void testCheckDatabases_ingestConsumerDoesNotCopyToDataOnlyNode() throws Exception {
+        String md5 = mockSearches("GeoIP2-City.mmdb", 5, 14);
+        PersistentTasksCustomMetadata tasksCustomMetadata = geoIpDownloaderTask(
+            projectId,
+            "GeoIP2-City.mmdb",
+            new GeoIpTaskState.Metadata(10, 5, 14, md5, System.currentTimeMillis())
+        );
+
+        DiscoveryNodes nodesWithoutIngestRole = DiscoveryNodes.builder()
+            .add(DiscoveryNodeUtils.builder("_id1").roles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)).build())
+            .localNodeId("_id1")
+            .build();
+        IpLocationDownloadConsumers consumers = IpLocationDownloadConsumers.EMPTY.withConsumer(IpLocationConsumer.INGEST);
+        ClusterState state = createClusterState(projectId, tasksCustomMetadata, nodesWithoutIngestRole, consumers);
+
+        databaseNodeService.checkDatabases(state);
+
+        verify(projectClient, never().description("INGEST consumer should not trigger database copy on a node without the ingest role"))
+            .search(any());
+        assertThat(
+            "database should not be available on a node without the ingest role when only INGEST consumer is active",
+            databaseNodeService.getDatabase(projectId, "GeoIP2-City.mmdb"),
+            nullValue()
+        );
+    }
+
+    public void testCheckDatabases_esqlConsumerDoesNotCopyToIngestOnlyNode() throws Exception {
+        String md5 = mockSearches("GeoIP2-City.mmdb", 5, 14);
+        PersistentTasksCustomMetadata tasksCustomMetadata = geoIpDownloaderTask(
+            projectId,
+            "GeoIP2-City.mmdb",
+            new GeoIpTaskState.Metadata(10, 5, 14, md5, System.currentTimeMillis())
+        );
+
+        DiscoveryNodes ingestOnlyNodes = DiscoveryNodes.builder()
+            .add(DiscoveryNodeUtils.builder("_id1").roles(Set.of(DiscoveryNodeRole.INGEST_ROLE)).build())
+            .localNodeId("_id1")
+            .build();
+        IpLocationDownloadConsumers consumers = IpLocationDownloadConsumers.EMPTY.withConsumer(IpLocationConsumer.ESQL);
+        ClusterState state = createClusterState(projectId, tasksCustomMetadata, ingestOnlyNodes, consumers);
+
+        databaseNodeService.checkDatabases(state);
+
+        verify(projectClient, never().description("ESQL consumer should not trigger database copy on an ingest-only node")).search(any());
+        assertThat(
+            "database should not be available on an ingest-only node when only ESQL consumer is active",
+            databaseNodeService.getDatabase(projectId, "GeoIP2-City.mmdb"),
+            nullValue()
+        );
+    }
+
+    public void testCheckDatabases_esqlConsumerTriggersDownloadOnDataCapableNode() throws Exception {
+        String md5 = mockSearches("GeoIP2-City.mmdb", 5, 14);
+        PersistentTasksCustomMetadata tasksCustomMetadata = geoIpDownloaderTask(
+            projectId,
+            "GeoIP2-City.mmdb",
+            new GeoIpTaskState.Metadata(10, 5, 14, md5, System.currentTimeMillis())
+        );
+
+        DiscoveryNodes fullRoleNodes = DiscoveryNodes.builder()
+            .add(DiscoveryNodeUtils.builder("_id1").roles(Set.of(DiscoveryNodeRole.INGEST_ROLE, DiscoveryNodeRole.DATA_ROLE)).build())
+            .localNodeId("_id1")
+            .build();
+        IpLocationDownloadConsumers consumers = IpLocationDownloadConsumers.EMPTY.withConsumer(IpLocationConsumer.ESQL);
+        ClusterState state = createClusterState(projectId, tasksCustomMetadata, fullRoleNodes, consumers);
+
+        databaseNodeService.checkDatabases(state);
+
+        verify(
+            projectClient,
+            times(CHUNKS_PER_DATABASE).description("ESQL consumer alone should trigger database download on a data-capable node")
+        ).search(any());
+        assertThat(
+            "database should be available when ESQL consumer is registered and the local node is data-capable",
+            databaseNodeService.getDatabaseReaderLazyLoader(projectId, "GeoIP2-City.mmdb"),
+            notNullValue()
+        );
+    }
+
+    /**
+     * Rolling-upgrade safety: when the {@link IpLocationDownloadConsumers} custom is absent from a project's
+     * metadata (e.g. on an upgraded 9.5 ingest node while the master is still 9.4 or has just been upgraded
+     * and hasn't written the custom yet), previously loaded databases must be preserved. Treating absent as
+     * "no consumers" would delete the local database files and silently degrade ingest until the master
+     * re-populates the custom.
+     */
+    public void testCheckDatabases_preservesLoadersWhenCustomAbsent() throws Exception {
+        String databaseName = "GeoIP2-City.mmdb";
+        String md5 = mockSearches(databaseName, 5, 14);
+        PersistentTasksCustomMetadata tasksCustomMetadata = geoIpDownloaderTask(
+            projectId,
+            databaseName,
+            new GeoIpTaskState.Metadata(10, 5, 14, md5, System.currentTimeMillis())
+        );
+
+        IpLocationDownloadConsumers consumers = IpLocationDownloadConsumers.EMPTY.withConsumer(IpLocationConsumer.INGEST);
+        ClusterState stateWithConsumer = createClusterState(projectId, tasksCustomMetadata, consumers);
+        databaseNodeService.checkDatabases(stateWithConsumer);
+        assertThat(
+            "precondition: database should load when INGEST consumer is registered",
+            databaseNodeService.getDatabaseReaderLazyLoader(projectId, databaseName),
+            notNullValue()
+        );
+
+        // Same state, but IpLocationDownloadConsumers custom removed entirely.
+        ClusterState stateWithoutCustom = createClusterState(projectId, tasksCustomMetadata);
+        databaseNodeService.checkDatabases(stateWithoutCustom);
+
+        assertThat(
+            "loader must be preserved when IpLocationDownloadConsumers custom is absent (rolling-upgrade safety)",
+            databaseNodeService.getDatabaseReaderLazyLoader(projectId, databaseName),
+            notNullValue()
+        );
+    }
+
+    /**
+     * Once the {@link IpLocationDownloadConsumers} custom exists (even if empty), it authoritatively describes
+     * the consumer set: an empty custom means "no consumers want IP databases", so previously loaded databases
+     * must be pruned. This is the complement of {@link #testCheckDatabases_preservesLoadersWhenCustomAbsent}
+     * and pins the distinction between "absent" and "present but empty".
+     */
+    public void testCheckDatabases_prunesLoadersWhenCustomPresentButEmpty() throws Exception {
+        String databaseName = "GeoIP2-City.mmdb";
+        String md5 = mockSearches(databaseName, 5, 14);
+        PersistentTasksCustomMetadata tasksCustomMetadata = geoIpDownloaderTask(
+            projectId,
+            databaseName,
+            new GeoIpTaskState.Metadata(10, 5, 14, md5, System.currentTimeMillis())
+        );
+
+        IpLocationDownloadConsumers consumers = IpLocationDownloadConsumers.EMPTY.withConsumer(IpLocationConsumer.INGEST);
+        ClusterState stateWithConsumer = createClusterState(projectId, tasksCustomMetadata, consumers);
+        databaseNodeService.checkDatabases(stateWithConsumer);
+        assertThat(
+            "precondition: database should load when INGEST consumer is registered",
+            databaseNodeService.getDatabaseReaderLazyLoader(projectId, databaseName),
+            notNullValue()
+        );
+
+        // Custom remains in cluster state but all consumers have been unregistered.
+        ClusterState stateWithEmptyCustom = createClusterState(projectId, tasksCustomMetadata, IpLocationDownloadConsumers.EMPTY);
+        databaseNodeService.checkDatabases(stateWithEmptyCustom);
+
+        assertThat(
+            "loader must be pruned when IpLocationDownloadConsumers is present but empty",
+            databaseNodeService.getDatabaseReaderLazyLoader(projectId, databaseName),
+            nullValue()
+        );
+    }
+
+    /**
+     * When the {@link IpLocationDownloadConsumers} custom is present and non-empty but its consumers require
+     * roles this node does not have (e.g. only ESQL registered while this is an ingest-only node), previously
+     * loaded databases must be pruned. Sibling to {@link #testCheckDatabases_esqlConsumerDoesNotCopyToIngestOnlyNode}
+     * which covers the no-loader case; this one pins the prune path.
+     */
+    public void testCheckDatabases_prunesLoadersWhenConsumerRoleNotRelevant() throws Exception {
+        String databaseName = "GeoIP2-City.mmdb";
+        String md5 = mockSearches(databaseName, 5, 14);
+        PersistentTasksCustomMetadata tasksCustomMetadata = geoIpDownloaderTask(
+            projectId,
+            databaseName,
+            new GeoIpTaskState.Metadata(10, 5, 14, md5, System.currentTimeMillis())
+        );
+
+        // Node carries both ingest and data roles so the INGEST-phase loader can be installed.
+        DiscoveryNodes fullRoleNodes = DiscoveryNodes.builder()
+            .add(DiscoveryNodeUtils.builder("_id1").roles(Set.of(DiscoveryNodeRole.INGEST_ROLE, DiscoveryNodeRole.DATA_ROLE)).build())
+            .localNodeId("_id1")
+            .build();
+        IpLocationDownloadConsumers ingestConsumers = IpLocationDownloadConsumers.EMPTY.withConsumer(IpLocationConsumer.INGEST);
+        ClusterState stateIngest = createClusterState(projectId, tasksCustomMetadata, fullRoleNodes, ingestConsumers);
+        databaseNodeService.checkDatabases(stateIngest);
+        assertThat(
+            "precondition: database should load when INGEST consumer matches the local node's ingest role",
+            databaseNodeService.getDatabaseReaderLazyLoader(projectId, databaseName),
+            notNullValue()
+        );
+
+        // Now only ESQL is registered, and we downgrade the local node to ingest-only — ESQL needs a data-capable
+        // node, so none of the registered consumers applies to this node.
+        DiscoveryNodes ingestOnlyNodes = DiscoveryNodes.builder()
+            .add(DiscoveryNodeUtils.builder("_id1").roles(Set.of(DiscoveryNodeRole.INGEST_ROLE)).build())
+            .localNodeId("_id1")
+            .build();
+        IpLocationDownloadConsumers esqlOnly = IpLocationDownloadConsumers.EMPTY.withConsumer(IpLocationConsumer.ESQL);
+        ClusterState stateEsqlOnly = createClusterState(projectId, tasksCustomMetadata, ingestOnlyNodes, esqlOnly);
+        databaseNodeService.checkDatabases(stateEsqlOnly);
+
+        assertThat(
+            "loader must be pruned when no registered consumer matches the local node's roles",
+            databaseNodeService.getDatabaseReaderLazyLoader(projectId, databaseName),
+            nullValue()
+        );
+    }
+
+    /**
+     * Verifies that when a project is removed from the cluster state, {@link DatabaseNodeService} releases the
+     * per-project database loaders it previously created for that project while leaving loaders for still-present
+     * projects intact. This catches the stale-project leak that arises because {@code checkDatabases(ClusterState)}
+     * iterates via {@code state.forEachProject(...)} and therefore never visits removed projects.
+     */
+    public void testCheckDatabases_removesStaleProjectDatabases() throws Exception {
+        assumeTrue("stale-project cleanup is only meaningful in multi-project mode", multiProject);
+
+        ProjectId projectA = randomUniqueProjectId();
+        ProjectId projectB = randomValueOtherThan(projectA, ESTestCase::randomUniqueProjectId);
+        String databaseName = "GeoIP2-City.mmdb";
+
+        String md5 = mockSearches(databaseName, 5, 14);
+        GeoIpTaskState.Metadata validMetadata = new GeoIpTaskState.Metadata(10, 5, 14, md5, System.currentTimeMillis());
+        IpLocationDownloadConsumers consumers = IpLocationDownloadConsumers.EMPTY.withConsumer(IpLocationConsumer.INGEST);
+
+        // Build two self-contained single-project states and compose them into a two-project state. This avoids
+        // duplicating the index / routing-table setup that createClusterState() already handles.
+        ClusterState stateA = createClusterState(projectA, geoIpDownloaderTask(projectA, databaseName, validMetadata), consumers);
+        ClusterState stateB = createClusterState(projectB, geoIpDownloaderTask(projectB, databaseName, validMetadata), consumers);
+        ClusterState stateBoth = ClusterState.builder(stateA)
+            .putProjectMetadata(stateB.metadata().getProject(projectB))
+            .putRoutingTable(projectB, stateB.routingTable(projectB))
+            .build();
+
+        databaseNodeService.checkDatabases(stateBoth);
+        assertThat(
+            "project A database should be loaded after checkDatabases with both projects present",
+            databaseNodeService.getDatabaseReaderLazyLoader(projectA, databaseName),
+            notNullValue()
+        );
+        assertThat(
+            "project B database should be loaded after checkDatabases with both projects present",
+            databaseNodeService.getDatabaseReaderLazyLoader(projectB, databaseName),
+            notNullValue()
+        );
+
+        // Remove project B; project A stays.
+        ClusterState stateOnlyA = ClusterState.builder(stateBoth)
+            .metadata(Metadata.builder(stateBoth.metadata()).removeProject(projectB))
+            .routingTable(GlobalRoutingTable.builder(stateBoth.globalRoutingTable()).removeProject(projectB).build())
+            .build();
+
+        databaseNodeService.checkDatabases(stateOnlyA);
+        assertThat(
+            "project A database should remain loaded after project B is removed from the cluster state",
+            databaseNodeService.getDatabaseReaderLazyLoader(projectA, databaseName),
+            notNullValue()
+        );
+        assertThat(
+            "project B database should be unloaded after project B is removed from the cluster state",
+            databaseNodeService.getDatabaseReaderLazyLoader(projectB, databaseName),
+            nullValue()
+        );
+    }
+
+    public void testRequestDownloadsBuildsRegisterRequest() {
+        ProjectId requestedProject = randomProjectIdOrDefault();
+        ClusterState state = ClusterState.builder(new ClusterName("name"))
+            .putProjectMetadata(ProjectMetadata.builder(requestedProject).build())
+            .build();
+        when(clusterService.state()).thenReturn(state);
+
+        databaseNodeService.requestDownloads(requestedProject.id(), IpLocationConsumer.ESQL);
+
+        ArgumentCaptor<RequestIpLocationDownloadsAction.Request> requestCaptor = ArgumentCaptor.forClass(
+            RequestIpLocationDownloadsAction.Request.class
+        );
+        verify(client).execute(Mockito.eq(RequestIpLocationDownloadsAction.INSTANCE), requestCaptor.capture(), any());
+        RequestIpLocationDownloadsAction.Request request = requestCaptor.getValue();
+        assertEquals(requestedProject, request.getProjectId());
+        assertEquals(IpLocationConsumer.ESQL, request.getConsumer());
+        assertEquals(RequestIpLocationDownloadsAction.Request.Operation.REGISTER, request.operation());
+    }
+
+    public void testCancelDownloadRequestBuildsUnregisterRequest() {
+        ProjectId requestedProject = randomProjectIdOrDefault();
+        IpLocationDownloadConsumers consumers = IpLocationDownloadConsumers.EMPTY.withConsumer(IpLocationConsumer.INGEST);
+        ClusterState state = ClusterState.builder(new ClusterName("name"))
+            .putProjectMetadata(ProjectMetadata.builder(requestedProject).putCustom(IpLocationDownloadConsumers.TYPE, consumers).build())
+            .build();
+        when(clusterService.state()).thenReturn(state);
+
+        databaseNodeService.cancelDownloadRequest(requestedProject.id(), IpLocationConsumer.INGEST);
+
+        ArgumentCaptor<RequestIpLocationDownloadsAction.Request> requestCaptor = ArgumentCaptor.forClass(
+            RequestIpLocationDownloadsAction.Request.class
+        );
+        verify(client).execute(Mockito.eq(RequestIpLocationDownloadsAction.INSTANCE), requestCaptor.capture(), any());
+        RequestIpLocationDownloadsAction.Request request = requestCaptor.getValue();
+        assertEquals(requestedProject, request.getProjectId());
+        assertEquals(IpLocationConsumer.INGEST, request.getConsumer());
+        assertEquals(RequestIpLocationDownloadsAction.Request.Operation.UNREGISTER, request.operation());
+    }
+
+    public void testRequestAndCancelDoNothingWhenProjectMissing() {
+        ProjectId existingProject = randomProjectIdOrDefault();
+        // {@link ClusterState.Builder} starts from {@link Metadata#EMPTY_METADATA}, which auto-creates the
+        // default project; {@code putProjectMetadata} adds to that rather than replacing it. Exclude both the
+        // explicitly added project and the default project to guarantee the "missing" project is truly absent.
+        ProjectId missingProject = randomValueOtherThanMany(
+            pid -> pid.equals(existingProject) || pid.equals(ProjectId.DEFAULT),
+            ESTestCase::randomProjectIdOrDefault
+        );
+        ClusterState state = ClusterState.builder(new ClusterName("name"))
+            .putProjectMetadata(ProjectMetadata.builder(existingProject).build())
+            .build();
+        when(clusterService.state()).thenReturn(state);
+
+        databaseNodeService.requestDownloads(missingProject.id(), IpLocationConsumer.INGEST);
+        databaseNodeService.cancelDownloadRequest(missingProject.id(), IpLocationConsumer.INGEST);
+
+        verify(client, never()).execute(Mockito.eq(RequestIpLocationDownloadsAction.INSTANCE), any(), any());
     }
 
     public void testRetrieveDatabase() throws Exception {
@@ -299,12 +667,12 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         verify(failureHandler, times(1)).accept(exceptionCaptor.capture());
         assertThat(exceptionCaptor.getAllValues().size(), equalTo(1));
         assertThat(
-            exceptionCaptor.getAllValues().get(0).getMessage(),
+            exceptionCaptor.getAllValues().getFirst().getMessage(),
             equalTo("expected md5 hash [different], " + "but got md5 hash [" + md5 + "]")
         );
-        verify(chunkConsumer, times(10)).accept(any());
+        verify(chunkConsumer, times(CHUNKS_PER_DATABASE)).accept(any());
         verify(completedHandler, times(0)).run();
-        verify(projectClient, times(10)).search(any());
+        verify(projectClient, times(CHUNKS_PER_DATABASE)).search(any());
     }
 
     public void testUpdateDatabase() throws Exception {
@@ -324,6 +692,19 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         databaseNodeService.updateDatabase(projectId, "_name", "_md5", geoIpTmpDir.resolve("some-file"));
         verifyNoMoreInteractions(clusterService);
         assertThat(notifiedDatabases, empty());
+    }
+
+    /**
+     * Builds a {@link PersistentTasksCustomMetadata} that contains a single {@link GeoIpDownloader} task for the given
+     * project, advertising one database download in its {@link GeoIpTaskState}. The task id is derived through
+     * {@link GeoIpDownloaderTaskExecutor#getTaskId} so that it matches what {@link DatabaseNodeService} looks up at
+     * runtime under either single- or multi-project mode.
+     */
+    private PersistentTasksCustomMetadata geoIpDownloaderTask(ProjectId projectId, String databaseName, GeoIpTaskState.Metadata metadata) {
+        String taskId = getTaskId(projectId, projectResolver.supportsMultipleProjects());
+        PersistentTask<?> task = new PersistentTask<>(taskId, GeoIpDownloader.GEOIP_DOWNLOADER, new GeoIpTaskParams(), 1, null);
+        task = new PersistentTask<>(task, new GeoIpTaskState(Map.of(databaseName, metadata)));
+        return new PersistentTasksCustomMetadata(1L, Map.of(taskId, task));
     }
 
     private String mockSearches(String databaseName, int firstChunk, int lastChunk) throws IOException {
@@ -346,31 +727,36 @@ public class DatabaseNodeServiceTests extends ESTestCase {
             } else {
                 chunk = new byte[0]; // We had so little data that the chunk(s) at the end will be empty
             }
-            SearchHit hit = SearchHit.unpooled(i);
+            final byte[] sourceBytes;
             try (XContentBuilder builder = XContentBuilder.builder(XContentType.SMILE.xContent())) {
                 builder.map(Map.of("data", chunk));
                 builder.flush();
-                ByteArrayOutputStream outputStream = (ByteArrayOutputStream) builder.getOutputStream();
-                hit.sourceRef(new BytesArray(outputStream.toByteArray()));
+                sourceBytes = ((ByteArrayOutputStream) builder.getOutputStream()).toByteArray();
             } catch (IOException ex) {
                 throw new UncheckedIOException(ex);
             }
 
-            SearchHits hits = SearchHits.unpooled(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f);
-            SearchResponse searchResponse = SearchResponseUtils.successfulResponse(hits);
-            toRelease.add(searchResponse::decRef);
+            // Produce a fresh SearchHit/SearchResponse per actionGet() call: SearchHit#getSourceAsMap asserts it is
+            // only invoked once per hit instance, so sharing a single hit across multiple consumers (e.g. two
+            // projects downloading the same database) trips that assertion. The underlying source bytes are
+            // immutable and safely reusable. Each fresh response starts at refcount=1 and is released by the
+            // production consumer (see DatabaseNodeService#retrieveDatabase), so it must not be added to
+            // {@link #toRelease}: decRef-ing it again from @After would fail with "already closed".
+            final int chunkIdx = i;
             @SuppressWarnings("unchecked")
             ActionFuture<SearchResponse> actionFuture = mock(ActionFuture.class);
             when(actionFuture.actionGet()).thenAnswer((Answer<SearchResponse>) invocation -> {
-                searchResponse.incRef();
-                return searchResponse;
+                SearchHit freshHit = SearchHit.unpooled(chunkIdx);
+                freshHit.sourceRef(new BytesArray(sourceBytes));
+                SearchHits freshHits = SearchHits.unpooled(new SearchHit[] { freshHit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f);
+                return SearchResponseUtils.successfulResponse(freshHits);
             });
             requestMap.put(databaseName + "_" + i, actionFuture);
         }
         when(projectClient.search(any())).thenAnswer(invocationOnMock -> {
             SearchRequest req = (SearchRequest) invocationOnMock.getArguments()[0];
             TermQueryBuilder term = (TermQueryBuilder) req.source().query();
-            String id = (String) term.value();
+            String id = (String) Objects.requireNonNull(term).value();
             return requestMap.get(id.substring(0, id.lastIndexOf('_')));
         });
 
@@ -380,7 +766,15 @@ public class DatabaseNodeServiceTests extends ESTestCase {
     }
 
     static ClusterState createClusterState(ProjectId projectId, PersistentTasksCustomMetadata tasksCustomMetadata) {
-        return createClusterState(projectId, tasksCustomMetadata, false);
+        return createClusterState(projectId, tasksCustomMetadata, false, null, null);
+    }
+
+    static ClusterState createClusterState(
+        ProjectId projectId,
+        PersistentTasksCustomMetadata tasksCustomMetadata,
+        IpLocationDownloadConsumers consumers
+    ) {
+        return createClusterState(projectId, tasksCustomMetadata, false, null, consumers);
     }
 
     static ClusterState createClusterState(
@@ -388,6 +782,32 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         PersistentTasksCustomMetadata tasksCustomMetadata,
         boolean noStartedShards
     ) {
+        return createClusterState(projectId, tasksCustomMetadata, noStartedShards, null, null);
+    }
+
+    static ClusterState createClusterState(ProjectId projectId, PersistentTasksCustomMetadata tasksCustomMetadata, DiscoveryNodes nodes) {
+        return createClusterState(projectId, tasksCustomMetadata, false, nodes, null);
+    }
+
+    static ClusterState createClusterState(
+        ProjectId projectId,
+        PersistentTasksCustomMetadata tasksCustomMetadata,
+        DiscoveryNodes nodes,
+        IpLocationDownloadConsumers consumers
+    ) {
+        return createClusterState(projectId, tasksCustomMetadata, false, nodes, consumers);
+    }
+
+    private static ClusterState createClusterState(
+        ProjectId projectId,
+        PersistentTasksCustomMetadata tasksCustomMetadata,
+        boolean noStartedShards,
+        DiscoveryNodes nodes,
+        IpLocationDownloadConsumers consumers
+    ) {
+        if (nodes == null) {
+            nodes = DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("_id1")).localNodeId("_id1").build();
+        }
         boolean aliasGeoipDatabase = randomBoolean();
         String indexName = aliasGeoipDatabase
             ? GeoIpDownloader.DATABASES_INDEX + "-" + randomAlphaOfLength(5)
@@ -410,9 +830,13 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         if (noStartedShards == false) {
             shardRouting = shardRouting.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         }
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId).put(idxMeta).putCustom(TYPE, tasksCustomMetadata);
+        if (consumers != null) {
+            projectBuilder.putCustom(IpLocationDownloadConsumers.TYPE, consumers);
+        }
         return ClusterState.builder(new ClusterName("name"))
-            .putProjectMetadata(ProjectMetadata.builder(projectId).put(idxMeta).putCustom(TYPE, tasksCustomMetadata))
-            .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("_id1")).localNodeId("_id1"))
+            .putProjectMetadata(projectBuilder)
+            .nodes(nodes)
             .putRoutingTable(
                 projectId,
                 RoutingTable.builder()
@@ -427,10 +851,9 @@ public class DatabaseNodeServiceTests extends ESTestCase {
 
     private static List<byte[]> chunkBytes(String content, int chunks) throws IOException {
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-        OutputStream outputStream = byteArrayOutputStream;
         byte[] contentBytes = content.getBytes(StandardCharsets.UTF_8);
-        outputStream.write(contentBytes);
-        outputStream.close();
+        byteArrayOutputStream.write(contentBytes);
+        byteArrayOutputStream.close();
 
         byte[] all = byteArrayOutputStream.toByteArray();
         int chunkSize = Math.max(1, all.length / chunks);
@@ -446,8 +869,8 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         }
 
         while (data.size() > chunks) {
-            byte[] last = data.remove(data.size() - 1);
-            byte[] secondLast = data.remove(data.size() - 1);
+            byte[] last = data.removeLast();
+            byte[] secondLast = data.removeLast();
             byte[] merged = new byte[secondLast.length + last.length];
             System.arraycopy(secondLast, 0, merged, 0, secondLast.length);
             System.arraycopy(last, 0, merged, secondLast.length, last.length);
@@ -488,8 +911,8 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         }
 
         while (data.size() > chunks) {
-            byte[] last = data.remove(data.size() - 1);
-            byte[] secondLast = data.remove(data.size() - 1);
+            byte[] last = data.removeLast();
+            byte[] secondLast = data.removeLast();
             byte[] merged = new byte[secondLast.length + last.length];
             System.arraycopy(secondLast, 0, merged, 0, secondLast.length);
             System.arraycopy(last, 0, merged, secondLast.length, last.length);

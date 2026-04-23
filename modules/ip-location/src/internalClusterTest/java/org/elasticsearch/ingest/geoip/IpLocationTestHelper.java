@@ -11,16 +11,19 @@ package org.elasticsearch.ingest.geoip;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.ingest.geoip.stats.GeoIpStatsAction;
 import org.elasticsearch.iplocation.api.IpDataLookup;
+import org.elasticsearch.iplocation.api.IpLocationConsumer;
 import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.test.InternalTestCluster;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.StreamSupport;
 
@@ -57,15 +60,29 @@ public final class IpLocationTestHelper {
     }
 
     /**
-     * Calls {@link IpLocationService#requestDownloads} on every node in the cluster.
-     * Each node has its own {@code downloadRequested} flag, so all must be set for
-     * {@code checkDatabases()} to run cluster-wide — mirroring what
-     * {@code IngestIpLocationPlugin.clusterChanged()} does per-node.
+     * Requests IP database downloads for the {@link IpLocationConsumer#INGEST INGEST} consumer.
+     * The request is routed to the master node via a transport action, so a single call suffices.
      */
     public static void requestDownloads(InternalTestCluster cluster, String projectId) {
-        for (IpLocationService service : cluster.getInstances(IpLocationService.class)) {
-            service.requestDownloads(projectId);
-        }
+        requestDownloads(cluster, projectId, IpLocationConsumer.INGEST);
+    }
+
+    /**
+     * Requests IP database downloads for the specified consumer type.
+     * The request is routed to the master node via a transport action and updates
+     * cluster state metadata, so a single call from any node suffices.
+     */
+    public static void requestDownloads(InternalTestCluster cluster, String projectId, IpLocationConsumer consumer) {
+        cluster.getAnyMasterNodeInstance(IpLocationService.class).requestDownloads(projectId, consumer);
+    }
+
+    /**
+     * Cancels a previous IP database download request for the specified consumer type.
+     * Like {@link #requestDownloads}, the cancellation is routed to the master node via a
+     * transport action and updates cluster state metadata, so a single call suffices.
+     */
+    public static void cancelDownloadRequest(InternalTestCluster cluster, String projectId, IpLocationConsumer consumer) {
+        cluster.getAnyMasterNodeInstance(IpLocationService.class).cancelDownloadRequest(projectId, consumer);
     }
 
     /**
@@ -128,6 +145,34 @@ public final class IpLocationTestHelper {
                 );
                 assertThat(nodeResponse.getDatabases(), empty());
                 assertThat(nodeResponse.getFilesInTemp().stream().filter(s -> s.endsWith(".txt") == false).toList(), empty());
+            }
+        });
+    }
+
+    /**
+     * Asserts that every node relevant for {@code consumer} (per
+     * {@link IpLocationDownloadConsumers#isRelevantForNode(IpLocationConsumer, org.elasticsearch.cluster.node.DiscoveryNode)}) has
+     * downloaded and loaded exactly {@code expectedDatabases}. Also asserts that at least one such node exists,
+     * so a test cluster topology that accidentally has no relevant node fails loudly rather than passing vacuously.
+     */
+    public static void awaitAllRelevantNodesDownloadedDatabases(Client client, IpLocationConsumer consumer, String... expectedDatabases)
+        throws Exception {
+        assertBusy(() -> {
+            GeoIpStatsAction.Response response = client.execute(GeoIpStatsAction.INSTANCE, new GeoIpStatsAction.Request()).actionGet();
+            assertThat(response.getNodes(), not(empty()));
+
+            List<GeoIpStatsAction.NodeResponse> relevant = response.getNodes()
+                .stream()
+                .filter(r -> IpLocationDownloadConsumers.isRelevantForNode(consumer, r.getNode()))
+                .toList();
+            assertThat("expected at least one node relevant for consumer [" + consumer + "]", relevant, not(empty()));
+
+            for (GeoIpStatsAction.NodeResponse nodeResponse : relevant) {
+                assertThat(
+                    "node [" + nodeResponse.getNode().getName() + "] (relevant for " + consumer + ") should have all downloaded databases",
+                    nodeResponse.getDatabases(),
+                    containsInAnyOrder(expectedDatabases)
+                );
             }
         });
     }

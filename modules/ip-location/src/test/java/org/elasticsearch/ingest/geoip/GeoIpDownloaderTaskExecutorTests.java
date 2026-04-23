@@ -67,13 +67,7 @@ public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
         );
         client = new NoOpClient(threadPool, TestProjectResolvers.singleProject(projectId));
 
-        GeoIpDownloaderTaskExecutor executor = new GeoIpDownloaderTaskExecutor(
-            client,
-            mock(HttpClient.class),
-            clusterService,
-            threadPool,
-            null
-        );
+        GeoIpDownloaderTaskExecutor executor = new GeoIpDownloaderTaskExecutor(client, mock(HttpClient.class), clusterService, threadPool);
         executor.init();
 
         GeoIpDownloader downloader = new GeoIpDownloader(
@@ -90,7 +84,6 @@ public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
             Map.of(),
             () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
             () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY),
-            () -> true,
             projectId
         ) {
             {

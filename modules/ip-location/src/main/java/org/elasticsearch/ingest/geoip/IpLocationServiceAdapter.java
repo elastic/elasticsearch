@@ -16,6 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.iplocation.api.DatabaseAvailabilityListener;
 import org.elasticsearch.iplocation.api.IpDataLookup;
 import org.elasticsearch.iplocation.api.IpDataLookupInfo;
+import org.elasticsearch.iplocation.api.IpLocationConsumer;
 import org.elasticsearch.iplocation.api.IpLocationInfoCollector;
 import org.elasticsearch.iplocation.api.IpLocationService;
 
@@ -82,20 +83,25 @@ public final class IpLocationServiceAdapter implements IpLocationService {
         return new IpDataLookupInfoImpl(database.properties(), dbType);
     }
 
+    /**
+     * @implNote Bridge-provided databases are always available, so there are no availability transitions to notify.
+     */
     @Override
-    public void addDatabaseAvailabilityListener(DatabaseAvailabilityListener listener) {
-        // bridge databases are always available; nothing to listen for
-    }
+    public void addDatabaseAvailabilityListener(DatabaseAvailabilityListener listener) {}
 
+    /**
+     * @implNote The bridge manages its own database lifecycle; consumer registrations from Elasticsearch ingest
+     * code are irrelevant here and are intentionally ignored.
+     */
     @Override
-    public void requestDownloads(String projectId) {
-        // bridge manages its own databases
-    }
+    public void requestDownloads(String projectId, IpLocationConsumer consumer) {}
 
+    /**
+     * @implNote The bridge manages its own database lifecycle; consumer registrations from Elasticsearch ingest
+     * code are irrelevant here and are intentionally ignored.
+     */
     @Override
-    public void cancelDownloadRequest(String projectId) {
-        // bridge manages its own databases
-    }
+    public void cancelDownloadRequest(String projectId, IpLocationConsumer consumer) {}
 
     /**
      * An {@link IpDataLookup} backed by an {@link IpDatabaseProvider}.

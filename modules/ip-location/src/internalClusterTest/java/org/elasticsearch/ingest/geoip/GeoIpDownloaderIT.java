@@ -29,6 +29,7 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.ingest.geoip.stats.GeoIpStatsAction;
 import org.elasticsearch.iplocation.api.IpDataLookup;
+import org.elasticsearch.iplocation.api.IpLocationConsumer;
 import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -149,7 +150,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         }, 2, TimeUnit.MINUTES);
 
         verifyUpdatedDatabase(projectId);
-        awaitAllNodesDownloadedDatabases();
+        awaitAllIngestNodesDownloadedDatabases();
 
         updateClusterSettings(Settings.builder().put("ingest.geoip.database_validity", TimeValue.timeValueMillis(1)));
         updateClusterSettings(
@@ -335,7 +336,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         }, 20, TimeUnit.SECONDS);
 
         verifyUpdatedDatabase(projectId);
-        awaitAllNodesDownloadedDatabases();
+        awaitAllIngestNodesDownloadedDatabases();
 
         // Disable downloader:
         updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), false));
@@ -378,12 +379,17 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             }
         });
 
-        // 3. Request downloads — flag is set on all nodes but the downloader task is not bootstrapped
-        // because ENABLED=false, so no downloads can occur
+        // 3. Request downloads — consumer is registered in cluster state but the downloader task is not
+        // bootstrapped because ENABLED=false, so no downloads can occur
         IpLocationTestHelper.requestDownloads(internalCluster(), projectId);
-        for (DatabaseNodeService dns : internalCluster().getInstances(DatabaseNodeService.class)) {
-            assertTrue("downloadRequested should be true after requestDownloads()", dns.isDownloadRequested(ProjectId.DEFAULT.id()));
-        }
+        assertBusy(() -> {
+            IpLocationDownloadConsumers consumers = clusterService().state()
+                .metadata()
+                .getProject(ProjectId.DEFAULT)
+                .custom(IpLocationDownloadConsumers.TYPE);
+            assertNotNull("download consumers should be set in cluster state after requestDownloads()", consumers);
+            assertTrue("download consumers should have at least one consumer", consumers.hasConsumers());
+        });
         assertNull("downloader task should not be bootstrapped when disabled", getTask());
 
         // 4. Enable downloader — task is bootstrapped, databases are downloaded, listener fires for each
@@ -413,7 +419,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         assertThat(cityLookup, notNullValue());
         assertThat(cityLookup.isValid(), is(true));
 
-        // 6. Disable downloader — triggers cleanup while downloadRequested is still true,
+        // 6. Disable downloader — triggers cleanup while download consumers are still active,
         // so checkDatabases() runs and removes local files when it sees no task state.
         updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), false));
 
@@ -429,10 +435,8 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         IpLocationTestHelper.assertDatabaseUnavailable(internalCluster(), projectId, "GeoLite2-City.mmdb");
         IpLocationTestHelper.assertDatabaseUnavailable(internalCluster(), projectId, "GeoLite2-ASN.mmdb");
 
-        // 8. Cancel download request — resets the per-node flag after cleanup is complete
-        for (IpLocationService svc : internalCluster().getInstances(IpLocationService.class)) {
-            svc.cancelDownloadRequest(projectId);
-        }
+        // 8. Cancel download request — removes consumer from cluster state metadata
+        IpLocationTestHelper.cancelDownloadRequest(internalCluster(), projectId, IpLocationConsumer.INGEST);
     }
 
     @TestLogging(value = "org.elasticsearch.ingest.geoip:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/79074")
@@ -450,7 +454,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         IpLocationTestHelper.requestDownloads(internalCluster(), projectId);
         updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true));
         verifyUpdatedDatabase(projectId);
-        awaitAllNodesDownloadedDatabases();
+        awaitAllIngestNodesDownloadedDatabases();
     }
 
     private void verifyUpdatedDatabase(String projectId) throws Exception {
@@ -483,21 +487,19 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     }
 
     /**
-     * Waits until all ingest nodes report having downloaded the expected databases. This ensures that all ingest nodes are in a consistent
-     * state and prevents us from deleting databases before they've been downloaded on all nodes.
+     * Waits until all nodes relevant for the {@link IpLocationConsumer#INGEST INGEST} consumer report having downloaded the expected
+     * databases. This ensures that all such nodes are in a consistent state and prevents us from deleting databases before they've been
+     * downloaded on all nodes.
      */
-    private void awaitAllNodesDownloadedDatabases() throws Exception {
-        assertBusy(() -> {
-            GeoIpStatsAction.Response response = client().execute(GeoIpStatsAction.INSTANCE, new GeoIpStatsAction.Request()).actionGet();
-            assertThat(response.getNodes(), not(empty()));
-
-            for (GeoIpStatsAction.NodeResponse nodeResponse : response.getNodes()) {
-                assertThat(
-                    nodeResponse.getDatabases(),
-                    containsInAnyOrder("GeoLite2-Country.mmdb", "GeoLite2-City.mmdb", "GeoLite2-ASN.mmdb", "MyCustomGeoLite2-City.mmdb")
-                );
-            }
-        });
+    private void awaitAllIngestNodesDownloadedDatabases() throws Exception {
+        IpLocationTestHelper.awaitAllRelevantNodesDownloadedDatabases(
+            client(),
+            IpLocationConsumer.INGEST,
+            "GeoLite2-Country.mmdb",
+            "GeoLite2-City.mmdb",
+            "GeoLite2-ASN.mmdb",
+            "MyCustomGeoLite2-City.mmdb"
+        );
     }
 
     private GeoIpTaskState getGeoIpTaskState() {

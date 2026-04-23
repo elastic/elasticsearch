@@ -2569,14 +2569,6 @@ public class EsqlCapabilities {
          */
         PROMQL_TIME_FUNCTIONS,
 
-        /**
-         * Optimization that rewrites two or more {@code SUM(x ± c)} expressions sharing the
-         * same {@code x}. Changes multi-value warning behavior: only one warning is emitted
-         * (attributed to the first matching expression's source position), rather than one
-         * warning per {@code SUM(x ± c)} clause.
-         */
-        REWRITE_SUM_OF_EXPRESSION_PLUS_CONSTANT,
-
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

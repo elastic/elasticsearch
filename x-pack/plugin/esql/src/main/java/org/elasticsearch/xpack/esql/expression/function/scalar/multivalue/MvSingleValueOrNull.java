@@ -11,6 +11,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
@@ -21,9 +22,11 @@ import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
@@ -37,6 +40,12 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRep
  * The wrapped expression is not limited to field references — it can be any expression whose result
  * may be multi-valued.
  * </p>
+ * <p>
+ * A single node may carry multiple {@link Source} entries in {@code warningSources}, one per
+ * original expression that the node represents. On encountering a multi-valued position the
+ * evaluator emits a separate warning for each source, so callers that share one node across
+ * several expressions still get a distinct warning per expression.
+ * </p>
  */
 public class MvSingleValueOrNull extends AbstractMultivalueFunction {
     public static final TransportVersion MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION = TransportVersion.fromName(
@@ -49,12 +58,34 @@ public class MvSingleValueOrNull extends AbstractMultivalueFunction {
         MvSingleValueOrNull::new
     );
 
+    private final List<Source> warningSources;
+
     public MvSingleValueOrNull(Source source, Expression field) {
+        this(source, field, List.of(source));
+    }
+
+    public MvSingleValueOrNull(Source source, Expression field, List<Source> warningSources) {
         super(source, field);
+        this.warningSources = warningSources;
     }
 
     private MvSingleValueOrNull(StreamInput in) throws IOException {
         super(in);
+        int n = in.readVInt();
+        PlanStreamInput planIn = (PlanStreamInput) in;
+        warningSources = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            warningSources.add(Source.readFrom(planIn));
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeVInt(warningSources.size());
+        for (Source s : warningSources) {
+            s.writeTo(out);
+        }
     }
 
     @Override
@@ -73,17 +104,17 @@ public class MvSingleValueOrNull extends AbstractMultivalueFunction {
         if (elementType == ElementType.NULL) {
             return ConstantEvaluators.CONSTANT_NULL_FACTORY;
         }
-        return new Factory(source(), fieldEval);
+        return new Factory(warningSources, fieldEval);
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new MvSingleValueOrNull(source(), newChildren.get(0));
+        return new MvSingleValueOrNull(source(), newChildren.get(0), warningSources);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, MvSingleValueOrNull::new, field());
+        return NodeInfo.create(this, MvSingleValueOrNull::new, field(), warningSources);
     }
 
     /**
@@ -95,23 +126,31 @@ public class MvSingleValueOrNull extends AbstractMultivalueFunction {
      * single-valued positions are kept, then {@link Block#keepMask} applies it using
      * type-specialized logic.
      * </p>
+     * <p>
+     * When a multi-valued position is encountered, one warning is emitted per entry in
+     * {@code warningSources}, so that each original {@code SUM(x ± c)} clause gets its own
+     * warning attributed to the correct source location.
+     * </p>
      */
     static class Evaluator extends AbstractEvaluator {
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Evaluator.class);
 
-        private final Source source;
-        private Warnings warnings;
+        private final List<Source> warningSources;
+        private List<Warnings> warningsList;
 
-        Evaluator(DriverContext driverContext, ExpressionEvaluator field, Source source) {
+        Evaluator(DriverContext driverContext, ExpressionEvaluator field, List<Source> warningSources) {
             super(driverContext, field);
-            this.source = source;
+            this.warningSources = warningSources;
         }
 
-        private Warnings warnings() {
-            if (warnings == null) {
-                warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+        private List<Warnings> allWarnings() {
+            if (warningsList == null) {
+                warningsList = new ArrayList<>(warningSources.size());
+                for (Source s : warningSources) {
+                    warningsList.add(Warnings.createWarnings(driverContext.warningsMode(), s));
+                }
             }
-            return warnings;
+            return warningsList;
         }
 
         @Override
@@ -141,7 +180,9 @@ public class MvSingleValueOrNull extends AbstractMultivalueFunction {
                 for (int p = 0; p < block.getPositionCount(); p++) {
                     int valueCount = block.getValueCount(p);
                     if (valueCount > 1) {
-                        warnings().registerException(IllegalArgumentException.class, "single-value function encountered multi-value");
+                        for (Warnings w : allWarnings()) {
+                            w.registerException(IllegalArgumentException.class, "single-value function encountered multi-value");
+                        }
                     }
                     maskBuilder.appendBoolean(valueCount == 1);
                 }
@@ -153,17 +194,17 @@ public class MvSingleValueOrNull extends AbstractMultivalueFunction {
     }
 
     static class Factory implements ExpressionEvaluator.Factory {
-        private final Source source;
+        private final List<Source> warningSources;
         private final ExpressionEvaluator.Factory field;
 
-        Factory(Source source, ExpressionEvaluator.Factory field) {
-            this.source = source;
+        Factory(List<Source> warningSources, ExpressionEvaluator.Factory field) {
+            this.warningSources = warningSources;
             this.field = field;
         }
 
         @Override
         public ExpressionEvaluator get(DriverContext context) {
-            return new Evaluator(context, field.get(context), source);
+            return new Evaluator(context, field.get(context), warningSources);
         }
 
         @Override

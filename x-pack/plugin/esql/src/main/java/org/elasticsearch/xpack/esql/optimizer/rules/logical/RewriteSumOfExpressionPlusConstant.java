@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
@@ -30,8 +31,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.stream.Collectors;
 
 /**
  * Rewrites two or more {@code SUM(x ± c)} expressions over the same non-foldable expression
@@ -102,12 +101,14 @@ public class RewriteSumOfExpressionPlusConstant extends OptimizerRules.Parameter
         }
         var source = aggregate.source();
 
-        // Pass 1: count matches per (expression, summationMode) key.
+        // Pass 1: count matches and collect field sources per (expression, summationMode) key.
         Map<Match.Key, Long> exprMatchCount = new HashMap<>();
+        Map<Match.Key, List<Source>> exprFieldSources = new HashMap<>();
         for (NamedExpression agg : aggregate.aggregates()) {
             Match m = tryMatch(agg);
             if (m != null) {
                 exprMatchCount.merge(m.key(), 1L, Long::sum);
+                exprFieldSources.computeIfAbsent(m.key(), k -> new ArrayList<>()).add(m.sum().field().source());
             }
         }
 
@@ -128,7 +129,8 @@ public class RewriteSumOfExpressionPlusConstant extends OptimizerRules.Parameter
                 final Expression de = m.dataExpr();
                 final Sum fs = m.sum();
                 SvPair pair = exprToSvPair.computeIfAbsent(m.key(), k -> {
-                    var sv = new MvSingleValueOrNull(fs.field().source(), de);
+                    List<Source> warningSources = exprFieldSources.get(k);
+                    var sv = new MvSingleValueOrNull(warningSources.get(0), de, warningSources);
                     var svSumName = TemporaryNameGenerator.temporaryName(sv, fs, counter[0]++);
                     var svSumExpr = new Sum(
                         source,

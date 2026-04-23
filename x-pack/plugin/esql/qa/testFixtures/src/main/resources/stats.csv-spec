@@ -4390,12 +4390,13 @@ s1:long  | s2:long
 ;
 
 sumExpressionWithConstantMultipleClausesMultiValueWarning
-required_capability: rewrite_sum_of_expression_plus_constant
 row salary_change = [1.1, 2.2]
 | stats s1 = sum(salary_change + 1.0), s2 = sum(salary_change + 2.0)
 ;
 warning:Line 2:18: evaluation of [salary_change + 1.0] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 2:18: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 2:49: evaluation of [salary_change + 2.0] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:49: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 s1:double | s2:double
 null       | null

@@ -1619,7 +1619,7 @@ public class EsqlCapabilities {
         /**
          * Support for tstep function
          */
-        TSTEP,
+        TSTEP(Build.current().isSnapshot()),
 
         /**
          * Allow qualifiers in attribute names.

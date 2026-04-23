@@ -110,7 +110,13 @@ public class Warnings {
             this.location = format("Line {}:{} (in view [{}]): ", lineNumber, columnNumber, viewName);
             this.nonExceptionWarningPrefix = format("Line {}:{} [{}] (in view [{}]): ", lineNumber, columnNumber, sourceText, viewName);
         }
-        this.firstExceptionWarning = format(null, "{}" + firstExceptionWarning + ". Only first {} failures recorded.", location, sourceText, MAX_ADDED_WARNINGS);
+        this.firstExceptionWarning = format(
+            null,
+            "{}" + firstExceptionWarning + ". Only first {} failures recorded.",
+            location,
+            sourceText,
+            MAX_ADDED_WARNINGS
+        );
     }
 
     public void registerException(Exception exception) {

@@ -39,7 +39,7 @@ public final class DatasetRewriter {
     private DatasetRewriter() {}
 
     public static LogicalPlan rewrite(LogicalPlan parsed, ProjectMetadata projectMetadata) {
-        if (DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled() == false) {
+        if (DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled() == false || projectMetadata == null) {
             return parsed;
         }
         DatasetMetadata datasetMetadata = DatasetMetadata.get(projectMetadata);

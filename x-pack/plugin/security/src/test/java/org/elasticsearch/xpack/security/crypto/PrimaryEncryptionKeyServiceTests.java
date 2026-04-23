@@ -59,7 +59,7 @@ public class PrimaryEncryptionKeyServiceTests extends ESTestCase {
     private static PrimaryEncryptionKeyMetadata randomPekMetadata() {
         byte[] keyBytes = new byte[32];
         random().nextBytes(keyBytes);
-        String keyId = PrimaryEncryptionKeyMetadata.computeKeyId(keyBytes);
+        String keyId = PrimaryEncryptionKeyMetadata.generateKeyId();
         return new PrimaryEncryptionKeyMetadata(Map.of(keyId, keyBytes), keyId);
     }
 

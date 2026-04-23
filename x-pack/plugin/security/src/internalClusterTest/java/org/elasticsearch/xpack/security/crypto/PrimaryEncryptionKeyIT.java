@@ -18,6 +18,7 @@ import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xpack.core.crypto.PrimaryEncryptionKeyMetadata;
+import org.junit.Before;
 
 import java.io.IOException;
 
@@ -28,6 +29,14 @@ import static org.hamcrest.Matchers.notNullValue;
 // 3 master-eligible nodes so testKeySurvivesMasterFailover keeps a quorum after stopping one
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 3, supportsDedicatedMasters = false)
 public class PrimaryEncryptionKeyIT extends SecurityIntegTestCase {
+
+    @Before
+    public void checkFeatureFlag() {
+        assumeTrue(
+            "primary encryption key feature flag must be enabled",
+            PrimaryEncryptionKeyService.PRIMARY_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled()
+        );
+    }
 
     @Override
     protected boolean addMockHttpTransport() {

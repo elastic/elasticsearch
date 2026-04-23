@@ -124,7 +124,6 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
-import org.elasticsearch.xpack.core.crypto.PrimaryEncryptionKeyProvider;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.security.SecurityField;
@@ -1274,8 +1273,9 @@ public class Security extends Plugin
 
         cacheInvalidatorRegistry.validate();
 
-        PrimaryEncryptionKeyService pekService = PrimaryEncryptionKeyService.create(clusterService, projectResolver, featureService);
-        components.add(new PluginComponentBinding<>(PrimaryEncryptionKeyProvider.class, pekService));
+        if (PrimaryEncryptionKeyService.PRIMARY_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled()) {
+            PrimaryEncryptionKeyService.create(clusterService, projectResolver, featureService);
+        }
 
         setClosableAndReloadableComponents(components);
         return components;

@@ -19,13 +19,13 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.xpack.core.crypto.PrimaryEncryptionKeyMetadata;
-import org.elasticsearch.xpack.core.crypto.PrimaryEncryptionKeyProvider;
 
 import java.security.SecureRandom;
 import java.util.HashMap;
@@ -40,9 +40,11 @@ import javax.crypto.SecretKey;
  * <p>On master election, if no primary encryption key exists in the project metadata,
  * this service generates a new AES-256 key and publishes it to cluster state.
  */
-public class PrimaryEncryptionKeyService implements PrimaryEncryptionKeyProvider {
+public class PrimaryEncryptionKeyService {
 
     private static final Logger logger = LogManager.getLogger(PrimaryEncryptionKeyService.class);
+
+    public static final FeatureFlag PRIMARY_ENCRYPTION_KEY_FEATURE_FLAG = new FeatureFlag("primary_encryption_key");
 
     // Prevents key generation in a mixed-version cluster. Without this, TransportVersion filtering
     // would omit the PEK custom from cluster state sent to old nodes (they lack the transport version
@@ -91,8 +93,10 @@ public class PrimaryEncryptionKeyService implements PrimaryEncryptionKeyProvider
             ProjectState projectState = projectResolver.getProjectState(state);
             PrimaryEncryptionKeyMetadata metadata = projectState.metadata().custom(PrimaryEncryptionKeyMetadata.TYPE);
 
-            assert metadata != null || this.cache == KeyCache.EMPTY
-                : "PEK metadata was removed from cluster state, but cache still holds keys";
+            if (metadata == null && this.cache != KeyCache.EMPTY) {
+                logger.debug("primary encryption key cache cleared after snapshot restore");
+                this.cache = KeyCache.EMPTY;
+            }
 
             if (metadata != null) {
                 Map<String, SecretKey> keysByKeyId = HashMap.newHashMap(metadata.getKeys().size());
@@ -117,19 +121,16 @@ public class PrimaryEncryptionKeyService implements PrimaryEncryptionKeyProvider
         }
     }
 
-    @Override
     @Nullable
     public SecretKey getActiveKey() {
         return cache.activeKey();
     }
 
-    @Override
     @Nullable
     public String getActiveKeyId() {
         return cache.activeKeyId();
     }
 
-    @Override
     @Nullable
     public SecretKey getKey(String keyId) {
         return cache.keysByKeyId().get(keyId);
@@ -152,7 +153,7 @@ public class PrimaryEncryptionKeyService implements PrimaryEncryptionKeyProvider
         @Override
         public void onFailure(@Nullable Exception e) {
             logger.log(
-                MasterService.isPublishFailureException(e) ? Level.DEBUG : Level.WARN,
+                MasterService.isPublishFailureException(e) ? Level.DEBUG : Level.ERROR,
                 () -> "failure during primary encryption key installation",
                 e
             );
@@ -178,7 +179,7 @@ public class PrimaryEncryptionKeyService implements PrimaryEncryptionKeyProvider
 
             byte[] keyBytes = new byte[32];
             new SecureRandom().nextBytes(keyBytes);
-            String keyId = PrimaryEncryptionKeyMetadata.computeKeyId(keyBytes);
+            String keyId = PrimaryEncryptionKeyMetadata.generateKeyId();
             PrimaryEncryptionKeyMetadata metadata = new PrimaryEncryptionKeyMetadata(Map.of(keyId, keyBytes), keyId);
             logger.info("installing primary encryption key [{}]", keyId);
 

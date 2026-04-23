@@ -10,7 +10,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ParseField;
@@ -18,7 +18,6 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -39,7 +38,7 @@ import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
  * secrets stored in cluster state. The plaintext PEK is held in-memory and distributed to
  * all nodes via cluster state updates over the transport layer.
  *
- * <p>Keys are identified by a key ID derived from the key material.
+ * <p>Keys are identified by a randomly generated key ID.
  * Multiple keys are retained to support key rotation. The active key (used for new encrypt
  * operations) is explicitly identified by {@link #getActiveKeyId()}. Previous keys are kept
  * so that data encrypted with older keys can still be decrypted.
@@ -84,12 +83,10 @@ public class PrimaryEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata
     }
 
     /**
-     * Computes a key ID from raw key bytes. The ID is a hex-encoded SHA-256 hash.
+     * Generates a random key ID.
      */
-    public static String computeKeyId(byte[] keyBytes) {
-        MessageDigest digest = MessageDigests.sha256();
-        byte[] hash = digest.digest(keyBytes);
-        return MessageDigests.toHexString(hash);
+    public static String generateKeyId() {
+        return UUIDs.randomBase64UUID();
     }
 
     /**

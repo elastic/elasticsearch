@@ -29,7 +29,7 @@ public class PrimaryEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
         for (int i = 0; i < count; i++) {
             byte[] keyBytes = new byte[32];
             random().nextBytes(keyBytes);
-            keys.put(PrimaryEncryptionKeyMetadata.computeKeyId(keyBytes), keyBytes);
+            keys.put(PrimaryEncryptionKeyMetadata.generateKeyId(), keyBytes);
         }
         return keys;
     }
@@ -56,7 +56,7 @@ public class PrimaryEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
         } else {
             byte[] newKeyBytes = new byte[32];
             random().nextBytes(newKeyBytes);
-            String newKeyId = PrimaryEncryptionKeyMetadata.computeKeyId(newKeyBytes);
+            String newKeyId = PrimaryEncryptionKeyMetadata.generateKeyId();
             newKeys.put(newKeyId, newKeyBytes);
             return new PrimaryEncryptionKeyMetadata(newKeys, newKeyId);
         }
@@ -136,29 +136,6 @@ public class PrimaryEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
         assertNull(metadata.getKeyBytes("nonexistent"));
     }
 
-    public void testComputeKeyIdIsDeterministic() {
-        byte[] keyBytes = new byte[32];
-        random().nextBytes(keyBytes);
-        String id1 = PrimaryEncryptionKeyMetadata.computeKeyId(keyBytes);
-        String id2 = PrimaryEncryptionKeyMetadata.computeKeyId(keyBytes);
-        assertEquals(id1, id2);
-    }
-
-    public void testComputeKeyIdDiffersForDifferentKeys() {
-        byte[] keyBytes1 = new byte[32];
-        byte[] keyBytes2 = new byte[32];
-        random().nextBytes(keyBytes1);
-        random().nextBytes(keyBytes2);
-        assertNotEquals(PrimaryEncryptionKeyMetadata.computeKeyId(keyBytes1), PrimaryEncryptionKeyMetadata.computeKeyId(keyBytes2));
-    }
-
-    public void testComputeKeyIdLength() {
-        byte[] keyBytes = new byte[32];
-        random().nextBytes(keyBytes);
-        String keyId = PrimaryEncryptionKeyMetadata.computeKeyId(keyBytes);
-        assertEquals(64, keyId.length()); // SHA-256 hex-encoded
-    }
-
     public void testToStringDoesNotLeakKey() {
         PrimaryEncryptionKeyMetadata metadata = randomPekMetadata();
         String str = metadata.toString();
@@ -174,7 +151,7 @@ public class PrimaryEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
     public void testActiveKeyIdNotInKeys() {
         byte[] keyBytes = new byte[32];
         random().nextBytes(keyBytes);
-        String keyId = PrimaryEncryptionKeyMetadata.computeKeyId(keyBytes);
+        String keyId = PrimaryEncryptionKeyMetadata.generateKeyId();
         expectThrows(IllegalArgumentException.class, () -> new PrimaryEncryptionKeyMetadata(Map.of(keyId, keyBytes), "nonexistent"));
     }
 

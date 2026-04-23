@@ -15,5 +15,4 @@ import org.elasticsearch.plugins.Plugin;
  * build. The full DataSourcePlugin implementation will be added when the parquet-rs
  * reader is integrated into the ESQL data source framework.
  */
-public class ParquetRsPlugin extends Plugin {
-}
+public class ParquetRsPlugin extends Plugin {}

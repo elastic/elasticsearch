@@ -55,7 +55,7 @@ Use views as if they were ordinary indices:
 FROM index_pattern
 ```
 
-Where `index_pattern` is a comma-separate list of index or view names, including
+Where `index_pattern` is a comma-separated list of index or view names, including
 wildcards and date-math.
 
 Much like with [subqueries](/reference/query-languages/esql/esql-subquery.md),

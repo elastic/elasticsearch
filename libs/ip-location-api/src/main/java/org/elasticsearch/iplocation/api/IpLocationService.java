@@ -82,7 +82,7 @@ public interface IpLocationService {
      *
      * @param projectId the project id string
      * @param consumer  the consumer type requesting the download
-     * @implNote Implementations that back this on cluster state (e.g. master-routed state updates) are
+     * Implementations that back this on cluster state (e.g. master-routed state updates) are
      * asynchronous and best-effort: the call returns immediately after submitting the update request,
      * before it has been applied, and failures in applying the update are not propagated to the caller.
      * Observable side effects on ingest nodes are eventually consistent. Callers must not treat method
@@ -99,7 +99,7 @@ public interface IpLocationService {
      *
      * @param projectId the project id string
      * @param consumer  the consumer type cancelling its request
-     * @implNote Same async, best-effort, eventually-consistent contract as {@link #requestDownloads} for
+     * Same async, best-effort, eventually-consistent contract as {@link #requestDownloads} for
      * implementations backed by cluster-state updates.
      */
     void cancelDownloadRequest(String projectId, IpLocationConsumer consumer);

@@ -84,20 +84,20 @@ public final class IpLocationServiceAdapter implements IpLocationService {
     }
 
     /**
-     * @implNote Bridge-provided databases are always available, so there are no availability transitions to notify.
+     * Bridge-provided databases are always available, so there are no availability transitions to notify.
      */
     @Override
     public void addDatabaseAvailabilityListener(DatabaseAvailabilityListener listener) {}
 
     /**
-     * @implNote The bridge manages its own database lifecycle; consumer registrations from Elasticsearch ingest
+     * The bridge manages its own database lifecycle; consumer registrations from Elasticsearch ingest
      * code are irrelevant here and are intentionally ignored.
      */
     @Override
     public void requestDownloads(String projectId, IpLocationConsumer consumer) {}
 
     /**
-     * @implNote The bridge manages its own database lifecycle; consumer registrations from Elasticsearch ingest
+     * The bridge manages its own database lifecycle; consumer registrations from Elasticsearch ingest
      * code are irrelevant here and are intentionally ignored.
      */
     @Override

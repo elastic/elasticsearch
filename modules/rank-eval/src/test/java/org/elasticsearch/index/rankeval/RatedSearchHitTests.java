@@ -29,11 +29,12 @@ import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashC
 
 public class RatedSearchHitTests extends ESTestCase {
 
-    private static final ConstructingObjectParser<RatedSearchHit, Void> PARSER = new ConstructingObjectParser<>(
-        "rated_hit",
-        true,
-        a -> new RatedSearchHit((SearchHit) a[0], (OptionalInt) a[1])
-    );
+    private static final ConstructingObjectParser<RatedSearchHit, Void> PARSER = new ConstructingObjectParser<>("rated_hit", true, a -> {
+        SearchHit hit = (SearchHit) a[0];
+        RatedSearchHit result = new RatedSearchHit(hit, (OptionalInt) a[1]);
+        hit.decRef();
+        return result;
+    });
 
     static {
         PARSER.declareObject(
@@ -105,7 +106,7 @@ public class RatedSearchHitTests extends ESTestCase {
         } finally {
             releasePooledSearchHitCompletely(testItem.getSearchHit());
             if (parsedItem != null) {
-                releasePooledSearchHitCompletely(parsedItem.getSearchHit());
+                parsedItem.getSearchHit().decRef();
             }
         }
     }

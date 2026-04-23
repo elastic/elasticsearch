@@ -161,30 +161,36 @@ public class RankEvalResponseTests extends ESTestCase {
         // - everything under `hits` (we test lenient SearchHit parsing elsewhere)
         Predicate<String> pathsToExclude = path -> (path.endsWith("details") || path.contains("failures") || path.contains("hits"));
         BytesReference withRandomFields = insertRandomFields(xContentType, originalBytes, pathsToExclude, random());
-        RankEvalResponse parsedItem;
-        try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
-            parsedItem = PARSER.apply(parser, null);
-            assertNull(parser.nextToken());
-        }
-        assertNotSame(testItem, parsedItem);
-        // We cannot check equality of object here because some information (e.g.
-        // SearchHit#shard) cannot fully be parsed back.
-        assertEquals(testItem.getMetricScore(), parsedItem.getMetricScore(), 0.0);
-        assertEquals(testItem.getPartialResults().keySet(), parsedItem.getPartialResults().keySet());
-        for (EvalQueryQuality metricDetail : testItem.getPartialResults().values()) {
-            EvalQueryQuality parsedEvalQueryQuality = parsedItem.getPartialResults().get(metricDetail.getId());
-            assertToXContentEquivalent(
-                toXContent(metricDetail, xContentType, humanReadable),
-                toXContent(parsedEvalQueryQuality, xContentType, humanReadable),
-                xContentType
-            );
-        }
-        // Also exceptions that are parsed back will be different since they are re-wrapped during parsing.
-        // However, we can check that there is the expected number
-        assertEquals(testItem.getFailures().keySet(), parsedItem.getFailures().keySet());
-        for (String queryId : testItem.getFailures().keySet()) {
-            Exception ex = parsedItem.getFailures().get(queryId);
-            assertThat(ex, instanceOf(ElasticsearchException.class));
+        RankEvalResponse parsedItem = null;
+        try {
+            try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
+                parsedItem = PARSER.apply(parser, null);
+                assertNull(parser.nextToken());
+            }
+            assertNotSame(testItem, parsedItem);
+            // We cannot check equality of object here because some information (e.g.
+            // SearchHit#shard) cannot fully be parsed back.
+            assertEquals(testItem.getMetricScore(), parsedItem.getMetricScore(), 0.0);
+            assertEquals(testItem.getPartialResults().keySet(), parsedItem.getPartialResults().keySet());
+            for (EvalQueryQuality metricDetail : testItem.getPartialResults().values()) {
+                EvalQueryQuality parsedEvalQueryQuality = parsedItem.getPartialResults().get(metricDetail.getId());
+                assertToXContentEquivalent(
+                    toXContent(metricDetail, xContentType, humanReadable),
+                    toXContent(parsedEvalQueryQuality, xContentType, humanReadable),
+                    xContentType
+                );
+            }
+            // Also exceptions that are parsed back will be different since they are re-wrapped during parsing.
+            // However, we can check that there is the expected number
+            assertEquals(testItem.getFailures().keySet(), parsedItem.getFailures().keySet());
+            for (String queryId : testItem.getFailures().keySet()) {
+                Exception ex = parsedItem.getFailures().get(queryId);
+                assertThat(ex, instanceOf(ElasticsearchException.class));
+            }
+        } finally {
+            if (parsedItem != null) {
+                parsedItem.close();
+            }
         }
     }
 

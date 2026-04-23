@@ -526,6 +526,78 @@ public class ExternalSourceResolverTests extends ESTestCase {
         }
     }
 
+    public void testSingleFileSchemaCacheHitAfterMiss() throws Exception {
+        List<Attribute> schema = List.of(attr("id", DataType.INTEGER), attr("name", DataType.KEYWORD));
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/single.parquet", schema);
+
+        CountingStorageProvider countingProvider = new CountingStorageProvider(Map.of(), schemasByPath);
+
+        Settings settings = Settings.builder()
+            .put("esql.source.cache.size", "10mb")
+            .put("esql.source.cache.enabled", true)
+            .put("esql.source.cache.schema.ttl", "5m")
+            .put("esql.source.cache.listing.ttl", "30s")
+            .build();
+
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
+            ExternalSourceResolver resolver = createResolverWithCache(countingProvider, schemasByPath, cacheService);
+
+            PlainActionFuture<ExternalSourceResolution> f1 = new PlainActionFuture<>();
+            resolver.resolve(List.of("s3://bucket/data/single.parquet"), Map.of(), f1);
+            ExternalSourceResolution res1 = f1.actionGet();
+            assertNotNull(res1.resolvedSource("s3://bucket/data/single.parquet"));
+            assertEquals(1, res1.resolvedSource("s3://bucket/data/single.parquet").fileList().fileCount());
+
+            Map<String, Object> stats1 = cacheService.usageStats();
+            assertEquals(1L, stats1.get("schema_cache.misses"));
+            assertEquals(0L, stats1.get("schema_cache.hits"));
+            assertEquals(1, stats1.get("schema_cache.count"));
+
+            PlainActionFuture<ExternalSourceResolution> f2 = new PlainActionFuture<>();
+            resolver.resolve(List.of("s3://bucket/data/single.parquet"), Map.of(), f2);
+            ExternalSourceResolution res2 = f2.actionGet();
+            assertNotNull(res2.resolvedSource("s3://bucket/data/single.parquet"));
+            assertEquals(1, res2.resolvedSource("s3://bucket/data/single.parquet").fileList().fileCount());
+
+            Map<String, Object> stats2 = cacheService.usageStats();
+            assertEquals(1L, stats2.get("schema_cache.misses"));
+            assertEquals(1L, stats2.get("schema_cache.hits"));
+            assertEquals(1, stats2.get("schema_cache.count"));
+        }
+    }
+
+    public void testSingleFileCacheDisabledBypassesCache() throws Exception {
+        List<Attribute> schema = List.of(attr("val", DataType.LONG));
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/d/file.parquet", schema);
+
+        CountingStorageProvider countingProvider = new CountingStorageProvider(Map.of(), schemasByPath);
+
+        Settings settings = Settings.builder()
+            .put("esql.source.cache.size", "10mb")
+            .put("esql.source.cache.enabled", false)
+            .put("esql.source.cache.schema.ttl", "5m")
+            .put("esql.source.cache.listing.ttl", "30s")
+            .build();
+
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
+            ExternalSourceResolver resolver = createResolverWithCache(countingProvider, schemasByPath, cacheService);
+
+            for (int i = 0; i < 3; i++) {
+                PlainActionFuture<ExternalSourceResolution> f = new PlainActionFuture<>();
+                resolver.resolve(List.of("s3://bucket/d/file.parquet"), Map.of(), f);
+                ExternalSourceResolution res = f.actionGet();
+                assertNotNull(res.resolvedSource("s3://bucket/d/file.parquet"));
+            }
+
+            Map<String, Object> stats = cacheService.usageStats();
+            assertEquals("schema cache should have no entries when disabled", 0, stats.get("schema_cache.count"));
+            assertEquals("schema cache should have no hits when disabled", 0L, stats.get("schema_cache.hits"));
+            assertEquals("schema cache should have no misses when disabled", 0L, stats.get("schema_cache.misses"));
+        }
+    }
+
     public void testCacheDisabledCallsLoaderEveryTime() throws Exception {
         List<Attribute> schema = List.of(attr("val", DataType.LONG));
         Map<String, List<Attribute>> schemasByPath = new HashMap<>();

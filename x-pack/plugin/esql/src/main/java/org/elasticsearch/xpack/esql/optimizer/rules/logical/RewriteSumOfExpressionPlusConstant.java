@@ -103,11 +103,13 @@ public class RewriteSumOfExpressionPlusConstant extends OptimizerRules.Parameter
         var source = aggregate.source();
 
         // Pass 1: count matches per (expression, summationMode) key.
-        Map<Match.Key, Long> exprMatchCount = aggregate.aggregates()
-            .stream()
-            .map(RewriteSumOfExpressionPlusConstant::tryMatch)
-            .filter(Objects::nonNull)
-            .collect(Collectors.groupingBy(Match::key, Collectors.counting()));
+        Map<Match.Key, Long> exprMatchCount = new HashMap<>();
+        for (NamedExpression agg : aggregate.aggregates()) {
+            Match m = tryMatch(agg);
+            if (m != null) {
+                exprMatchCount.merge(m.key(), 1L, Long::sum);
+            }
+        }
 
         // Only rewrite expressions that appear in 2 or more SUM expressions
         if (exprMatchCount.values().stream().noneMatch(c -> c >= 2)) {

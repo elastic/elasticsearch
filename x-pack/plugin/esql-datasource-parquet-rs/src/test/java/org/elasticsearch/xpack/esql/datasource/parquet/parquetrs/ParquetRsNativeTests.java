@@ -24,8 +24,8 @@ import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
-import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.nativeaccess.ParquetRsFunctions;
+import org.elasticsearch.parquetrs.ParquetRs;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 
@@ -46,7 +46,7 @@ public class ParquetRsNativeTests extends ESTestCase {
 
     @BeforeClass
     public static void loadRustLib() {
-        var opt = NativeAccess.instance().getParquetRsFunctions();
+        var opt = ParquetRs.functions();
         assumeTrue("parquet-rs native library not available", opt.isPresent());
         parquetRs = opt.get();
     }

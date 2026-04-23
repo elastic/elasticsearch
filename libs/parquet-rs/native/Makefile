@@ -48,7 +48,7 @@ endif
 
 LIB_NAME = libesql_parquet_rs.$(LIB_EXT)
 CARGO_OUTPUT = target/release/$(LIB_NAME)
-INSTALL_DIR = ../../../../libs/native/libraries/build/platform/$(PLATFORM_DIR)
+INSTALL_DIR = ../../native/libraries/build/platform/$(PLATFORM_DIR)
 
 # --- Cross-compilation targets ---
 

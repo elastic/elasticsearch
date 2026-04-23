@@ -25,8 +25,8 @@ base {
 dependencies {
   compileOnly project(':server')
 
-  // Native access for Rust FFI
-  compileOnly project(':libs:native')
+  // Parquet-rs library (Rust FFI via libs/native)
+  compileOnly project(':libs:parquet-rs')
 
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))

@@ -104,7 +104,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
          * @param input the inputs to use for the inference request
          * @param taskSettings the task settings to use for the inference request
          * @param inputType the {@link InputType} of the request
-         * @param inferenceTimeout the timeout to use. If null, the default timeout for the task type will be used
+         * @param inferenceTimeout the timeout to use. If null, a placeholder timeout will be used until the appropriate timeout for the
+         *                         task type and input type can be determined by the inference service implementation
          * @param stream whether the request should use streaming
          */
         public Request(
@@ -146,7 +147,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
          * @param input the inputs to use for the inference request
          * @param taskSettings the task settings to use for the inference request
          * @param inputType the {@link InputType} of the request
-         * @param inferenceTimeout the timeout to use. If null, the default timeout for the task type will be used
+         * @param inferenceTimeout the timeout to use. If null, a placeholder timeout will be used until the appropriate timeout for the
+         *                         task type and input type can be determined by the inference service implementation
          * @param stream whether the request should use streaming
          * @param context the {@link InferenceContext} to use
          */

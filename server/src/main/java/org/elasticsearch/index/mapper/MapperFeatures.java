@@ -81,6 +81,9 @@ public class MapperFeatures implements FeatureSpecification {
         "mapper.dense_vector.dynamic_template_dotted_field_fix"
     );
     public static final NodeFeature DOC_VALUES_MULTI_VALUE = new NodeFeature("mapper.doc_values.multi_value");
+    public static final NodeFeature DOC_VALUES_MULTI_VALUE_NO_ENFORCEMENT = new NodeFeature(
+        "mapper.doc_values.multi_value_no_enforcement"
+    );
     static final NodeFeature DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX = new NodeFeature(
         "mapper.dense_vector.dynamic_template_nested_object_fix"
     );
@@ -144,6 +147,7 @@ public class MapperFeatures implements FeatureSpecification {
             TEXT_FIELD_DOC_VALUES,
             DENSE_VECTOR_DYNAMIC_TEMPLATE_DOTTED_FIELD_FIX,
             DOC_VALUES_MULTI_VALUE,
+            DOC_VALUES_MULTI_VALUE_NO_ENFORCEMENT,
             DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX,
             FLATTENED_MAPPED_SUBFIELDS_FEATURE,
             ES940_DISK_BBQ,

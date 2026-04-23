@@ -31,6 +31,7 @@ import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIterator;
 import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
+import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.PostingMetadata;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
 import org.elasticsearch.index.codec.vectors.diskbbq.PrefetchingCentroidIterator;
@@ -116,7 +117,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
                 acceptCentroids.set((int) longValues.get(docIndexIterator.index()));
             }
         }
-        final OptimizedScalarQuantizer scalarQuantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
+        final OptimizedScalarQuantizer scalarQuantizer = new OptimizedScalarQuantizer(IVFVectorsWriter.effectiveSimilarity(fieldInfo));
         final int[] scratch = new int[targetQuery.length];
         final OptimizedScalarQuantizer.QuantizationResult queryParams = scalarQuantizer.scalarQuantize(
             targetQuery,
@@ -638,7 +639,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             this.scratch = new float[fieldInfo.getVectorDimension()];
             this.centroidScratch = new float[fieldInfo.getVectorDimension()];
             this.quantizationScratch = new int[quantEncoding.discretizedDimensions(fieldInfo.getVectorDimension())];
-            this.quantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction(), DEFAULT_LAMBDA, 1);
+            this.quantizer = new OptimizedScalarQuantizer(IVFVectorsWriter.effectiveSimilarity(fieldInfo), DEFAULT_LAMBDA, 1);
             this.parentsSlice = parentsSlice;
             this.globalCentroid = globalCentroid;
             this.cache = new LinkedHashMap<>(QUERY_CACHE_SIZE, 0.75f, true) {

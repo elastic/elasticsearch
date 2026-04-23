@@ -10,8 +10,10 @@
 package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.codecs.lucene95.HasIndexSlice;
+import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.KnnVectorValues;
+import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.queries.function.FunctionScoreQuery;
 import org.apache.lucene.search.BooleanClause;
@@ -55,6 +57,7 @@ import java.util.Objects;
 public abstract class RescoreKnnVectorQuery extends Query implements QueryProfilerProvider {
     protected final String fieldName;
     protected final float[] floatTarget;
+    protected final byte[] byteTarget;
     protected final VectorSimilarityFunction vectorSimilarityFunction;
     protected final int k;
     protected final Query innerQuery;
@@ -63,12 +66,14 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
     private RescoreKnnVectorQuery(
         String fieldName,
         float[] floatTarget,
+        byte[] byteTarget,
         VectorSimilarityFunction vectorSimilarityFunction,
         int k,
         Query innerQuery
     ) {
         this.fieldName = fieldName;
         this.floatTarget = floatTarget;
+        this.byteTarget = byteTarget;
         this.vectorSimilarityFunction = vectorSimilarityFunction;
         this.k = k;
         this.innerQuery = innerQuery;
@@ -92,13 +97,45 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
         int rescoreK,
         Query innerQuery
     ) {
+        return fromInnerQuery(fieldName, floatTarget, null, vectorSimilarityFunction, k, rescoreK, innerQuery);
+    }
+
+    /**
+     * Selects and returns the appropriate {@link RescoreKnnVectorQuery} strategy for byte vector fields.
+     *
+     * @param fieldName                the name of the field containing the vector
+     * @param byteTarget               the byte target vector to compare against
+     * @param vectorSimilarityFunction the similarity function to apply
+     * @param k                        the number of top documents to return after rescoring
+     * @param rescoreK                 the number of top documents to consider for rescoring
+     * @param innerQuery               the original Lucene query to rescore
+     */
+    public static RescoreKnnVectorQuery fromInnerQuery(
+        String fieldName,
+        byte[] byteTarget,
+        VectorSimilarityFunction vectorSimilarityFunction,
+        int k,
+        int rescoreK,
+        Query innerQuery
+    ) {
+        return fromInnerQuery(fieldName, null, byteTarget, vectorSimilarityFunction, k, rescoreK, innerQuery);
+    }
+
+    private static RescoreKnnVectorQuery fromInnerQuery(
+        String fieldName,
+        float[] floatTarget,
+        byte[] byteTarget,
+        VectorSimilarityFunction vectorSimilarityFunction,
+        int k,
+        int rescoreK,
+        Query innerQuery
+    ) {
         if ((innerQuery instanceof KnnFloatVectorQuery fQuery && fQuery.getK() == rescoreK)
             || (innerQuery instanceof KnnByteVectorQuery bQuery && bQuery.getK() == rescoreK)
             || (innerQuery instanceof AbstractIVFKnnVectorQuery ivfQuery && ivfQuery.k == rescoreK)) {
-            // Queries that return only the top `k` results and do not require reduction before re-scoring.
-            return new InlineRescoreQuery(fieldName, floatTarget, vectorSimilarityFunction, k, innerQuery);
+            return new InlineRescoreQuery(fieldName, floatTarget, byteTarget, vectorSimilarityFunction, k, innerQuery);
         }
-        return new LateRescoreQuery(fieldName, floatTarget, vectorSimilarityFunction, k, rescoreK, innerQuery);
+        return new LateRescoreQuery(fieldName, floatTarget, byteTarget, vectorSimilarityFunction, k, rescoreK, innerQuery);
     }
 
     public Query innerQuery() {
@@ -130,6 +167,7 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
         RescoreKnnVectorQuery that = (RescoreKnnVectorQuery) o;
         return Objects.equals(fieldName, that.fieldName)
             && Arrays.equals(floatTarget, that.floatTarget)
+            && Arrays.equals(byteTarget, that.byteTarget)
             && vectorSimilarityFunction == that.vectorSimilarityFunction
             && Objects.equals(k, that.k)
             && Objects.equals(innerQuery, that.innerQuery);
@@ -137,19 +175,24 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
 
     @Override
     public int hashCode() {
-        return Objects.hash(fieldName, Arrays.hashCode(floatTarget), vectorSimilarityFunction, k, innerQuery);
+        return Objects.hash(fieldName, Arrays.hashCode(floatTarget), Arrays.hashCode(byteTarget), vectorSimilarityFunction, k, innerQuery);
     }
 
     @Override
     public String toString(String field) {
+        String targetStr;
+        if (byteTarget != null) {
+            targetStr = "byteTarget=" + byteTarget[0] + "...";
+        } else {
+            targetStr = "floatTarget=" + floatTarget[0] + "...";
+        }
         return getClass().getSimpleName()
             + "{"
             + "fieldName='"
             + fieldName
             + '\''
-            + ", floatTarget="
-            + floatTarget[0]
-            + "..."
+            + ", "
+            + targetStr
             + ", vectorSimilarityFunction="
             + vectorSimilarityFunction
             + ", k="
@@ -163,16 +206,17 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
         private InlineRescoreQuery(
             String fieldName,
             float[] floatTarget,
+            byte[] byteTarget,
             VectorSimilarityFunction vectorSimilarityFunction,
             int k,
             Query innerQuery
         ) {
-            super(fieldName, floatTarget, vectorSimilarityFunction, k, innerQuery);
+            super(fieldName, floatTarget, byteTarget, vectorSimilarityFunction, k, innerQuery);
         }
 
         @Override
         public Query rewrite(IndexSearcher searcher) throws IOException {
-            var rescoreQuery = new DirectRescoreKnnVectorQuery(fieldName, floatTarget, innerQuery);
+            var rescoreQuery = new DirectRescoreKnnVectorQuery(fieldName, floatTarget, byteTarget, innerQuery);
             var topDocs = searcher.search(rescoreQuery, k);
             vectorOperations = topDocs.totalHits.value();
             return new KnnScoreDocQuery(topDocs.scoreDocs, searcher.getIndexReader());
@@ -197,12 +241,13 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
         private LateRescoreQuery(
             String fieldName,
             float[] floatTarget,
+            byte[] byteTarget,
             VectorSimilarityFunction vectorSimilarityFunction,
             int k,
             int rescoreK,
             Query innerQuery
         ) {
-            super(fieldName, floatTarget, vectorSimilarityFunction, k, innerQuery);
+            super(fieldName, floatTarget, byteTarget, vectorSimilarityFunction, k, innerQuery);
             this.rescoreK = rescoreK;
         }
 
@@ -215,7 +260,7 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
 
             // Retrieve top `k` documents from the top `rescoreK` query
             var topDocsQuery = new KnnScoreDocQuery(topDocs.scoreDocs, searcher.getIndexReader());
-            var rescoreQuery = new DirectRescoreKnnVectorQuery(fieldName, floatTarget, topDocsQuery);
+            var rescoreQuery = new DirectRescoreKnnVectorQuery(fieldName, floatTarget, byteTarget, topDocsQuery);
             var rescoreTopDocs = searcher.search(rescoreQuery.rewrite(searcher), k);
             return new KnnScoreDocQuery(rescoreTopDocs.scoreDocs, searcher.getIndexReader());
         }
@@ -238,12 +283,14 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
         private static final int PREFETCH_BUFFER_SIZE = 100;
 
         private final float[] floatTarget;
+        private final byte[] byteTarget;
         private final String fieldName;
         private final Query innerQuery;
 
-        DirectRescoreKnnVectorQuery(String fieldName, float[] floatTarget, Query innerQuery) {
+        DirectRescoreKnnVectorQuery(String fieldName, float[] floatTarget, byte[] byteTarget, Query innerQuery) {
             this.fieldName = fieldName;
             this.floatTarget = floatTarget;
+            this.byteTarget = byteTarget;
             this.innerQuery = innerQuery;
         }
 
@@ -260,16 +307,26 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
             }
             assert innerRewritten.getClass() != MatchAllDocsQuery.class;
 
+            final int targetDimension = byteTarget != null ? byteTarget.length : floatTarget.length;
             List<ScoreDoc> results = new ArrayList<>(10);
             List<CheckedRunnable<IOException>> buffer = new LinkedList<>();
             for (var leaf : indexSearcher.getIndexReader().leaves()) {
-                var knnVectorValues = leaf.reader().getFloatVectorValues(fieldName);
+                var fieldInfo = leaf.reader().getFieldInfos().fieldInfo(fieldName);
+                if (fieldInfo == null) {
+                    continue;
+                }
+                KnnVectorValues knnVectorValues;
+                if (fieldInfo.getVectorEncoding() == VectorEncoding.BYTE) {
+                    knnVectorValues = leaf.reader().getByteVectorValues(fieldName);
+                } else {
+                    knnVectorValues = leaf.reader().getFloatVectorValues(fieldName);
+                }
                 if (knnVectorValues == null) {
                     continue;
                 }
-                if (knnVectorValues.dimension() != floatTarget.length) {
+                if (knnVectorValues.dimension() != targetDimension) {
                     throw new IllegalArgumentException(
-                        "vector query dimension: " + floatTarget.length + " differs from field dimension: " + knnVectorValues.dimension()
+                        "vector query dimension: " + targetDimension + " differs from field dimension: " + knnVectorValues.dimension()
                     );
                 }
                 var weight = innerRewritten.createWeight(indexSearcher, ScoreMode.COMPLETE_NO_SCORES, 1.0f);
@@ -281,7 +338,7 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
                 rescoreIndividually(
                     leaf.docBase,
                     knnVectorValues,
-                    leaf.reader().getFieldInfos().fieldInfo(fieldName).getVectorSimilarityFunction(),
+                    fieldInfo.getVectorSimilarityFunction(),
                     buffer,
                     results,
                     filterIterator
@@ -323,7 +380,7 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
          */
         private void rescoreIndividually(
             int docBase,
-            FloatVectorValues knnVectorValues,
+            KnnVectorValues knnVectorValues,
             VectorSimilarityFunction function,
             List<CheckedRunnable<IOException>> buffer,
             List<ScoreDoc> queue,
@@ -332,6 +389,7 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
             final int vectorByteSize = knnVectorValues.getVectorByteLength();
             final HasIndexSlice sliceable = (knnVectorValues instanceof HasIndexSlice h) ? h : null;
             final var input = sliceable != null ? sliceable.getSlice() : null;
+            final boolean isByteEncoded = knnVectorValues.getEncoding() == VectorEncoding.BYTE;
 
             KnnVectorValues.DocIndexIterator vectorIter = knnVectorValues.iterator();
             DocIdSetIterator conjunction = ConjunctionUtils.intersectIterators(List.of(vectorIter, filterIterator));
@@ -352,8 +410,16 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
                     input.prefetch((long) ord * vectorByteSize, vectorByteSize);
                 }
                 buffer.add(() -> {
-                    float[] vector = knnVectorValues.vectorValue(ord);
-                    float score = function.compare(floatTarget, vector);
+                    final float score;
+                    if (isByteEncoded) {
+                        byte[] vector = ((ByteVectorValues) knnVectorValues).vectorValue(ord);
+                        assert byteTarget != null : "byte-encoded field requires a byte target for rescoring";
+                        score = function.compare(byteTarget, vector);
+                    } else {
+                        float[] vector = ((FloatVectorValues) knnVectorValues).vectorValue(ord);
+                        assert floatTarget != null : "float-encoded field requires a float target for rescoring";
+                        score = function.compare(floatTarget, vector);
+                    }
                     if (Float.isNaN(score) == false) {
                         queue.add(new ScoreDoc(docID + docBase, score));
                     }

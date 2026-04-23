@@ -67,6 +67,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnFloatVectorQuery;
+import org.elasticsearch.search.vectors.IVFKnnByteVectorQuery;
 import org.elasticsearch.search.vectors.IVFKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.QueryProfilerProvider;
 import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
@@ -678,12 +679,28 @@ public class KnnSearcher {
 
     TopDocs doVectorQuery(byte[] vector, IndexSearcher searcher, Query filterQuery, SearchParameters searchParameters) throws IOException {
         Query knnQuery;
-        if (searchParameters.overSamplingFactor() > 1f) {
-            throw new IllegalArgumentException("oversampling factor > 1 is not supported for byte vectors");
-        }
         if (indexType == KnnIndexTester.IndexType.IVF) {
-            throw new IllegalArgumentException("IVF index type does not support byte vectors");
+            int overSampledTopK = searchParameters.topK();
+            if (searchParameters.overSamplingFactor() > 1f) {
+                overSampledTopK = (int) Math.ceil(overSampledTopK * searchParameters.overSamplingFactor());
+            }
+            int efSearch = Math.max(overSampledTopK, searchParameters.numCandidates());
+            float visitRatio = (float) (searchParameters.visitPercentage() / 100);
+            knnQuery = new IVFKnnByteVectorQuery(VECTOR_FIELD, vector, overSampledTopK, efSearch, filterQuery, visitRatio, doPrecondition);
+            if (searchParameters.overSamplingFactor() > 1f) {
+                knnQuery = RescoreKnnVectorQuery.fromInnerQuery(
+                    VECTOR_FIELD,
+                    vector,
+                    similarityFunction,
+                    searchParameters.topK(),
+                    overSampledTopK,
+                    knnQuery
+                );
+            }
         } else {
+            if (searchParameters.overSamplingFactor() > 1f) {
+                throw new IllegalArgumentException("oversampling factor > 1 is not supported for byte vectors with HNSW/FLAT");
+            }
             knnQuery = new ESKnnByteVectorQuery(
                 VECTOR_FIELD,
                 vector,

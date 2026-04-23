@@ -85,6 +85,7 @@ public class MapperFeatures implements FeatureSpecification {
         "mapper.dense_vector.dynamic_template_nested_object_fix"
     );
     public static final NodeFeature ES940_DISK_BBQ = new NodeFeature("mapper.es940_disk_bbq");
+    static final NodeFeature BBQ_DISK_BYTE_ELEMENT_TYPE = new NodeFeature("mapper.bbq_disk_byte_element_type");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -145,6 +146,7 @@ public class MapperFeatures implements FeatureSpecification {
             DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX,
             FLATTENED_MAPPED_SUBFIELDS_FEATURE,
             ES940_DISK_BBQ,
+            BBQ_DISK_BYTE_ELEMENT_TYPE,
             FLATTENED_PASSTHROUGH_FEATURE
         );
     }

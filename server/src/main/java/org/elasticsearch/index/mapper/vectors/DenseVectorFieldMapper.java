@@ -85,12 +85,14 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.vectors.DenseVectorQuery;
+import org.elasticsearch.search.vectors.DiversifyingChildrenIVFKnnByteVectorQuery;
 import org.elasticsearch.search.vectors.DiversifyingChildrenIVFKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.DiversifyingParentBlockQuery;
 import org.elasticsearch.search.vectors.ESDiversifyingChildrenByteKnnVectorQuery;
 import org.elasticsearch.search.vectors.ESDiversifyingChildrenFloatKnnVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnFloatVectorQuery;
+import org.elasticsearch.search.vectors.IVFKnnByteVectorQuery;
 import org.elasticsearch.search.vectors.IVFKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
 import org.elasticsearch.search.vectors.VectorData;
@@ -1924,7 +1926,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
             @Override
             public boolean supportsElementType(ElementType elementType) {
-                return elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
+                return elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16 || elementType == ElementType.BYTE;
             }
 
             @Override
@@ -2625,7 +2627,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
-            assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
+            assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16 || elementType == ElementType.BYTE;
             if (indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_LICENSE_ENFORCEMENT)) {
                 // if we got here, this means we didn't get the plugin installed, so we should throw an exception
                 throw new ElasticsearchSecurityException(
@@ -2993,6 +2995,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     resolvedQueryVector.asByteVector(),
                     k,
                     numCands,
+                    visitPercentage,
+                    oversample,
                     filter,
                     similarityThreshold,
                     parentFilter,
@@ -3088,6 +3092,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             byte[] queryVector,
             int k,
             int numCands,
+            Float visitPercentage,
+            Float queryOversample,
             Query filter,
             Float similarityThreshold,
             BitSetProducer parentFilter,
@@ -3100,6 +3106,21 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 float squaredMagnitude = ESVectorUtil.dotProduct(queryVector, queryVector);
                 element.checkVectorMagnitude(similarity, ByteElement.errorElementsAppender(queryVector), squaredMagnitude);
             }
+            int adjustedK = k;
+            // By default utilize the quantized oversample if configured
+            // allow the user provided at query time overwrite
+            Float oversample = queryOversample;
+            if (oversample == null
+                && indexOptions instanceof QuantizedIndexOptions quantizedIndexOptions
+                && quantizedIndexOptions.rescoreVector != null) {
+                oversample = quantizedIndexOptions.rescoreVector.oversample;
+            }
+            boolean rescore = needsRescore(oversample);
+            if (rescore) {
+                // Will get k * oversample for rescoring, and get the top k
+                adjustedK = Math.min((int) Math.ceil(k * oversample), OVERSAMPLE_LIMIT);
+                numCands = Math.max(adjustedK, numCands);
+            }
             Query knnQuery;
             if (indexOptions != null && indexOptions.isFlat()) {
                 var exactKnnQuery = parentFilter != null
@@ -3110,6 +3131,29 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     : new BooleanQuery.Builder().add(exactKnnQuery, BooleanClause.Occur.SHOULD)
                         .add(filter, BooleanClause.Occur.FILTER)
                         .build();
+            } else if (indexOptions instanceof BBQIVFIndexOptions bbqIndexOptions) {
+                float defaultVisitRatio = (float) (bbqIndexOptions.defaultVisitPercentage / 100d);
+                float visitRatio = visitPercentage == null ? defaultVisitRatio : (float) (visitPercentage / 100d);
+                knnQuery = parentFilter != null
+                    ? new DiversifyingChildrenIVFKnnByteVectorQuery(
+                        name(),
+                        queryVector,
+                        adjustedK,
+                        numCands,
+                        filter,
+                        parentFilter,
+                        visitRatio,
+                        bbqIndexOptions.doPrecondition()
+                    )
+                    : new IVFKnnByteVectorQuery(
+                        name(),
+                        queryVector,
+                        adjustedK,
+                        numCands,
+                        filter,
+                        visitRatio,
+                        bbqIndexOptions.doPrecondition()
+                    );
             } else {
                 knnQuery = parentFilter != null
                     ? new ESDiversifyingChildrenByteKnnVectorQuery(
@@ -3123,6 +3167,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         hnswEarlyTermination
                     )
                     : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, filter, searchStrategy, hnswEarlyTermination);
+            }
+            if (rescore) {
+                knnQuery = RescoreKnnVectorQuery.fromInnerQuery(
+                    name(),
+                    queryVector,
+                    similarity.vectorSimilarityFunction(indexVersionCreated, ElementType.BYTE),
+                    k,
+                    adjustedK,
+                    knnQuery
+                );
             }
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(

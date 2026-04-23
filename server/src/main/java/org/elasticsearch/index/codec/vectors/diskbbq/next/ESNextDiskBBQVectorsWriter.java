@@ -255,12 +255,13 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         final PackedLongValues.Builder offsets = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
         final PackedLongValues.Builder lengths = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
         DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(quantEncoding.bits(), BULK_SIZE, postingsOutput, true, true);
+        VectorSimilarityFunction effectiveSimilarity = IVFVectorsWriter.effectiveSimilarity(fieldInfo);
         OnHeapQuantizedVectors onHeapQuantizedVectors = new OnHeapQuantizedVectors(
             floatVectorValues,
-            fieldInfo.getVectorSimilarityFunction(),
+            effectiveSimilarity,
             quantEncoding,
             fieldInfo.getVectorDimension(),
-            new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction())
+            new OptimizedScalarQuantizer(effectiveSimilarity)
         );
         final int[] docIds = new int[maxPostingListSize];
         final int[] docDeltas = new int[maxPostingListSize];
@@ -315,7 +316,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         int[] overspillAssignments
     ) throws IOException {
         // first, quantize all the vectors into a temporary file
-        var vectorSimilarityFunction = fieldInfo.getVectorSimilarityFunction();
+        var vectorSimilarityFunction = IVFVectorsWriter.effectiveSimilarity(fieldInfo);
         KMeansResult centroidClusters = centroidSupplier.secondLevelClusters();
         String quantizedVectorsTempName = null;
         try (
@@ -630,7 +631,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         CentroidGroups centroidGroups
     ) throws IOException {
         DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(7, BULK_SIZE, centroidOutput, true, true);
-        final OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
+        final OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(IVFVectorsWriter.effectiveSimilarity(fieldInfo));
         centroidOutput.writeVInt(centroidGroups.centroids().length);
         centroidOutput.writeVInt(centroidGroups.maxVectorsPerCentroidLength());
         // let's also write the raw parent centroids
@@ -685,7 +686,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     ) throws IOException {
         centroidOutput.writeVInt(0);
         DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(7, BULK_SIZE, centroidOutput, true, true);
-        final OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
+        final OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(IVFVectorsWriter.effectiveSimilarity(fieldInfo));
         QuantizedCentroids quantizedCentroids = new QuantizedCentroids(
             centroidSupplier,
             fieldInfo.getVectorDimension(),
@@ -789,6 +790,11 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         }
         int[] assignments = kMeansResult.assignments();
         int[] soarAssignments = kMeansResult.soarAssignments();
+        VectorSimilarityFunction sim = fieldInfo.getVectorSimilarityFunction();
+        // FIXME: do this for dot product and mip as well?
+        if (sim == VectorSimilarityFunction.COSINE) {
+            scaleCentroidsToAverageMagnitude(centroids, assignments, floatVectorValues);
+        }
         return new CentroidAssignments(fieldInfo.getVectorDimension(), centroids, assignments, soarAssignments);
     }
 

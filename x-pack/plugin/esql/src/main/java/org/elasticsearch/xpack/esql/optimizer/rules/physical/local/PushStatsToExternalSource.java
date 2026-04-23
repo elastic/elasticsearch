@@ -32,8 +32,6 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.OptionalLong;
 
 /**
  * Pushes ungrouped aggregate functions (COUNT, MIN, MAX) to external sources when the
@@ -128,14 +126,13 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
         }
         Expression target = count.field();
         if (target.foldable()) {
-            OptionalLong rc = SourceStatisticsSerializer.extractRowCount(sourceMetadata);
-            return rc.isPresent() ? rc.getAsLong() : null;
+            return SourceStatisticsSerializer.extractRowCount(sourceMetadata);
         }
         if (target instanceof ReferenceAttribute ref) {
-            OptionalLong rc = SourceStatisticsSerializer.extractRowCount(sourceMetadata);
-            OptionalLong nc = SourceStatisticsSerializer.extractColumnNullCount(sourceMetadata, ref.name());
-            if (rc.isPresent() && nc.isPresent()) {
-                return rc.getAsLong() - nc.getAsLong();
+            Long rc = SourceStatisticsSerializer.extractRowCount(sourceMetadata);
+            Long nc = SourceStatisticsSerializer.extractColumnNullCount(sourceMetadata, ref.name());
+            if (rc != null && nc != null) {
+                return rc - nc;
             }
         }
         return null;
@@ -147,8 +144,7 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
         }
         Expression target = min.field();
         if (target instanceof ReferenceAttribute ref) {
-            Optional<Object> minVal = SourceStatisticsSerializer.extractColumnMin(sourceMetadata, ref.name());
-            return minVal.orElse(null);
+            return SourceStatisticsSerializer.extractColumnMin(sourceMetadata, ref.name());
         }
         return null;
     }
@@ -159,8 +155,7 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
         }
         Expression target = max.field();
         if (target instanceof ReferenceAttribute ref) {
-            Optional<Object> maxVal = SourceStatisticsSerializer.extractColumnMax(sourceMetadata, ref.name());
-            return maxVal.orElse(null);
+            return SourceStatisticsSerializer.extractColumnMax(sourceMetadata, ref.name());
         }
         return null;
     }

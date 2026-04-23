@@ -13,12 +13,10 @@ import org.apache.lucene.codecs.hnsw.ScalarQuantizedVectorScorer;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.quantization.LegacyQuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
-import org.elasticsearch.core.DirectAccessInput;
 import org.elasticsearch.simdvec.MemorySegmentAccessInputAccess;
 
 import java.io.IOException;
@@ -37,7 +35,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
     final MemorySegment query;
     final float scoreCorrectionConstant;
     final float queryCorrection;
-    byte[] scratch;
+    final FixedSizeScratch scratch;
 
     /** Return an optional whose value, if present, is the scorer. Otherwise, an empty optional is returned. */
     public static Optional<RandomVectorScorer> create(
@@ -55,20 +53,17 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
         }
         input = FilterIndexInput.unwrapOnlyTest(input);
         input = MemorySegmentAccessInputAccess.unwrap(input);
-        if (input instanceof MemorySegmentAccessInput || input instanceof DirectAccessInput) {
-            IndexInputUtils.checkInputType(input);
-            checkInvariants(values.size(), values.dimension(), input);
+        IndexInputUtils.checkInputType(input);
+        checkInvariants(values.size(), values.dimension(), input);
 
-            ScalarQuantizer scalarQuantizer = values.getScalarQuantizer();
-            byte[] quantizedQuery = new byte[queryVector.length];
-            float queryCorrection = ScalarQuantizedVectorScorer.quantizeQuery(queryVector, quantizedQuery, sim, scalarQuantizer);
-            return switch (sim) {
-                case COSINE, DOT_PRODUCT -> Optional.of(new DotProductScorer(input, values, quantizedQuery, queryCorrection));
-                case EUCLIDEAN -> Optional.of(new EuclideanScorer(input, values, quantizedQuery, queryCorrection));
-                case MAXIMUM_INNER_PRODUCT -> Optional.of(new MaxInnerProductScorer(input, values, quantizedQuery, queryCorrection));
-            };
-        }
-        return Optional.empty();
+        ScalarQuantizer scalarQuantizer = values.getScalarQuantizer();
+        byte[] quantizedQuery = new byte[queryVector.length];
+        float queryCorrection = ScalarQuantizedVectorScorer.quantizeQuery(queryVector, quantizedQuery, sim, scalarQuantizer);
+        return switch (sim) {
+            case COSINE, DOT_PRODUCT -> Optional.of(new DotProductScorer(input, values, quantizedQuery, queryCorrection));
+            case EUCLIDEAN -> Optional.of(new EuclideanScorer(input, values, quantizedQuery, queryCorrection));
+            case MAXIMUM_INNER_PRODUCT -> Optional.of(new MaxInnerProductScorer(input, values, quantizedQuery, queryCorrection));
+        };
     }
 
     Int7SQVectorScorer(IndexInput input, LegacyQuantizedByteVectorValues values, byte[] queryVector, float queryCorrection) {
@@ -80,13 +75,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
         this.query = MemorySegment.ofArray(queryVector);
         this.queryCorrection = queryCorrection;
         this.scoreCorrectionConstant = values.getScalarQuantizer().getConstantMultiplier();
-    }
-
-    byte[] getScratch(int length) {
-        if (scratch == null || scratch.length < length) {
-            scratch = new byte[length];
-        }
-        return scratch;
+        this.scratch = new FixedSizeScratch(vectorByteSize);
     }
 
     static void checkInvariants(int maxOrd, int vectorByteLength, IndexInput input) {
@@ -114,9 +103,13 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
         for (int i = 0; i < numNodes; i++) {
             offsets[i] = (long) nodes[i] * vectorPitch;
         }
-        return IndexInputUtils.withSliceAddresses(input, offsets, vectorByteSize, numNodes, a -> {
-            sparseScorer.score(a, query, vectorByteSize, numNodes, MemorySegment.ofArray(scores));
-        });
+        return IndexInputUtils.withSliceAddresses(
+            input,
+            offsets,
+            vectorByteSize,
+            numNodes,
+            a -> sparseScorer.score(a, query, vectorByteSize, numNodes, MemorySegment.ofArray(scores))
+        );
     }
 
     public static final class DotProductScorer extends Int7SQVectorScorer {
@@ -132,7 +125,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
             int dotProduct = IndexInputUtils.withSlice(
                 input,
                 vectorByteSize,
-                this::getScratch,
+                scratch::getScratch,
                 seg -> dotProductI7u(query, seg, vectorByteSize)
             );
             assert dotProduct >= 0;
@@ -174,7 +167,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
             int sqDist = IndexInputUtils.withSlice(
                 input,
                 vectorByteSize,
-                this::getScratch,
+                scratch::getScratch,
                 seg -> squareDistanceI7u(query, seg, vectorByteSize)
             );
             float adjustedDistance = sqDist * scoreCorrectionConstant;
@@ -211,7 +204,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
             int dotProduct = IndexInputUtils.withSlice(
                 input,
                 vectorByteSize,
-                this::getScratch,
+                scratch::getScratch,
                 seg -> dotProductI7u(query, seg, vectorByteSize)
             );
             assert dotProduct >= 0;

@@ -1,5 +1,6 @@
 ---
 navigation_title: "EMBEDDING"
+---
 
 # ES|QL `EMBEDDING` function [esql-embedding]
 

@@ -251,9 +251,6 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=field_caps/10_basic/Get prefix field caps}
   issue: https://github.com/elastic/elasticsearch/issues/153913
-- class: org.elasticsearch.indices.recovery.IndexRecoveryIT
-  method: testSourceThrottling
-  issue: https://github.com/elastic/elasticsearch/issues/154046
 - class: org.elasticsearch.xpack.esql.evaluator.command.TestCompoundOutputEvaluatorTests
   method: testSimpleCircuitBreaking
   issue: https://github.com/elastic/elasticsearch/issues/154059

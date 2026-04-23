@@ -467,6 +467,21 @@ describe("generateBatchCommand", () => {
       ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest --rerun :x-pack:plugin:security:yamlRestTest --rerun -Dtests.rest.suite.:x-pack:plugin:ml:yamlRestTest=ml/test1 -Dtests.rest.suite.:x-pack:plugin:security:yamlRestTest=security/test1"
     );
   });
+
+  test("YAML REST test case targets the exact parameterized test", () => {
+    const batch: ClassifiedTest[] = [
+      {
+        gradleProject: ":x-pack:plugin:apm-data",
+        kind: "yamlRestTestCase",
+        sourceSet: "yamlRestTest",
+        fqcn: "org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT",
+        yamlTest: "test {yaml=/10_apm/Test template reinstallation}",
+      },
+    ];
+    expect(generateBatchCommand(batch)).toBe(
+      '.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:apm-data:yamlRestTest --tests org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT -Dtests.method="test {yaml=/10_apm/Test template reinstallation}" --rerun'
+    );
+  });
 });
 
 describe("generatePipeline", () => {
@@ -796,29 +811,31 @@ describe("locateUnmutedTest", () => {
     });
   });
 
-  test("extracts yamlRestTestSuite from test {yaml=...} method", () => {
+  test("classifies yaml parameterized method as yamlRestTestCase carrying the full descriptor", () => {
     const entry: MutedEntry = {
       className: "org.elasticsearch.xpack.ml.MlYamlIT",
       method: "test {yaml=/10_apm/Test template reinstallation}",
     };
     expect(locateUnmutedTest(entry, repoFiles)).toEqual({
       gradleProject: ":x-pack:plugin:ml",
-      kind: "yamlRestTestSuite",
+      kind: "yamlRestTestCase",
       sourceSet: "yamlRestTest",
-      suitePath: "10_apm/Test template reinstallation",
+      fqcn: "org.elasticsearch.xpack.ml.MlYamlIT",
+      yamlTest: "test {yaml=/10_apm/Test template reinstallation}",
     });
   });
 
-  test("extracts yamlRestTestSuite when yaml path has no leading slash", () => {
+  test("preserves descriptor verbatim when yaml path has no leading slash", () => {
     const entry: MutedEntry = {
       className: "org.elasticsearch.xpack.ml.MlYamlIT",
       method: "test {yaml=ml/anomaly_detectors_get/basic}",
     };
     expect(locateUnmutedTest(entry, repoFiles)).toEqual({
       gradleProject: ":x-pack:plugin:ml",
-      kind: "yamlRestTestSuite",
+      kind: "yamlRestTestCase",
       sourceSet: "yamlRestTest",
-      suitePath: "ml/anomaly_detectors_get/basic",
+      fqcn: "org.elasticsearch.xpack.ml.MlYamlIT",
+      yamlTest: "test {yaml=ml/anomaly_detectors_get/basic}",
     });
   });
 
@@ -944,6 +961,38 @@ describe("dedupeTests", () => {
       },
     ];
     expect(dedupeTests(tests)).toHaveLength(1);
+  });
+
+  test("distinguishes yaml cases by their yamlTest descriptor", () => {
+    const tests: ClassifiedTest[] = [
+      {
+        gradleProject: ":x-pack:plugin:ml",
+        kind: "yamlRestTestCase",
+        sourceSet: "yamlRestTest",
+        fqcn: "org.elasticsearch.xpack.ml.MlYamlIT",
+        yamlTest: "test {yaml=/10_foo/case A}",
+      },
+      {
+        gradleProject: ":x-pack:plugin:ml",
+        kind: "yamlRestTestCase",
+        sourceSet: "yamlRestTest",
+        fqcn: "org.elasticsearch.xpack.ml.MlYamlIT",
+        yamlTest: "test {yaml=/10_foo/case A}",
+      },
+      {
+        gradleProject: ":x-pack:plugin:ml",
+        kind: "yamlRestTestCase",
+        sourceSet: "yamlRestTest",
+        fqcn: "org.elasticsearch.xpack.ml.MlYamlIT",
+        yamlTest: "test {yaml=/10_foo/case B}",
+      },
+    ];
+    const result = dedupeTests(tests);
+    expect(result).toHaveLength(2);
+    expect(result.map((t) => t.yamlTest)).toEqual([
+      "test {yaml=/10_foo/case A}",
+      "test {yaml=/10_foo/case B}",
+    ]);
   });
 
   test("preserves input order", () => {

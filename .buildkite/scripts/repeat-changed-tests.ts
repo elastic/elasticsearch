@@ -33,7 +33,11 @@ const SOURCE_SET_PATTERNS = [
   },
 ];
 
-type TestKind = (typeof SOURCE_SET_PATTERNS)[number]["kind"];
+// yamlRestTestCase is synthesised from muted-tests.yml unmutes and does not
+// correspond to a file pattern; the rest of the kinds are derived from files
+// matched by SOURCE_SET_PATTERNS.
+type PatternKind = (typeof SOURCE_SET_PATTERNS)[number]["kind"];
+type TestKind = PatternKind | "yamlRestTestCase";
 
 export const BATCH_CAPS: Record<TestKind, number> = {
   test: 360,
@@ -41,6 +45,7 @@ export const BATCH_CAPS: Record<TestKind, number> = {
   javaRestTest: 4,
   yamlRestTestSuite: 4,
   yamlRestTestRunner: 1,
+  yamlRestTestCase: 1,
 };
 
 export interface ClassifiedTest {
@@ -49,6 +54,12 @@ export interface ClassifiedTest {
   sourceSet: string;
   fqcn?: string;
   suitePath?: string;
+  /**
+   * Full JUnit test descriptor for a single parameterized yaml test case,
+   * e.g. "test {yaml=10_apm/Test template reinstallation}". Only set for
+   * {@link TestKind} of "yamlRestTestCase".
+   */
+  yamlTest?: string;
 }
 
 interface PipelineStep {
@@ -136,7 +147,7 @@ export function diffMutedEntries(before: MutedEntry[], after: MutedEntry[]): Mut
   return before.filter((e) => afterKeys.has(mutedEntryKey(e)) === false);
 }
 
-const YAML_METHOD_REGEX = /^test \{yaml=\/?(.+)\}$/;
+const YAML_METHOD_REGEX = /^test \{yaml=.+\}$/;
 
 export function locateUnmutedTest(entry: MutedEntry, repoFiles: string[]): ClassifiedTest | null {
   const pathSuffix = entry.className.replace(/\./g, "/") + ".java";
@@ -150,13 +161,17 @@ export function locateUnmutedTest(entry: MutedEntry, repoFiles: string[]): Class
     const gradleProject = toGradleProject(match[1]);
 
     if (pattern.kind === "yamlRestTestRunner") {
-      const yamlMatch = entry.method?.match(YAML_METHOD_REGEX);
-      if (yamlMatch) {
+      // A parameterized yaml test case is identified by its full descriptor
+      // "test {yaml=<path>/<test name>}". We target it exactly via
+      // `-Dtests.method=...` rather than `tests.rest.suite`, which only
+      // accepts file/directory paths and cannot address an individual case.
+      if (entry.method !== undefined && YAML_METHOD_REGEX.test(entry.method)) {
         return {
           gradleProject,
-          kind: "yamlRestTestSuite",
+          kind: "yamlRestTestCase",
           sourceSet: "yamlRestTest",
-          suitePath: yamlMatch[1],
+          fqcn: entry.className,
+          yamlTest: entry.method,
         };
       }
       return {
@@ -209,7 +224,8 @@ export function dedupeTests(tests: ClassifiedTest[]): ClassifiedTest[] {
   const seen = new Set<string>();
   const result: ClassifiedTest[] = [];
   for (const t of tests) {
-    const key = `${t.gradleProject}|${t.kind}|${t.fqcn ?? t.suitePath ?? ""}`;
+    const identity = t.yamlTest ?? t.fqcn ?? t.suitePath ?? "";
+    const key = `${t.gradleProject}|${t.kind}|${identity}`;
     if (seen.has(key)) continue;
     seen.add(key);
     result.push(t);
@@ -340,6 +356,7 @@ const KIND_LABELS: Record<TestKind, string> = {
   javaRestTest: "java rest tests",
   yamlRestTestRunner: "yaml rest test runner",
   yamlRestTestSuite: "yaml rest tests",
+  yamlRestTestCase: "yaml rest test case",
 };
 
 const KIND_KEYS: Record<TestKind, string> = {
@@ -348,6 +365,7 @@ const KIND_KEYS: Record<TestKind, string> = {
   javaRestTest: "repeat-changed-tests:java-rest",
   yamlRestTestRunner: "repeat-changed-tests:yaml-runner",
   yamlRestTestSuite: "repeat-changed-tests:yaml-suite",
+  yamlRestTestCase: "repeat-changed-tests:yaml-case",
 };
 
 // Gradle task-level options (`--tests`, `--rerun`, ...) bind to the most
@@ -417,11 +435,26 @@ export function generateBatchCommand(batch: ClassifiedTest[]): string {
         .join(" ");
       return `.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh ${tasks} ${suiteProps}`;
     }
+    case "yamlRestTestCase": {
+      // BATCH_CAPS.yamlRestTestCase is 1, so each batch holds exactly one test.
+      // `-Dtests.method` targets a single parameterized yaml case; batching
+      // multiple cases into one gradle invocation would require a different
+      // filter mechanism and is intentionally not attempted here.
+      const test = batch[0];
+      return `.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh ${test.gradleProject}:yamlRestTest --tests ${test.fqcn} -Dtests.method="${test.yamlTest}" --rerun`;
+    }
   }
 }
 
 export function generatePipeline(tests: ClassifiedTest[]): Pipeline {
-  const KIND_ORDER: TestKind[] = ["test", "internalClusterTest", "javaRestTest", "yamlRestTestRunner", "yamlRestTestSuite"];
+  const KIND_ORDER: TestKind[] = [
+    "test",
+    "internalClusterTest",
+    "javaRestTest",
+    "yamlRestTestRunner",
+    "yamlRestTestSuite",
+    "yamlRestTestCase",
+  ];
 
   const byKind = new Map<TestKind, ClassifiedTest[]>();
   for (const test of tests) {

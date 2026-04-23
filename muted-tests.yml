@@ -88,9 +88,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
   method: test {csv-spec:ints.convertStringToBaseIndexGroup7}
   issue: https://github.com/elastic/elasticsearch/issues/141375
-- class: org.elasticsearch.indices.recovery.IndexRecoveryIT
-  method: testSourceThrottling
-  issue: https://github.com/elastic/elasticsearch/issues/141548
 - class: org.elasticsearch.search.aggregations.metrics.TopHitsIT
   method: testMixedSortFieldTypes
   issue: https://github.com/elastic/elasticsearch/issues/142077
@@ -499,6 +496,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:tstep.tstep_with_request_timestamp_bounds_only}
   issue: https://github.com/elastic/elasticsearch/issues/147228
+- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
+  method: testReplaceChildren {class org.elasticsearch.xpack.esql.plan.logical.TopNBy}
+  issue: https://github.com/elastic/elasticsearch/issues/147232
+- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
+  method: testReplaceChildren {class org.elasticsearch.xpack.esql.plan.logical.TopN}
+  issue: https://github.com/elastic/elasticsearch/issues/147233
 
 # Examples:
 #

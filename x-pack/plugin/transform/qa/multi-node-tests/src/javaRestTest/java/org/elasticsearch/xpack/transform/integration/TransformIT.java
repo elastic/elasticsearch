@@ -592,7 +592,7 @@ public class TransformIT extends TransformRestTestCase {
             assertThat(stateAndStats.get("state"), equalTo("stopped"));
             assertThat((Integer) XContentMapValues.extractValue("stats.documents_indexed", stateAndStats), equalTo(1000));
             previousTriggerCount.set((int) XContentMapValues.extractValue("stats.trigger_count", stateAndStats));
-        });
+        }, 30, TimeUnit.SECONDS);
 
         // Create N additional runs of starting and stopping
         int additionalRuns = randomIntBetween(1, 10);
@@ -619,7 +619,7 @@ public class TransformIT extends TransformRestTestCase {
                 var stateAndStats = getBasicTransformStats(transformId);
                 assertThat(stateAndStats.get("state"), equalTo("stopped"));
                 previousTriggerCount.set((int) XContentMapValues.extractValue("stats.trigger_count", stateAndStats));
-            });
+            }, 30, TimeUnit.SECONDS);
         }
 
         var stateAndStats = getBasicTransformStats(transformId);

@@ -797,7 +797,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
                 }
                 final long bytes = directory.fileLength(file);
                 switch (ext) {
-                    case DVD, DVM -> stats.addDocValues(fieldLookup.getDocValuesField(file), bytes);
+                    case DVD, DVM, DVS -> stats.addDocValues(fieldLookup.getDocValuesField(file), bytes);
                     case TIM, TIP, TMD, DOC, POS, PAY -> stats.addInvertedIndex(fieldLookup.getPostingsField(file), bytes);
                     case KDI, KDD, KDM, DIM -> stats.addPoints("_all_points_fields", bytes);
                     case FDT, FDX, FDM ->

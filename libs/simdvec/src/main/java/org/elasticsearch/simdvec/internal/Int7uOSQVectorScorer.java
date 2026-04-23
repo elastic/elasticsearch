@@ -13,7 +13,6 @@ import org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.elasticsearch.simdvec.MemorySegmentAccessInputAccess;
@@ -23,7 +22,7 @@ import java.lang.foreign.MemorySegment;
 import java.util.Optional;
 
 import static org.elasticsearch.simdvec.internal.Similarities.dotProductI7u;
-import static org.elasticsearch.simdvec.internal.Similarities.dotProductI7uBulkWithOffsets;
+import static org.elasticsearch.simdvec.internal.Similarities.dotProductI7uBulkSparse;
 import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 
 /**
@@ -58,16 +57,11 @@ public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.Abs
         }
         input = FilterIndexInput.unwrapOnlyTest(input);
         input = MemorySegmentAccessInputAccess.unwrap(input);
-        if ((input instanceof MemorySegmentAccessInput) == false) {
-            return Optional.empty();
-        }
-        MemorySegmentAccessInput msInput = (MemorySegmentAccessInput) input;
         checkInvariants(values.size(), values.getVectorByteLength(), input);
-
         return switch (sim) {
             case COSINE, DOT_PRODUCT -> Optional.of(
                 new DotProductScorer(
-                    msInput,
+                    input,
                     values,
                     quantizedQuery,
                     lowerInterval,
@@ -78,7 +72,7 @@ public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.Abs
             );
             case EUCLIDEAN -> Optional.of(
                 new EuclideanScorer(
-                    msInput,
+                    input,
                     values,
                     quantizedQuery,
                     lowerInterval,
@@ -89,7 +83,7 @@ public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.Abs
             );
             case MAXIMUM_INNER_PRODUCT -> Optional.of(
                 new MaxInnerProductScorer(
-                    msInput,
+                    input,
                     values,
                     quantizedQuery,
                     lowerInterval,
@@ -102,17 +96,18 @@ public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.Abs
     }
 
     final QuantizedByteVectorValues values;
-    final MemorySegmentAccessInput input;
+    final IndexInput input;
     final int vectorByteSize;
+    final long vectorPitch;
     final MemorySegment query;
     final float lowerInterval;
     final float upperInterval;
     final float additionalCorrection;
     final int quantizedComponentSum;
-    byte[] scratch;
+    final FixedSizeScratch scratch;
 
     Int7uOSQVectorScorer(
-        MemorySegmentAccessInput input,
+        IndexInput input,
         QuantizedByteVectorValues values,
         byte[] quantizedQuery,
         float lowerInterval,
@@ -124,11 +119,13 @@ public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.Abs
         this.values = values;
         this.input = input;
         this.vectorByteSize = values.getVectorByteLength();
+        this.vectorPitch = vectorByteSize + 3L * Float.BYTES + Integer.BYTES;
         this.query = MemorySegment.ofArray(quantizedQuery);
         this.lowerInterval = lowerInterval;
         this.upperInterval = upperInterval;
         this.additionalCorrection = additionalCorrection;
         this.quantizedComponentSum = quantizedComponentSum;
+        this.scratch = new FixedSizeScratch(vectorByteSize);
     }
 
     abstract float applyCorrections(float rawScore, int ord) throws IOException;
@@ -138,8 +135,12 @@ public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.Abs
     @Override
     public float score(int node) throws IOException {
         checkOrdinal(node);
-        int dotProduct = dotProductI7u(query, getSegment(node), vectorByteSize);
-        return applyCorrections(dotProduct, node);
+        long vectorOffset = (long) node * vectorPitch;
+        input.seek(vectorOffset);
+        return IndexInputUtils.withSlice(input, vectorByteSize, scratch::getScratch, secondSeg -> {
+            int dotProduct = dotProductI7u(query, secondSeg, vectorByteSize);
+            return applyCorrections(dotProduct, node);
+        });
     }
 
     @Override
@@ -147,31 +148,32 @@ public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.Abs
         if (numNodes == 0) {
             return Float.NEGATIVE_INFINITY;
         }
-        MemorySegment vectorsSeg = input.segmentSliceOrNull(0, input.length());
-        if (vectorsSeg == null) {
-            return super.bulkScore(nodes, scores, numNodes);
-        } else {
-            var ordinalsSeg = MemorySegment.ofArray(nodes);
+
+        long[] offsets = new long[numNodes];
+        for (int i = 0; i < numNodes; i++) {
+            offsets[i] = (long) nodes[i] * vectorPitch;
+        }
+
+        float[] maxScore = new float[] { Float.NEGATIVE_INFINITY };
+        boolean resolved = IndexInputUtils.withSliceAddresses(input, offsets, vectorByteSize, numNodes, addrs -> {
             var scoresSeg = MemorySegment.ofArray(scores);
-
-            var vectorPitch = vectorByteSize + 3 * Float.BYTES + Integer.BYTES;
-            dotProductI7uBulkWithOffsets(vectorsSeg, query, vectorByteSize, vectorPitch, ordinalsSeg, numNodes, scoresSeg);
-            return applyCorrectionsBulk(scores, nodes, numNodes);
-        }
-    }
-
-    final MemorySegment getSegment(int ord) throws IOException {
-        checkOrdinal(ord);
-        long byteOffset = (long) ord * (vectorByteSize + 3 * Float.BYTES + Integer.BYTES);
-        MemorySegment seg = input.segmentSliceOrNull(byteOffset, vectorByteSize);
-        if (seg == null) {
-            if (scratch == null) {
-                scratch = new byte[vectorByteSize];
+            dotProductI7uBulkSparse(addrs, query, vectorByteSize, numNodes, scoresSeg);
+            maxScore[0] = applyCorrectionsBulk(scores, nodes, numNodes);
+        });
+        if (resolved == false) {
+            // fallback to per-vector scorer
+            for (int i = 0; i < numNodes; i++) {
+                input.seek(offsets[i]);
+                var documentOrdinal = nodes[i];
+                scores[i] = IndexInputUtils.withSlice(input, vectorByteSize, scratch::getScratch, documentSeg -> {
+                    int rawScore = dotProductI7u(query, documentSeg, vectorByteSize);
+                    float adjustedScore = applyCorrections(rawScore, documentOrdinal);
+                    maxScore[0] = Math.max(maxScore[0], adjustedScore);
+                    return adjustedScore;
+                });
             }
-            input.readBytes(byteOffset, scratch, 0, vectorByteSize);
-            seg = MemorySegment.ofArray(scratch);
         }
-        return seg;
+        return maxScore[0];
     }
 
     final void checkOrdinal(int ord) {
@@ -182,7 +184,7 @@ public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.Abs
 
     public static final class DotProductScorer extends Int7uOSQVectorScorer {
         public DotProductScorer(
-            MemorySegmentAccessInput input,
+            IndexInput input,
             QuantizedByteVectorValues values,
             byte[] quantizedQuery,
             float lowerInterval,
@@ -234,7 +236,7 @@ public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.Abs
 
     public static final class EuclideanScorer extends Int7uOSQVectorScorer {
         public EuclideanScorer(
-            MemorySegmentAccessInput input,
+            IndexInput input,
             QuantizedByteVectorValues values,
             byte[] quantizedQuery,
             float lowerInterval,
@@ -284,7 +286,7 @@ public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.Abs
 
     public static final class MaxInnerProductScorer extends Int7uOSQVectorScorer {
         public MaxInnerProductScorer(
-            MemorySegmentAccessInput input,
+            IndexInput input,
             QuantizedByteVectorValues values,
             byte[] quantizedQuery,
             float lowerInterval,

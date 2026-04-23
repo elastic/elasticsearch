@@ -29,6 +29,8 @@ final class ES819TSDBDocValuesProducer extends AbstractTSDBDocValuesProducer {
         final String dataExtension,
         final String metaCodec,
         final String metaExtension,
+        final String skipCodec,
+        final String skipExtension,
         final TSDBDocValuesFormatConfig formatConfig,
         final DocOffsetsCodec.Decoder docOffsetsDecoder
     ) throws IOException {
@@ -38,6 +40,8 @@ final class ES819TSDBDocValuesProducer extends AbstractTSDBDocValuesProducer {
             dataExtension,
             metaCodec,
             metaExtension,
+            skipCodec,
+            skipExtension,
             formatConfig,
             docOffsetsDecoder,
             new TSDBNumericBlockCodec(),

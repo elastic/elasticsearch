@@ -694,9 +694,17 @@ public class ViewResolver {
             LogicalPlan inner = (value instanceof NamedSubquery ns) ? ns.child() : value;
             hasInnerFork = true;
             if (inner instanceof ViewUnionAll innerVua) {
-                // Named branches from inner ViewUnionAll: lift with their own names
+                // Named branches from inner ViewUnionAll: lift with their own names. A bare UR with
+                // an exclusion must be wrapped in a NamedSubquery before lifting — otherwise the
+                // subsequent merge step would concatenate its pattern list with a sibling outer UR,
+                // widening the exclusion's scope beyond the inner view body it came from.
                 for (Map.Entry<String, LogicalPlan> innerEntry : innerVua.namedSubqueries().entrySet()) {
-                    flat.put(makeUniqueKey(flat, innerEntry.getKey()), innerEntry.getValue());
+                    String innerKey = innerEntry.getKey();
+                    LogicalPlan innerValue = innerEntry.getValue();
+                    if (innerValue instanceof UnresolvedRelation innerUr && containsExclusion(innerUr)) {
+                        innerValue = new NamedSubquery(innerUr.source(), innerUr, innerKey);
+                    }
+                    flat.put(makeUniqueKey(flat, innerKey), innerValue);
                 }
             } else {
                 // Plain Fork/UnionAll from user-written subqueries: lift children with suffixed parent name

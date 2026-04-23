@@ -80,7 +80,7 @@ grouping function in the `BY` clause ({applies_to}`stack: ga 9.4`):
 
 When combining a bare time series function with other groupings, only grouping functions
 (such as [`TBUCKET`](/reference/query-languages/esql/functions-operators/grouping-functions/tbucket.md)
-or `WITHOUT`) are allowed in the `BY` clause — bare dimension columns are not.
+or [`WITHOUT`](/reference/query-languages/esql/functions-operators/grouping-functions/without.md)) are allowed in the `BY` clause — bare dimension columns are not.
 For example, `TS k8s | STATS rate(network.total_bytes_in) BY host` is rejected; use
 `BY TBUCKET(1 hour)` or wrap the time series function with an outer aggregation instead.
 

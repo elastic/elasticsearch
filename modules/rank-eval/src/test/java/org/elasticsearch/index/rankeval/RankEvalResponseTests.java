@@ -62,8 +62,12 @@ public class RankEvalResponseTests extends ESTestCase {
         true,
         a -> new RankEvalResponse(
             (Double) a[0],
-            ((List<EvalQueryQuality>) a[1]).stream().collect(Collectors.toMap(EvalQueryQuality::getId, Function.identity())),
-            ((List<Tuple<String, Exception>>) a[2]).stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2))
+            a[1] == null
+                ? Collections.emptyMap()
+                : ((List<EvalQueryQuality>) a[1]).stream().collect(Collectors.toMap(EvalQueryQuality::getId, Function.identity())),
+            a[2] == null
+                ? Collections.emptyMap()
+                : ((List<Tuple<String, Exception>>) a[2]).stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2))
         )
     );
     static {

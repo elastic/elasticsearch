@@ -580,7 +580,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
                         ActionListener.respondAndRelease(
                             listener,
                             (Response) new SearchResponse(
-                                SearchHits.unpooled(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0f),
+                                new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0f),
                                 null,
                                 new Suggest(Collections.emptyList()),
                                 false,

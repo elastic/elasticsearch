@@ -72,13 +72,13 @@ import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -975,7 +975,8 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
             // First use: components are built fresh
             try (TokenStream ts = wrapper.tokenStream("field", "hello world")) {
                 ts.reset();
-                while (ts.incrementToken()) {}
+                while (ts.incrementToken()) {
+                }
                 ts.end();
             }
             assertEquals("token stream components should be created on first use", 1, createCallCount.get());
@@ -983,7 +984,8 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
             // Second use without reload: must reuse the cached token stream
             try (TokenStream ts = wrapper.tokenStream("field", "hello world")) {
                 ts.reset();
-                while (ts.incrementToken()) {}
+                while (ts.incrementToken()) {
+                }
                 ts.end();
             }
             assertEquals("token stream components should be reused when the delegate has not been reloaded", 1, createCallCount.get());
@@ -1000,7 +1002,8 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
             // After reload: wrapper must detect the new components and recreate token streams
             try (TokenStream ts = wrapper.tokenStream("field", "hello world")) {
                 ts.reset();
-                while (ts.incrementToken()) {}
+                while (ts.incrementToken()) {
+                }
                 ts.end();
             }
             assertEquals("token stream components must be recreated after reload", 2, createCallCount.get());

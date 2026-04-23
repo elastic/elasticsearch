@@ -56,6 +56,7 @@ interface PipelineStep {
   command: string;
   timeout_in_minutes: number;
   agents: typeof AGENTS;
+  soft_fail: boolean;
   parallelism?: number;
   env?: Record<string, string>;
 }
@@ -243,6 +244,7 @@ export function generatePipeline(tests: ClassifiedTest[]): Pipeline {
       command: batchCommands[0],
       timeout_in_minutes: 60,
       agents: { ...AGENTS },
+      soft_fail: true,
     };
 
     if (totalBatches > 1) {

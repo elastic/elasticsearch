@@ -14,7 +14,6 @@ import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
@@ -90,18 +89,18 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
         IndexInput input,
         ByteVectorValues values
     ) {
+        if (SUPPORTS_HEAP_SEGMENTS == false) {
+            return Optional.empty();
+        }
         input = FilterIndexInput.unwrapOnlyTest(input);
         input = MemorySegmentAccessInputAccess.unwrap(input);
-        if (input instanceof MemorySegmentAccessInput msInput) {
-            checkInvariants(values.size(), values.dimension(), input);
-            return switch (similarityType) {
-                case COSINE -> Optional.of(new ByteVectorScorerSupplier.CosineSupplier(msInput, values));
-                case DOT_PRODUCT -> Optional.of(new ByteVectorScorerSupplier.DotProductSupplier(msInput, values));
-                case EUCLIDEAN -> Optional.of(new ByteVectorScorerSupplier.EuclideanSupplier(msInput, values));
-                case MAXIMUM_INNER_PRODUCT -> Optional.of(new ByteVectorScorerSupplier.MaxInnerProductSupplier(msInput, values));
-            };
-        }
-        return Optional.empty();
+        checkInvariants(values.size(), values.dimension(), input);
+        return switch (similarityType) {
+            case COSINE -> Optional.of(new ByteVectorScorerSupplier.CosineSupplier(input, values));
+            case DOT_PRODUCT -> Optional.of(new ByteVectorScorerSupplier.DotProductSupplier(input, values));
+            case EUCLIDEAN -> Optional.of(new ByteVectorScorerSupplier.EuclideanSupplier(input, values));
+            case MAXIMUM_INNER_PRODUCT -> Optional.of(new ByteVectorScorerSupplier.MaxInnerProductSupplier(input, values));
+        };
     }
 
     @Override

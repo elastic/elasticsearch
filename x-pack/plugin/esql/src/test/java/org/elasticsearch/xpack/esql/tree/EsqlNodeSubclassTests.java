@@ -514,6 +514,15 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
              */
             @SuppressWarnings("unchecked") // safe because this is the lowest possible bounds for Node
             Class<? extends Node<?>> asNodeSubclass = (Class<? extends Node<?>>) argType;
+            if (Modifier.isAbstract(asNodeSubclass.getModifiers())) {
+                while (true) {
+                    var candidate = randomFrom(subclassesOf(asNodeSubclass, CLASSNAME_FILTER));
+                    if (UNRESOLVED_CLASSES.stream().allMatch(unresolved -> unresolved.isAssignableFrom(candidate) == false)) {
+                        asNodeSubclass = candidate;
+                        break;
+                    }
+                }
+            }
             return makeNode(asNodeSubclass);
         }
 

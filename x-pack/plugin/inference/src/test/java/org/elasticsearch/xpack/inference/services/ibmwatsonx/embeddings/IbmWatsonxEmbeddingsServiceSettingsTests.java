@@ -89,9 +89,9 @@ public class IbmWatsonxEmbeddingsServiceSettingsTests extends AbstractWireSerial
                 TEST_PROJECT_ID,
                 TEST_URI.toString(),
                 TEST_API_VERSION,
+                TEST_MAX_INPUT_TOKENS,
                 TEST_DIMENSIONS,
                 TEST_SIMILARITY.toString(),
-                TEST_MAX_INPUT_TOKENS,
                 TEST_RATE_LIMIT
             )
         );
@@ -136,9 +136,9 @@ public class IbmWatsonxEmbeddingsServiceSettingsTests extends AbstractWireSerial
                 TEST_PROJECT_ID,
                 TEST_URI.toString(),
                 TEST_API_VERSION,
+                TEST_MAX_INPUT_TOKENS,
                 TEST_DIMENSIONS,
                 TEST_SIMILARITY.toString(),
-                TEST_MAX_INPUT_TOKENS,
                 TEST_RATE_LIMIT
             ),
             randomFrom(ConfigurationParseContext.values())
@@ -340,9 +340,9 @@ public class IbmWatsonxEmbeddingsServiceSettingsTests extends AbstractWireSerial
         @Nullable String projectId,
         @Nullable String url,
         @Nullable String apiVersion,
+        @Nullable Integer maxInputTokens,
         @Nullable Integer dimensions,
         @Nullable String similarity,
-        @Nullable Integer maxInputTokens,
         @Nullable Integer rateLimit
     ) {
         var map = new HashMap<String, Object>();

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -26,6 +25,7 @@ import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhitespaceInJsonString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.hamcrest.Matchers.is;
 
@@ -207,7 +207,7 @@ public class IbmWatsonxRerankServiceSettingsTests extends AbstractWireSerializin
         entity.toXContent(builder, null);
         var xContentResult = Strings.toString(builder);
 
-        var expected = XContentHelper.stripWhitespace(Strings.format("""
+        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString(Strings.format("""
             {
                 "url": "%s",
                 "api_version": "%s",
@@ -217,8 +217,7 @@ public class IbmWatsonxRerankServiceSettingsTests extends AbstractWireSerializin
                     "requests_per_minute": %d
                 }
             }
-            """, TEST_URI.toString(), TEST_API_VERSION, TEST_MODEL_ID, TEST_PROJECT_ID, TEST_RATE_LIMIT));
-        assertThat(xContentResult, is(expected));
+            """, TEST_URI.toString(), TEST_API_VERSION, TEST_MODEL_ID, TEST_PROJECT_ID, TEST_RATE_LIMIT)));
     }
 
     @Override

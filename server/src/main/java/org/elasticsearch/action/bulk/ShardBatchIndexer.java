@@ -133,7 +133,7 @@ public final class ShardBatchIndexer {
         }
 
         // TODO: Required because VersionLock is re-entrant. We likely can switch that to be semaphore based and remove this protection
-        final Set<String> seenIds = new HashSet<>(Math.min(items.length, BATCH_CHUNK_SIZE));
+        final Set<String> seenIds = HashSet.newHashSet(Math.min(items.length, BATCH_CHUNK_SIZE));
 
         for (int chunkStart = 0; chunkStart < items.length; chunkStart += BATCH_CHUNK_SIZE) {
             final int chunkEnd = Math.min(chunkStart + BATCH_CHUNK_SIZE, items.length);
@@ -168,7 +168,7 @@ public final class ShardBatchIndexer {
      * Performs a batch index on a replica using EIRF data.
      */
     static ReplicaBatchResult performBatchIndexOnReplica(BulkItemRequest[] items, EirfBatch batch, IndexShard replica) throws Exception {
-        final Set<BytesRef> seenUids = new HashSet<>(Math.min(items.length, BATCH_CHUNK_SIZE));
+        final Set<BytesRef> seenUids = HashSet.newHashSet(Math.min(items.length, BATCH_CHUNK_SIZE));
         final EirfRowXContentParser.SchemaNode schemaTree = EirfRowXContentParser.buildSchemaTree(batch.schema());
         Translog.Location location = null;
         int processedItems = 0;

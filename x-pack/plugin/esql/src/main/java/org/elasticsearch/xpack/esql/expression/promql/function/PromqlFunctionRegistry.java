@@ -223,6 +223,14 @@ public class PromqlFunctionRegistry {
         return promqlFunctions.get(normalized);
     }
 
+    /**
+     * Returns {@code true} if the function with the given name exists in the registry but
+     * has not yet been implemented.
+     */
+    public boolean isNotImplemented(String name) {
+        return NOT_IMPLEMENTED.contains(normalize(name));
+    }
+
     public void checkFunction(Source source, String name) {
         String normalized = normalize(name);
 

@@ -88,9 +88,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
   method: test {csv-spec:ints.convertStringToBaseIndexGroup7}
   issue: https://github.com/elastic/elasticsearch/issues/141375
-- class: org.elasticsearch.indices.recovery.IndexRecoveryIT
-  method: testSourceThrottling
-  issue: https://github.com/elastic/elasticsearch/issues/141548
 - class: org.elasticsearch.search.aggregations.metrics.TopHitsIT
   method: testMixedSortFieldTypes
   issue: https://github.com/elastic/elasticsearch/issues/142077
@@ -262,9 +259,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeUnmappedLoadIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/145900
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=reindex/10_basic/Response format for updated}
-  issue: https://github.com/elastic/elasticsearch/issues/146607
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testReindexFailsWhenPitRelocationFails
   issue: https://github.com/elastic/elasticsearch/issues/146650
@@ -478,6 +472,36 @@ tests:
 - class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
   method: testInfoParameters {class org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlFunction}
   issue: https://github.com/elastic/elasticsearch/issues/147223
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:tstep.docs_tstep_by_one_hour_duration_as_string}
+  issue: https://github.com/elastic/elasticsearch/issues/147228
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:tstep.tstep_by_ten_minutes_duration}
+  issue: https://github.com/elastic/elasticsearch/issues/147228
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:k8s-timeseries-sum-over-time.sum_over_time_with_tstep_window}
+  issue: https://github.com/elastic/elasticsearch/issues/147228
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:tstep.tstep_with_timezone_and_duration}
+  issue: https://github.com/elastic/elasticsearch/issues/147228
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:tstep.docs_tstep_by_one_hour_duration}
+  issue: https://github.com/elastic/elasticsearch/issues/147228
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:tstep.tstep_by_ten_minutes_duration_as_string}
+  issue: https://github.com/elastic/elasticsearch/issues/147228
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:tstep.tstep_with_request_timestamp_bounds_only}
+  issue: https://github.com/elastic/elasticsearch/issues/147228
+- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
+  method: testReplaceChildren {class org.elasticsearch.xpack.esql.plan.logical.TopNBy}
+  issue: https://github.com/elastic/elasticsearch/issues/147232
+- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
+  method: testReplaceChildren {class org.elasticsearch.xpack.esql.plan.logical.TopN}
+  issue: https://github.com/elastic/elasticsearch/issues/147233
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search.vectors/41_knn_search_byte_quantized_bfloat16/KNN Vector similarity search only}
+  issue: https://github.com/elastic/elasticsearch/issues/147251
 
 # Examples:
 #

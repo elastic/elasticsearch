@@ -780,7 +780,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         private SearchAsYouTypeAnalyzer(Analyzer delegate, int shingleSize, boolean indexPrefixes) {
 
-            super(delegate instanceof ReloadableCustomAnalyzer ? PER_FIELD_REUSE_STRATEGY : delegate.getReuseStrategy());
+            super(delegate instanceof ReloadableCustomAnalyzer rca ? rca.createWrapperReuseStrategy() : delegate.getReuseStrategy());
             this.delegate = Objects.requireNonNull(delegate);
             this.shingleSize = shingleSize;
             this.indexPrefixes = indexPrefixes;

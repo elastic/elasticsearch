@@ -156,6 +156,33 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
         storedComponents.close();
     }
 
+    /**
+     * Creates a {@link ReuseStrategy} for use by analyzer wrappers that delegate to this
+     * {@link ReloadableCustomAnalyzer}. Unlike {@link #UPDATE_STRATEGY}, this strategy
+     * does not cast the wrapping analyzer to {@link ReloadableCustomAnalyzer}, making it
+     * safe for use from any wrapper. Each call produces an independent strategy instance
+     * so that multiple wrappers sharing this delegate detect reloads independently.
+     */
+    public ReuseStrategy createWrapperReuseStrategy() {
+        return new ReuseStrategy() {
+            @Override
+            @SuppressWarnings("unchecked")
+            public TokenStreamComponents getReusableComponents(Analyzer analyzer, String fieldName) {
+                AnalyzerComponents current = ReloadableCustomAnalyzer.this.getComponents();
+                Object[] stored = (Object[]) getStoredValue(analyzer);
+                if (stored == null || stored[0] != current) {
+                    return null;
+                }
+                return (TokenStreamComponents) stored[1];
+            }
+
+            @Override
+            public void setReusableComponents(Analyzer analyzer, String fieldName, TokenStreamComponents tokenStream) {
+                setStoredValue(analyzer, new Object[] { ReloadableCustomAnalyzer.this.getComponents(), tokenStream });
+            }
+        };
+    }
+
     private void setStoredComponents(AnalyzerComponents components) {
         storedComponents.set(components);
     }

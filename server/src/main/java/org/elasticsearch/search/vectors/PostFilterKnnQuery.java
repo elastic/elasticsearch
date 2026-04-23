@@ -79,7 +79,7 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             }
         }
         // we fallback to the original query either when the filter does not meet the necessary selectivity
-        // or wehn after MAX_ROUNDS we still haven't been able to find any relevant results
+        // or when after MAX_ROUNDS we still haven't been able to find any relevant results
         Query rewritten = ((Query) innerQuery).rewrite(searcher);
         // this will override any previous work. maybe we could increment instead?
         this.totalVectorOps = innerQuery.totalVectorOps();
@@ -125,11 +125,9 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
         // if after all rounds we still haven't been able to produce k results, we fallback to the original query
         if (scoreDocs.length < k) {
             logger.debug(
-                "falling back to original knn query as post filtering retrieved only ["
-                    + scoreDocs.length
-                    + "] results, less than the desired ["
-                    + k
-                    + "] results."
+                "falling back to original knn query as post filtering retrieved only [{}] results, less than the desired [{}] results.",
+                scoreDocs.length,
+                k
             );
             return null;
         }

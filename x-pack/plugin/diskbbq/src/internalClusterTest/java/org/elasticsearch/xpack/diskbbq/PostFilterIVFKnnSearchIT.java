@@ -68,6 +68,30 @@ public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
         assertPostFilterFlat(indexName);
     }
 
+    /**
+     * Deterministic tag layout: first 400 docs are "pass", last 100 are "fail".
+     * Query is nearest to "fail" docs. Post-filtering cannot find k results (IVF collector
+     * is too small and centroid-skip retry finds nothing), verifying fallback to the original query.
+     */
+    public void testIVFFloatFallback() throws IOException {
+        String indexName = "ivf_float_fallback_test";
+        createIVFIndex(indexName);
+        indexFlatDocsDeterministic(indexName);
+        assertPostFilterFallback(indexName);
+    }
+
+    /**
+     * Index sorted by price ascending, vectors correlate with price.
+     * Query nearest to expensive docs, range filter requires price &lt; 400.
+     * Simulates a production scenario where index sorting causes kNN proximity to align with filter boundaries.
+     */
+    public void testIVFFloatSortedIndex() throws IOException {
+        String indexName = "ivf_float_sorted_test";
+        createSortedIVFIndex(indexName);
+        indexSortedDocs(indexName);
+        assertPostFilterSorted(indexName);
+    }
+
     public void testIVFFloatNested() throws IOException {
         String indexName = "ivf_float_nested_test";
         createIVFNestedIndex(indexName);
@@ -137,8 +161,8 @@ public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
     }
 
     /**
-     * Indexes 500 flat docs: 400 "common" (ids 0-399), 100 "rare" (ids 400-499).
-     * selectivity(common) = 400/500 = 0.8 > 0.7 → post-filter.
+     * Indexes 500 flat docs with random 80/20 "common"/"rare" tag split.
+     * Expected selectivity(common) ~ 0.8 > 0.7 → post-filter.
      */
     private void indexFlatDocs(String indexName) {
         for (int i = 0; i < 500; i++) {
@@ -202,6 +226,92 @@ public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
                 assertTrue("Expected parent doc ID", hit.getId().startsWith("parent_"));
                 int parentId = Integer.parseInt(hit.getId().substring("parent_".length()));
                 assertTrue("Expected common parent (id < 200), got " + parentId, parentId < 200);
+            }
+        });
+    }
+
+    /**
+     * Indexes 500 flat docs with deterministic tags: 0-399 = "pass", 400-499 = "fail".
+     * selectivity(pass) = 0.8 > 0.7 → post-filter. The query neighborhood (high-seed docs) is all "fail".
+     */
+    private void indexFlatDocsDeterministic(String indexName) {
+        for (int i = 0; i < 500; i++) {
+            String tag = i < 400 ? "pass" : "fail";
+            prepareIndex(indexName).setId(Integer.toString(i)).setSource(VECTOR_FIELD, makeVector(i), TAG_FIELD, tag).get();
+        }
+        forceMerge(true);
+        refresh(indexName);
+    }
+
+    private void assertPostFilterFallback(String indexName) {
+        int k = 5;
+        var knnSearch = new KnnSearchBuilder(VECTOR_FIELD, makeVector(500), k, 500, 100f, null, null).addFilterQuery(
+            QueryBuilders.termQuery(TAG_FIELD, "pass")
+        );
+
+        assertResponse(client().prepareSearch(indexName).setKnnSearch(List.of(knnSearch)).setSize(k), response -> {
+            assertEquals("Expected exactly k results from fallback", k, response.getHits().getHits().length);
+            for (SearchHit hit : response.getHits().getHits()) {
+                assertEquals("pass", hit.getSourceAsMap().get(TAG_FIELD));
+            }
+        });
+    }
+
+    private void createSortedIVFIndex(String indexName) throws IOException {
+        Settings sortedSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put("index.sort.field", "price")
+            .put("index.sort.order", "asc")
+            .build();
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject(VECTOR_FIELD)
+            .field("type", "dense_vector")
+            .field("dims", DIMS)
+            .field("index", true)
+            .field("similarity", "l2_norm")
+            .startObject("index_options")
+            .field("type", "bbq_disk")
+            .endObject()
+            .endObject()
+            .startObject("price")
+            .field("type", "integer")
+            .endObject()
+            .endObject()
+            .endObject();
+        prepareCreate(indexName).setSettings(sortedSettings).setMapping(mapping).get();
+        ensureGreen(indexName);
+    }
+
+    /**
+     * Indexes 500 docs with price=i and vector=makeVector(i). On a sorted index, segment doc IDs
+     * follow price order, causing kNN proximity to align with the price-based filter boundary.
+     */
+    private void indexSortedDocs(String indexName) {
+        for (int i = 0; i < 500; i++) {
+            prepareIndex(indexName).setId(Integer.toString(i)).setSource(VECTOR_FIELD, makeVector(i), "price", i).get();
+        }
+        forceMerge(true);
+        refresh(indexName);
+    }
+
+    /**
+     * Query vector nearest to expensive docs (price >= 400), range filter requires price &lt; 400.
+     * selectivity = 400/500 = 0.8 → post-filter. Nearest results are all outside the filter range.
+     */
+    private void assertPostFilterSorted(String indexName) {
+        int k = 5;
+        var knnSearch = new KnnSearchBuilder(VECTOR_FIELD, makeVector(500), k, 500, 100f, null, null).addFilterQuery(
+            QueryBuilders.rangeQuery("price").lt(400)
+        );
+
+        assertResponse(client().prepareSearch(indexName).setKnnSearch(List.of(knnSearch)).setSize(k), response -> {
+            assertEquals("Expected exactly k results", k, response.getHits().getHits().length);
+            for (SearchHit hit : response.getHits().getHits()) {
+                int price = (int) hit.getSourceAsMap().get("price");
+                assertTrue("Expected price < 400, got " + price, price < 400);
             }
         });
     }

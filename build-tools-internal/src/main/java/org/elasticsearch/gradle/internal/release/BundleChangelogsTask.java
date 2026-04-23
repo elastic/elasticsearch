@@ -15,6 +15,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
 
 import org.gradle.api.DefaultTask;
+import org.gradle.api.GradleException;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.Directory;
 import org.gradle.api.file.DirectoryProperty;
@@ -265,14 +266,19 @@ public class BundleChangelogsTask extends DefaultTask {
      * When {@code bcRefForFilter} is non-null (Elasticsearch {@code --bc-ref} is in use),
      * entries are filtered like local post-BC YAML files: an entry is kept only if
      * {@code git log} on {@code bcRefForFilter} in this repository finds the PR, or
-     * {@code git log} on the fetched external commit finds it (so ml-cpp-only PRs can
-     * still match when they never appear in the ES commit subject lines).
+     * {@code git log} on the fetched external branch finds it in commits not newer than
+     * the BC ref's committer date (so ml-cpp-only PRs can match without admitting merges
+     * that landed on the external branch after the BC cut).
      */
     private List<ChangelogEntry> fetchExternalChangelogs(
         ExternalChangelogSource source,
         String branchRef,
         @Nullable String bcRefForFilter
     ) {
+        if (isShaRef(branchRef)) {
+            LOGGER.info("Skipping external changelog fetch for SHA-valued --branch: {}", branchRef);
+            return List.of();
+        }
         String normalizedBranch = normalizeBranchForExternalFetch(branchRef);
 
         try {
@@ -282,8 +288,10 @@ public class BundleChangelogsTask extends DefaultTask {
                 gitWrapper.runCommand("git", "fetch", "--depth=1", source.repoUrl(), normalizedBranch);
             }
         } catch (Exception e) {
-            LOGGER.warn("Failed to fetch branch {} from {}: {}", normalizedBranch, source.sourceRepo(), e.getMessage());
-            return List.of();
+            throw new GradleException(
+                "Failed to fetch branch " + normalizedBranch + " from " + source.sourceRepo() + " for external changelogs",
+                e
+            );
         }
 
         String externalHead = gitWrapper.runCommand("git", "rev-parse", "FETCH_HEAD").trim();
@@ -318,9 +326,10 @@ public class BundleChangelogsTask extends DefaultTask {
         }
 
         if (bcRefForFilter != null && bcRefForFilter.isBlank() == false) {
+            String bcCommitterIso = committerIsoAtRef(bcRefForFilter);
             int before = entries.size();
             entries = entries.stream()
-                .filter(e -> includeExternalChangelogForBuildCandidate(e, bcRefForFilter, externalHead))
+                .filter(e -> includeExternalChangelogForBuildCandidate(e, bcRefForFilter, externalHead, bcCommitterIso))
                 .collect(Collectors.toCollection(ArrayList::new));
             if (before != entries.size()) {
                 LOGGER.info(
@@ -339,9 +348,16 @@ public class BundleChangelogsTask extends DefaultTask {
     /**
      * Mirrors {@code git log bcRef --grep "(#pr)"} used for local changelog YAML files that
      * were added after the BC: keep the entry if the PR shows up in ES history at the BC ref,
-     * or in the fetched external repository history (tip {@code externalCommit}).
+     * or in the fetched external repository history up to the BC ref's committer date (so
+     * {@code git log externalTip --grep} alone cannot admit PRs merged after the BC on the
+     * external branch).
      */
-    private boolean includeExternalChangelogForBuildCandidate(ChangelogEntry entry, String bcRef, String externalCommit) {
+    private boolean includeExternalChangelogForBuildCandidate(
+        ChangelogEntry entry,
+        String bcRef,
+        String externalTip,
+        String bcCommitterIso
+    ) {
         Integer pr = entry.getPr();
         if (pr == null) {
             return true;
@@ -350,11 +366,25 @@ public class BundleChangelogsTask extends DefaultTask {
         if (gitLogHasGrep(bcRef, grep)) {
             return true;
         }
-        return gitLogHasGrep(externalCommit, grep);
+        return gitLogHasGrepUntil(externalTip, grep, bcCommitterIso);
     }
 
     private boolean gitLogHasGrep(String ref, String grep) {
         return gitWrapper.runCommand("git", "log", ref, "--grep", grep).trim().isEmpty() == false;
+    }
+
+    /**
+     * True if {@code ref}'s history contains a commit matching {@code grep} with committer
+     * date not newer than {@code untilIsoInclusive} ({@code git show -s --format=%cI} form).
+     */
+    private boolean gitLogHasGrepUntil(String ref, String grep, String untilIsoInclusive) {
+        return gitWrapper.runCommand("git", "log", ref, "--grep", grep, "--until", untilIsoInclusive, "-n", "1")
+            .trim()
+            .isEmpty() == false;
+    }
+
+    private String committerIsoAtRef(String ref) {
+        return gitWrapper.runCommand("git", "show", "-s", "--format=%cI", ref).trim();
     }
 
     private static final Set<String> KNOWN_REMOTE_PREFIXES = Set.of("upstream/", "origin/");

@@ -1619,7 +1619,7 @@ public class EsqlCapabilities {
         /**
          * Support for tstep function
          */
-        TSTEP,
+        TSTEP(Build.current().isSnapshot()),
 
         /**
          * Allow qualifiers in attribute names.
@@ -2004,6 +2004,11 @@ public class EsqlCapabilities {
          * Support for PromQL time() function.
          */
         PROMQL_TIME,
+
+        /**
+         * Support for the {@code DATE_UNIT_COUNT} function.
+         */
+        ESQL_DATE_UNIT_COUNT_FN,
 
         /**
          * Support for deriving PromQL time buckets from [start, end, buckets] when [step] is omitted.

@@ -496,6 +496,18 @@ tests:
 - class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
   method: testReplaceChildren {class org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlFunction}
   issue: https://github.com/elastic/elasticsearch/issues/147258
+- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
+  method: testTransform {class org.elasticsearch.xpack.esql.plan.physical.SubqueryExec}
+  issue: https://github.com/elastic/elasticsearch/issues/147270
+- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
+  method: testTransform {class org.elasticsearch.xpack.esql.plan.physical.OutputExec}
+  issue: https://github.com/elastic/elasticsearch/issues/147271
+- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
+  method: testTransform {class org.elasticsearch.xpack.esql.plan.physical.HashJoinExec}
+  issue: https://github.com/elastic/elasticsearch/issues/147272
+- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
+  method: testTransform {class org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec}
+  issue: https://github.com/elastic/elasticsearch/issues/147273
 
 # Examples:
 #

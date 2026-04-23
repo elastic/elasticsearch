@@ -1338,7 +1338,7 @@ public class SamlRealmTests extends SamlTestCase {
                 }
             }
         } finally {
-            testThreadPool.shutdown();
+            terminate(testThreadPool);
         }
     }
 

@@ -108,6 +108,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
     private static final String HTML_ENCODER = "html";
     private static final String ORDER = "order";
     private static final String DOC_ORDER = "none";
+    private static final String SCORE_ORDER = "score";
 
     static final String DEFAULT_PRE_TAG = "<em>";
     static final String DEFAULT_POST_TAG = "</em>";
@@ -301,8 +302,12 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
 
     private static void validateOrder(Map<String, Object> options) {
         Object value = options.get(ORDER);
-        if (value != null && "score".equals(value) == false && "none".equals(value) == false) {
-            throw new InvalidArgumentException("'{}' option must be 'score' or 'none', found [{}]", ORDER, value);
+        if (value != null && SCORE_ORDER.equals(value) == false && DOC_ORDER.equals(value) == false) {
+            throw new InvalidArgumentException("'{}' option must be '{}' or '{}', found [{}]"
+                , ORDER
+                , SCORE_ORDER
+                , DOC_ORDER
+                , value);
         }
     }
 
@@ -322,8 +327,12 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
 
     private static void validateEncoder(Map<String, Object> options) {
         Object value = options.get(ENCODER);
-        if (value != null && "default".equals(value) == false && "html".equals(value) == false) {
-            throw new InvalidArgumentException("'{}' option must be 'default' or 'html', found [{}]", ENCODER, value);
+        if (value != null && DEFAULT_ENCODER.equals(value) == false && HTML_ENCODER.equals(value) == false) {
+            throw new InvalidArgumentException("'{}' option must be '{}' or '{}', found [{}]"
+                , ENCODER
+                , DEFAULT_ENCODER
+                , HTML_ENCODER
+                , value);
         }
     }
 

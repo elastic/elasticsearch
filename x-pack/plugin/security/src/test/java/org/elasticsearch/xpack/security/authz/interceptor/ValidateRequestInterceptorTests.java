@@ -12,7 +12,6 @@ import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryReques
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -25,23 +24,18 @@ import org.junit.Before;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class ValidateRequestInterceptorTests extends ESTestCase {
 
     private ThreadPool threadPool;
-    private MockLicenseState licenseState;
     private ValidateRequestInterceptor interceptor;
 
     @Before
     public void init() {
         threadPool = new TestThreadPool("validate request interceptor tests");
-        licenseState = mock(MockLicenseState.class);
-        when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(true);
-        interceptor = new ValidateRequestInterceptor(threadPool, licenseState);
+        interceptor = new ValidateRequestInterceptor(threadPool);
     }
 
     @After

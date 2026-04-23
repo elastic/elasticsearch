@@ -11,7 +11,7 @@ package org.elasticsearch.action.get;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.SplitAwareRequest;
+import org.elasticsearch.action.RetryableSplitAwareRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -38,7 +38,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see org.elasticsearch.action.get.GetResponse
  * @see org.elasticsearch.client.internal.Client#get(GetRequest)
  */
-public class GetRequest extends SingleShardRequest<GetRequest> implements SplitAwareRequest {
+public class GetRequest extends SingleShardRequest<GetRequest> implements RetryableSplitAwareRequest {
 
     private String id;
     private String routing;

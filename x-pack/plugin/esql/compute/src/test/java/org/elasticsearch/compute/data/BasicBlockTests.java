@@ -9,6 +9,7 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
@@ -805,6 +806,38 @@ public class BasicBlockTests extends ESTestCase {
             false,
             wkb -> WellKnownText.fromWKB(wkb.bytes, wkb.offset, wkb.length)
         );
+    }
+
+    public void testAppendPagedBytesCursorVector() {
+        byte[] data = randomByteArrayOfLength(between(1, 100));
+        PagedBytesCursor cursor = new PagedBytesCursor();
+        cursor.init(data, 0, data.length);
+        try (
+            BytesRefVector.Builder cursorBuilder = blockFactory.newBytesRefVectorBuilder(1);
+            BytesRefVector.Builder bytesRefBuilder = blockFactory.newBytesRefVectorBuilder(1)
+        ) {
+            cursorBuilder.append(cursor);
+            bytesRefBuilder.appendBytesRef(new BytesRef(data));
+            try (BytesRefVector v1 = cursorBuilder.build(); BytesRefVector v2 = bytesRefBuilder.build()) {
+                assertThat(BytesRefVector.equals(v1, v2), is(true));
+            }
+        }
+    }
+
+    public void testAppendPagedBytesCursorBlock() {
+        byte[] data = randomByteArrayOfLength(between(1, 100));
+        PagedBytesCursor cursor = new PagedBytesCursor();
+        cursor.init(data, 0, data.length);
+        try (
+            BytesRefBlock.Builder cursorBuilder = blockFactory.newBytesRefBlockBuilder(1);
+            BytesRefBlock.Builder bytesRefBuilder = blockFactory.newBytesRefBlockBuilder(1)
+        ) {
+            cursorBuilder.append(cursor);
+            bytesRefBuilder.appendBytesRef(new BytesRef(data));
+            try (BytesRefBlock b1 = cursorBuilder.build(); BytesRefBlock b2 = bytesRefBuilder.build()) {
+                assertThat(BytesRefBlock.equals(b1, b2), is(true));
+            }
+        }
     }
 
     public void testBytesRefBlockBuilderWithNulls() {

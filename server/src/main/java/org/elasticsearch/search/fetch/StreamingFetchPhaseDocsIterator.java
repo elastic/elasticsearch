@@ -26,6 +26,8 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.chunk.FetchPhaseResponseChunk;
 import org.elasticsearch.tasks.TaskCancelledException;
 
+import java.io.IOException;
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
@@ -169,9 +171,16 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
     /**
      * Produces chunks and enqueues send tasks to ThrottledTaskRunner.
      * <p>
+     * Documents are sorted by doc ID for efficient sequential Lucene access, matching the
+     * non-streaming {@link FetchPhaseDocsIterator#iterate} path. Each leaf reader is visited
+     * exactly once with the full set of leaf-relative doc IDs passed to
+     * {@link #setNextReader(org.apache.lucene.index.LeafReaderContext, int[])}. Each serialized
+     * hit is prefixed with its original score-order position (as a vInt) so the coordinator can
+     * reassemble results in the correct order.
+     * <p>
      * For each chunk:
      * <ol>
-     *   <li>Fetch documents and serialize to bytes (page allocations tracked by the CB in the stream)</li>
+     *   <li>Fetch documents in doc-ID order and serialize to bytes with position prefixes</li>
      *   <li>For intermediate chunks: acquire ref and enqueue send task to ThrottledTaskRunner</li>
      *   <li>For last chunk: store in lastChunkHolder (returned via listener after all ACKs)</li>
      * </ol>
@@ -190,15 +199,22 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
         Supplier<Boolean> isCancelled
     ) throws Exception {
         int totalDocs = docIds.length;
-        RecyclerBytesStreamOutput chunkBuffer = null;
 
+        DocIdToIndex[] docs = new DocIdToIndex[totalDocs];
+        for (int i = 0; i < totalDocs; i++) {
+            docs[i] = new DocIdToIndex(docIds[i], i);
+        }
+        Arrays.sort(docs);
+
+        int endReaderIdx = setNextReaderAndGetLeafEndIndex(indexReader, docs, 0);
+        RecyclerBytesStreamOutput chunkBuffer = null;
         try {
             chunkBuffer = chunkWriter.newNetworkBytesStream();
             int chunkStartIndex = 0;
             int hitsInChunk = 0;
 
-            for (int scoreIndex = 0; scoreIndex < totalDocs; scoreIndex++) {
-                if (scoreIndex % 32 == 0) {
+            for (int i = 0; i < docs.length; i++) {
+                if (i % 32 == 0) {
                     if (isCancelled.get()) {
                         throw new TaskCancelledException("cancelled");
                     }
@@ -208,22 +224,20 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
                     }
                 }
 
-                int docId = docIds[scoreIndex];
+                if (i >= endReaderIdx) {
+                    endReaderIdx = setNextReaderAndGetLeafEndIndex(indexReader, docs, i);
+                }
 
-                int leafOrd = ReaderUtil.subIndex(docId, indexReader.leaves());
-                LeafReaderContext ctx = indexReader.leaves().get(leafOrd);
-                int leafDocId = docId - ctx.docBase;
-                setNextReader(ctx, new int[] { leafDocId });
-
-                SearchHit hit = nextDoc(docId);
+                SearchHit hit = nextDoc(docs[i].docId);
                 try {
+                    chunkBuffer.writeVInt(docs[i].index);
                     hit.writeTo(chunkBuffer);
                 } finally {
                     hit.decRef();
                 }
                 hitsInChunk++;
 
-                boolean isLast = (scoreIndex == totalDocs - 1);
+                boolean isLast = (i == docs.length - 1);
                 boolean bufferFull = chunkBuffer.size() >= targetChunkBytes;
 
                 if (bufferFull || isLast) {
@@ -262,7 +276,7 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
 
                         if (isLast == false) {
                             chunkBuffer = chunkWriter.newNetworkBytesStream();
-                            chunkStartIndex = scoreIndex + 1;
+                            chunkStartIndex = i + 1;
                             hitsInChunk = 0;
                         }
                     } catch (Exception e) {
@@ -276,6 +290,15 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
                 Releasables.closeWhileHandlingException(chunkBuffer);
             }
         }
+    }
+
+    private int setNextReaderAndGetLeafEndIndex(IndexReader indexReader, DocIdToIndex[] docs, int index) throws IOException {
+        int leafOrd = ReaderUtil.subIndex(docs[index].docId, indexReader.leaves());
+        LeafReaderContext ctx = indexReader.leaves().get(leafOrd);
+        int endReaderIdx = endReaderIdx(ctx, index, docs);
+        int[] docsInLeaf = docIdsInLeaf(index, endReaderIdx, docs, ctx.docBase);
+        setNextReader(ctx, docsInLeaf);
+        return endReaderIdx;
     }
 
     /**

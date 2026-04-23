@@ -174,6 +174,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
@@ -3351,7 +3352,7 @@ public class AnalyzerTests extends ESTestCase {
             ),
             List.of()
         );
-        IndexResolution resolution = mergedResolution("foo,bar", caps);
+        IndexResolution resolution = mergedResolution("foo,bar", caps, true);
 
         String query = "FROM foo, bar | INSIST_🐔 message";
         var plan = analyzer().addIndex(resolution).query(query);
@@ -3360,28 +3361,6 @@ public class AnalyzerTests extends ESTestCase {
         var attribute = (FieldAttribute) EsqlTestUtils.singleValue(insist.output());
         assertThat(attribute.name(), is("message"));
         assertThat(attribute.field(), is(new PotentiallyUnmappedKeywordEsField("message")));
-    }
-
-    public void testResolveInsist_multiIndexFieldExistsWithSingleTypeButIsNotKeywordAndMissingCast_createsAnInvalidMappedField() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
-            List.of(
-                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
-                fieldCapabilitiesIndexResponse("bar", Map.of())
-            ),
-            List.of()
-        );
-        IndexResolution resolution = mergedResolution("foo,bar", caps);
-        var plan = analyzer().addIndex(resolution).query("FROM foo, bar | INSIST_🐔 message");
-        var limit = as(plan, Limit.class);
-        var insist = as(limit.child(), Insist.class);
-        var attribute = (UnsupportedAttribute) EsqlTestUtils.singleValue(insist.output());
-        assertThat(attribute.name(), is("message"));
-
-        String expected = "Cannot use field [message] due to ambiguities being mapped as [2] incompatible types: "
-            + "[keyword] due to loading from _source, [long] in [foo]";
-        assertThat(attribute.unresolvedMessage(), is(expected));
     }
 
     public void testResolveInsist_multiIndexFieldPartiallyExistsWithMultiTypesNoKeyword_createsAnInvalidMappedField() {
@@ -3395,7 +3374,7 @@ public class AnalyzerTests extends ESTestCase {
             ),
             List.of()
         );
-        IndexResolution resolution = mergedResolution("foo,bar", caps);
+        IndexResolution resolution = mergedResolution("foo,bar", caps, true);
         var plan = analyzer().addIndex(resolution).query("FROM foo, bar | INSIST_🐔 message");
         var limit = as(plan, Limit.class);
         var insist = as(limit.child(), Insist.class);
@@ -3418,7 +3397,7 @@ public class AnalyzerTests extends ESTestCase {
             ),
             List.of()
         );
-        IndexResolution resolution = mergedResolution("foo,bar", caps);
+        IndexResolution resolution = mergedResolution("foo,bar", caps, true);
         var plan = analyzer().addIndex(resolution).query("FROM foo, bar | INSIST_🐔 message");
         var limit = as(plan, Limit.class);
         var insist = as(limit.child(), Insist.class);
@@ -3440,6 +3419,7 @@ public class AnalyzerTests extends ESTestCase {
                 "foo",
                 false,
                 new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true, false),
+                false,
                 IndexResolver.DO_NOT_GROUP
             );
             var plan = analyzer().addIndex(resolution).query("FROM foo");
@@ -3451,6 +3431,7 @@ public class AnalyzerTests extends ESTestCase {
                 "foo",
                 false,
                 new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, false, false),
+                false,
                 IndexResolver.DO_NOT_GROUP
             );
             var plan = analyzer().addIndex(resolution).query("FROM foo");
@@ -3475,6 +3456,7 @@ public class AnalyzerTests extends ESTestCase {
                 "foo",
                 false,
                 new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true, false),
+                false,
                 IndexResolver.DO_NOT_GROUP
             );
             var plan = analyzer().addIndex(resolution).query("FROM foo");
@@ -3489,6 +3471,7 @@ public class AnalyzerTests extends ESTestCase {
                 "foo",
                 false,
                 new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, false, true, false),
+                false,
                 IndexResolver.DO_NOT_GROUP
             );
             var plan = analyzer().addIndex(resolution).query("FROM foo");
@@ -3507,6 +3490,7 @@ public class AnalyzerTests extends ESTestCase {
             "test",
             false,
             fieldsInfoOnCurrentVersion(caps, false),
+            false,
             (p, r) -> Map.of()
         );
         var plan = analyzer().addIndex(resolution).query("FROM test | KEEP status");
@@ -3526,6 +3510,7 @@ public class AnalyzerTests extends ESTestCase {
             "test",
             false,
             fieldsInfoOnCurrentVersion(caps, true),
+            false,
             (p, r) -> Map.of()
         );
         assertThat(resolution.get().mapping().get("status"), instanceOf(InvalidMappedField.class));
@@ -3544,6 +3529,7 @@ public class AnalyzerTests extends ESTestCase {
             "test",
             false,
             fieldsInfoOnCurrentVersion(caps, false),
+            false,
             (p, r) -> Map.of()
         );
         var plan = analyzer().addIndex(resolution).query("TS test | KEEP status");
@@ -3557,11 +3543,14 @@ public class AnalyzerTests extends ESTestCase {
      * just like TS + STATS.
      */
     public void testPromqlQueryWithConflictingTsTypesMarksFieldUnsupported() {
+        assumeTrue("Requires PROMQL", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
+
         FieldCapabilitiesResponse caps = buildCapsWithConflictingTsTypes();
         IndexResolution resolution = IndexResolver.mergedMappings(
             "test",
             false,
             fieldsInfoOnCurrentVersion(caps, true),
+            false,
             (p, r) -> Map.of()
         );
         assertThat(resolution.get().mapping().get("status"), instanceOf(InvalidMappedField.class));
@@ -3902,6 +3891,7 @@ public class AnalyzerTests extends ESTestCase {
                     List.of()
                 )
             ),
+            false,
             IndexResolver.DO_NOT_GROUP
         );
 
@@ -5634,8 +5624,8 @@ public class AnalyzerTests extends ESTestCase {
 
     /*
      * When there are mixed date types between the main query and the subquery, the fields/references need to be casted to a common type
-     * in the UnionAll legs, otherwise  FORK's postAnalysisPlanVerification will fail. The common type can be date_nanos,
-     * keyword with null if the fields are not referenced in the main query, or unsupported if the fields are referenced in the main query.
+     * in the UnionAll legs, otherwise FORK's postAnalysisPlanVerification will fail. The common type can be date_nanos,
+     * or unsupported if the fields have conflicting types (regardless of whether they are referenced in the main query).
      */
     public void testMixedDataTypesInSubquery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
@@ -5897,6 +5887,110 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(INTEGER, literal.dataType());
         subqueryIndex = as(subqueryFilter.child(), EsRelation.class);
         assertEquals("test_mixed_types", subqueryIndex.indexPattern());
+    }
+
+    public void testUnionAllWithConflictingTypesFromSubqueries() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+
+        LogicalPlan plan = sampleData().query("""
+            FROM (FROM sample_data), (FROM sample_data | EVAL client_ip = 1) | keep client_ip
+            """);
+
+        // Limit[1000]
+        Limit limit = as(plan, Limit.class);
+
+        // Project[[!client_ip]] — client_ip is UnsupportedAttribute due to type conflict (ip vs integer)
+        Project project = as(limit.child(), Project.class);
+        var projections = project.projections();
+        assertThat(projections, hasSize(1));
+        UnsupportedAttribute ua = as(projections.getFirst(), UnsupportedAttribute.class);
+        assertEquals(UNSUPPORTED, ua.dataType());
+        List<String> originalTypes = ua.originalTypes();
+        assertThat(originalTypes, hasSize(2));
+        assertThat(originalTypes, is(List.of(IP.esType(), INTEGER.esType())));
+        assertEquals("client_ip", ua.name());
+
+        // UnionAll[[@timestamp, !client_ip, event_duration, message]]
+        UnionAll unionAll = as(project.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        // Left leg: Project → Eval[null[KEYWORD] AS client_ip] → Subquery → EsRelation[sample_data]
+        Project leftProject = as(unionAll.children().get(0), Project.class);
+        Eval leftEval = as(leftProject.child(), Eval.class);
+        List<Alias> leftAliases = leftEval.fields();
+        assertThat(leftAliases, hasSize(1));
+        Alias leftAlias = leftAliases.getFirst();
+        assertEquals("client_ip", leftAlias.name());
+        Literal leftNull = as(leftAlias.child(), Literal.class);
+        assertNull(leftNull.value());
+        assertEquals(KEYWORD, leftNull.dataType());
+
+        Subquery leftSubquery = as(leftEval.child(), Subquery.class);
+        EsRelation leftRelation = as(leftSubquery.child(), EsRelation.class);
+
+        // Right leg: Project → Eval[null[KEYWORD] AS client_ip] → Subquery → Eval[1[INTEGER] AS client_ip] → EsRelation[sample_data]
+        Project rightProject = as(unionAll.children().get(1), Project.class);
+        Eval rightEval = as(rightProject.child(), Eval.class);
+        List<Alias> rightAliases = rightEval.fields();
+        assertThat(rightAliases, hasSize(1));
+        Alias rightAlias = rightAliases.getFirst();
+        assertEquals("client_ip", rightAlias.name());
+        Literal rightNull = as(rightAlias.child(), Literal.class);
+        assertNull(rightNull.value());
+        assertEquals(KEYWORD, rightNull.dataType());
+
+        Subquery rightSubquery = as(rightEval.child(), Subquery.class);
+        Eval innerEval = as(rightSubquery.child(), Eval.class);
+        List<Alias> innerAliases = innerEval.fields();
+        assertThat(innerAliases, hasSize(1));
+        Alias innerAlias = innerAliases.getFirst();
+        assertEquals("client_ip", innerAlias.name());
+        Literal one = as(innerAlias.child(), Literal.class);
+        assertEquals(1, one.value());
+        assertEquals(INTEGER, one.dataType());
+        EsRelation rightRelation = as(innerEval.child(), EsRelation.class);
+    }
+
+    public void testUnionAllWithConflictingTypesFromSubqueriesWithoutUsageInMainQuery() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+
+        LogicalPlan plan = sampleData().query("""
+            FROM (FROM sample_data), (FROM sample_data | EVAL client_ip = 1)
+            """);
+
+        // Limit[1000]
+        Limit limit = as(plan, Limit.class);
+
+        // Limit directly over UnionAll since there is no keep/project
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        List<Attribute> output = unionAll.output();
+        Attribute clientIpAttr = output.stream().filter(a -> "client_ip".equals(a.name())).findFirst().orElseThrow();
+        UnsupportedAttribute ua = as(clientIpAttr, UnsupportedAttribute.class);
+        assertEquals(UNSUPPORTED, ua.dataType());
+        assertThat(ua.originalTypes(), is(List.of(IP.esType(), INTEGER.esType())));
+        assertEquals("client_ip", ua.name());
+    }
+
+    public void testUnionAllWithConflictingNumericTypesFromSubqueries() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+
+        LogicalPlan plan = defaultMapping().addDefaultIncompatible().query("""
+            FROM test, (FROM test_mixed_types) | keep emp_no
+            """);
+
+        // Limit[1000]
+        Limit limit = as(plan, Limit.class);
+
+        // Project[[!emp_no]]
+        Project project = as(limit.child(), Project.class);
+        var projections = project.projections();
+        assertThat(projections, hasSize(1));
+        UnsupportedAttribute ua = as(projections.getFirst(), UnsupportedAttribute.class);
+        assertEquals(UNSUPPORTED, ua.dataType());
+        assertThat(ua.originalTypes(), is(List.of(INTEGER.esType(), LONG.esType())));
+        assertEquals("emp_no", ua.name());
     }
 
     public void testSubqueryWithTimeSeriesIndexInMainQuery() {

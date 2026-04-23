@@ -10,10 +10,15 @@
 package org.elasticsearch.action.termvectors;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.RetryableSplitAwareRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -45,7 +50,8 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
  * <p>
  * Note, the {@link #index()} and {@link #id(String)} are required.
  */
-public final class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> {
+public final class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> implements RetryableSplitAwareRequest {
+    public static TransportVersion SPLIT_SHARD_COUNT_SUMMARY = TransportVersion.fromName("term_vectors_split_shard_count_summary");
 
     private static final ParseField INDEX = new ParseField("_index");
     private static final ParseField ID = new ParseField("_id");
@@ -84,6 +90,8 @@ public final class TermVectorsRequest extends SingleShardRequest<TermVectorsRequ
     private Map<String, String> perFieldAnalyzer;
 
     private FilterSettings filterSettings;
+
+    private SplitShardCountSummary splitShardCountSummary = SplitShardCountSummary.UNSET;
 
     public static final class FilterSettings {
         public Integer maxNumTerms;
@@ -154,6 +162,11 @@ public final class TermVectorsRequest extends SingleShardRequest<TermVectorsRequ
         realtime = in.readBoolean();
         versionType = VersionType.fromValue(in.readByte());
         version = in.readLong();
+        if (in.getTransportVersion().supports(SPLIT_SHARD_COUNT_SUMMARY)) {
+            splitShardCountSummary = new SplitShardCountSummary(in);
+        } else {
+            splitShardCountSummary = SplitShardCountSummary.UNSET;
+        }
     }
 
     /**
@@ -191,6 +204,7 @@ public final class TermVectorsRequest extends SingleShardRequest<TermVectorsRequ
         this.version = other.version();
         this.versionType = VersionType.fromValue(other.versionType().getValue());
         this.filterSettings = other.filterSettings();
+        this.splitShardCountSummary = other.getSplitShardCountSummary();
     }
 
     public TermVectorsRequest(MultiGetRequest.Item item) {
@@ -454,6 +468,19 @@ public final class TermVectorsRequest extends SingleShardRequest<TermVectorsRequ
     }
 
     @Override
+    public SplitShardCountSummary getSplitShardCountSummary() {
+        return splitShardCountSummary;
+    }
+
+    @Override
+    public void setSplitShardCountSummary(ProjectMetadata projectMetadata, String index) {
+        final var indexMetadata = projectMetadata.index(index);
+        final var indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
+        final var shardId = indexRouting.getShard(id(), routing());
+        this.splitShardCountSummary = SplitShardCountSummary.forSearch(indexMetadata, shardId);
+    }
+
+    @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validateNonNullIndex();
         if (id == null && doc == null) {
@@ -495,6 +522,9 @@ public final class TermVectorsRequest extends SingleShardRequest<TermVectorsRequ
         out.writeBoolean(realtime);
         out.writeByte(versionType.getValue());
         out.writeLong(version);
+        if (out.getTransportVersion().supports(SPLIT_SHARD_COUNT_SUMMARY)) {
+            splitShardCountSummary.writeTo(out);
+        }
     }
 
     public enum Flag {

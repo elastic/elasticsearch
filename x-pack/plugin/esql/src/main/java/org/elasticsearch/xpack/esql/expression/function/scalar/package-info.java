@@ -20,14 +20,14 @@
  *     <li>Fork the <a href="github.com/elastic/elasticsearch">Elasticsearch repo</a>.</li>
  *     <li>Clone your fork locally.</li>
  *     <li>Add Elastic’s remote, it should look a little like:
- *         <pre>{@code
+ *         {@snippet lang="gitconfig" :
  * [remote "elastic"]
  * url = git@github.com:elastic/elasticsearch.git
  * fetch = +refs/heads/*:refs/remotes/elastic/*
  * [remote "nik9000"]
  * url = git@github.com:nik9000/elasticsearch.git
  * fetch = +refs/heads/*:refs/remotes/nik9000/*
- *         }</pre>
+ *         }
  *     </li>
  *     <li>
  *         Feel free to use {@code git} as a scratch pad. We're going to squash all commits
@@ -180,17 +180,17 @@
  *             {@code ./gradlew :x-pack:plugin:esql:test -Dtests.class='*SinTests'}. It’s just
  *             running your new unit test. You should see something like:
  *         </p>
- *         <pre>{@code
+ *         {@snippet lang="text" :
  *              > Task :x-pack:plugin:esql:test
  *              ESQL Docs: Only files related to [sin.md], patching them into place
- *         }</pre>
+ *         }
  *     </li>
  *     <li>
  *         Install the docs-builder binary from <a href="https://github.com/elastic/docs-builder">https://github.com/elastic/docs-builder</a>,
  *         then build the docs locally by running the command below from the elasticsearch directory:
- *          <pre>{@code
+ *          {@snippet lang="bash" :
  * docs-builder serve
- *          }</pre>
+ *          }
  *     </li>
  *     <li>
  *         You can now browse the docs at <a href="http://localhost:3000">http://localhost:3000</a>. Or you can go directly to
@@ -262,9 +262,9 @@
  *     <li>
  *         CI might fail for random looking reasons. The first thing you should do is merge {@code main}
  *         into your PR branch. That’s usually just:
- *         <pre>{@code
+ *         {@snippet lang="bash" :
  * git checkout main && git pull elastic main && git checkout mybranch && git merge main
- *         }</pre>
+ *         }
  *         Don’t worry about the commit message. It'll get squashed away in the merge.
  *     </li>
  * </ol>

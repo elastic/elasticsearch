@@ -54,12 +54,6 @@ public class BundleChangelogsTask extends DefaultTask {
     private static final Logger LOGGER = Logging.getLogger(BundleChangelogsTask.class);
 
     /**
-     * When a build-candidate ref is used, external repos are fetched with enough history for
-     * {@code git log FETCH_HEAD --grep} to see PR merges; shallow depth 1 is not enough for that.
-     */
-    private static final int EXTERNAL_FETCH_DEPTH_WITH_BC = 2048;
-
-    /**
      * Configuration for an external repository whose changelog entries should be
      * merged into the Elasticsearch release notes bundle.
      *
@@ -281,7 +275,14 @@ public class BundleChangelogsTask extends DefaultTask {
 
         try {
             if (bcRefForFilter != null && bcRefForFilter.isBlank() == false) {
-                gitWrapper.runCommand("git", "fetch", "--depth=" + EXTERNAL_FETCH_DEPTH_WITH_BC, source.repoUrl(), normalizedBranch);
+                // Full history: shallow fetch can hide PR merges older than --depth from FETCH_HEAD,
+                // causing BC grep filtering to drop valid external changelog entries.
+                LOGGER.info(
+                    "Fetching full history from {}:{} for BC filtering (may be slower than shallow fetch)",
+                    source.sourceRepo(),
+                    normalizedBranch
+                );
+                gitWrapper.runCommand("git", "fetch", source.repoUrl(), normalizedBranch);
             } else {
                 gitWrapper.runCommand("git", "fetch", "--depth=1", source.repoUrl(), normalizedBranch);
             }

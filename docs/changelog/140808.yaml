@@ -13,8 +13,7 @@ highlight:
 
     The syntax is illustrated in the following example:
 
-    [source,yaml]
-    ----
+    ```yaml
     PROMQL index=k8s-downsampled start="2026-02-17T08:00:00Z" end="2026-02-17T09:00:00Z" step=30m avg_bytes=(avg(rate(network.total_bytes_in[30m])))
     | SORT avg_bytes DESC, step;
-    ----
+    ```

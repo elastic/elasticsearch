@@ -395,11 +395,15 @@ public class EsqlSession {
         return projectRouting;
     }
 
-    public static ApproximationSettings approximationSettings(EsqlQueryRequest request, EsqlStatement statement) {
+    private ApproximationSettings approximationSettings(EsqlQueryRequest request, EsqlStatement statement) {
         // The precedence for settings is: SET in the statement > request parameter > default (=disabled).
-        return new ApproximationSettings.Builder(false).merge(request.approximation())
+        ApproximationSettings settings = new ApproximationSettings.Builder(false).merge(request.approximation())
             .merge(statement.setting(QuerySettings.APPROXIMATION))
             .build();
+        if (settings != null) {
+            EsqlLicenseChecker.checkQueryApproximation(verifier.licenseState());
+        }
+        return settings;
     }
 
     /**

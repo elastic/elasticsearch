@@ -65,7 +65,7 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
     private List<Attribute> lazyOutput;
 
     public Completion(Source source, LogicalPlan p, Expression rowLimit, Expression prompt, Attribute targetField) {
-        this(source, p, Literal.NULL, rowLimit, prompt, targetField, DEFAULT_TASK_SETTINGS, null);
+        this(source, p, Literal.NULL, rowLimit, null, prompt, targetField, DEFAULT_TASK_SETTINGS);
     }
 
     public Completion(
@@ -76,7 +76,7 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
         Expression prompt,
         Attribute targetField
     ) {
-        this(source, child, inferenceId, rowLimit, prompt, targetField, DEFAULT_TASK_SETTINGS, null);
+        this(source, child, inferenceId, rowLimit, null, prompt, targetField, DEFAULT_TASK_SETTINGS);
     }
 
     public Completion(
@@ -88,7 +88,7 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
         Attribute targetField,
         MapExpression taskSettings
     ) {
-        this(source, child, inferenceId, rowLimit, prompt, targetField, taskSettings, null);
+        this(source, child, inferenceId, rowLimit, null, prompt, targetField, taskSettings);
     }
 
     public Completion(
@@ -96,10 +96,9 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
         LogicalPlan child,
         Expression inferenceId,
         Expression rowLimit,
-        Expression prompt,
+        TimeValue timeout, Expression prompt,
         Attribute targetField,
-        MapExpression taskSettings,
-        TimeValue timeout
+        MapExpression taskSettings
     ) {
         super(source, child, inferenceId, rowLimit, timeout);
         this.prompt = prompt;
@@ -113,13 +112,12 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
             in.readNamedWriteable(LogicalPlan.class),
             in.readNamedWriteable(Expression.class),
             in.getTransportVersion().supports(ESQL_INFERENCE_ROW_LIMIT) ? in.readNamedWriteable(Expression.class) : DEFAULT_ROW_LIMIT,
-            in.readNamedWriteable(Expression.class),
+            in.getTransportVersion().supports(ESQL_INFERENCE_ACCEPT_TIMEOUT) ? in.readOptionalTimeValue() : null, in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Attribute.class),
             // COMPLETION is coordinator-only and should not be serialized in normal operation.
             // Deserialization is kept for rolling upgrade safety. Since old versions don't
             // know about task_settings, we use empty defaults.
-            (MapExpression) in.readNamedWriteable(Expression.class),
-            in.getTransportVersion().supports(ESQL_INFERENCE_ACCEPT_TIMEOUT) ? in.readOptionalTimeValue() : null
+            (MapExpression) in.readNamedWriteable(Expression.class)
         );
     }
 
@@ -157,14 +155,14 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
             return this;
         }
 
-        return new Completion(source(), child(), newInferenceId, rowLimit(), prompt, targetField, taskSettings, timeout());
+        return new Completion(source(), child(), newInferenceId, rowLimit(), timeout(), prompt, targetField, taskSettings);
     }
 
     public Completion withTaskSettings(MapExpression newTaskSettings) {
         if (taskSettings.equals(newTaskSettings)) {
             return this;
         }
-        return new Completion(source(), child(), inferenceId(), rowLimit(), prompt, targetField, newTaskSettings, timeout());
+        return new Completion(source(), child(), inferenceId(), rowLimit(), timeout(), prompt, targetField, newTaskSettings);
     }
 
     @Override
@@ -172,12 +170,12 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
         if (Objects.equals(timeout(), newTimeout)) {
             return this;
         }
-        return new Completion(source(), child(), inferenceId(), rowLimit(), prompt, targetField, taskSettings, newTimeout);
+        return new Completion(source(), child(), inferenceId(), rowLimit(), newTimeout, prompt, targetField, taskSettings);
     }
 
     @Override
     public Completion replaceChild(LogicalPlan newChild) {
-        return new Completion(source(), newChild, inferenceId(), rowLimit(), prompt, targetField, taskSettings, timeout());
+        return new Completion(source(), newChild, inferenceId(), rowLimit(), timeout(), prompt, targetField, taskSettings);
     }
 
     @Override
@@ -212,10 +210,9 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
             child(),
             inferenceId(),
             rowLimit(),
-            prompt,
+            timeout(), prompt,
             this.renameTargetField(newNames.get(0)),
-            taskSettings,
-            timeout()
+            taskSettings
         );
     }
 
@@ -251,7 +248,7 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Completion::new, child(), inferenceId(), rowLimit(), prompt, targetField, taskSettings, timeout());
+        return NodeInfo.create(this, (source, child, inferenceId, rowLimit, prompt1, targetField1, taskSettings1, timeout) -> new Completion(source, child, inferenceId, rowLimit, timeout, prompt1, targetField1, taskSettings1), child(), inferenceId(), rowLimit(), prompt, targetField, taskSettings, timeout());
     }
 
     @Override

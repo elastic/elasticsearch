@@ -62,7 +62,7 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
         List<Alias> rerankFields,
         Attribute scoreAttribute
     ) {
-        this(source, child, Literal.keyword(Source.EMPTY, DEFAULT_INFERENCE_ID), rowLimit, queryText, rerankFields, scoreAttribute, null);
+        this(source, child, Literal.keyword(Source.EMPTY, DEFAULT_INFERENCE_ID), rowLimit, null, queryText, rerankFields, scoreAttribute);
     }
 
     public Rerank(
@@ -74,7 +74,7 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
         List<Alias> rerankFields,
         Attribute scoreAttribute
     ) {
-        this(source, child, inferenceId, rowLimit, queryText, rerankFields, scoreAttribute, null);
+        this(source, child, inferenceId, rowLimit, null, queryText, rerankFields, scoreAttribute);
     }
 
     public Rerank(
@@ -82,10 +82,9 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
         LogicalPlan child,
         Expression inferenceId,
         Expression rowLimit,
-        Expression queryText,
+        TimeValue timeout, Expression queryText,
         List<Alias> rerankFields,
-        Attribute scoreAttribute,
-        TimeValue timeout
+        Attribute scoreAttribute
     ) {
         super(source, child, inferenceId, rowLimit, timeout);
         this.queryText = queryText;
@@ -99,10 +98,9 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
             in.readNamedWriteable(LogicalPlan.class),
             in.readNamedWriteable(Expression.class),
             in.getTransportVersion().supports(ESQL_INFERENCE_ROW_LIMIT) ? in.readNamedWriteable(Expression.class) : DEFAULT_ROW_LIMIT,
-            in.readNamedWriteable(Expression.class),
+            in.getTransportVersion().supports(ESQL_INFERENCE_ACCEPT_TIMEOUT) ? in.readOptionalTimeValue() : null, in.readNamedWriteable(Expression.class),
             in.readCollectionAsList(Alias::new),
-            in.readNamedWriteable(Attribute.class),
-            in.getTransportVersion().supports(ESQL_INFERENCE_ACCEPT_TIMEOUT) ? in.readOptionalTimeValue() : null
+            in.readNamedWriteable(Attribute.class)
         );
     }
 
@@ -149,7 +147,7 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
         if (inferenceId().equals(newInferenceId)) {
             return this;
         }
-        return new Rerank(source(), child(), newInferenceId, rowLimit(), queryText, rerankFields, scoreAttribute, timeout());
+        return new Rerank(source(), child(), newInferenceId, rowLimit(), timeout(), queryText, rerankFields, scoreAttribute);
     }
 
     public Rerank withRerankFields(List<Alias> newRerankFields) {
@@ -157,7 +155,7 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
             return this;
         }
 
-        return new Rerank(source(), child(), inferenceId(), rowLimit(), queryText, newRerankFields, scoreAttribute, timeout());
+        return new Rerank(source(), child(), inferenceId(), rowLimit(), timeout(), queryText, newRerankFields, scoreAttribute);
     }
 
     public Rerank withScoreAttribute(Attribute newScoreAttribute) {
@@ -165,7 +163,7 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
             return this;
         }
 
-        return new Rerank(source(), child(), inferenceId(), rowLimit(), queryText, rerankFields, newScoreAttribute, timeout());
+        return new Rerank(source(), child(), inferenceId(), rowLimit(), timeout(), queryText, rerankFields, newScoreAttribute);
     }
 
     @Override
@@ -173,12 +171,12 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
         if (Objects.equals(timeout(), newTimeout)) {
             return this;
         }
-        return new Rerank(source(), child(), inferenceId(), rowLimit(), queryText, rerankFields, scoreAttribute, newTimeout);
+        return new Rerank(source(), child(), inferenceId(), rowLimit(), newTimeout, queryText, rerankFields, scoreAttribute);
     }
 
     @Override
     public UnaryPlan replaceChild(LogicalPlan newChild) {
-        return new Rerank(source(), newChild, inferenceId(), rowLimit(), queryText, rerankFields, scoreAttribute, timeout());
+        return new Rerank(source(), newChild, inferenceId(), rowLimit(), timeout(), queryText, rerankFields, scoreAttribute);
     }
 
     @Override
@@ -198,10 +196,9 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
             child(),
             inferenceId(),
             rowLimit(),
-            queryText,
+            timeout(), queryText,
             rerankFields,
-            this.renameScoreAttribute(newNames.get(0)),
-            timeout()
+            this.renameScoreAttribute(newNames.get(0))
         );
     }
 
@@ -234,7 +231,7 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Rerank::new, child(), inferenceId(), rowLimit(), queryText, rerankFields, scoreAttribute, timeout());
+        return NodeInfo.create(this, (source, child, inferenceId, rowLimit, queryText1, rerankFields1, scoreAttribute1, timeout) -> new Rerank(source, child, inferenceId, rowLimit, timeout, queryText1, rerankFields1, scoreAttribute1), child(), inferenceId(), rowLimit(), queryText, rerankFields, scoreAttribute, timeout());
     }
 
     @Override

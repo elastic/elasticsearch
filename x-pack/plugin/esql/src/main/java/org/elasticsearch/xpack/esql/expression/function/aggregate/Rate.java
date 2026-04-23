@@ -170,9 +170,9 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
         final DataType tsType = timestamp().dataType();
         final boolean isDateNanos = tsType == DataType.DATE_NANOS;
         return switch (type) {
-            case COUNTER_LONG -> new RateLongGroupingAggregatorFunction.FunctionSupplier(true, isDateNanos);
-            case COUNTER_INTEGER -> new RateIntGroupingAggregatorFunction.FunctionSupplier(true, isDateNanos);
-            case COUNTER_DOUBLE -> new RateDoubleGroupingAggregatorFunction.FunctionSupplier(true, isDateNanos);
+            case COUNTER_LONG -> new RateLongGroupingAggregatorFunction.FunctionSupplier(true, isDateNanos, source());
+            case COUNTER_INTEGER -> new RateIntGroupingAggregatorFunction.FunctionSupplier(true, isDateNanos, source());
+            case COUNTER_DOUBLE -> new RateDoubleGroupingAggregatorFunction.FunctionSupplier(true, isDateNanos, source());
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

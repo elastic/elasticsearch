@@ -104,7 +104,7 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
 
     final Directory dir;
     final IOContext context;
-    IndexOutput data, meta;
+    IndexOutput data, meta, skip;
     final int maxDoc;
     byte[] termsDictBuffer;
     final boolean enableOptimizedMerge;
@@ -144,6 +144,8 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
         final String dataExtension,
         final String metaCodec,
         final String metaExtension,
+        final String skipCodec,
+        final String skipExtension,
         final TSDBDocValuesFormatConfig formatConfig,
         final DocOffsetsCodec.Encoder docOffsetsEncoder,
         final SortedFieldObserverFactory sortedFieldObserverFactory,
@@ -186,6 +188,16 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
                 state.segmentSuffix
             );
             meta.writeByte((byte) formatConfig.numericBlockShift());
+
+            final String skipName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, skipExtension);
+            skip = state.directory.createOutput(skipName, state.context);
+            CodecUtil.writeIndexHeader(
+                skip,
+                skipCodec,
+                TSDBDocValuesFormatConfig.VERSION_CURRENT,
+                state.segmentInfo.getId(),
+                state.segmentSuffix
+            );
 
             maxDoc = state.segmentInfo.maxDoc();
             this.enableOptimizedMerge = enableOptimizedMerge;
@@ -1024,14 +1036,17 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
             if (data != null) {
                 CodecUtil.writeFooter(data); // write checksum
             }
+            if (skip != null) {
+                CodecUtil.writeFooter(skip);
+            }
             success = true;
         } finally {
             if (success) {
-                IOUtils.close(data, meta);
+                IOUtils.close(data, meta, skip);
             } else {
-                IOUtils.closeWhileHandlingException(data, meta);
+                IOUtils.closeWhileHandlingException(data, meta, skip);
             }
-            meta = data = null;
+            meta = data = skip = null;
         }
     }
 
@@ -1085,7 +1100,7 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
 
     private void writeSkipIndex(final FieldInfo field, final DocValuesProducer valuesProducer) throws IOException {
         assert field.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE;
-        final long start = data.getFilePointer();
+        final long start = skip.getFilePointer();
         final SortedNumericDocValues values = valuesProducer.getSortedNumeric(field);
         long globalMaxValue = Long.MIN_VALUE;
         long globalMinValue = Long.MAX_VALUE;
@@ -1126,7 +1141,7 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
             writeLevels(accumulators);
         }
         meta.writeLong(start); // record the start in meta
-        meta.writeLong(data.getFilePointer() - start); // record the length
+        meta.writeLong(skip.getFilePointer() - start); // record the length
         assert globalDocCount == 0 || globalMaxValue >= globalMinValue;
         meta.writeLong(globalMaxValue);
         meta.writeLong(globalMinValue);
@@ -1144,14 +1159,14 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
         int totalAccumulators = accumulators.size();
         for (int index = 0; index < totalAccumulators; index++) {
             final int levels = getLevels(index, totalAccumulators);
-            data.writeByte((byte) levels);
+            skip.writeByte((byte) levels);
             for (int level = levels - 1; level >= 0; level--) {
                 final SkipAccumulator acc = accumulatorsLevels.get(level).get(index >> (formatConfig.skipIndexLevelShift() * level));
-                data.writeInt(acc.maxDocID);
-                data.writeInt(acc.minDocID);
-                data.writeLong(acc.maxValue);
-                data.writeLong(acc.minValue);
-                data.writeInt(acc.docCount);
+                skip.writeInt(acc.maxDocID);
+                skip.writeInt(acc.minDocID);
+                skip.writeLong(acc.maxValue);
+                skip.writeLong(acc.minValue);
+                skip.writeInt(acc.docCount);
             }
         }
     }

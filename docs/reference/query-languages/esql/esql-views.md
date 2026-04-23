@@ -80,7 +80,7 @@ but adding just one more view or subquery would exceed the allowed limit and the
 
 Branching and nesting are allowed in combination as long as there is never more than one branch point.
 This means that nested branching has restrictions:
-* A view can contain subqueries, but then that view cannot be used together with other views, and all subqueries can only reference nested views that contain no further branching.
+* A view can contain subqueries, but that view cannot be used together with other views, and the subqueries can only reference nested views that contain no further branching.
 * A subquery can contain views, but then those views must themselves contain no branches (no subqueries or `FORK`)
 
 ### Limitations and known issues

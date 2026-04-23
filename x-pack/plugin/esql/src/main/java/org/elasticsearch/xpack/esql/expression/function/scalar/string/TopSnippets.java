@@ -335,9 +335,24 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
     /**
      * Resolves a Lucene {@link Analyzer} for snippet scoring and highlighting.
      * <p>
-     * Because {@code TOP_SNIPPETS} runs on the coordinator node (no shard contexts),
-     * the resolution is: explicit name via the node-level {@link AnalysisRegistry}
-     * if given, otherwise {@link StandardAnalyzer}.
+     * {@code TOP_SNIPPETS} never pushes to Lucene, so it resolves without a
+     * {@code ShardContext}: an explicit name is looked up in the node-level
+     * {@link AnalysisRegistry}, otherwise we fall back to {@link StandardAnalyzer}.
+     * The resolution site is the same whether the function executes on the coordinator
+     * (e.g. {@code EVAL TOP_SNIPPETS(...)}) or on a data node after filter push-down
+     * (e.g. {@code WHERE mv_count(TOP_SNIPPETS(...)) > 0}), since both paths carry
+     * the node-level registry on the shared
+     * {@link org.elasticsearch.xpack.esql.core.expression.FoldContext} built by
+     * {@link org.elasticsearch.xpack.esql.session.Configuration#newFoldContext(AnalysisRegistry)}.
+     * <p>
+     * The registry is {@code null} on {@link org.elasticsearch.xpack.esql.core.expression.FoldContext#small()}
+     * and on the synthetic {@code ToEvaluator} built inside
+     * {@link org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper#fold} — an
+     * explicit analyzer name without a registry is therefore a plan-time / fold-time error.
+     * <p>
+     * The returned analyzer is <strong>not</strong> closed by callers: registry-owned
+     * analyzers are shared across requests and must not be closed, and {@link StandardAnalyzer}
+     * is cheap enough to leave to GC.
      */
     static Analyzer resolveAnalyzer(String analyzerName, AnalysisRegistry registry) {
         if (analyzerName != null) {
@@ -374,7 +389,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
 
     @Override
     public boolean foldable() {
-        return field().foldable() && query().foldable() && (options() == null || options().foldable());
+        return field().foldable() && query().foldable();
     }
 
     @Override
@@ -549,7 +564,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
 
         ChunkingSettings chunkingSettings = numWords > 0 ? new SentenceBoundaryChunkingSettings(numWords, 0) : null;
 
-        Analyzer resolvedAnalyzer = resolveAnalyzer(analyzerName, toEvaluator.analysisRegistry());
+        Analyzer resolvedAnalyzer = resolveAnalyzer(analyzerName, toEvaluator.foldCtx().analysisRegistry());
         MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer(resolvedAnalyzer);
 
         Object foldedQuery = query.fold(toEvaluator.foldCtx());

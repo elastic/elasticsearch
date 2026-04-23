@@ -397,3 +397,26 @@ ROW content = "The running club meets daily for long runs."
 eng:keyword | std:keyword
 The <em>running</em> club meets daily for long <em>runs</em>. | The running club meets daily for long <em>runs</em>.
 ;
+
+topSnippetsAnalyzerInWhereKept
+required_capability: top_snippets_analyzer
+
+ROW content = "The running club meets daily for long runs."
+| WHERE mv_count(TOP_SNIPPETS(content, "run", { "analyzer": "english" })) > 0
+| KEEP content
+;
+
+content:keyword
+The running club meets daily for long runs.
+;
+
+topSnippetsAnalyzerInWhereFilteredOut
+required_capability: top_snippets_analyzer
+
+ROW content = "The dogs bark loudly."
+| WHERE mv_count(TOP_SNIPPETS(content, "run", { "analyzer": "english" })) > 0
+| KEEP content
+;
+
+content:keyword
+;

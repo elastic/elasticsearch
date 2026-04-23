@@ -36,6 +36,7 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -221,6 +222,16 @@ public class ComputeService {
 
     PlannerSettings.Holder plannerSettings() {
         return plannerSettings;
+    }
+
+    /**
+     * Node-level {@link AnalysisRegistry}, exposed so {@link ClusterComputeHandler} can wire it
+     * into the {@link org.elasticsearch.xpack.esql.core.expression.FoldContext} it builds for the
+     * remote reduction and compute steps. Plan-time analyzer resolution (e.g. {@code TOP_SNIPPETS}'s
+     * {@code analyzer} option) flows through that context.
+     */
+    AnalysisRegistry analysisRegistry() {
+        return searchService.getIndicesService().getAnalysis();
     }
 
     FormatReaderRegistry formatReaderRegistry() {

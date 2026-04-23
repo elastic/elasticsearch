@@ -268,7 +268,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
             computeService.plannerSettings().get(),
             computeService.createFlags(),
             configuration,
-            configuration.newFoldContext(),
+            configuration.newFoldContext(computeService.analysisRegistry()),
             plan,
             true,
             false,
@@ -299,7 +299,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         flags,
                         EmptyIndexedByShardId.instance(),
                         configuration,
-                        configuration.newFoldContext(),
+                        configuration.newFoldContext(computeService.analysisRegistry()),
                         exchangeSource::createExchangeSource,
                         () -> exchangeSink.createExchangeSink(() -> {})
                     ),

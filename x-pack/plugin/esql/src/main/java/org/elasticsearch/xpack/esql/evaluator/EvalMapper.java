@@ -11,8 +11,6 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.expression.LoadFromPageEvaluator;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -42,30 +40,11 @@ public final class EvalMapper {
         Layout layout,
         IndexedByShardId<? extends ShardContext> shardContexts
     ) {
-        return toEvaluator(foldCtx, exp, layout, shardContexts, null);
-    }
-
-    /**
-     * Provides an ExpressionEvaluator factory to evaluate an expression.
-     *
-     * @param foldCtx the fold context for folding expressions
-     * @param exp the expression to generate an evaluator for
-     * @param layout the mapping from attributes to channels
-     * @param shardContexts the shard contexts, needed to generate queries for expressions that couldn't be pushed down to Lucene
-     * @param analysisRegistry the node-level analysis registry for resolving analyzers by name, may be {@code null}
-     */
-    public static ExpressionEvaluator.Factory toEvaluator(
-        FoldContext foldCtx,
-        Expression exp,
-        Layout layout,
-        IndexedByShardId<? extends ShardContext> shardContexts,
-        @Nullable AnalysisRegistry analysisRegistry
-    ) {
         if (exp instanceof EvaluatorMapper m) {
             return m.toEvaluator(new EvaluatorMapper.ToEvaluator() {
                 @Override
                 public ExpressionEvaluator.Factory apply(Expression expression) {
-                    return toEvaluator(foldCtx, expression, layout, shardContexts, analysisRegistry);
+                    return toEvaluator(foldCtx, expression, layout, shardContexts);
                 }
 
                 @Override
@@ -76,11 +55,6 @@ public final class EvalMapper {
                 @Override
                 public IndexedByShardId<? extends ShardContext> shardContexts() {
                     return shardContexts;
-                }
-
-                @Override
-                public AnalysisRegistry analysisRegistry() {
-                    return analysisRegistry;
                 }
             });
         }

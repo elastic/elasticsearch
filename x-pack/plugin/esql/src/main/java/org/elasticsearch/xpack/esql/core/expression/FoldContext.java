@@ -11,7 +11,9 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.esql.core.QlClientException;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
@@ -35,9 +37,28 @@ public class FoldContext {
     private final long initialAllowedBytes;
     private long allowedBytes;
 
+    @Nullable
+    private final AnalysisRegistry analysisRegistry;
+
     public FoldContext(long allowedBytes) {
+        this(allowedBytes, null);
+    }
+
+    public FoldContext(long allowedBytes, @Nullable AnalysisRegistry analysisRegistry) {
         this.initialAllowedBytes = allowedBytes;
         this.allowedBytes = allowedBytes;
+        this.analysisRegistry = analysisRegistry;
+    }
+
+    /**
+     * Node-level {@link AnalysisRegistry} for resolving analyzers by name during fold / evaluator
+     * construction. {@code null} on {@link #small()} and in tests that do not need analyzer
+     * resolution; a function that requires one (e.g. {@code TOP_SNIPPETS} with an explicit analyzer)
+     * must surface a plan-time error when this is {@code null}.
+     */
+    @Nullable
+    public AnalysisRegistry analysisRegistry() {
+        return analysisRegistry;
     }
 
     /**

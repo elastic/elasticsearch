@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -262,7 +263,16 @@ public class Configuration implements Writeable {
      * Create a new {@link FoldContext} with the limit configured in the {@link QueryPragmas}.
      */
     public FoldContext newFoldContext() {
-        return new FoldContext(pragmas.foldLimit().getBytes());
+        return newFoldContext(null);
+    }
+
+    /**
+     * Create a new {@link FoldContext} with the limit configured in the {@link QueryPragmas}
+     * and a node-level {@link AnalysisRegistry} available for analyzer-by-name resolution during
+     * fold / evaluator construction.
+     */
+    public FoldContext newFoldContext(@Nullable AnalysisRegistry analysisRegistry) {
+        return new FoldContext(pragmas.foldLimit().getBytes(), analysisRegistry);
     }
 
     /**

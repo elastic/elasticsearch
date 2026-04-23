@@ -565,7 +565,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         flags,
                         acquiredSearchContexts,
                         configuration,
-                        configuration.newFoldContext(),
+                        configuration.newFoldContext(searchService.getIndicesService().getAnalysis()),
                         null,
                         () -> exchangeSink.createExchangeSink(pagesProduced::incrementAndGet)
                     );
@@ -732,7 +732,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         flags,
                         searchContexts.globalView(),
                         request.configuration(),
-                        new FoldContext(request.pragmas().foldLimit().getBytes()),
+                        new FoldContext(request.pragmas().foldLimit().getBytes(), searchService.getIndicesService().getAnalysis()),
                         exchangeSource::createExchangeSource,
                         () -> externalSink.createExchangeSink(() -> {})
                     ),
@@ -781,7 +781,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 computeService.plannerSettings().get(),
                 computeService.createFlags(),
                 configuration,
-                configuration.newFoldContext(),
+                configuration.newFoldContext(searchService.getIndicesService().getAnalysis()),
                 plan,
                 request.runNodeLevelReduction(),
                 request.reductionLateMaterialization(),
@@ -845,7 +845,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             plannerSettings,
             flags,
             configuration,
-            configuration.newFoldContext(),
+            configuration.newFoldContext(searchService.getIndicesService().getAnalysis()),
             sinkExec,
             SearchStats.EMPTY,
             computeService.formatReaderRegistry(),
@@ -880,7 +880,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     flags,
                     EmptyIndexedByShardId.instance(),
                     configuration,
-                    configuration.newFoldContext(),
+                    configuration.newFoldContext(searchService.getIndicesService().getAnalysis()),
                     null,
                     () -> externalSink.createExchangeSink(() -> {})
                 );

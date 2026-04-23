@@ -27,6 +27,7 @@ import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.IndexModeFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -184,6 +185,7 @@ public class EsqlSession {
     private final CrossProjectModeDecider crossProjectModeDecider;
     private final String clusterName;
     private final TransportService transportService;
+    private final AnalysisRegistry analysisRegistry;
 
     private boolean explainMode;
     private String parsedPlanString;
@@ -234,6 +236,7 @@ public class EsqlSession {
         this.clusterName = services.clusterService().getClusterName().value();
         this.transportService = services.transportService();
         this.projectMetadata = projectMetadata;
+        this.analysisRegistry = services.searchService().getIndicesService().getAnalysis();
     }
 
     public String sessionId() {
@@ -330,7 +333,7 @@ public class EsqlSession {
             configurationToUse = configuration.withExplainOnly();
         }
         final Configuration finalConfiguration = configurationToUse;
-        final FoldContext foldContext = finalConfiguration.newFoldContext();
+        final FoldContext foldContext = finalConfiguration.newFoldContext(analysisRegistry);
 
         analyzedPlan(
             plan,
@@ -531,7 +534,7 @@ public class EsqlSession {
             }
 
             // Build and return the EXPLAIN table
-            finishExplain(values, configuration, configuration.newFoldContext(), planTimeProfile, planRunner, next);
+            finishExplain(values, configuration, configuration.newFoldContext(analysisRegistry), planTimeProfile, planRunner, next);
         });
     }
 

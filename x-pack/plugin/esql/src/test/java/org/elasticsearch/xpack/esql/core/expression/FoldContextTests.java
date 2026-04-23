@@ -8,13 +8,46 @@
 package org.elasticsearch.xpack.esql.core.expression;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+
+import java.io.IOException;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class FoldContextTests extends ESTestCase {
+
+    private static AnalysisRegistry analysisRegistry;
+
+    @BeforeClass
+    public static void setupAnalysisRegistry() throws IOException {
+        analysisRegistry = new AnalysisModule(
+            TestEnvironment.newEnvironment(
+                Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build()
+            ),
+            List.of(),
+            new StablePluginsRegistry()
+        ).getAnalysisRegistry();
+    }
+
+    @AfterClass
+    public static void tearDownAnalysisRegistry() {
+        analysisRegistry = null;
+    }
+
     public void testEq() {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(randomFoldContext(), this::copy, this::mutate);
     }
@@ -93,5 +126,24 @@ public class FoldContextTests extends ESTestCase {
         FoldContext ctx = new FoldContext(123);
         ctx.trackAllocation(Source.EMPTY, 22);
         assertThat(ctx.toString(), equalTo("FoldContext[101/123]"));
+    }
+
+    public void testAnalysisRegistryDefaultsToNull() {
+        assertThat(new FoldContext(123).analysisRegistry(), nullValue());
+        assertThat(FoldContext.small().analysisRegistry(), nullValue());
+    }
+
+    public void testAnalysisRegistryPropagated() {
+        FoldContext ctx = new FoldContext(123, analysisRegistry);
+        assertThat(ctx.analysisRegistry(), sameInstance(analysisRegistry));
+    }
+
+    public void testEqualsIgnoresAnalysisRegistry() {
+        // Registry identity should not affect equality: two contexts with the same byte budget
+        // but different registries (one null, one set) must still compare equal.
+        FoldContext noRegistry = new FoldContext(42);
+        FoldContext withRegistry = new FoldContext(42, analysisRegistry);
+        assertThat(noRegistry, equalTo(withRegistry));
+        assertThat(noRegistry.hashCode() == withRegistry.hashCode(), is(true));
     }
 }

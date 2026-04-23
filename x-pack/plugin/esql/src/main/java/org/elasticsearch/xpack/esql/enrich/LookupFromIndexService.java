@@ -661,7 +661,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             ExchangeSourceOperator.ExchangeSourceOperatorFactory sourceFactory = server.getSourceOperatorFactory();
 
             Configuration configuration = request.configuration;
-            FoldContext foldCtx = configuration != null ? configuration.newFoldContext() : FoldContext.small();
+            FoldContext foldCtx = configuration != null ? configuration.newFoldContext(indicesService.getAnalysis()) : FoldContext.small();
             SearchStats searchStats = SearchContextStats.from(List.of(shardContext.executionContext()));
             EsqlFlags flags = new EsqlFlags(clusterService.getClusterSettings());
 

@@ -15,7 +15,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
@@ -40,15 +39,6 @@ public interface EvaluatorMapper {
 
         default IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts() {
             throw new UnsupportedOperationException("Shard contexts should only be needed for evaluation operations");
-        }
-
-        /**
-         * Returns the node-level {@link AnalysisRegistry}, which can resolve any globally-registered
-         * (prebuilt or plugin-contributed) analyzer by name without requiring an index context.
-         * Returns {@code null} when no registry is available (e.g. during folding or in tests).
-         */
-        default AnalysisRegistry analysisRegistry() {
-            return null;
         }
     }
 

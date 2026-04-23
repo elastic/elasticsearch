@@ -463,12 +463,12 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
         if (analyzer != null) {
             Layout.Builder builder = new Layout.Builder();
             buildLayout(builder, expression);
+            FoldContext foldCtx = new FoldContext(FoldContext.small().initialAllowedBytes(), analysisRegistry);
             factory = EvalMapper.toEvaluator(
-                FoldContext.small(),
+                foldCtx,
                 expression,
                 builder.build(),
-                org.elasticsearch.compute.lucene.EmptyIndexedByShardId.instance(),
-                analysisRegistry
+                org.elasticsearch.compute.lucene.EmptyIndexedByShardId.instance()
             );
         } else {
             factory = evaluator(expression);

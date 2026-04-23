@@ -101,6 +101,7 @@ tasks.named("yamlRestCompatTestTransform").configure(
     task.skipTest("esql/60_usage/Basic ESQL usage output (telemetry) non-snapshot version", "The number of functions is constantly increasing")
     task.skipTest("esql/80_text/reverse text", "The output type changed from TEXT to KEYWORD.")
     task.skipTest("esql/80_text/values function", "The output type changed from TEXT to KEYWORD.")
+    task.skipTest("privileges/11_builtin/Test get builtin privileges", "unnecessary to test compatibility")
     task.skipTest("esql/61_enrich_ip/Invalid IP strings", "We switched from exceptions to null+warnings for ENRICH runtime errors")
     task.skipTest("esql/180_match_operator/match with non text field", "Match operator can now be used on non-text fields")
     task.skipTest("esql/180_match_operator/match with functions", "Error message changed")
@@ -125,6 +126,11 @@ tasks.named("yamlRestCompatTestTransform").configure(
     task.skipTest("esql/40_tsdb/from index pattern unsupported counter", "TODO: support for subset of metric fields")
     task.skipTest("esql/40_unsupported_types/unsupported", "TODO: support for subset of metric fields")
     task.skipTest("esql/40_unsupported_types/unsupported with sort", "TODO: support for subset of metric fields")
+    task.skipTest("service_accounts/10_basic/Test get service accounts", "Enterprise Search service account removed, invalidating the current tests")
+    task.skipTest(
+      "service_accounts/10_basic/Test service account tokens",
+      "Enterprise Search service account removed, invalidating the current tests"
+    )
     task.skipTest("ml/3rd_party_deployment/Test clear deployment cache", "Deprecated route removed")
     task.skipTest("ml/3rd_party_deployment/Test start and stop deployment with cache", "Deprecated route removed")
     task.skipTest("ml/3rd_party_deployment/Test start and stop multiple deployments", "Deprecated route removed")

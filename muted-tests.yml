@@ -2,9 +2,6 @@ tests:
 - class: org.elasticsearch.packaging.test.PackagesSecurityAutoConfigurationTests
   method: test20SecurityNotAutoConfiguredOnReInstallation
   issue: https://github.com/elastic/elasticsearch/issues/112635
-- class: org.elasticsearch.xpack.transform.integration.TransformIT
-  method: testStopWaitForCheckpoint
-  issue: https://github.com/elastic/elasticsearch/issues/106113
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityWithApmTracingRestIT
   method: testTracingCrossCluster
   issue: https://github.com/elastic/elasticsearch/issues/112731

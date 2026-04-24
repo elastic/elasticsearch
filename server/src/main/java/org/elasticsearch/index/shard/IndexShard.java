@@ -3062,7 +3062,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert assertPrimaryMode();
         verifyNotClosed();
         ensureSoftDeletesEnabled();
-        logger.info(" ---> Acquiring retention lease, id: {}, seqNumber: {}, source {}", id, retainingSequenceNumber, source);
         try (Closeable ignore = acquireHistoryRetentionLock()) {
             final long actualRetainingSequenceNumber = retainingSequenceNumber == RETAIN_ALL
                 ? getMinRetainedSeqNo()
@@ -3086,7 +3085,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert assertPrimaryMode();
         verifyNotClosed();
         ensureSoftDeletesEnabled();
-        logger.info(" ---> Renewing retention lease, id: {}, seqNumber: {}, source {}", id, retainingSequenceNumber, source);
         try (Closeable ignore = acquireHistoryRetentionLock()) {
             final long actualRetainingSequenceNumber = retainingSequenceNumber == RETAIN_ALL
                 ? getMinRetainedSeqNo()

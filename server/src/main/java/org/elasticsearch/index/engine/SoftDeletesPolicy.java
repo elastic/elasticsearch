@@ -9,8 +9,6 @@
 
 package org.elasticsearch.index.engine;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -21,7 +19,6 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.Translog;
 
 import java.util.Objects;
-import java.util.Random;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -29,7 +26,6 @@ import java.util.function.Supplier;
  * A policy that controls how many soft-deleted documents should be retained for peer-recovery and querying history changes purpose.
  */
 final class SoftDeletesPolicy {
-    private static final Logger logger = LogManager.getLogger(SoftDeletesPolicy.class);
     private final LongSupplier globalCheckpointSupplier;
     private long localCheckpointOfSafeCommit;
     // This lock count is used to prevent `minRetainedSeqNo` from advancing.
@@ -102,25 +98,13 @@ final class SoftDeletesPolicy {
      * This is a analogy to the translog's retention lock; see {@link Translog#acquireRetentionLock()}
      */
     synchronized Releasable acquireRetentionLock() {
-        try {
-            Thread.sleep(new Random().nextInt(100));
-        } catch (InterruptedException e) {
-            throw new AssertionError("bwaaa");
-        }
         assert retentionLockCount >= 0 : "Invalid number of retention locks [" + retentionLockCount + "]";
-        logger.info("---> Retention lock acquired");
         retentionLockCount++;
         return Releasables.releaseOnce(this::releaseRetentionLock);
     }
 
     private synchronized void releaseRetentionLock() {
         assert retentionLockCount > 0 : "Invalid number of retention locks [" + retentionLockCount + "]";
-        logger.info("---> Retention lock released");
-        try {
-            Thread.sleep(new Random().nextInt(100));
-        } catch (InterruptedException e) {
-            throw new AssertionError("bwaaa");
-        }
         retentionLockCount--;
     }
 
@@ -178,11 +162,7 @@ final class SoftDeletesPolicy {
              * We take the maximum as minSeqNoToRetain can go backward as the retention operations value can be changed in settings, or from
              * the addition of leases with a retaining sequence number lower than previous retaining sequence numbers.
              */
-            final long previous = minRetainedSeqNo;
             minRetainedSeqNo = Math.max(minRetainedSeqNo, minSeqNoToRetain);
-            logger.info(" ---> Retention locked was not held: upating min retained seq no from {} to {}", previous, minSeqNoToRetain);
-        } else {
-            logger.info(" ---> Retention locked was held: returning from cache {}", minRetainedSeqNo);
         }
         return minRetainedSeqNo;
     }

@@ -109,7 +109,6 @@ public class CcrSeqNoPruningIT extends CcrIntegTestCase {
         followerClient().execute(PutFollowAction.INSTANCE, putFollow(leaderIndex, followerIndex)).get();
 
         final long maxSeqNo = getMaxSeqNo(leaderClient(), leaderIndex);
-        logger.info("Max seq no is {}", maxSeqNo);
         assertRetentionLeasesAdvanced(leaderClient(), leaderIndex, maxSeqNo + 1);
         persistGlobalCheckpointOnPrimaryShards(getLeaderCluster(), leaderIndex);
         assertMinRetainedSeqNoAdvanced(getLeaderCluster(), leaderIndex, maxSeqNo + 1);

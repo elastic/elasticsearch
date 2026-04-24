@@ -123,7 +123,12 @@ public class HttpRequestSenderTests extends ESTestCase {
     }
 
     public void testStartSynchronously_ThrowsUnsupportedOperationException() {
-        var sender = new HttpRequestSender(threadPool, createMockHttpClientManager(), mock(RequestSender.class), mock(RequestExecutor.class));
+        var sender = new HttpRequestSender(
+            threadPool,
+            createMockHttpClientManager(),
+            mock(RequestSender.class),
+            mock(RequestExecutor.class)
+        );
 
         expectThrows(UnsupportedOperationException.class, sender::startSynchronously);
     }

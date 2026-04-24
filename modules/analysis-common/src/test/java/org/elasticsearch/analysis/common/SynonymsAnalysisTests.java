@@ -9,6 +9,7 @@
 
 package org.elasticsearch.analysis.common;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
@@ -30,6 +31,7 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -40,6 +42,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -621,6 +624,35 @@ public class SynonymsAnalysisTests extends ESTestCase {
         assertThat(
             e.getMessage(),
             containsString("Multiple synonym sets in [synonyms_set] are not supported until all nodes in the cluster have been upgraded")
+        );
+    }
+
+    public void testDuplicateSynonymSetsLogWarning() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put("path.home", createTempDir().toString())
+            .put("index.analysis.filter.my_synonyms.type", "synonym_graph")
+            .put("index.analysis.filter.my_synonyms.updateable", "true")
+            .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")
+            .putList("index.analysis.analyzer.my_analyzer.filter", "lowercase", "my_synonyms")
+            .putList("index.analysis.filter.my_synonyms.synonyms_set", "set-a", "set-a")
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        MockLog.assertThatLogger(
+            () -> {
+                try {
+                    createTestAnalysis(idxSettings, settings, commonAnalysisPlugin);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            },
+            SynonymTokenFilterFactory.class,
+            new MockLog.SeenEventExpectation(
+                "duplicate warning",
+                SynonymTokenFilterFactory.class.getName(),
+                Level.WARN,
+                "Duplicate synonym set names*"
+            )
         );
     }
 

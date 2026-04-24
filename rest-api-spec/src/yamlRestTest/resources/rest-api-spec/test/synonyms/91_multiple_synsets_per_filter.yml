@@ -202,3 +202,31 @@ setup:
                 query: chilly
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "1" }
+
+---
+"Empty synonyms_set list produces an empty synonym map and index creation succeeds":
+  - do:
+      indices.create:
+        index: empty_sets_index
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+            analysis:
+              filter:
+                empty_synonym_filter:
+                  type: synonym_graph
+                  synonyms_set: []
+                  updateable: true
+              analyzer:
+                empty_synonym_analyzer:
+                  type: custom
+                  tokenizer: standard
+                  filter: [ lowercase, empty_synonym_filter ]
+          mappings:
+            properties:
+              my_field:
+                type: text
+                search_analyzer: empty_synonym_analyzer
+  - match: { acknowledged: true }
+

@@ -37,7 +37,6 @@ import java.io.IOException;
 import java.io.Reader;
 import java.io.StringReader;
 import java.io.UncheckedIOException;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
@@ -77,7 +76,16 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
                             + "]! Loading synonyms from index is supported only for search time synonyms!"
                     );
                 }
-                List<String> synonymsSets = List.copyOf(new LinkedHashSet<>(factory.settings.getAsList(SynonymsSource.INDEX.getSettingName())));
+                List<String> rawSynonymsSets = factory.settings.getAsList(SynonymsSource.INDEX.getSettingName());
+                List<String> synonymsSets = rawSynonymsSets.stream().distinct().toList();
+                if (synonymsSets.size() < rawSynonymsSets.size()) {
+                    LOGGER.warn(
+                        "Duplicate synonym set names in [{}] for filter [{}]; duplicates will be ignored: {}",
+                        SynonymsSource.INDEX.getSettingName(),
+                        factory.name(),
+                        rawSynonymsSets
+                    );
+                }
                 if (synonymsSets.size() > 1
                     && factory.clusterService.state().getMinTransportVersion().supports(MULTIPLE_SYNONYM_SETS_PER_FILTER_TV) == false) {
                     throw new IllegalArgumentException(

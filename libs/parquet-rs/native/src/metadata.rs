@@ -28,26 +28,27 @@ pub unsafe extern "C" fn pqrs_get_statistics(
     out_rows: *mut i64,
     out_bytes: *mut i64,
 ) -> i32 {
-    let path = ffi_try!(unsafe { cstr_to_str(path) });
-    let _config = ffi_try!(unsafe { parse_config(config) });
+    ffi_call(|| {
+        let path = unsafe { cstr_to_str(path) }?;
+        let _config = unsafe { parse_config(config) }?;
 
-    // TODO: use _config to resolve remote storage (object_store) when URI scheme is non-local
-    let file = ffi_try!(File::open(path));
-    let reader = ffi_try!(SerializedFileReader::new(file));
-    let metadata = reader.metadata();
+        // TODO: use _config to resolve remote storage (object_store) when URI scheme is non-local
+        let file = File::open(path)?;
+        let reader = SerializedFileReader::new(file)?;
+        let metadata = reader.metadata();
 
-    let mut total_rows: i64 = 0;
-    let mut total_bytes: i64 = 0;
-    for rg in metadata.row_groups() {
-        total_rows += rg.num_rows();
-        total_bytes += rg.total_byte_size();
-    }
+        let mut total_rows: i64 = 0;
+        let mut total_bytes: i64 = 0;
+        for rg in metadata.row_groups() {
+            total_rows += rg.num_rows();
+            total_bytes += rg.total_byte_size();
+        }
 
-    unsafe {
-        *out_rows = total_rows;
-        *out_bytes = total_bytes;
-    }
-    0
+        unsafe {
+            *out_rows = total_rows;
+            *out_bytes = total_bytes;
+        }
+    })
 }
 
 /// Exports the Parquet file's Arrow schema via the Arrow C Data Interface.

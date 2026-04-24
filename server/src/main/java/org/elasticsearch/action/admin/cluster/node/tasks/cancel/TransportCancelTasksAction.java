@@ -101,6 +101,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
         CancellableTask cancellableTask,
         ActionListener<TaskInfo> listener
     ) {
+        cancellableTask.ensureCancellable();
         String nodeId = clusterService.localNode().getId();
         taskManager.cancelTaskAndDescendants(
             cancellableTask,

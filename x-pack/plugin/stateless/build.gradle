@@ -53,6 +53,16 @@ restResources {
     }
 }
 
+dependencies {
+  clusterModules project(':x-pack:plugin:secure-settings')
+  clusterModules project(':x-pack:plugin:stateless-no-wait-for-active-shards')
+  clusterModules project(':x-pack:plugin:stateless-master-failover')
+  clusterModules project(':x-pack:plugin:stateless-sigterm')
+  clusterModules project(':x-pack:plugin:stateless-health-shards-availability')
+  clusterModules project(':modules:data-streams')
+  clusterModules project(':modules:mapper-extras')
+}
+
 tasks.named('test') {
     exclude '**/S3RegisterCASLinearizabilityTests.class'
     systemProperty 'es.searchable.snapshot.shared_cache.write_buffer.size', '8kb'
@@ -60,12 +70,4 @@ tasks.named('test') {
 
 tasks.named('internalClusterTest') {
     jvmArgs '--add-opens=java.base/java.io=ALL-UNNAMED'
-}
-
-tasks.named('yamlRestTest') {
-    usesDefaultDistribution 'to be triaged'
-}
-
-tasks.named('javaRestTest') {
-    usesDefaultDistribution 'to be triaged'
 }

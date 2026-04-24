@@ -9,21 +9,36 @@
 
 package org.elasticsearch.search;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.junit.rules.TestRule;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
+@ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class SearchShardsResponseBwcIT extends ESRestTestCase {
+
+    @ClassRule
+    public static TestRule clusterRule = MultiClusterSearchClusters.CLUSTER_RULE;
+
+    @BeforeClass
+    public static void seedCcsRemoteClusterData() throws Exception {
+        MultiClusterSearchClusters.beforeSuite();
+    }
 
     private static final String REMOTE_CLUSTER_ALIAS = "my_remote_cluster";
 

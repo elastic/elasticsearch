@@ -10,9 +10,11 @@
 package org.elasticsearch.search;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.apache.http.HttpEntity;
+import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NByteArrayEntity;
 import org.apache.lucene.search.join.ScoreMode;
@@ -24,6 +26,7 @@ import org.elasticsearch.aggregations.pipeline.DerivativePipelineAggregationBuil
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -67,6 +70,7 @@ import org.elasticsearch.search.suggest.phrase.DirectCandidateGeneratorBuilder;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.test.NotEqualMessageBuilder;
+import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -77,6 +81,9 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
 import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -107,15 +114,21 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
- * This test class executes twice, first against the remote cluster, and then against another cluster that has the remote cluster
- * registered. Given that each test gets executed against both clusters, {@link #assumeMultiClusterSetup()} needs to be used to run a test
- * against the multi cluster setup only, which is required for testing cross-cluster search.
- * The goal of this test is not to test correctness of CCS responses, but rather to verify that CCS returns the same responses when
- * <code>minimizeRoundTrips</code> is set to either <code>true</code> or <code>false</code>. In fact the execution differs depending on
- * such parameter, hence we want to verify that results are the same in both scenarios.
+ * Verifies that CCS returns the same responses when {@code minimizeRoundTrips} is {@code true} vs {@code false}.
+ * The test indexes data on both the local cluster and the registered remote cluster, then executes searches
+ * against both local and CCS ({@code my_remote_cluster:index}) targets and compares the results.
  */
+@ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 @TimeoutSuite(millis = 5 * TimeUnits.MINUTE) // to account for slow as hell VMs
 public class CCSDuelIT extends ESRestTestCase {
+
+    @ClassRule
+    public static TestRule clusterRule = MultiClusterSearchClusters.CLUSTER_RULE;
+
+    @BeforeClass
+    public static void seedCcsRemoteClusterData() throws Exception {
+        MultiClusterSearchClusters.beforeSuite();
+    }
 
     private static final String INDEX_NAME = "ccs_duel_index";
     private static final String REMOTE_INDEX_NAME = "my_remote_cluster:" + INDEX_NAME;
@@ -128,15 +141,31 @@ public class CCSDuelIT extends ESRestTestCase {
         super.initClient();
         if (init == false) {
             init = true;
-            String destinationCluster = System.getProperty("tests.rest.suite");
-            // we index docs with private randomness otherwise the two clusters end up with exactly the same documents
-            // given that this test class is run twice with same seed.
-            RandomizedContext.current()
-                .runWithPrivateRandomness(random().nextLong() + destinationCluster.hashCode(), (Callable<Void>) () -> {
-                    indexDocuments(destinationCluster + "-");
-                    return null;
-                });
+            // Index with private randomness so the two clusters get different documents.
+            RandomizedContext.current().runWithPrivateRandomness(random().nextLong() + "multi_cluster".hashCode(), (Callable<Void>) () -> {
+                indexDocuments(client(), "multi_cluster-");
+                return null;
+            });
+            try (RestClient remoteClient = buildRemoteClient()) {
+                RandomizedContext.current()
+                    .runWithPrivateRandomness(random().nextLong() + "remote_cluster".hashCode(), (Callable<Void>) () -> {
+                        indexDocuments(remoteClient, "remote_cluster-");
+                        return null;
+                    });
+            }
         }
+    }
+
+    private static RestClient buildRemoteClient() {
+        String address = System.getProperty("tests.rest.remote_cluster");
+        assertNotNull("tests.rest.remote_cluster must be set", address);
+        String[] parts = address.split(",");
+        HttpHost[] hosts = new HttpHost[parts.length];
+        for (int i = 0; i < parts.length; i++) {
+            int portSep = parts[i].lastIndexOf(':');
+            hosts[i] = new HttpHost(parts[i].substring(0, portSep), Integer.parseInt(parts[i].substring(portSep + 1)));
+        }
+        return RestClient.builder(hosts).build();
     }
 
     @Override
@@ -149,15 +178,15 @@ public class CCSDuelIT extends ESRestTestCase {
         return true;
     }
 
-    private void indexDocuments(String idPrefix) throws IOException, InterruptedException {
+    private void indexDocuments(RestClient targetClient, String idPrefix) throws IOException, InterruptedException {
         // this index with a single document is used to test partial failures
         Request request = new Request("POST", "/" + INDEX_NAME + "_err/_doc");
         request.addParameter("refresh", "wait_for");
         request.setJsonEntity("{ \"id\" : \"id\",  \"creationDate\" : \"err\" }");
-        Response response = client().performRequest(request);
+        Response response = targetClient.performRequest(request);
         assertEquals(201, response.getStatusLine().getStatusCode());
 
-        ElasticsearchAssertions.assertAcked(createIndex(INDEX_NAME + "_empty"));
+        ElasticsearchAssertions.assertAcked(createIndex(targetClient, INDEX_NAME + "_empty", Settings.EMPTY));
 
         int numShards = randomIntBetween(1, 5);
         Settings settings = indexSettings(numShards, 0).build();
@@ -178,7 +207,7 @@ public class CCSDuelIT extends ESRestTestCase {
                 }
               }
             }""";
-        ElasticsearchAssertions.assertAcked(createIndex(INDEX_NAME, settings, mapping));
+        ElasticsearchAssertions.assertAcked(createIndex(targetClient, INDEX_NAME, settings, mapping));
 
         CountDownLatch latch = new CountDownLatch(2);
 
@@ -188,7 +217,7 @@ public class CCSDuelIT extends ESRestTestCase {
             for (int i = 0; i < numQuestions; i++) {
                 buildIndexRequest(builder, idPrefix + i, "question", null);
             }
-            executeBulkAsync(builder.toString(), latch);
+            executeBulkAsync(targetClient, builder.toString(), latch);
         }
         {
             StringBuilder builder = new StringBuilder();
@@ -196,19 +225,19 @@ public class CCSDuelIT extends ESRestTestCase {
             for (int i = 0; i < numAnswers; i++) {
                 buildIndexRequest(builder, idPrefix + (i + 1000), "answer", idPrefix + randomIntBetween(0, numQuestions - 1));
             }
-            executeBulkAsync(builder.toString(), latch);
+            executeBulkAsync(targetClient, builder.toString(), latch);
         }
 
         assertTrue(latch.await(30, TimeUnit.SECONDS));
 
-        BroadcastResponse refreshResponse = refresh(INDEX_NAME);
+        BroadcastResponse refreshResponse = refresh(targetClient, INDEX_NAME);
         ElasticsearchAssertions.assertNoFailures(refreshResponse);
     }
 
-    private void executeBulkAsync(String body, CountDownLatch latch) {
+    private void executeBulkAsync(RestClient targetClient, String body, CountDownLatch latch) {
         Request bulk = new Request("POST", "/_bulk");
         bulk.setJsonEntity(body);
-        client().performRequestAsync(bulk, new ResponseListener() {
+        targetClient.performRequestAsync(bulk, new ResponseListener() {
             @Override
             public void onSuccess(Response response) {
                 try {

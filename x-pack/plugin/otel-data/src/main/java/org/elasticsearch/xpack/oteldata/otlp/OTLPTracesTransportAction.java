@@ -71,14 +71,14 @@ public class OTLPTracesTransportAction extends AbstractOTLPTransportAction {
             for (int j = 0, scopeSpansListSize = scopeSpansList.size(); j < scopeSpansListSize; j++) {
                 ScopeSpans scopeSpans = scopeSpansList.get(j);
                 InstrumentationScope scope = scopeSpans.getScope();
-                String receiverName = TargetIndex.extractReceiverName(scope);
+                String scopeRoutingDataset = TargetIndex.extractScopeRoutingDataset(scope);
                 List<Span> spansList = scopeSpans.getSpansList();
                 for (int k = 0, spansListSize = spansList.size(); k < spansListSize; k++) {
                     Span span = spansList.get(k);
                     TargetIndex index = TargetIndex.evaluate(
                         TYPE_TRACES,
                         span.getAttributesList(),
-                        receiverName,
+                        scopeRoutingDataset,
                         scope.getAttributesList(),
                         resource.getAttributesList()
                     );

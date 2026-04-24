@@ -287,7 +287,7 @@ public class DataPointGroupingContextTests extends ESTestCase {
         assertThat(targetIndexes, containsInAnyOrder("metrics-hostmetricsreceiver.otel-default"));
     }
 
-    public void testReceiverBasedRoutingWithoutTrailingSlash() throws Exception {
+    public void testInvalidReceiverBasedRoutingWithoutTrailingSlashFallsBackToDefault() throws Exception {
         String scopeName = "/receiver/foo";
         ResourceMetrics resource = createResourceMetrics(
             List.of(keyValue("service.name", "test-service_1")),
@@ -307,7 +307,7 @@ public class DataPointGroupingContextTests extends ESTestCase {
 
         List<String> targetIndexes = new ArrayList<>();
         context.consume(dataPointGroup -> targetIndexes.add(dataPointGroup.targetIndex().index()));
-        assertThat(targetIndexes, containsInAnyOrder("metrics-foo.otel-default"));
+        assertThat(targetIndexes, containsInAnyOrder("metrics-generic.otel-default"));
     }
 
 }

@@ -647,7 +647,7 @@ public class FileSplitProviderTests extends ESTestCase {
         }
     }
 
-    public void testRangeAwareFallbackForSingleRowGroup() {
+    public void testRangeAwareFallbackForEmptyRanges() {
         RangeAwareFormatReader mockReader = createMockRangeReader(List.<SplitRange>of());
 
         FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
@@ -670,11 +670,133 @@ public class FileSplitProviderTests extends ESTestCase {
         SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of());
         List<ExternalSplit> splits = splitter.discoverSplits(ctx);
 
-        assertEquals("Single row group should produce single split", 1, splits.size());
+        assertEquals("Empty ranges should produce single whole-file split", 1, splits.size());
         FileSplit fs = (FileSplit) splits.get(0);
         assertEquals(0, fs.offset());
         assertEquals(500, fs.length());
-        assertNull("Single split should not have RANGE_SPLIT_KEY", fs.config().get(FileSplitProvider.RANGE_SPLIT_KEY));
+        assertNull("Whole-file split should not have RANGE_SPLIT_KEY", fs.config().get(FileSplitProvider.RANGE_SPLIT_KEY));
+    }
+
+    public void testRangeAwareSingleRowGroupReturnsOneRangeWithStats() {
+        SplitRange singleRange = new SplitRange(4, 496, Map.of("_stats.row_count", 1000L, "_stats.columns.id.null_count", 0L));
+        RangeAwareFormatReader mockReader = createMockRangeReader(List.of(singleRange));
+
+        FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
+        formatRegistry.registerLazy("parquet", (s, bf) -> mockReader, Settings.EMPTY, null);
+        formatRegistry.byName("parquet");
+
+        StorageProviderRegistry storageRegistry = createMockStorageRegistry();
+
+        FileSplitProvider splitter = new FileSplitProvider(
+            FileSplitProvider.DEFAULT_TARGET_SPLIT_SIZE,
+            new DecompressionCodecRegistry(),
+            storageRegistry,
+            formatRegistry,
+            Settings.EMPTY
+        );
+
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/one_rg.parquet"), 500, Instant.EPOCH);
+        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.parquet");
+
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of());
+        List<ExternalSplit> splits = splitter.discoverSplits(ctx);
+
+        assertEquals("Single range should produce one split", 1, splits.size());
+        FileSplit fs = (FileSplit) splits.get(0);
+        assertEquals(4, fs.offset());
+        assertEquals(496, fs.length());
+        assertEquals("true", fs.config().get(FileSplitProvider.RANGE_SPLIT_KEY));
+        assertNotNull("Split stats should be populated", fs.statistics());
+        assertEquals(1000L, fs.statistics().get("_stats.row_count"));
+        assertEquals(0L, fs.statistics().get("_stats.columns.id.null_count"));
+    }
+
+    public void testMultiFileEachSingleRowGroupProducesSplitsWithStats() {
+        SplitRange range1 = new SplitRange(4, 496, Map.of("_stats.row_count", 500L));
+        SplitRange range2 = new SplitRange(4, 296, Map.of("_stats.row_count", 300L));
+        SplitRange range3 = new SplitRange(4, 196, Map.of("_stats.row_count", 200L));
+
+        RangeAwareFormatReader mockReader = new RangeAwareFormatReader() {
+            private int callCount = 0;
+            private final List<List<SplitRange>> perFileRanges = List.of(List.of(range1), List.of(range2), List.of(range3));
+
+            @Override
+            public List<SplitRange> discoverSplitRanges(StorageObject object) {
+                return perFileRanges.get(callCount++);
+            }
+
+            @Override
+            public CloseableIterator<Page> readRange(
+                StorageObject object,
+                List<String> projectedColumns,
+                int batchSize,
+                long rangeStart,
+                long rangeEnd,
+                List<Attribute> resolvedAttributes,
+                ErrorPolicy errorPolicy
+            ) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public SourceMetadata metadata(StorageObject object) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public String formatName() {
+                return "parquet";
+            }
+
+            @Override
+            public List<String> fileExtensions() {
+                return List.of(".parquet");
+            }
+
+            @Override
+            public void close() {}
+        };
+
+        FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
+        formatRegistry.registerLazy("parquet", (s, bf) -> mockReader, Settings.EMPTY, null);
+        formatRegistry.byName("parquet");
+
+        StorageProviderRegistry storageRegistry = createMockStorageRegistry();
+
+        FileSplitProvider splitter = new FileSplitProvider(
+            FileSplitProvider.DEFAULT_TARGET_SPLIT_SIZE,
+            new DecompressionCodecRegistry(),
+            storageRegistry,
+            formatRegistry,
+            Settings.EMPTY
+        );
+
+        FileList fileList = GlobExpander.fileListOf(
+            List.of(
+                new StorageEntry(StoragePath.of("s3://b/file1.parquet"), 500, Instant.EPOCH),
+                new StorageEntry(StoragePath.of("s3://b/file2.parquet"), 300, Instant.EPOCH),
+                new StorageEntry(StoragePath.of("s3://b/file3.parquet"), 200, Instant.EPOCH)
+            ),
+            "s3://b/*.parquet"
+        );
+
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of());
+        List<ExternalSplit> splits = splitter.discoverSplits(ctx);
+
+        assertEquals("Each file should produce one split", 3, splits.size());
+        long totalRowCount = 0;
+        for (ExternalSplit split : splits) {
+            FileSplit fs = (FileSplit) split;
+            assertNotNull("Each split should have stats", fs.statistics());
+            assertNotNull("Each split should have row count", fs.statistics().get("_stats.row_count"));
+            totalRowCount += ((Number) fs.statistics().get("_stats.row_count")).longValue();
+        }
+        assertEquals("Total row count across splits should be sum of all files", 1000L, totalRowCount);
     }
 
     private static RangeAwareFormatReader createMockRangeReader(List<SplitRange> ranges) {

@@ -51,7 +51,7 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
 
     public static final String NAME = "google_vertex_ai_chatcompletion_service_settings";
 
-    private static final TransportVersion ML_INFERENCE_VERTEXAI_CHATCOMPLETION_ADDED = TransportVersion.fromName(
+    private static final TransportVersion ML_INFERENCE_VERTEXAI_CHAT_COMPLETION_ADDED = TransportVersion.fromName(
         "ml_inference_vertexai_chatcompletion_added"
     );
 
@@ -127,17 +127,17 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
     }
 
     public static GoogleVertexAiChatCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
 
         // Extract Google Vertex AI fields
-        String projectId = ServiceUtils.extractOptionalString(map, PROJECT_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        String location = ServiceUtils.extractOptionalString(map, LOCATION, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        String modelId = ServiceUtils.extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var projectId = ServiceUtils.extractOptionalString(map, PROJECT_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var location = ServiceUtils.extractOptionalString(map, LOCATION, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var modelId = ServiceUtils.extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         // Extract Google Model Garden fields
-        URI uri = ServiceUtils.extractOptionalUri(map, URL, validationException);
-        URI streamingUri = ServiceUtils.extractOptionalUri(map, STREAMING_URL_SETTING_NAME, validationException);
-        GoogleModelGardenProvider provider = ServiceUtils.extractOptionalEnum(
+        var uri = ServiceUtils.extractOptionalUri(map, URL, validationException);
+        var streamingUri = ServiceUtils.extractOptionalUri(map, STREAMING_URL_SETTING_NAME, validationException);
+        var provider = ServiceUtils.extractOptionalEnum(
             map,
             PROVIDER_SETTING_NAME,
             ModelConfigurations.SERVICE_SETTINGS,
@@ -147,7 +147,7 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
         );
 
         // Extract rate limit settings
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
+        var rateLimitSettings = RateLimitSettings.of(
             map,
             DEFAULT_RATE_LIMIT_SETTINGS,
             validationException,
@@ -167,6 +167,28 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
             streamingUri,
             provider,
             rateLimitSettings
+        );
+    }
+
+    @Override
+    public GoogleVertexAiChatCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            GoogleVertexAiService.NAME,
+            ConfigurationParseContext.REQUEST
+        );
+        validationException.throwIfValidationErrorsExist();
+        return new GoogleVertexAiChatCompletionServiceSettings(
+            this.projectId,
+            this.location,
+            this.modelId,
+            this.uri,
+            this.streamingUri,
+            this.provider,
+            extractedRateLimitSettings
         );
     }
 
@@ -267,12 +289,12 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         assert false : "should never be called when supportsVersion is used";
-        return ML_INFERENCE_VERTEXAI_CHATCOMPLETION_ADDED;
+        return ML_INFERENCE_VERTEXAI_CHAT_COMPLETION_ADDED;
     }
 
     @Override
     public boolean supportsVersion(TransportVersion version) {
-        return version.supports(ML_INFERENCE_VERTEXAI_CHATCOMPLETION_ADDED);
+        return version.supports(ML_INFERENCE_VERTEXAI_CHAT_COMPLETION_ADDED);
     }
 
     @Override

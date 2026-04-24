@@ -75,6 +75,7 @@ dependencies {
   javaRestTestImplementation "io.opentelemetry:opentelemetry-sdk:$otelVersion"
   javaRestTestImplementation "io.opentelemetry:opentelemetry-sdk-common:$otelVersion"
   javaRestTestImplementation "io.opentelemetry:opentelemetry-sdk-metrics:$otelVersion"
+  javaRestTestImplementation "io.opentelemetry:opentelemetry-sdk-logs:$otelVersion"
   javaRestTestImplementation "io.opentelemetry:opentelemetry-exporter-common:$otelVersion"
   javaRestTestImplementation "io.opentelemetry:opentelemetry-exporter-otlp:$otelVersion"
   javaRestTestImplementation "io.opentelemetry:opentelemetry-exporter-otlp-common:$otelVersion"

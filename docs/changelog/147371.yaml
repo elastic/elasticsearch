@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 147371
+summary: "Revert \"[ESQL] Cache schema for single-file external paths\""
+type: bug

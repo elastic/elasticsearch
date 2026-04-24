@@ -651,14 +651,13 @@ public class SynonymsAnalysisTests extends ESTestCase {
             .putList("index.analysis.filter.my_synonyms.synonyms_set", "set-a", "set-a")
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-        MockLog.assertThatLogger(
-            () -> {
-                try {
-                    createTestAnalysis(idxSettings, settings, commonAnalysisPlugin);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            },
+        MockLog.assertThatLogger(() -> {
+            try {
+                createTestAnalysis(idxSettings, settings, commonAnalysisPlugin);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        },
             SynonymTokenFilterFactory.class,
             new MockLog.SeenEventExpectation(
                 "duplicate warning",

@@ -24,6 +24,3 @@ dependencies {
 }
 
 // TODO: give each evil test its own fresh JVM for more isolation.
-tasks.named("test").configure {
-  systemProperty 'tests.security.manager', 'false'
-}

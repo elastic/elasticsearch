@@ -43,8 +43,6 @@ tasks.named("test").configure {
   systemProperty 'test.s3.bucket', s3PermanentBucket
   nonInputProperties.systemProperty 'test.s3.base', s3PermanentBasePath + "_third_party_tests_" + buildParams.testSeed
 
-  // test container accesses ~/.testcontainers.properties read
-  systemProperty "tests.security.manager", "false"
 }
 
 tasks.register("s3ThirdPartyTest") {

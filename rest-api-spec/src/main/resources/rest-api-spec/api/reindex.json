@@ -52,7 +52,7 @@
       },
       "scroll": {
         "type": "time",
-        "description": "When scroll-based pagination is used, this is the period to keep the scroll search context alive. Scroll-based pagination has been replaced by point-in-time pagination except when reindexing from a remote cluster on a version below 7.10. When point-in-time pagination is used, this parameter has no effect.",
+        "description": "Control how long to keep the search context alive",
         "default": "5m"
       },
       "slices": {

@@ -411,8 +411,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         ParquetReadOptions options = readOptionsBuilder().build();
         try (ParquetFileReader reader = openParquetFile(object, parquetInputFile, options)) {
             List<BlockMetaData> rowGroups = reader.getRowGroups();
-            if (rowGroups.size() <= 1) {
+            if (rowGroups.isEmpty()) {
                 return List.of();
+            }
+            if (rowGroups.size() == 1) {
+                BlockMetaData block = rowGroups.getFirst();
+                Map<String, Object> stats = buildRowGroupStats(block);
+                return List.of(new SplitRange(block.getStartingPos(), block.getCompressedSize(), stats));
             }
             List<SplitRange> ranges = new ArrayList<>(rowGroups.size());
             for (BlockMetaData block : rowGroups) {

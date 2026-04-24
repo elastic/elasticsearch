@@ -144,6 +144,66 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals("value", resolvedSchema.get(1).name());
     }
 
+    // ===== Stats partial flag tests =====
+
+    public void testMultiFileFirstFileWinsSetsStatsPartial() throws Exception {
+        List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
+
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/a.parquet", schema);
+        schemasByPath.put("s3://bucket/data/b.parquet", schema);
+
+        ExternalSourceResolution resolution = resolveMultiFile(
+            "s3://bucket/data/*.parquet",
+            schemasByPath,
+            List.of(entry("s3://bucket/data/a.parquet", 100), entry("s3://bucket/data/b.parquet", 200))
+        );
+
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
+        assertNotNull(resolved);
+        assertEquals(Boolean.TRUE, resolved.metadata().sourceMetadata().get(SourceStatisticsSerializer.STATS_PARTIAL));
+    }
+
+    public void testMultiFileFirstFileWinsSetsFileCount() throws Exception {
+        List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
+
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/a.parquet", schema);
+        schemasByPath.put("s3://bucket/data/b.parquet", schema);
+        schemasByPath.put("s3://bucket/data/c.parquet", schema);
+
+        ExternalSourceResolution resolution = resolveMultiFile(
+            "s3://bucket/data/*.parquet",
+            schemasByPath,
+            List.of(
+                entry("s3://bucket/data/a.parquet", 100),
+                entry("s3://bucket/data/b.parquet", 200),
+                entry("s3://bucket/data/c.parquet", 300)
+            )
+        );
+
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
+        assertNotNull(resolved);
+        assertEquals(3L, resolved.metadata().sourceMetadata().get(SourceStatisticsSerializer.STATS_FILE_COUNT));
+    }
+
+    public void testSingleFileFirstFileWinsDoesNotSetStatsPartial() throws Exception {
+        List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
+
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/only.parquet", schema);
+
+        ExternalSourceResolution resolution = resolveMultiFile(
+            "s3://bucket/data/*.parquet",
+            schemasByPath,
+            List.of(entry("s3://bucket/data/only.parquet", 100))
+        );
+
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
+        assertNotNull(resolved);
+        assertNull(resolved.metadata().sourceMetadata().get(SourceStatisticsSerializer.STATS_PARTIAL));
+    }
+
     // ===== GenericFileList threading tests =====
 
     public void testMultiFileResolutionReturnsGenericFileList() throws Exception {

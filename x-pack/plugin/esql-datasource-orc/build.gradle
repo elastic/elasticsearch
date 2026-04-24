@@ -63,12 +63,16 @@ dependencies {
   implementation("org.apache.hadoop:hadoop-common:${versions.hadoop}") {
     transitive = false
   }
+
   implementation("com.fasterxml.woodstox:woodstox-core:5.4.0")
   implementation("org.codehaus.woodstox:stax2-api:4.2.1")
   // hadoop-shaded-guava (3.5 MB) replaced by a tiny stub class in
   // org.apache.hadoop.thirdparty.com.google.common.base.Strings
   // which is the only class Configuration actually needs at runtime.
   implementation("org.apache.commons:commons-collections4:4.4")
+  // commons-lang3 is needed by Hadoop's Path.normalizePath() on Windows
+  // (drive-letter / backslash handling calls StringUtils)
+  implementation("org.apache.commons:commons-lang3:${versions.commons_lang3}")
 
   // Re-add slf4j-api at the platform version to avoid jar hell with x-pack-core
   runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}"
@@ -103,6 +107,7 @@ tasks.withType(org.elasticsearch.gradle.internal.AbstractDependenciesTask).confi
   mapping from: /woodstox-.*/, to: 'woodstox'
   mapping from: /stax2-.*/, to: 'stax2'
   mapping from: /commons-collections4-.*/, to: 'commons-collections4'
+  mapping from: /commons-lang3-.*/, to: 'commons-lang3'
   mapping from: /hive-.*/, to: 'orc'
   mapping from: /threeten-extra-.*/, to: 'orc'
   mapping from: /protobuf-.*/, to: 'orc'

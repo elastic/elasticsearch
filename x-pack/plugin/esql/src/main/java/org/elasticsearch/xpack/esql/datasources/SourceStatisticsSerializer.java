@@ -28,6 +28,20 @@ public final class SourceStatisticsSerializer {
 
     public static final String STATS_ROW_COUNT = "_stats.row_count";
     public static final String STATS_SIZE_BYTES = "_stats.size_bytes";
+    /**
+     * When set to {@code true} in sourceMetadata, indicates that the statistics are derived
+     * from a single anchor file in a multi-file glob query ({@code FIRST_FILE_WINS} schema
+     * resolution) and do not represent the full dataset. This flag is set by
+     * {@code ExternalSourceResolver.markStatsAsPartial} when a glob matches more than one file.
+     * <p>
+     * The aggregate pushdown rule ({@code PushAggregatesToExternalSource}) checks this flag
+     * via {@code SplitStats.resolveEffectiveStats} and bails out when set. Note that once
+     * per-split statistics are available (populated during split discovery), the merged
+     * per-split stats take precedence and this flag is not consulted.
+     */
+    public static final String STATS_PARTIAL = "_stats.partial";
+    /** Number of files matched by the glob pattern; useful for observability and debugging. */
+    public static final String STATS_FILE_COUNT = "_stats.file_count";
     private static final String STATS_COL_PREFIX = "_stats.columns.";
     private static final String NULL_COUNT_SUFFIX = ".null_count";
     private static final String MIN_SUFFIX = ".min";

@@ -1891,7 +1891,7 @@ public class ReindexerTests extends ESTestCase {
         assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final TimeValue expectedScroll = TimeValue.timeValueMinutes(randomIntBetween(1, 8));
-        final String expectedScrollParam = expectedScroll.getStringRep();
+        final long expectedScrollNanos = expectedScroll.nanos();
         final AtomicInteger pitPostCount = new AtomicInteger();
         final String version79 = "{\"version\":{\"number\":\"7.9.0\"},\"tagline\":\"You Know, for Search\"}";
         final String scrollBody = "{\"_scroll_id\":\"fake-scroll\",\"timed_out\":false,\"hits\":{\"total\":0,\"hits\":[]}"
@@ -1912,18 +1912,16 @@ public class ReindexerTests extends ESTestCase {
                     return;
                 }
                 if (path.contains("/_search") && "POST".equals(method) && path.contains("scroll") == false) {
-                    assertThat(
-                        parseRawQueryParam(exchange.getRequestURI().getRawQuery(), "scroll"),
-                        equalTo(expectedScrollParam)
-                    );
+                    String scrollParam = parseRawQueryParam(exchange.getRequestURI().getRawQuery(), "scroll");
+                    assertNotNull(scrollParam);
+                    assertThat(TimeValue.parseTimeValue(scrollParam, "scroll").nanos(), equalTo(expectedScrollNanos));
                     respondJson(exchange, 200, scrollBody);
                     return;
                 }
                 if (path.contains("_search/scroll") && "POST".equals(method)) {
-                    assertThat(
-                        parseRawQueryParam(exchange.getRequestURI().getRawQuery(), "scroll"),
-                        equalTo(expectedScrollParam)
-                    );
+                    String scrollParam = parseRawQueryParam(exchange.getRequestURI().getRawQuery(), "scroll");
+                    assertNotNull(scrollParam);
+                    assertThat(TimeValue.parseTimeValue(scrollParam, "scroll").nanos(), equalTo(expectedScrollNanos));
                     respondJson(exchange, 200, scrollBody);
                     return;
                 }

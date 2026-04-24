@@ -13,7 +13,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.search.suggest.document.Completion101PostingsFormat;
+import org.apache.lucene.search.suggest.document.Completion104PostingsFormat;
 import org.apache.lucene.search.suggest.document.SuggestField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
@@ -44,7 +44,7 @@ public class CompletionStatsCacheTests extends ESTestCase {
 
     public void testCompletionStatsCache() throws IOException, InterruptedException {
         final IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
-        final PostingsFormat postingsFormat = new Completion101PostingsFormat();
+        final PostingsFormat postingsFormat = new Completion104PostingsFormat();
         indexWriterConfig.setCodec(TestUtil.alwaysPostingsFormat(postingsFormat)); // all fields are suggest fields
 
         try (Directory directory = newDirectory(); IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig)) {
@@ -59,12 +59,14 @@ public class CompletionStatsCacheTests extends ESTestCase {
             indexWriter.addDocument(document);
 
             final OpenCloseCounter openCloseCounter = new OpenCloseCounter();
+            final AtomicInteger docsCount = new AtomicInteger();
             final CompletionStatsCache completionStatsCache = new CompletionStatsCache(() -> {
                 openCloseCounter.countOpened();
                 try {
                     final DirectoryReader directoryReader = DirectoryReader.open(indexWriter);
                     return new Engine.Searcher("test", directoryReader, null, null, TrivialQueryCachingPolicy.NEVER, () -> {
                         openCloseCounter.countClosed();
+                        docsCount.set(directoryReader.numDocs());
                         IOUtils.close(directoryReader);
                     });
                 } catch (IOException e) {
@@ -140,14 +142,19 @@ public class CompletionStatsCacheTests extends ESTestCase {
             openCloseCounter.assertCount(2);
 
             // and they do update
+            assertThat(docsCount.get(), equalTo(1));
             final Document document2 = new Document();
             document2.add(new SuggestField("suggest1", "foo", 1));
             document2.add(new SuggestField("suggest2", "bar", 1));
             document2.add(new SuggestField("otherfield", "baz", 1));
             indexWriter.addDocument(document2);
             completionStatsCache.afterRefresh(true);
-            final CompletionStats updatedStats = completionStatsCache.get();
-            assertThat(updatedStats.getSizeInBytes(), greaterThan(totalSizeInBytes));
+            completionStatsCache.get();
+            // FIXME: this check is disabled due to getSizeInBytes() no longer being accurate
+            // See: https://github.com/elastic/elasticsearch/issues/126910#issuecomment-3798987940
+            // final CompletionStats updatedStats = completionStatsCache.get();
+            // assertThat(updatedStats.getSizeInBytes(), greaterThan(totalSizeInBytes));
+            assertThat(docsCount.get(), equalTo(2));
             openCloseCounter.assertCount(3);
 
             // beforeRefresh does not invalidate the cache

@@ -41,7 +41,15 @@ public final class ReindexSettings {
      */
     @Inject
     public ReindexSettings(ClusterSettings clusterSettings) {
-        clusterSettings.initializeAndWatch(REINDEX_PIT_KEEP_ALIVE_SETTING, this::setPitKeepAlive);
+        Setting<?> registered = clusterSettings.get(REINDEX_PIT_KEEP_ALIVE_SETTING.getKey());
+        if (registered == null) {
+            throw new IllegalStateException(
+                "Missing cluster setting [" + REINDEX_PIT_KEEP_ALIVE_SETTING.getKey() + "]; ensure ReindexPlugin#getSettings registers it"
+            );
+        }
+        @SuppressWarnings("unchecked")
+        Setting<TimeValue> pitKeepAliveSetting = (Setting<TimeValue>) registered;
+        clusterSettings.initializeAndWatch(pitKeepAliveSetting, this::setPitKeepAlive);
     }
 
     /**

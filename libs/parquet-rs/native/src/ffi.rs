@@ -32,6 +32,27 @@ macro_rules! ffi_try {
     };
 }
 
+/// Calls the provided function, catching panics and converting them to errors.
+/// Returns 0 on success, -1 on error or panic.
+pub fn ffi_call<F, T, E>(f: F) -> i64
+where
+    F: FnOnce() -> Result<(), E> + std::panic::UnwindSafe,
+    E: std::fmt::Display,
+{
+    match std::panic::catch_unwind(|| f()) {
+        Ok(Ok(())) => 0,
+        Ok(Err(e)) => {
+            crate::ffi::set_last_error(e.to_string());
+            -1
+        }
+        Err(e) => {
+            let x = format!("Panic: {:?}", e);
+            crate::ffi::set_last_error(x);
+            -1
+        }
+    }
+}
+
 /// Converts a null-terminated C string pointer to a Rust `&str`.
 pub unsafe fn cstr_to_str<'a>(ptr: *const c_char) -> Result<&'a str, std::str::Utf8Error> {
     unsafe { CStr::from_ptr(ptr) }.to_str()

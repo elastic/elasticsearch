@@ -111,7 +111,8 @@ public class MapperUtils {
                 rerank.inferenceId(),
                 rerank.queryText(),
                 rerank.rerankFields(),
-                rerank.scoreAttribute()
+                rerank.scoreAttribute(),
+                rerank.timeout()
             );
         }
 
@@ -122,7 +123,8 @@ public class MapperUtils {
                 completion.inferenceId(),
                 completion.prompt(),
                 completion.targetField(),
-                completion.taskSettings()
+                completion.taskSettings(),
+                completion.timeout()
             );
         }
 

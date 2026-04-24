@@ -253,6 +253,11 @@ public class ExternalSourceResolver {
             extMetadata = wrapAsExternalSourceMetadata(metadata, config);
         }
 
+        extMetadata = enrichWithFileCount(extMetadata, listing.fileCount());
+        if (listing.fileCount() > 1) {
+            extMetadata = markStatsAsPartial(extMetadata);
+        }
+
         PartitionMetadata partitionMetadata = listing.partitionMetadata();
         if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
             extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata);
@@ -541,6 +546,51 @@ public class ExternalSourceResolver {
                 + sources
                 + "]."
         );
+    }
+
+    /**
+     * Returns a wrapper that delegates everything to {@code metadata} except {@code sourceMetadata()},
+     * which is enriched with the given extra entries.
+     */
+    static ExternalSourceMetadata withExtraSourceMetadata(ExternalSourceMetadata metadata, Map<String, Object> extra) {
+        Map<String, Object> original = metadata.sourceMetadata();
+        Map<String, Object> enriched = original != null ? new HashMap<>(original) : new HashMap<>();
+        enriched.putAll(extra);
+        Map<String, Object> finalMetadata = Map.copyOf(enriched);
+        return new ExternalSourceMetadata() {
+            @Override
+            public String location() {
+                return metadata.location();
+            }
+
+            @Override
+            public List<Attribute> schema() {
+                return metadata.schema();
+            }
+
+            @Override
+            public String sourceType() {
+                return metadata.sourceType();
+            }
+
+            @Override
+            public Map<String, Object> sourceMetadata() {
+                return finalMetadata;
+            }
+
+            @Override
+            public Map<String, Object> config() {
+                return metadata.config();
+            }
+        };
+    }
+
+    static ExternalSourceMetadata enrichWithFileCount(ExternalSourceMetadata metadata, int fileCount) {
+        return withExtraSourceMetadata(metadata, Map.of(SourceStatisticsSerializer.STATS_FILE_COUNT, (long) fileCount));
+    }
+
+    static ExternalSourceMetadata markStatsAsPartial(ExternalSourceMetadata metadata) {
+        return withExtraSourceMetadata(metadata, Map.of(SourceStatisticsSerializer.STATS_PARTIAL, Boolean.TRUE));
     }
 
     static ExternalSourceMetadata enrichSchemaWithPartitionColumns(ExternalSourceMetadata metadata, PartitionMetadata partitionMetadata) {

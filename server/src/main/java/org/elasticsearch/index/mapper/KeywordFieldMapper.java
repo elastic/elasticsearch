@@ -1436,7 +1436,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 final String fieldName = fieldType().syntheticSourceFallbackFieldName();
 
                 if (storeIgnoredFieldsInBinaryDocValues) {
-                    dvFactory.addBinaryField(
+                    dvFactory.addBinaryFieldLegacyEncodingAware(
                         context.doc(),
                         fieldName,
                         bytesRef,

@@ -463,11 +463,11 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         for (int d = 0; d < dimension; d++) {
             centroid[d] /= count;
         }
-        // Scale centroid magnitude for dot-product-family similarities.
-        // Exclude COSINE: cosine vectors are already L2-normalized (magnitude ≈ 1.0), so scaling
-        // the centroid back to unit magnitude doesn't improve quantization and can introduce noise.
+        // Scale centroid magnitude to match the average magnitude of assigned vectors.
         VectorSimilarityFunction sim = fieldInfo.getVectorSimilarityFunction();
-        if (sim == VectorSimilarityFunction.DOT_PRODUCT || sim == VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT) {
+        if (sim == VectorSimilarityFunction.COSINE
+            || sim == VectorSimilarityFunction.DOT_PRODUCT
+            || sim == VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT) {
             double magnitudeSum = 0;
             for (int i = 0; i < count; i++) {
                 float[] vector = floatVectorValues.vectorValue(i);

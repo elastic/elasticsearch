@@ -863,11 +863,20 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             if (logger.isDebugEnabled()) {
                 logger.debug("final centroid count: {}", kMeansResult.centroids().length);
             }
+            float[][] centroids = kMeansResult.centroids();
+            int[] assignments = kMeansResult.assignments();
+            int[] soarAssignments = kMeansResult.soarAssignments();
+            VectorSimilarityFunction sim = fieldInfo.getVectorSimilarityFunction();
+            if (sim == VectorSimilarityFunction.COSINE
+                || sim == VectorSimilarityFunction.DOT_PRODUCT
+                || sim == VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT) {
+                scaleCentroidsToAverageMagnitude(centroids, assignments, floatVectorValues);
+            }
             return new CentroidAssignments(
                 fieldInfo.getVectorDimension(),
-                kMeansResult.centroids(),
-                kMeansResult.assignments(),
-                kMeansResult.soarAssignments()
+                centroids,
+                assignments,
+                soarAssignments
             );
         } else {
             final FieldInfo slicedFieldInfo = mergeState.mergeFieldInfos.fieldInfo(sliceField);
@@ -924,15 +933,24 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                 sliceOffsets[i] = i == 0 ? kMeansResult.centroids().length : sliceOffsets[i - 1] + kMeansResult.centroids().length;
             }
             final KMeansResult merged = KMeansResult.merge(kmeansResults);
+            float[][] centroids = merged.centroids();
+            int[] assignments = merged.assignments();
+            int[] soarAssignments = merged.soarAssignments();
+            VectorSimilarityFunction sim = fieldInfo.getVectorSimilarityFunction();
+            if (sim == VectorSimilarityFunction.COSINE
+                || sim == VectorSimilarityFunction.DOT_PRODUCT
+                || sim == VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT) {
+                scaleCentroidsToAverageMagnitude(centroids, assignments, floatVectorValues);
+            }
             if (logger.isDebugEnabled()) {
                 logger.debug("final centroid count: {}", merged.centroids().length);
             }
             final CentroidSlices centroidSlices = new CentroidSlices(sliceOffsets, sliceLengths);
             return new CentroidAssignments(
                 floatVectorValues.dimension(),
-                merged.centroids(),
-                merged.assignments(),
-                merged.soarAssignments(),
+                centroids,
+                assignments,
+                soarAssignments,
                 centroidSlices
             );
         }

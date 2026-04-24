@@ -282,11 +282,7 @@ public class SearchCommitPrefetcher {
 
                 var cacheKey = new FileCacheKey(shardId, blobFile.primaryTerm(), blobFile.blobName());
 
-                // BlobLocation instances usually represents a single Lucene file embedded in a BlobFile.
-                // In this case we are fetching a range that might contain multiple Lucene files and the
-                // CacheBlobReader API expects a BlobLocation.
-                var blobLocation = new BlobLocation(blobFile, 0, totalDataToPrefetchInBytes);
-                var cacheBlobReader = cacheBlobReaderSupplier.getCacheBlobReaderForPreFetching(blobLocation.blobFile());
+                var cacheBlobReader = cacheBlobReaderSupplier.getCacheBlobReaderForPreFetching(blobFile);
 
                 // If fetching a range from the indexing node, adjust it for padding and alignment.
                 // If fetching from the blob store, we try to fetch the entire region.

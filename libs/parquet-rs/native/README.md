@@ -149,9 +149,11 @@ export ARTIFACTORY_API_KEY=...
 ./publish_pqrs_binaries.sh --local --force-upload
 ```
 
-Bump the `VERSION` in `publish_pqrs_binaries.sh` before publishing a new
-version. Also update the `pqrsVersion` property in
-`libs/native/libraries/build.gradle` to match.
+Before publishing a new version, bump the version in all three places:
+
+1. `native/Cargo.toml` — `version` field
+2. `native/publish_pqrs_binaries.sh` — `VERSION` variable
+3. `libs/native/libraries/build.gradle` — `pqrsVersion` variable
 
 ### Cleaning
 

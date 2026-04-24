@@ -12,10 +12,12 @@ use crate::ffi::cstr_to_str;
 
 /// Parses the optional config JSON into a key-value map.
 /// Returns an empty map if the pointer is null.
-pub unsafe fn parse_config(config_ptr: *const c_char) -> Result<HashMap<String, String>, String> {
+pub unsafe fn parse_config(
+    config_ptr: *const c_char,
+) -> Result<HashMap<String, String>, Box<dyn std::error::Error>> {
     if config_ptr.is_null() {
         return Ok(HashMap::new());
     }
-    let json = unsafe { cstr_to_str(config_ptr) }.map_err(|e| format!("{e}"))?;
-    serde_json::from_str(json).map_err(|e| format!("{e}"))
+    let json = unsafe { cstr_to_str(config_ptr) }?;
+    Ok(serde_json::from_str(json)?)
 }

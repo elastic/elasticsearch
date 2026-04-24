@@ -15,7 +15,7 @@ use parquet::file::reader::FileReader;
 use parquet::file::serialized_reader::SerializedFileReader;
 
 use crate::config::parse_config;
-use crate::ffi::cstr_to_str;
+use crate::ffi::{cstr_to_str, ffi_call};
 
 /// Reads Parquet file statistics: total_rows and total_bytes.
 /// Writes results to the provided output pointers.
@@ -29,25 +29,23 @@ pub unsafe extern "C" fn pqrs_get_statistics(
     out_bytes: *mut i64,
 ) -> i32 {
     ffi_call(|| {
-        let path = unsafe { cstr_to_str(path) }?;
-        let _config = unsafe { parse_config(config) }?;
+        let path = unsafe { cstr_to_str(path)? };
+        let _config = unsafe { parse_config(config)? };
 
         // TODO: use _config to resolve remote storage (object_store) when URI scheme is non-local
         let file = File::open(path)?;
         let reader = SerializedFileReader::new(file)?;
         let metadata = reader.metadata();
-
-        let mut total_rows: i64 = 0;
-        let mut total_bytes: i64 = 0;
-        for rg in metadata.row_groups() {
-            total_rows += rg.num_rows();
-            total_bytes += rg.total_byte_size();
-        }
+        let (total_rows, total_bytes) = metadata.row_groups().iter().fold(
+            (0i64, 0i64),
+            |(rows, bytes), rg| (rows + rg.num_rows(), bytes + rg.total_byte_size()),
+        );
 
         unsafe {
             *out_rows = total_rows;
             *out_bytes = total_bytes;
         }
+        Ok(())
     })
 }
 
@@ -61,22 +59,24 @@ pub unsafe extern "C" fn pqrs_get_schema_ffi(
     config: *const c_char,
     schema_addr: i64,
 ) -> i32 {
-    let path = ffi_try!(unsafe { cstr_to_str(path) });
-    let _config = ffi_try!(unsafe { parse_config(config) });
+    ffi_call(|| {
+        let path = unsafe { cstr_to_str(path)? };
+        let _config = unsafe { parse_config(config)? };
 
-    // TODO: use _config to resolve remote storage (object_store) when URI scheme is non-local
-    let file = ffi_try!(File::open(path));
-    let reader = ffi_try!(SerializedFileReader::new(file));
-    let metadata = reader.metadata().file_metadata();
+        // TODO: use _config to resolve remote storage (object_store) when URI scheme is non-local
+        let file = File::open(path)?;
+        let reader = SerializedFileReader::new(file)?;
+        let metadata = reader.metadata().file_metadata();
 
-    let arrow_schema = ffi_try!(parquet_to_arrow_schema(
-        metadata.schema_descr(),
-        metadata.key_value_metadata(),
-    ));
+        let arrow_schema = parquet_to_arrow_schema(
+            metadata.schema_descr(),
+            metadata.key_value_metadata(),
+        )?;
 
-    let ffi_schema = ffi_try!(FFI_ArrowSchema::try_from(&arrow_schema));
-    unsafe {
-        ptr::write(schema_addr as *mut FFI_ArrowSchema, ffi_schema);
-    }
-    0
+        let ffi_schema = FFI_ArrowSchema::try_from(&arrow_schema)?;
+        unsafe {
+            ptr::write(schema_addr as *mut FFI_ArrowSchema, ffi_schema);
+        }
+        Ok(())
+    })
 }

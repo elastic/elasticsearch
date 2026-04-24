@@ -99,6 +99,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private String id;
     @Nullable
     private String routing;
+    private boolean routingFromSlice;
 
     private final IndexSource indexSource;
 
@@ -350,6 +351,21 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     @Override
     public String routing() {
         return this.routing;
+    }
+
+    /**
+     * Marks whether the effective routing value was provided via the {@code _slice} API parameter.
+     */
+    public IndexRequest setRoutingFromSlice(boolean routingFromSlice) {
+        this.routingFromSlice = routingFromSlice;
+        return this;
+    }
+
+    /**
+     * Returns {@code true} when this request routing came from the {@code _slice} API parameter.
+     */
+    public boolean isRoutingFromSlice() {
+        return routingFromSlice;
     }
 
     /**

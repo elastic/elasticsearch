@@ -88,7 +88,7 @@ import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.inference.DataFormat.BASE64;
 import static org.elasticsearch.inference.DataType.IMAGE;
 import static org.elasticsearch.inference.DataType.TEXT;
-import static org.elasticsearch.inference.InferenceStringTests.TEST_IMAGE_DATA_URI;
+import static org.elasticsearch.inference.InferenceStringTests.TEST_DATA_URI;
 import static org.elasticsearch.inference.ModelConfigurations.SERVICE_SETTINGS;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
@@ -1582,9 +1582,9 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
 
         try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             // 2 inputs
-            String firstInput = nonTextInput ? TEST_IMAGE_DATA_URI : "first_input";
+            String firstInput = nonTextInput ? TEST_DATA_URI : "first_input";
             float[] firstEmbedding = { 0.123f, -0.123f };
-            String secondInput = nonTextInput ? TEST_IMAGE_DATA_URI + "two" : "second_input";
+            String secondInput = nonTextInput ? TEST_DATA_URI + "two" : "second_input";
             float[] secondEmbedding = { 0.223f, -0.223f };
 
             List<Tuple<String, float[]>> inputsAndEmbeddings = List.of(
@@ -1767,7 +1767,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             var inputs = List.of(
                 new InferenceStringGroup("first_input"),
-                new InferenceStringGroup(new InferenceString(IMAGE, BASE64, TEST_IMAGE_DATA_URI))
+                new InferenceStringGroup(new InferenceString(IMAGE, BASE64, TEST_DATA_URI))
             );
             service.embeddingInfer(model, new EmbeddingRequest(inputs, InputType.UNSPECIFIED, Map.of()), null, listener);
 
@@ -1793,7 +1793,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
             // Add an InferenceStringGroup with multiple InferenceStrings at a random point in the input list
             var indexToAdd = randomIntBetween(0, inputs.size() - 1);
             var multipleInferenceStrings = new InferenceStringGroup(
-                List.of(new InferenceString(TEXT, DataFormat.TEXT, "first_input"), new InferenceString(IMAGE, BASE64, TEST_IMAGE_DATA_URI))
+                List.of(new InferenceString(TEXT, DataFormat.TEXT, "first_input"), new InferenceString(IMAGE, BASE64, TEST_DATA_URI))
             );
             inputs.add(indexToAdd, multipleInferenceStrings);
             service.embeddingInfer(model, new EmbeddingRequest(inputs, InputType.UNSPECIFIED, Map.of()), null, listener);
@@ -1905,7 +1905,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             var inputs = List.of(
                 new InferenceStringGroup("first_input"),
-                new InferenceStringGroup(new InferenceString(IMAGE, BASE64, TEST_IMAGE_DATA_URI))
+                new InferenceStringGroup(new InferenceString(IMAGE, BASE64, TEST_DATA_URI))
             );
             service.embeddingInfer(model, new EmbeddingRequest(inputs, inputType, Map.of()), null, listener);
 
@@ -1924,7 +1924,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
             Map<String, Object> expectedRequestMap = new HashMap<>(
                 Map.of(
                     "input",
-                    List.of(Map.of("text", "first_input"), Map.of("image", TEST_IMAGE_DATA_URI)),
+                    List.of(Map.of("text", "first_input"), Map.of("image", TEST_DATA_URI)),
                     "model",
                     modelName,
                     "embedding_type",

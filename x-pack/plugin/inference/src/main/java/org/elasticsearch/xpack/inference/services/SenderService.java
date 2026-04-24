@@ -218,7 +218,7 @@ public abstract class SenderService<M extends Model> implements InferenceService
             if (supportsImageEmbeddingContent() == false && containsNonTextEntry(request.inputs())) {
                 listener.onFailure(
                     new ElasticsearchStatusException(
-                        Strings.format("The %s service does not support embedding with image inputs", name()),
+                        Strings.format("The %s service does not support embedding with non-text inputs", name()),
                         RestStatus.BAD_REQUEST
                     )
                 );
@@ -288,7 +288,7 @@ public abstract class SenderService<M extends Model> implements InferenceService
                         && containsNonTextEntry(input.stream().map(ChunkInferenceInput::input).toList())) {
                         listener.onFailure(
                             new ElasticsearchStatusException(
-                                Strings.format("The %s service does not support embedding with image inputs", name()),
+                                Strings.format("The %s service does not support embedding with non-text inputs", name()),
                                 RestStatus.BAD_REQUEST
                             )
                         );

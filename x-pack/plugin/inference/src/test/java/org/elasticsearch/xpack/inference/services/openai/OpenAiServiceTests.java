@@ -1223,7 +1223,7 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
                 new EmbeddingRequest(
                     List.of(
                         new InferenceStringGroup("abc"),
-                        new InferenceStringGroup(new InferenceString(DataType.IMAGE, InferenceStringTests.TEST_IMAGE_DATA_URI))
+                        new InferenceStringGroup(new InferenceString(DataType.IMAGE, InferenceStringTests.TEST_DATA_URI))
                     ),
                     InputType.UNSPECIFIED,
                     Map.of()
@@ -1234,7 +1234,7 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
 
             var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
-            assertThat(exception.getMessage(), is("The openai service does not support embedding with image inputs"));
+            assertThat(exception.getMessage(), is("The openai service does not support embedding with non-text inputs"));
         }
     }
 

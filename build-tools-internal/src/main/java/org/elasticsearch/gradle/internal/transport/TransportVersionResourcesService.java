@@ -292,6 +292,8 @@ public abstract class TransportVersionResourcesService implements BuildService<T
                 String refName;
                 if (refExists("MERGE_HEAD")) {
                     refName = gitCommand("rev-parse", "--verify", "MERGE_HEAD").strip();
+                } else if (refExists("CHERRY_PICK_HEAD")) {
+                    refName = gitCommand("rev-parse", "--verify", "CHERRY_PICK_HEAD").strip();
                 } else {
                     String upstreamRef = findUpstreamRef();
                     refName = gitCommand("merge-base", upstreamRef, "HEAD").strip();

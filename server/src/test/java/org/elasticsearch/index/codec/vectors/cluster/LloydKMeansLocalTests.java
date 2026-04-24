@@ -24,7 +24,7 @@ import java.util.concurrent.Executors;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-public class KMeansLocalTests extends ESTestCase {
+public class LloydKMeansLocalTests extends ESTestCase {
 
     public void testIllegalClustersPerNeighborhood() {
         KMeansLocal kMeansLocal = new LloydKMeansLocalSerial(randomInt(), randomInt());

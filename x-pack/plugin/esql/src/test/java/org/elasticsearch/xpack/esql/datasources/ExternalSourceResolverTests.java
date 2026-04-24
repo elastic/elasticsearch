@@ -144,6 +144,66 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals("value", resolvedSchema.get(1).name());
     }
 
+    // ===== Stats partial flag tests =====
+
+    public void testMultiFileFirstFileWinsSetsStatsPartial() throws Exception {
+        List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
+
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/a.parquet", schema);
+        schemasByPath.put("s3://bucket/data/b.parquet", schema);
+
+        ExternalSourceResolution resolution = resolveMultiFile(
+            "s3://bucket/data/*.parquet",
+            schemasByPath,
+            List.of(entry("s3://bucket/data/a.parquet", 100), entry("s3://bucket/data/b.parquet", 200))
+        );
+
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
+        assertNotNull(resolved);
+        assertEquals(Boolean.TRUE, resolved.metadata().sourceMetadata().get(SourceStatisticsSerializer.STATS_PARTIAL));
+    }
+
+    public void testMultiFileFirstFileWinsSetsFileCount() throws Exception {
+        List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
+
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/a.parquet", schema);
+        schemasByPath.put("s3://bucket/data/b.parquet", schema);
+        schemasByPath.put("s3://bucket/data/c.parquet", schema);
+
+        ExternalSourceResolution resolution = resolveMultiFile(
+            "s3://bucket/data/*.parquet",
+            schemasByPath,
+            List.of(
+                entry("s3://bucket/data/a.parquet", 100),
+                entry("s3://bucket/data/b.parquet", 200),
+                entry("s3://bucket/data/c.parquet", 300)
+            )
+        );
+
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
+        assertNotNull(resolved);
+        assertEquals(3L, resolved.metadata().sourceMetadata().get(SourceStatisticsSerializer.STATS_FILE_COUNT));
+    }
+
+    public void testSingleFileFirstFileWinsDoesNotSetStatsPartial() throws Exception {
+        List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
+
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/only.parquet", schema);
+
+        ExternalSourceResolution resolution = resolveMultiFile(
+            "s3://bucket/data/*.parquet",
+            schemasByPath,
+            List.of(entry("s3://bucket/data/only.parquet", 100))
+        );
+
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
+        assertNotNull(resolved);
+        assertNull(resolved.metadata().sourceMetadata().get(SourceStatisticsSerializer.STATS_PARTIAL));
+    }
+
     // ===== GenericFileList threading tests =====
 
     public void testMultiFileResolutionReturnsGenericFileList() throws Exception {
@@ -631,6 +691,45 @@ public class ExternalSourceResolverTests extends ESTestCase {
         }
     }
 
+    /**
+     * Regression test for #147371: single-file caching path must not NPE when
+     * StorageObject.lastModified() returns null (e.g. gRPC/Flight, GCS/Azure fixtures).
+     */
+    public void testSingleFileCacheWithNullLastModifiedDoesNotThrow() throws Exception {
+        List<Attribute> schema = List.of(attr("id", DataType.INTEGER));
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/null-mtime.parquet", schema);
+
+        NullMtimeStorageProvider nullMtimeProvider = new NullMtimeStorageProvider(schemasByPath);
+
+        Settings settings = Settings.builder()
+            .put("esql.source.cache.size", "10mb")
+            .put("esql.source.cache.enabled", true)
+            .put("esql.source.cache.schema.ttl", "5m")
+            .put("esql.source.cache.listing.ttl", "30s")
+            .build();
+
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
+            ExternalSourceResolver resolver = createResolverWithCache(nullMtimeProvider, schemasByPath, cacheService);
+
+            PlainActionFuture<ExternalSourceResolution> f1 = new PlainActionFuture<>();
+            resolver.resolve(List.of("s3://bucket/data/null-mtime.parquet"), Map.of(), f1);
+            ExternalSourceResolution res1 = f1.actionGet();
+            assertNotNull(res1.resolvedSource("s3://bucket/data/null-mtime.parquet"));
+            assertEquals(1, res1.resolvedSource("s3://bucket/data/null-mtime.parquet").fileList().fileCount());
+
+            // Second resolve should hit the cache without NPE
+            PlainActionFuture<ExternalSourceResolution> f2 = new PlainActionFuture<>();
+            resolver.resolve(List.of("s3://bucket/data/null-mtime.parquet"), Map.of(), f2);
+            ExternalSourceResolution res2 = f2.actionGet();
+            assertNotNull(res2.resolvedSource("s3://bucket/data/null-mtime.parquet"));
+
+            Map<String, Object> stats = cacheService.usageStats();
+            assertEquals(1L, stats.get("schema_cache.misses"));
+            assertEquals(1L, stats.get("schema_cache.hits"));
+        }
+    }
+
     // ===== Helpers =====
 
     private static Attribute attr(String name, DataType type) {
@@ -979,6 +1078,58 @@ public class ExternalSourceResolverTests extends ESTestCase {
         @Override
         public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
             listCallCount.incrementAndGet();
+            return delegate.listObjects(prefix, recursive);
+        }
+
+        @Override
+        public boolean exists(StoragePath path) {
+            return delegate.exists(path);
+        }
+
+        @Override
+        public List<String> supportedSchemes() {
+            return delegate.supportedSchemes();
+        }
+
+        @Override
+        public void close() {
+            delegate.close();
+        }
+    }
+
+    /**
+     * StorageProvider whose objects return null for lastModified(), reproducing the
+     * conditions that caused #147371 (GCS/Azure fixtures, gRPC/Flight).
+     */
+    private static class NullMtimeStorageProvider implements StorageProvider {
+        private final StubStorageProvider delegate;
+
+        NullMtimeStorageProvider(Map<String, List<Attribute>> schemasByPath) {
+            this.delegate = new StubStorageProvider(Map.of(), schemasByPath);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path) {
+            return new StubStorageObject(path) {
+                @Override
+                public Instant lastModified() {
+                    return null;
+                }
+            };
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length) {
+            return delegate.newObject(path, length);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
+            return delegate.newObject(path, length, lastModified);
+        }
+
+        @Override
+        public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
             return delegate.listObjects(prefix, recursive);
         }
 

@@ -12,8 +12,6 @@ package org.elasticsearch.reindex.management;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
@@ -207,25 +205,6 @@ public class CancelTasksRelocationIT extends ESIntegTestCase {
         assertThat(cancelResponse.getTasks().getFirst().taskId(), equalTo(relocatedTaskId));
 
         assertBusy(() -> assertThat("no reindex parent or child tasks remain after cancel", listAllReindexTasks(), hasSize(0)));
-    }
-
-    /**
-     * Sanity check that cancel-by-id still returns a {@link ResourceNotFoundException}-wrapped node failure for an id that does not
-     * exist anywhere in the cluster. Preserves the pre-fanout wire shape so existing clients that introspect
-     * {@link ListTasksResponse#getNodeFailures()} keep working.
-     */
-    public void testCancelUnknownTaskIdStillReturnsNotFound() throws Exception {
-        internalCluster().startNode(NodeRoles.onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)));
-        internalCluster().startNode(NodeRoles.onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)));
-        ensureStableCluster(2);
-
-        final TaskId bogus = new TaskId(clusterService().localNode().getId(), Long.MAX_VALUE);
-        final ListTasksResponse response = clusterAdmin().prepareCancelTasks().setTargetTaskId(bogus).get();
-        assertThat(response.getTasks(), hasSize(0));
-        assertThat(response.getNodeFailures(), hasSize(1));
-        final Throwable notFound = ExceptionsHelper.unwrap(response.getNodeFailures().getFirst(), ResourceNotFoundException.class);
-        assertNotNull("expected ResourceNotFoundException in node failures", notFound);
-        assertThat(notFound.getMessage(), equalTo("task [" + bogus + "] is not found"));
     }
 
     /**

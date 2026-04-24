@@ -25,6 +25,11 @@ public class OTLPLogsIndexingRestIT extends AbstractOTLPIndexingRestIT {
     private SdkLoggerProvider loggerProvider;
     private Logger logger;
 
+    @Override
+    protected String otlpEndpointPath() {
+        return "/_otlp/v1/logs";
+    }
+
     @Before
     @Override
     public void setUp() throws Exception {

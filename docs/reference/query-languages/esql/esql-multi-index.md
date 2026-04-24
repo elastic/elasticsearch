@@ -11,7 +11,14 @@ products:
 
 # Use ES|QL to query multiple indices [esql-multi-index]
 
-With {{esql}}, you can execute a single query across multiple indices, data streams, or aliases. To do so, use wildcards and date arithmetic. The following example uses a comma-separated list and a wildcard:
+With {{esql}}, you can execute a single query across multiple
+[indices](docs-content://manage-data/data-store/index-basics.md),
+[data streams](docs-content://manage-data/data-store/data-streams.md),
+[aliases](docs-content://manage-data/data-store/aliases.md),
+[views](/reference/query-languages/esql/esql-views.md) or
+[subqueries](/reference/query-languages/esql/esql-subquery.md).
+To do so, use comma-separated lists, wildcards and date arithmetic.
+The following example uses a comma-separated list and a wildcard:
 
 ```esql
 FROM employees-00001,other-employees-*
@@ -24,9 +31,15 @@ FROM cluster_one:employees-00001,cluster_two:other-employees-*
 ```
 
 
+In {{stack}}, you must always explicitly specify your target indices, data streams, or aliases.
+
+In {{serverless-short}}, queries automatically run across all linked projects with [cross-project search (CPS)](esql-cross-serverless-projects.md) by default. [Space-level settings](esql-cross-serverless-projects.md) and user or API key permissions can also affect which projects are included. {applies_to}`serverless: preview`
+% TODO: update "Space-level settings" link to docs-content://explore-analyze/cross-project-search/cross-project-search-manage-scope.md once elastic/docs-content#5498 is merged
+
+
 ## Field type mismatches [esql-multi-index-invalid-mapping]
 
-When querying multiple indices, data streams, or aliases, you might find that the same field is mapped to multiple different types. For example, consider the two indices with the following field mappings:
+When querying multiple indices, data streams, aliases, views or subqueries, you might find that the same field is mapped to multiple different types. For example, consider the two indices with the following field mappings:
 
 **index: events_ip**
 
@@ -213,3 +226,6 @@ FROM events_* METADATA _index
 | events_keyword | 2023-10-23T12:27:28.948Z | 172.21.2.113 | 2764889 | Connected to 10.1.0.2 |
 | events_keyword | 2023-10-23T12:15:03.360Z | 172.21.2.162 | 3450233 | Connected to 10.1.0.3 |
 
+Note that `_METADATA _index` will return `null` if the index pattern is a
+[subquery](/reference/query-languages/esql/esql-subquery.md) or a
+[view](/reference/query-languages/esql/esql-views.md).

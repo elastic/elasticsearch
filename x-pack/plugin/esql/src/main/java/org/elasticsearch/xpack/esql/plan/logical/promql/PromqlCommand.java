@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.TimestampBoundsAware;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
@@ -460,7 +461,7 @@ public class PromqlCommand extends UnaryPlan
         sb.append("] scrape_interval=[").append(scrapeInterval);
         sb.append("] valueColumnName=[").append(valueColumnName);
         sb.append("] promql=[<>\n");
-        sb.append(promqlPlan.toString());
+        sb.append(promqlPlan.toString(format));
         sb.append("\n<>]]");
     }
 
@@ -594,6 +595,9 @@ public class PromqlCommand extends UnaryPlan
                                 )
                             );
                         }
+                        if (comp.boolMode() == false && PromqlPlan.returnsScalar(comp.left()) && PromqlPlan.returnsScalar(comp.right())) {
+                            failures.add(fail(comp, "Comparisons [{}] between scalars must use the BOOL modifier", comp.op()));
+                        }
                     }
                     if (binaryOperator instanceof VectorBinarySet) {
                         failures.add(fail(lp, "set operators are not supported at this time [{}]", lp.sourceText()));
@@ -634,7 +638,7 @@ public class PromqlCommand extends UnaryPlan
                 return;
             }
             var counterSupport = metadata.counterSupport();
-            if (DataType.isCounter(seriesType) && counterSupport == PromqlFunctionRegistry.CounterSupport.UNSUPPORTED) {
+            if (DataType.isCounter(seriesType) && counterSupport == PromqlFunctionDefinition.CounterSupport.UNSUPPORTED) {
                 failures.add(
                     fail(
                         functionCall,
@@ -646,7 +650,7 @@ public class PromqlCommand extends UnaryPlan
                         functionCall.sourceText()
                     )
                 );
-            } else if (DataType.isCounter(seriesType) == false && counterSupport == PromqlFunctionRegistry.CounterSupport.REQUIRED) {
+            } else if (DataType.isCounter(seriesType) == false && counterSupport == PromqlFunctionDefinition.CounterSupport.REQUIRED) {
                 failures.add(
                     fail(
                         functionCall,

@@ -1124,6 +1124,221 @@ Anneke         |Preusig        |1989-06-02T00:00:00.000Z|1989-06-02
 // end::docsDateFormat-result[]
 ;
 
+docsDateUnitCount
+required_capability: esql_date_unit_count_fn
+
+// tag::docsDateUnitCount[]
+ROW dt = to_datetime("2024-02-15T00:00:00.000Z")
+| EVAL days = DATE_UNIT_COUNT("day", "month", dt)
+// end::docsDateUnitCount[]
+;
+
+// tag::docsDateUnitCount-result[]
+dt:date                | days:long
+2024-02-15T00:00:00.000Z | 29
+// end::docsDateUnitCount-result[]
+;
+
+dateUnitCountDaysInMonthNonLeapYear
+required_capability: esql_date_unit_count_fn
+
+ROW dt = to_datetime("2023-02-15T00:00:00.000Z")
+| EVAL days = DATE_UNIT_COUNT("day", "month", dt)
+;
+
+dt:date                  | days:long
+2023-02-15T00:00:00.000Z | 28
+;
+
+dateUnitCountDaysInMonth31
+required_capability: esql_date_unit_count_fn
+
+ROW dt = to_datetime("2024-01-15T00:00:00.000Z")
+| EVAL days = DATE_UNIT_COUNT("day", "month", dt)
+;
+
+dt:date                  | days:long
+2024-01-15T00:00:00.000Z | 31
+;
+
+dateUnitCountDaysInMonth30
+required_capability: esql_date_unit_count_fn
+
+ROW dt = to_datetime("2024-04-15T00:00:00.000Z")
+| EVAL days = DATE_UNIT_COUNT("day", "month", dt)
+;
+
+dt:date                  | days:long
+2024-04-15T00:00:00.000Z | 30
+;
+
+dateUnitCountDaysInYear
+required_capability: esql_date_unit_count_fn
+
+ROW leap = to_datetime("2024-06-01T00:00:00.000Z"), normal = to_datetime("2023-06-01T00:00:00.000Z")
+| EVAL leap_days = DATE_UNIT_COUNT("day", "year", leap), normal_days = DATE_UNIT_COUNT("day", "year", normal)
+;
+
+leap:date                | normal:date              | leap_days:long | normal_days:long
+2024-06-01T00:00:00.000Z | 2023-06-01T00:00:00.000Z | 366            | 365
+;
+
+dateUnitCountHoursInDay
+required_capability: esql_date_unit_count_fn
+
+ROW dt = to_datetime("2024-03-15T10:30:00.000Z")
+| EVAL hours = DATE_UNIT_COUNT("hour", "day", dt)
+;
+
+dt:date                  | hours:long
+2024-03-15T10:30:00.000Z | 24
+;
+
+dateUnitCountMinutesInHour
+required_capability: esql_date_unit_count_fn
+
+ROW dt = to_datetime("2024-03-15T10:30:00.000Z")
+| EVAL minutes = DATE_UNIT_COUNT("minute", "hour", dt)
+;
+
+dt:date                  | minutes:long
+2024-03-15T10:30:00.000Z | 60
+;
+
+dateUnitCountSecondsInMinute
+required_capability: esql_date_unit_count_fn
+
+ROW dt = to_datetime("2024-03-15T10:30:00.000Z")
+| EVAL seconds = DATE_UNIT_COUNT("second", "hour", dt)
+;
+
+dt:date                  | seconds:long
+2024-03-15T10:30:00.000Z | 3600
+;
+
+dateUnitCountMillisInHour
+required_capability: esql_date_unit_count_fn
+
+ROW dt = to_datetime("2024-03-15T10:30:00.000Z")
+| EVAL millis = DATE_UNIT_COUNT("millisecond", "hour", dt)
+;
+
+dt:date                  | millis:long
+2024-03-15T10:30:00.000Z | 3600000
+;
+
+dateUnitCountMonthsInYear
+required_capability: esql_date_unit_count_fn
+
+ROW dt = to_datetime("2024-06-15T00:00:00.000Z")
+| EVAL months = DATE_UNIT_COUNT("month", "year", dt)
+;
+
+dt:date                  | months:long
+2024-06-15T00:00:00.000Z | 12
+;
+
+dateUnitCountWeeksInYear
+required_capability: esql_date_unit_count_fn
+
+ROW dt = to_datetime("2024-06-15T00:00:00.000Z")
+| EVAL weeks = DATE_UNIT_COUNT("week", "year", dt)
+;
+
+dt:date                  | weeks:long
+2024-06-15T00:00:00.000Z | 52
+;
+
+dateUnitCountDaysInWeek
+required_capability: esql_date_unit_count_fn
+
+ROW dt = to_datetime("2024-03-15T00:00:00.000Z")
+| EVAL days = DATE_UNIT_COUNT("day", "week", dt)
+;
+
+dt:date                  | days:long
+2024-03-15T00:00:00.000Z | 7
+;
+
+dateUnitCountHoursInWeek
+required_capability: esql_date_unit_count_fn
+
+ROW dt = to_datetime("2024-03-15T00:00:00.000Z")
+| EVAL hours = DATE_UNIT_COUNT("hour", "week", dt)
+;
+
+dt:date                  | hours:long
+2024-03-15T00:00:00.000Z | 168
+;
+
+dateUnitCountMinutesInDay
+required_capability: esql_date_unit_count_fn
+
+ROW dt = to_datetime("2024-03-15T00:00:00.000Z")
+| EVAL minutes = DATE_UNIT_COUNT("minute", "day", dt)
+;
+
+dt:date                  | minutes:long
+2024-03-15T00:00:00.000Z | 1440
+;
+
+dateUnitCountQuartersInYear
+required_capability: esql_date_unit_count_fn
+
+ROW dt = to_datetime("2024-06-15T00:00:00.000Z")
+| EVAL quarters = DATE_UNIT_COUNT("quarter", "year", dt)
+;
+
+dt:date                  | quarters:long
+2024-06-15T00:00:00.000Z | 4
+;
+
+dateUnitCountHoursInMonth
+required_capability: esql_date_unit_count_fn
+
+ROW feb_leap = to_datetime("2024-02-15T00:00:00.000Z"), jan = to_datetime("2024-01-15T00:00:00.000Z")
+| EVAL feb_hours = DATE_UNIT_COUNT("hour", "month", feb_leap), jan_hours = DATE_UNIT_COUNT("hour", "month", jan)
+;
+
+feb_leap:date            | jan:date                 | feb_hours:long | jan_hours:long
+2024-02-15T00:00:00.000Z | 2024-01-15T00:00:00.000Z | 696            | 744
+;
+
+dateUnitCountNanosInHour
+required_capability: esql_date_unit_count_fn
+
+ROW dt = to_datetime("2024-03-15T10:30:00.000Z")
+| EVAL nanos = DATE_UNIT_COUNT("nanosecond", "hour", dt)
+;
+
+dt:date                  | nanos:long
+2024-03-15T10:30:00.000Z | 3600000000000
+;
+
+dateUnitCountMicrosInHour
+required_capability: esql_date_unit_count_fn
+
+ROW dt = to_datetime("2024-03-15T10:30:00.000Z")
+| EVAL micros = DATE_UNIT_COUNT("microsecond", "hour", dt)
+;
+
+dt:date                  | micros:long
+2024-03-15T10:30:00.000Z | 3600000000
+;
+
+dateUnitCountMultipleUnitsAtOnce
+required_capability: esql_date_unit_count_fn
+
+ROW dt = to_datetime("2024-02-15T00:00:00.000Z")
+| EVAL days_in_month = DATE_UNIT_COUNT("day", "month", dt),
+       hours_in_day = DATE_UNIT_COUNT("hour", "day", dt),
+       months_in_year = DATE_UNIT_COUNT("month", "year", dt)
+;
+
+dt:date                  | days_in_month:long | hours_in_day:long | months_in_year:long
+2024-02-15T00:00:00.000Z | 29                 | 24                | 12
+;
+
 evalDateFormatString
 required_capability: string_literal_auto_casting
 
@@ -1724,49 +1939,4 @@ from employees
 
 emp_no:integer | hire_date:date             | monthName:keyword
 10004          | 1986-12-01T00:00:00.000Z   | November
-;
-
-dateRange
-required_capability: date_range_field_type
-FROM decades
-| SORT decade;
-
-date_range:date_range  | decade:integer | description:keyword
-1900-01-01..1910-01-01 | 1900           | Edwardian Era
-1910-01-01..1920-01-01 | 1910           | Ragtime Era
-1920-01-01..1930-01-01 | 1920           | Roaring Twenties
-1930-01-01..1940-01-01 | 1930           | Dirty Thirties
-1940-01-01..1950-01-01 | 1940           | Fabulous Forties
-1950-01-01..1960-01-01 | 1950           | Nifty Fifties
-1960-01-01..1970-01-01 | 1960           | Swinging Sixties
-1970-01-01..1980-01-01 | 1970           | Groovy Seventies
-1980-01-01..1990-01-01 | 1980           | Radical Eighties
-1990-01-01..2000-01-01 | 1990           | Nineties Nostalgia
-2000-01-01..2010-01-01 | 2000           | Innovation Explosion Decade
-2010-01-01..2020-01-01 | 2010           | Renaissance Decade
-2020-01-01..2030-01-01 | 2020           | Empowerment Era
-;
-
-dateRangeIdentity
-required_capability: date_range_field_type
-
-FROM decades
-| WHERE decade == 1900
-| EVAL range = TO_DATE_RANGE(date_range)
-;
-
-date_range:date_range  | decade:integer | description:keyword | range:date_range
-1900-01-01..1910-01-01 | 1900           | Edwardian Era       | 1900-01-01..1910-01-01
-;
-
-dateRangeToString
-required_capability: date_range_field_type
-
-FROM decades
-| WHERE decade == 1900
-| EVAL range = TO_STRING(date_range)
-;
-
-date_range:date_range  | decade:integer | description:keyword | range:keyword
-1900-01-01..1910-01-01 | 1900           | Edwardian Era       | 1900-01-01T00:00:00.000Z..1909-12-31T23:59:59.999Z
 ;

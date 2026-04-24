@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.approximation;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Absent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -85,10 +86,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
-import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
-import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
-import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
@@ -96,6 +94,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlFunctionCall;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarConversionFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarFunction;
+import org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ValueTransformationFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.VectorConversionFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.WithinSeriesAggregate;
@@ -108,6 +107,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
+import org.junit.Before;
 
 import java.net.URL;
 import java.nio.file.DirectoryStream;
@@ -146,14 +146,7 @@ public class ApproximationSupportTests extends ESTestCase {
         Fork.class,
         UnionAll.class,
         ViewUnionAll.class,
-        Join.class,
-        InlineJoin.class,
-        LookupJoin.class,
         ParameterizedQuery.class,
-
-        // InlineStats is not supported yet.
-        // Only a single Stats command is supported.
-        InlineStats.class,
 
         // Timeseries indices are not supported yet.
         // They require chained Stats commands.
@@ -177,15 +170,17 @@ public class ApproximationSupportTests extends ESTestCase {
         // These plans don't occur in a correct analyzed query.
         UnresolvedRelation.class,
         UnresolvedExternalRelation.class,
-        StubRelation.class,
         Drop.class,
         Keep.class,
+        InlineStats.class,
+        LookupJoin.class,
         Rename.class,
         ResolvingProject.class,
         SparklineGenerateEmptyBuckets.class,
 
         // PromQL plans are not supported yet.
         PromqlCommand.class,
+        UnresolvedPromqlFunction.class,
         LiteralSelector.class,
         Selector.class,
         InstantSelector.class,
@@ -302,6 +297,12 @@ public class ApproximationSupportTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    @Before
+    public void assume() {
+        assumeTrue("needs inline stats approximation", EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS.isEnabled());
+        assumeTrue("needs lookup join approximation", EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN.isEnabled());
     }
 
     public void testAllCommandsWhitelistedOrBlacklisted() throws Exception {

@@ -406,7 +406,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
         final Path sourceBlobPath = path.resolve(sourceBlobName);
         final Path targetBlobPath = path.resolve(targetBlobName);
         if (failIfAlreadyExists) {
-            moveAtomicallyUsingHardLink(targetBlobPath, sourceBlobPath, FsBlobContainer::noHardLinkSupportedMoveFile);
+            moveAtomicallyUsingHardLink(targetBlobPath, sourceBlobPath, FsBlobContainer::fallbackMoveFileWithNoHardLinkSupported);
         } else {
             try {
                 Files.move(sourceBlobPath, targetBlobPath, StandardCopyOption.ATOMIC_MOVE);
@@ -443,7 +443,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
 
     /// Fall back for filesystems that do not support hard links (e.g., some network mounts).
     /// This operation is not concurrency safe.
-    private static void noHardLinkSupportedMoveFile(Path targetBlobPath, Path sourceBlobPath) throws IOException {
+    private static void fallbackMoveFileWithNoHardLinkSupported(Path targetBlobPath, Path sourceBlobPath) throws IOException {
         if (Files.exists(targetBlobPath)) {
             throw new FileAlreadyExistsException("blob [" + targetBlobPath + "] already exists, cannot overwrite");
         }

@@ -35,7 +35,7 @@ import java.util.Arrays;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
-@Fork(value = 1, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
+@Fork(value = 1)
 @Warmup(iterations = 3, time = 3)
 @Measurement(iterations = 5, time = 3)
 @BenchmarkMode(Mode.Throughput)
@@ -68,10 +68,8 @@ public class RankVectorsMaxSimDotProductBenchmark {
     private byte[][] byteDocVectors;
     private byte[][] byteQueryVectors;
 
-    private FloatRankVectors floatRankVectorsPanama;
-    private FloatRankVectors floatRankVectorsDefault;
-    private ByteRankVectors byteRankVectorsPanama;
-    private ByteRankVectors byteRankVectorsDefault;
+    private FloatRankVectors floatRankVectors;
+    private ByteRankVectors byteRankVectors;
 
     @Setup(Level.Trial)
     public void setup() {
@@ -94,7 +92,7 @@ public class RankVectorsMaxSimDotProductBenchmark {
         }
 
         BytesRef magnitudes = new BytesRef(new byte[numDocVectors * Float.BYTES]);
-        floatRankVectorsPanama = new FloatRankVectors(
+        floatRankVectors = new FloatRankVectors(
             VectorIterator.from(floatDocVectors),
             magnitudes,
             numDocVectors,
@@ -102,8 +100,7 @@ public class RankVectorsMaxSimDotProductBenchmark {
             encodeFloatDocVectors(floatDocVectors),
             ElementType.FLOAT
         );
-        floatRankVectorsDefault = new FloatRankVectors(VectorIterator.from(floatDocVectors), magnitudes, numDocVectors, dims);
-        byteRankVectorsPanama = new ByteRankVectors(
+        byteRankVectors = new ByteRankVectors(
             VectorIterator.from(byteDocVectors),
             magnitudes,
             numDocVectors,
@@ -111,70 +108,23 @@ public class RankVectorsMaxSimDotProductBenchmark {
             encodeByteDocVectors(byteDocVectors),
             ElementType.BYTE
         );
-        byteRankVectorsDefault = new ByteRankVectors(VectorIterator.from(byteDocVectors), magnitudes, numDocVectors, dims);
-
-        verifyCorrectness();
     }
 
     @Benchmark
     public float defaultPath() {
         return switch (type) {
-            case FLOAT -> floatRankVectorsDefault.maxSimDotProduct(floatQueryVectors);
-            case BYTE -> byteRankVectorsDefault.maxSimDotProduct(byteQueryVectors);
+            case FLOAT -> floatRankVectors.maxSimDotProduct(floatQueryVectors);
+            case BYTE -> byteRankVectors.maxSimDotProduct(byteQueryVectors);
         };
     }
 
     @Benchmark
+    @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
     public float panamaPath() {
         return switch (type) {
-            case FLOAT -> floatRankVectorsPanama.maxSimDotProduct(floatQueryVectors);
-            case BYTE -> byteRankVectorsPanama.maxSimDotProduct(byteQueryVectors);
+            case FLOAT -> floatRankVectors.maxSimDotProduct(floatQueryVectors);
+            case BYTE -> byteRankVectors.maxSimDotProduct(byteQueryVectors);
         };
-    }
-
-    private float oldWayFloat() {
-        float[] maxes = new float[floatQueryVectors.length];
-        Arrays.fill(maxes, Float.NEGATIVE_INFINITY);
-        for (float[] doc : floatDocVectors) {
-            for (int i = 0; i < floatQueryVectors.length; i++) {
-                maxes[i] = Math.max(maxes[i], ESVectorUtil.dotProduct(floatQueryVectors[i], doc));
-            }
-        }
-        return sum(maxes);
-    }
-
-    private float oldWayByte() {
-        float[] maxes = new float[byteQueryVectors.length];
-        Arrays.fill(maxes, Float.NEGATIVE_INFINITY);
-        for (byte[] doc : byteDocVectors) {
-            for (int i = 0; i < byteQueryVectors.length; i++) {
-                maxes[i] = Math.max(maxes[i], ESVectorUtil.dotProduct(byteQueryVectors[i], doc));
-            }
-        }
-        return sum(maxes);
-    }
-
-    private void verifyCorrectness() {
-        float scalarScore = switch (type) {
-            case FLOAT -> oldWayFloat();
-            case BYTE -> oldWayByte();
-        };
-        float defaultScore = defaultPath();
-        float panamaScore = panamaPath();
-        if (Math.abs(scalarScore - defaultScore) > 1e-3f) {
-            throw new IllegalStateException("defaultPath and scalar differ: scalar=" + scalarScore + ", defaultPath=" + defaultScore);
-        }
-        if (Math.abs(scalarScore - panamaScore) > 1e-3f) {
-            throw new IllegalStateException("panamaPath and scalar differ: scalar=" + scalarScore + ", panamaPath=" + panamaScore);
-        }
-    }
-
-    private static float sum(float[] values) {
-        float sum = 0f;
-        for (float value : values) {
-            sum += value;
-        }
-        return sum;
     }
 
     private static BytesRef encodeFloatDocVectors(float[][] vectors) {

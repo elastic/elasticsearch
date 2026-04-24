@@ -40,29 +40,28 @@ public class PropagateUnmappedFields extends Rule<LogicalPlan, LogicalPlan> {
             }
         });
         var unmappedFields = unmappedFieldsBuilder.build();
-        if (unmappedFields.isEmpty()) {
-            return logicalPlan;
-        }
-        return logicalPlan.transformUp(EsRelation.class, er -> {
-            Set<String> existingPuks = er.output()
-                .stream()
-                .flatMap(
-                    attr -> attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField
-                        ? Stream.of(fa.fieldName().string())
-                        : Stream.empty()
-                )
-                .collect(Collectors.toSet());
-            // Only propagate PUK fields that are not already in the relation's output, so we preserve the existing order.
-            // Partially-mapped keyword fields are already wrapped as PUKs by the index resolver; this rule just merges in
-            // PUKs introduced elsewhere (e.g., by INSIST on a field that is not in the index).
-            List<Attribute> missing = unmappedFields.stream()
-                .flatMap(
-                    attr -> attr instanceof FieldAttribute fa && existingPuks.contains(fa.fieldName().string()) == false
-                        ? Stream.of(attr)
-                        : Stream.empty()
-                )
-                .collect(Collectors.toList());
-            return missing.isEmpty() ? er : er.withAttributes(NamedExpressions.mergeOutputAttributes(missing, er.output()));
-        });
+        return unmappedFields.isEmpty() ? logicalPlan : logicalPlan.transformUp(EsRelation.class, er -> mergeMissing(er, unmappedFields));
+    }
+
+    private static EsRelation mergeMissing(EsRelation er, AttributeSet unmappedFields) {
+        Set<String> existingPuks = er.output()
+            .stream()
+            .flatMap(
+                attr -> attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField
+                    ? Stream.of(fa.fieldName().string())
+                    : Stream.empty()
+            )
+            .collect(Collectors.toUnmodifiableSet());
+        // Only propagate PUK fields that are not already in the relation's output, so we preserve the existing order.
+        // Partially-mapped keyword fields are already wrapped as PUKs by the index resolver; this rule just merges in
+        // PUKs introduced elsewhere (e.g., by INSIST on a field that is not in the index).
+        List<Attribute> missing = unmappedFields.stream()
+            .flatMap(
+                attr -> attr instanceof FieldAttribute fa && existingPuks.contains(fa.fieldName().string()) == false
+                    ? Stream.of(attr)
+                    : Stream.empty()
+            )
+            .toList();
+        return missing.isEmpty() ? er : er.withAttributes(NamedExpressions.mergeOutputAttributes(missing, er.output()));
     }
 }

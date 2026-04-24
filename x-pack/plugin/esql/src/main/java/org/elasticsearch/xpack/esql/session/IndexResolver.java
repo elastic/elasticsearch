@@ -365,11 +365,9 @@ public class IndexResolver {
                     firstUnsupportedParent.getName(),
                     new HashMap<>()
                 );
-            if (trackUnmappedFieldIndices && field instanceof UnsupportedEsField == false) {
+            if (trackUnmappedFieldIndices) {
                 Set<String> mappedIndices = collectedFieldCaps.fieldToMappedIndices.getOrDefault(fullName, Set.of());
-                if (mappedIndices.size() < numberOfIndices) {
-                    field = wrapPartiallyUnmappedField(field, name, fullName, mappedIndices);
-                }
+                field = wrapIfPartiallyUnmapped(field, name, fullName, mappedIndices, numberOfIndices);
             }
             fields.put(name, field);
         }
@@ -515,6 +513,19 @@ public class IndexResolver {
         }
 
         return new EsField(name, type, new HashMap<>(), aggregatable, isAlias, timeSeriesFieldType);
+    }
+
+    // Visible for testing.
+    public static EsField wrapIfPartiallyUnmapped(
+        EsField field,
+        String name,
+        String fullName,
+        Set<String> mappedIndices,
+        int numberOfIndices
+    ) {
+        return field instanceof UnsupportedEsField == false && mappedIndices.size() < numberOfIndices
+            ? wrapPartiallyUnmappedField(field, name, fullName, mappedIndices)
+            : field;
     }
 
     // Visible for testing

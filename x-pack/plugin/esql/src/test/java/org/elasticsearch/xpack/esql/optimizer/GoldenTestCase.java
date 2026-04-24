@@ -882,35 +882,36 @@ public abstract class GoldenTestCase extends ESTestCase {
     record MergedResult(Map<String, EsField> mapping) {}
 
     private static MergedResult mergeMappings(List<MappingPerIndex> mappingsPerIndex, boolean trackUnmappedFieldIndices) {
-        Map<String, Map<String, EsField>> columnNamesToFieldByIndices = new HashMap<>();
+        Map<String, Map<String, EsField>> fieldNamesToFieldByIndices = new HashMap<>();
         for (var mappingPerIndex : mappingsPerIndex) {
             for (var entry : mappingPerIndex.mapping().entrySet()) {
-                columnNamesToFieldByIndices.computeIfAbsent(entry.getKey(), k -> new HashMap<>())
+                fieldNamesToFieldByIndices.computeIfAbsent(entry.getKey(), k -> new HashMap<>())
                     .put(mappingPerIndex.index(), entry.getValue());
             }
         }
         int numberOfIndices = mappingsPerIndex.size();
-        var mappings = columnNamesToFieldByIndices.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> {
-            EsField field = mergeFields(e.getKey(), e.getValue());
-            if (trackUnmappedFieldIndices && e.getValue().size() < numberOfIndices) {
-                field = IndexResolver.wrapPartiallyUnmappedField(field, e.getKey(), e.getKey(), e.getValue().keySet());
-            }
-            return field;
+        var mappings = fieldNamesToFieldByIndices.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> {
+            String fieldName = e.getKey();
+            Map<String, EsField> indexToFields = e.getValue();
+            EsField field = mergeFields(fieldName, indexToFields);
+            return trackUnmappedFieldIndices
+                ? IndexResolver.wrapIfPartiallyUnmapped(field, fieldName, fieldName, indexToFields.keySet(), numberOfIndices)
+                : field;
         }));
         return new MergedResult(mappings);
     }
 
-    private static EsField mergeFields(String index, Map<String, EsField> columnNameToField) {
-        var indexFields = columnNameToField.values();
-        if (indexFields.stream().distinct().count() > 1) {
+    private static EsField mergeFields(String fieldName, Map<String, EsField> indexToFields) {
+        var fields = indexToFields.values();
+        if (fields.stream().distinct().count() > 1) {
             var typesToIndices = new HashMap<String, Set<String>>();
-            for (var typeToIndex : columnNameToField.entrySet()) {
-                typesToIndices.computeIfAbsent(typeToIndex.getValue().getDataType().typeName(), k -> new HashSet<>())
-                    .add(typeToIndex.getKey());
+            for (var indexToField : indexToFields.entrySet()) {
+                typesToIndices.computeIfAbsent(indexToField.getValue().getDataType().typeName(), k -> new HashSet<>())
+                    .add(indexToField.getKey());
             }
-            return new InvalidMappedField(index, typesToIndices);
+            return new InvalidMappedField(fieldName, typesToIndices);
         } else {
-            return indexFields.iterator().next();
+            return fields.iterator().next();
         }
     }
 }

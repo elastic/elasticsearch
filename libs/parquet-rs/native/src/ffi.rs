@@ -69,11 +69,20 @@ pub unsafe extern "C" fn pqrs_last_error(buf: *mut c_char, buf_len: i32) -> i32 
         let mut err = e.borrow_mut();
         match err.take() {
             Some(msg) => {
-                let bytes = msg.as_bytes();
-                let copy_len = bytes.len().min((buf_len - 1) as usize);
+                // Truncate to a valid UTF-8 char boundary
+                let buf_len = buf_len as usize;
+                let mut copy_len: usize;
+                if (msg.len() < buf_len) {
+                    copy_len = msg.len();
+                } else {
+                    copy_len = buf_len - 1;
+                    while !msg.is_char_boundary(copy_len) {
+                        copy_len -= 1;
+                    }
+                }
                 unsafe {
-                    ptr::copy_nonoverlapping(bytes.as_ptr(), buf as *mut u8, copy_len);
-                    *buf.add(copy_len) = 0;
+                    ptr::copy_nonoverlapping(msg.as_ptr(), buf as *mut u8, copy_len);
+                    *buf.add(copy_len+1) = 0;
                 }
                 copy_len as i32
             }

@@ -323,7 +323,7 @@ public class FsBlobContainerTests extends ESTestCase {
     }
 
     public void testAtomicWriteMetadataWithoutAtomicOverwrite() throws IOException {
-        this.fileSystem = new FilterFileSystemProvider("nooverwritefs://", fileSystem) {
+        final var noOverwriteFs = new FilterFileSystemProvider("nooverwritefs://", fileSystem) {
             @Override
             public void move(Path source, Path target, CopyOption... options) throws IOException {
                 if (Set.of(options).contains(StandardCopyOption.ATOMIC_MOVE) && Files.exists(target)) {
@@ -334,8 +334,12 @@ public class FsBlobContainerTests extends ESTestCase {
                 }
             }
         }.getFileSystem(null);
-        PathUtilsForTesting.installMock(fileSystem); // restored by restoreFileSystem in ESTestCase
-        checkAtomicWrite();
+        PathUtilsForTesting.installMock(noOverwriteFs);
+        try {
+            checkAtomicWrite();
+        } finally {
+            PathUtilsForTesting.installMock(fileSystem);
+        }
     }
 
     public void testAtomicWriteDefaultFs() throws Exception {

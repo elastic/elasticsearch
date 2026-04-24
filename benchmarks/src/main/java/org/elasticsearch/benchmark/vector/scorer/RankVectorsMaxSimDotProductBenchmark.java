@@ -15,7 +15,6 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType
 import org.elasticsearch.script.field.vectors.ByteRankVectors;
 import org.elasticsearch.script.field.vectors.FloatRankVectors;
 import org.elasticsearch.script.field.vectors.VectorIterator;
-import org.elasticsearch.simdvec.ESVectorUtil;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -31,7 +30,6 @@ import org.openjdk.jmh.annotations.Warmup;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.Arrays;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 

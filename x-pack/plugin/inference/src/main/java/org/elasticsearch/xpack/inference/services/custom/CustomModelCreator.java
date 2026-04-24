@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.custom;
 
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
@@ -70,10 +70,9 @@ public class CustomModelCreator implements ModelCreator<CustomModel> {
         try {
             var request = new CustomRequest(createParameters(model), model);
 
-            // createHttpRequest() takes a listener, but we don't need to do anything asynchronously here, so call get on it immediately
-            var listener = new PlainActionFuture<HttpRequest>();
+            // createHttpRequest() takes a listener, but we don't need to do anything with the HttpRequest here, so use a no-op listener
+            ActionListener<HttpRequest> listener = ActionListener.noop();
             request.createHttpRequest(listener);
-            listener.actionGet();
         } catch (IllegalStateException e) {
             var validationException = new ValidationException();
             validationException.addValidationError(Strings.format("Failed to validate model configuration: %s", e.getMessage()));

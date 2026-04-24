@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.sparseembeddings;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -35,11 +36,11 @@ public class ElasticInferenceServiceSparseEmbeddingsModelCreator extends Elastic
         TaskType taskType,
         String service,
         Map<String, Object> serviceSettings,
-        Map<String, Object> taskSettings,
-        ChunkingSettings chunkingSettings,
-        Map<String, Object> secretSettings,
+        @Nullable Map<String, Object> taskSettings,
+        @Nullable ChunkingSettings chunkingSettings,
+        @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context,
-        EndpointMetadata endpointMetadata
+        @Nullable EndpointMetadata endpointMetadata
     ) {
         return new ElasticInferenceServiceSparseEmbeddingsModel(
             inferenceId,

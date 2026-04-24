@@ -103,6 +103,15 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         return size;
     }
 
+    /**
+     * Rescore-style oversample from mivf (NaN if unset or missing field entry), for merging with
+     * query and mapping in {@code DenseVectorFieldMapper}; not used for centroid visit ratio.
+     */
+    public float getRescoreOversample(FieldInfo fieldInfo) {
+        final NextFieldEntry e = fields.get(fieldInfo.number);
+        return e == null ? Float.NaN : e.rescoreOversample();
+    }
+
     @Override
     public CentroidIterator getCentroidIterator(
         FieldInfo fieldInfo,
@@ -139,11 +148,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         // build iterator
         CentroidIterator centroidIterator;
         if (numParents > 0) {
-            // equivalent to (float) centroidsPerParentCluster / 2 when persisted factor is NaN
-            float derivedOversampling = (float) fieldEntry.numCentroids() / (2 * numParents);
-            float centroidOversampling = Float.isNaN(fieldEntry.centroidOversamplingFactor())
-                ? derivedOversampling
-                : fieldEntry.centroidOversamplingFactor();
+            // equivalent to (float) centroidsPerParentCluster / 2
+            float centroidOversampling = (float) fieldEntry.numCentroids() / (2 * numParents);
             centroidIterator = getCentroidIteratorWithParents(
                 fieldInfo,
                 centroids,
@@ -279,9 +285,9 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         if (numSlices > 0) {
             maxSliceSize = input.readVInt();
         }
-        float centroidOversamplingFactor = Float.NaN;
+        float rescoreOversample = Float.NaN;
         if (versionMeta >= ESNextDiskBBQVectorsFormat.VERSION_OVERSAMPLING_FACTOR) {
-            centroidOversamplingFactor = Float.intBitsToFloat(input.readInt());
+            rescoreOversample = Float.intBitsToFloat(input.readInt());
         }
         return new NextFieldEntry(
             rawVectorFormat,
@@ -301,7 +307,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             preconditionerLength,
             numSlices,
             maxSliceSize,
-            centroidOversamplingFactor
+            rescoreOversample
         );
     }
 
@@ -333,8 +339,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         // > 0 "sliced but on merge, is the number of slices".
         final int numSlices;
         final int maxSliceSize;
-        // if NaN, use historical derived factor from centroids / parents at query time.
-        private final float centroidOversamplingFactor;
+        private final float rescoreOversample;
 
         NextFieldEntry(
             String rawVectorFormat,
@@ -354,7 +359,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             long preconditionerLength,
             int numSlices,
             int maxSliceSize,
-            float centroidOversamplingFactor
+            float rescoreOversample
         ) {
             super(
                 rawVectorFormat,
@@ -375,7 +380,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             this.preconditionerLength = preconditionerLength;
             this.numSlices = numSlices;
             this.maxSliceSize = maxSliceSize;
-            this.centroidOversamplingFactor = centroidOversamplingFactor;
+            this.rescoreOversample = rescoreOversample;
         }
 
         public ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding() {
@@ -390,8 +395,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             return preconditionerLength;
         }
 
-        public float centroidOversamplingFactor() {
-            return centroidOversamplingFactor;
+        public float rescoreOversample() {
+            return rescoreOversample;
         }
     }
 

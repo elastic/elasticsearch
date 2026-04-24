@@ -10,16 +10,18 @@
 package org.elasticsearch.index.codec.vectors.diskbbq.next;
 
 /**
- * Per-segment (per-field) IVF options for indexing. At query time only {@code centroidOversamplingFactor}
- * is read from {@code mivf}; whether the query is preconditioned follows the same on-disk preconditioner
- * as mapping-driven indexing.
- * When {@link #centroidOversamplingFactor} is {@link Float#isNaN}, the reader uses the historical
- * derived factor {@code (float) numCentroids / (2 * numParents)} when {@code numParents} &gt; 0.
+ * Per-segment (per-field) IVF options for indexing. The persisted {@code rescoreOversample} is
+ * read at query time to participate in the same place as {@code rescore_vector.oversample} (see
+ * kNN rescore in {@link org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType}).
+ * It is not used for the centroid-visit budget; that remains {@code (float) numCentroids / (2 * numParents)}.
+ * <p>
+ * When the stored value is not finite (e.g. {@code NaN}), the index leg of oversample is skipped;
+ * query and mapping rescore then apply in the usual order.
  */
 public record IvfSegmentConfig(
     ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding,
     boolean usePrecondition,
-    float centroidOversamplingFactor
+    float rescoreOversample
 ) {
 
     public static IvfSegmentConfig fromCodecDefaults(ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding, boolean doPrecondition) {

@@ -91,7 +91,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
 
     private ESNextDiskBBQVectorsFormat.QuantEncoding effectiveQuantEncoding;
     private boolean effectiveDoPrecondition;
-    private float effectiveCentroidOversamplingFactor;
+    private float effectiveRescoreOversample;
 
     public ESNextDiskBBQVectorsWriter(
         SegmentWriteState state,
@@ -169,7 +169,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         this.mergeConfigResolver = mergeConfigResolver != null ? mergeConfigResolver : IvfMergeConfigResolver.useCodecDefault();
         this.effectiveQuantEncoding = encoding;
         this.effectiveDoPrecondition = doPrecondition;
-        this.effectiveCentroidOversamplingFactor = Float.NaN;
+        this.effectiveRescoreOversample = Float.NaN;
         if (sliceField != null) {
             Sort sort = state.segmentInfo.getIndexSort();
             if (sort == null || sort.getSort().length == 0) {
@@ -191,7 +191,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         IvfSegmentConfig eff = flushConfigSource.load(segmentWriteState, fieldInfo).orElse(codec);
         this.effectiveQuantEncoding = eff.quantEncoding();
         this.effectiveDoPrecondition = eff.usePrecondition();
-        this.effectiveCentroidOversamplingFactor = eff.centroidOversamplingFactor();
+        this.effectiveRescoreOversample = eff.rescoreOversample();
     }
 
     @Override
@@ -200,7 +200,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         IvfSegmentConfig eff = mergeConfigResolver.resolve(fieldInfo, mergeState, codec);
         this.effectiveQuantEncoding = eff.quantEncoding();
         this.effectiveDoPrecondition = eff.usePrecondition();
-        this.effectiveCentroidOversamplingFactor = eff.centroidOversamplingFactor();
+        this.effectiveRescoreOversample = eff.rescoreOversample();
     }
 
     @Override
@@ -696,7 +696,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                 metaOutput.writeVInt(maxSliceSize);
             }
         }
-        metaOutput.writeInt(Float.floatToIntBits(effectiveCentroidOversamplingFactor));
+        metaOutput.writeInt(Float.floatToIntBits(effectiveRescoreOversample));
     }
 
     @Override

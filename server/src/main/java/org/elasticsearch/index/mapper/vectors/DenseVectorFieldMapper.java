@@ -19,13 +19,19 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.FloatDocValuesField;
 import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.document.KnnFloatVectorField;
+import org.apache.lucene.codecs.KnnVectorsReader;
+import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.ByteVectorValues;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorEncoding;
@@ -45,6 +51,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -52,6 +59,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsReader;
 import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat;
@@ -2976,8 +2984,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
             Float similarityThreshold,
             BitSetProducer parentFilter,
             FilterHeuristic heuristic,
-            boolean hnswEarlyTermination
-        ) {
+            boolean hnswEarlyTermination,
+            IndexReader indexReader
+        ) throws IOException {
             if (indexType.hasVectors() == false) {
                 throw new IllegalArgumentException(
                     "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
@@ -3010,7 +3019,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     similarityThreshold,
                     parentFilter,
                     knnSearchStrategy,
-                    hnswEarlyTermination
+                    hnswEarlyTermination,
+                    indexReader
                 );
                 case BIT -> createKnnBitQuery(
                     resolvedQueryVector.asByteVector(),
@@ -3135,6 +3145,38 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return knnQuery;
         }
 
+        /**
+         * Max rescore oversample from DiskBBQ mivf across leaves, or {@link Float#NaN} if none are finite.
+         */
+        private static float readStoredBbqIvfRescoreOversample(IndexReader reader, String fieldName) {
+            if (reader == null) {
+                return Float.NaN;
+            }
+            float best = Float.NaN;
+            for (LeafReaderContext ctx : reader.leaves()) {
+                LeafReader leaf = ctx.reader();
+                SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(leaf);
+                if (segmentReader == null) {
+                    continue;
+                }
+                FieldInfo fieldInfo = segmentReader.getFieldInfos().fieldInfo(fieldName);
+                if (fieldInfo == null) {
+                    continue;
+                }
+                KnnVectorsReader kvr = segmentReader.getVectorReader();
+                if (kvr instanceof PerFieldKnnVectorsFormat.FieldsReader perField) {
+                    kvr = perField.getFieldReader(fieldName);
+                }
+                if (kvr instanceof ESNextDiskBBQVectorsReader next) {
+                    float v = next.getRescoreOversample(fieldInfo);
+                    if (Float.isFinite(v) && (Float.isNaN(best) || v > best)) {
+                        best = v;
+                    }
+                }
+            }
+            return best;
+        }
+
         private Query createKnnFloatQuery(
             float[] queryVector,
             int k,
@@ -3145,8 +3187,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
             Float similarityThreshold,
             BitSetProducer parentFilter,
             KnnSearchStrategy knnSearchStrategy,
-            boolean hnswEarlyTermination
-        ) {
+            boolean hnswEarlyTermination,
+            IndexReader indexReader
+        ) throws IOException {
             element.checkDimensions(dims, queryVector.length);
             element.checkVectorBounds(queryVector);
             if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
@@ -3162,9 +3205,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             int adjustedK = k;
-            // By default utilize the quantized oversample is configured
-            // allow the user provided at query time overwrite
+            // precedence: query oversample > persisted > mapping rescore_vector
             Float oversample = queryOversample;
+            if (oversample == null && indexOptions instanceof BBQIVFIndexOptions && indexReader != null) {
+                float stored = readStoredBbqIvfRescoreOversample(indexReader, name());
+                if (Float.isFinite(stored)) {
+                    oversample = stored;
+                }
+            }
             if (oversample == null
                 && indexOptions instanceof QuantizedIndexOptions quantizedIndexOptions
                 && quantizedIndexOptions.rescoreVector != null) {

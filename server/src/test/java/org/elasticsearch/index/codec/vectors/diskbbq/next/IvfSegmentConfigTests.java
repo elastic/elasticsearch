@@ -22,7 +22,7 @@ public class IvfSegmentConfigTests extends ESTestCase {
         IvfSegmentConfig c = IvfSegmentConfig.fromCodecDefaults(q, true);
         assertThat(c.quantEncoding(), is(q));
         assertTrue(c.usePrecondition());
-        assertTrue(Float.isNaN(c.centroidOversamplingFactor()));
+        assertTrue(Float.isNaN(c.rescoreOversample()));
     }
 
     public void testEmptyFlushSource() throws Exception {

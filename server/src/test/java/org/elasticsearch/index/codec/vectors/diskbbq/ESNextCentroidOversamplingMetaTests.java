@@ -108,7 +108,7 @@ public class ESNextCentroidOversamplingMetaTests extends BaseKnnVectorsFormatTes
         }
     }
 
-    public void testDefaultCentroidOversamplingInMetaIsNaN() throws IOException {
+    public void testDefaultRescoreOversampleInMetaIsNaN() throws IOException {
         int dimensions = 16;
         try (Directory dir = newDirectory()) {
             try (IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
@@ -130,7 +130,7 @@ public class ESNextCentroidOversamplingMetaTests extends BaseKnnVectorsFormatTes
                     );
                     var esr = (ESNextDiskBBQVectorsReader) knnVectorsReader;
                     FieldInfo fi = leaf.getFieldInfos().fieldInfo("f");
-                    assertTrue(Float.isNaN(esr.fields.get(fi.number).centroidOversamplingFactor()));
+                    assertTrue(Float.isNaN(esr.fields.get(fi.number).rescoreOversample()));
                 } else {
                     fail("expected CodecReader, got: " + leaf);
                 }

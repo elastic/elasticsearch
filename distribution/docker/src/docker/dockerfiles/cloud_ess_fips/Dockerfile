@@ -93,7 +93,6 @@ RUN chown 1000:1000 /opt/plugins/archive/*
 RUN chmod 0444 /opt/plugins/archive/*
 
 COPY fips/resources/fips_java.security /usr/share/elasticsearch/config/fips_java.security
-COPY fips/resources/fips_java.policy /usr/share/elasticsearch/config/fips_java.policy
 
 WORKDIR /usr/share/elasticsearch/config
 
@@ -173,7 +172,6 @@ RUN cat <<EOF > /usr/share/elasticsearch/config/jvm.options.d/fips.options
 -Djavax.net.ssl.keyStoreType=BCFKS
 -Dorg.bouncycastle.fips.approved_only=true
 -Djava.security.properties=config/fips_java.security
--Djava.security.policy=config/fips_java.policy
 -Djavax.net.ssl.trustStoreType=BCFKS
 -Djavax.net.ssl.trustStore=config/cacerts.bcfks
 -Djavax.net.ssl.trustStorePassword=passwordcacert

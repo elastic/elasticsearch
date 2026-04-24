@@ -18,6 +18,37 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Limits the number of output rows. Generally written like {@code | LIMIT 10}.
+ * <p>
+ *     If a page fits in the limit then it is returned as is:
+ * </p>
+ * {@snippet lang="txt" :
+ *    | LIMIT 1000
+ * ┌────┬────┐   ┌────┬────┐
+ * │  a │  b │   │  a │  b │
+ * ├────┼────┤   ├────┼────┤
+ * │  1 │  1 │   │  1 │  1 │
+ * │  2 │  2 │ ⟶ │  2 │  2 │
+ * │  3 │  3 │   │  3 │  3 │
+ * │  4 │  4 │   │  4 │  4 │
+ * └────┴────┘   └────┴────┘
+ * }
+ * <p>
+ *     If it is longer then we keep the as many rows as we need
+ * </p>
+ * {@snippet lang="txt" :
+ *    | LIMIT 2
+ * ┌────┬────┐   ┌────┬────┐
+ * │  a │  b │   │  a │  b │
+ * ├────┼────┤   ├────┼────┤
+ * │  9 │  9 │   │  9 │  9 │
+ * │ 10 │ 10 │ ⟶ │ 10 │ 10 │
+ * │ 11 │ 11 │   └────┴────┘
+ * │ 12 │ 12 │
+ * └────┴────┘
+ * }
+ */
 public class LimitOperator implements Operator {
 
     /**

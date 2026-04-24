@@ -13,7 +13,6 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.core.QlClientException;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -93,13 +92,13 @@ public class PromqlAstTests extends ESTestCase {
 
     public void testUnsupportedQueries() throws Exception {
         PromqlParser parser = new PromqlParser();
-        List<Tuple<String, Integer>> lines = readQueries("/promql/grammar/queries-invalid.promql");
+        List<Tuple<String, Integer>> lines = readQueries("/promql/grammar/queries-invalid-parser.promql");
         for (Tuple<String, Integer> line : lines) {
             String q = line.v1();
             try {
                 log.trace("Testing invalid query {}", q);
                 parser.createStatement(q);
-            } catch (QlClientException | UnsupportedOperationException ex) {
+            } catch (ParsingException ex) {
                 // Expected
                 log.trace("{}", ex.getMessage());
                 continue;
@@ -118,7 +117,7 @@ public class PromqlAstTests extends ESTestCase {
         log.info("{}", plan);
     }
 
-    static List<Tuple<String, Integer>> readQueries(String source) throws Exception {
+    public static List<Tuple<String, Integer>> readQueries(String source) throws Exception {
         var urls = EsqlTestUtils.classpathResources(source);
         assertThat(urls, not(empty()));
         List<Tuple<String, Integer>> queries = new ArrayList<>();

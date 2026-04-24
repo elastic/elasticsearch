@@ -46,7 +46,7 @@ public final class LongIntAdaptiveBlockHash extends AdaptiveBlockHash {
         super(specs, blockFactory, emitBatchSize);
         this.longChannel = reverseOutput ? specs.get(1).channel() : specs.get(0).channel();
         this.intChannel = reverseOutput ? specs.get(0).channel() : specs.get(1).channel();
-        this.emitBatchSize = emitBatchSize;
+        this.emitBatchSize = Math.max(emitBatchSize, 4096);
         this.reverseOutput = reverseOutput;
         this.current = new LongIntVectorOnlyBlockHash(blockFactory);
     }
@@ -78,16 +78,59 @@ public final class LongIntAdaptiveBlockHash extends AdaptiveBlockHash {
 
     final class LongIntVectorOnlyBlockHash extends BlockHash {
         private final LongLongHashTable longLongHash;
+        private final long batchUsedBytes;
+        private final long[] batchKeys1;
+        private final long[] batchKeys2;
+        private final int[] batchIds;
 
         LongIntVectorOnlyBlockHash(BlockFactory blockFactory) {
             super(blockFactory);
-            this.longLongHash = HashImplFactory.newLongLongHash(blockFactory);
+            final long bytes = (Integer.BYTES + Long.BYTES * 2) * (long) emitBatchSize;
+            blockFactory.adjustBreaker(bytes);
+            this.batchUsedBytes = bytes;
+            boolean success = false;
+            batchKeys1 = new long[emitBatchSize];
+            batchKeys2 = new long[emitBatchSize];
+            batchIds = new int[emitBatchSize];
+            try {
+                this.longLongHash = HashImplFactory.newLongLongHash(blockFactory);
+                success = true;
+            } finally {
+                if (success == false) {
+                    blockFactory.adjustBreaker(-bytes);
+                }
+            }
         }
 
         @Override
         public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
             LongVector longVector = Objects.requireNonNull(longVector(page), "required long vector");
             IntVector intVector = Objects.requireNonNull(intVector(page), "required int vector");
+            if (longLongHash.supportBulkAdd()) {
+                addBatch(longVector, intVector, addInput);
+            } else {
+                addOneAtTime(longVector, intVector, addInput);
+            }
+        }
+
+        private void addBatch(LongVector longVector, IntVector intVector, GroupingAggregatorFunction.AddInput addInput) {
+            final int position = longVector.getPositionCount();
+            int offset = 0;
+            while (offset < position) {
+                final int batchSize = Math.min(emitBatchSize, position - offset);
+                longVector.copyTo(offset, batchKeys1, 0, batchSize);
+                for (int i = 0; i < batchSize; i++) {
+                    batchKeys2[i] = intVector.getInt(offset + i);
+                }
+                longLongHash.bulkAdd(batchKeys1, batchKeys2, batchIds, batchSize);
+                try (var groupIds = blockFactory.newIntArrayVector(batchIds, batchSize)) {
+                    addInput.add(offset, groupIds);
+                }
+                offset += batchSize;
+            }
+        }
+
+        private void addOneAtTime(LongVector longVector, IntVector intVector, GroupingAggregatorFunction.AddInput addInput) {
             int position = longVector.getPositionCount();
             int offset = 0;
 
@@ -228,6 +271,7 @@ public final class LongIntAdaptiveBlockHash extends AdaptiveBlockHash {
 
         @Override
         public void close() {
+            blockFactory.adjustBreaker(-batchUsedBytes);
             Releasables.close(longLongHash);
         }
 

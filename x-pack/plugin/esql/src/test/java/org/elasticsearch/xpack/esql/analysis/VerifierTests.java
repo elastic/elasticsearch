@@ -157,8 +157,8 @@ public class VerifierTests extends ESTestCase {
         analyzer.error(
             "from test* | enrich client_cidr on multi_typed",
             equalTo(
-                "1:36: Unsupported type [unsupported] for enrich matching field [multi_typed];"
-                    + " only [keyword, text, ip, long, integer, float, double, datetime, null] allowed for type [range]"
+                "1:36: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                    + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]"
             )
         );
 

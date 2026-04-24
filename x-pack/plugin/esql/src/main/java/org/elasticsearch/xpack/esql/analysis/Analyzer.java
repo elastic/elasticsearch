@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.logging.Logger;
@@ -1680,23 +1681,26 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     return enrich;
                 }
                 if (resolved.resolved() && enrich.policy() != null) {
-                    final DataType dataType = resolved.dataType();
-                    String matchType = enrich.policy().getType();
-                    DataType[] allowed = allowedEnrichTypes(matchType);
-                    if (Arrays.asList(allowed).contains(dataType) == false) {
-                        String suffix = "only ["
-                            + Arrays.stream(allowed).map(DataType::typeName).collect(Collectors.joining(", "))
-                            + "] allowed for type ["
-                            + matchType
-                            + "]";
-                        resolved = ua.withUnresolvedMessage(
-                            "Unsupported type ["
-                                + resolved.dataType().typeName()
-                                + "] for enrich matching field ["
-                                + ua.name()
-                                + "]; "
-                                + suffix
-                        );
+                    if (resolved instanceof FieldAttribute fa) {
+                        resolved = fa.checkUnresolved();
+                    }
+                    if (resolved.resolved()) {
+                        final DataType dataType = resolved.dataType();
+                        if (dataType != NULL) {
+                            String matchType = enrich.policy().getType();
+                            DataType[] allowed = allowedEnrichTypes(matchType);
+                            if (Arrays.asList(allowed).contains(dataType) == false) {
+                                resolved = ua.withUnresolvedMessage(
+                                    Strings.format(
+                                        "Unsupported type [%s] for enrich matching field [%s]; only [%s] allowed for type [%s]",
+                                        dataType.typeName(),
+                                        ua.name(),
+                                        Arrays.stream(allowed).map(DataType::typeName).collect(Collectors.joining(", ")),
+                                        matchType
+                                    )
+                                );
+                            }
+                        }
                     }
                 }
                 return new Enrich(
@@ -1732,8 +1736,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return resolved;
         }
 
-        private static final DataType[] GEO_TYPES = new DataType[] { GEO_POINT, GEO_SHAPE, NULL };
-        private static final DataType[] NON_GEO_TYPES = new DataType[] { KEYWORD, TEXT, IP, LONG, INTEGER, FLOAT, DOUBLE, DATETIME, NULL };
+        private static final DataType[] GEO_TYPES = new DataType[] { GEO_POINT, GEO_SHAPE };
+        private static final DataType[] NON_GEO_TYPES = new DataType[] { KEYWORD, TEXT, IP, LONG, INTEGER, FLOAT, DOUBLE, DATETIME };
 
         private DataType[] allowedEnrichTypes(String matchType) {
             return matchType.equals(GEO_MATCH_TYPE) ? GEO_TYPES : NON_GEO_TYPES;

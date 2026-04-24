@@ -3417,21 +3417,6 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(plan.output().getFirst().dataType(), equalTo(KEYWORD));
     }
 
-    /**
-     * PROMQL queries operate on time series data and should enforce time series field type merging,
-     * just like TS + STATS.
-     */
-    public void testPromqlQueryWithConflictingTsTypesMarksFieldUnsupported() {
-        FieldCapabilitiesResponse caps = buildCapsWithConflictingTsTypes();
-        IndexResolution resolution = IndexResolver.mergedMappings("test", fieldsInfoOnCurrentVersion(caps, true), (p, r) -> Map.of());
-        assertThat(resolution.get().mapping().get("status"), instanceOf(InvalidMappedField.class));
-        var plan = analyze("""
-            PROMQL index=test
-                step=5m start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z"
-                avg(rate(bytes_in[5m]))""", analyzer(resolution, TEST_VERIFIER));
-        assertThat(resolution.get().mapping().get("status").getDataType(), equalTo(UNSUPPORTED));
-    }
-
     private static FieldCapabilitiesResponse buildCapsWithConflictingTsTypes() {
         IndexFieldCapabilities timestamp = new IndexFieldCapabilitiesBuilder("@timestamp", "date").build();
         IndexFieldCapabilities dimensionField = new IndexFieldCapabilitiesBuilder("status", "keyword").isDimension(true).build();

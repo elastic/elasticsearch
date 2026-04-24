@@ -245,8 +245,8 @@ non-default sort settings with presence of nested:
 ---
 override sort order settings:
   - requires:
-      cluster_features: [ "index.logsdb_no_host_name_field" ]
-      reason: "Change in default sort config for logsdb"
+      cluster_features: [ "index.logsdb_no_host_name_field", "mapper.provide_index_sort_setting_defaults"]
+      reason: "Change in default sort config for logsdb, changed error message output"
   - do:
       catch: bad_request
       indices.create:
@@ -281,8 +281,8 @@ override sort order settings:
 ---
 override sort missing settings:
   - requires:
-      cluster_features: [ "index.logsdb_no_host_name_field" ]
-      reason: "Change in default sort config for logsdb"
+      cluster_features: [ "index.logsdb_no_host_name_field", "mapper.provide_index_sort_setting_defaults"]
+      reason: "Change in default sort config for logsdb, changed error message output"
   - do:
       catch: bad_request
       indices.create:
@@ -317,8 +317,8 @@ override sort missing settings:
 ---
 override sort mode settings:
   - requires:
-      cluster_features: [ "index.logsdb_no_host_name_field" ]
-      reason: "Change in default sort config for logsdb"
+      cluster_features: [ "index.logsdb_no_host_name_field", "mapper.provide_index_sort_setting_defaults"]
+      reason: "Change in default sort config for logsdb, changed error message output"
   - do:
       catch: bad_request
       indices.create:

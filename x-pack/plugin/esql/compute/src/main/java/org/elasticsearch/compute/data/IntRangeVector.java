@@ -114,6 +114,11 @@ final class IntRangeVector extends AbstractVector implements IntVector {
     }
 
     @Override
+    public boolean contiguousRange() {
+        return getPositionCount() > 0;
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.INT;
     }

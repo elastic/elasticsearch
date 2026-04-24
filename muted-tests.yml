@@ -435,6 +435,9 @@ tests:
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testReindexTaskRelocatesOnNodeShutdown
   issue: https://github.com/elastic/elasticsearch/issues/147449
+- class: org.elasticsearch.action.admin.cluster.tasks.ListTasksIT
+  method: testWaitForCompletion
+  issue: https://github.com/elastic/elasticsearch/issues/146859
 
 # Examples:
 #

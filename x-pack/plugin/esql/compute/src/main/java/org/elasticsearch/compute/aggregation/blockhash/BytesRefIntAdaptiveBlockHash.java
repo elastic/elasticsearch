@@ -52,7 +52,7 @@ public final class BytesRefIntAdaptiveBlockHash extends AdaptiveBlockHash {
     @Override
     protected void prepareAddInput(Page page) {
         if (current instanceof BytesIntVectorOnlyBlockHash vectorHash) {
-            if (intVector(page) == null || bytesVector(page) == null) {
+            if (vectorHash.shouldMigrateToPackedKeys() || intVector(page) == null || bytesVector(page) == null) {
                 var packedHash = vectorHash.migrateToPackedHash();
                 Releasables.close(current, () -> current = packedHash);
             }
@@ -61,7 +61,12 @@ public final class BytesRefIntAdaptiveBlockHash extends AdaptiveBlockHash {
 
     @Override
     protected void prepareForLookup(Page page) {
-        prepareAddInput(page);
+        if (current instanceof BytesIntVectorOnlyBlockHash vectorHash) {
+            if (intVector(page) == null || bytesVector(page) == null) {
+                var packedHash = vectorHash.migrateToPackedHash();
+                Releasables.close(current, () -> current = packedHash);
+            }
+        }
     }
 
     private BytesRefVector bytesVector(Page page) {
@@ -102,6 +107,15 @@ public final class BytesRefIntAdaptiveBlockHash extends AdaptiveBlockHash {
                     blockFactory.adjustBreaker(-batchUsedBytes);
                 }
             }
+        }
+
+        /**
+         * If the bytes keys aren't repeated often enough, then using this BlockHash can be slower and use more memory.
+         */
+        boolean shouldMigrateToPackedKeys() {
+            final long size = longHash.size();
+            final long dictSize = bytesHash.hash.size();
+            return size > 1024 && dictSize > size * 0.6;
         }
 
         @Override
@@ -202,29 +216,37 @@ public final class BytesRefIntAdaptiveBlockHash extends AdaptiveBlockHash {
                 BytesRefBuilder packedKey = new BytesRefBuilder();
                 int offset = 0;
                 final long[] longs = new long[128];
+                BytesRef scratch = new BytesRef();
                 while (offset < numKeys) {
                     int batchSize = Math.min(numKeys - offset, longs.length);
                     for (int i = 0; i < batchSize; i++) {
                         longs[i] = longHash.get(offset + i);
                     }
-                    BytesRef scratch = new BytesRef();
                     for (int i = 0; i < batchSize; i++) {
                         final int bytesOrd = Math.toIntExact((longs[i] >> 32) - 1);
                         scratch = bytesHash.hash.get(bytesOrd, scratch);
-                        int totalLength = 1 + scratch.length + 4;
+                        final int totalLength = 1 + scratch.length + 4;
                         packedKey.growNoCopy(totalLength);
                         packedKey.append((byte) 0); // byte 0 is reserved for the null bits in the packed values hash
                         if (reverseOutput) {
+                            // int key
                             INT_HANDLE.set(packedKey.bytes(), packedKey.length(), (int) longs[i]);
+                            packedKey.setLength(packedKey.length() + Integer.BYTES);
+                            // bytes key
+                            INT_HANDLE.set(packedKey.bytes(), packedKey.length(), scratch.length);
                             packedKey.setLength(packedKey.length() + Integer.BYTES);
                             packedKey.append(scratch);
                         } else {
+                            // bytes key
+                            INT_HANDLE.set(packedKey.bytes(), packedKey.length(), scratch.length);
+                            packedKey.setLength(packedKey.length() + Integer.BYTES);
                             packedKey.append(scratch);
+                            // int key
                             INT_HANDLE.set(packedKey.bytes(), packedKey.length(), (int) longs[i]);
                             packedKey.setLength(packedKey.length() + Integer.BYTES);
                         }
                         long ord = packedHash.add(packedKey.get());
-                        assert ord >= 0 : "duplicate keys found when migrating to packed hash";
+                        assert ord == offset + i : "ord= " + ord + " != " + (offset + i);
                         packedKey.setLength(0);
                     }
                     offset += batchSize;

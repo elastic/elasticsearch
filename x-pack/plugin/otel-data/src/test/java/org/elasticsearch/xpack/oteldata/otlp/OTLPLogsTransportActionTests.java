@@ -32,7 +32,9 @@ public class OTLPLogsTransportActionTests extends AbstractOTLPTransportActionTes
     protected OTLPActionRequest createRequestWithData() {
         return new OTLPActionRequest(
             new BytesArray(
-                OtlpUtils.createLogsRequest(List.of(OtlpUtils.createLogRecord("Hello world", SeverityNumber.SEVERITY_NUMBER_INFO, "INFO")))
+                OtlpLogUtils.createLogsRequest(
+                    List.of(OtlpLogUtils.createLogRecord("Hello world", SeverityNumber.SEVERITY_NUMBER_INFO, "INFO"))
+                )
                     .toByteArray()
             )
         );
@@ -40,7 +42,7 @@ public class OTLPLogsTransportActionTests extends AbstractOTLPTransportActionTes
 
     @Override
     protected OTLPActionRequest createEmptyRequest() {
-        return new OTLPActionRequest(new BytesArray(OtlpUtils.createLogsRequest(List.of()).toByteArray()));
+        return new OTLPActionRequest(new BytesArray(OtlpLogUtils.createLogsRequest(List.of()).toByteArray()));
     }
 
     @Override

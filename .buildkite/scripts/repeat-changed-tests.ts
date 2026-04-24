@@ -71,7 +71,13 @@ interface Pipeline {
 }
 
 export function toGradleProject(path: string): string {
-  return ":" + path.replace(/\//g, ":");
+  const segments = path.split("/");
+  // Mirror the rename in settings.gradle: direct children of :test:external-modules
+  // have their project name prefixed with "test-".
+  if (segments[0] === "test" && segments[1] === "external-modules" && segments.length >= 3) {
+    segments[2] = `test-${segments[2]}`;
+  }
+  return ":" + segments.join(":");
 }
 
 export function toFqcn(javaPath: string): string {

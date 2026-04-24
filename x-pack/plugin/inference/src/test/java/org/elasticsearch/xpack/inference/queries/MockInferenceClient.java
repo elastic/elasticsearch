@@ -13,19 +13,18 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.inference.InferenceResults;
-import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.MinimalServiceSettings;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
-import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
-import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
+import org.elasticsearch.xpack.inference.model.TestModel;
 
 import java.util.HashMap;
 import java.util.List;
@@ -33,6 +32,7 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 
 public class MockInferenceClient extends NoOpClient {
+    private final Map<String, MinimalServiceSettings> inferenceEndpoints;
     private final MockInferenceGenerator inferenceGenerator;
     private final Map<String, MockInferenceRemoteClusterClient> remoteClusterClients;
 
@@ -46,6 +46,7 @@ public class MockInferenceClient extends NoOpClient {
         Map<String, MockInferenceRemoteClusterClient.RemoteClusterConfig> remoteClusterConfigs
     ) {
         super(threadPool);
+        this.inferenceEndpoints = inferenceEndpoints;
         this.inferenceGenerator = new MockInferenceGenerator(inferenceEndpoints);
         this.remoteClusterClients = generateRemoteClusterClients(remoteClusterConfigs);
     }
@@ -56,33 +57,38 @@ public class MockInferenceClient extends NoOpClient {
         Request request,
         ActionListener<Response> listener
     ) {
-        if (action instanceof InferenceAction && request instanceof InferenceAction.Request inferenceRequest) {
+        if (action instanceof GetInferenceModelAction && request instanceof GetInferenceModelAction.Request getModelRequest) {
+            @SuppressWarnings("unchecked")
+            ActionListener<GetInferenceModelAction.Response> getModelListener = (ActionListener<GetInferenceModelAction.Response>) listener;
+            String inferenceId = getModelRequest.getInferenceEntityId();
+            MinimalServiceSettings settings = inferenceEndpoints.get(inferenceId);
+            if (settings == null) {
+                getModelListener.onFailure(new IllegalArgumentException("Inference endpoint [" + inferenceId + "] does not exist"));
+            } else {
+                ModelConfigurations modelConfig = new ModelConfigurations(
+                    inferenceId,
+                    settings.taskType(),
+                    "mock-service",
+                    new TestModel.TestServiceSettings("mock", settings.dimensions(), settings.similarity(), settings.elementType())
+                );
+                getModelListener.onResponse(new GetInferenceModelAction.Response(List.of(modelConfig)));
+            }
+        } else if (action instanceof EmbeddingAction && request instanceof EmbeddingAction.Request embeddingRequest) {
             @SuppressWarnings("unchecked")
             ActionListener<InferenceAction.Response> inferenceListener = (ActionListener<InferenceAction.Response>) listener;
-
-            String inferenceId = inferenceRequest.getInferenceEntityId();
-            String input = inferenceRequest.getInput().getFirst();
-            try {
-                InferenceServiceResults inferenceServiceResults;
-                InferenceResults inferenceResults = inferenceGenerator.generate(inferenceId, input);
-                if (inferenceResults instanceof TextExpansionResults textExpansionResults) {
-                    inferenceServiceResults = SparseEmbeddingResults.of(List.of(textExpansionResults));
-                } else if (inferenceResults instanceof MlDenseEmbeddingResults mlDenseEmbeddingResults) {
-                    inferenceServiceResults = DenseEmbeddingFloatResults.of(List.of(mlDenseEmbeddingResults));
-                } else {
-                    throw new IllegalStateException("Unexpected inference results type [" + inferenceResults.getWriteableName() + "]");
-                }
-
-                inferenceListener.onResponse(new InferenceAction.Response(inferenceServiceResults));
-            } catch (Exception e) {
-                inferenceListener.onFailure(e);
-            }
+            String input = embeddingRequest.getEmbeddingRequest().inputs().getFirst().textValue();
+            executeInferenceAction(embeddingRequest.getInferenceEntityId(), input, inferenceListener);
+        } else if (action instanceof InferenceAction && request instanceof InferenceAction.Request inferenceRequest) {
+            @SuppressWarnings("unchecked")
+            ActionListener<InferenceAction.Response> inferenceListener = (ActionListener<InferenceAction.Response>) listener;
+            executeInferenceAction(inferenceRequest.getInferenceEntityId(), inferenceRequest.getInput().getFirst(), inferenceListener);
         } else if (action instanceof CoordinatedInferenceAction && request instanceof CoordinatedInferenceAction.Request inferenceRequest) {
             @SuppressWarnings("unchecked")
             ActionListener<InferModelAction.Response> inferenceListener = (ActionListener<InferModelAction.Response>) listener;
 
             String inferenceId = inferenceRequest.getModelId();
             String input = inferenceRequest.getInputs().getFirst();
+
             try {
                 InferenceResults inferenceResults = inferenceGenerator.generate(inferenceId, input);
                 inferenceListener.onResponse(new InferModelAction.Response(List.of(inferenceResults), inferenceId, true));
@@ -106,6 +112,14 @@ public class MockInferenceClient extends NoOpClient {
         }
 
         return remoteClusterClient;
+    }
+
+    private void executeInferenceAction(String inferenceId, String input, ActionListener<InferenceAction.Response> listener) {
+        try {
+            listener.onResponse(new InferenceAction.Response(inferenceGenerator.generateServiceResults(inferenceId, input)));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     private static Map<String, MockInferenceRemoteClusterClient> generateRemoteClusterClients(

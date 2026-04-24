@@ -42,7 +42,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.MinimalServiceSettings;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
@@ -69,6 +68,7 @@ import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BB
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BFLOAT16;
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5;
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_USES_DENSE_VECTOR_DEFAULT_INDEX_OPTIONS;
+import static org.elasticsearch.inference.TaskType.EMBEDDING;
 import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
@@ -334,7 +334,7 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
                     configureSparseVectorMapperBuilder(indexVersionCreated, sparseVectorMapperBuilder, indexOptions.get());
                     yield sparseVectorMapperBuilder;
                 }
-                case TEXT_EMBEDDING -> {
+                case TEXT_EMBEDDING, EMBEDDING -> {
                     DenseVectorFieldMapper.Builder denseVectorMapperBuilder = new DenseVectorFieldMapper.Builder(
                         CHUNKED_EMBEDDINGS_FIELD,
                         indexVersionCreated,
@@ -379,14 +379,16 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
         @Override
         protected void validateTaskType(MinimalServiceSettings modelSettings) {
             switch (modelSettings.taskType()) {
-                case SPARSE_EMBEDDING, TEXT_EMBEDDING -> {
+                case SPARSE_EMBEDDING, TEXT_EMBEDDING, EMBEDDING -> {
                 }
                 default -> throw new IllegalArgumentException(
                     "Wrong ["
                         + MinimalServiceSettings.TASK_TYPE_FIELD
                         + "], expected "
                         + TEXT_EMBEDDING
-                        + " or "
+                        + ", "
+                        + EMBEDDING
+                        + ", or "
                         + SPARSE_EMBEDDING
                         + ", got "
                         + modelSettings.taskType().name()
@@ -423,9 +425,15 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
             }
 
             if (indexOptions.type() == SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR) {
-                if (modelSettings.taskType() != TEXT_EMBEDDING) {
+                if (modelSettings.taskType() != TEXT_EMBEDDING && modelSettings.taskType() != EMBEDDING) {
                     throw new IllegalArgumentException(
-                        "Invalid task type for index options, required [" + TEXT_EMBEDDING + "] but was [" + modelSettings.taskType() + "]"
+                        "Invalid task type for index options, required ["
+                            + TEXT_EMBEDDING
+                            + "] or ["
+                            + EMBEDDING
+                            + "] but was ["
+                            + modelSettings.taskType()
+                            + "]"
                     );
                 }
 
@@ -639,7 +647,7 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
                             null
                         );
                     }
-                    case TEXT_EMBEDDING -> {
+                    case TEXT_EMBEDDING, EMBEDDING -> {
                         if (inferenceResults instanceof MlDenseEmbeddingResults == false) {
                             throw new IllegalArgumentException(
                                 generateQueryInferenceResultsTypeMismatchMessage(inferenceResults, MlDenseEmbeddingResults.NAME)
@@ -788,7 +796,7 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
             return null;
         }
 
-        if (modelSettings.taskType() == TaskType.TEXT_EMBEDDING) {
+        if (modelSettings.taskType() == TEXT_EMBEDDING || modelSettings.taskType() == EMBEDDING) {
             DenseVectorFieldMapper.DenseVectorIndexOptions denseVectorIndexOptions = defaultDenseVectorIndexOptions(
                 indexVersionCreated,
                 modelSettings

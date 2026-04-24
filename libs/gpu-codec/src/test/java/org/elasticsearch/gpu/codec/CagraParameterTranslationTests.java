@@ -44,7 +44,8 @@ public class CagraParameterTranslationTests extends ESTestCase {
         assertEquals(12, params.getGraphDegree());
         assertEquals(22, params.getIntermediateGraphDegree());
         assertEquals(CagraIndexParams.CagraGraphBuildAlgo.NN_DESCENT, params.getCagraGraphBuildAlgo());
-        assertEquals(5, params.getNNDescentNumIterations());
+        // 5 + ef_construction / 16 = 5 + 100 / 16 = 11
+        assertEquals(11, params.getNNDescentNumIterations());
     }
 
     public void testUserParameters_m24_ef200() {
@@ -103,6 +104,13 @@ public class CagraParameterTranslationTests extends ESTestCase {
 
         var largeParams = translateAndBuild(24, 200, 4_000_000, 1024, L4_GPU_MEMORY);
         assertEquals(CagraIndexParams.CagraGraphBuildAlgo.IVF_PQ, largeParams.getCagraGraphBuildAlgo());
+    }
+
+    public void testIvfPqGraphDegreeIsSet() {
+        var params = translateAndBuild(24, 200, 4_000_000, 1024, L4_GPU_MEMORY);
+        assertEquals(CagraIndexParams.CagraGraphBuildAlgo.IVF_PQ, params.getCagraGraphBuildAlgo());
+        assertEquals(18, params.getGraphDegree());
+        assertEquals(42, params.getIntermediateGraphDegree());
     }
 
     public void testRtxPro6000AlgorithmSelection() {
@@ -212,12 +220,14 @@ public class CagraParameterTranslationTests extends ESTestCase {
     ) {
         int graphDegree = ES92GpuHnswVectorsFormat.cagraGraphDegree(m);
         int intermediateGraphDegree = ES92GpuHnswVectorsFormat.cagraIntermediateGraphDegree(m, efConstruction);
+        int nnDescentNumIterations = ES92GpuHnswVectorsFormat.cagraNNDescentNumIterations(efConstruction);
         return ES92GpuHnswVectorsWriter.createCagraIndexParams(
             similarity,
             numVectors,
             dims,
             graphDegree,
             intermediateGraphDegree,
+            nnDescentNumIterations,
             dataType,
             gpuMemory
         );

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.bzip2;
 
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayInputStream;
@@ -34,7 +35,7 @@ public class Bzip2NdJsonSplitIntegrationTests extends ESTestCase {
         byte[] data = ndjson.getBytes(StandardCharsets.UTF_8);
         byte[] compressed = bzip2(data, BZip2CompressorOutputStream.MIN_BLOCKSIZE);
 
-        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec();
+        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         try (InputStream stream = codec.decompress(new ByteArrayInputStream(compressed))) {
             String result = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
             assertEquals("Decompressed data should match original", ndjson, result);
@@ -52,7 +53,7 @@ public class Bzip2NdJsonSplitIntegrationTests extends ESTestCase {
         String data = "line1\nline2\nline3\n";
         byte[] compressed = bzip2(data.getBytes(StandardCharsets.UTF_8), BZip2CompressorOutputStream.MIN_BLOCKSIZE);
 
-        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec();
+        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         String codecResult;
         try (InputStream stream = codec.decompress(new ByteArrayInputStream(compressed))) {
             codecResult = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
@@ -66,7 +67,7 @@ public class Bzip2NdJsonSplitIntegrationTests extends ESTestCase {
         byte[] compressed = bzip2(data, BZip2CompressorOutputStream.MIN_BLOCKSIZE);
         ByteArrayStorageObject object = new ByteArrayStorageObject(compressed);
 
-        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec();
+        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         // Full decompression
         String fullResult;
@@ -95,7 +96,7 @@ public class Bzip2NdJsonSplitIntegrationTests extends ESTestCase {
         byte[] compressed = bzip2(data, BZip2CompressorOutputStream.MIN_BLOCKSIZE);
         ByteArrayStorageObject object = new ByteArrayStorageObject(compressed);
 
-        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec();
+        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         String fullResult;
         try (InputStream stream = codec.decompress(new ByteArrayInputStream(compressed))) {
@@ -123,7 +124,7 @@ public class Bzip2NdJsonSplitIntegrationTests extends ESTestCase {
         byte[] compressed = bzip2(data, BZip2CompressorOutputStream.MIN_BLOCKSIZE);
         ByteArrayStorageObject object = new ByteArrayStorageObject(compressed);
 
-        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec();
+        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         long[] boundaries = codec.findBlockBoundaries(object, 0, compressed.length);
 
         ByteArrayOutputStream reassembled = new ByteArrayOutputStream();
@@ -155,7 +156,7 @@ public class Bzip2NdJsonSplitIntegrationTests extends ESTestCase {
             byte[] compressed = bzip2(data, blockSize);
             ByteArrayStorageObject object = new ByteArrayStorageObject(compressed);
 
-            Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec();
+            Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
             long[] boundaries = codec.findBlockBoundaries(object, 0, compressed.length);
 
             ByteArrayOutputStream reassembled = new ByteArrayOutputStream();

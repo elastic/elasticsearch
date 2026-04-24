@@ -240,7 +240,7 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
             }
             if (request instanceof SearchRequest) {
                 SearchHits hits = SearchHits.empty(new TotalHits(ruleCount, TotalHits.Relation.EQUAL_TO), Float.NaN);
-                ((ActionListener<SearchResponse>) listener).onResponse(SearchResponseUtils.successfulResponse(hits));
+                ActionListener.respondAndRelease((ActionListener<SearchResponse>) listener, SearchResponseUtils.successfulResponse(hits));
                 return;
             }
             if (request instanceof IndexRequest) {

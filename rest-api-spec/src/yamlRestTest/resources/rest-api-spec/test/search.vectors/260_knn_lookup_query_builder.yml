@@ -1,6 +1,6 @@
 setup:
   - requires:
-      cluster_features: "mapper.base64_dense_vectors"
+      cluster_features: ["mapper.base64_dense_vectors", "search.vectors.lookup_query_vector_builder"]
       reason: 'search.vectors.lookup_query_vector_builder'
 
 # one index with excluded vectors, with bytes, floats, bits and bfloats16

@@ -518,7 +518,8 @@ public class RetryingInputStreamTests extends ESTestCase {
 
         @Override
         public int read() throws IOException {
-            if (Thread.currentThread().isInterrupted()) {
+            // Some implementations might throw InterruptedIOException, others might not
+            if (randomBoolean() && Thread.currentThread().isInterrupted()) {
                 throw new InterruptedIOException();
             }
             if (readRemaining > 0) {

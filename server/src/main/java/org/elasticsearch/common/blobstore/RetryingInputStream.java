@@ -129,6 +129,9 @@ public abstract class RetryingInputStream<V> extends InputStream {
             }
             // noinspection TryWithIdenticalCatches
             try {
+                if (Thread.currentThread().isInterrupted()) {
+                    throw new InterruptedIOException("Aborting retries due to interrupt");
+                }
                 currentStream = blobStoreServices.getInputStream(
                     currentStream != null ? currentStream.getVersion() : null,
                     Math.addExact(start, offset),

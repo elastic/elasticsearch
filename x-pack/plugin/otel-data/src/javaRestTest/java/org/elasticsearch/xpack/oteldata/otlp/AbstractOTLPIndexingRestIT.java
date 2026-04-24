@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -47,6 +48,7 @@ public abstract class AbstractOTLPIndexingRestIT extends ESRestTestCase {
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.ml.enabled", "false")
         .setting("xpack.watcher.enabled", "false")
+        .feature(FeatureFlag.OTLP_LOGS)
         .build();
 
     @Override
@@ -67,6 +69,7 @@ public abstract class AbstractOTLPIndexingRestIT extends ESRestTestCase {
     public void setUp() throws Exception {
         super.setUp();
         assertBusy(() -> assertOK(client().performRequest(new Request("GET", "_index_template/metrics-otel@template"))));
+        assertBusy(() -> assertOK(client().performRequest(new Request("GET", "_index_template/logs-otel@template"))));
     }
 
     @After
@@ -108,5 +111,11 @@ public abstract class AbstractOTLPIndexingRestIT extends ESRestTestCase {
             """.replace("$INDEX_PATTERN", indexPattern));
         ObjectPath createApiKeyResponse = ObjectPath.createFromResponse(client().performRequest(createApiKeyRequest));
         return createApiKeyResponse.evaluate("encoded");
+    }
+
+    protected ObjectPath search(String target) throws IOException {
+        var response = client().performRequest(new Request("GET", target + "/_search"));
+        assertOK(response);
+        return ObjectPath.createFromResponse(response);
     }
 }

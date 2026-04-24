@@ -240,14 +240,30 @@ public final class SourceStatisticsSerializer {
                     });
                 } else if (key.endsWith(MIN_SUFFIX) && entry.getValue() instanceof Comparable c) {
                     mins.merge(key, new Comparable[] { c }, (a, b) -> {
-                        int cmp = a[0].compareTo(b[0]);
-                        if (cmp > 0) a[0] = b[0];
+                        if (a[0].getClass() == b[0].getClass()) {
+                            if (a[0].compareTo(b[0]) > 0) a[0] = b[0];
+                        } else {
+                            Object[] widened = SplitStats.widenNumericPair(a[0], b[0]);
+                            if (widened != null) {
+                                Comparable wA = (Comparable) widened[0];
+                                Comparable wB = (Comparable) widened[1];
+                                a[0] = wA.compareTo(wB) <= 0 ? (Comparable) widened[0] : (Comparable) widened[1];
+                            }
+                        }
                         return a;
                     });
                 } else if (key.endsWith(MAX_SUFFIX) && entry.getValue() instanceof Comparable c) {
                     maxs.merge(key, new Comparable[] { c }, (a, b) -> {
-                        int cmp = a[0].compareTo(b[0]);
-                        if (cmp < 0) a[0] = b[0];
+                        if (a[0].getClass() == b[0].getClass()) {
+                            if (a[0].compareTo(b[0]) < 0) a[0] = b[0];
+                        } else {
+                            Object[] widened = SplitStats.widenNumericPair(a[0], b[0]);
+                            if (widened != null) {
+                                Comparable wA = (Comparable) widened[0];
+                                Comparable wB = (Comparable) widened[1];
+                                a[0] = wA.compareTo(wB) >= 0 ? (Comparable) widened[0] : (Comparable) widened[1];
+                            }
+                        }
                         return a;
                     });
                 } else if (key.endsWith(SIZE_BYTES_SUFFIX) && entry.getValue() instanceof Number sbNum) {

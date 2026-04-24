@@ -97,6 +97,59 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
         assertNull(SourceStatisticsSerializer.extractColumnSizeBytes(null, "age"));
     }
 
+    public void testMergeStatisticsCrossTypeIntegerLong() {
+        Map<String, Object> s1 = new HashMap<>();
+        s1.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
+        s1.put(SourceStatisticsSerializer.columnMinKey("price"), 10);
+        s1.put(SourceStatisticsSerializer.columnMaxKey("price"), 50);
+
+        Map<String, Object> s2 = new HashMap<>();
+        s2.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 200L);
+        s2.put(SourceStatisticsSerializer.columnMinKey("price"), 5L);
+        s2.put(SourceStatisticsSerializer.columnMaxKey("price"), 60L);
+
+        Map<String, Object> result = SourceStatisticsSerializer.mergeStatistics(List.of(s1, s2));
+        assertNotNull(result);
+        assertEquals(300L, result.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        assertEquals(5L, result.get(SourceStatisticsSerializer.columnMinKey("price")));
+        assertEquals(60L, result.get(SourceStatisticsSerializer.columnMaxKey("price")));
+    }
+
+    public void testMergeStatisticsCrossTypeIntegerDouble() {
+        Map<String, Object> s1 = new HashMap<>();
+        s1.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
+        s1.put(SourceStatisticsSerializer.columnMinKey("score"), 3);
+        s1.put(SourceStatisticsSerializer.columnMaxKey("score"), 80);
+
+        Map<String, Object> s2 = new HashMap<>();
+        s2.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 200L);
+        s2.put(SourceStatisticsSerializer.columnMinKey("score"), 1.5);
+        s2.put(SourceStatisticsSerializer.columnMaxKey("score"), 99.9);
+
+        Map<String, Object> result = SourceStatisticsSerializer.mergeStatistics(List.of(s1, s2));
+        assertNotNull(result);
+        assertEquals(1.5, result.get(SourceStatisticsSerializer.columnMinKey("score")));
+        assertEquals(99.9, result.get(SourceStatisticsSerializer.columnMaxKey("score")));
+    }
+
+    public void testMergeStatisticsCrossTypeLongDoubleIncompatible() {
+        Map<String, Object> s1 = new HashMap<>();
+        s1.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
+        s1.put(SourceStatisticsSerializer.columnMinKey("val"), 10L);
+        s1.put(SourceStatisticsSerializer.columnMaxKey("val"), 50L);
+
+        Map<String, Object> s2 = new HashMap<>();
+        s2.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 200L);
+        s2.put(SourceStatisticsSerializer.columnMinKey("val"), 5.0);
+        s2.put(SourceStatisticsSerializer.columnMaxKey("val"), 60.0);
+
+        Map<String, Object> result = SourceStatisticsSerializer.mergeStatistics(List.of(s1, s2));
+        assertNotNull(result);
+        // Long + Double is incompatible — first value retained
+        assertEquals(10L, result.get(SourceStatisticsSerializer.columnMinKey("val")));
+        assertEquals(50L, result.get(SourceStatisticsSerializer.columnMaxKey("val")));
+    }
+
     public void testMergeStatistics_sumsSizeBytes() {
         Map<String, Object> s1 = new HashMap<>();
         s1.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);

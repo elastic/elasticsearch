@@ -11,6 +11,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 
 import java.io.IOException;
@@ -36,6 +38,8 @@ import java.util.Objects;
  * request processing thread.
  */
 public final class SplitStats implements Writeable {
+
+    private static final Logger logger = LogManager.getLogger(SplitStats.class);
 
     /** Empty stats with zero rows and no columns. */
     public static final SplitStats EMPTY = new SplitStats(
@@ -275,10 +279,65 @@ public final class SplitStats implements Writeable {
     }
 
     /**
+     * Widens two numeric stat values to a common Java type for safe comparison. Returns a
+     * 2-element array {@code [widenedA, widenedB]} with both values promoted to the same type,
+     * or {@code null} if the types are incompatible.
+     * <p>
+     * Widening rules (mirroring {@link SchemaReconciliation#schemaWiden}):
+     * <ul>
+     *   <li>Integer + Long → both as Long (lossless: int32 ⊆ int64)</li>
+     *   <li>Integer + Double → both as Double (lossless: int32 ≤ 2^31 &lt; 2^53)</li>
+     *   <li>Integer + Float → both as Double (int32 fits in double; float ⊂ double)</li>
+     *   <li>Float + Double → both as Double (float ⊂ double)</li>
+     * </ul>
+     * Long + Double and Long + Float return {@code null} because long → double is lossy above 2^53.
+     */
+    @Nullable
+    static Object[] widenNumericPair(Object a, Object b) {
+        if (a instanceof Integer ai) {
+            if (b instanceof Long) {
+                return new Object[] { ai.longValue(), b };
+            }
+            if (b instanceof Double) {
+                return new Object[] { ai.doubleValue(), b };
+            }
+            if (b instanceof Float bf) {
+                return new Object[] { ai.doubleValue(), bf.doubleValue() };
+            }
+        } else if (a instanceof Long) {
+            if (b instanceof Integer bi) {
+                return new Object[] { a, bi.longValue() };
+            }
+        } else if (a instanceof Float af) {
+            if (b instanceof Double) {
+                return new Object[] { af.doubleValue(), b };
+            }
+            if (b instanceof Integer bi) {
+                return new Object[] { af.doubleValue(), bi.doubleValue() };
+            }
+        } else if (a instanceof Double) {
+            if (b instanceof Integer bi) {
+                return new Object[] { a, bi.doubleValue() };
+            }
+            if (b instanceof Float bf) {
+                return new Object[] { a, bf.doubleValue() };
+            }
+        }
+        return null;
+    }
+
+    /**
      * Merges multiple {@link SplitStats} instances into a single one. Row counts and column
      * sizes are summed, null counts are summed, mins take the minimum, maxes take the maximum.
      * Columns present in some splits but not others are included in the result with partial
      * data from the splits where they appear.
+     * <p>
+     * When min/max values have different numeric Java types across splits (e.g. {@code Integer}
+     * from a Parquet INT32 file vs {@code Long} from an INT64 file after UNION_BY_NAME widening),
+     * both values are promoted to a common type via {@link #widenNumericPair} before comparison.
+     * For incompatible types (e.g. Long + Double), the existing accumulated value is retained
+     * and the new value is skipped. This makes the result order-dependent for incompatible pairs;
+     * the value from whichever split appears first in the list wins.
      *
      * @return the merged stats, or {@code null} if the list is null or empty
      */
@@ -322,7 +381,7 @@ public final class SplitStats implements Writeable {
                     if (existingNc >= 0 && newNc >= 0) {
                         builder.nullCount(ord, existingNc + newNc);
                     }
-                    // Min of mins (only compare values of the same type)
+                    // Min of mins (widen numeric types if needed)
                     Object existingMin = builder.minsList.get(ord);
                     Object newMin = stats.mins[i];
                     if (existingMin != null && newMin != null) {
@@ -330,11 +389,25 @@ public final class SplitStats implements Writeable {
                             && newMin instanceof Comparable nMin
                             && existingMin.getClass() == newMin.getClass()) {
                             builder.min(ord, eMin.compareTo(nMin) <= 0 ? existingMin : newMin);
+                        } else {
+                            Object[] widened = widenNumericPair(existingMin, newMin);
+                            if (widened != null) {
+                                Comparable wA = (Comparable) widened[0];
+                                Comparable wB = (Comparable) widened[1];
+                                builder.min(ord, wA.compareTo(wB) <= 0 ? widened[0] : widened[1]);
+                            } else {
+                                logger.trace(
+                                    "retaining existing min for column [{}]: incompatible types [{}/{}]",
+                                    colName,
+                                    existingMin.getClass().getSimpleName(),
+                                    newMin.getClass().getSimpleName()
+                                );
+                            }
                         }
                     } else if (newMin != null) {
                         builder.min(ord, newMin);
                     }
-                    // Max of maxes (only compare values of the same type)
+                    // Max of maxes (widen numeric types if needed)
                     Object existingMax = builder.maxsList.get(ord);
                     Object newMax = stats.maxs[i];
                     if (existingMax != null && newMax != null) {
@@ -342,6 +415,20 @@ public final class SplitStats implements Writeable {
                             && newMax instanceof Comparable nMax
                             && existingMax.getClass() == newMax.getClass()) {
                             builder.max(ord, eMax.compareTo(nMax) >= 0 ? existingMax : newMax);
+                        } else {
+                            Object[] widened = widenNumericPair(existingMax, newMax);
+                            if (widened != null) {
+                                Comparable wA = (Comparable) widened[0];
+                                Comparable wB = (Comparable) widened[1];
+                                builder.max(ord, wA.compareTo(wB) >= 0 ? widened[0] : widened[1]);
+                            } else {
+                                logger.trace(
+                                    "retaining existing max for column [{}]: incompatible types [{}/{}]",
+                                    colName,
+                                    existingMax.getClass().getSimpleName(),
+                                    newMax.getClass().getSimpleName()
+                                );
+                            }
                         }
                     } else if (newMax != null) {
                         builder.max(ord, newMax);

@@ -92,11 +92,6 @@ public final class HttpStorageProvider implements StorageProvider {
     }
 
     @Override
-    public boolean supportsStableMetadata() {
-        return false;
-    }
-
-    @Override
     public void close() {
         // HttpClient implements AutoCloseable in Java 21+
         // Closing it shuts down the internal selector thread and connection pool

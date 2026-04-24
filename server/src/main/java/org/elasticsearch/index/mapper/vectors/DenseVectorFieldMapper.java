@@ -2614,11 +2614,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         final int bits;
         final boolean doPrecondition;
         final boolean experimentalFeaturesEnabled;
-        /**
-         * When {@code true}, flush/merge may calibrate and persist the full {@code mivf} {@link org.elasticsearch.index.codec.vectors.diskbbq.next.IvfSegmentConfig}
-         * bundle, and {@code rescore_vector} resolution may use the rescore oversample stored in {@code mivf}. Quantization and
-         * preconditioning on disk remain consistent with indexed data; search uses the reader for those. Default {@code false}.
-         */
         final boolean persistIvfSegmentConfig;
 
         public BBQIVFIndexOptions(

@@ -397,9 +397,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.plan.logical.CommandLicenseTests
   method: testLicenseCheck
   issue: https://github.com/elastic/elasticsearch/issues/147147
-- class: org.elasticsearch.ingest.common.IngestCommonClientYamlTestSuiteIT
-  method: test {yaml=ingest/70_bulk/Update with pipeline}
-  issue: https://github.com/elastic/elasticsearch/issues/147163
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/145901

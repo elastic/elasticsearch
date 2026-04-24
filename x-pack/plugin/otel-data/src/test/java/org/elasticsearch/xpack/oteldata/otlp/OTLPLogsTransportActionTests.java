@@ -34,8 +34,7 @@ public class OTLPLogsTransportActionTests extends AbstractOTLPTransportActionTes
             new BytesArray(
                 OtlpLogUtils.createLogsRequest(
                     List.of(OtlpLogUtils.createLogRecord("Hello world", SeverityNumber.SEVERITY_NUMBER_INFO, "INFO"))
-                )
-                    .toByteArray()
+                ).toByteArray()
             )
         );
     }

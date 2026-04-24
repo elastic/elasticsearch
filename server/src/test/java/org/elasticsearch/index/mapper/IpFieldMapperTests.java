@@ -24,6 +24,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -469,6 +470,47 @@ public class IpFieldMapperTests extends MapperTestCase {
                     FieldMapper.DocValuesParameter.Values.MultiValue.SORTED_SET
                 )
             )
+        );
+    }
+
+    /**
+     * IP high-cardinality doc values have used the SeparateCount format since their introduction. This test pins that contract for
+     * the current index version.
+     */
+    public void testHighCardinalityDocValuesUsesSeparateCountFormat() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "ip").startObject("doc_values").field("cardinality", "high").endObject())
+        );
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "::1")));
+
+        assertFalse(
+            "primary IP high-cardinality doc_values must be written in SeparateCount format (with .counts companion) for the "
+                + "current index version",
+            doc.rootDoc().getFields("field.counts").isEmpty()
+        );
+    }
+
+    /**
+     * IP high-cardinality doc values are written via a MultiValuedBinaryDocValuesField. The feature was introduced after the
+     * SeparateCount format became the norm, so there is no legacy IntegratedCount data. The primary write path must produce
+     * SeparateCount output regardless of indexCreatedVersion so the read path can decode it.
+     */
+    public void testHighCardinalityDocValuesUsesSeparateCountFormatForPreviousIndexVersion() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        IndexVersion legacyVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES);
+        DocumentMapper mapper = createMapperService(
+            legacyVersion,
+            fieldMapping(b -> b.field("type", "ip").startObject("doc_values").field("cardinality", "high").endObject())
+        ).documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "::1")));
+
+        assertFalse(
+            "primary IP high-cardinality doc_values must be written in SeparateCount format (with .counts companion) even for "
+                + "legacy index versions",
+            doc.rootDoc().getFields("field.counts").isEmpty()
         );
     }
 

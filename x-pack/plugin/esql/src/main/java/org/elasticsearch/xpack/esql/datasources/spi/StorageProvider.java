@@ -44,14 +44,4 @@ public interface StorageProvider extends Closeable {
 
     /** Returns the URI schemes this provider handles (e.g., ["http", "https"]). */
     List<String> supportedSchemes();
-
-    /**
-     * Whether this provider's objects have reliable last-modified timestamps suitable
-     * for mtime-based cache invalidation. Returns {@code true} by default.
-     * Providers serving dynamic content (e.g. HTTP URLs) should return {@code false}
-     * so the schema cache is bypassed and metadata is resolved fresh on every query.
-     */
-    default boolean supportsStableMetadata() {
-        return true;
-    }
 }

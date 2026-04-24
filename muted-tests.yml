@@ -436,6 +436,15 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
   method: testIndexingSyntheticSource
   issue: https://github.com/elastic/elasticsearch/issues/147298
+- class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
+  method: testDeploymentSurvivesRestart {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/145728
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=mapping/40_doc_values_multi_value/multi_value=no on multi-field parent rejects parent array}
+  issue: https://github.com/elastic/elasticsearch/issues/147375
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=mapping/40_doc_values_multi_value/multi_value=no on multi-field sub rejects parent array}
+  issue: https://github.com/elastic/elasticsearch/issues/147376
 
 # Examples:
 #

@@ -109,22 +109,7 @@ public class TStepResolutionTests extends ESTestCase {
             FROM sample_data
             | STATS c = COUNT(*) BY b = TSTEP(10)
             | LIMIT 10
-            """, containsString("requires either a `@timestamp` range in the request query filter"));
-    }
-
-    public void testTstepBucketCountUsesRequestTimestampBounds() {
-        assumeTStepEnabled();
-        assumeTrue("TSTEP bucket count requires corresponding capability", EsqlCapabilities.Cap.TSTEP_BUCKET_COUNT.isEnabled());
-        var bounds = new QueryDslTimestampBoundsExtractor.TimestampBounds(
-            Instant.parse("2023-10-23T12:15:00Z"),
-            Instant.parse("2023-10-23T13:55:01.543Z")
-        );
-        var plan = EsqlTestUtils.analyzer().addSampleData().timestampBounds(bounds).query("""
-            FROM sample_data
-            | STATS c = COUNT(*) BY b = TSTEP(10)
-            | LIMIT 10
-            """);
-        assertNotNull(plan);
+            """, containsString("requires 'from' and 'to' bounds when step is a bucket count"));
     }
 
     private static void assumeTStepEnabled() {

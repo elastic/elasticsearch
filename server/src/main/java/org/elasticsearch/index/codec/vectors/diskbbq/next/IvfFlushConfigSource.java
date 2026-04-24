@@ -17,7 +17,7 @@ import java.util.Optional;
 
 /**
  * Optional per-field configuration loaded on flush before building IVF structures.
- * Default: {@link #empty()}.
+ * Default to {@link #empty()}.
  */
 @FunctionalInterface
 public interface IvfFlushConfigSource {

@@ -25,7 +25,6 @@ import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.packed.DirectReader;
 import org.apache.lucene.util.packed.DirectWriter;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
@@ -123,8 +122,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         AcceptDocs acceptDocs,
         float approximateCost,
         FloatVectorValues values,
-        float visitRatio,
-        @Nullable ESNextDiskBBQVectorsFormat.QuantEncoding searchQuantEncodingOverride
+        float visitRatio
     ) throws IOException {
         final NextFieldEntry fieldEntry = fields.get(fieldInfo.number);
         // build optmization filters if possible
@@ -707,8 +705,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         float[] target,
         Bits needsScoring,
         IndexInput centroidSlice,
-        ESAcceptDocs acceptDocs,
-        @Nullable ESNextDiskBBQVectorsFormat.QuantEncoding searchQuantEncodingOverride
+        ESAcceptDocs acceptDocs
     ) throws IOException {
         NextFieldEntry entry = fields.get(fieldInfo.number);
         if (entry.numSlices > 0) {
@@ -719,9 +716,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         final int bitsRequired = DirectWriter.bitsRequired(entry.numCentroids());
         final long sizeLookup = DirectWriter.bytesRequired(values.size(), bitsRequired);
         centroidSlice.skipBytes(sizeLookup);
-        ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding = searchQuantEncodingOverride != null
-            ? searchQuantEncodingOverride
-            : entry.quantEncoding();
+        ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding = entry.quantEncoding();
         int numParents = centroidSlice.readVInt();
         if (entry.numSlices > 0) {
             // skip slice offsets

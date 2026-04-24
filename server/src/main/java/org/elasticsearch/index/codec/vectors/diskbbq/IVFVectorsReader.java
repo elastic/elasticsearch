@@ -30,9 +30,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
 
@@ -138,8 +136,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         AcceptDocs acceptDocs,
         float approximateCost,
         FloatVectorValues values,
-        float visitRatio,
-        @Nullable ESNextDiskBBQVectorsFormat.QuantEncoding searchQuantEncodingOverride
+        float visitRatio
     ) throws IOException;
 
     /** Get the number of vectors to search, which is typically the total number of vectors in the segment or the
@@ -348,12 +345,10 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         int numCands = k;
         float visitRatio = dynamicVisitRatio;
         // Search strategy may be null if this is being called from checkIndex (e.g. from a test)
-        ESNextDiskBBQVectorsFormat.QuantEncoding searchQuantOverride = null;
         if (knnCollector.getSearchStrategy() instanceof IVFKnnSearchStrategy ivfSearchStrategy) {
             visitRatio = ivfSearchStrategy.getVisitRatio();
             numCands = ivfSearchStrategy.getNumCands();
             k = ivfSearchStrategy.getK();
-            searchQuantOverride = ivfSearchStrategy.getSearchQuantEncodingOverride();
         }
 
         if (visitRatio == dynamicVisitRatio) {
@@ -371,8 +366,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             acceptDocs,
             approximateCost,
             values,
-            visitRatio,
-            searchQuantOverride
+            visitRatio
         );
         Bits acceptDocsBits = acceptDocs.bits();
         PostingVisitor scorer = getPostingVisitor(
@@ -382,8 +376,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             target,
             acceptDocsBits,
             entry.centroidSlice(ivfCentroids),
-            esAcceptDocs,
-            searchQuantOverride
+            esAcceptDocs
         );
         long expectedDocs = 0;
         long actualDocs = 0;
@@ -577,8 +570,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         float[] target,
         Bits needsScoring,
         IndexInput centroidSlice,
-        ESAcceptDocs acceptDocs,
-        @Nullable ESNextDiskBBQVectorsFormat.QuantEncoding searchQuantEncodingOverride
+        ESAcceptDocs acceptDocs
     ) throws IOException;
 
     public interface PostingVisitor {

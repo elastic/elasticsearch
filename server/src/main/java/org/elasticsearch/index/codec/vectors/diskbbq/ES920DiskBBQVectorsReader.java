@@ -74,8 +74,7 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader<IVFVectorsReader
         AcceptDocs acceptDocs,
         float approximateCost,
         FloatVectorValues values,
-        float visitRatio,
-        org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.QuantEncoding searchQuantEncodingOverride
+        float visitRatio
     ) throws IOException {
         final FieldEntry fieldEntry = fields.get(fieldInfo.number);
         final float globalCentroidDp = fieldEntry.globalCentroidDp();
@@ -383,8 +382,7 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader<IVFVectorsReader
         float[] target,
         Bits acceptDocs,
         IndexInput centroidSlice,
-        ESAcceptDocs esAcceptDocs,
-        org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.QuantEncoding searchQuantEncodingOverride
+        ESAcceptDocs esAcceptDocs
     ) throws IOException {
         FieldEntry entry = fields.get(fieldInfo.number);
         // max postings list size, no longer utilized

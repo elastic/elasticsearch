@@ -12,8 +12,6 @@ package org.elasticsearch.search.vectors;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 
 import java.util.Objects;
 
@@ -42,22 +40,7 @@ public class DiversifyingChildrenIVFKnnFloatVectorQuery extends IVFKnnFloatVecto
         float visitRatio,
         boolean doPrecondition
     ) {
-        this(field, query, k, numCands, childFilter, parentsFilter, visitRatio, doPrecondition, true, null);
-    }
-
-    public DiversifyingChildrenIVFKnnFloatVectorQuery(
-        String field,
-        float[] query,
-        int k,
-        int numCands,
-        Query childFilter,
-        BitSetProducer parentsFilter,
-        float visitRatio,
-        boolean doPrecondition,
-        boolean persistIvfSegmentConfig,
-        @Nullable ESNextDiskBBQVectorsFormat.QuantEncoding searchQuantEncodingOverride
-    ) {
-        super(field, query, k, numCands, childFilter, visitRatio, doPrecondition, persistIvfSegmentConfig, searchQuantEncodingOverride);
+        super(field, query, k, numCands, childFilter, visitRatio, doPrecondition);
         this.parentsFilter = parentsFilter;
     }
 

@@ -10,8 +10,6 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 
 import java.util.Objects;
 import java.util.concurrent.atomic.LongAccumulator;
@@ -22,34 +20,12 @@ public class IVFKnnSearchStrategy extends KnnSearchStrategy {
     private final int k;
     private final SetOnce<AbstractMaxScoreKnnCollector> collector = new SetOnce<>();
     private final LongAccumulator accumulator;
-    /**
-     * When non-null, IVF search uses this quantization from the mapping for query/posting scoring instead of
-     * the value in {@code mivf}. When null, the on-disk {@code mivf} encoding is used.
-     */
-    @Nullable
-    private final ESNextDiskBBQVectorsFormat.QuantEncoding searchQuantEncodingOverride;
 
     public IVFKnnSearchStrategy(float visitRatio, int numCands, int k, LongAccumulator accumulator) {
-        this(visitRatio, numCands, k, accumulator, null);
-    }
-
-    public IVFKnnSearchStrategy(
-        float visitRatio,
-        int numCands,
-        int k,
-        LongAccumulator accumulator,
-        @Nullable ESNextDiskBBQVectorsFormat.QuantEncoding searchQuantEncodingOverride
-    ) {
         this.visitRatio = visitRatio;
         this.numCands = numCands;
         this.k = k;
         this.accumulator = accumulator;
-        this.searchQuantEncodingOverride = searchQuantEncodingOverride;
-    }
-
-    @Nullable
-    public ESNextDiskBBQVectorsFormat.QuantEncoding getSearchQuantEncodingOverride() {
-        return searchQuantEncodingOverride;
     }
 
     void setCollector(AbstractMaxScoreKnnCollector collector) {
@@ -76,15 +52,12 @@ public class IVFKnnSearchStrategy extends KnnSearchStrategy {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         IVFKnnSearchStrategy that = (IVFKnnSearchStrategy) o;
-        return visitRatio == that.visitRatio
-            && numCands == that.numCands
-            && k == that.k
-            && Objects.equals(searchQuantEncodingOverride, that.searchQuantEncodingOverride);
+        return visitRatio == that.visitRatio && numCands == that.numCands && k == that.k;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(visitRatio, numCands, k, searchQuantEncodingOverride);
+        return Objects.hash(visitRatio, numCands, k);
     }
 
     /**

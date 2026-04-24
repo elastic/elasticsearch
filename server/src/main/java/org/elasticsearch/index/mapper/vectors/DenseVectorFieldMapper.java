@@ -2614,7 +2614,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         final int bits;
         final boolean doPrecondition;
         final boolean experimentalFeaturesEnabled;
-        /** When {@code true}, flush/merge may persist full {@code mivf} calibration; search uses on-disk quant, precondition, rescore. */
+        /**
+         * When {@code true}, flush/merge may calibrate and persist the full {@code mivf} {@link org.elasticsearch.index.codec.vectors.diskbbq.next.IvfSegmentConfig}
+         * bundle, and {@code rescore_vector} resolution may use the rescore oversample stored in {@code mivf}. Quantization and
+         * preconditioning on disk remain consistent with indexed data; search uses the reader for those. Default {@code false}.
+         */
         final boolean persistIvfSegmentConfig;
 
         public BBQIVFIndexOptions(
@@ -3271,9 +3275,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             } else if (indexOptions instanceof BBQIVFIndexOptions bbqIndexOptions) {
                 float defaultVisitRatio = (float) (bbqIndexOptions.defaultVisitPercentage / 100d);
                 float visitRatio = visitPercentage == null ? defaultVisitRatio : (float) (visitPercentage / 100d);
-                var searchQuantForQuery = bbqIndexOptions.persistIvfSegmentConfig()
-                    ? null
-                    : ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits((byte) bbqIndexOptions.getBits());
                 knnQuery = parentFilter != null
                     ? new DiversifyingChildrenIVFKnnFloatVectorQuery(
                         name(),
@@ -3283,9 +3284,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         filter,
                         parentFilter,
                         visitRatio,
-                        bbqIndexOptions.doPrecondition(),
-                        bbqIndexOptions.persistIvfSegmentConfig(),
-                        searchQuantForQuery
+                        bbqIndexOptions.doPrecondition()
                     )
                     : new IVFKnnFloatVectorQuery(
                         name(),
@@ -3294,9 +3293,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         numCands,
                         filter,
                         visitRatio,
-                        bbqIndexOptions.doPrecondition(),
-                        bbqIndexOptions.persistIvfSegmentConfig(),
-                        searchQuantForQuery
+                        bbqIndexOptions.doPrecondition()
                     );
             } else {
                 knnQuery = parentFilter != null

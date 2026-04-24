@@ -18,10 +18,8 @@ import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
 import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -50,21 +48,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         float visitRatio,
         boolean doPrecondition
     ) {
-        this(field, query, k, numCands, filter, visitRatio, doPrecondition, true, null);
-    }
-
-    public IVFKnnFloatVectorQuery(
-        String field,
-        float[] query,
-        int k,
-        int numCands,
-        Query filter,
-        float visitRatio,
-        boolean doPrecondition,
-        boolean persistIvfSegmentConfig,
-        @Nullable ESNextDiskBBQVectorsFormat.QuantEncoding searchQuantEncodingOverride
-    ) {
-        super(field, visitRatio, k, numCands, filter, doPrecondition, persistIvfSegmentConfig, searchQuantEncodingOverride);
+        super(field, visitRatio, k, numCands, filter, doPrecondition);
         this.query = query;
     }
 
@@ -144,13 +128,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         float visitRatio
     ) throws IOException {
         LeafReader reader = context.reader();
-        IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(
-            visitRatio,
-            numCands,
-            k,
-            knnCollectorManager.longAccumulator,
-            searchQuantEncodingOverride
-        );
+        IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(visitRatio, numCands, k, knnCollectorManager.longAccumulator);
         AbstractMaxScoreKnnCollector knnCollector = knnCollectorManager.newCollector(visitedLimit, strategy, context);
         if (knnCollector == null) {
             return NO_RESULTS;

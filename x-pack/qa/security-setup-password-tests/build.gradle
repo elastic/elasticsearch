@@ -7,7 +7,6 @@ dependencies {
 
 tasks.named("javaRestTest").configure {
   nonInputProperties.systemProperty 'tests.config.dir', testClusters.named("javaRestTest").map(c -> c.singleNode().getConfigDir())
-  systemProperty 'tests.security.manager', 'false'
 }
 
 testClusters.matching { it.name == "javaRestTest" }.configureEach {

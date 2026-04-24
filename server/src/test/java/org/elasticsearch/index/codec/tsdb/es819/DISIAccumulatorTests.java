@@ -255,9 +255,7 @@ public class DISIAccumulatorTests extends LuceneTestCase {
             try (IndexInput in = dir.openInput("sparse", IOContext.DEFAULT)) {
                 IndexedDISI disi = new IndexedDISI(in, 0L, length, jumpTableEntryCount, denseRankPower, DISIAccumulator.MAX_ARRAY_LENGTH);
                 assertEquals(start, disi.nextDoc());
-                if (System.getSecurityManager() == null) {
-                    assertEquals("SPARSE", getMethodFromDISI(disi));
-                }
+                assertEquals("SPARSE", getMethodFromDISI(disi));
             }
             doTest(set, dir);
 
@@ -277,9 +275,7 @@ public class DISIAccumulatorTests extends LuceneTestCase {
                     DISIAccumulator.MAX_ARRAY_LENGTH + 1
                 );
                 assertEquals(start, disi.nextDoc());
-                if (System.getSecurityManager() == null) {
-                    assertEquals("DENSE", getMethodFromDISI(disi));
-                }
+                assertEquals("DENSE", getMethodFromDISI(disi));
             }
             doTest(set, dir);
         }

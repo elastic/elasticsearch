@@ -25,12 +25,17 @@ public class OTLPTracesIndexingRestIT extends AbstractOTLPIndexingRestIT {
     private SdkTracerProvider tracerProvider;
     private Tracer tracer;
 
+    @Override
+    protected String otlpEndpointPath() {
+        return "/_otlp/v1/traces";
+    }
+
     @Before
     @Override
     public void setUp() throws Exception {
         super.setUp();
         OtlpHttpSpanExporter exporter = OtlpHttpSpanExporter.builder()
-            .setEndpoint(getClusterHosts().getFirst().toURI() + "/_otlp/v1/traces")
+            .setEndpoint(getClusterHosts().getFirst().toURI() + otlpEndpointPath())
             .addHeader("Authorization", "ApiKey " + createApiKey("traces-*"))
             .build();
         tracerProvider = SdkTracerProvider.builder()

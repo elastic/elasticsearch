@@ -105,11 +105,6 @@ public class OTLPTracesTransportAction extends AbstractOTLPTransportAction {
     }
 
     @Override
-    MessageLite emptyResponse() {
-        return ExportTraceServiceResponse.getDefaultInstance();
-    }
-
-    @Override
     MessageLite responseWithRejectedDataPoints(int rejectedDataPoints, String message) {
         ExportTracePartialSuccess partialSuccess = ExportTracePartialSuccess.newBuilder()
             .setRejectedSpans(rejectedDataPoints)

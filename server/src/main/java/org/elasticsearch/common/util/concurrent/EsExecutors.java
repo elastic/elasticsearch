@@ -384,8 +384,7 @@ public class EsExecutors {
 
         EsThreadFactory(String namePrefix, boolean isSystem) {
             this.namePrefix = namePrefix;
-            SecurityManager s = System.getSecurityManager();
-            group = (s != null) ? s.getThreadGroup() : Thread.currentThread().getThreadGroup();
+            this.group = Thread.currentThread().getThreadGroup();
             this.isSystem = isSystem;
         }
 

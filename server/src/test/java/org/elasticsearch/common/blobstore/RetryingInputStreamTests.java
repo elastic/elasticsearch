@@ -233,7 +233,7 @@ public class RetryingInputStreamTests extends ESTestCase {
         final var services = new BlobStoreServicesAdapter(purpose, maxRetries) {
 
             @Override
-            protected RetryingInputStream.SingleAttemptInputStream<String> doGetInputStream(String version, long start, long end)
+            protected RetryingInputStream.SingleAttemptInputStream<String> doGetInputStream(@Nullable String version, long start, long end)
                 throws IOException {
                 if (interruptCountDown.getAndDecrement() == 0) {
                     Thread.currentThread().interrupt();

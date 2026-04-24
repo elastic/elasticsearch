@@ -47,10 +47,6 @@ restResources {
   }
 }
 
-tasks.named('internalClusterTest') {
-  systemProperty 'tests.security.manager', 'false'
-}
-
 tasks.named('internalClusterTestTestingConventions') {
   baseClass 'org.elasticsearch.xpack.CcrIntegTestCase'
   baseClass 'org.elasticsearch.xpack.CcrSingleNodeTestCase'

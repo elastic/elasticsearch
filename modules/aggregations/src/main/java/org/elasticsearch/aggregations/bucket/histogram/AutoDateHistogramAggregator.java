@@ -28,6 +28,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BestBucketsDeferringCollector;
+import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.DeferableBucketAggregator;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
@@ -102,7 +103,11 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Numeric) valuesSourceConfig.getValuesSource() : null;
         this.formatter = valuesSourceConfig.format();
         this.roundingInfos = roundingInfos;
-        this.roundingPreparer = valuesSourceConfig.roundingPreparer(context);
+        // Under a `global` agg the top-level query is ignored, so the rounding must be unbounded
+        // to cover every doc in the index
+        this.roundingPreparer = BucketsAggregator.descendsFromGlobalAggregator(parent)
+            ? rounding -> rounding.prepareForUnknown()
+            : valuesSourceConfig.roundingPreparer(context);
     }
 
     @Override

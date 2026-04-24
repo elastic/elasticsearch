@@ -20,11 +20,11 @@ The returned `bucket` values are the end timestamps of each bucket.
 Boundaries are generated as `range_start + n * step` (UTC), and each bucket
 represents `(bucket_end - step, bucket_end]`.
 
-The same query with the step passed as a string literal:
+The same query with explicit bounds:
 
 ```esql
 FROM sample_data
-| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TSTEP("1 hour")
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TSTEP(1 hour, "2023-10-23T12:15:00.000Z", "2023-10-23T13:55:01.543Z")
 | SORT bucket
 ```
 

@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -101,15 +100,6 @@ public class DatasetRewriterTests extends ESTestCase {
         UnresolvedRelation indexChild = (UnresolvedRelation) union.children().get(0);
         assertThat(indexChild.indexPattern().indexPattern(), equalTo("idx_a,idx_b"));
         assertThat(union.children().get(1), instanceOf(UnresolvedExternalRelation.class));
-    }
-
-    public void testUnknownParentDataSourceRejected() {
-        Dataset orphan = new Dataset("orphan", new DataSourceReference("ghost_parent"), "s3://x/", null, Map.of());
-        ProjectMetadata project = projectWith(Map.of(), Map.of("orphan", orphan));
-
-        VerificationException ex = expectThrows(VerificationException.class, () -> DatasetRewriter.rewrite(relationOf("orphan"), project));
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("dataset [orphan]"));
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("unknown data source [ghost_parent]"));
     }
 
     public void testSecretSettingUnwrappedToPlaintext() {

@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.metadata.DataSourceSetting;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -74,11 +73,10 @@ public final class DatasetRewriter {
         for (String name : datasetNames) {
             Dataset dataset = datasets.get(name);
             DataSource parent = dataSources.get(dataset.dataSource().getName());
-            if (parent == null) {
-                throw new VerificationException(
-                    "dataset [" + name + "] references unknown data source [" + dataset.dataSource().getName() + "]"
-                );
-            }
+            // DataSourceService.deleteDataSources rejects (409) when any dataset still references the
+            // data source, so a dataset with a missing parent should only happen if that invariant breaks
+            // (e.g. a broken cluster-state restore). Assert in dev/test; let it NPE at mergeSettings otherwise.
+            assert parent != null : "dataset [" + name + "] references unknown data source [" + dataset.dataSource().getName() + "]";
             Map<String, Object> merged = mergeSettings(parent, dataset);
             Literal path = Literal.keyword(relation.source(), dataset.resource());
             children.add(new UnresolvedExternalRelation(relation.source(), path, toParams(relation.source(), merged)));

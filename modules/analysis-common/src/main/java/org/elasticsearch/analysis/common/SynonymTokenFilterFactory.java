@@ -86,14 +86,6 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
                         rawSynonymsSets
                     );
                 }
-                if (synonymsSets.size() > 1
-                    && factory.clusterService.state().getMinTransportVersion().supports(MULTIPLE_SYNONYM_SETS_PER_FILTER_TV) == false) {
-                    throw new IllegalArgumentException(
-                        "Multiple synonym sets in ["
-                            + SynonymsSource.INDEX.getSettingName()
-                            + "] are not supported until all nodes in the cluster have been upgraded"
-                    );
-                }
                 if (synonymsSets.isEmpty()) {
                     return new ReaderWithOrigin(new StringReader(""), "empty synonyms_set " + synonymsSets, synonymsSets);
                 }
@@ -108,21 +100,27 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
                 }
                 // provide empty synonyms on index creation and index metadata checks to ensure that we
                 // don't block a master thread
-                ReaderWithOrigin reader;
                 if (context != IndexCreationContext.RELOAD_ANALYZERS) {
-                    reader = new ReaderWithOrigin(
+                    return new ReaderWithOrigin(
                         new StringReader(""),
                         "fake empty " + synonymsSets + " synonyms_set in .synonyms index",
                         synonymsSets
                     );
-                } else {
-                    reader = new ReaderWithOrigin(
-                        Analysis.getReaderFromIndex(synonymsSets, factory.synonymsManagementAPIService, factory.lenient),
-                        synonymsSets + " synonyms_sets in .synonyms index",
-                        synonymsSets
+                }
+
+                if (synonymsSets.size() > 1
+                    && factory.clusterService.state().getMinTransportVersion().supports(MULTIPLE_SYNONYM_SETS_PER_FILTER_TV) == false) {
+                    throw new IllegalArgumentException(
+                        "Multiple synonym sets in ["
+                            + SynonymsSource.INDEX.getSettingName()
+                            + "] are not supported until all nodes in the cluster have been upgraded"
                     );
                 }
-                return reader;
+                return new ReaderWithOrigin(
+                    Analysis.getReaderFromIndex(synonymsSets, factory.synonymsManagementAPIService, factory.lenient),
+                    synonymsSets + " synonyms_sets in .synonyms index",
+                    synonymsSets
+                );
             }
         },
         LOCAL_FILE("synonyms_path") {

@@ -22,6 +22,7 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -611,15 +612,27 @@ public class SynonymsAnalysisTests extends ESTestCase {
         indexAnalyzers = createTestAnalysis(singleSetIdxSettings, singleSetSettings, oldPlugin).indexAnalyzers;
         assertNotNull(indexAnalyzers.get("my_analyzer"));
 
-        // multiple sets are rejected when cluster hasn't fully upgraded
+        // multiple sets: index creation succeeds on old cluster (transport version check is deferred to RELOAD_ANALYZERS)
         Settings multiSetSettings = Settings.builder()
             .put(baseSettings.build())
             .putList("index.analysis.filter.my_synonyms.synonyms_set", "set-a", "set-b")
             .build();
         IndexSettings multiSetIdxSettings = IndexSettingsModule.newIndexSettings("index", multiSetSettings);
+        var multiSetAnalysis = createTestAnalysis(multiSetIdxSettings, multiSetSettings, oldPlugin);
+        assertNotNull(multiSetAnalysis.indexAnalyzers.get("my_analyzer"));
+
+        // but RELOAD_ANALYZERS is rejected — that's where the transport version check fires
+        TokenFilterFactory factory = multiSetAnalysis.tokenFilter.get("my_synonyms");
+        TokenizerFactory standardTokenizer = multiSetAnalysis.tokenizer.get("standard");
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> createTestAnalysis(multiSetIdxSettings, multiSetSettings, oldPlugin)
+            () -> factory.getChainAwareTokenFilterFactory(
+                IndexCreationContext.RELOAD_ANALYZERS,
+                standardTokenizer,
+                List.of(),
+                List.of(),
+                ignored -> null
+            )
         );
         assertThat(
             e.getMessage(),

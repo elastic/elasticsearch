@@ -33,7 +33,7 @@ import static org.elasticsearch.simdvec.VectorSimilarityType.MAXIMUM_INNER_PRODU
 import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 import static org.hamcrest.Matchers.closeTo;
 
-public class FloatVectorScorerFactoryTests extends AbstractVectorTestCase {
+public class Float32VectorScorerFactoryTests extends AbstractVectorTestCase {
 
     private static final int TIMES = 100; // a loop iteration times
     private static final double DELTA = 1e-6;
@@ -58,14 +58,14 @@ public class FloatVectorScorerFactoryTests extends AbstractVectorTestCase {
     public void testRandomMMap() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
         try (Directory dir = new MMapDirectory(createTempDir("testRandomMMap"))) {
-            testRandomSupplier(dir, FloatVectorScorerFactoryTests::randomVector);
+            testRandomSupplier(dir, Float32VectorScorerFactoryTests::randomVector);
         }
     }
 
     public void testRandomNIO() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
         try (Directory dir = new NIOFSDirectory(createTempDir("testRandomNIO"))) {
-            testRandomSupplier(dir, FloatVectorScorerFactoryTests::randomVector);
+            testRandomSupplier(dir, Float32VectorScorerFactoryTests::randomVector);
         }
     }
 
@@ -74,7 +74,7 @@ public class FloatVectorScorerFactoryTests extends AbstractVectorTestCase {
         long maxChunkSize = randomLongBetween(32, 128);
         logger.info("maxChunkSize=" + maxChunkSize);
         try (Directory dir = new MMapDirectory(createTempDir("testRandomMaxChunkSizeSmall"), maxChunkSize)) {
-            testRandomSupplier(dir, FloatVectorScorerFactoryTests::randomVector);
+            testRandomSupplier(dir, Float32VectorScorerFactoryTests::randomVector);
         }
     }
 
@@ -88,14 +88,14 @@ public class FloatVectorScorerFactoryTests extends AbstractVectorTestCase {
     public void testRandomBulkMMap() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
         try (Directory dir = new MMapDirectory(createTempDir("testRandomBulkMMap"))) {
-            testRandomSupplierBulk(dir, FloatVectorScorerFactoryTests::randomVector);
+            testRandomSupplierBulk(dir, Float32VectorScorerFactoryTests::randomVector);
         }
     }
 
     public void testRandomBulkNIO() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
         try (Directory dir = new NIOFSDirectory(createTempDir("testRandomBulkNIO"))) {
-            testRandomSupplierBulk(dir, FloatVectorScorerFactoryTests::randomVector);
+            testRandomSupplierBulk(dir, Float32VectorScorerFactoryTests::randomVector);
         }
     }
 
@@ -104,7 +104,7 @@ public class FloatVectorScorerFactoryTests extends AbstractVectorTestCase {
         long maxChunkSize = randomLongBetween(32, 128);
         logger.info("maxChunkSize=" + maxChunkSize);
         try (Directory dir = new MMapDirectory(createTempDir("testRandomMaxChunkSizeSmallBulk"), maxChunkSize)) {
-            testRandomSupplierBulk(dir, FloatVectorScorerFactoryTests::randomVector);
+            testRandomSupplierBulk(dir, Float32VectorScorerFactoryTests::randomVector);
         }
     }
 
@@ -162,7 +162,7 @@ public class FloatVectorScorerFactoryTests extends AbstractVectorTestCase {
             String fileName = "testDatasetGreaterThanChunkSize-" + dims;
             logger.info("Testing " + fileName);
 
-            writeTestDataFile(FloatVectorScorerFactoryTests::randomVector, dir, fileName, size, dims, vectors);
+            writeTestDataFile(Float32VectorScorerFactoryTests::randomVector, dir, fileName, size, dims, vectors);
 
             try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
                 for (int times = 0; times < TIMES; times++) {
@@ -187,7 +187,7 @@ public class FloatVectorScorerFactoryTests extends AbstractVectorTestCase {
             String fileName = "testDatasetGreaterThanChunkSize-" + dims;
             logger.info("Testing " + fileName);
 
-            writeTestDataFile(FloatVectorScorerFactoryTests::randomVector, dir, fileName, size, dims, vectors);
+            writeTestDataFile(Float32VectorScorerFactoryTests::randomVector, dir, fileName, size, dims, vectors);
 
             try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
                 for (int times = 0; times < TIMES; times++) {
@@ -208,11 +208,11 @@ public class FloatVectorScorerFactoryTests extends AbstractVectorTestCase {
 
         try (var dir = new MMapDirectory(createTempDir("testBulkScoreWithZeroNodes"))) {
             String fileName = "testBulkScoreWithZeroNodes-" + dims;
-            writeTestDataFile(FloatVectorScorerFactoryTests::randomVector, dir, fileName, size, dims, new float[size][]);
+            writeTestDataFile(Float32VectorScorerFactoryTests::randomVector, dir, fileName, size, dims, new float[size][]);
             try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
                 for (var sim : List.of(DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT)) {
                     var values = vectorValues(dims, size, in, sim.function());
-                    var supplier = factory.getFloatVectorScorerSupplier(sim, in, values).get();
+                    var supplier = factory.getFloat32VectorScorerSupplier(sim, in, values).get();
                     var scorer = supplier.scorer();
                     scorer.setScoringOrdinal(0);
                     float result = scorer.bulkScore(new int[0], new float[0], 0);
@@ -252,7 +252,7 @@ public class FloatVectorScorerFactoryTests extends AbstractVectorTestCase {
             var values = vectorValues(dims, size, in, sim.function());
             float expected = luceneScore(sim, vectors[idx0], vectors[idx1]);
 
-            var supplier = factory.getFloatVectorScorerSupplier(sim, in, values).get();
+            var supplier = factory.getFloat32VectorScorerSupplier(sim, in, values).get();
             var scorer = supplier.scorer();
             scorer.setScoringOrdinal(idx0);
 
@@ -274,7 +274,7 @@ public class FloatVectorScorerFactoryTests extends AbstractVectorTestCase {
                 expected[idx1] = luceneScore(sim, vectors[idx0], vectors[idx1]);
             }
 
-            var supplier = factory.getFloatVectorScorerSupplier(sim, in, values).get();
+            var supplier = factory.getFloat32VectorScorerSupplier(sim, in, values).get();
             var scorer = supplier.scorer();
             scorer.setScoringOrdinal(idx0);
 

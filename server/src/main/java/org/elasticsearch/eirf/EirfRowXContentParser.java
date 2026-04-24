@@ -60,7 +60,19 @@ public final class EirfRowXContentParser extends AbstractXContentParser {
             return new SchemaNode(name, -1, children);
         }
 
-        boolean isLeaf() {
+        public String name() {
+            return name;
+        }
+
+        public int leafColumnIndex() {
+            return leafColumnIndex;
+        }
+
+        public SchemaNode[] children() {
+            return children;
+        }
+
+        public boolean isLeaf() {
             return children == null;
         }
     }
@@ -209,10 +221,9 @@ public final class EirfRowXContentParser extends AbstractXContentParser {
                 SchemaNode child = node.children[childIdx];
                 childIdxStack[stackDepth - 1]++;
 
-                // Skip null leaves
                 if (child.isLeaf()) {
                     int colIdx = child.leafColumnIndex;
-                    if (colIdx >= row.columnCount() || row.isNull(colIdx)) {
+                    if (colIdx >= row.columnCount() || row.isAbsent(colIdx)) {
                         continue;
                     }
                 }

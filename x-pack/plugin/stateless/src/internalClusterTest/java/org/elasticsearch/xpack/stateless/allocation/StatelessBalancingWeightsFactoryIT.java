@@ -67,6 +67,7 @@ public class StatelessBalancingWeightsFactoryIT extends AbstractStatelessPluginI
         updateClusterSettings(
             Settings.builder()
                 .put(setting, 0.0)
+                .put(StatelessBalancingWeightsFactory.INDEXING_TIER_SHARD_BALANCE_FACTOR_SETTING.getKey(), 0.45)
                 // Zero write load to isolate the effect of shard count
                 .put(StatelessBalancingWeightsFactory.INDEXING_TIER_WRITE_LOAD_BALANCE_FACTOR_SETTING.getKey(), 0.0)
                 .put(StatelessBalancingWeightsFactory.SEARCH_TIER_WRITE_LOAD_BALANCE_FACTOR_SETTING.getKey(), 0.0)
@@ -138,6 +139,7 @@ public class StatelessBalancingWeightsFactoryIT extends AbstractStatelessPluginI
         updateClusterSettings(
             Settings.builder()
                 .put(setting, 100.0)
+                .put(StatelessBalancingWeightsFactory.INDEXING_TIER_SHARD_BALANCE_FACTOR_SETTING.getKey(), 0.45)
                 // Zero write load to isolate the effect of shard count
                 .put(StatelessBalancingWeightsFactory.INDEXING_TIER_WRITE_LOAD_BALANCE_FACTOR_SETTING.getKey(), 0.0)
                 .put(StatelessBalancingWeightsFactory.SEARCH_TIER_WRITE_LOAD_BALANCE_FACTOR_SETTING.getKey(), 0.0)

@@ -177,17 +177,9 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
             )
         );
         assertThat(thrownException.validationErrors().size(), is(1));
-        assertThat(
-            thrownException.validationErrors().getFirst(),
-            is(
-                Strings.format(
-                    "[service_settings] Invalid url [%s] received for field [%s]. Error: unable to parse url [%s]. Reason: Illegal character in path",
-                    invalidUrl,
-                    ServiceFields.URL,
-                    invalidUrl
-                )
-            )
-        );
+        assertThat(thrownException.validationErrors().getFirst(), is(Strings.format("""
+            [service_settings] Invalid url [%s] received for field [%s]. \
+            Error: unable to parse url [%s]. Reason: Illegal character in path""", invalidUrl, ServiceFields.URL, invalidUrl)));
     }
 
     public void testFromMap_NoSimilarity_Success() {

@@ -146,39 +146,6 @@ public class NvidiaService extends SenderService<NvidiaModel> implements Reranki
         }
     }
 
-    /**
-     * Creates an {@link NvidiaModel} based on the provided parameters.
-     *
-     * @param inferenceId the unique identifier for the inference entity
-     * @param taskType the type of task this model is designed for
-     * @param serviceSettings the settings for the inference service
-     * @param taskSettings the task-specific settings, if applicable
-     * @param chunkingSettings the settings for chunking, if applicable
-     * @param secretSettings the secret settings for the model, such as API keys or tokens
-     * @param context the context for parsing configuration settings
-     * @return a new instance of {@link NvidiaModel} based on the provided parameters
-     */
-    protected NvidiaModel createModel(
-        String inferenceId,
-        TaskType taskType,
-        Map<String, Object> serviceSettings,
-        Map<String, Object> taskSettings,
-        ChunkingSettings chunkingSettings,
-        Map<String, Object> secretSettings,
-        ConfigurationParseContext context
-    ) {
-        return retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceId, taskType, NAME, context).createFromMaps(
-            inferenceId,
-            taskType,
-            NAME,
-            serviceSettings,
-            taskSettings,
-            chunkingSettings,
-            secretSettings,
-            context
-        );
-    }
-
     @Override
     protected void doUnifiedCompletionInfer(
         Model model,
@@ -299,9 +266,16 @@ public class NvidiaService extends SenderService<NvidiaModel> implements Reranki
                 );
             }
 
-            NvidiaModel model = createModel(
+            NvidiaModel model = retrieveModelCreatorFromMapOrThrow(
+                MODEL_CREATORS,
                 inferenceId,
                 taskType,
+                NAME,
+                ConfigurationParseContext.REQUEST
+            ).createFromMaps(
+                inferenceId,
+                taskType,
+                NAME,
                 serviceSettingsMap,
                 taskSettingsMap,
                 chunkingSettings,
@@ -326,7 +300,7 @@ public class NvidiaService extends SenderService<NvidiaModel> implements Reranki
             config.getInferenceEntityId(),
             config.getTaskType(),
             config.getService(),
-            ConfigurationParseContext.PERSISTENT
+            ConfigurationParseContext.REQUEST
         ).createFromModelConfigurationsAndSecrets(config, secrets);
     }
 

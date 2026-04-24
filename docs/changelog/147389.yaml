@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 147211
+pr: 147389
+summary: Handle null `lastModified` in external source resolution
+type: bug

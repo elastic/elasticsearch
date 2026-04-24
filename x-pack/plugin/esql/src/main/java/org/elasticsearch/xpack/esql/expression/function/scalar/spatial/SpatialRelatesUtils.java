@@ -64,6 +64,9 @@ public class SpatialRelatesUtils {
 
     /** Converts a {@link Geometry} into a {@link Component2D}. */
     static Component2D asLuceneComponent2D(BinarySpatialFunction.SpatialCrsType crsType, Geometry geometry) {
+        if (geometry == null) {
+            return null;
+        }
         if (crsType == BinarySpatialFunction.SpatialCrsType.GEO) {
             var luceneGeometries = LuceneGeometriesUtils.toLatLonGeometry(geometry, true, t -> {});
             return LatLonGeometry.create(luceneGeometries);
@@ -91,6 +94,9 @@ public class SpatialRelatesUtils {
      * The reason for generating an array instead of a single component is for multi-shape support with ST_CONTAINS.
      */
     static Component2D[] asLuceneComponent2Ds(BinarySpatialFunction.SpatialCrsType crsType, Geometry geometry) {
+        if (geometry == null) {
+            return null;
+        }
         if (crsType == BinarySpatialFunction.SpatialCrsType.GEO) {
             var luceneGeometries = LuceneGeometriesUtils.toLatLonGeometry(geometry, true, t -> {});
             return LuceneComponent2DUtils.createLatLonComponents(luceneGeometries);
@@ -127,6 +133,9 @@ public class SpatialRelatesUtils {
     /** Converts a {@link Geometry} into a {@link GeometryDocValueReader} */
     static GeometryDocValueReader asGeometryDocValueReader(CoordinateEncoder encoder, ShapeIndexer shapeIndexer, Geometry geometry)
         throws IOException {
+        if (geometry == null) {
+            return null;
+        }
         GeometryDocValueReader reader = new GeometryDocValueReader();
         CentroidCalculator centroidCalculator = new CentroidCalculator();
         if (geometry instanceof Circle) {
@@ -198,7 +207,9 @@ public class SpatialRelatesUtils {
     }
 
     private static Geometry makeGeometryFromLiteralValue(Object value, DataType dataType) {
-        if (value instanceof BytesRef bytesRef) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof BytesRef bytesRef) {
             // Single value expression
             return SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(bytesRef);
         } else if (value instanceof List<?> bytesRefList) {

@@ -12,31 +12,31 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link CopySign}.
+ * {@link ExpressionEvaluator} implementation for {@link CopySign}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class CopySignDoubleEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class CopySignDoubleEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CopySignDoubleEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator magnitude;
+  private final ExpressionEvaluator magnitude;
 
-  private final EvalOperator.ExpressionEvaluator sign;
+  private final ExpressionEvaluator sign;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public CopySignDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator magnitude,
-      EvalOperator.ExpressionEvaluator sign, DriverContext driverContext) {
+  public CopySignDoubleEvaluator(Source source, ExpressionEvaluator magnitude,
+      ExpressionEvaluator sign, DriverContext driverContext) {
     this.source = source;
     this.magnitude = magnitude;
     this.sign = sign;
@@ -125,25 +125,20 @@ public final class CopySignDoubleEvaluator implements EvalOperator.ExpressionEva
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory magnitude;
+    private final ExpressionEvaluator.Factory magnitude;
 
-    private final EvalOperator.ExpressionEvaluator.Factory sign;
+    private final ExpressionEvaluator.Factory sign;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory magnitude,
-        EvalOperator.ExpressionEvaluator.Factory sign) {
+    public Factory(Source source, ExpressionEvaluator.Factory magnitude,
+        ExpressionEvaluator.Factory sign) {
       this.source = source;
       this.magnitude = magnitude;
       this.sign = sign;

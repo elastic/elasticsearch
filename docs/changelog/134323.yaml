@@ -1,6 +1,0 @@
-pr: 134323
-summary: Make INLINESTATS (and subplans) work with CCS
-area: ES|QL
-type: enhancement
-issues:
- - 124748

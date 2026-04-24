@@ -122,6 +122,9 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
         var dlmRoundsSum = new AtomicInteger(0);
         var dlmRoundsMin = new AtomicInteger(Integer.MAX_VALUE);
         var dlmRoundsMax = new AtomicInteger(Integer.MIN_VALUE);
+        var dlmAggregateSamplingMethodCount = new AtomicInteger(0);
+        var dlmLastValueSamplingMethodCount = new AtomicInteger(0);
+        var dlmUndefinedSamplingMethodCount = new AtomicInteger(0);
 
         // ... with ILM
         var ilmDownsampledDataStreamCount = new AtomicInteger(0);
@@ -130,8 +133,11 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
         var ilmRoundsSum = new AtomicInteger(0);
         var ilmRoundsMin = new AtomicInteger(Integer.MAX_VALUE);
         var ilmRoundsMax = new AtomicInteger(Integer.MIN_VALUE);
+        var ilmAggregateSamplingMethodCount = new AtomicInteger(0);
+        var ilmLastValueSamplingMethodCount = new AtomicInteger(0);
+        var ilmUndefinedSamplingMethodCount = new AtomicInteger(0);
         Set<String> usedPolicies = new HashSet<>();
-        var forceMergeEnabled = new AtomicReference<IlmForceMergeInPolicies>();
+        var ilmPolicySpecs = new AtomicReference<IlmPolicySpecs>();
 
         /*
          * We now add a number of simulated data streams to the cluster state. We mix different combinations of:
@@ -141,7 +147,7 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
          */
         updateClusterState(clusterState -> {
             Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata());
-            forceMergeEnabled.set(addIlmPolicies(metadataBuilder));
+            ilmPolicySpecs.set(addIlmPolicies(metadataBuilder));
 
             Map<String, DataStream> dataStreamMap = new HashMap<>();
             for (int dataStreamCount = 0; dataStreamCount < randomIntBetween(10, 100); dataStreamCount++) {
@@ -164,7 +170,15 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
                     timeSeriesDataStreamCount.incrementAndGet();
                     if (downsamplingConfiguredBy == DownsampledBy.DLM) {
                         dlmDownsampledDataStreamCount.incrementAndGet();
-                        updateRounds(lifecycle.downsampling().size(), dlmRoundsCount, dlmRoundsSum, dlmRoundsMin, dlmRoundsMax);
+                        updateRounds(lifecycle.downsamplingRounds().size(), dlmRoundsCount, dlmRoundsSum, dlmRoundsMin, dlmRoundsMax);
+                        DownsampleConfig.SamplingMethod samplingMethod = lifecycle.downsamplingMethod();
+                        if (samplingMethod == null) {
+                            dlmUndefinedSamplingMethodCount.incrementAndGet();
+                        } else if (samplingMethod == DownsampleConfig.SamplingMethod.AGGREGATE) {
+                            dlmAggregateSamplingMethodCount.incrementAndGet();
+                        } else if (samplingMethod == DownsampleConfig.SamplingMethod.LAST_VALUE) {
+                            dlmLastValueSamplingMethodCount.incrementAndGet();
+                        }
                     } else if (downsamplingConfiguredBy == DownsampledBy.ILM) {
                         ilmDownsampledDataStreamCount.incrementAndGet();
                     }
@@ -231,6 +245,17 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
                                         ilmRoundsMin,
                                         ilmRoundsMax
                                     );
+
+                                    DownsampleConfig.SamplingMethod samplingMethod = ilmPolicySpecs.get()
+                                        .samplingMethodByPolicy()
+                                        .get(policy);
+                                    if (samplingMethod == null) {
+                                        ilmUndefinedSamplingMethodCount.incrementAndGet();
+                                    } else if (samplingMethod == DownsampleConfig.SamplingMethod.AGGREGATE) {
+                                        ilmAggregateSamplingMethodCount.incrementAndGet();
+                                    } else if (samplingMethod == DownsampleConfig.SamplingMethod.LAST_VALUE) {
+                                        ilmLastValueSamplingMethodCount.incrementAndGet();
+                                    }
                                 }
                             } else if (downsamplingConfiguredBy == DownsampledBy.DLM) {
                                 dlmDownsampledIndexCount.incrementAndGet();
@@ -300,7 +325,10 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
                 dlmRoundsCount.get(),
                 dlmRoundsSum.get(),
                 dlmRoundsMin.get(),
-                dlmRoundsMax.get()
+                dlmRoundsMax.get(),
+                dlmAggregateSamplingMethodCount.get(),
+                dlmLastValueSamplingMethodCount.get(),
+                dlmUndefinedSamplingMethodCount.get()
             );
 
             // ILM
@@ -313,7 +341,10 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
                 ilmRoundsCount.get(),
                 ilmRoundsSum.get(),
                 ilmRoundsMin.get(),
-                ilmRoundsMax.get()
+                ilmRoundsMax.get(),
+                ilmAggregateSamplingMethodCount.get(),
+                ilmLastValueSamplingMethodCount.get(),
+                ilmUndefinedSamplingMethodCount.get()
             );
             var explicitlyEnabled = new AtomicInteger(0);
             var explicitlyDisabled = new AtomicInteger(0);
@@ -321,15 +352,15 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
             Map<String, Object> phasesStats = (Map<String, Object>) ilmStats.get("phases_in_use");
             if (usedPolicies.contains(DOWNSAMPLING_IN_HOT_POLICY)) {
                 assertThat(phasesStats.get("hot"), equalTo(1));
-                updateForceMergeCounters(forceMergeEnabled.get().enabledInHot, explicitlyEnabled, explicitlyDisabled, undefined);
+                updateForceMergeCounters(ilmPolicySpecs.get().enabledInHot, explicitlyEnabled, explicitlyDisabled, undefined);
             } else {
                 assertThat(phasesStats.get("hot"), nullValue());
             }
             if (usedPolicies.contains(DOWNSAMPLING_IN_WARM_COLD_POLICY)) {
                 assertThat(phasesStats.get("warm"), equalTo(1));
-                updateForceMergeCounters(forceMergeEnabled.get().enabledInWarm, explicitlyEnabled, explicitlyDisabled, undefined);
+                updateForceMergeCounters(ilmPolicySpecs.get().enabledInWarm, explicitlyEnabled, explicitlyDisabled, undefined);
                 assertThat(phasesStats.get("cold"), equalTo(1));
-                updateForceMergeCounters(forceMergeEnabled.get().enabledInCold, explicitlyEnabled, explicitlyDisabled, undefined);
+                updateForceMergeCounters(ilmPolicySpecs.get().enabledInCold, explicitlyEnabled, explicitlyDisabled, undefined);
             } else {
                 assertThat(phasesStats.get("warm"), nullValue());
                 assertThat(phasesStats.get("cold"), nullValue());
@@ -378,12 +409,16 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
         Integer roundsCount,
         Integer roundsSum,
         Integer roundsMin,
-        Integer roundsMax
+        Integer roundsMax,
+        Integer aggregateSamplingMethod,
+        Integer lastValueSamplingMethod,
+        Integer undefinedSamplingMethod
     ) {
         assertThat(stats.get("downsampled_data_stream_count"), equalTo(downsampledDataStreamCount));
         if (downsampledDataStreamCount == 0) {
             assertThat(stats.get("downsampled_index_count"), nullValue());
             assertThat(stats.get("rounds_per_data_stream"), nullValue());
+            assertThat(stats.get("sampling_method"), nullValue());
         } else {
             assertThat(stats.get("downsampled_index_count"), equalTo(downsampledIndexCount));
             assertThat(stats.containsKey("rounds_per_data_stream"), equalTo(true));
@@ -391,6 +426,11 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
             assertThat(roundsMap.get("average"), equalTo((double) roundsSum / roundsCount));
             assertThat(roundsMap.get("min"), equalTo(roundsMin));
             assertThat(roundsMap.get("max"), equalTo(roundsMax));
+            assertThat(stats.containsKey("sampling_method"), equalTo(true));
+            Map<String, Object> samplingMethodMap = (Map<String, Object>) stats.get("sampling_method");
+            assertThat(samplingMethodMap.get("aggregate"), equalTo(aggregateSamplingMethod));
+            assertThat(samplingMethodMap.get("last_value"), equalTo(lastValueSamplingMethod));
+            assertThat(samplingMethodMap.get("undefined"), equalTo(undefinedSamplingMethod));
         }
     }
 
@@ -410,7 +450,7 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
         }
         var builder = DataStreamLifecycle.dataLifecycleBuilder();
         if (isDownsampled) {
-            builder.downsampling(randomDownsamplingRounds());
+            builder.downsamplingRounds(randomDownsamplingRounds());
         }
         return builder.build();
     }
@@ -471,22 +511,19 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
         int minutes = 5;
         int days = 1;
         for (int i = 0; i < randomIntBetween(1, 10); i++) {
-            rounds.add(
-                new DataStreamLifecycle.DownsamplingRound(
-                    TimeValue.timeValueDays(days),
-                    new DownsampleConfig(new DateHistogramInterval(minutes + "m"))
-                )
-            );
+            rounds.add(new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueDays(days), new DateHistogramInterval(minutes + "m")));
             minutes *= randomIntBetween(2, 5);
             days += randomIntBetween(1, 5);
         }
         return rounds;
     }
 
-    private IlmForceMergeInPolicies addIlmPolicies(Metadata.Builder metadataBuilder) {
+    private IlmPolicySpecs addIlmPolicies(Metadata.Builder metadataBuilder) {
         Boolean hotForceMergeEnabled = randomBoolean() ? randomBoolean() : null;
         Boolean warmForceMergeEnabled = randomBoolean() ? randomBoolean() : null;
         Boolean coldForceMergeEnabled = randomBoolean() ? randomBoolean() : null;
+        DownsampleConfig.SamplingMethod samplingMethod1 = randomeSamplingMethod();
+        DownsampleConfig.SamplingMethod samplingMethod2 = randomeSamplingMethod();
         List<LifecyclePolicy> policies = List.of(
             new LifecyclePolicy(
                 DOWNSAMPLING_IN_HOT_POLICY,
@@ -495,7 +532,10 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
                     new Phase(
                         "hot",
                         TimeValue.ZERO,
-                        Map.of("downsample", new DownsampleAction(DateHistogramInterval.MINUTE, null, hotForceMergeEnabled))
+                        Map.of(
+                            "downsample",
+                            new DownsampleAction(DateHistogramInterval.MINUTE, null, hotForceMergeEnabled, samplingMethod1)
+                        )
                     )
                 )
             ),
@@ -506,13 +546,13 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
                     new Phase(
                         "warm",
                         TimeValue.ZERO,
-                        Map.of("downsample", new DownsampleAction(DateHistogramInterval.HOUR, null, warmForceMergeEnabled))
+                        Map.of("downsample", new DownsampleAction(DateHistogramInterval.HOUR, null, warmForceMergeEnabled, samplingMethod2))
                     ),
                     "cold",
                     new Phase(
                         "cold",
                         TimeValue.timeValueDays(3),
-                        Map.of("downsample", new DownsampleAction(DateHistogramInterval.DAY, null, coldForceMergeEnabled))
+                        Map.of("downsample", new DownsampleAction(DateHistogramInterval.DAY, null, coldForceMergeEnabled, samplingMethod2))
                     )
                 )
             ),
@@ -530,10 +570,26 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
             );
         IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(policyMetadata, OperationMode.RUNNING);
         metadataBuilder.putCustom(IndexLifecycleMetadata.TYPE, newMetadata);
-        return new IlmForceMergeInPolicies(hotForceMergeEnabled, warmForceMergeEnabled, coldForceMergeEnabled);
+        var samplingMethods = new HashMap<String, DownsampleConfig.SamplingMethod>(2);
+        if (samplingMethod1 != null) {
+            samplingMethods.put(DOWNSAMPLING_IN_HOT_POLICY, samplingMethod1);
+        }
+        if (samplingMethod2 != null) {
+            samplingMethods.put(DOWNSAMPLING_IN_WARM_COLD_POLICY, samplingMethod2);
+        }
+        return new IlmPolicySpecs(hotForceMergeEnabled, warmForceMergeEnabled, coldForceMergeEnabled, samplingMethods);
     }
 
-    private record IlmForceMergeInPolicies(Boolean enabledInHot, Boolean enabledInWarm, Boolean enabledInCold) {}
+    private static DownsampleConfig.SamplingMethod randomeSamplingMethod() {
+        return randomBoolean() ? null : randomFrom(DownsampleConfig.SamplingMethod.values());
+    }
+
+    private record IlmPolicySpecs(
+        Boolean enabledInHot,
+        Boolean enabledInWarm,
+        Boolean enabledInCold,
+        Map<String, DownsampleConfig.SamplingMethod> samplingMethodByPolicy
+    ) {}
 
     private static String randomIlmPolicy(DownsampledBy downsampledBy, boolean ovewrittenDlm) {
         if (downsampledBy == DownsampledBy.ILM || (downsampledBy == DownsampledBy.DLM && ovewrittenDlm)) {

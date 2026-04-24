@@ -66,7 +66,7 @@
       "allow_no_indices": {
         "type": "boolean",
         "default": true,
-        "description": "Whether to ignore if a wildcard indices expression resolves into no concrete indices. (This includes `_all` string or when no indices have been specified)"
+        "description": "Whether to allow (1) wildcard index expressions that match no indices and (2) requests where the final resolved set is empty."
       },
       "conflicts": {
         "type": "enum",
@@ -78,7 +78,7 @@
         "description": "What to do when the delete by query hits version conflicts?"
       },
       "expand_wildcards": {
-        "type": "enum",
+        "type": "list",
         "options": [
           "open",
           "closed",
@@ -127,6 +127,10 @@
         "description": "Maximum number of documents to process (default: all documents)"
       },
       "sort": {
+        "deprecated": {
+          "version": "9.0.0",
+          "description": "This query parameter is not supported and will be removed in a future version"
+        },
         "type": "list",
         "description": "A comma-separated list of <field>:<direction> pairs"
       },

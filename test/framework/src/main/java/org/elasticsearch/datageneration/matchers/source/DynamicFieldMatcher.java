@@ -29,17 +29,20 @@ class DynamicFieldMatcher {
     private final Settings.Builder actualSettings;
     private final XContentBuilder expectedMappings;
     private final Settings.Builder expectedSettings;
+    private final boolean ignoringSort;
 
     DynamicFieldMatcher(
         XContentBuilder actualMappings,
         Settings.Builder actualSettings,
         XContentBuilder expectedMappings,
-        Settings.Builder expectedSettings
+        Settings.Builder expectedSettings,
+        boolean ignoringSort
     ) {
         this.actualMappings = actualMappings;
         this.actualSettings = actualSettings;
         this.expectedMappings = expectedMappings;
         this.expectedSettings = expectedSettings;
+        this.ignoringSort = ignoringSort;
     }
 
     /**
@@ -60,8 +63,8 @@ class DynamicFieldMatcher {
         if (isDouble) {
             assert expected.stream().allMatch(o -> o == null || o instanceof Double);
 
-            var normalizedActual = normalizeDoubles(actual);
-            var normalizedExpected = normalizeDoubles(expected);
+            var normalizedActual = normalizeDoubles(actual, ignoringSort);
+            var normalizedExpected = normalizeDoubles(expected, ignoringSort);
             Supplier<MatchResult> noMatchSupplier = () -> MatchResult.noMatch(
                 formatErrorMessage(
                     actualMappings,
@@ -94,7 +97,7 @@ class DynamicFieldMatcher {
      * values within a margin of error. Synthetic source does support duplicate values and preserves the order, but it loses some accuracy,
      * this is why the margin of error is very important. In the future, we can make {@link SourceTransforms#normalizeValues} also stricter.
      */
-    private static List<Float> normalizeDoubles(List<Object> values) {
+    private static List<Float> normalizeDoubles(List<Object> values, boolean ignoringSort) {
         if (values == null) {
             return List.of();
         }
@@ -102,7 +105,13 @@ class DynamicFieldMatcher {
         Function<Object, Float> toFloat = (o) -> o instanceof Number n ? n.floatValue() : Float.parseFloat((String) o);
 
         // We skip nulls because they trip the pretty print collections.
-        return values.stream().filter(Objects::nonNull).map(toFloat).toList();
+        var stream = values.stream().filter(Objects::nonNull).map(toFloat);
+
+        if (ignoringSort) {
+            stream = stream.sorted();
+        }
+
+        return stream.toList();
     }
 
     private static boolean floatEquals(Float actual, Float expected) {
@@ -117,7 +126,7 @@ class DynamicFieldMatcher {
             expectedSettings,
             SourceTransforms.normalizeValues(actualValues),
             SourceTransforms.normalizeValues(expectedValues),
-            true
+            ignoringSort
         );
 
         return genericListMatcher.match();

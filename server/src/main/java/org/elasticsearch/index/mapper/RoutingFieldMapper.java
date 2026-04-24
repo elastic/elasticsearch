@@ -50,19 +50,24 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public RoutingFieldMapper build() {
             return RoutingFieldMapper.get(required.getValue());
         }
     }
 
-    public static final TypeParser PARSER = new ConfigurableTypeParser(c -> RoutingFieldMapper.get(Defaults.REQUIRED), c -> new Builder());
+    public static final TypeParser PARSER = new ConfigurableTypeParser(c -> new Builder());
 
     public static final MappedFieldType FIELD_TYPE = new RoutingFieldType();
 
     static final class RoutingFieldType extends StringFieldType {
 
         private RoutingFieldType() {
-            super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(NAME, IndexType.terms(true, false), true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override

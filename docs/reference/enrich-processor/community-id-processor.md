@@ -45,7 +45,7 @@ Here is an example definition of the community ID processor:
   ]
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 When the above processor executes on the following document:
 
@@ -66,7 +66,7 @@ When the above processor executes on the following document:
   }
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 It produces this result:
 
@@ -86,5 +86,5 @@ It produces this result:
   }
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 

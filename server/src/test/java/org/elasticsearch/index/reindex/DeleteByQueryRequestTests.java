@@ -94,6 +94,21 @@ public class DeleteByQueryRequestTests extends AbstractBulkByScrollRequestTestCa
         assertThat(e, is(nullValue()));
     }
 
+    public void testValidateGivenRemoteIndex() {
+        SearchRequest searchRequest = new SearchRequest();
+        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(searchRequest);
+        deleteByQueryRequest.indices("remote:index");
+        searchRequest.source().query(QueryBuilders.matchAllQuery());
+
+        ActionRequestValidationException e = deleteByQueryRequest.validate();
+
+        assertThat(e, is(not(nullValue())));
+        assertThat(
+            e.getMessage(),
+            containsString("Cross-cluster calls are not supported in this context but remote indices were requested")
+        );
+    }
+
     // TODO: Implement standard to/from x-content parsing tests
 
     @Override

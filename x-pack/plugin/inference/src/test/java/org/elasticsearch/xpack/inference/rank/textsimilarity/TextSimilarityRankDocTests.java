@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.search.rank.RankDoc.NO_RANK;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.generateRandomChunkingSettings;
 
 public class TextSimilarityRankDocTests extends AbstractRankDocWireSerializingTestCase<TextSimilarityRankDoc> {
 
@@ -27,7 +28,8 @@ public class TextSimilarityRankDocTests extends AbstractRankDocWireSerializingTe
             randomFloat(),
             randomBoolean() ? -1 : randomNonNegativeInt(),
             randomAlphaOfLength(randomIntBetween(2, 5)),
-            randomAlphaOfLength(randomIntBetween(2, 5))
+            randomAlphaOfLength(randomIntBetween(2, 5)),
+            randomChunkScorerConfig()
         );
         instance.rank = randomBoolean() ? NO_RANK : randomIntBetween(1, 10000);
         return instance;
@@ -58,8 +60,9 @@ public class TextSimilarityRankDocTests extends AbstractRankDocWireSerializingTe
         int rank = instance.rank;
         String inferenceId = instance.inferenceId;
         String field = instance.field;
+        ChunkScorerConfig chunkScorerConfig = instance.chunkScorerConfig;
 
-        switch (randomInt(5)) {
+        switch (randomInt(6)) {
             case 0:
                 doc = randomValueOtherThan(doc, ESTestCase::randomNonNegativeInt);
                 break;
@@ -78,11 +81,23 @@ public class TextSimilarityRankDocTests extends AbstractRankDocWireSerializingTe
             case 5:
                 field = randomValueOtherThan(field, () -> randomAlphaOfLength(randomIntBetween(2, 5)));
                 break;
+            case 6:
+                chunkScorerConfig = randomValueOtherThan(chunkScorerConfig, () -> randomChunkScorerConfig());
+                break;
             default:
                 throw new AssertionError();
         }
-        TextSimilarityRankDoc mutated = new TextSimilarityRankDoc(doc, score, shardIndex, inferenceId, field);
+        TextSimilarityRankDoc mutated = new TextSimilarityRankDoc(doc, score, shardIndex, inferenceId, field, chunkScorerConfig);
         mutated.rank = rank;
         return mutated;
+    }
+
+    private static ChunkScorerConfig randomChunkScorerConfig() {
+        if (randomBoolean()) {
+            return null;
+        }
+
+        Integer size = randomBoolean() ? randomIntBetween(1, 5) : null;
+        return new ChunkScorerConfig(size, randomAlphaOfLengthBetween(5, 15), generateRandomChunkingSettings(false));
     }
 }

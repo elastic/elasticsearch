@@ -9,7 +9,11 @@ package org.elasticsearch.xpack.ml.integration;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -56,29 +60,29 @@ import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 import org.elasticsearch.xpack.ml.dataframe.StoredProgress;
 import org.hamcrest.Matcher;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -87,6 +91,32 @@ import static org.hamcrest.Matchers.nullValue;
  * Base class of ML integration tests that use a native data_frame_analytics process
  */
 abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTestCase {
+
+    /**
+     * Index settings that produce deterministic {@code _doc} sort order. Use these when creating a source index whose
+     * reindexing order must be reproducible (e.g. tests that compare train/test splits across two DFA jobs with the
+     * same randomize seed).
+     * <p>
+     * The DFA train/test split uses reservoir sampling that consumes a seeded {@link java.util.Random} in
+     * {@code ml__incremental_id} order. That id is assigned during reindex by a counter script over {@code _doc}-sorted
+     * source docs. For two jobs with the same seed to pick the same training rows, the {@code _doc} order must be
+     * identical across both reindex operations. A single shard with zero replicas eliminates cross-shard merge
+     * non-determinism and ensures the search always hits the same (sole) shard copy.
+     * <p>
+     * Pair with {@link #forceMergeSingleSegment} after indexing to collapse all docs into one Lucene segment.
+     */
+    protected static final Settings DETERMINISTIC_DOC_ORDER_INDEX_SETTINGS = Settings.builder()
+        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+        .build();
+
+    /**
+     * Force-merges an index to a single Lucene segment per shard so that {@code _doc} sort reflects a stable,
+     * deterministic Lucene doc-id sequence. Intended for use with {@link #DETERMINISTIC_DOC_ORDER_INDEX_SETTINGS}.
+     */
+    protected static void forceMergeSingleSegment(String index) {
+        client().admin().indices().prepareForceMerge(index).setMaxNumSegments(1).setFlush(true).get();
+    }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
@@ -359,9 +389,9 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
     /**
      * Asserts whether the audit messages fetched from index match provided prefixes.
      * More specifically, in order to pass:
-     * 1. the number of fetched messages must equal the number of provided prefixes
+     * 1. ALL expected message prefixes must be found in the fetched messages
      * AND
-     * 2. each fetched message must start with the corresponding prefix
+     * 2. each fetched message that matches must start with the corresponding prefix
      */
     protected static void assertThatAuditMessagesMatch(String configId, String... expectedAuditMessagePrefixes) throws Exception {
         // Make sure we wrote to the audit
@@ -369,13 +399,34 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         // finished the job (as this is a very short analytics job), all without the audit being fully written.
         awaitIndexExists(NotificationsIndex.NOTIFICATIONS_INDEX);
 
-        @SuppressWarnings("unchecked")
-        Matcher<String>[] itemMatchers = Arrays.stream(expectedAuditMessagePrefixes).map(Matchers::startsWith).toArray(Matcher[]::new);
+        Set<String> expectedPrefixes = Set.of(expectedAuditMessagePrefixes);
         assertBusy(() -> {
+            // Refresh the notifications index to ensure latest writes are visible
+            RefreshRequest refreshRequest = new RefreshRequest(NotificationsIndex.NOTIFICATIONS_INDEX);
+            BroadcastResponse refreshResponse = client().execute(RefreshAction.INSTANCE, refreshRequest).actionGet();
+            assertThat(refreshResponse.getStatus().getStatus(), anyOf(equalTo(200), equalTo(201)));
+
             List<String> allAuditMessages = fetchAllAuditMessages(configId);
-            assertThat(allAuditMessages, hasItems(itemMatchers));
-            // TODO: Consider restoring this assertion when we are sure all the audit messages are available at this point.
-            // assertThat("Messages: " + allAuditMessages, allAuditMessages, hasSize(expectedAuditMessagePrefixes.length));
+
+            // Find which expected prefixes match any of the audit messages
+            Set<String> foundPrefixes = expectedPrefixes.stream()
+                .filter(prefix -> allAuditMessages.stream().anyMatch(msg -> msg.startsWith(prefix)))
+                .collect(Collectors.toSet());
+
+            // Only calculate missing prefixes if not all were found
+            if (foundPrefixes.size() != expectedPrefixes.size()) {
+                Set<String> missingPrefixes = new HashSet<>(expectedPrefixes);
+                missingPrefixes.removeAll(foundPrefixes);
+                fail(
+                    String.format(
+                        Locale.ROOT,
+                        "Expected audit messages not found for config [%s]. Missing prefixes: %s. Found messages: %s",
+                        configId,
+                        missingPrefixes,
+                        allAuditMessages
+                    )
+                );
+            }
         });
     }
 

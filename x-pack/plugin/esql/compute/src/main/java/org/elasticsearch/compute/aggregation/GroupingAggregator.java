@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.Describable;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -18,19 +17,15 @@ import org.elasticsearch.core.Releasable;
 
 import java.util.function.Function;
 
-public class GroupingAggregator implements Releasable {
-    private final GroupingAggregatorFunction aggregatorFunction;
+public record GroupingAggregator(GroupingAggregatorFunction aggregatorFunction, AggregatorMode mode) implements Releasable {
 
-    private final AggregatorMode mode;
+    public interface Factory extends Function<DriverContext, GroupingAggregator>, Describable {
 
-    public interface Factory extends Function<DriverContext, GroupingAggregator>, Describable {}
-
-    public GroupingAggregator(GroupingAggregatorFunction aggregatorFunction, AggregatorMode mode) {
-        this.aggregatorFunction = aggregatorFunction;
-        this.mode = mode;
     }
 
-    /** The number of Blocks required for evaluation. */
+    /**
+     * The number of Blocks required for evaluation.
+     */
     public int evaluateBlockCount() {
         return mode.isOutputPartial() ? aggregatorFunction.intermediateBlockCount() : 1;
     }
@@ -64,16 +59,14 @@ public class GroupingAggregator implements Releasable {
         }
     }
 
-    /**
-     * Build the results for this aggregation.
-     * @param selected the groupIds that have been selected to be included in
-     *                 the results. Always ascending.
-     */
-    public void evaluate(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evaluationContext) {
+    public GroupingAggregatorFunction.PreparedForEvaluation prepareForEvaluate(
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
         if (mode.isOutputPartial()) {
-            aggregatorFunction.evaluateIntermediate(blocks, offset, selected);
+            return aggregatorFunction.prepareEvaluateIntermediate(selected, ctx);
         } else {
-            aggregatorFunction.evaluateFinal(blocks, offset, selected, evaluationContext);
+            return aggregatorFunction.prepareEvaluateFinal(selected, ctx);
         }
     }
 

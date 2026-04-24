@@ -1,0 +1,329 @@
+flattened root fields
+required_capability: load_flattened_field
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM flattened_otel_logs
+| SORT @timestamp ASC
+| LIMIT 2
+;
+
+@timestamp:date          | attributes:unsupported | resource.attributes:unsupported            
+2020-01-01T00:02:48.461Z | null                   | null
+2020-01-01T00:07:43.000Z | null                   | null
+;
+
+// ----------------------------------------------------
+# Temporarily ignored since loading subfields of flattened type is not allowed
+flattened KEEP subfield-Ignore
+required_capability: load_flattened_field
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM flattened_otel_logs
+| KEEP @timestamp, resource.attributes.host.name
+| SORT @timestamp ASC
+;
+
+@timestamp:date          | resource.attributes.host.name:keyword
+2020-01-01T00:02:48.461Z | infra-filebeat-6vjxr
+2020-01-01T00:07:43.000Z | devops-ci-master-blue.c.elastic-ci-prod.internal
+2020-01-01T00:31:18.303Z | elasticsearch-ci-immutable-sles-15-1599243844262984968
+2020-01-01T00:58:35.557Z | infra-filebeat-mdvqm
+2020-01-01T10:12:02.675Z | filebeat-8pmfj
+2020-01-01T11:38:54.751Z | infra-filebeat-6vjxr
+2020-01-01T11:43:13.255Z | filebeat-6t7v6
+2020-01-01T14:37:29.195Z | elasticsearch-ci-immutable-debian-9-pkg-1599049660880335683
+2020-01-01T21:03:55.497Z | infra-filebeat-z5mjq
+2020-01-01T21:38:06.655Z | infra-filebeat-cpcmv
+;
+
+// ----------------------------------------------------
+# Temporarily ignored since loading subfields of flattened type is not allowed
+flattened DROP subfield-Ignore
+required_capability: load_flattened_field
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM flattened_otel_logs
+| DROP resource.attributes.agent.type
+| KEEP @timestamp, resource.attributes.host.name
+| SORT @timestamp ASC
+;
+
+@timestamp:date          | resource.attributes.host.name:keyword
+2020-01-01T00:02:48.461Z | infra-filebeat-6vjxr
+2020-01-01T00:07:43.000Z | devops-ci-master-blue.c.elastic-ci-prod.internal
+2020-01-01T00:31:18.303Z | elasticsearch-ci-immutable-sles-15-1599243844262984968
+2020-01-01T00:58:35.557Z | infra-filebeat-mdvqm
+2020-01-01T10:12:02.675Z | filebeat-8pmfj
+2020-01-01T11:38:54.751Z | infra-filebeat-6vjxr
+2020-01-01T11:43:13.255Z | filebeat-6t7v6
+2020-01-01T14:37:29.195Z | elasticsearch-ci-immutable-debian-9-pkg-1599049660880335683
+2020-01-01T21:03:55.497Z | infra-filebeat-z5mjq
+2020-01-01T21:38:06.655Z | infra-filebeat-cpcmv
+;
+
+// ----------------------------------------------------
+# Temporarily ignored since loading subfields of flattened type is not allowed
+flattened DROP subfield after KEEP-Ignore
+required_capability: load_flattened_field
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM flattened_otel_logs
+| KEEP @timestamp, resource.attributes.host.name, resource.attributes.agent.type
+| DROP resource.attributes.agent.type
+| SORT @timestamp ASC
+;
+
+@timestamp:date          | resource.attributes.host.name:keyword
+2020-01-01T00:02:48.461Z | infra-filebeat-6vjxr
+2020-01-01T00:07:43.000Z | devops-ci-master-blue.c.elastic-ci-prod.internal
+2020-01-01T00:31:18.303Z | elasticsearch-ci-immutable-sles-15-1599243844262984968
+2020-01-01T00:58:35.557Z | infra-filebeat-mdvqm
+2020-01-01T10:12:02.675Z | filebeat-8pmfj
+2020-01-01T11:38:54.751Z | infra-filebeat-6vjxr
+2020-01-01T11:43:13.255Z | filebeat-6t7v6
+2020-01-01T14:37:29.195Z | elasticsearch-ci-immutable-debian-9-pkg-1599049660880335683
+2020-01-01T21:03:55.497Z | infra-filebeat-z5mjq
+2020-01-01T21:38:06.655Z | infra-filebeat-cpcmv
+;
+
+// ----------------------------------------------------
+# Temporarily ignored since loading subfields of flattened type is not allowed
+flattened subfield with WHERE-Ignore
+required_capability: load_flattened_field
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM flattened_otel_logs
+| WHERE resource.attributes.host.name == "infra-filebeat-6vjxr"
+| SORT @timestamp ASC
+;
+
+@timestamp:date          | attributes:unsupported | resource.attributes:unsupported | resource.attributes.host.name:keyword
+2020-01-01T00:02:48.461Z |                   null |                            null | infra-filebeat-6vjxr
+2020-01-01T11:38:54.751Z |                   null |                            null | infra-filebeat-6vjxr
+;
+
+// ----------------------------------------------------
+# Temporarily ignored since loading subfields of flattened type is not allowed
+flattened subfield with WHERE and KEEP *-Ignore
+required_capability: load_flattened_field
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM flattened_otel_logs
+| WHERE resource.attributes.host.name == "infra-filebeat-6vjxr"
+| KEEP *
+| SORT @timestamp ASC
+;
+
+@timestamp:date          | attributes:unsupported | resource.attributes:unsupported | resource.attributes.host.name:keyword
+2020-01-01T00:02:48.461Z |                   null |                            null | infra-filebeat-6vjxr
+2020-01-01T11:38:54.751Z |                   null |                            null | infra-filebeat-6vjxr
+;
+
+// ----------------------------------------------------
+# Temporarily ignored since loading subfields of flattened type is not allowed
+flattened subfield with WHERE and KEEP specific subfields-Ignore
+required_capability: load_flattened_field
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM flattened_otel_logs
+| WHERE resource.attributes.host.name == "infra-filebeat-6vjxr"
+| KEEP @timestamp, resource.attributes.host.name
+| SORT @timestamp ASC
+;
+
+@timestamp:date          | resource.attributes.host.name:keyword
+2020-01-01T00:02:48.461Z | infra-filebeat-6vjxr
+2020-01-01T11:38:54.751Z | infra-filebeat-6vjxr
+;
+
+// ----------------------------------------------------
+# Temporarily ignored since loading subfields of flattened type is not allowed
+flattened subfield with EVAL TO_UPPER-Ignore
+required_capability: load_flattened_field
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM flattened_otel_logs
+| EVAL upper_host = TO_UPPER(resource.attributes.host.name)
+| KEEP @timestamp, upper_host
+| SORT @timestamp ASC
+;
+
+@timestamp:date          | upper_host:keyword
+2020-01-01T00:02:48.461Z | INFRA-FILEBEAT-6VJXR
+2020-01-01T00:07:43.000Z | DEVOPS-CI-MASTER-BLUE.C.ELASTIC-CI-PROD.INTERNAL
+2020-01-01T00:31:18.303Z | ELASTICSEARCH-CI-IMMUTABLE-SLES-15-1599243844262984968
+2020-01-01T00:58:35.557Z | INFRA-FILEBEAT-MDVQM
+2020-01-01T10:12:02.675Z | FILEBEAT-8PMFJ
+2020-01-01T11:38:54.751Z | INFRA-FILEBEAT-6VJXR
+2020-01-01T11:43:13.255Z | FILEBEAT-6T7V6
+2020-01-01T14:37:29.195Z | ELASTICSEARCH-CI-IMMUTABLE-DEBIAN-9-PKG-1599049660880335683
+2020-01-01T21:03:55.497Z | INFRA-FILEBEAT-Z5MJQ
+2020-01-01T21:38:06.655Z | INFRA-FILEBEAT-CPCMV
+;
+
+// ----------------------------------------------------
+# Temporarily ignored since loading subfields of flattened type is not allowed
+flattened subfield with EVAL LENGTH-Ignore
+required_capability: load_flattened_field
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM flattened_otel_logs
+| EVAL host_length = LENGTH(resource.attributes.host.name)
+| KEEP @timestamp, host_length
+| SORT @timestamp ASC
+;
+
+@timestamp:date          | host_length:integer
+2020-01-01T00:02:48.461Z | 20
+2020-01-01T00:07:43.000Z | 48
+2020-01-01T00:31:18.303Z | 54
+2020-01-01T00:58:35.557Z | 20
+2020-01-01T10:12:02.675Z | 14
+2020-01-01T11:38:54.751Z | 20
+2020-01-01T11:43:13.255Z | 14
+2020-01-01T14:37:29.195Z | 59
+2020-01-01T21:03:55.497Z | 20
+2020-01-01T21:38:06.655Z | 20
+;
+
+// ----------------------------------------------------
+# Temporarily ignored since loading subfields of flattened type is not allowed
+SORT on flattened subfield-Ignore
+required_capability: load_flattened_field
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM flattened_otel_logs
+| SORT resource.attributes.host.name ASC, @timestamp ASC
+| KEEP @timestamp, resource.attributes.host.name
+;
+
+@timestamp:date          | resource.attributes.host.name:keyword
+2020-01-01T00:07:43.000Z | devops-ci-master-blue.c.elastic-ci-prod.internal
+2020-01-01T14:37:29.195Z | elasticsearch-ci-immutable-debian-9-pkg-1599049660880335683
+2020-01-01T00:31:18.303Z | elasticsearch-ci-immutable-sles-15-1599243844262984968
+2020-01-01T11:43:13.255Z | filebeat-6t7v6
+2020-01-01T10:12:02.675Z | filebeat-8pmfj
+2020-01-01T00:02:48.461Z | infra-filebeat-6vjxr
+2020-01-01T11:38:54.751Z | infra-filebeat-6vjxr
+2020-01-01T21:38:06.655Z | infra-filebeat-cpcmv
+2020-01-01T00:58:35.557Z | infra-filebeat-mdvqm
+2020-01-01T21:03:55.497Z | infra-filebeat-z5mjq
+;
+
+// ----------------------------------------------------
+# Temporarily ignored since loading subfields of flattened type is not allowed
+RENAME flattened subfield-Ignore
+required_capability: load_flattened_field
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM flattened_otel_logs
+| RENAME resource.attributes.host.name AS host_name
+| KEEP @timestamp, host_name
+| SORT host_name ASC, @timestamp ASC
+;
+
+@timestamp:date          | host_name:keyword
+2020-01-01T00:07:43.000Z | devops-ci-master-blue.c.elastic-ci-prod.internal
+2020-01-01T14:37:29.195Z | elasticsearch-ci-immutable-debian-9-pkg-1599049660880335683
+2020-01-01T00:31:18.303Z | elasticsearch-ci-immutable-sles-15-1599243844262984968
+2020-01-01T11:43:13.255Z | filebeat-6t7v6
+2020-01-01T10:12:02.675Z | filebeat-8pmfj
+2020-01-01T00:02:48.461Z | infra-filebeat-6vjxr
+2020-01-01T11:38:54.751Z | infra-filebeat-6vjxr
+2020-01-01T21:38:06.655Z | infra-filebeat-cpcmv
+2020-01-01T00:58:35.557Z | infra-filebeat-mdvqm
+2020-01-01T21:03:55.497Z | infra-filebeat-z5mjq
+;
+
+// ----------------------------------------------------
+# Temporarily ignored since loading subfields of flattened type is not allowed
+flattened subfield with STATS count-Ignore
+required_capability: load_flattened_field
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM flattened_otel_logs
+| STATS count(*) BY resource.attributes.agent.type
+;
+
+count(*):long | resource.attributes.agent.type:keyword
+10            | filebeat
+;
+
+// ----------------------------------------------------
+# Temporarily ignored since loading subfields of flattened type is not allowed
+flattened subfield with STATS count_distinct-Ignore
+required_capability: load_flattened_field
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM flattened_otel_logs
+| STATS count_distinct(resource.attributes.host.name)
+;
+
+count_distinct(resource.attributes.host.name):long
+9
+;
+
+// ----------------------------------------------------
+# Temporarily ignored since loading subfields of flattened type is not allowed
+flattened subfield with INLINE STATS-Ignore
+required_capability: load_flattened_field
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM flattened_otel_logs
+| INLINE STATS count = COUNT(*) BY resource.attributes.host.name
+| DROP attributes, resource.attributes
+| SORT count DESC, @timestamp ASC
+| LIMIT 5
+;
+
+@timestamp:date          | count:long | resource.attributes.host.name:keyword
+2020-01-01T00:02:48.461Z | 2          | infra-filebeat-6vjxr
+2020-01-01T11:38:54.751Z | 2          | infra-filebeat-6vjxr
+2020-01-01T00:07:43.000Z | 1          | devops-ci-master-blue.c.elastic-ci-prod.internal
+2020-01-01T00:31:18.303Z | 1          | elasticsearch-ci-immutable-sles-15-1599243844262984968
+2020-01-01T00:58:35.557Z | 1          | infra-filebeat-mdvqm
+;
+
+// ----------------------------------------------------
+# Temporarily ignored since loading subfields of flattened type is not allowed
+flattened subfield with MV_EXPAND-Ignore
+required_capability: load_flattened_field
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM flattened_otel_logs
+| MV_EXPAND resource.attributes.host.ip
+| WHERE resource.attributes.host.ip IS NOT NULL
+| KEEP @timestamp, resource.attributes.host.name, resource.attributes.host.ip
+| SORT @timestamp ASC, resource.attributes.host.ip ASC
+| LIMIT 20
+;
+
+@timestamp:datetime      | resource.attributes.host.name:keyword                       | resource.attributes.host.ip:keyword
+2020-01-01T00:07:43.000Z | devops-ci-master-blue.c.elastic-ci-prod.internal            | 10.224.0.170
+2020-01-01T00:07:43.000Z | devops-ci-master-blue.c.elastic-ci-prod.internal            | fe80::4001:aff:fee0:aa
+2020-01-01T00:31:18.303Z | elasticsearch-ci-immutable-sles-15-1599243844262984968      | 10.224.0.109
+2020-01-01T00:31:18.303Z | elasticsearch-ci-immutable-sles-15-1599243844262984968      | 172.17.0.1
+2020-01-01T00:31:18.303Z | elasticsearch-ci-immutable-sles-15-1599243844262984968      | fe80::4001:aff:fee0:6d
+2020-01-01T10:12:02.675Z | filebeat-8pmfj                                              | 10.72.3.6
+2020-01-01T11:43:13.255Z | filebeat-6t7v6                                              | 10.72.1.5
+2020-01-01T14:37:29.195Z | elasticsearch-ci-immutable-debian-9-pkg-1599049660880335683 | 10.224.2.157
+2020-01-01T14:37:29.195Z | elasticsearch-ci-immutable-debian-9-pkg-1599049660880335683 | 172.17.0.1
+2020-01-01T14:37:29.195Z | elasticsearch-ci-immutable-debian-9-pkg-1599049660880335683 | fe80::4001:aff:fee0:29d
+2020-01-01T14:37:29.195Z | elasticsearch-ci-immutable-debian-9-pkg-1599049660880335683 | fe80::42:48ff:fe1a:ed7d
+2020-01-01T14:37:29.195Z | elasticsearch-ci-immutable-debian-9-pkg-1599049660880335683 | fe80::9c8e:44ff:fe9e:da94
+;

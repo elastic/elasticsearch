@@ -279,7 +279,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
 
         SearchHits hits = new SearchHits(new SearchHit[] { hit1, hit2 }, new TotalHits(2, TotalHits.Relation.EQUAL_TO), 1f);
         try {
-            TransportVersion version = TransportVersionUtils.randomVersion(random());
+            TransportVersion version = TransportVersionUtils.randomVersion();
             SearchHits results = copyWriteable(
                 hits,
                 getNamedWriteableRegistry(),
@@ -454,6 +454,38 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
             assertThat(parsed.getFields().size(), equalTo(1));
             assertThat(parsed.getFields().get("bar").getValues(), equalTo(Collections.singletonList("value")));
             assertNull(parsed.getFields().get("_routing"));
+        }
+    }
+
+    public void testInnerHitsImmutable() {
+        SearchHits placeholder = SearchHits.EMPTY_WITH_TOTAL_HITS; // ALWAYS_REFERENCED; no lifecycle management needed
+
+        // setInnerHits wraps the map
+        SearchHit hit = new SearchHit(1, "id");
+        try {
+            Map<String, SearchHits> map = new HashMap<>();
+            map.put("a", placeholder);
+            hit.setInnerHits(map);
+            Map<String, SearchHits> inner = hit.getInnerHits();
+            expectThrows(UnsupportedOperationException.class, () -> inner.put("extra", placeholder));
+            expectThrows(UnsupportedOperationException.class, () -> inner.remove("a"));
+            expectThrows(UnsupportedOperationException.class, inner::clear);
+        } finally {
+            hit.decRef();
+        }
+
+        // withInnerHits (constructor path for unpooled hits) also wraps the map
+        SearchHit unpooledHit = SearchHit.unpooled(2, "id2");
+        Map<String, SearchHits> map2 = new HashMap<>();
+        map2.put("b", placeholder);
+        SearchHit pooledHit = unpooledHit.withInnerHits(map2);
+        try {
+            Map<String, SearchHits> inner2 = pooledHit.getInnerHits();
+            expectThrows(UnsupportedOperationException.class, () -> inner2.put("extra", placeholder));
+            expectThrows(UnsupportedOperationException.class, () -> inner2.remove("b"));
+            expectThrows(UnsupportedOperationException.class, inner2::clear);
+        } finally {
+            pooledHit.decRef();
         }
     }
 

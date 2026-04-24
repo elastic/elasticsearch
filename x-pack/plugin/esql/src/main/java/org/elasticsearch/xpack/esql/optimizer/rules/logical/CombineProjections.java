@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -29,9 +30,13 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-public final class CombineProjections extends OptimizerRules.OptimizerRule<UnaryPlan> {
+public final class CombineProjections extends OptimizerRules.OptimizerRule<UnaryPlan> implements OptimizerRules.LocalAware<UnaryPlan> {
     // don't drop groupings from a local plan, as the layout has already been agreed upon
     private final boolean local;
+
+    public CombineProjections() {
+        this(false);
+    }
 
     public CombineProjections(boolean local) {
         super(OptimizerRules.TransformDirection.UP);
@@ -122,7 +127,7 @@ public final class CombineProjections extends OptimizerRules.OptimizerRule<Unary
 
                         Alias renameAgainstDuplication = new Alias(
                             coreAttribute.source(),
-                            TemporaryNameUtils.locallyUniqueTemporaryName(coreAttribute.name()),
+                            TemporaryNameGenerator.locallyUniqueTemporaryName(coreAttribute.name()),
                             coreAttribute
                         );
                         aliasesAgainstDuplication.add(renameAgainstDuplication);
@@ -256,5 +261,10 @@ public final class CombineProjections extends OptimizerRules.OptimizerRule<Unary
 
     private static Expression trimAliases(Expression e) {
         return e.transformDown(Alias.class, Alias::child);
+    }
+
+    @Override
+    public Rule<UnaryPlan, LogicalPlan> local() {
+        return new CombineProjections(true);
     }
 }

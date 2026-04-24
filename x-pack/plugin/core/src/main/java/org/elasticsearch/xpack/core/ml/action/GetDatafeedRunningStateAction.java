@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
@@ -20,6 +20,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.datafeed.CrossClusterSearchStatsSnapshot;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 
 import java.io.IOException;
@@ -82,29 +83,47 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
 
         public static class RunningState implements Writeable, ToXContentObject {
 
-            // Is the datafeed a "realtime" datafeed, meaning it was started without an end_time
+            private static final TransportVersion CROSS_CLUSTER_STATS_ADDED = TransportVersion.fromName("ml_datafeed_cross_cluster_stats");
+
             private final boolean realTimeConfigured;
-            // Has the look back finished and are we now running on "real-time" data
             private final boolean realTimeRunning;
 
-            // The current time interval that datafeed is searching
             @Nullable
             private final SearchInterval searchInterval;
 
+            @Nullable
+            private final CrossClusterSearchStatsSnapshot crossClusterStats;
+
             public RunningState(boolean realTimeConfigured, boolean realTimeRunning, @Nullable SearchInterval searchInterval) {
+                this(realTimeConfigured, realTimeRunning, searchInterval, null);
+            }
+
+            public RunningState(
+                boolean realTimeConfigured,
+                boolean realTimeRunning,
+                @Nullable SearchInterval searchInterval,
+                @Nullable CrossClusterSearchStatsSnapshot crossClusterStats
+            ) {
                 this.realTimeConfigured = realTimeConfigured;
                 this.realTimeRunning = realTimeRunning;
                 this.searchInterval = searchInterval;
+                this.crossClusterStats = crossClusterStats;
             }
 
             public RunningState(StreamInput in) throws IOException {
                 this.realTimeConfigured = in.readBoolean();
                 this.realTimeRunning = in.readBoolean();
-                if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
-                    this.searchInterval = in.readOptionalWriteable(SearchInterval::new);
+                this.searchInterval = in.readOptionalWriteable(SearchInterval::new);
+                if (in.getTransportVersion().supports(CROSS_CLUSTER_STATS_ADDED)) {
+                    this.crossClusterStats = in.readOptionalWriteable(CrossClusterSearchStatsSnapshot::new);
                 } else {
-                    this.searchInterval = null;
+                    this.crossClusterStats = null;
                 }
+            }
+
+            @Nullable
+            public CrossClusterSearchStatsSnapshot getCrossClusterStats() {
+                return crossClusterStats;
             }
 
             @Override
@@ -114,20 +133,22 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
                 RunningState that = (RunningState) o;
                 return realTimeConfigured == that.realTimeConfigured
                     && realTimeRunning == that.realTimeRunning
-                    && Objects.equals(searchInterval, that.searchInterval);
+                    && Objects.equals(searchInterval, that.searchInterval)
+                    && Objects.equals(crossClusterStats, that.crossClusterStats);
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(realTimeConfigured, realTimeRunning, searchInterval);
+                return Objects.hash(realTimeConfigured, realTimeRunning, searchInterval, crossClusterStats);
             }
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeBoolean(realTimeConfigured);
                 out.writeBoolean(realTimeRunning);
-                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
-                    out.writeOptionalWriteable(searchInterval);
+                out.writeOptionalWriteable(searchInterval);
+                if (out.getTransportVersion().supports(CROSS_CLUSTER_STATS_ADDED)) {
+                    out.writeOptionalWriteable(crossClusterStats);
                 }
             }
 

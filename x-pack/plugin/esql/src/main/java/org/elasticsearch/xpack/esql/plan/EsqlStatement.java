@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.plan;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.List;
@@ -50,7 +49,7 @@ public record EsqlStatement(LogicalPlan plan, List<QuerySetting> settings) {
         if (expression == null) {
             return defaultValue;
         }
-        return settingDef.parse((Literal) expression);
+        return settingDef.parse(expression);
     }
 
     /**

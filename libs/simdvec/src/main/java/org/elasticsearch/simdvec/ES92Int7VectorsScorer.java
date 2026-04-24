@@ -23,22 +23,25 @@ import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRO
  * */
 public class ES92Int7VectorsScorer {
 
-    public static final int BULK_SIZE = 16;
     protected static final float SEVEN_BIT_SCALE = 1f / ((1 << 7) - 1);
 
     /** The wrapper {@link IndexInput}. */
     protected final IndexInput in;
     protected final int dimensions;
 
-    private final float[] lowerIntervals = new float[BULK_SIZE];
-    private final float[] upperIntervals = new float[BULK_SIZE];
-    private final int[] targetComponentSums = new int[BULK_SIZE];
-    private final float[] additionalCorrections = new float[BULK_SIZE];
+    private final float[] lowerIntervals;
+    private final float[] upperIntervals;
+    private final int[] targetComponentSums;
+    private final float[] additionalCorrections;
 
     /** Sole constructor, called by sub-classes. */
-    public ES92Int7VectorsScorer(IndexInput in, int dimensions) {
+    public ES92Int7VectorsScorer(IndexInput in, int dimensions, int bulkSize) {
         this.in = in;
         this.dimensions = dimensions;
+        lowerIntervals = new float[bulkSize];
+        upperIntervals = new float[bulkSize];
+        targetComponentSums = new int[bulkSize];
+        additionalCorrections = new float[bulkSize];
     }
 
     /**
@@ -105,7 +108,7 @@ public class ES92Int7VectorsScorer {
      * compute the distance between the provided quantized query and the quantized vectors that are
      * read from the wrapped {@link IndexInput}.
      *
-     * <p>The number of vectors to score is defined by {@link #BULK_SIZE}. The expected format of the
+     * <p>The number of vectors to score is defined by {@code #bulkSize}. The expected format of the
      * input is as follows: First the quantized vectors are read from the input,then all the lower
      * intervals as floats, then all the upper intervals as floats, then all the target component sums
      * as shorts, and finally all the additional corrections as floats.
@@ -120,14 +123,15 @@ public class ES92Int7VectorsScorer {
         float queryAdditionalCorrection,
         VectorSimilarityFunction similarityFunction,
         float centroidDp,
-        float[] scores
+        float[] scores,
+        int bulkSize
     ) throws IOException {
-        int7DotProductBulk(q, BULK_SIZE, scores);
-        in.readFloats(lowerIntervals, 0, BULK_SIZE);
-        in.readFloats(upperIntervals, 0, BULK_SIZE);
-        in.readInts(targetComponentSums, 0, BULK_SIZE);
-        in.readFloats(additionalCorrections, 0, BULK_SIZE);
-        for (int i = 0; i < BULK_SIZE; i++) {
+        int7DotProductBulk(q, bulkSize, scores);
+        in.readFloats(lowerIntervals, 0, bulkSize);
+        in.readFloats(upperIntervals, 0, bulkSize);
+        in.readInts(targetComponentSums, 0, bulkSize);
+        in.readFloats(additionalCorrections, 0, bulkSize);
+        for (int i = 0; i < bulkSize; i++) {
             scores[i] = applyCorrections(
                 queryLowerInterval,
                 queryUpperInterval,

@@ -18,6 +18,10 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ErrorInferenceResultsTests extends InferenceResultsTestCase<ErrorInferenceResults> {
 
+    public static ErrorInferenceResults createRandomResults() {
+        return new ErrorInferenceResults(new ElasticsearchStatusException(randomAlphaOfLength(8), randomFrom(RestStatus.values())));
+    }
+
     @Override
     protected Writeable.Reader<ErrorInferenceResults> instanceReader() {
         return ErrorInferenceResults::new;
@@ -25,7 +29,7 @@ public class ErrorInferenceResultsTests extends InferenceResultsTestCase<ErrorIn
 
     @Override
     protected ErrorInferenceResults createTestInstance() {
-        return new ErrorInferenceResults(new ElasticsearchStatusException(randomAlphaOfLength(8), randomFrom(RestStatus.values())));
+        return createRandomResults();
     }
 
     @Override

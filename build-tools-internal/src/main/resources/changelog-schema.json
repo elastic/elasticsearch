@@ -49,7 +49,7 @@
             "Graph",
             "Health",
             "Highlighting",
-            "ILM+SLM",
+            "ILM",
             "IdentityProvider",
             "Indices APIs",
             "Inference",
@@ -78,6 +78,7 @@
             "Packaging",
             "Percolator",
             "Performance",
+            "PromQL",
             "Query Languages",
             "Ranking",
             "Recovery",
@@ -88,6 +89,7 @@
             "Search",
             "Searchable Snapshots",
             "Security",
+            "SLM",
             "Snapshot/Restore",
             "Stats",
             "Store",
@@ -128,6 +130,10 @@
         },
         "deprecation": {
           "$ref": "#/definitions/CompatibilityChange"
+        },
+        "source_repo": {
+          "type": "string",
+          "description": "GitHub repository (owner/name) for entries from external repos, e.g. elastic/ml-cpp. Defaults to elastic/elasticsearch when absent."
         }
       },
       "required": [
@@ -287,6 +293,7 @@
         "Command line tool",
         "CRUD",
         "ES|QL",
+        "ILM",
         "Index setting",
         "Ingest",
         "JVM option",
@@ -294,6 +301,7 @@
         "Logging",
         "Logs",
         "Mapping",
+        "Metrics",
         "Packaging",
         "Painless",
         "REST API",

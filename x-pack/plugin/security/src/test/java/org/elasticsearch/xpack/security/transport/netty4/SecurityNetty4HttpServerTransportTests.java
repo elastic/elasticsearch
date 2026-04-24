@@ -30,7 +30,6 @@ import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.http.AbstractHttpServerTransportTestCase;
 import org.elasticsearch.http.AggregatingDispatcher;
 import org.elasticsearch.http.HttpHeadersValidationException;
 import org.elasticsearch.http.HttpRequest;
@@ -45,6 +44,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -68,6 +68,7 @@ import javax.net.ssl.SSLEngine;
 
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 import static org.elasticsearch.transport.Transports.TEST_MOCK_TRANSPORT_THREAD_PREFIX;
+import static org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4TestUtils.randomClusterSettings;
 import static org.elasticsearch.xpack.security.transport.netty4.SimpleSecurityNetty4ServerTransportTests.randomCapitalization;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
@@ -79,7 +80,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
-public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTransportTestCase {
+public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
 
     private SSLService sslService;
     private Environment env;

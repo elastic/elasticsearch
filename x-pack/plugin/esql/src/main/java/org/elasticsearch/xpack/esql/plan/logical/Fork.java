@@ -30,6 +30,7 @@ import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
+import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferenceAttributesPreservingIds;
 
 /**
  * A Fork is a n-ary {@code Plan} where each child is a sub plan, e.g.
@@ -99,6 +100,18 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
         return new Fork(source(), subPlans, output);
     }
 
+    public Fork replaceSubPlansAndOutput(List<LogicalPlan> subPlans, List<Attribute> output) {
+        return new Fork(source(), subPlans, output);
+    }
+
+    public Fork refreshOutput() {
+        return new Fork(source(), children(), refreshedOutput());
+    }
+
+    protected List<Attribute> refreshedOutput() {
+        return toReferenceAttributesPreservingIds(outputUnion(children()), this.output());
+    }
+
     @Override
     public List<Attribute> output() {
         return output;
@@ -158,7 +171,7 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
 
     @Override
     public int hashCode() {
-        return Objects.hash(Fork.class, children());
+        return Objects.hash(Fork.class, output, children());
     }
 
     @Override
@@ -171,7 +184,7 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
         }
         Fork other = (Fork) o;
 
-        return Objects.equals(children(), other.children());
+        return Objects.equals(output, other.output) && Objects.equals(children(), other.children());
     }
 
     @Override
@@ -180,7 +193,7 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
     }
 
     private static void checkFork(LogicalPlan plan, Failures failures) {
-        if (plan instanceof Fork == false) {
+        if (plan instanceof Fork == false || plan instanceof UnionAll) {
             return;
         }
         Fork fork = (Fork) plan;
@@ -190,7 +203,14 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
                 return;
             }
 
-            failures.add(Failure.fail(otherFork, "Only a single FORK command is supported, but found multiple"));
+            failures.add(
+                Failure.fail(
+                    otherFork,
+                    otherFork instanceof UnionAll
+                        ? "FORK after subquery is not supported"
+                        : "Only a single FORK command is supported, but found multiple"
+                )
+            );
         });
 
         Map<String, DataType> outputTypes = fork.output().stream().collect(Collectors.toMap(Attribute::name, Attribute::dataType));

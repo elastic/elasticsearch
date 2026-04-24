@@ -17,6 +17,7 @@ import org.apache.http.NameValuePair;
 import org.apache.http.client.utils.URLEncodedUtils;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -30,12 +31,12 @@ import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.hamcrest.Matchers.aMapWithSize;
@@ -63,7 +64,11 @@ public class EC2RetriesTests extends AbstractEC2MockAPITestCase {
 
     public void testEC2DiscoveryRetriesOnRateLimiting() throws IOException {
         final String accessKey = "ec2_access";
-        final List<String> hosts = List.of("127.0.0.1:9300");
+        final InetAddress loopbackAddress = InetAddress.getLoopbackAddress();
+        // For the EC2 response, we use the plain IP address without port
+        final String loopbackAddressString = NetworkAddress.format(loopbackAddress);
+        // For the expected TransportAddress, use proper IPv6 formatting with brackets
+        final String expectedHost = NetworkAddress.format(loopbackAddress, 9300);
         final Map<String, Integer> failedRequests = new ConcurrentHashMap<>();
         // retry the same request 5 times at most
         final int maxRetries = randomIntBetween(1, 5);
@@ -88,9 +93,7 @@ public class EC2RetriesTests extends AbstractEC2MockAPITestCase {
                     for (NameValuePair parse : URLEncodedUtils.parse(request, UTF_8)) {
                         if ("Action".equals(parse.getName())) {
                             responseBody = generateDescribeInstancesResponse(
-                                hosts.stream()
-                                    .map(address -> Instance.builder().publicIpAddress(address).build())
-                                    .collect(Collectors.toList())
+                                List.of(Instance.builder().publicIpAddress(loopbackAddressString).build())
                             );
                             break;
                         }
@@ -111,7 +114,7 @@ public class EC2RetriesTests extends AbstractEC2MockAPITestCase {
             resolver.start();
             final List<TransportAddress> addressList = seedHostsProvider.getSeedAddresses(resolver);
             assertThat(addressList, Matchers.hasSize(1));
-            assertThat(addressList.get(0).toString(), is(hosts.get(0)));
+            assertThat(addressList.get(0).toString(), is(expectedHost));
             assertThat(failedRequests, aMapWithSize(1));
             assertThat(failedRequests.values().iterator().next(), is(maxRetries));
         }

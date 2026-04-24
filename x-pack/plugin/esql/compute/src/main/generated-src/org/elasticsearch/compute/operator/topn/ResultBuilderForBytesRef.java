@@ -36,9 +36,9 @@ class ResultBuilderForBytesRef implements ResultBuilder {
     }
 
     @Override
-    public void decodeKey(BytesRef keys) {
+    public void decodeKey(BytesRef keys, boolean asc) {
         assert inKey;
-        key = encoder.toSortable().decodeBytesRef(keys, scratch);
+        key = encoder.toSortable(asc).decodeBytesRef(keys, scratch);
     }
 
     @Override
@@ -66,6 +66,11 @@ class ResultBuilderForBytesRef implements ResultBuilder {
     @Override
     public BytesRefBlock build() {
         return builder.build();
+    }
+
+    @Override
+    public long estimatedBytes() {
+        return builder.estimatedBytes();
     }
 
     @Override

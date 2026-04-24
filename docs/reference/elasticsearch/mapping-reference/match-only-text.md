@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Match Only Text"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/match-only-text.html

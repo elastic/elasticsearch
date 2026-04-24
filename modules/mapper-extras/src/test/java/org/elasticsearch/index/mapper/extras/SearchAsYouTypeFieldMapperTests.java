@@ -25,7 +25,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FieldExistsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
@@ -33,6 +32,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -99,7 +99,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
             b.field("type", "text");
             b.field("norms", true);
         }));
-        checker.registerUpdateCheck(b -> {
+        checker.registerUpdateCheck("norms", b -> {
             b.field("type", "search_as_you_type");
             b.field("norms", true);
         }, b -> {
@@ -107,16 +107,17 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
             b.field("norms", false);
         }, m -> assertFalse(m.fieldType().getTextSearchInfo().hasNorms()));
 
-        checker.registerUpdateCheck(b -> {
+        checker.registerUpdateCheck("search_analyzer", b -> {
             b.field("analyzer", "default");
             b.field("search_analyzer", "keyword");
         }, m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().searchAnalyzer().name()));
-        checker.registerUpdateCheck(b -> {
+        checker.registerUpdateCheck("search_quote_analyzer", b -> {
             b.field("analyzer", "default");
             b.field("search_analyzer", "keyword");
-            b.field("search_quote_analyzer", "keyword");
-        }, m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().searchQuoteAnalyzer().name()));
+            b.field("search_quote_analyzer", "standard");
+        }, m -> assertEquals("standard", m.fieldType().getTextSearchInfo().searchQuoteAnalyzer().name()));
 
+        checker.registerIgnoredParameter("doc_values");
     }
 
     @Override
@@ -282,8 +283,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         }
     }
 
-    private static void assertMultiField(int shingleSize, MapperService mapperService, String suggestPath, String textPath)
-        throws IOException {
+    private void assertMultiField(int shingleSize, MapperService mapperService, String suggestPath, String textPath) throws IOException {
         List<String> fields = new ArrayList<>();
         fields.add(suggestPath);
         fields.add(textPath);
@@ -491,7 +491,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
 
         {
             Query q = new MatchPhrasePrefixQueryBuilder("field._3gram", "two words").toQuery(searchExecutionContext);
-            Query expected = new MatchNoDocsQuery();
+            Query expected = Queries.NO_DOCS_INSTANCE;
             assertThat(q, equalTo(expected));
         }
 
@@ -876,5 +876,15 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
     }
 }

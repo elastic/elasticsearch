@@ -1,0 +1,147 @@
+services:
+  traefik:
+    image: traefik:v2.11
+    container_name: es-local-traefik
+    command:
+      - --api.insecure=true
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entryPoints.web.address=:80
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: unless-stopped
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.traefik.rule=Host(`traefik.localhost`)
+      - traefik.http.routers.traefik.entrypoints=web
+      - traefik.http.routers.traefik.service=api@internal
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: es-local-prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    restart: unless-stopped
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.prometheus.rule=Host(`prometheus.localhost`)
+      - traefik.http.routers.prometheus.entrypoints=web
+      - traefik.http.services.prometheus.loadbalancer.server.port=9090
+
+  kibana_settings:
+    image: curlimages/curl:latest
+    container_name: kibana-settings
+    restart: "no"
+    command:
+      - /bin/sh
+      - -c
+      - |
+          echo "Setup kibana_system password"
+          start_time=$$(date +%s)
+          timeout=60
+          until curl -s -u "elastic:password" -X POST "http://host.docker.internal:9200/_security/user/kibana_system/_password" \
+            -H "Content-Type: application/json" \
+            -d "{\"password\":\"password\"}" | grep -q "^{}"; do
+            if [ $$(($$(date +%s) - $$start_time)) -ge $$timeout ]; then
+              echo "Error: Elasticsearch timeout while setting kibana_system password"
+              exit 1
+            fi
+            sleep 2
+          done
+
+  kibana:
+    depends_on:
+      kibana_settings:
+        condition: service_completed_successfully
+    image: docker.elastic.co/kibana/kibana:9.4.0-SNAPSHOT
+    container_name: es-local-kibana
+    environment:
+      SERVER_NAME: kibana
+      ELASTICSEARCH_HOSTS: http://host.docker.internal:9200
+      ELASTICSEARCH_USERNAME: kibana_system
+      ELASTICSEARCH_PASSWORD: password
+      SERVER_HOST: "0.0.0.0"
+      XPACK_SECURITY_ENABLED: "false"
+      XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY: "prometheus-local-eso-encryption-key-32"
+      ELASTICSEARCH_PUBLICBASEURL: http://host.docker.internal:9200
+      XPACK_SPACES_DEFAULTSOLUTION: "oblt"
+    restart: unless-stopped
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.kibana.rule=Host(`kibana.localhost`)
+      - traefik.http.routers.kibana.entrypoints=web
+      - traefik.http.services.kibana.loadbalancer.server.port=5601
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: es-local-grafana
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: password
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.grafana.rule=Host(`grafana.localhost`)
+      - traefik.http.routers.grafana.entrypoints=web
+      - traefik.http.services.grafana.loadbalancer.server.port=3000
+
+  grafana_dashboard_init:
+    image: alpine:latest
+    container_name: grafana-dashboard-init
+    restart: "no"
+    depends_on:
+      grafana:
+        condition: service_healthy
+    command:
+      - /bin/sh
+      - -c
+      - |
+          apk add --no-cache curl jq --quiet
+          STATUS=$$(curl -s -o /dev/null -w "%{http_code}" \
+            -u admin:password http://grafana:3000/api/dashboards/uid/prom-overview)
+          if [ "$$STATUS" = "200" ]; then
+            echo "Dashboard already exists, skipping import."
+            exit 0
+          fi
+          echo "Downloading Prometheus 2.0 Overview dashboard (ID 3662)..."
+          curl -fsSL "https://grafana.com/api/dashboards/3662/revisions/2/download" > /tmp/base.json
+          jq '
+            walk(if type == "string" then gsub("\\$\\{DS_THEMIS\\}"; "$${datasource}") else . end) |
+            .uid = "prom-overview" |
+            del(.__inputs) | del(.__requires) |
+            .templating.list = [{
+              "type": "datasource",
+              "name": "datasource",
+              "label": "Data Source",
+              "query": "prometheus",
+              "current": {"text": "Elasticsearch (Prometheus API)", "value": "es-prometheus"},
+              "hide": 0, "multi": false, "includeAll": false, "refresh": 1, "options": []
+            }] + .templating.list
+          ' /tmp/base.json > /tmp/dashboard.json
+          curl -sf -u admin:password \
+            -X POST http://grafana:3000/api/dashboards/import \
+            -H "Content-Type: application/json" \
+            -d "{\"dashboard\": $$(cat /tmp/dashboard.json), \"overwrite\": false, \"folderId\": 0}"
+          echo "Dashboard imported."
+
+volumes:
+  prometheus_data:
+  grafana_data:

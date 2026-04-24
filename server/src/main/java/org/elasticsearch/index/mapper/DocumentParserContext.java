@@ -10,7 +10,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatter;
@@ -18,6 +17,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
@@ -35,6 +35,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
+
+import static org.elasticsearch.index.mapper.IdFieldMapper.standardIdField;
 
 /**
  * Context used when parsing incoming documents. Holds everything that is needed to parse a document as well as
@@ -47,9 +50,19 @@ public abstract class DocumentParserContext {
     private static class Wrapper extends DocumentParserContext {
         private final DocumentParserContext in;
 
+        // cached to avoid method chain overhead and dynamic dispatch
+        private final boolean isWithinCopyTo;
+        private final ContentPath path;
+        private final XContentParser parser;
+        private final LuceneDocument doc;
+
         private Wrapper(ObjectMapper parent, DocumentParserContext in) {
             super(parent, parent.dynamic == null ? in.dynamic : parent.dynamic, in);
             this.in = in;
+            this.isWithinCopyTo = in.isWithinCopyTo();
+            this.path = in.path();
+            this.parser = in.parser();
+            this.doc = in.doc();
         }
 
         // Used to create a copy_to context.
@@ -57,6 +70,10 @@ public abstract class DocumentParserContext {
         private Wrapper(RootObjectMapper root, DocumentParserContext in) {
             super(root, ObjectMapper.Dynamic.getRootDynamic(in.mappingLookup()), in);
             this.in = in;
+            this.isWithinCopyTo = in.isWithinCopyTo();
+            this.path = in.path();
+            this.parser = in.parser();
+            this.doc = in.doc();
         }
 
         @Override
@@ -66,17 +83,17 @@ public abstract class DocumentParserContext {
 
         @Override
         public boolean isWithinCopyTo() {
-            return in.isWithinCopyTo();
+            return isWithinCopyTo;
         }
 
         @Override
         public ContentPath path() {
-            return in.path();
+            return path;
         }
 
         @Override
         public XContentParser parser() {
-            return in.parser();
+            return parser;
         }
 
         @Override
@@ -86,7 +103,7 @@ public abstract class DocumentParserContext {
 
         @Override
         public LuceneDocument doc() {
-            return in.doc();
+            return doc;
         }
 
         @Override
@@ -161,9 +178,10 @@ public abstract class DocumentParserContext {
     private final List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues;
     private Scope currentScope;
 
-    private final Map<String, List<Mapper>> dynamicMappers;
+    private final Map<String, List<Mapper.Builder>> dynamicMappers;
     private final DynamicMapperSize dynamicMappersSize;
-    private final Map<String, ObjectMapper> dynamicObjectMappers;
+    private final Map<String, ObjectMapper.Builder> dynamicObjectMappers;
+    private final Map<String, Mapper> builtDynamicMappers;
     private final Map<String, List<RuntimeField>> dynamicRuntimeFields;
     private final RoutingFields routingFields;
     private final ObjectMapper parent;
@@ -181,10 +199,13 @@ public abstract class DocumentParserContext {
      * that copy_to field in introduced using a dynamic template
      * in this document and therefore is not present in mapping yet.
      */
+    private final Set<String> mappingCopyToFields;
     private final Set<String> copyToFields;
 
     // Indicates if the source for this context has been marked to be recorded. Applies to synthetic source only.
     private boolean recordedSource;
+
+    private final FieldNamesFieldMapper fieldNamesFieldMapper; // cached from the mapping
 
     private DocumentParserContext(
         MappingLookup mappingLookup,
@@ -193,8 +214,9 @@ public abstract class DocumentParserContext {
         Set<String> ignoreFields,
         List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues,
         Scope currentScope,
-        Map<String, List<Mapper>> dynamicMappers,
-        Map<String, ObjectMapper> dynamicObjectMappers,
+        Map<String, List<Mapper.Builder>> dynamicMappers,
+        Map<String, ObjectMapper.Builder> dynamicObjectMappers,
+        Map<String, Mapper> builtDynamicMappers,
         Map<String, List<RuntimeField>> dynamicRuntimeFields,
         String id,
         Field version,
@@ -203,6 +225,7 @@ public abstract class DocumentParserContext {
         ObjectMapper parent,
         ObjectMapper.Dynamic dynamic,
         Set<String> fieldsAppliedFromTemplates,
+        Set<String> mappingCopyToFields,
         Set<String> copyToFields,
         DynamicMapperSize dynamicMapperSize,
         boolean recordedSource
@@ -215,6 +238,7 @@ public abstract class DocumentParserContext {
         this.currentScope = currentScope;
         this.dynamicMappers = dynamicMappers;
         this.dynamicObjectMappers = dynamicObjectMappers;
+        this.builtDynamicMappers = builtDynamicMappers;
         this.dynamicRuntimeFields = dynamicRuntimeFields;
         this.id = id;
         this.version = version;
@@ -223,9 +247,12 @@ public abstract class DocumentParserContext {
         this.parent = parent;
         this.dynamic = dynamic;
         this.fieldsAppliedFromTemplates = fieldsAppliedFromTemplates;
+        this.mappingCopyToFields = mappingCopyToFields;
+        assert this.mappingCopyToFields == Set.copyOf(this.mappingCopyToFields); // ensure that we've been passed an ImmutableSet(12|N)
         this.copyToFields = copyToFields;
         this.dynamicMappersSize = dynamicMapperSize;
         this.recordedSource = recordedSource;
+        this.fieldNamesFieldMapper = mappingLookup.getMapping().fieldNamesFieldMapper();
     }
 
     private DocumentParserContext(ObjectMapper parent, ObjectMapper.Dynamic dynamic, DocumentParserContext in) {
@@ -238,6 +265,7 @@ public abstract class DocumentParserContext {
             in.currentScope,
             in.dynamicMappers,
             in.dynamicObjectMappers,
+            in.builtDynamicMappers,
             in.dynamicRuntimeFields,
             in.id,
             in.version,
@@ -246,6 +274,7 @@ public abstract class DocumentParserContext {
             parent,
             dynamic,
             in.fieldsAppliedFromTemplates,
+            in.mappingCopyToFields,
             in.copyToFields,
             in.dynamicMappersSize,
             in.recordedSource
@@ -269,6 +298,7 @@ public abstract class DocumentParserContext {
             new HashMap<>(),
             new HashMap<>(),
             new HashMap<>(),
+            new HashMap<>(),
             null,
             null,
             SeqNoFieldMapper.SequenceIDFields.emptySeqID(mappingParserContext.getIndexSettings().seqNoIndexOptions()),
@@ -276,7 +306,8 @@ public abstract class DocumentParserContext {
             parent,
             dynamic,
             new HashSet<>(),
-            new HashSet<>(mappingLookup.fieldTypesLookup().getCopyToDestinationFields()),
+            mappingLookup.fieldTypesLookup().getCopyToDestinationFields(),
+            new HashSet<>(),
             new DynamicMapperSize(),
             false
         );
@@ -355,12 +386,12 @@ public abstract class DocumentParserContext {
 
     /**
      * Adds an ignored field from the parser context, capturing an object or an array.
-     *
+     * <p>
      * In case of nested arrays, i.e. capturing an array within an array, elements tracked as ignored fields may interfere with
      * the rest, as ignored source contents take precedence over regular field contents with the same leaf name. To prevent
      * missing array elements from synthetic source, all array elements get recorded in ignored source. Otherwise, just the value in
      * the current parsing context gets captured.
-     *
+     * <p>
      * In both cases, a new parser sub-context gets created from the current {@link DocumentParserContext} and returned, indicating
      * that the source for the sub-context has been captured, to avoid double-storing parts of its contents to ignored source.
      */
@@ -394,7 +425,7 @@ public abstract class DocumentParserContext {
      * Clones the current context to mark it as an array, if it's not already marked, or restore it if it's within a nested object.
      * Applies to synthetic source only.
      */
-    public final DocumentParserContext maybeCloneForArray(Mapper mapper) throws IOException {
+    public final DocumentParserContext maybeCloneForArray(Mapper mapper) {
         if (canAddIgnoredField()
             && mapper instanceof ObjectMapper
             && mapper instanceof NestedObjectMapper == false
@@ -408,12 +439,11 @@ public abstract class DocumentParserContext {
 
     /**
      * Add the given {@code field} to the _field_names field
-     *
+     * <p>
      * Use this if an exists query run against the field cannot use docvalues
      * or norms.
      */
     public final void addToFieldNames(String field) {
-        FieldNamesFieldMapper fieldNamesFieldMapper = (FieldNamesFieldMapper) getMetadataMapper(FieldNamesFieldMapper.NAME);
         if (fieldNamesFieldMapper != null) {
             fieldNamesFieldMapper.addFieldNames(this, field);
         }
@@ -489,7 +519,7 @@ public abstract class DocumentParserContext {
     }
 
     public boolean isCopyToDestinationField(String name) {
-        return copyToFields.contains(name);
+        return mappingCopyToFields.contains(name) || copyToFields.contains(name);
     }
 
     public void processArrayOffsets(DocumentParserContext context) throws IOException {
@@ -520,39 +550,39 @@ public abstract class DocumentParserContext {
     }
 
     /**
-     * Add a new mapper dynamically created while parsing.
+     * Add a new mapper builder dynamically created while parsing.
      *
+     * @param builder  the builder for the new dynamic mapper
+     * @param fullPath the full dotted path of the mapper
      * @return returns <code>true</code> if the mapper could be created, <code>false</code> if the dynamic mapper has been ignored due to
      * the field limit
      * @throws IllegalArgumentException if the field limit has been exceeded.
      * This can happen when dynamic is set to {@link ObjectMapper.Dynamic#TRUE} or {@link ObjectMapper.Dynamic#RUNTIME}.
      */
-    public final boolean addDynamicMapper(Mapper mapper) {
+    public boolean addDynamicMapper(Mapper.Builder builder, String fullPath) {
         // eagerly check object depth limit here to avoid stack overflow errors
-        if (mapper instanceof ObjectMapper) {
-            MappingLookup.checkObjectDepthLimit(indexSettings().getMappingDepthLimit(), mapper.fullPath());
+        if (builder instanceof ObjectMapper.Builder) {
+            MappingLookup.checkObjectDepthLimit(indexSettings().getMappingDepthLimit(), fullPath);
         }
 
         // eagerly check field name limit here to avoid OOM errors
         // only check fields that are not already mapped or tracked in order to avoid hitting field limit too early via double-counting
         // note that existing fields can also receive dynamic mapping updates (e.g. constant_keyword to fix the value)
-        if (mappingLookup.getMapper(mapper.fullPath()) == null
-            && mappingLookup.objectMappers().containsKey(mapper.fullPath()) == false
-            && dynamicMappers.containsKey(mapper.fullPath()) == false) {
-            int mapperSize = mapper.getTotalFieldsCount();
+        if (mappingLookup.getMapper(fullPath) == null
+            && mappingLookup.objectMappers().containsKey(fullPath) == false
+            && dynamicMappers.containsKey(fullPath) == false) {
+            int mapperSize = builder.getTotalFieldsCount();
             int additionalFieldsToAdd = getNewFieldsSize() + mapperSize;
             if (indexSettings().isIgnoreDynamicFieldsBeyondLimit()) {
                 if (mappingLookup.exceedsLimit(indexSettings().getMappingTotalFieldsLimit(), additionalFieldsToAdd)) {
                     if (canAddIgnoredField()) {
                         try {
-                            addIgnoredField(
-                                IgnoredSourceFieldMapper.NameValue.fromContext(this, mapper.fullPath(), encodeFlattenedToken())
-                            );
+                            addIgnoredField(IgnoredSourceFieldMapper.NameValue.fromContext(this, fullPath, encodeFlattenedToken()));
                         } catch (IOException e) {
-                            throw new IllegalArgumentException("failed to parse field [" + mapper.fullPath() + " ]", e);
+                            throw new IllegalArgumentException("failed to parse field [" + fullPath + " ]", e);
                         }
                     }
-                    addIgnoredField(mapper.fullPath());
+                    addIgnoredField(fullPath);
                     return false;
                 }
             } else {
@@ -561,32 +591,31 @@ public abstract class DocumentParserContext {
             dynamicMappersSize.add(mapperSize);
 
             if (indexSettings().isIgnoreDynamicFieldNamesBeyondLimit()) {
-                if (mapper.leafName().length() > indexSettings().getMappingFieldNameLengthLimit()) {
+                if (builder.leafName().length() > indexSettings().getMappingFieldNameLengthLimit()) {
                     if (canAddIgnoredField()) {
                         try {
-                            addIgnoredField(
-                                IgnoredSourceFieldMapper.NameValue.fromContext(this, mapper.fullPath(), encodeFlattenedToken())
-                            );
+                            addIgnoredField(IgnoredSourceFieldMapper.NameValue.fromContext(this, fullPath, encodeFlattenedToken()));
                         } catch (IOException e) {
-                            throw new IllegalArgumentException("failed to parse field [" + mapper.fullPath() + "]", e);
+                            throw new IllegalArgumentException("failed to parse field [" + fullPath + "]", e);
                         }
                     }
-                    addIgnoredField(mapper.fullPath());
+                    addIgnoredField(fullPath);
                     return false;
                 } else {
                     mappingLookup.checkFieldNameLengthLimit(indexSettings().getMappingFieldNameLengthLimit());
                 }
             }
         }
-        if (mapper instanceof ObjectMapper objectMapper) {
-            dynamicObjectMappers.put(objectMapper.fullPath(), objectMapper);
-            // dynamic object mappers may have been obtained from applying a dynamic template, in which case their definition may contain
-            // sub-fields as well as sub-objects that need to be added to the mappings
-            for (Mapper submapper : objectMapper.mappers.values()) {
+        if (builder instanceof ObjectMapper.Builder objectBuilder) {
+            dynamicObjectMappers.put(fullPath, objectBuilder);
+            // dynamic object mapper builders may have been obtained from applying a dynamic template, in which case their definition
+            // may contain sub-fields as well as sub-objects that need to be added to the mappings
+            for (Mapper.Builder childBuilder : objectBuilder.mappersBuilders) {
+                String childFullPath = fullPath.isEmpty() ? childBuilder.leafName() : fullPath + "." + childBuilder.leafName();
                 // we could potentially skip the step of adding these to the dynamic mappers, because their parent is already added to
                 // that list, and what is important is that all of the intermediate objects are added to the dynamic object mappers so that
                 // they can be looked up once sub-fields need to be added to them. For simplicity, we treat these like any other object
-                addDynamicMapper(submapper);
+                addDynamicMapper(childBuilder, childFullPath);
             }
         }
 
@@ -596,7 +625,7 @@ public abstract class DocumentParserContext {
         // dynamically mapped objects when the incoming document defines no sub-fields in them:
         // 1) by default, they would be empty containers in the mappings, is it then important to map them?
         // 2) they can be the result of applying a dynamic template which may define sub-fields or set dynamic, enabled or subobjects.
-        dynamicMappers.computeIfAbsent(mapper.fullPath(), k -> new ArrayList<>()).add(mapper);
+        dynamicMappers.computeIfAbsent(fullPath, k -> new ArrayList<>()).add(builder);
         return true;
     }
 
@@ -633,39 +662,107 @@ public abstract class DocumentParserContext {
     }
 
     /**
-     * Get dynamic mappers created as a result of parsing an incoming document. Responsible for exposing all the newly created
+     * Get dynamic mapper builders created as a result of parsing an incoming document. Responsible for exposing all the newly created
      * fields that need to be merged into the existing mappings. Used to create the required mapping update at the end of document parsing.
-     * Consists of a all {@link Mapper}s that will need to be added to their respective parent {@link ObjectMapper}s in order
+     * Consists of all {@link Mapper.Builder}s that will need to be added to their respective parent {@link ObjectMapper}s in order
      * to become part of the resulting dynamic mapping update.
      */
-    public final List<Mapper> getDynamicMappers() {
+    public final List<Mapper.Builder> getDynamicMappers() {
         return dynamicMappers.values().stream().flatMap(List::stream).toList();
     }
 
     /**
-     * Returns the dynamic Consists of a flat set of {@link Mapper}s associated with a field name that will need to be added to their
+     * Returns the dynamic mapper builders associated with a field name that will need to be added to their
      * respective parent {@link ObjectMapper}s in order to become part of the resulting dynamic mapping update.
      * @param fieldName Full field name with dot-notation.
-     * @return List of Mappers or null
+     * @return List of Mapper.Builders or null
      */
-    public final List<Mapper> getDynamicMappers(String fieldName) {
+    public final List<Mapper.Builder> getDynamicMappers(String fieldName) {
         return dynamicMappers.get(fieldName);
     }
 
-    public void updateDynamicMappers(String name, List<Mapper> mappers) {
+    /**
+     * Iterates over all dynamic mapper builders, providing the full field path alongside each builder.
+     */
+    public final void forEachDynamicMapper(BiConsumer<String, Mapper.Builder> consumer) {
+        for (var entry : dynamicMappers.entrySet()) {
+            for (var builder : entry.getValue()) {
+                consumer.accept(entry.getKey(), builder);
+            }
+        }
+    }
+
+    public void updateDynamicMappers(String name, List<Mapper.Builder> builders) {
         dynamicMappers.remove(name);
-        mappers.forEach(this::addDynamicMapper);
+        for (Mapper.Builder builder : builders) {
+            addDynamicMapper(builder, name);
+        }
     }
 
     /**
-     * Get a dynamic object mapper by name. Allows consumers to lookup objects that have been dynamically added as a result
+     * Get a dynamic object mapper builder by name. Allows consumers to lookup objects that have been dynamically added as a result
      * of parsing an incoming document. Used to find the parent object for new fields that are being dynamically mapped whose parent is
      * also not mapped yet. Such new fields will need to be dynamically added to their parent according to its dynamic behaviour.
-     * Holds a flat set of object mappers, meaning that an object field named <code>foo.bar</code> can be looked up directly with its
-     * dotted name.
+     * Holds a flat set of object mapper builders, meaning that an object field named <code>foo.bar</code> can be looked up directly with
+     * its dotted name.
      */
-    final ObjectMapper getDynamicObjectMapper(String name) {
+    final ObjectMapper.Builder getDynamicObjectBuilder(String name) {
         return dynamicObjectMappers.get(name);
+    }
+
+    /**
+     * Returns a dynamically created object mapper for the given field name, creating one if it
+     * doesn't already exist. Subsequent calls with the same field name at the same path return
+     * the cached mapper, avoiding redundant builder creation when parsing arrays of objects.
+     *
+     * @return the mapper, or null if the field limit was exceeded
+     */
+    final Mapper getDynamicMapper(String fieldName) {
+        Mapper.Builder builder = DynamicFieldsBuilder.createDynamicObjectMapperBuilder(this, fieldName);
+        return getDynamicMapper(builder);
+    }
+
+    /**
+     * Registers a dynamically created mapper builder if one doesn't already exist for the same
+     * field path, builds the mapper, and caches the result. Subsequent calls for the same field
+     * path reuse the cached mapper, avoiding redundant builder and mapper accumulation when
+     * parsing arrays of objects.
+     *
+     * @return the mapper, or null if the field limit was exceeded
+     */
+    public final Mapper getDynamicMapper(Mapper.Builder builder) {
+        return getDynamicMapper(builder, createDynamicMapperBuilderContext());
+    }
+
+    /**
+     * Like {@link #getDynamicMapper(Mapper.Builder)} but uses the provided builder context
+     * to compute the full field path and build the mapper.
+     *
+     * @return the mapper, or null if the field limit was exceeded
+     */
+    public final Mapper getDynamicMapper(Mapper.Builder builder, MapperBuilderContext builderContext) {
+        return getDynamicMapper(builder, null, builderContext);
+    }
+
+    /**
+     * Registers a dynamically created mapper builder and caches the result. If {@code preBuiltMapper}
+     * is provided, it is used directly instead of building from the builder, avoiding a redundant build
+     * when the caller has already built the mapper (e.g. to check its type before deciding to register).
+     *
+     * @return the mapper, or null if the field limit was exceeded
+     */
+    final Mapper getDynamicMapper(Mapper.Builder builder, @Nullable Mapper preBuiltMapper, MapperBuilderContext builderContext) {
+        String fullPath = builderContext.buildFullName(builder.leafName());
+        Mapper existing = builtDynamicMappers.get(fullPath);
+        if (existing != null) {
+            return existing;
+        }
+        if (addDynamicMapper(builder, fullPath) == false) {
+            return null;
+        }
+        Mapper mapper = preBuiltMapper != null ? preBuiltMapper : builder.build(builderContext);
+        builtDynamicMappers.put(fullPath, mapper);
+        return mapper;
     }
 
     /**
@@ -742,14 +839,17 @@ public abstract class DocumentParserContext {
         if (idField != null) {
             // We just need to store the id as indexed field, so that IndexWriter#deleteDocuments(term) can then
             // delete it when the root document is deleted too.
-            doc.add(new StringField(IdFieldMapper.NAME, idField.binaryValue(), Field.Store.NO));
+            doc.add(standardIdField(idField.binaryValue(), Field.Store.NO));
         } else if (indexSettings().getMode() == IndexMode.TIME_SERIES) {
             // For time series indices, the _id is generated from the _tsid, which in turn is generated from the values of the configured
             // routing fields. At this point in document parsing, we can't guarantee that we've parsed all the routing fields yet, so the
             // parent document's _id is not yet available.
             // So we just add the child document without the parent _id, then in TimeSeriesIdFieldMapper#postParse we set the _id on all
             // child documents once we've calculated it.
-            assert getRoutingFields().equals(RoutingFields.Noop.INSTANCE) == false;
+            // Time-series index created at or after TSID_CREATED_DURING_ROUTING with non-empty dimensions use ForIndexDimensions routing,
+            // which causes buildRoutingFields to return Noop.INSTANCE.
+            assert getRoutingFields().equals(RoutingFields.Noop.INSTANCE) == false
+                || indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.TSID_CREATED_DURING_ROUTING);
         } else {
             throw new IllegalStateException("The root document of a nested document should have an _id field");
         }
@@ -830,13 +930,7 @@ public abstract class DocumentParserContext {
      * @param fieldName   the name of the field to be flattened
      */
     public final DocumentParserContext createFlattenContext(String fieldName) {
-        XContentParser flatteningParser = new FlatteningXContentParser(parser(), fieldName);
-        return new Wrapper(this.parent(), this) {
-            @Override
-            public XContentParser parser() {
-                return flatteningParser;
-            }
-        };
+        return switchParser(new FlatteningXContentParser(parser(), fieldName));
     }
 
     /**
@@ -922,6 +1016,28 @@ public abstract class DocumentParserContext {
         return null;
     }
 
+    /**
+     * Provides parameters for the {@link DynamicTemplate} returned by
+     * {@link #findDynamicTemplate(String, DynamicTemplate.XContentFieldType)}.
+     * The {@link DynamicTemplate} can use placeholders in its definition that
+     * will be replaced by the values returned by this method.
+     * For example, a dynamic template may contain a snippet like this:
+     * <pre>
+     * "meta": {
+     *   "unit": "{{unit}}"
+     * }
+     * </pre>
+     * When applying the dynamic template to a field, the placeholder <code>{{unit}}</code>
+     * will be replaced by the value returned by this method for the key <code>unit</code>.
+     *
+     * @param fieldName the name of the field
+     * @return a map of parameter names to values; empty map if no parameters exist
+     */
+    public final Map<String, String> getDynamicTemplateParams(String fieldName) {
+        final String pathAsString = path().pathAsText(fieldName);
+        return sourceToParse.dynamicTemplateParams().getOrDefault(pathAsString, Map.of());
+    }
+
     // XContentParser that wraps an existing parser positioned on a value,
     // and a field name, and returns a stream that looks like { 'field' : 'value' }
     private static class CopyToParser extends FilterXContentParserWrapper {
@@ -941,7 +1057,7 @@ public abstract class DocumentParserContext {
         }
 
         @Override
-        public Token nextToken() throws IOException {
+        public Token nextToken() {
             if (state == State.FIELD) {
                 state = State.VALUE;
                 return delegate().currentToken();
@@ -958,7 +1074,7 @@ public abstract class DocumentParserContext {
         }
 
         @Override
-        public String currentName() throws IOException {
+        public String currentName() {
             return field;
         }
     }

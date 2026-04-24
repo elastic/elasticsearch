@@ -35,11 +35,14 @@ import org.apache.logging.log4j.status.StatusData;
 import org.apache.logging.log4j.status.StatusLogger;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.tests.util.TestRuleMarkFailure;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.tests.util.TimeUnits;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.ExceptionsHelper;
@@ -64,6 +67,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.TemplateDecoratorRule;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -92,6 +96,7 @@ import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -126,6 +131,7 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.logging.internal.spi.LoggerFactory;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -163,6 +169,9 @@ import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
+import org.junit.rules.TestWatcher;
+import org.junit.runner.Description;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -227,8 +236,10 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.startsWith;
+import static org.junit.Assume.assumeFalse;
 
 /**
  * Base testcase for randomized unit testing with Elasticsearch
@@ -327,8 +338,16 @@ public abstract class ESTestCase extends LuceneTestCase {
             @Override
             public void append(LogEvent event) {
                 if (Level.WARN.equals(event.getLevel())) {
+                    final String message = event.getMessage().getFormattedMessage();
+                    // gRPC's Netty transport can sometimes throw from an internal ChannelFutureListener during stream shutdown,
+                    // which Netty logs as a WARN on DefaultPromise:
+                    // "An exception was thrown by io.grpc.netty.NettyServerHandler$X.operationComplete()"
+                    // This is a known source of test flakiness for Arrow Flight based tests and is not actionable here.
+                    if (message.contains("An exception was thrown by io.grpc.netty.NettyServerHandler")) {
+                        return;
+                    }
                     synchronized (loggedLeaks) {
-                        loggedLeaks.add(event.getMessage().getFormattedMessage());
+                        loggedLeaks.add(message);
                     }
                 }
             }
@@ -452,7 +471,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     protected final Logger logger = LogManager.getLogger(getClass());
-    private ThreadContext threadContext;
+    protected ThreadContext threadContext;
 
     // -----------------------------------------------------------------
     // Suite and test case setup/cleanup.
@@ -527,6 +546,9 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @ClassRule
     public static final TestEntitlementsRule TEST_ENTITLEMENTS = new TestEntitlementsRule();
+
+    @ClassRule
+    public static final TestRule TEMPLATE_DECORATOR_RULE = TemplateDecoratorRule.initDefault();
 
     // setup mock filesystems for this test run. we change PathUtils
     // so that all accesses are plumbed thru any mock wrappers
@@ -611,9 +633,15 @@ public abstract class ESTestCase extends LuceneTestCase {
     private static final List<CircuitBreaker> breakers = Collections.synchronizedList(new ArrayList<>());
 
     protected static CircuitBreaker newLimitedBreaker(ByteSizeValue max) {
-        CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("<es-test-case>", max);
+        CircuitBreaker breaker = new LimitedBreaker("<es-test-case>", max);
         breakers.add(breaker);
         return breaker;
+    }
+
+    protected static CircuitBreakerService newLimitedBreakerService(ByteSizeValue max) {
+        CircuitBreakerService service = LimitedBreaker.service("<es-test-case>", max);
+        breakers.add(service.getBreaker(CircuitBreaker.REQUEST));
+        return service;
     }
 
     @After
@@ -946,7 +974,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static final BigInteger UNSIGNED_LONG_MAX = BigInteger.ONE.shiftLeft(Long.SIZE).subtract(BigInteger.ONE);
 
     /**
-     * A unsigned long in a {@link BigInteger} between min (inclusive) and max (inclusive).
+     * An unsigned long in a {@link BigInteger} between min (inclusive) and max (inclusive).
      */
     public static BigInteger randomUnsignedLongBetween(BigInteger min, BigInteger max) {
         if (min.compareTo(BigInteger.ZERO) < 0) {
@@ -1137,6 +1165,13 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * Returns a pseudo-random double from a Gaussian distribution with mean 0.0 and standard deviation 1.0
+     */
+    public static double randomGaussianDouble() {
+        return random().nextGaussian();
+    }
+
+    /**
      * Returns a double value in the interval [start, end) if lowerInclusive is
      * set to true, (start, end) otherwise.
      *
@@ -1171,6 +1206,11 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static long randomLong() {
         return random().nextLong();
+    }
+
+    /** A random long from 0..max (inclusive). */
+    public static long randomLong(long max) {
+        return RandomNumbers.randomLongBetween(random(), 0L, max);
     }
 
     public static LongStream randomLongs() {
@@ -1292,10 +1332,54 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
-     * Creates a valid random identifier such as node id or index name
+     * @return a valid random identifier, appropriate for use as a node name, index name, repository name or similar.
+     * @see #randomIdentifier(String) randomIdentifier(String) which allows to add a prefix.
+     * @see #randomIndexName() randomIndexName() which encodes a convention for random index names.
+     * @see #randomRepoName() randomRepoName() which encodes a convention for random repository names.
+     * @see #randomSnapshotName() randomSnapshotName() which encodes a convention for random snapshot names.
      */
     public static String randomIdentifier() {
         return randomAlphaOfLengthBetween(8, 12).toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * @return a valid random identifier with the given prefix. Makes debugging tests easier if you use {@code randomIdentifier("type1-")}
+     * for indices and {@code randomIdentifier("type2-")} and so on, keeping the identifier types visually distinct, rather than having
+     * to work out what kind of identifier you're looking at in each log message.
+     *
+     * @see #randomIndexName() randomIndexName() which encodes a convention for random index names.
+     * @see #randomRepoName() randomRepoName() which encodes a convention for random repository names.
+     * @see #randomSnapshotName() randomSnapshotName() which encodes a convention for random snapshot names.
+     */
+    public static String randomIdentifier(String prefix) {
+        return prefix + randomIdentifier();
+    }
+
+    /**
+     * @return a valid random index name of the form {@code index-${RANDOM_CHARS}}. Makes debugging tests easier if you use this rather
+     * than just a bare {@code randomIdentifier()} since the resulting identifier types are visually distinct, rather than having to
+     * work out what kind of identifier you're looking at in each log message.
+     */
+    public static String randomIndexName() {
+        return randomIdentifier("index-");
+    }
+
+    /**
+     * @return a valid random repository name of the form {@code repo-${RANDOM_CHARS}}. Makes debugging tests easier if you use this rather
+     * than just a bare {@code randomIdentifier()} since the resulting identifier types are visually distinct, rather than having to
+     * work out what kind of identifier you're looking at in each log message.
+     */
+    public static String randomRepoName() {
+        return randomIdentifier("repo-");
+    }
+
+    /**
+     * @return a valid random snapshot name of the form {@code snap-${RANDOM_CHARS}}. Makes debugging tests easier if you use this rather
+     * than just a bare {@code randomIdentifier()} since the resulting identifier types are visually distinct, rather than having to
+     * work out what kind of identifier you're looking at in each log message.
+     */
+    public static String randomSnapshotName() {
+        return randomIdentifier("snap-");
     }
 
     /**
@@ -1751,6 +1835,15 @@ public abstract class ESTestCase extends LuceneTestCase {
         return TestEnvironment.newEnvironment(build);
     }
 
+    public static IndexSettings defaultIndexSettings() {
+        IndexMetadata INDEX_METADATA = IndexMetadata.builder("index")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        return new IndexSettings(INDEX_METADATA, Settings.EMPTY);
+    }
+
     /** Return consistent index settings for the provided index version. */
     public static Settings.Builder settings(IndexVersion version) {
         return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version);
@@ -1999,7 +2092,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Create a copy of an original {@link Writeable} object by running it through a {@link BytesStreamOutput} and
      * reading it in again using a provided {@link Writeable.Reader}. The stream that is wrapped around the {@link StreamInput}
      * potentially need to use a {@link NamedWriteableRegistry}, so this needs to be provided too (although it can be
-     * empty if the object that is streamed doesn't contain any {@link NamedWriteable} objects itself.
+     * empty if the object that is streamed doesn't contain any {@link NamedWriteable} objects itself).
      */
     public static <T extends Writeable> T copyWriteable(
         T original,
@@ -2182,6 +2275,89 @@ public abstract class ESTestCase extends LuceneTestCase {
         assertEquals(expected.getFileName(), actual.getFileName());
         assertEquals(expected.getLineNumber(), actual.getLineNumber());
         assertEquals(expected.isNativeMethod(), actual.isNativeMethod());
+    }
+
+    protected static final float DEFAULT_DELTA = 1e-6f;
+
+    /**
+     * Compares two float arrays, checking that each element is within a certain percentage to the one in the second array.
+     * This works better than comparing with a delta if the elements in the arrays are of different magnitude.
+     * The function combines this with a separate absolute delta {@link ESTestCase#DEFAULT_DELTA}; numbers are still considered equal if
+     * they differ less than one *or* the other deltas. A separate absolute delta is useful for tiny numbers, or when one of the numbers
+     * is 0.
+     *
+     * @param expected      float array with expected values.
+     * @param actual        float array with actual values.
+     * @param deltaPercent  the maximum difference (in percentage of expected[i], 0.0 to 1.0) between expected[i] and actual[i]
+     *                      for which both numbers are still considered equal.
+     */
+    public static void assertArrayEqualsPercent(float[] expected, float[] actual, float deltaPercent) {
+        assertArrayEqualsPercent(null, expected, actual, deltaPercent, DEFAULT_DELTA);
+    }
+
+    /**
+     * Compares two float arrays, checking that each element is within a certain percentage to the one in the second array.
+     * This works better than comparing with a delta if the elements in the arrays are of different magnitude.
+     * The function also accepts a separate absolute delta; numbers are still considered equal if they differ less than one *or*
+     * the other deltas. A separate absolute delta is useful for tiny numbers, or when one of the numbers is 0. Specify 0 if you don't
+     * want to use an absolute delta.
+     *
+     * @param expected      float array with expected values.
+     * @param actual        float array with actual values.
+     * @param deltaPercent  the maximum difference (in percentage of expected[i], 0.0 to 1.0) between expected[i] and actual[i]
+     *                      for which both numbers are still considered equal.
+     * @param absoluteDelta the absolute maximum difference for which both numbers are still considered equal.
+     */
+    public static void assertArrayEqualsPercent(float[] expected, float[] actual, float deltaPercent, float absoluteDelta) {
+        assertArrayEqualsPercent(null, expected, actual, deltaPercent, absoluteDelta);
+    }
+
+    /**
+     * Compares two float arrays, checking that each element is within a certain percentage to the one in the second array.
+     * This works better than comparing with a delta if the elements in the arrays are of different magnitude.
+     * The function also accepts a separate absolute delta; numbers are still considered equal if they differ less than one *or*
+     * the other deltas. A separate absolute delta is useful for tiny numbers, or when one of the numbers is 0. Specify 0 if you don't
+     *  want to use an absolute delta.
+     *
+     * @param message       the identifying message for the AssertionError.
+     * @param expected      float array with expected values.
+     * @param actual        float array with actual values.
+     * @param deltaPercent  the maximum difference (in percentage of expected[i], 0.0 to 1.0) between expected[i] and actual[i]
+     *                      for which both numbers are still considered equal.
+     * @param absoluteDelta the absolute maximum difference for which both numbers are still considered equal.
+     */
+    public static void assertArrayEqualsPercent(String message, float[] expected, float[] actual, float deltaPercent, float absoluteDelta) {
+        String header = message == null || message.isEmpty() ? "" : message + ": ";
+
+        if (expected == null) {
+            fail(header + "expected array was null");
+        }
+        if (actual == null) {
+            fail(header + "actual array was null");
+        }
+        if (expected.length != actual.length) {
+            fail(header + "array lengths differed, expected.length=" + expected.length + " actual.length=" + actual.length);
+        }
+
+        for (int i = 0; i < expected.length; i++) {
+            var expectedValue = expected[i];
+            var actualValue = actual[i];
+            var error = Math.max(expectedValue * deltaPercent, absoluteDelta);
+            var actualDelta = Math.abs(expectedValue - actualValue) - error;
+            if (actualDelta > 0) {
+                fail(
+                    Strings.format(
+                        "%sarrays first differed at element [%d]; <%e> and <%e> differed by <%e> (more than %f%%)",
+                        header,
+                        i,
+                        expectedValue,
+                        actualValue,
+                        actualDelta,
+                        (deltaPercent * 100)
+                    )
+                );
+            }
+        }
     }
 
     protected static long spinForAtLeastOneMillisecond() {
@@ -2753,6 +2929,20 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * Join the given {@link Thread} with a timeout of {@link #SAFE_AWAIT_TIMEOUT}, preserving the thread's interrupt status
+     * flag and asserting that the thread is indeed completed before the timeout.
+     */
+    public static void safeJoin(Thread t) {
+        try {
+            t.join(SAFE_AWAIT_TIMEOUT.millis());
+            assertFalse("safeJoin: Thread is still running after the timeout", t.isAlive());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            fail(e, "safeJoin: interrupted waiting for Thread to die");
+        }
+    }
+
+    /**
      * Wait for all tasks currently running or enqueued on the given executor to complete.
      */
     public static void flushThreadPoolExecutor(ThreadPool threadPool, String executorName) {
@@ -2863,12 +3053,17 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
-     * Run {@code numberOfTasks} parallel tasks that were created by the given {@code taskFactory}. On of the tasks will be run on the
+     * Run {@code numberOfTasks} parallel tasks that were created by the given {@code taskFactory}. One of the tasks will be run on the
      * calling thread, the rest will be run on a new thread.
      * @param numberOfTasks number of tasks to run in parallel
      * @param taskFactory task factory
      */
     public static void runInParallel(int numberOfTasks, IntConsumer taskFactory) {
+        assertThat("runInParallel: negative numberOfTasks", numberOfTasks, greaterThanOrEqualTo(0));
+        if (numberOfTasks == 0) {
+            return;
+        }
+
         final ArrayList<Future<?>> futures = new ArrayList<>(numberOfTasks);
         final Thread[] threads = new Thread[numberOfTasks - 1];
         for (int i = 0; i < numberOfTasks; i++) {
@@ -2907,6 +3102,14 @@ public abstract class ESTestCase extends LuceneTestCase {
         if (e != null) {
             throw new AssertionError(e);
         }
+    }
+
+    /**
+     * Run the given tasks in parallel. One of the tasks will be run on the calling thread, and each of the others will run on its own
+     * fresh thread.
+     */
+    public static void runInParallel(Runnable... tasks) {
+        runInParallel(tasks.length, i -> tasks[i].run());
     }
 
     public static void ensureAllContextsReleased(SearchService searchService) {
@@ -2985,5 +3188,77 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     public static ProjectMetadata emptyProject() {
         return ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+    }
+
+    /**
+     * Insert random garbage {@link BytesRef}
+     */
+    public static BytesRef embedInRandomBytes(BytesRef bytesRef) {
+        var offset = randomIntBetween(0, 10);
+        var extraLength = randomIntBetween(offset == 0 ? 1 : 0, 10);
+        var newBytesArray = randomByteArrayOfLength(bytesRef.length + offset + extraLength);
+
+        for (int i = 0; i < offset; i++) {
+            newBytesArray[i] = randomByte();
+        }
+        System.arraycopy(bytesRef.bytes, bytesRef.offset, newBytesArray, offset, bytesRef.length);
+        for (int i = offset + bytesRef.length; i < newBytesArray.length; i++) {
+            newBytesArray[i] = randomByte();
+        }
+
+        return new BytesRef(newBytesArray, offset, bytesRef.length);
+    }
+
+    /**
+     * Randomly wraps a {@link Directory} in zero or more {@link FilterDirectory} layers, simulating how Elasticsearch
+     * wraps directories in production (e.g. {@code Store.StoreDirectory -> ByteSizeCachingDirectory -> MMapDirectory}).
+     * Use this when testing code that receives a {@link Directory} and must tolerate wrapper layers.
+     */
+    public static Directory maybeWrapDirectoryInFilterDirectory(Directory dir) {
+        Directory wrapped = dir;
+        int layers = randomIntBetween(0, 3);
+        for (int i = 0; i < layers; i++) {
+            wrapped = new FilterDirectory(wrapped) {};
+        }
+        return wrapped;
+    }
+
+    private static boolean previousFailureSkipsRemaining;
+    @Rule
+    public final TestWatcher previousFailureSkipsRemainingRule = new TestWatcher() {
+        @Override
+        protected void failed(Throwable e, Description description) {
+            previousFailureSkipsRemaining = shouldFailureSkipRemainingTests();
+        }
+    };
+
+    @Before
+    public final void checkPreviousFailureSkipsRemaining() {
+        assumeFalse("previous failures broke system under test", previousFailureSkipsRemaining);
+    }
+
+    /**
+     * Should a failure cause subsequent tests to be skipped?
+     */
+    protected boolean shouldFailureSkipRemainingTests() {
+        return false;
+    }
+
+    /**
+     * Have previous failures forced us to skip the test?
+     * <p>
+     *     This should only be used in rare cases where the system being tested
+     *     is typically poisoned by test failures. ESQL's HeapAttack tests are
+     *     like this. As are packaging tests.
+     * </p>
+     * <p>
+     *     If you find yourself reaching for this, ask yourself if it's the right
+     *     tool three times before actually picking it up. If you are writing a
+     *     unit test without dependencies this is almost certainly not the right
+     *     tool.
+     * </p>
+     */
+    protected boolean previousFailureSkipsRemaining() {
+        return previousFailureSkipsRemaining;
     }
 }

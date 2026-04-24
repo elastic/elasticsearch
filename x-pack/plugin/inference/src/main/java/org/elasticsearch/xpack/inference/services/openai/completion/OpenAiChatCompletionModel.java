@@ -77,7 +77,7 @@ public class OpenAiChatCompletionModel extends OpenAiModel {
         );
     }
 
-    OpenAiChatCompletionModel(
+    public OpenAiChatCompletionModel(
         String modelId,
         TaskType taskType,
         String service,
@@ -85,12 +85,20 @@ public class OpenAiChatCompletionModel extends OpenAiModel {
         OpenAiChatCompletionTaskSettings taskSettings,
         @Nullable DefaultSecretSettings secrets
     ) {
+        this(new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
+    }
+
+    public OpenAiChatCompletionModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
         super(
-            new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings),
-            new ModelSecrets(secrets),
-            serviceSettings,
-            secrets,
-            buildUri(serviceSettings.uri(), OpenAiService.NAME, OpenAiChatCompletionModel::buildDefaultUri)
+            modelConfigurations,
+            modelSecrets,
+            (OpenAiChatCompletionServiceSettings) modelConfigurations.getServiceSettings(),
+            (DefaultSecretSettings) modelSecrets.getSecretSettings(),
+            buildUri(
+                ((OpenAiChatCompletionServiceSettings) modelConfigurations.getServiceSettings()).uri(),
+                OpenAiService.NAME,
+                OpenAiChatCompletionModel::buildDefaultUri
+            )
         );
     }
 

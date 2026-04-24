@@ -12,13 +12,21 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader;
+import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.qa.rest.generative.GenerativeForkRestTest;
 import org.junit.ClassRule;
 
+import java.nio.file.Path;
+
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class GenerativeForkIT extends GenerativeForkRestTest {
+
+    private static final Path CSV_DATA_PATH = CsvTestUtils.createCsvDataDirectory();
+
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> spec.plugin("inference-service-test"));
+    public static ElasticsearchCluster cluster = Clusters.testCluster(CSV_DATA_PATH, spec -> {
+        spec.plugin("inference-service-test").settings(nodeSpec -> LOGGING_CLUSTER_SETTINGS);
+    });
 
     @Override
     protected String getTestRestCluster() {
@@ -45,5 +53,10 @@ public class GenerativeForkIT extends GenerativeForkRestTest {
     @Override
     protected boolean supportsSourceFieldMapping() {
         return cluster.getNumNodes() == 1;
+    }
+
+    @Override
+    protected Path getCsvDataPath() {
+        return CSV_DATA_PATH;
     }
 }

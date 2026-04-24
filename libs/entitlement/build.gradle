@@ -28,10 +28,10 @@ dependencies {
     exclude group: 'org.elasticsearch', module: 'entitlement'
   }
 
-  testImplementation 'org.ow2.asm:asm:9.8'
-  testImplementation 'org.ow2.asm:asm-util:9.8'
-  testImplementation 'org.ow2.asm:asm-tree:9.8'
-  testImplementation 'org.ow2.asm:asm-analysis:9.8'
+  testImplementation 'org.ow2.asm:asm:9.9'
+  testImplementation 'org.ow2.asm:asm-util:9.9'
+  testImplementation 'org.ow2.asm:asm-tree:9.9'
+  testImplementation 'org.ow2.asm:asm-analysis:9.9'
 
   // guarding for intellij
   if (sourceSets.findByName("main23")) {
@@ -41,7 +41,16 @@ dependencies {
 
 tasks.withType(CheckForbiddenApisTask).configureEach {
   replaceSignatureFiles 'jdk-signatures'
+  exclude 'org/elasticsearch/entitlement/config/**.class'
 }
+
+tasks.named('javadoc') {
+  // Our configuration references all kinds of nasty internal types
+  exclude 'org/elasticsearch/entitlement/config/*'
+  // Explcitly include the main entrypoint, as it's referenced in EntitlementBoostrap
+  include 'org/elasticsearch/entitlement/config/MainInstrumentationProvider.java'
+}
+
 
 // invoke using ./gradlew :libs:entitlement:dumpInstrumentedMethods --args="<output file>"
 tasks.register('dumpInstrumentedMethods', JavaExec) {

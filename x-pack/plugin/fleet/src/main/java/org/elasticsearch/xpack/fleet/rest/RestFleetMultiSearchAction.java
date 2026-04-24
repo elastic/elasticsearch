@@ -30,6 +30,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -95,7 +96,9 @@ public class RestFleetMultiSearchAction extends BaseRestHandler {
                 } else {
                     return false;
                 }
-            }
+            },
+            // Fleet searches neither support CCS nor CPS.
+            Optional.empty()
         );
 
         for (SearchRequest searchRequest : multiSearchRequest.requests()) {

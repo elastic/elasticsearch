@@ -14,10 +14,10 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.FieldExistsQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -79,14 +79,14 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
 
     // intentionally not writing any docs
     public void testNoDocs() throws IOException {
-        testAggregation(new MatchAllDocsQuery(), writer -> {}, agg -> {
+        testAggregation(Queries.ALL_DOCS_INSTANCE, writer -> {}, agg -> {
             assertThat(agg.getMedianAbsoluteDeviation(), equalTo(Double.NaN));
             assertFalse(AggregationInspectionHelper.hasValue(agg));
         });
     }
 
     public void testNoMatchingField() throws IOException {
-        testAggregation(new MatchAllDocsQuery(), writer -> {
+        testAggregation(Queries.ALL_DOCS_INSTANCE, writer -> {
             writer.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 1)));
             writer.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 2)));
         }, agg -> {
@@ -163,7 +163,7 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
             FIELD_NAME
         ).missing(1234);
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 8)));
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 9)));
@@ -182,7 +182,7 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
 
         final int size = randomIntBetween(100, 1000);
         final List<Long> sample = new ArrayList<>(size);
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), randomSample(size, point -> {
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, randomSample(size, point -> {
             sample.add(point);
             return singleton(new SortedNumericDocValuesField(FIELD_NAME, point));
         }), agg -> {
@@ -199,7 +199,7 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
         final int size = randomIntBetween(100, 1000);
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, iw -> {
             for (int i = 0; i < 10; i++) {
                 iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, i + 1)));
             }

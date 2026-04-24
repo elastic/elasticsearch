@@ -14,7 +14,6 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.kql.KqlPlugin;
 import org.junit.Before;
 
@@ -30,7 +29,6 @@ public class ScoreFunctionIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setupIndex() {
-        assumeTrue("can run this only when score() function is enabled", EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled());
         createAndPopulateIndex();
     }
 

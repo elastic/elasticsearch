@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 144688
+summary: "Add LZ4, Snappy, and Brotli decompression codecs"
+type: enhancement

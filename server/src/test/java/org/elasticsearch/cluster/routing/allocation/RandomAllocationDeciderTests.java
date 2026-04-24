@@ -206,16 +206,16 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
 
         @Override
         public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
-            return getRandomDecision();
+            return getRandomDecision(allocation.isSimulating() == false || allocation.routingNodes().getRelocatingShardCount() > 0);
         }
 
-        private Decision getRandomDecision() {
+        private Decision getRandomDecision(boolean canThrottle) {
             if (alwaysSayYes) {
                 return Decision.YES;
             }
             return switch (random.nextInt(10)) {
                 case 9, 8, 7, 6, 5 -> Decision.NO;
-                case 4 -> Decision.THROTTLE;
+                case 4 -> canThrottle ? Decision.THROTTLE : Decision.YES;
                 case 3, 2, 1 -> Decision.YES;
                 default -> Decision.ALWAYS;
             };
@@ -223,12 +223,16 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
 
         @Override
         public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-            return getRandomDecision();
+            return getRandomDecision(
+                allocation.isSimulating() == false
+                    || allocation.routingNodes().getIncomingRecoveries(node.nodeId()) > 0
+                    || allocation.routingNodes().getOutgoingRecoveries(node.nodeId()) > 0
+            );
         }
 
         @Override
         public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-            return getRandomDecision();
+            return getRandomDecision(false); // throttle does not make sense for canRemain
         }
 
     }

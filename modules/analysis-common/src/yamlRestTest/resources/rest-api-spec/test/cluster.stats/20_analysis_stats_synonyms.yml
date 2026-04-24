@@ -104,3 +104,80 @@
   - match: { indices.analysis.synonyms.paths.index_count: 1 }
   - match: { indices.analysis.synonyms.sets.count: 3 }
   - match: { indices.analysis.synonyms.sets.index_count: 3 }
+
+---
+"get cluster stats returns multiple synonym graph filter stats":
+
+  - requires:
+      cluster_features: ["cluster.stats.multiple_synonym_graph_filters"]
+      reason: "multiple synonym graph filter stats"
+
+  # Create synonym sets so that synonyms_set + updateable filters can be instantiated
+  - do:
+      synonyms.put_synonym:
+        id: test-set-1
+        body:
+          synonyms_set:
+            - synonyms: "foo, bar"
+
+  - do:
+      synonyms.put_synonym:
+        id: test-set-2
+        body:
+          synonyms_set:
+            - synonyms: "baz, qux"
+
+  # Analyzer with two synonym_graph filters backed by synonyms_set (SHOULD count)
+  - do:
+      indices.create:
+        index: test-multiple-synset-graph
+        body:
+          settings:
+            analysis:
+              filter:
+                syn_graph_1:
+                  type: synonym_graph
+                  synonyms_set: test-set-1
+                  updateable: true
+                syn_graph_2:
+                  type: synonym_graph
+                  synonyms_set: test-set-2
+                  updateable: true
+              analyzer:
+                double_synset_analyzer:
+                  type: custom
+                  tokenizer: standard
+                  filter: [ "syn_graph_1", "syn_graph_2" ]
+          mappings:
+            properties:
+              content:
+                type: text
+                analyzer: standard
+                search_analyzer: double_synset_analyzer
+
+  # Analyzer with two inline synonym_graph filters (SHOULD also count)
+  - do:
+      indices.create:
+        index: test-inline-graph
+        body:
+          settings:
+            analysis:
+              filter:
+                inline_sg_1:
+                  type: synonym_graph
+                  synonyms: [ "foo, bar" ]
+                inline_sg_2:
+                  type: synonym_graph
+                  synonyms: [ "baz, qux" ]
+              analyzer:
+                double_inline_analyzer:
+                  type: custom
+                  tokenizer: standard
+                  filter: [ "inline_sg_1", "inline_sg_2" ]
+
+  - do:
+      cluster.stats: {}
+
+  # Both indices should count: 2 analyzers, 2 indices
+  - match: { indices.analysis.multiple_synonym_graph_filters.analyzer_count: 2 }
+  - match: { indices.analysis.multiple_synonym_graph_filters.index_count: 2 }

@@ -14,6 +14,8 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.TDigestHolder;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -43,6 +45,8 @@ public class MaxTests extends AbstractAggregationTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         var suppliers = new ArrayList<TestCaseSupplier>();
+        FunctionAppliesTo histogramPreviewAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
+        FunctionAppliesTo histogramGaAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.4.0", "", true);
 
         Stream.of(
             MultiRowTestCaseSupplier.intCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
@@ -54,7 +58,15 @@ public class MaxTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.ipCases(1, 1000),
             MultiRowTestCaseSupplier.versionCases(1, 1000),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
-            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT)
+            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT),
+            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100)
+                .stream()
+                .map(s -> s.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo))
+                .toList(),
+            MultiRowTestCaseSupplier.tdigestCases(1, 100)
+                .stream()
+                .map(s -> s.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo))
+                .toList()
         ).flatMap(List::stream).map(MaxTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
         FunctionAppliesTo unsignedLongAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.2.0", "", true);
@@ -200,7 +212,7 @@ public class MaxTests extends AbstractAggregationTestCase {
             )
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers, false);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
     }
 
     @Override
@@ -212,7 +224,8 @@ public class MaxTests extends AbstractAggregationTestCase {
     private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
         return new TestCaseSupplier(fieldSupplier.name(), List.of(fieldSupplier.type()), () -> {
             var fieldTypedData = fieldSupplier.get();
-            Comparable<? super Comparable<?>> expected;
+            Comparable<?> expected;
+            DataType expectedReturnType;
 
             if (fieldSupplier.type() == DataType.AGGREGATE_METRIC_DOUBLE) {
                 expected = fieldTypedData.multiRowData()
@@ -223,18 +236,38 @@ public class MaxTests extends AbstractAggregationTestCase {
                     )
                     .max(Comparator.naturalOrder())
                     .orElse(null);
-            } else {
+                expectedReturnType = DataType.DOUBLE;
+            } else if (fieldSupplier.type() == DataType.EXPONENTIAL_HISTOGRAM) {
                 expected = fieldTypedData.multiRowData()
+                    .stream()
+                    .map(obj -> (ExponentialHistogram) obj)
+                    .filter(histo -> histo.valueCount() > 0) // only non-empty histograms have an influence
+                    .map(ExponentialHistogram::max)
+                    .max(Comparator.naturalOrder())
+                    .orElse(null);
+                expectedReturnType = DataType.DOUBLE;
+            } else if (fieldSupplier.type() == DataType.TDIGEST) {
+                expected = fieldTypedData.multiRowData()
+                    .stream()
+                    .map(obj -> (TDigestHolder) obj)
+                    .filter(histo -> histo.size() > 0) // only non-empty histograms have an influence
+                    .map(TDigestHolder::getMax)
+                    .max(Comparator.naturalOrder())
+                    .orElse(null);
+                expectedReturnType = DataType.DOUBLE;
+            } else {
+                expected = fieldTypedData.originalMultiRowData()
                     .stream()
                     .map(v -> (Comparable<? super Comparable<?>>) v)
                     .max(Comparator.naturalOrder())
                     .orElse(null);
+                expectedReturnType = fieldSupplier.type();
             }
 
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
                 standardAggregatorName("Max", fieldSupplier.type()),
-                fieldSupplier.type() == DataType.AGGREGATE_METRIC_DOUBLE ? DataType.DOUBLE : fieldSupplier.type(),
+                expectedReturnType,
                 equalTo(expected)
             );
         });

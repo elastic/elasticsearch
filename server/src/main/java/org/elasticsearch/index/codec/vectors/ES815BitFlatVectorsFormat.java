@@ -31,7 +31,7 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_
 
 class ES815BitFlatVectorsFormat extends FlatVectorsFormat {
 
-    private static final FlatVectorsFormat delegate = new Lucene99FlatVectorsFormat(FlatBitVectorScorer.INSTANCE);
+    static final FlatVectorsFormat delegate = new Lucene99FlatVectorsFormat(FlatBitVectorScorer.INSTANCE);
 
     protected ES815BitFlatVectorsFormat() {
         super("ES815BitFlatVectorsFormat");
@@ -39,7 +39,7 @@ class ES815BitFlatVectorsFormat extends FlatVectorsFormat {
 
     @Override
     public FlatVectorsWriter fieldsWriter(SegmentWriteState segmentWriteState) throws IOException {
-        return delegate.fieldsWriter(segmentWriteState);
+        throw new UnsupportedOperationException();
     }
 
     @Override

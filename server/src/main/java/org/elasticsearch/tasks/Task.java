@@ -19,7 +19,10 @@ import org.elasticsearch.xcontent.ToXContentObject;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+
+import static java.util.Objects.requireNonNull;
 
 /**
  * Current task information
@@ -60,6 +63,10 @@ public class Task implements Traceable {
      */
     public static final String TRACE_STATE = "tracestate";
 
+    /**
+     * Optional transient header allowing to override the start time of the root trace.
+     * This is discarded when creating a new trace context once an APM trace context exists.
+     */
     public static final String TRACE_START_TIME = "trace.starttime";
 
     /**
@@ -96,7 +103,7 @@ public class Task implements Traceable {
     /**
      * The task's start time as a wall clock time since epoch ({@link System#currentTimeMillis()} style).
      */
-    private final long startTime;
+    protected final long startTime;
 
     /**
      * The task's start time as a relative time ({@link System#nanoTime()} style).
@@ -151,8 +158,10 @@ public class Task implements Traceable {
      * Build a proper {@link TaskInfo} for this task.
      */
     protected final TaskInfo taskInfo(String localNodeId, String description, Status status) {
+        TaskId taskId = new TaskId(localNodeId, getId());
+        Optional<OriginalTaskInfo> originalTaskInfo = getOriginalTaskInfo();
         return new TaskInfo(
-            new TaskId(localNodeId, getId()),
+            taskId,
             getType(),
             localNodeId,
             getAction(),
@@ -163,7 +172,9 @@ public class Task implements Traceable {
             this instanceof CancellableTask,
             this instanceof CancellableTask && ((CancellableTask) this).isCancelled(),
             parentTask,
-            headers
+            headers,
+            originalTaskInfo.map(OriginalTaskInfo::originalTaskId).orElse(taskId),
+            originalTaskInfo.map(OriginalTaskInfo::originalStartTimeMillis).orElse(startTime)
         );
     }
 
@@ -277,6 +288,14 @@ public class Task implements Traceable {
         return headers;
     }
 
+    /**
+     * Whether result storage should use create-if-absent semantics instead of unconditional overwrite. Subclasses override this to
+     * prevent overwriting a result that was already stored.
+     */
+    public boolean useCreateSemanticsForResultStorage() {
+        return false;
+    }
+
     public TaskResult result(DiscoveryNode node, Exception error) throws IOException {
         return new TaskResult(taskInfo(node.getId(), true), error);
     }
@@ -292,5 +311,18 @@ public class Task implements Traceable {
     @Override
     public String getSpanId() {
         return "task-" + getId();
+    }
+
+    protected record OriginalTaskInfo(TaskId originalTaskId, long originalStartTimeMillis) {
+
+        public OriginalTaskInfo {
+            requireNonNull(originalTaskId);
+        }
+    }
+
+    /// If this task is continuing the work of another task on a node that was shut down, returns basic information about the original task.
+    /// Otherwise, returns [Optional#empty()].
+    protected Optional<OriginalTaskInfo> getOriginalTaskInfo() {
+        return Optional.empty();
     }
 }

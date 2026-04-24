@@ -43,10 +43,8 @@ public class FeatureServiceTests extends ESTestCase {
 
     public void testFailsDuplicateFeatures() {
         // these all need to be separate classes to trigger the exception
-        FeatureSpecification fs1 = new TestFeatureSpecification(Set.of(new NodeFeature("f1"))) {
-        };
-        FeatureSpecification fs2 = new TestFeatureSpecification(Set.of(new NodeFeature("f1"))) {
-        };
+        FeatureSpecification fs1 = new TestFeatureSpecification(Set.of(new NodeFeature("f1"))) {};
+        FeatureSpecification fs2 = new TestFeatureSpecification(Set.of(new NodeFeature("f1"))) {};
 
         assertThat(
             expectThrows(IllegalArgumentException.class, () -> new FeatureService(List.of(fs1, fs2))).getMessage(),

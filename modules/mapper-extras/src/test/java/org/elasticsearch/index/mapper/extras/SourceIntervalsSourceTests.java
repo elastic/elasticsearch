@@ -25,13 +25,13 @@ import org.apache.lucene.queries.intervals.IntervalIterator;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -111,7 +111,7 @@ public class SourceIntervalsSourceTests extends ESTestCase {
                 // Same test, but with a bad approximation now
                 source = new SourceIntervalsSource(
                     Intervals.term(new BytesRef("d")),
-                    new MatchAllDocsQuery(),
+                    Queries.ALL_DOCS_INSTANCE,
                     SOURCE_FETCHER_PROVIDER,
                     Lucene.STANDARD_ANALYZER
                 );

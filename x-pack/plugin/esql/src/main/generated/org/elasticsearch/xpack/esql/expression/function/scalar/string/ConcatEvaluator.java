@@ -15,33 +15,33 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Concat}.
+ * {@link ExpressionEvaluator} implementation for {@link Concat}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class ConcatEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class ConcatEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConcatEvaluator.class);
 
   private final Source source;
 
   private final BreakingBytesRefBuilder scratch;
 
-  private final EvalOperator.ExpressionEvaluator[] values;
+  private final ExpressionEvaluator[] values;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public ConcatEvaluator(Source source, BreakingBytesRefBuilder scratch,
-      EvalOperator.ExpressionEvaluator[] values, DriverContext driverContext) {
+      ExpressionEvaluator[] values, DriverContext driverContext) {
     this.source = source;
     this.scratch = scratch;
     this.values = values;
@@ -69,7 +69,7 @@ public final class ConcatEvaluator implements EvalOperator.ExpressionEvaluator {
   @Override
   public long baseRamBytesUsed() {
     long baseRamBytesUsed = BASE_RAM_BYTES_USED;
-    for (EvalOperator.ExpressionEvaluator e : values) {
+    for (ExpressionEvaluator e : values) {
       baseRamBytesUsed += e.baseRamBytesUsed();
     }
     return baseRamBytesUsed;
@@ -137,25 +137,20 @@ public final class ConcatEvaluator implements EvalOperator.ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
     private final Function<DriverContext, BreakingBytesRefBuilder> scratch;
 
-    private final EvalOperator.ExpressionEvaluator.Factory[] values;
+    private final ExpressionEvaluator.Factory[] values;
 
     public Factory(Source source, Function<DriverContext, BreakingBytesRefBuilder> scratch,
-        EvalOperator.ExpressionEvaluator.Factory[] values) {
+        ExpressionEvaluator.Factory[] values) {
       this.source = source;
       this.scratch = scratch;
       this.values = values;
@@ -163,7 +158,7 @@ public final class ConcatEvaluator implements EvalOperator.ExpressionEvaluator {
 
     @Override
     public ConcatEvaluator get(DriverContext context) {
-      EvalOperator.ExpressionEvaluator[] values = Arrays.stream(this.values).map(a -> a.get(context)).toArray(EvalOperator.ExpressionEvaluator[]::new);
+      ExpressionEvaluator[] values = Arrays.stream(this.values).map(a -> a.get(context)).toArray(ExpressionEvaluator[]::new);
       return new ConcatEvaluator(source, scratch.apply(context), values, context);
     }
 

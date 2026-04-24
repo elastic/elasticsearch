@@ -54,7 +54,6 @@ import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.ingest.SamplingService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -173,15 +172,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                     public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
                         return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
                     }
-                },
-                initializeSamplingService()
+                }
             );
-        }
-
-        private static SamplingService initializeSamplingService() {
-            SamplingService samplingService = mock(SamplingService.class);
-            when(samplingService.atLeastOneSampleConfigured()).thenReturn(true);
-            return samplingService;
         }
 
         @Override
@@ -646,6 +638,29 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     public void testUseDefaultPipelineWithBulkUpsertWithAlias() throws Exception {
         String indexRequestName = randomFrom(new String[] { null, WITH_DEFAULT_PIPELINE, WITH_DEFAULT_PIPELINE_ALIAS });
         validatePipelineWithBulkUpsert(indexRequestName, WITH_DEFAULT_PIPELINE_ALIAS);
+    }
+
+    public void testBulkUpsertsDoNotReusePipelinesForDifferentIndices() throws Exception {
+        BulkRequest bulkRequest = new BulkRequest();
+        IndexRequest firstUpsert = new IndexRequest().id("id1").source(Collections.emptyMap());
+        IndexRequest secondUpsert = new IndexRequest().id("id2").source(Collections.emptyMap());
+        bulkRequest.add(new UpdateRequest(WITH_DEFAULT_PIPELINE_ALIAS, "id1").doc(firstUpsert).docAsUpsert(true));
+        bulkRequest.add(new UpdateRequest("index_without_pipeline", "id2").doc(secondUpsert).docAsUpsert(true));
+
+        ActionTestUtils.execute(action, null, bulkRequest, ActionTestUtils.assertNoFailureListener(response -> {}));
+
+        verify(ingestService).executeBulkRequest(
+            eq(projectId),
+            eq(bulkRequest.numberOfActions()),
+            bulkDocsItr.capture(),
+            any(),
+            any(),
+            any(),
+            failureHandler.capture(),
+            listener.capture()
+        );
+        assertEquals("default_pipeline", firstUpsert.getPipeline());
+        assertEquals(IngestService.NOOP_PIPELINE_NAME, secondUpsert.getPipeline());
     }
 
     private void validatePipelineWithBulkUpsert(@Nullable String indexRequestIndexName, String updateRequestIndexName) throws Exception {

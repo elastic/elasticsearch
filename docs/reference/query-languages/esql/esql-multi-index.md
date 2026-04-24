@@ -11,7 +11,14 @@ products:
 
 # Use ES|QL to query multiple indices [esql-multi-index]
 
-With {{esql}}, you can execute a single query across multiple indices, data streams, or aliases. To do so, use wildcards and date arithmetic. The following example uses a comma-separated list and a wildcard:
+With {{esql}}, you can execute a single query across multiple
+[indices](docs-content://manage-data/data-store/index-basics.md),
+[data streams](docs-content://manage-data/data-store/data-streams.md),
+[aliases](docs-content://manage-data/data-store/aliases.md),
+[views](/reference/query-languages/esql/esql-views.md) or
+[subqueries](/reference/query-languages/esql/esql-subquery.md).
+To do so, use comma-separated lists, wildcards and date arithmetic.
+The following example uses a comma-separated list and a wildcard:
 
 ```esql
 FROM employees-00001,other-employees-*
@@ -24,9 +31,15 @@ FROM cluster_one:employees-00001,cluster_two:other-employees-*
 ```
 
 
+In {{stack}}, you must always explicitly specify your target indices, data streams, or aliases.
+
+In {{serverless-short}}, queries automatically run across all linked projects with [cross-project search (CPS)](esql-cross-serverless-projects.md) by default. [Space-level settings](esql-cross-serverless-projects.md) and user or API key permissions can also affect which projects are included. {applies_to}`serverless: preview`
+% TODO: update "Space-level settings" link to docs-content://explore-analyze/cross-project-search/cross-project-search-manage-scope.md once elastic/docs-content#5498 is merged
+
+
 ## Field type mismatches [esql-multi-index-invalid-mapping]
 
-When querying multiple indices, data streams, or aliases, you might find that the same field is mapped to multiple different types. For example, consider the two indices with the following field mappings:
+When querying multiple indices, data streams, aliases, views or subqueries, you might find that the same field is mapped to multiple different types. For example, consider the two indices with the following field mappings:
 
 **index: events_ip**
 
@@ -112,9 +125,9 @@ This functionality is in technical preview and may be changed or removed in a fu
 ::::
 
 
-{{esql}} has a way to handle [field type mismatches](#esql-multi-index-invalid-mapping). When the same field is mapped to multiple types in multiple indices, the type of the field is understood to be a *union* of the various types in the index mappings. As seen in the preceding examples, this *union type* cannot be used in the results, and cannot be referred to by the query — except in `KEEP`, `DROP` or when it’s passed to a type conversion function that accepts all the types in the *union* and converts the field to a single type. {{esql}} offers a suite of [type conversion functions](functions-operators/type-conversion-functions.md) to achieve this.
+{{esql}} has a way to handle [field type mismatches](#esql-multi-index-invalid-mapping). When the same field is mapped to multiple types in multiple indices, the type of the field is understood to be a *union* of the various types in the index mappings. As seen in the preceding examples, this *union type* cannot be used in the results, and cannot be referred to by the query, except in `KEEP`, `DROP`, or when it’s passed to a type conversion function that accepts all the types in the *union* and converts the field to a single type. {{esql}} offers a suite of [type conversion functions](functions-operators/type-conversion-functions.md) to achieve this.
 
-In the above examples, the query can use a command like `EVAL client_ip = TO_IP(client_ip)` to resolve the union of `ip` and `keyword` to just `ip`. You can also use the type-conversion syntax `EVAL client_ip = client_ip::IP`. Alternatively, the query could use [`TO_STRING`](functions-operators/type-conversion-functions.md#esql-to_string) to convert all supported types into `KEYWORD`.
+In the above examples, the query can use a command like `EVAL client_ip = TO_IP(client_ip)` to resolve the union of `ip` and `keyword` to just `ip`. You can also use the type-conversion syntax `EVAL client_ip = client_ip::IP`. Alternatively, the query could use [`TO_STRING`](functions-operators/type-conversion-functions/to_string.md) to convert all supported types into `KEYWORD`.
 
 For example, the [query](#query-unsupported) that returned `client_ip:unsupported` with `null` values can be improved using the `TO_IP` function or the equivalent `field::ip` syntax. These changes also resolve the error message. As long as the only reference to the original field is to pass it to a conversion function that resolves the type ambiguity, no error results.
 
@@ -213,3 +226,6 @@ FROM events_* METADATA _index
 | events_keyword | 2023-10-23T12:27:28.948Z | 172.21.2.113 | 2764889 | Connected to 10.1.0.2 |
 | events_keyword | 2023-10-23T12:15:03.360Z | 172.21.2.162 | 3450233 | Connected to 10.1.0.3 |
 
+Note that `_METADATA _index` will return `null` if the index pattern is a
+[subquery](/reference/query-languages/esql/esql-subquery.md) or a
+[view](/reference/query-languages/esql/esql-views.md).

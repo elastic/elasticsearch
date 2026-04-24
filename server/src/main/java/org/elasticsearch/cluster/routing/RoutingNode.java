@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -213,18 +214,16 @@ public class RoutingNode implements Iterable<ShardRouting> {
         assert invariant();
     }
 
-    private static final ShardRouting[] EMPTY_SHARD_ROUTING_ARRAY = new ShardRouting[0];
-
-    public ShardRouting[] initializing() {
-        return initializingShards.toArray(EMPTY_SHARD_ROUTING_ARRAY);
+    public Iterable<ShardRouting> initializing() {
+        return Iterables.assertReadOnly(initializingShards);
     }
 
-    public ShardRouting[] relocating() {
-        return relocatingShards.toArray(EMPTY_SHARD_ROUTING_ARRAY);
+    public Iterable<ShardRouting> relocating() {
+        return Iterables.assertReadOnly(relocatingShards);
     }
 
-    public ShardRouting[] started() {
-        return startedShards.toArray(EMPTY_SHARD_ROUTING_ARRAY);
+    public Iterable<ShardRouting> started() {
+        return Iterables.assertReadOnly(startedShards);
     }
 
     /**
@@ -284,6 +283,15 @@ public class RoutingNode implements Iterable<ShardRouting> {
         }
     }
 
+    public int numberOfStartedShardsForIndex(final Index index) {
+        final Set<ShardRouting> shardRoutings = shardsByIndex.get(index);
+        if (shardRoutings == null) {
+            return 0;
+        } else {
+            return Math.toIntExact(shardRoutings.stream().filter(shard -> shard.started()).count());
+        }
+    }
+
     public String prettyPrint() {
         StringBuilder sb = new StringBuilder();
         sb.append("-----node_id[").append(nodeId).append("][").append(node == null ? "X" : "V").append("]\n");
@@ -312,6 +320,15 @@ public class RoutingNode implements Iterable<ShardRouting> {
         sb.append(" assigned shards])");
         return sb.toString();
     }
+
+    /**
+     * @return {@link DiscoveryNode#getShortNodeDescription()} if available, or just "{nodeId}" otherwise
+     */
+    public String getShortNodeDescription() {
+        return node != null ? node.getShortNodeDescription() : nodeId;
+    }
+
+    private static final ShardRouting[] EMPTY_SHARD_ROUTING_ARRAY = new ShardRouting[0];
 
     public ShardRouting[] copyShards() {
         return shards.values().toArray(EMPTY_SHARD_ROUTING_ARRAY);

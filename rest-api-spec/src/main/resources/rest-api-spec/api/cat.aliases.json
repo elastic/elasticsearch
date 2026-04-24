@@ -42,7 +42,15 @@
       },
       "h": {
         "type": "list",
-        "description": "Comma-separated list of column names to display"
+        "description": "Comma-separated list of column names to display",
+        "options": [
+          "alias",
+          "index",
+          "filter",
+          "routing.index",
+          "routing.search",
+          "is_write_index"
+        ]
       },
       "help": {
         "type": "boolean",
@@ -59,7 +67,7 @@
         "default": false
       },
       "expand_wildcards": {
-        "type": "enum",
+        "type": "list",
         "options": [
           "open",
           "closed",

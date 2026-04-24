@@ -471,6 +471,22 @@ public class TimeseriesLifecycleType implements LifecycleType {
                         + "]"
                 );
             }
+            var firstSamplingMethod = firstDownsample.v2().samplingMethodOrDefault();
+            var secondSamplingMethod = secondDownsample.v2().samplingMethodOrDefault();
+            if (Objects.equals(firstSamplingMethod, secondSamplingMethod) == false) {
+                // All phases need to use the same downsampling method
+                throw new IllegalArgumentException(
+                    "Downsampling method ["
+                        + secondSamplingMethod
+                        + "] for phase ["
+                        + secondDownsample.v1()
+                        + "] must be compatible with the method ["
+                        + firstSamplingMethod
+                        + "] for phase ["
+                        + firstDownsample.v1()
+                        + "]"
+                );
+            }
             firstDownsample = secondDownsample;
         }
     }

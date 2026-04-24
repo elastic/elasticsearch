@@ -31,7 +31,7 @@ Here is an example to remove a single field:
   }
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 To remove multiple fields, you can use the following query:
 
@@ -42,7 +42,7 @@ To remove multiple fields, you can use the following query:
   }
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 You can also choose to remove all fields other than a specified list:
 
@@ -53,5 +53,5 @@ You can also choose to remove all fields other than a specified list:
   }
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 

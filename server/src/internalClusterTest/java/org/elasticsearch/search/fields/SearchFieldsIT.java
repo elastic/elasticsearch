@@ -59,6 +59,7 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.singleton;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -664,7 +665,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 assertThat(searchHit.getFields().get("boolean_field").getValue(), equalTo((Object) Boolean.TRUE));
                 assertThat(
                     searchHit.getFields().get("binary_field").getValue(),
-                    equalTo(new BytesArray("testing text".getBytes(StandardCharsets.UTF_8)))
+                    equalBytes(new BytesArray("testing text".getBytes(StandardCharsets.UTF_8)))
                 );
             }
         );

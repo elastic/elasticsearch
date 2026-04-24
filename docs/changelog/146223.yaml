@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 145799
+pr: 146223
+summary: ESQL - Fix performance loading source when vectors are excluded
+type: bug

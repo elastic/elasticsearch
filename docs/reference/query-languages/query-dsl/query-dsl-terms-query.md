@@ -120,7 +120,7 @@ To see how terms lookup works, try the following example.
       "color":   ["blue", "green"]
     }
     ```
-    %  TEST[continued]
+    % TEST[continued]
 
 3. Index another document with an ID of 2 and value of `blue` in the `color` field.
 
@@ -130,10 +130,17 @@ To see how terms lookup works, try the following example.
       "color":   "blue"
     }
     ```
-    %  TEST[continued]
+    % TEST[continued]
 
 4. Use the `terms` query with terms lookup parameters to find documents containing one or more of the same terms as document 2. Include the `pretty` parameter so the response is more readable.
 
+    <!--
+    ```console
+    POST my-index-000001/_refresh
+    ```
+    % TEST[continued]
+    -->
+    
     ```console
     GET my-index-000001/_search?pretty
     {
@@ -148,7 +155,7 @@ To see how terms lookup works, try the following example.
       }
     }
     ```
-    %  TEST[continued]
+    % TEST[continued]
 
     Because document 2 and document 1 both contain `blue` as a value in the `color` field, {{es}} returns both documents.
 
@@ -192,7 +199,7 @@ To see how terms lookup works, try the following example.
       }
     }
     ```
-    %  TESTRESPONSE[s/"took" : 17/"took" : $body.took/]
+    % TESTRESPONSE[s/"took" : 17/"took" : $body.took/]
 
 
 

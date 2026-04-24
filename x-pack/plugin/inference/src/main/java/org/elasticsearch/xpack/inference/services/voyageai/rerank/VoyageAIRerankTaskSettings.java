@@ -14,10 +14,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
+import org.elasticsearch.inference.TopNProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -29,7 +29,7 @@ import static org.elasticsearch.xpack.inference.services.voyageai.VoyageAIServic
  * Defines the task settings for the VoyageAI rerank service.
  *
  */
-public class VoyageAIRerankTaskSettings implements TaskSettings {
+public class VoyageAIRerankTaskSettings implements TaskSettings, TopNProvider {
 
     public static final String NAME = "voyageai_rerank_task_settings";
     public static final String RETURN_DOCUMENTS = "return_documents";
@@ -56,9 +56,7 @@ public class VoyageAIRerankTaskSettings implements TaskSettings {
 
         Boolean truncation = extractOptionalBoolean(map, TRUNCATION, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return of(topKDocumentsOnly, returnDocuments, truncation);
     }
@@ -171,6 +169,11 @@ public class VoyageAIRerankTaskSettings implements TaskSettings {
         return topKDocumentsOnly;
     }
 
+    @Override
+    public Integer getTopN() {
+        return getTopKDocumentsOnly();
+    }
+
     public Boolean getDoesReturnDocuments() {
         return returnDocuments;
     }
@@ -185,7 +188,7 @@ public class VoyageAIRerankTaskSettings implements TaskSettings {
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        VoyageAIRerankTaskSettings updatedSettings = VoyageAIRerankTaskSettings.fromMap(new HashMap<>(newSettings));
+        VoyageAIRerankTaskSettings updatedSettings = VoyageAIRerankTaskSettings.fromMap(newSettings);
         return VoyageAIRerankTaskSettings.of(this, updatedSettings);
     }
 }

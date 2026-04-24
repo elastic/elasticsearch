@@ -138,9 +138,9 @@ Response:
   }
 }
 ```
-%  TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
-%  TESTRESPONSE[s/0.02777/$body.aggregations.low_quality_keywords.buckets.0.score/]
-%  TESTRESPONSE[s/0.0069/$body.aggregations.low_quality_keywords.buckets.2.score/]
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+% TESTRESPONSE[s/0.02777/$body.aggregations.low_quality_keywords.buckets.0.score/]
+% TESTRESPONSE[s/0.0069/$body.aggregations.low_quality_keywords.buckets.2.score/]
 
 ## shard_size [_shard_size_2]
 

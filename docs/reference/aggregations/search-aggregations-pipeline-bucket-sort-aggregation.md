@@ -122,9 +122,9 @@ And the following may be the response:
    }
 }
 ```
-%  TESTRESPONSE[s/"took": 82/"took": $body.took/]
-%  TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
-%  TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
+% TESTRESPONSE[s/"took": 82/"took": $body.took/]
+% TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
+% TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 
 ## Truncating without sorting [_truncating_without_sorting]
 
@@ -177,7 +177,7 @@ Response:
    }
 }
 ```
-%  TESTRESPONSE[s/"took": 11/"took": $body.took/]
-%  TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
-%  TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
+% TESTRESPONSE[s/"took": 11/"took": $body.took/]
+% TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
+% TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 

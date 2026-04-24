@@ -12,6 +12,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -92,7 +93,7 @@ public class CustomElandModelIT extends InferenceBaseRestTest {
         putModel(inferenceId, inferenceConfig, TaskType.SPARSE_EMBEDDING);
         var results = infer(inferenceId, List.of("washing", "machine"));
         deleteModel(inferenceId);
-        assertNotNull(results.get("sparse_embedding"));
+        assertNotNull(results.get(SparseEmbeddingResults.SPARSE_EMBEDDING));
     }
 
     public void testCannotStopDeployment() throws IOException {

@@ -12,6 +12,7 @@ package org.elasticsearch.index.fielddata;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.index.fielddata.plain.LeafLongFieldData;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.BooleanFieldScript;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
@@ -91,8 +92,8 @@ public final class BooleanScriptFieldData extends IndexNumericFieldData {
     }
 
     @Override
-    protected boolean isIndexed() {
-        return false;
+    protected IndexType indexType() {
+        return IndexType.NONE;
     }
 
     public static class BooleanScriptLeafFieldData extends LeafLongFieldData {

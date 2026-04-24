@@ -21,21 +21,31 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.hamcrest.Matchers.equalTo;
-
 public class AbsTests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        suppliers.add(new TestCaseSupplier(List.of(DataType.INTEGER), () -> {
-            int arg = randomInt();
-            return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(arg, DataType.INTEGER, "arg")),
-                "AbsIntEvaluator[fieldVal=Attribute[channel=0]]",
-                DataType.INTEGER,
-                equalTo(Math.abs(arg))
-            );
-        }));
+        TestCaseSupplier.forUnaryInt(
+            suppliers,
+            "AbsIntEvaluator[fieldVal=Attribute[channel=0]]",
+            DataType.INTEGER,
+            Math::absExact,
+            Integer.MIN_VALUE + 1,
+            Integer.MAX_VALUE,
+            List.of()
+        );
+        TestCaseSupplier.forUnaryInt(
+            suppliers,
+            "AbsIntEvaluator[fieldVal=Attribute[channel=0]]",
+            DataType.INTEGER,
+            z -> null,
+            Integer.MIN_VALUE,
+            Integer.MIN_VALUE,
+            List.of(
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.ArithmeticException: Overflow to represent absolute value of Integer.MIN_VALUE"
+            )
+        );
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
             "Attribute[channel=0]",
@@ -45,24 +55,36 @@ public class AbsTests extends AbstractScalarFunctionTestCase {
             UNSIGNED_LONG_MAX,
             List.of()
         );
-        suppliers.add(new TestCaseSupplier(List.of(DataType.LONG), () -> {
-            long arg = randomLong();
-            return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(arg, DataType.LONG, "arg")),
-                "AbsLongEvaluator[fieldVal=Attribute[channel=0]]",
-                DataType.LONG,
-                equalTo(Math.abs(arg))
-            );
-        }));
-        suppliers.add(new TestCaseSupplier(List.of(DataType.DOUBLE), () -> {
-            double arg = randomDouble();
-            return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(arg, DataType.DOUBLE, "arg")),
-                "AbsDoubleEvaluator[fieldVal=Attribute[channel=0]]",
-                DataType.DOUBLE,
-                equalTo(Math.abs(arg))
-            );
-        }));
+        TestCaseSupplier.forUnaryLong(
+            suppliers,
+            "AbsLongEvaluator[fieldVal=Attribute[channel=0]]",
+            DataType.LONG,
+            Math::absExact,
+            Long.MIN_VALUE + 1,
+            Long.MAX_VALUE,
+            List.of()
+        );
+        TestCaseSupplier.forUnaryLong(
+            suppliers,
+            "AbsLongEvaluator[fieldVal=Attribute[channel=0]]",
+            DataType.LONG,
+            z -> null,
+            Long.MIN_VALUE,
+            Long.MIN_VALUE,
+            List.of(
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.ArithmeticException: Overflow to represent absolute value of Long.MIN_VALUE"
+            )
+        );
+        TestCaseSupplier.forUnaryDouble(
+            suppliers,
+            "AbsDoubleEvaluator[fieldVal=Attribute[channel=0]]",
+            DataType.DOUBLE,
+            Math::abs,
+            Double.NEGATIVE_INFINITY,
+            Double.POSITIVE_INFINITY,
+            List.of()
+        );
         return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers);
     }
 

@@ -1,0 +1,5 @@
+area: Logs
+issues: []
+pr: 142851
+summary: Default `index.mapping.use_doc_values_skipper` to true for logsdb
+type: feature

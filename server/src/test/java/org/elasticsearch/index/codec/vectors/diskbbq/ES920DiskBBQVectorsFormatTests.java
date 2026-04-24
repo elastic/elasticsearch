@@ -11,13 +11,13 @@ package org.elasticsearch.index.codec.vectors.diskbbq;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.KnnFloatVectorField;
+import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FloatVectorValues;
@@ -27,20 +27,29 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.AcceptDocs;
+import org.apache.lucene.search.KnnCollector;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TopKnnCollector;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.junit.AssumptionViolatedException;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.lang.String.format;
@@ -49,10 +58,8 @@ import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsF
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.MAX_VECTORS_PER_CLUSTER;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.MIN_CENTROIDS_PER_PARENT_CLUSTER;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.MIN_VECTORS_PER_CLUSTER;
-import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.oneOf;
+import static org.hamcrest.Matchers.hasToString;
 
 public class ES920DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
 
@@ -61,26 +68,51 @@ public class ES920DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
+    @Override
+    protected boolean supportsFloatVectorFallback() {
+        return false;
+    }
+
     private KnnVectorsFormat format;
+    private ExecutorService executorService;
 
     @Before
     @Override
     public void setUp() throws Exception {
+        int numMergingThreads = 1;
+        if (random().nextBoolean()) {
+            numMergingThreads = random().nextInt(2, 4);
+            executorService = Executors.newFixedThreadPool(numMergingThreads);
+        }
         if (rarely()) {
             format = new ES920DiskBBQVectorsFormat(
                 random().nextInt(2 * MIN_VECTORS_PER_CLUSTER, ES920DiskBBQVectorsFormat.MAX_VECTORS_PER_CLUSTER),
                 random().nextInt(8, ES920DiskBBQVectorsFormat.MAX_CENTROIDS_PER_PARENT_CLUSTER),
-                random().nextBoolean()
+                DenseVectorFieldMapper.ElementType.FLOAT,
+                random().nextBoolean(),
+                executorService,
+                numMergingThreads
             );
         } else {
             // run with low numbers to force many clusters with parents
             format = new ES920DiskBBQVectorsFormat(
                 random().nextInt(MIN_VECTORS_PER_CLUSTER, 2 * MIN_VECTORS_PER_CLUSTER),
                 random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, 8),
-                random().nextBoolean()
+                DenseVectorFieldMapper.ElementType.FLOAT,
+                random().nextBoolean(),
+                executorService,
+                numMergingThreads
             );
         }
         super.setUp();
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        if (executorService != null) {
+            executorService.shutdownNow();
+        }
+        super.tearDown();
     }
 
     @Override
@@ -102,7 +134,7 @@ public class ES920DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
 
     @Override
     public void testSearchWithVisitedLimit() {
-        // ivf doesn't enforce visitation limit
+        throw new AssumptionViolatedException("ivf doesn't enforce visitation limit");
     }
 
     @Override
@@ -121,9 +153,8 @@ public class ES920DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
             }
             var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
             long totalByteSize = offHeap.values().stream().mapToLong(Long::longValue).sum();
-            // IVF doesn't report stats at the moment
-            assertThat(offHeap, anEmptyMap());
-            assertThat(totalByteSize, equalTo(0L));
+            assertThat(offHeap.size(), equalTo(3));
+            assertThat(totalByteSize, equalTo(offHeap.values().stream().mapToLong(Long::longValue).sum()));
         } else {
             throw new AssertionError("unexpected:" + r.getClass());
         }
@@ -135,17 +166,9 @@ public class ES920DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
     }
 
     public void testToString() {
-        FilterCodec customCodec = new FilterCodec("foo", Codec.getDefault()) {
-            @Override
-            public KnnVectorsFormat knnVectorsFormat() {
-                return new ES920DiskBBQVectorsFormat(128, 4);
-            }
-        };
-        String expectedPattern = "ES920DiskBBQVectorsFormat(vectorPerCluster=128)";
+        KnnVectorsFormat format = new ES920DiskBBQVectorsFormat(128, 4);
 
-        var defaultScorer = format(Locale.ROOT, expectedPattern, "DefaultFlatVectorScorer");
-        var memSegScorer = format(Locale.ROOT, expectedPattern, "Lucene99MemorySegmentFlatVectorsScorer");
-        assertThat(customCodec.knnVectorsFormat().toString(), is(oneOf(defaultScorer, memSegScorer)));
+        assertThat(format, hasToString("ES920DiskBBQVectorsFormat(vectorPerCluster=128, mergeExec=false)"));
     }
 
     public void testLimits() {
@@ -171,7 +194,7 @@ public class ES920DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
                     }
                     var fieldInfo = r.getFieldInfos().fieldInfo("f");
                     var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
-                    assertEquals(0, offHeap.size());
+                    assertEquals(3, offHeap.size());
                 }
             }
         }
@@ -280,6 +303,44 @@ public class ES920DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
         }
     }
 
+    public void testIndexSortOnFlush() throws IOException {
+        IndexWriterConfig config = newIndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(format))
+            .setIndexSort(new Sort(new SortField("sort", SortField.Type.STRING)))
+            .setMergePolicy(NoMergePolicy.INSTANCE)
+            .setMaxBufferedDocs(10)
+            .setRAMBufferSizeMB(1);
+        ;
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, config)) {
+            float[] vectorA = new float[] { 3f, 3f };
+            float[] vectorB = new float[] { 0f, 0f };
+            float[] vectorC = new float[] { -3f, -3f };
+            addSortedVectorDoc(w, "c", vectorC);
+            addSortedVectorDoc(w, "a", vectorA);
+            addSortedVectorDoc(w, "b", vectorB);
+            w.commit();
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                if (reader.leaves().size() != 1) {
+                    w.forceMerge(1);
+                }
+                LeafReader leafReader = getOnlyLeafReader(reader);
+
+                // we might collect the same document twice because of soar assignments
+                KnnCollector collector = new TopKnnCollector(3, Integer.MAX_VALUE);
+                leafReader.searchNearestVectors(
+                    "f",
+                    vectorA,
+                    collector,
+                    AcceptDocs.fromLiveDocs(leafReader.getLiveDocs(), leafReader.maxDoc())
+                );
+                TopDocs topDocs = collector.topDocs();
+                assertEquals(3, topDocs.scoreDocs.length);
+                assertEquals(0, topDocs.scoreDocs[0].doc);
+                assertEquals(1, topDocs.scoreDocs[1].doc);
+                assertEquals(2, topDocs.scoreDocs[2].doc);
+            }
+        }
+    }
+
     // this is a modified version of lucene's TestSearchWithThreads test case
     public void testWithThreads() throws Exception {
         final int numThreads = random().nextInt(2, 5);
@@ -329,5 +390,12 @@ public class ES920DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
                 }
             }
         }
+    }
+
+    private static void addSortedVectorDoc(IndexWriter writer, String id, float[] vector) throws IOException {
+        Document doc = new Document();
+        doc.add(new KnnFloatVectorField("f", vector, VectorSimilarityFunction.EUCLIDEAN));
+        doc.add(new SortedDocValuesField("sort", new BytesRef(id)));
+        writer.addDocument(doc);
     }
 }

@@ -23,12 +23,14 @@ import java.util.List;
  *               that was run. Each {@link Page} contains a {@link Block} of values for each
  *               attribute in this list.
  * @param pages Actual values produced by running the ESQL.
+ * @param configuration The configuration used during the execution of this query.
  * @param completionInfo Information collected from drivers after they've been completed.
  * @param executionInfo Metadata about the execution of this query. Used for cross cluster queries.
  */
 public record Result(
     List<Attribute> schema,
     List<Page> pages,
+    Configuration configuration,
     DriverCompletionInfo completionInfo,
     @Nullable EsqlExecutionInfo executionInfo
 ) {}

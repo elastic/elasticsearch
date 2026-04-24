@@ -25,6 +25,14 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.IntFunction;
 
+/// Records all current and historical [IndexVersion]s
+///
+/// The list serves as the single source of truth for version-to-Lucene mappings, minimum compatibility windows
+/// (`MINIMUM_COMPATIBLE`, `MINIMUM_READONLY_COMPATIBLE`), and build-time merge-conflict detection
+/// (duplicate ids are [rejected at class-initialisation time][#def(int, Version)]).
+///
+/// @see IndexVersion
+///
 @SuppressWarnings("deprecation")
 public class IndexVersions {
 
@@ -180,6 +188,7 @@ public class IndexVersions {
     public static final IndexVersion SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT = def(9_031_0_00, Version.LUCENE_10_2_2);
     public static final IndexVersion DEFAULT_DENSE_VECTOR_TO_BBQ_HNSW = def(9_032_0_00, Version.LUCENE_10_2_2);
     public static final IndexVersion MATCH_ONLY_TEXT_STORED_AS_BYTES = def(9_033_0_00, Version.LUCENE_10_2_2);
+    public static final IndexVersion BACKPORT_91_SECURITY_MIGRATIONS_METADATA_FLATTENED_UPDATE = def(9_033_0_01, Version.LUCENE_10_2_2);
     public static final IndexVersion IGNORED_SOURCE_COALESCED_ENTRIES_WITH_FF = def(9_034_0_00, Version.LUCENE_10_2_2);
     public static final IndexVersion EXCLUDE_SOURCE_VECTORS_DEFAULT = def(9_035_0_00, Version.LUCENE_10_2_2);
     public static final IndexVersion DISABLE_NORMS_BY_DEFAULT_FOR_LOGSDB_AND_TSDB = def(9_036_0_00, Version.LUCENE_10_2_2);
@@ -187,11 +196,66 @@ public class IndexVersions {
     public static final IndexVersion UPGRADE_TO_LUCENE_10_3_0 = def(9_038_0_00, Version.LUCENE_10_3_0);
     public static final IndexVersion IGNORED_SOURCE_COALESCED_ENTRIES = def(9_039_0_00, Version.LUCENE_10_3_0);
     public static final IndexVersion BACKPORT_UPGRADE_TO_LUCENE_10_3_1 = def(9_039_0_01, Version.LUCENE_10_3_1);
+    public static final IndexVersion BACKPORT_UPGRADE_TO_LUCENE_10_3_2 = def(9_039_0_02, Version.LUCENE_10_3_2);
+    public static final IndexVersion BACKPORT_SECURITY_MIGRATIONS_METADATA_FLATTENED_UPDATE = def(9_039_0_03, Version.LUCENE_10_3_2);
     public static final IndexVersion KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED = def(9_040_0_00, Version.LUCENE_10_3_0);
     public static final IndexVersion UPGRADE_TO_LUCENE_10_3_1 = def(9_041_0_00, Version.LUCENE_10_3_1);
-
     public static final IndexVersion REENABLED_TIMESTAMP_DOC_VALUES_SPARSE_INDEX = def(9_042_0_00, Version.LUCENE_10_3_1);
     public static final IndexVersion SKIPPERS_ENABLED_BY_DEFAULT = def(9_043_0_00, Version.LUCENE_10_3_1);
+    public static final IndexVersion TIME_SERIES_USE_SYNTHETIC_ID = def(9_044_0_00, Version.LUCENE_10_3_1);
+    public static final IndexVersion TIME_SERIES_DIMENSIONS_USE_SKIPPERS = def(9_045_0_00, Version.LUCENE_10_3_1);
+    public static final IndexVersion TIME_SERIES_ALL_FIELDS_USE_SKIPPERS = def(9_046_0_00, Version.LUCENE_10_3_1);
+    public static final IndexVersion UPGRADE_TO_LUCENE_10_3_2 = def(9_047_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion SECURITY_MIGRATIONS_METADATA_FLATTENED_UPDATE = def(9_048_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion STANDARD_INDEXES_USE_SKIPPERS = def(9_049_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion NESTED_PATH_LIMIT = def(9_050_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion GENERIC_DENSE_VECTOR_FORMAT = def(9_051_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion SKIPPER_DEFAULTS_ONLY_ON_TSDB = def(9_052_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion DISK_BBQ_LICENSE_ENFORCEMENT = def(9_053_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion STORE_IGNORED_KEYWORDS_IN_BINARY_DOC_VALUES = def(9_054_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion TIME_SERIES_USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID = def(9_055_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion AGG_METRIC_DOUBLE_REMOVE_POINTS = def(9_056_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion STATELESS_SKIPPERS_ENABLED_FOR_TSDB = def(9_057_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion TEXT_FIELDS_STORED_IN_IGNORED_SOURCE_FIX = def(9_058_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion DEFAULT_HNSW_EARLY_TERMINATION = def(9_059_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion PATTERN_TEXT_ARGS_IN_BINARY_DOC_VALUES = def(9_060_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion DENSE_VECTOR_BFLOAT16_DEFAULT_INDEX_OPTIONS_BACKPORT = def(9_060_0_01, Version.LUCENE_10_3_2);
+    public static final IndexVersion KEYWORD_FIELDS_KEEP_DUPLICATES_IN_BINARY_DOC_VALUES = def(9_061_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion STORE_FALLBACK_TEXT_FIELDS_IN_BINARY_DOC_VALUES = def(9_062_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion STORE_FALLBACK_MOT_FIELDS_IN_BINARY_DOC_VALUES = def(9_063_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion MOD_ROUTING_FUNCTION = def(9_064_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion FALLBACK_TEXT_FIELDS_BINARY_DOC_VALUES_FORMAT_CHECK = def(9_065_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion READ_SI_FILES_FROM_MEMORY_FOR_HOLLOW_COMMITS = def(9_066_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion FLATTENED_FIELD_TSDB_CODEC_USE_BINARY_DOC_VALUES = def(9_067_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion STORE_PATTERN_TEXT_FIELDS_IN_BINARY_DOC_VALUES = def(9_068_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion DISK_BBQ_QUANTIZE_BITS = def(9_069_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion ID_FIELD_USE_ES812_POSTINGS_FORMAT = def(9_070_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion TIME_SERIES_USE_SYNTHETIC_ID_94 = def(9_071_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion TIME_SERIES_DOC_VALUES_FORMAT_VERSION_3 = def(9_072_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion STORE_IGNORED_MALFORMED_IN_BINARY_DOC_VALUES = def(9_073_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion DISABLE_SEQUENCE_NUMBERS = def(9_074_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion UPGRADE_TO_LUCENE_10_4_0 = def(9_075_00_0, Version.LUCENE_10_4_0);
+    public static final IndexVersion UPGRADE_DISKBBQ_ES940 = def(9_076_00_0, Version.LUCENE_10_4_0);
+    public static final IndexVersion FLATTENED_FIELD_NO_ROOT_DOC_VALUES = def(9_077_0_00, Version.LUCENE_10_4_0);
+    public static final IndexVersion IGNORED_SOURCE_AS_DOC_VALUES = def(9_078_0_00, Version.LUCENE_10_4_0);
+    public static final IndexVersion TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT = def(9_079_0_00, Version.LUCENE_10_4_0);
+    public static final IndexVersion TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG = def(9_080_00_0, Version.LUCENE_10_4_0);
+    public static final IndexVersion SKIPPERS_ENABLED_BY_DEFAULT_IN_LOGSDB = def(9_081_0_00, Version.LUCENE_10_4_0);
+    public static final IndexVersion STORE_IGNORED_WILDCARD_FIELDS_IN_BINARY_DOC_VALUES = def(9_082_0_00, Version.LUCENE_10_4_0);
+    public static final IndexVersion WRITE_TSID_PREFIX_PARTITION = def(9_083_0_00, Version.LUCENE_10_4_0);
+    public static final IndexVersion SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5 = def(9_084_0_00, Version.LUCENE_10_4_0);
+    public static final IndexVersion TIME_SERIES_DISABLE_SEQUENCE_NUMBERS = def(9_085_0_00, Version.LUCENE_10_4_0);
+    public static final IndexVersion DENSE_VECTOR_BFLOAT16_DEFAULT_INDEX_OPTIONS = def(9_086_0_00, Version.LUCENE_10_4_0);
+    public static final IndexVersion DEFAULT_DENSE_VECTOR_TO_BBQ_DISK = def(9_087_0_00, Version.LUCENE_10_4_0);
+    public static final IndexVersion SEMANTIC_TEXT_DEFAULTS_TO_BFLOAT16 = def(9_088_0_00, Version.LUCENE_10_4_0);
+    public static final IndexVersion STORE_IGNORED_FLATTENED_FIELDS_IN_BINARY_DOC_VALUES = def(9_089_0_00, Version.LUCENE_10_4_0);
+    public static final IndexVersion TIME_SERIES_USE_SYNTHETIC_ID_BEST_COMPRESSION = def(9_090_0_00, Version.LUCENE_10_4_0);
+    public static final IndexVersion TSID_SINGLE_PREFIX_BYTE = def(9_091_0_00, Version.LUCENE_10_4_0);
+    public static final IndexVersion SEMANTIC_TEXT_USES_DENSE_VECTOR_DEFAULT_INDEX_OPTIONS = def(9_092_0_00, Version.LUCENE_10_4_0);
+    public static final IndexVersion TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD = def(9_093_0_00, Version.LUCENE_10_4_0);
+    public static final IndexVersion TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT = def(9_094_0_00, Version.LUCENE_10_4_0);
+    public static final IndexVersion DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES = def(9_095_0_00, Version.LUCENE_10_4_0);
+    public static final IndexVersion SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN = def(9_096_00_0, Version.LUCENE_10_4_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

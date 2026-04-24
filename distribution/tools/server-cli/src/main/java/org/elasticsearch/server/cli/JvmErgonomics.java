@@ -15,7 +15,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.node.NodeRoleSettings;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -37,13 +36,13 @@ final class JvmErgonomics {
     /**
      * Chooses additional JVM options for Elasticsearch.
      *
-     * @param userDefinedJvmOptions A list of JVM options that have been defined by the user.
+     * @param finalJvmOptions the final JVM options as determined by the JVM
+     * @param heapSize the effective max heap size in bytes
+     * @param nodeSettings the node settings
      * @return A list of additional JVM options to set.
      */
-    static List<String> choose(final List<String> userDefinedJvmOptions, Settings nodeSettings) throws InterruptedException, IOException {
+    static List<String> choose(final Map<String, JvmOption> finalJvmOptions, long heapSize, Settings nodeSettings) {
         final List<String> ergonomicChoices = new ArrayList<>();
-        final Map<String, JvmOption> finalJvmOptions = JvmOption.findFinalOptions(userDefinedJvmOptions);
-        final long heapSize = JvmOption.extractMaxHeapSize(finalJvmOptions);
         final long maxDirectMemorySize = JvmOption.extractMaxDirectMemorySize(finalJvmOptions);
         if (maxDirectMemorySize == 0) {
             ergonomicChoices.add("-XX:MaxDirectMemorySize=" + (long) (DIRECT_MEMORY_TO_HEAP_FACTOR * heapSize));

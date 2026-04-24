@@ -18,7 +18,7 @@ import org.elasticsearch.core.Releasables;
  * Generic {@link Block#lookup} implementation {@link DoubleBlock}s.
  * This class is generated. Edit {@code X-Lookup.java.st} instead.
  */
-final class DoubleLookup implements ReleasableIterator<DoubleBlock> {
+public final class DoubleLookup implements ReleasableIterator<DoubleBlock> {
     private final DoubleBlock values;
     private final IntBlock positions;
     private final long targetByteSize;
@@ -27,7 +27,7 @@ final class DoubleLookup implements ReleasableIterator<DoubleBlock> {
     private double first;
     private int valuesInPosition;
 
-    DoubleLookup(DoubleBlock values, IntBlock positions, ByteSizeValue targetBlockSize) {
+    public DoubleLookup(DoubleBlock values, IntBlock positions, ByteSizeValue targetBlockSize) {
         values.incRef();
         positions.incRef();
         this.values = values;

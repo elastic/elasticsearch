@@ -1,5 +1,0 @@
-pr: 134629
-summary: Improve block loader for source only runtime fields of type double
-area: Mapping
-type: enhancement
-issues: []

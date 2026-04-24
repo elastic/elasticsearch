@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
+import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 
 import java.util.Arrays;
 import java.util.Map;
@@ -152,6 +153,12 @@ public class UserPrivilegeResolver {
         // have been granted to the user via roles and other actions that are registered privileges for the given
         // application. These actions will be checked by a has-privileges check above
         final GetUserPrivilegesRequest request = new GetUserPrivilegesRequestBuilder(client).username(securityContext.getUser().principal())
+            // If the subject in the security context is an API Key, then it might contain both ASSIGNED roles (those set on the API Key)
+            // and LIMITED_BY roles (the roles captured from the owner). In this case we retrieve the limited (owner) role, which will
+            // likely contain a superset of what the API Key actually has access to.
+            // However, since all we use these privileges for is to feed them into HasPrivileges, it's OK to return too many privileges,
+            // since the ones without access will be filtered out in that privilege check
+            .unwrapLimitedRole(RoleReference.ApiKeyRoleType.LIMITED_BY)
             .request();
         client.execute(
             GetUserPrivilegesAction.INSTANCE,

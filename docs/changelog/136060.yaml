@@ -1,5 +1,0 @@
-pr: 136060
-summary: Limit number of allocation explanations in `shards_availability` health indicator
-area: Health
-type: bug
-issues: []

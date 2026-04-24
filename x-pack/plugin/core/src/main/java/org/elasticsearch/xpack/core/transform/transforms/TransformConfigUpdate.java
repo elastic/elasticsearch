@@ -36,10 +36,10 @@ public final class TransformConfigUpdate implements Writeable {
 
     public static final TransformConfigUpdate EMPTY = new TransformConfigUpdate(null, null, null, null, null, null, null, null);
 
-    private static final ConstructingObjectParser<TransformConfigUpdate, String> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<TransformConfigUpdate, TransformParsingContext> PARSER = new ConstructingObjectParser<>(
         NAME,
         false,
-        (args) -> {
+        (args, context) -> {
             SourceConfig source = (SourceConfig) args[0];
             DestConfig dest = (DestConfig) args[1];
             TimeValue frequency = args[2] == null
@@ -56,10 +56,10 @@ public final class TransformConfigUpdate implements Writeable {
     );
 
     static {
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> SourceConfig.fromXContent(p, false), TransformField.SOURCE);
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> SourceConfig.fromXContent(p, false, c), TransformField.SOURCE);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> DestConfig.fromXContent(p, false), TransformField.DESTINATION);
         PARSER.declareString(optionalConstructorArg(), TransformField.FREQUENCY);
-        PARSER.declareNamedObject(optionalConstructorArg(), (p, c, n) -> p.namedObject(SyncConfig.class, n, c), TransformField.SYNC);
+        PARSER.declareNamedObject(optionalConstructorArg(), (p, c, n) -> p.namedObject(SyncConfig.class, n, null), TransformField.SYNC);
         PARSER.declareString(optionalConstructorArg(), TransformField.DESCRIPTION);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> SettingsConfig.fromXContent(p, false), TransformField.SETTINGS);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.mapOrdered(), TransformField.METADATA);
@@ -67,7 +67,7 @@ public final class TransformConfigUpdate implements Writeable {
             XContentParser.Token token = p.nextToken();
             assert token == XContentParser.Token.FIELD_NAME;
             String currentName = p.currentName();
-            RetentionPolicyConfig namedObject = p.namedObject(RetentionPolicyConfig.class, currentName, c);
+            RetentionPolicyConfig namedObject = p.namedObject(RetentionPolicyConfig.class, currentName, null);
             token = p.nextToken();
             assert token == XContentParser.Token.END_OBJECT;
             return namedObject;
@@ -211,8 +211,8 @@ public final class TransformConfigUpdate implements Writeable {
         return Objects.hash(source, dest, frequency, syncConfig, description, settings, metadata, retentionPolicyConfig, headers);
     }
 
-    public static TransformConfigUpdate fromXContent(final XContentParser parser) {
-        return PARSER.apply(parser, null);
+    public static TransformConfigUpdate fromXContent(final XContentParser parser, TransformParsingContext context) {
+        return PARSER.apply(parser, context);
     }
 
     public boolean isEmpty() {

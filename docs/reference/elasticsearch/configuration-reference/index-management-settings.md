@@ -76,12 +76,32 @@ The following settings for Elastic Universal Profiling are supported:
 :   *Version 8.9.0+*: Specifies whether Universal Profiling related index templates should be created on startup. Defaults to *false*.
 
 
+### Elasticsearch OTLP endpoint settings
+```{applies_to}
+stack: preview 9.2
+```
+
+The following settings can be used to customize the [OTLP endpoint](docs-content://manage-data/data-store/data-streams/tsds-ingest-otlp.md):
+
+`xpack.otel_data.registry.enabled`
+:   Specifies whether OpenTelemetry related index templates should be created on startup. Defaults to *true*.
+
+`xpack.otel_data.histogram_field_type` {applies_to}`stack: preview 9.3, ga 9.4+` {applies_to}`serverless: ga`
+:   Defines how OTLP histograms are mapped in Elasticsearch.
+    Valid values are:
+
+* `histogram`: Map histograms as T-Digests using the `histogram` field type (Default on {applies_to}`stack: preview =9.3`)
+* `exponential_histogram`: Map histograms as exponential histograms using the `exponential_histogram` field type (Default on {applies_to}`stack: ga 9.4+` {applies_to}`serverless: ga`)
+
 ## Reindex settings [reindex-settings]
 
 $$$reindex-remote-whitelist$$$
 
 `reindex.remote.whitelist` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the hosts that can be [reindexed from remotely](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-reindex). Expects a YAML array of `host:port` strings. Consists of a comma-delimited list of `host:port` entries. Defaults to `["\*.io:*", "\*.com:*"]`.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the hosts that can be [reindexed from remotely](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-reindex). Consists of a list of `host:port` entries or patterns. In {{ece}} and {{ech}} this defaults to `["*.io:*", "*.com:*"]`.
+
+`reindex.remote.blocklist` {applies_to}`stack: ga 9.4+`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the hosts that *cannot* be [reindexed from remotely](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-reindex), even if they would be allowed by `reindex.remote.whitelist`. For example, you could whitelist `*.example.com:*` and then blocklist `*.qa.example.com:*`. Consists of a list of `host:port` entries or patterns. Empty by default.
 
 `reindex.ssl.certificate` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   Specifies the path to the PEM encoded certificate (or certificate chain) to be used for HTTP client authentication (if required by the remote cluster) This setting requires that `reindex.ssl.key` also be set. You cannot specify both `reindex.ssl.certificate` and `reindex.ssl.keystore.path`.

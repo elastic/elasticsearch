@@ -12,15 +12,19 @@ package org.elasticsearch.index.codec.vectors.diskbbq;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
-import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.apache.lucene.search.TaskExecutor;
 import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.es93.DirectIOCapableLucene99FlatVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93BFloat16FlatVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93GenericFlatVectorScorer;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 
 /**
  * Codec format for Inverted File Vector indexes. This index expects to break the dimensional space
@@ -52,24 +56,42 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
     // offsets contained in cen_ivf, [vector ordinals, actually just docIds](long varint), quantized
     // vectors (OSQ bit)
     public static final String CLUSTER_EXTENSION = "clivf";
-    static final String IVF_META_EXTENSION = "mivf";
+    public static final String IVF_META_EXTENSION = "mivf";
 
     public static final int VERSION_START = 0;
     public static final int VERSION_DIRECT_IO = 1;
     public static final int VERSION_CURRENT = VERSION_DIRECT_IO;
 
+    static final int BULK_SIZE = 16;
+
     private static final DirectIOCapableFlatVectorsFormat float32VectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
-        FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
+        ES93GenericFlatVectorScorer.INSTANCE
+    );
+    private static final DirectIOCapableFlatVectorsFormat bfloat16VectorFormat = new ES93BFloat16FlatVectorsFormat(
+        ES93GenericFlatVectorScorer.INSTANCE
     );
     private static final Map<String, DirectIOCapableFlatVectorsFormat> supportedFormats = Map.of(
         float32VectorFormat.getName(),
-        float32VectorFormat
+        float32VectorFormat,
+        bfloat16VectorFormat.getName(),
+        bfloat16VectorFormat
     );
 
     // This dynamically sets the cluster probe based on the `k` requested and the number of clusters.
     // useful when searching with 'efSearch' type parameters instead of requiring a specific ratio.
     public static final float DYNAMIC_VISIT_RATIO = 0.0f;
     public static final int DEFAULT_VECTORS_PER_CLUSTER = 384;
+    private static final int DEFAULT_FLAT_VECTOR_THRESHOLD_MULTIPLIER = 3;
+
+    /**
+     * Returns the default flat index threshold for the given cluster size.
+     * @param configuredClusterSize the configured cluster size
+     * @return the default flat index threshold
+     */
+    public static int defaultFlatThreshold(int configuredClusterSize) {
+        return configuredClusterSize * DEFAULT_FLAT_VECTOR_THRESHOLD_MULTIPLIER;
+    }
+
     public static final int MIN_VECTORS_PER_CLUSTER = 64;
     public static final int MAX_VECTORS_PER_CLUSTER = 1 << 16; // 65536
     public static final int DEFAULT_CENTROIDS_PER_PARENT_CLUSTER = 16;
@@ -78,14 +100,52 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
 
     private final int vectorPerCluster;
     private final int centroidsPerParentCluster;
-    private final boolean useDirectIO;
     private final DirectIOCapableFlatVectorsFormat rawVectorFormat;
+    private final boolean useDirectIO;
+    private final TaskExecutor mergeExec;
+    private final int numMergeWorkers;
+    private final int flatVectorThreshold;
 
     public ES920DiskBBQVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster) {
-        this(vectorPerCluster, centroidsPerParentCluster, false);
+        this(
+            vectorPerCluster,
+            centroidsPerParentCluster,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            false,
+            null,
+            1,
+            defaultFlatThreshold(vectorPerCluster)
+        );
     }
 
-    public ES920DiskBBQVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster, boolean useDirectIO) {
+    public ES920DiskBBQVectorsFormat(
+        int vectorPerCluster,
+        int centroidsPerParentCluster,
+        DenseVectorFieldMapper.ElementType elementType,
+        boolean useDirectIO,
+        ExecutorService mergingExecutorService,
+        int maxMergingWorkers
+    ) {
+        this(
+            vectorPerCluster,
+            centroidsPerParentCluster,
+            elementType,
+            useDirectIO,
+            mergingExecutorService,
+            maxMergingWorkers,
+            defaultFlatThreshold(vectorPerCluster)
+        );
+    }
+
+    public ES920DiskBBQVectorsFormat(
+        int vectorPerCluster,
+        int centroidsPerParentCluster,
+        DenseVectorFieldMapper.ElementType elementType,
+        boolean useDirectIO,
+        ExecutorService mergingExecutorService,
+        int maxMergingWorkers,
+        int flatVectorThreshold
+    ) {
         super(NAME);
         if (vectorPerCluster < MIN_VECTORS_PER_CLUSTER || vectorPerCluster > MAX_VECTORS_PER_CLUSTER) {
             throw new IllegalArgumentException(
@@ -107,10 +167,22 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
                     + centroidsPerParentCluster
             );
         }
+        if (flatVectorThreshold < -1) {
+            throw new IllegalArgumentException(
+                "flatVectorThreshold must be -1 (dynamic), 0 (disabled), or > 0, got: " + flatVectorThreshold
+            );
+        }
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;
+        this.rawVectorFormat = switch (elementType) {
+            case FLOAT -> float32VectorFormat;
+            case BFLOAT16 -> bfloat16VectorFormat;
+            default -> throw new IllegalArgumentException("Unsupported element type " + elementType);
+        };
         this.useDirectIO = useDirectIO;
-        this.rawVectorFormat = float32VectorFormat;
+        this.mergeExec = mergingExecutorService == null ? null : new TaskExecutor(mergingExecutorService);
+        this.numMergeWorkers = maxMergingWorkers;
+        this.flatVectorThreshold = flatVectorThreshold == -1 ? defaultFlatThreshold(vectorPerCluster) : flatVectorThreshold;
     }
 
     /** Constructs a format using the given graph construction parameters and scalar quantization. */
@@ -120,18 +192,24 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
+        final Boolean writeDirectIOReads = Boolean.valueOf(useDirectIO);
+        validateDirectIOMetadata(writeDirectIOReads, VERSION_CURRENT);
         return new ES920DiskBBQVectorsWriter(
             state,
             rawVectorFormat.getName(),
-            useDirectIO,
+            writeDirectIOReads,
             rawVectorFormat.fieldsWriter(state),
             vectorPerCluster,
-            centroidsPerParentCluster
+            centroidsPerParentCluster,
+            mergeExec,
+            numMergeWorkers,
+            flatVectorThreshold
         );
     }
 
     // for testing
-    KnnVectorsWriter version0FieldsWriter(SegmentWriteState state) throws IOException {
+    protected KnnVectorsWriter version0FieldsWriter(SegmentWriteState state) throws IOException {
+        validateDirectIOMetadata(null, VERSION_START);
         return new ES920DiskBBQVectorsWriter(
             state,
             rawVectorFormat.getName(),
@@ -139,8 +217,21 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
             rawVectorFormat.fieldsWriter(state),
             vectorPerCluster,
             centroidsPerParentCluster,
-            VERSION_START
+            VERSION_START,
+            mergeExec,
+            numMergeWorkers,
+            flatVectorThreshold
         );
+    }
+
+    private static void validateDirectIOMetadata(Boolean useDirectIOReads, int writeVersion) {
+        final boolean shouldWriteDirectIOReads = writeVersion >= VERSION_DIRECT_IO;
+        if (shouldWriteDirectIOReads && useDirectIOReads == null) {
+            throw new IllegalArgumentException("useDirectIOReads must be provided when writing direct-IO metadata");
+        }
+        if (shouldWriteDirectIOReads == false && useDirectIOReads != null) {
+            throw new IllegalArgumentException("useDirectIOReads must be null when direct-IO metadata is not written");
+        }
     }
 
     @Override
@@ -159,7 +250,6 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public String toString() {
-        return "ES920DiskBBQVectorsFormat(" + "vectorPerCluster=" + vectorPerCluster + ')';
+        return "ES920DiskBBQVectorsFormat(" + "vectorPerCluster=" + vectorPerCluster + ", " + "mergeExec=" + (mergeExec != null) + ')';
     }
-
 }

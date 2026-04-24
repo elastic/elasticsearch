@@ -1,5 +1,0 @@
-pr: 134198
-summary: Improve `ShardLockObtainFailedException` message
-area: Store
-type: enhancement
-issues: []

@@ -115,7 +115,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
 
         final boolean useBwCFormat = randomBoolean();
         if (useBwCFormat) {
-            final IndexVersion version = randomVersionBetween(random(), IndexVersions.V_7_5_0, IndexVersion.current());
+            final IndexVersion version = randomVersionBetween(IndexVersions.V_7_5_0, IndexVersion.current());
             initWithSnapshotVersion(repoName, repoPath, version);
         }
 

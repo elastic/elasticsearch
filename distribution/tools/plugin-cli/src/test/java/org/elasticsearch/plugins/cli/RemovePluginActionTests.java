@@ -225,8 +225,11 @@ public class RemovePluginActionTests extends ESTestCase {
 
         MockTerminal terminal = MockTerminal.create();
 
-        new MockRemovePluginCommand(env) {
-        }.main(new String[] { "-Epath.home=" + home, "fake" }, terminal, new ProcessInfo(Map.of(), Map.of(), createTempDir()));
+        new MockRemovePluginCommand(env) {}.main(
+            new String[] { "-Epath.home=" + home, "fake" },
+            terminal,
+            new ProcessInfo(Map.of(), Map.of(), createTempDir())
+        );
         try (
             BufferedReader reader = new BufferedReader(new StringReader(terminal.getOutput()));
             BufferedReader errorReader = new BufferedReader(new StringReader(terminal.getErrorOutput()))

@@ -22,6 +22,7 @@ import org.elasticsearch.transport.BytesRefRecycler;
 import java.io.IOException;
 import java.util.zip.CRC32;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -206,7 +207,7 @@ public class TranslogHeaderWriterTests extends ESTestCase {
         serialized.writeToTranslogBuffer(operationOutput);
 
         BytesReference actualWithSize = operationOutput.bytes();
-        assertThat(actualWithSize.slice(4 + offset, actualWithSize.length() - offset - 4), equalTo(expectedWithoutSize));
+        assertThat(actualWithSize.slice(4 + offset, actualWithSize.length() - offset - 4), equalBytes(expectedWithoutSize));
     }
 
     private static void operationMatches(

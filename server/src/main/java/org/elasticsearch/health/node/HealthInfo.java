@@ -10,19 +10,17 @@
 package org.elasticsearch.health.node;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthInfo;
 
 import java.io.IOException;
 import java.util.Map;
 
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.health.node.DataStreamLifecycleHealthInfo.NO_DSL_ERRORS;
-import static org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthInfo.INDETERMINATE;
+import static org.elasticsearch.health.node.FileSettingsHealthInfo.INDETERMINATE;
 
 /**
  * This class wraps all the data returned by the health node.
@@ -50,10 +48,8 @@ public record HealthInfo(
     public HealthInfo(StreamInput input) throws IOException {
         this(
             input.readMap(DiskHealthInfo::new),
-            input.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)
-                ? input.readOptionalWriteable(DataStreamLifecycleHealthInfo::new)
-                : null,
-            input.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0) ? input.readMap(RepositoriesHealthInfo::new) : Map.of(),
+            input.readOptionalWriteable(DataStreamLifecycleHealthInfo::new),
+            input.readMap(RepositoriesHealthInfo::new),
             input.getTransportVersion().supports(FILE_SETTINGS_HEALTH_INFO)
                 ? input.readOptionalWriteable(FileSettingsHealthInfo::new)
                 : INDETERMINATE
@@ -63,12 +59,8 @@ public record HealthInfo(
     @Override
     public void writeTo(StreamOutput output) throws IOException {
         output.writeMap(diskInfoByNode, StreamOutput::writeWriteable);
-        if (output.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            output.writeOptionalWriteable(dslHealthInfo);
-        }
-        if (output.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            output.writeMap(repositoriesInfoByNode, StreamOutput::writeWriteable);
-        }
+        output.writeOptionalWriteable(dslHealthInfo);
+        output.writeMap(repositoriesInfoByNode, StreamOutput::writeWriteable);
         if (output.getTransportVersion().supports(FILE_SETTINGS_HEALTH_INFO)) {
             output.writeOptionalWriteable(fileSettingsHealthInfo);
         }

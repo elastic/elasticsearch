@@ -24,6 +24,9 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
@@ -200,6 +203,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 logger,
                 null,
                 searchTransportService,
+                new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(Long.MAX_VALUE)),
                 (clusterAlias, node) -> lookup.get(node),
                 Collections.singletonMap("_na_", AliasFilter.EMPTY),
                 Collections.emptyMap(),
@@ -208,13 +212,16 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 searchRequest,
                 null,
                 shardsIter,
+                Collections.emptyMap(),
                 timeProvider,
                 new ClusterState.Builder(new ClusterName("test")).build(),
                 task,
                 SearchResponse.Clusters.EMPTY,
                 null,
                 false,
-                new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+                false,
+                new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
+                Map.of()
             ) {
                 @Override
                 protected SearchPhase getNextPhase() {
@@ -397,6 +404,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 logger,
                 null,
                 searchTransportService,
+                new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(Long.MAX_VALUE)),
                 (clusterAlias, node) -> lookup.get(node),
                 Collections.singletonMap("_na_", AliasFilter.EMPTY),
                 Collections.emptyMap(),
@@ -405,13 +413,16 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 searchRequest,
                 null,
                 shardsIter,
+                Collections.emptyMap(),
                 timeProvider,
                 new ClusterState.Builder(new ClusterName("test")).build(),
                 task,
                 SearchResponse.Clusters.EMPTY,
                 null,
                 false,
-                new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+                false,
+                new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
+                Map.of()
             ) {
                 @Override
                 protected SearchPhase getNextPhase() {

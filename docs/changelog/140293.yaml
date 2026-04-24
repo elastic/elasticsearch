@@ -1,0 +1,5 @@
+pr: 140293
+summary: Improve locality by placing parent - child centroids next to each other
+area: Vector Search
+type: enhancement
+issues: []

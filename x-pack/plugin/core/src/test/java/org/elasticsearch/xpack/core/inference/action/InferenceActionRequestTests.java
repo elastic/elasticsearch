@@ -8,25 +8,24 @@
 package org.elasticsearch.xpack.core.inference.action;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.inference.InferenceContext;
+import org.elasticsearch.xpack.core.inference.InferenceContextTests;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.equalTo;
+import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.INFERENCE_REQUEST_PER_TASK_TIMEOUT_ADDED;
+import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.collection.IsIterableContainingInOrder.contains;
 
@@ -46,15 +45,50 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             randomFrom(TaskType.values()),
             randomAlphaOfLength(6),
             randomAlphaOfLengthOrNull(10),
-            randomBoolean(),
-            randomIntBetween(0, 10),
+            randomOptionalBoolean(),
+            randomNonNegativeIntOrNull(),
             randomList(1, 5, () -> randomAlphaOfLength(8)),
             randomMap(0, 3, () -> new Tuple<>(randomAlphaOfLength(4), randomAlphaOfLength(4))),
             randomFrom(InputType.values()),
-            TimeValue.timeValueMillis(randomLongBetween(1, 2048)),
+            randomFrom(TimeValue.timeValueMillis(randomLongBetween(1, 2048)), null),
             false,
-            new InferenceContext(randomAlphanumericOfLength(10))
+            InferenceContextTests.createRandom()
         );
+    }
+
+    public void testConstructor_WithNullTimeout_UsesPlaceholder() {
+        var request = new InferenceAction.Request(
+            randomFrom(TaskType.values()),
+            randomAlphaOfLength(6),
+            randomAlphaOfLengthOrNull(10),
+            randomOptionalBoolean(),
+            randomNonNegativeIntOrNull(),
+            randomList(1, 5, () -> randomAlphaOfLength(8)),
+            randomMap(0, 3, () -> new Tuple<>(randomAlphaOfLength(4), randomAlphaOfLength(4))),
+            randomFrom(InputType.values()),
+            null,
+            false,
+            InferenceContextTests.createRandom()
+        );
+        assertThat(request.getInferenceTimeout(), is(TIMEOUT_NOT_DETERMINED));
+    }
+
+    public void testConstructor_WithNonNullTimeout_UsesTimeout() {
+        TimeValue inferenceTimeout = randomTimeValue();
+        var request = new InferenceAction.Request(
+            randomFrom(TaskType.values()),
+            randomAlphaOfLength(6),
+            randomAlphaOfLengthOrNull(10),
+            randomOptionalBoolean(),
+            randomNonNegativeIntOrNull(),
+            randomList(1, 5, () -> randomAlphaOfLength(8)),
+            randomMap(0, 3, () -> new Tuple<>(randomAlphaOfLength(4), randomAlphaOfLength(4))),
+            randomFrom(InputType.values()),
+            inferenceTimeout,
+            false,
+            InferenceContextTests.createRandom()
+        );
+        assertThat(request.getInferenceTimeout(), is(inferenceTimeout));
     }
 
     public void testParsing() throws IOException {
@@ -486,182 +520,90 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
 
     @Override
     protected InferenceAction.Request mutateInstance(InferenceAction.Request instance) throws IOException {
-        int select = randomIntBetween(0, 7);
-        return switch (select) {
-            case 0 -> {
-                var nextTask = TaskType.values()[(instance.getTaskType().ordinal() + 1) % TaskType.values().length];
-                yield new InferenceAction.Request(
-                    nextTask,
-                    instance.getInferenceEntityId(),
-                    instance.getQuery(),
-                    instance.getReturnDocuments(),
-                    instance.getTopN(),
-                    instance.getInput(),
-                    instance.getTaskSettings(),
-                    instance.getInputType(),
-                    instance.getInferenceTimeout(),
-                    false,
-                    instance.getContext()
-                );
-            }
-            case 1 -> new InferenceAction.Request(
-                instance.getTaskType(),
-                instance.getInferenceEntityId() + "foo",
-                instance.getQuery(),
-                instance.getReturnDocuments(),
-                instance.getTopN(),
-                instance.getInput(),
-                instance.getTaskSettings(),
-                instance.getInputType(),
-                instance.getInferenceTimeout(),
-                false,
-                instance.getContext()
+        var taskType = instance.getTaskType();
+        var inferenceEntityId = instance.getInferenceEntityId();
+        var query = instance.getQuery();
+        var returnDocuments = instance.getReturnDocuments();
+        var topN = instance.getTopN();
+        var input = instance.getInput();
+        var taskSettings = instance.getTaskSettings();
+        var inputType = instance.getInputType();
+        var inferenceTimeout = instance.getInferenceTimeout();
+        var context = instance.getContext();
+
+        switch (randomIntBetween(0, 9)) {
+            case 0 -> taskType = randomValueOtherThan(taskType, () -> randomFrom(TaskType.values()));
+            case 1 -> inferenceEntityId = randomValueOtherThan(inferenceEntityId, () -> randomAlphaOfLength(6));
+            case 2 -> query = randomValueOtherThan(query, () -> randomAlphaOfLengthOrNull(10));
+            case 3 -> returnDocuments = randomValueOtherThan(returnDocuments, ESTestCase::randomOptionalBoolean);
+            case 4 -> topN = randomValueOtherThan(topN, ESTestCase::randomNonNegativeIntOrNull);
+            case 5 -> input = randomValueOtherThan(input, () -> randomList(1, 5, () -> randomAlphaOfLength(8)));
+            case 6 -> taskSettings = randomValueOtherThan(
+                taskSettings,
+                () -> randomMap(0, 3, () -> new Tuple<>(randomAlphaOfLength(4), randomAlphaOfLength(4)))
             );
-            case 2 -> {
-                var changedInputs = new ArrayList<String>(instance.getInput());
-                changedInputs.add("bar");
-                yield new InferenceAction.Request(
-                    instance.getTaskType(),
-                    instance.getInferenceEntityId(),
-                    instance.getQuery(),
-                    instance.getReturnDocuments(),
-                    instance.getTopN(),
-                    changedInputs,
-                    instance.getTaskSettings(),
-                    instance.getInputType(),
-                    instance.getInferenceTimeout(),
-                    false,
-                    instance.getContext()
-                );
-            }
-            case 3 -> {
-                var taskSettings = new HashMap<>(instance.getTaskSettings());
-                if (taskSettings.isEmpty()) {
-                    taskSettings.put("foo", "bar");
+            case 7 -> inputType = randomValueOtherThan(inputType, () -> randomFrom(InputType.values()));
+            case 8 -> {
+                if (inferenceTimeout.equals(TIMEOUT_NOT_DETERMINED)) {
+                    // Using null as timeout will translate it internally to TIMEOUT_NOT_DETERMINED, which would not mutate the instance
+                    inferenceTimeout = randomValueOtherThan(inferenceTimeout, ESTestCase::randomTimeValue);
                 } else {
-                    var keyToRemove = taskSettings.keySet().iterator().next();
-                    taskSettings.remove(keyToRemove);
+                    inferenceTimeout = randomValueOtherThan(inferenceTimeout, () -> randomFrom(randomTimeValue(), null));
                 }
-                yield new InferenceAction.Request(
-                    instance.getTaskType(),
-                    instance.getInferenceEntityId(),
-                    instance.getQuery(),
-                    instance.getReturnDocuments(),
-                    instance.getTopN(),
-                    instance.getInput(),
-                    taskSettings,
-                    instance.getInputType(),
-                    instance.getInferenceTimeout(),
-                    false,
-                    instance.getContext()
-                );
             }
-            case 4 -> {
-                var nextInputType = InputType.values()[(instance.getInputType().ordinal() + 1) % InputType.values().length];
-                yield new InferenceAction.Request(
-                    instance.getTaskType(),
-                    instance.getInferenceEntityId(),
-                    instance.getQuery(),
-                    instance.getReturnDocuments(),
-                    instance.getTopN(),
-                    instance.getInput(),
-                    instance.getTaskSettings(),
-                    nextInputType,
-                    instance.getInferenceTimeout(),
-                    false,
-                    instance.getContext()
-                );
-            }
-            case 5 -> new InferenceAction.Request(
-                instance.getTaskType(),
-                instance.getInferenceEntityId(),
-                instance.getQuery() == null ? randomAlphaOfLength(10) : instance.getQuery() + randomAlphaOfLength(1),
-                instance.getReturnDocuments(),
-                instance.getTopN(),
-                instance.getInput(),
-                instance.getTaskSettings(),
-                instance.getInputType(),
-                instance.getInferenceTimeout(),
-                false,
-                instance.getContext()
-            );
-            case 6 -> {
-                var newDuration = Duration.of(
-                    instance.getInferenceTimeout().duration(),
-                    instance.getInferenceTimeout().timeUnit().toChronoUnit()
-                );
-                var additionalTime = Duration.ofMillis(randomLongBetween(1, 2048));
-                yield new InferenceAction.Request(
-                    instance.getTaskType(),
-                    instance.getInferenceEntityId(),
-                    instance.getQuery(),
-                    instance.getReturnDocuments(),
-                    instance.getTopN(),
-                    instance.getInput(),
-                    instance.getTaskSettings(),
-                    instance.getInputType(),
-                    TimeValue.timeValueMillis(newDuration.plus(additionalTime).toMillis()),
-                    false,
-                    instance.getContext()
-                );
-            }
-            case 7 -> {
-                var newContext = new InferenceContext(instance.getContext().productUseCase() + randomAlphaOfLength(5));
-                yield new InferenceAction.Request(
-                    instance.getTaskType(),
-                    instance.getInferenceEntityId(),
-                    instance.getQuery(),
-                    instance.getReturnDocuments(),
-                    instance.getTopN(),
-                    instance.getInput(),
-                    instance.getTaskSettings(),
-                    instance.getInputType(),
-                    instance.getInferenceTimeout(),
-                    instance.isStreaming(),
-                    newContext
-                );
-            }
+            case 9 -> context = randomValueOtherThan(context, InferenceContextTests::createRandom);
             default -> throw new UnsupportedOperationException();
-        };
+
+        }
+
+        return new InferenceAction.Request(
+            taskType,
+            inferenceEntityId,
+            query,
+            returnDocuments,
+            topN,
+            input,
+            taskSettings,
+            inputType,
+            inferenceTimeout,
+            false,
+            context
+        );
     }
 
     @Override
     protected InferenceAction.Request mutateInstanceForVersion(InferenceAction.Request instance, TransportVersion version) {
-        InferenceAction.Request mutated;
+        var context = instance.getContext();
+        var returnDocuments = instance.getReturnDocuments();
+        var topN = instance.getTopN();
+        var inferenceTimeout = instance.getInferenceTimeout();
 
         if (version.supports(INFERENCE_CONTEXT) == false) {
-            mutated = new InferenceAction.Request(
-                instance.getTaskType(),
-                instance.getInferenceEntityId(),
-                instance.getQuery(),
-                null,
-                null,
-                instance.getInput(),
-                instance.getTaskSettings(),
-                instance.getInputType(),
-                instance.getInferenceTimeout(),
-                false,
-                InferenceContext.EMPTY_INSTANCE
-            );
-        } else if (version.supports(RERANK_COMMON_OPTIONS_ADDED) == false) {
-            mutated = new InferenceAction.Request(
-                instance.getTaskType(),
-                instance.getInferenceEntityId(),
-                instance.getQuery(),
-                null,
-                null,
-                instance.getInput(),
-                instance.getTaskSettings(),
-                instance.getInputType(),
-                instance.getInferenceTimeout(),
-                false,
-                instance.getContext()
-            );
-        } else {
-            mutated = instance;
+            context = InferenceContext.EMPTY_INSTANCE;
+        }
+        if (version.supports(RERANK_COMMON_OPTIONS_ADDED) == false) {
+            returnDocuments = null;
+            topN = null;
+        }
+        if (version.supports(INFERENCE_REQUEST_PER_TASK_TIMEOUT_ADDED) == false) {
+            if (inferenceTimeout.equals(TIMEOUT_NOT_DETERMINED)) {
+                inferenceTimeout = BaseInferenceActionRequest.OLD_DEFAULT_TIMEOUT;
+            }
         }
 
-        return mutated;
+        return new InferenceAction.Request(
+            instance.getTaskType(),
+            instance.getInferenceEntityId(),
+            instance.getQuery(),
+            returnDocuments,
+            topN,
+            instance.getInput(),
+            instance.getTaskSettings(),
+            instance.getInputType(),
+            inferenceTimeout,
+            false,
+            context
+        );
     }
 
     public void testWriteTo_ForHasBeenReroutedChanges() throws IOException {
@@ -674,32 +616,9 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             List.of("input"),
             Map.of(),
             InputType.UNSPECIFIED,
-            InferenceAction.Request.DEFAULT_TIMEOUT,
+            randomTimeValue(),
             false
         );
-
-        {
-            // From a version before the rerouting logic was added
-            InferenceAction.Request deserializedInstance = copyWriteable(
-                instance,
-                getNamedWriteableRegistry(),
-                instanceReader(),
-                TransportVersions.V_8_17_0
-            );
-
-            assertEquals(instance, deserializedInstance);
-        }
-        {
-            // From a version with rerouting
-            InferenceAction.Request deserializedInstance = copyWriteable(
-                instance,
-                getNamedWriteableRegistry(),
-                instanceReader(),
-                TransportVersions.V_8_18_0
-            );
-
-            assertEquals(instance, deserializedInstance);
-        }
         {
             // From a version with rerouting removed
             InferenceAction.Request deserializedInstance = copyWriteable(
@@ -711,31 +630,5 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
 
             assertEquals(instance, deserializedInstance);
         }
-    }
-
-    public void testWriteTo_WhenVersionIsBeforeInferenceContext_ShouldSetContextToEmptyContext() throws IOException {
-        var instance = new InferenceAction.Request(
-            TaskType.TEXT_EMBEDDING,
-            "model",
-            null,
-            null,
-            null,
-            List.of("input"),
-            Map.of(),
-            InputType.UNSPECIFIED,
-            InferenceAction.Request.DEFAULT_TIMEOUT,
-            false,
-            new InferenceContext(randomAlphaOfLength(10))
-        );
-
-        InferenceAction.Request deserializedInstance = copyWriteable(
-            instance,
-            getNamedWriteableRegistry(),
-            instanceReader(),
-            TransportVersions.V_8_15_0
-        );
-
-        // Verify that context is empty after deserializing a request coming from an older transport version
-        assertThat(deserializedInstance.getContext(), equalTo(InferenceContext.EMPTY_INSTANCE));
     }
 }

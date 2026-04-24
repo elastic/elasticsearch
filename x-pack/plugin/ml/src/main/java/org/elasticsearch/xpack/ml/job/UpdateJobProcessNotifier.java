@@ -75,7 +75,11 @@ public class UpdateJobProcessNotifier {
     }
 
     boolean submitJobUpdate(UpdateParams update, ActionListener<Boolean> listener) {
-        return orderedJobUpdates.offer(new UpdateHolder(update, listener));
+        boolean offered = orderedJobUpdates.offer(new UpdateHolder(update, listener));
+        if (offered == false) {
+            logger.warn("Update queue is full ({}), failed to submit update for job [{}]", orderedJobUpdates.size(), update.getJobId());
+        }
+        return offered;
     }
 
     private void start() {
@@ -95,7 +99,15 @@ public class UpdateJobProcessNotifier {
         List<UpdateHolder> updates = new ArrayList<>(orderedJobUpdates.size());
         try {
             orderedJobUpdates.drainTo(updates);
-            executeProcessUpdates(new VolatileCursorIterator<>(updates));
+            if (updates.isEmpty() == false) {
+                logger.debug("Draining [{}] queued job updates from queue", updates.size());
+                long startTime = System.currentTimeMillis();
+                executeProcessUpdates(new VolatileCursorIterator<>(updates));
+                long duration = System.currentTimeMillis() - startTime;
+                // Note: This duration only measures queue draining and request submission initiation,
+                // not the actual completion of all updates, which happens asynchronously on response threads.
+                logger.debug("Completed draining and submitting [{}] job update requests in [{}ms]", updates.size(), duration);
+            }
         } catch (Exception e) {
             logger.error("Error while processing next job update", e);
         }
@@ -134,7 +146,7 @@ public class UpdateJobProcessNotifier {
             @Override
             public void onResponse(Response response) {
                 if (response.isUpdated()) {
-                    logger.info("Successfully updated remote job [{}]", update.getJobId());
+                    logger.debug("Successfully updated remote job [{}]", update.getJobId());
                     updateHolder.listener.onResponse(true);
                 } else {
                     String msg = "Failed to update remote job [" + update.getJobId() + "]";

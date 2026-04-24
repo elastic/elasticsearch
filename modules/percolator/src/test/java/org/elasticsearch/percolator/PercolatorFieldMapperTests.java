@@ -57,11 +57,11 @@ import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TestDocumentParserContext;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.DisMaxQueryBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardException;
@@ -635,7 +635,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         BytesRef qbSource = doc.rootDoc().getFields(fieldType.queryBuilderField.name()).get(0).binaryValue();
         SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(randomInt(20), 0, null, () -> {
             throw new UnsupportedOperationException();
-        }, null, emptyMap());
+        }, null, emptyMap(), null, null);
         PlainActionFuture<QueryBuilder> future = new PlainActionFuture<>();
         Rewriteable.rewriteAndFetch(queryBuilder, searchExecutionContext, future);
         assertQueryBuilder(qbSource, future.get());
@@ -1180,7 +1180,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         }
     }
 
-    public static final class CustomParserQueryBuilder extends AbstractQueryBuilder<CustomParserQueryBuilder> {
+    public static final class CustomParserQueryBuilder extends LeafQueryBuilder<CustomParserQueryBuilder> {
         private static final String NAME = "CUSTOM";
 
         CustomParserQueryBuilder() {}

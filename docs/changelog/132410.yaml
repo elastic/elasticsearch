@@ -1,5 +1,0 @@
-pr: 132410
-summary: Add support for retrieving semantic_text's indexed chunks via fields API
-area: Vector Search
-type: feature
-issues: []

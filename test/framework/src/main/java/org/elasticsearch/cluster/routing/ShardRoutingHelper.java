@@ -48,7 +48,7 @@ public class ShardRoutingHelper {
             copy.primary(),
             ShardRoutingState.INITIALIZING,
             recoverySource,
-            new UnassignedInfo(UnassignedInfo.Reason.REINITIALIZED, null),
+            copy.relocatingNodeId() != null ? null : new UnassignedInfo(UnassignedInfo.Reason.REINITIALIZED, null),
             RelocationFailureInfo.NO_FAILURES,
             copy.allocationId(),
             copy.getExpectedShardSize(),

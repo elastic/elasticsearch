@@ -21,12 +21,20 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
+import org.junit.rules.TemporaryFolder;
 import org.junit.rules.TestRule;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Objects;
+
 import static org.elasticsearch.ingest.geoip.IngestGeoIpClientYamlTestSuiteIT.assertDatabasesLoaded;
+import static org.elasticsearch.ingest.geoip.IngestGeoIpClientYamlTestSuiteIT.getRootPath;
 import static org.elasticsearch.ingest.geoip.IngestGeoIpClientYamlTestSuiteIT.putGeoipPipeline;
+import static org.hamcrest.Matchers.is;
 
 @FixForMultiProject(description = "Potentially remove this test after https://elasticco.atlassian.net/browse/ES-12094 is implemented")
 public class IngestGeoIpClientMultiProjectYamlTestSuiteIT extends MultipleProjectsClientYamlSuiteTestCase {
@@ -35,7 +43,10 @@ public class IngestGeoIpClientMultiProjectYamlTestSuiteIT extends MultipleProjec
 
     private static GeoIpHttpFixture fixture = new GeoIpHttpFixture(useFixture);
 
+    public static TemporaryFolder configDir = new TemporaryFolder();
+
     private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .withConfigDir(() -> getRootPath(configDir))
         .module("reindex")
         .module("ingest-geoip")
         .systemProperty("ingest.geoip.downloader.enabled.default", "true")
@@ -51,7 +62,7 @@ public class IngestGeoIpClientMultiProjectYamlTestSuiteIT extends MultipleProjec
         .build();
 
     @ClassRule
-    public static TestRule ruleChain = RuleChain.outerRule(fixture).around(cluster);
+    public static TestRule ruleChain = RuleChain.outerRule(fixture).around(configDir).around(cluster);
 
     @Override
     protected String getTestRestCluster() {
@@ -65,6 +76,19 @@ public class IngestGeoIpClientMultiProjectYamlTestSuiteIT extends MultipleProjec
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
         return ESClientYamlSuiteTestCase.createParameters();
+    }
+
+    @BeforeClass
+    public static void copyExtraDatabase() throws Exception {
+        Path configPath = getRootPath(configDir);
+        assertThat(Files.exists(configPath), is(true));
+        Path ingestGeoipDatabaseDir = configPath.resolve("ingest-geoip");
+        Files.createDirectory(ingestGeoipDatabaseDir);
+        final var clazz = IngestGeoIpClientYamlTestSuiteIT.class; // long line prevention
+        Files.copy(
+            Objects.requireNonNull(clazz.getResourceAsStream("/ipinfo/asn_sample.mmdb")),
+            ingestGeoipDatabaseDir.resolve("asn.mmdb")
+        );
     }
 
     @Before

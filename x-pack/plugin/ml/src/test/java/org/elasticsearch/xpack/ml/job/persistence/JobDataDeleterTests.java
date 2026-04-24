@@ -6,7 +6,10 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
+import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -17,6 +20,7 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.job.retention.MockWritableIndexExpander;
 import org.junit.After;
@@ -58,7 +62,6 @@ public class JobDataDeleterTests extends ESTestCase {
 
     @After
     public void verifyNoMoreInteractionsWithClient() {
-        verify(client, times(2)).threadPool();
         verifyNoMoreInteractions(client);
     }
 
@@ -85,6 +88,7 @@ public class JobDataDeleterTests extends ESTestCase {
                 assertThat(dbqQueryString, containsString("_xpack"));
             }
         });
+        verify(client, times(2)).threadPool();
     }
 
     public void testDeleteAnnotations_TimestampFiltering() {
@@ -115,6 +119,7 @@ public class JobDataDeleterTests extends ESTestCase {
                 assertThat(dbqQueryString, containsString("_xpack"));
             }
         });
+        verify(client, times(2)).threadPool();
     }
 
     public void testDeleteAnnotations_EventFiltering() {
@@ -145,23 +150,42 @@ public class JobDataDeleterTests extends ESTestCase {
                 assertThat(dbqQueryString, containsString("_xpack"));
             }
         });
+        verify(client, times(2)).threadPool();
+    }
+
+    public void testDeleteResultsFromTime() {
+        MockWritableIndexExpander.create(true);
+        long fromEpochMs = randomNonNegativeLong();
+        JobDataDeleter jobDataDeleter = new JobDataDeleter(client, JOB_ID, randomBoolean());
+        jobDataDeleter.deleteResultsFromTime(fromEpochMs, ActionTestUtils.assertNoFailureListener(deleteResponse -> {}));
+
+        verify(client).execute(eq(DeleteByQueryAction.INSTANCE), deleteRequestCaptor.capture(), any());
+
+        DeleteByQueryRequest deleteRequest = deleteRequestCaptor.getValue();
+        assertThat(deleteRequest.indices(), is(arrayContaining(".ml-anomalies-my-job-id")));
+        String dbqQueryString = Strings.toString(deleteRequest.getSearchRequest().source().query());
+        assertThat(dbqQueryString, containsString("{\"term\":{\"job_id\":{\"value\":\"my-job-id\"}}"));
+        verify(client, times(1)).threadPool();
     }
 
     public void testDeleteDatafeedTimingStats() {
         MockWritableIndexExpander.create(true);
+        ArgumentCaptor<DeleteRequest> deleteCaptor = ArgumentCaptor.forClass(DeleteRequest.class);
+        // deleteDatafeedTimingStats does not use the deleteUserAnnotations flag, so both iterations
+        // produce identical client calls; we verify the cumulative counts after the loop.
         Arrays.asList(false, true).forEach(deleteUserAnnotations -> {
             JobDataDeleter jobDataDeleter = new JobDataDeleter(client, JOB_ID, deleteUserAnnotations);
             jobDataDeleter.deleteDatafeedTimingStats(ActionTestUtils.assertNoFailureListener(deleteResponse -> {}));
-
-            if (deleteUserAnnotations) {
-                verify(client, times(2)).execute(eq(DeleteByQueryAction.INSTANCE), deleteRequestCaptor.capture(), any());
-            } else {
-                verify(client).execute(eq(DeleteByQueryAction.INSTANCE), deleteRequestCaptor.capture(), any());
-            }
-
-            DeleteByQueryRequest deleteRequest = deleteRequestCaptor.getValue();
-            assertThat(deleteRequest.indices(), is(arrayContaining(AnomalyDetectorsIndex.jobResultsAliasedName(JOB_ID))));
         });
+        verify(client, never()).execute(eq(DeleteByQueryAction.INSTANCE), any(), any());
+        verify(client, times(2)).execute(eq(TransportDeleteAction.TYPE), deleteCaptor.capture(), any());
+
+        DeleteRequest deleteRequest = deleteCaptor.getValue();
+        assertThat(deleteRequest.index(), is(AnomalyDetectorsIndex.jobResultsAliasedName(JOB_ID)));
+        assertThat(deleteRequest.id(), is(DatafeedTimingStats.documentId(JOB_ID)));
+        assertThat(deleteRequest.getRefreshPolicy(), is(WriteRequest.RefreshPolicy.IMMEDIATE));
+
+        verify(client, times(2)).threadPool();
     }
 
     public void testDeleteDatafeedTimingStats_WhenIndexReadOnly_ShouldNotDeleteAnything() {
@@ -169,14 +193,7 @@ public class JobDataDeleterTests extends ESTestCase {
         Arrays.asList(false, true).forEach(deleteUserAnnotations -> {
             JobDataDeleter jobDataDeleter = new JobDataDeleter(client, JOB_ID, deleteUserAnnotations);
             jobDataDeleter.deleteDatafeedTimingStats(ActionTestUtils.assertNoFailureListener(deleteResponse -> {}));
-
-            if (deleteUserAnnotations) {
-                verify(client, never()).execute(eq(DeleteByQueryAction.INSTANCE), deleteRequestCaptor.capture(), any());
-                client.threadPool();
-            } else {
-                verify(client, never()).execute(eq(DeleteByQueryAction.INSTANCE), deleteRequestCaptor.capture(), any());
-                client.threadPool();
-            }
         });
+        verify(client, never()).execute(eq(TransportDeleteAction.TYPE), any(DeleteRequest.class), any());
     }
 }

@@ -7,149 +7,110 @@
 
 package org.elasticsearch.xpack.oteldata.otlp;
 
-import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsPartialSuccess;
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceResponse;
 import io.opentelemetry.proto.metrics.v1.Metric;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.oteldata.otlp.OTLPMetricsTransportAction.MetricsResponse;
-import org.mockito.ArgumentCaptor;
+import org.elasticsearch.xpack.oteldata.OTelPlugin;
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
 
-import java.util.Arrays;
 import java.util.List;
-import java.util.function.Consumer;
+import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.keyValue;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class OTLPMetricsTransportActionTests extends ESTestCase {
+public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportActionTests {
 
-    private OTLPMetricsTransportAction action;
-    private Client client;
+    private OTLPMetricsTransportAction metricsAction;
+    private ClusterSettings clusterSettings;
 
     @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        client = mock(Client.class);
-        when(client.prepareBulk()).thenAnswer(invocation -> new BulkRequestBuilder(client));
-
-        action = new OTLPMetricsTransportAction(mock(TransportService.class), mock(ActionFilters.class), mock(ThreadPool.class), client);
-    }
-
-    public void testSuccess() throws Exception {
-        MetricsResponse response = executeRequest(createMetricsRequest(createMetric()));
-
-        assertThat(response.getStatus(), equalTo(RestStatus.OK));
-        ExportMetricsServiceResponse metricsServiceResponse = ExportMetricsServiceResponse.parseFrom(response.getResponse().array());
-        assertThat(metricsServiceResponse.hasPartialSuccess(), equalTo(false));
-    }
-
-    public void testSuccessEmptyRequest() throws Exception {
-        MetricsResponse response = executeRequest(createMetricsRequest());
-
-        assertThat(response.getStatus(), equalTo(RestStatus.OK));
-        ExportMetricsServiceResponse metricsServiceResponse = ExportMetricsServiceResponse.parseFrom(response.getResponse().array());
-        assertThat(metricsServiceResponse.hasPartialSuccess(), equalTo(false));
-    }
-
-    public void test429() throws Exception {
-        BulkItemResponse[] bulkItemResponses = new BulkItemResponse[] {
-            failureResponse(RestStatus.TOO_MANY_REQUESTS, "too many requests"),
-            successResponse() };
-        MetricsResponse response = executeRequest(createMetricsRequest(createMetric()), new BulkResponse(bulkItemResponses, 0));
-
-        assertThat(response.getStatus(), equalTo(RestStatus.TOO_MANY_REQUESTS));
-        ExportMetricsPartialSuccess metricsServiceResponse = ExportMetricsPartialSuccess.parseFrom(response.getResponse().array());
-        assertThat(
-            metricsServiceResponse.getRejectedDataPoints(),
-            equalTo(Arrays.stream(bulkItemResponses).filter(BulkItemResponse::isFailed).count())
+    protected AbstractOTLPTransportAction createAction() {
+        ClusterService clusterService = mock(ClusterService.class);
+        clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(OTelPlugin.HISTOGRAM_FIELD_TYPE_SETTING));
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(ProjectId.DEFAULT).build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
+            .metadata(Metadata.builder().projectMetadata(Map.of(ProjectId.DEFAULT, projectMetadata)).build())
+            .build();
+        when(clusterService.state()).thenReturn(clusterState);
+        metricsAction = new OTLPMetricsTransportAction(
+            mock(TransportService.class),
+            mock(ActionFilters.class),
+            mock(ThreadPool.class),
+            client,
+            clusterService
         );
-        assertThat(metricsServiceResponse.getErrorMessage(), containsString("too many requests"));
+        return metricsAction;
     }
 
-    public void testPartialSuccess() throws Exception {
-        MetricsResponse response = executeRequest(
-            createMetricsRequest(createMetric()),
-            new BulkResponse(new BulkItemResponse[] { failureResponse(RestStatus.BAD_REQUEST, "bad request") }, 0)
+    @Override
+    protected OTLPActionRequest createRequestWithData() {
+        return createMetricsRequest(createMetric());
+    }
+
+    @Override
+    protected OTLPActionRequest createEmptyRequest() {
+        return createMetricsRequest();
+    }
+
+    @Override
+    protected boolean parseHasPartialSuccess(byte[] responseBytes) throws InvalidProtocolBufferException {
+        return ExportMetricsServiceResponse.parseFrom(responseBytes).hasPartialSuccess();
+    }
+
+    @Override
+    protected long parseRejectedCount(byte[] responseBytes) throws InvalidProtocolBufferException {
+        return ExportMetricsServiceResponse.parseFrom(responseBytes).getPartialSuccess().getRejectedDataPoints();
+    }
+
+    @Override
+    protected String parseErrorMessage(byte[] responseBytes) throws InvalidProtocolBufferException {
+        return ExportMetricsServiceResponse.parseFrom(responseBytes).getPartialSuccess().getErrorMessage();
+    }
+
+    @Override
+    protected String dataStreamType() {
+        return "metrics";
+    }
+
+    // --- metrics-specific tests ---
+
+    public void testMappingHintsSettingsUpdate() throws Exception {
+        assertThat(metricsAction.defaultMappingHints, equalTo(MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM));
+        assertThat(OTelPlugin.HISTOGRAM_FIELD_TYPE_SETTING.isDynamic(), equalTo(true));
+
+        clusterSettings.applySettings(Settings.builder().put(OTelPlugin.HISTOGRAM_FIELD_TYPE_SETTING.getKey(), "histogram").build());
+        assertThat(metricsAction.defaultMappingHints, equalTo(MappingHints.DEFAULT_TDIGEST));
+
+        clusterSettings.applySettings(
+            Settings.builder().put(OTelPlugin.HISTOGRAM_FIELD_TYPE_SETTING.getKey(), "exponential_histogram").build()
         );
-
-        assertThat(response.getStatus(), equalTo(RestStatus.OK));
-        ExportMetricsPartialSuccess metricsServiceResponse = ExportMetricsPartialSuccess.parseFrom(response.getResponse().array());
-        assertThat(metricsServiceResponse.getRejectedDataPoints(), equalTo(1L));
-        assertThat(metricsServiceResponse.getErrorMessage(), containsString("bad request"));
+        assertThat(metricsAction.defaultMappingHints, equalTo(MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM));
     }
 
-    public void testBulkError() throws Exception {
-        assertExceptionStatus(new IllegalArgumentException("bazinga"), RestStatus.BAD_REQUEST);
-        assertExceptionStatus(new IllegalStateException("bazinga"), RestStatus.INTERNAL_SERVER_ERROR);
-    }
+    // --- helpers ---
 
-    private void assertExceptionStatus(Exception exception, RestStatus restStatus) throws InvalidProtocolBufferException {
-        if (randomBoolean()) {
-            doThrow(exception).when(client).execute(any(), any(), any());
-        }
-        MetricsResponse response = executeRequest(createMetricsRequest(createMetric()), exception);
-
-        assertThat(response.getStatus(), equalTo(restStatus));
-        ExportMetricsPartialSuccess metricsServiceResponse = ExportMetricsPartialSuccess.parseFrom(response.getResponse().array());
-        assertThat(metricsServiceResponse.getRejectedDataPoints(), equalTo(1L));
-        assertThat(metricsServiceResponse.getErrorMessage(), equalTo(exception.getMessage()));
-    }
-
-    private MetricsResponse executeRequest(OTLPMetricsTransportAction.MetricsRequest request) {
-        return executeRequest(request, listener -> listener.onResponse(new BulkResponse(new BulkItemResponse[] {}, 0)));
-    }
-
-    private MetricsResponse executeRequest(OTLPMetricsTransportAction.MetricsRequest request, BulkResponse bulkResponse) {
-        return executeRequest(request, listener -> listener.onResponse(bulkResponse));
-    }
-
-    private MetricsResponse executeRequest(OTLPMetricsTransportAction.MetricsRequest request, Exception bulkFailure) {
-        return executeRequest(request, listener -> listener.onFailure(bulkFailure));
-    }
-
-    private MetricsResponse executeRequest(
-        OTLPMetricsTransportAction.MetricsRequest request,
-        Consumer<ActionListener<BulkResponse>> bulkResponseConsumer
-    ) {
-        ArgumentCaptor<ActionListener<BulkResponse>> bulkResponseListener = ArgumentCaptor.captor();
-        doNothing().when(client).execute(any(), any(), bulkResponseListener.capture());
-
-        ActionListener<MetricsResponse> metricsResponseListener = mock();
-        action.doExecute(null, request, metricsResponseListener);
-        if (bulkResponseListener.getAllValues().isEmpty() == false) {
-            bulkResponseConsumer.accept(bulkResponseListener.getValue());
-        }
-
-        ArgumentCaptor<MetricsResponse> response = ArgumentCaptor.forClass(MetricsResponse.class);
-        verify(metricsResponseListener).onResponse(response.capture());
-        return response.getValue();
-    }
-
-    private static OTLPMetricsTransportAction.MetricsRequest createMetricsRequest(Metric... metrics) {
-        return new OTLPMetricsTransportAction.MetricsRequest(
+    private static OTLPActionRequest createMetricsRequest(Metric... metrics) {
+        return new OTLPActionRequest(
             new BytesArray(
                 ExportMetricsServiceRequest.newBuilder()
                     .addResourceMetrics(
@@ -167,17 +128,4 @@ public class OTLPMetricsTransportActionTests extends ESTestCase {
     private static Metric createMetric() {
         return OtlpUtils.createGaugeMetric("test.metric", "", List.of(OtlpUtils.createDoubleDataPoint(0)));
     }
-
-    private static BulkItemResponse successResponse() {
-        return BulkItemResponse.success(-1, DocWriteRequest.OpType.CREATE, mock(DocWriteResponse.class));
-    }
-
-    private static BulkItemResponse failureResponse(RestStatus restStatus, String failureMessage) {
-        return BulkItemResponse.failure(
-            -1,
-            DocWriteRequest.OpType.CREATE,
-            new BulkItemResponse.Failure("index", "id", new RuntimeException(failureMessage), restStatus)
-        );
-    }
-
 }

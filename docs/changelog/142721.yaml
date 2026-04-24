@@ -1,0 +1,24 @@
+area: ES|QL
+issues:
+  - 139296
+pr: 142721
+summary: Add TS_INFO information retrieval command
+type: enhancement
+highlight:
+  title: Inspect each time series with ES|QL `TS_INFO`
+  notable: true
+  body: |-
+    ES|QL adds the `TS_INFO` command for time series (`TS`) queries. It returns one row per metric and time series combination.
+    You get the same metadata columns as `METRICS_INFO`, plus a `dimensions` column with a JSON object of dimension keys and values for
+    that series. That unlocks inferring which labels apply to each series when exploring or validating
+    time series data.
+
+    For example:
+
+    [source,esql]
+    ----
+    TS my_data_stream
+    | TS_INFO
+    | SORT metric_name, dimensions
+    ----
+

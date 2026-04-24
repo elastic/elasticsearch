@@ -49,8 +49,8 @@ import static java.util.function.Predicate.not;
 public abstract class DockerSupportService implements BuildService<DockerSupportService.Parameters> {
 
     private static final Logger LOGGER = Logging.getLogger(DockerSupportService.class);
-    // Defines the possible locations of the Docker CLI. These will be searched in order.
-    private static final String[] DOCKER_BINARIES = { "/usr/bin/docker", "/usr/local/bin/docker" };
+    // Defines the possible locations of the Docker CLI. Searched in order for resolution and availability.
+    private static final String[] DOCKER_BINARIES = { "/usr/local/bin/docker", "/usr/bin/docker", "/opt/homebrew/bin/docker" };
     private static final String[] DOCKER_COMPOSE_BINARIES = {
         "/usr/local/bin/docker-compose",
         "/usr/bin/docker-compose",
@@ -72,7 +72,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
      *
      * @return the results of the search.
      */
-    public DockerAvailability getDockerAvailability() {
+    public synchronized DockerAvailability getDockerAvailability() {
         if (this.dockerAvailability == null) {
             String dockerPath;
             String dockerComposePath = null;
@@ -305,15 +305,43 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
     }
 
     /**
-     * Searches the entries in {@link #DOCKER_BINARIES} for the Docker CLI. This method does
-     * not check whether the Docker installation appears usable, see {@link #getDockerAvailability()}
-     * instead.
+     * Resolves the Docker executable so it can be found even when PATH is minimal (e.g. Gradle
+     * workers or IDE). Searches PATH first for an executable named "docker", then falls back to
+     * {@link #DOCKER_BINARIES}. Use this when invoking docker from tasks so the binary is found
+     * regardless of worker environment.
+     *
+     * @return the absolute path to the Docker CLI if found and executable, otherwise "docker".
+     */
+    public String getResolvedDockerExecutable() {
+        String pathEnv = System.getenv("PATH");
+        if (pathEnv != null && pathEnv.isEmpty() == false) {
+            String separator = System.getProperty("path.separator", ":");
+            for (String dir : pathEnv.split(separator)) {
+                File candidate = new File(dir.trim(), "docker");
+                if (candidate.isFile() && candidate.canExecute()) {
+                    return candidate.getAbsolutePath();
+                }
+            }
+        }
+        for (String path : DOCKER_BINARIES) {
+            File f = new File(path);
+            if (f.isFile() && f.canExecute()) {
+                return f.getAbsolutePath();
+            }
+        }
+        return "docker";
+    }
+
+    /**
+     * Searches for the Docker CLI using the same logic as {@link #getResolvedDockerExecutable()}.
+     * This method does not check whether the Docker installation appears usable, see
+     * {@link #getDockerAvailability()} instead.
      *
      * @return the path to a CLI, if available.
      */
     private Optional<String> getDockerPath() {
-        // Check if the Docker binary exists
-        return Stream.of(DOCKER_BINARIES).filter(path -> new File(path).exists()).findFirst();
+        String resolved = getResolvedDockerExecutable();
+        return "docker".equals(resolved) ? Optional.empty() : Optional.of(resolved);
     }
 
     /**

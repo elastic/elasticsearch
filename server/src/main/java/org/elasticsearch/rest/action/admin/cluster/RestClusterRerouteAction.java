@@ -60,7 +60,7 @@ public class RestClusterRerouteAction extends BaseRestHandler {
         PARSER.declareBoolean(ClusterRerouteRequest::dryRun, new ParseField("dry_run"));
     }
 
-    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION) // no longer used, so can be removed
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // no longer used, so can be removed
     private static final String V8_DEFAULT_METRICS = Strings.arrayToCommaDelimitedString(
         EnumSet.complementOf(EnumSet.of(ClusterState.Metric.METADATA)).toArray()
     );
@@ -94,7 +94,7 @@ public class RestClusterRerouteAction extends BaseRestHandler {
         return true;
     }
 
-    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION)
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
     // actually UpdateForV11 because V10 still supports the V9 API including this deprecation message
     private static final String METRIC_DEPRECATION_MESSAGE = """
         the [?metric] query parameter to the [POST /_cluster/reroute] API has no effect; its use will be forbidden in a future version""";
@@ -115,7 +115,7 @@ public class RestClusterRerouteAction extends BaseRestHandler {
             request.params().put("metric", "none");
         } else {
             assert request.getRestApiVersion().matches(RestApiVersion.equalTo(RestApiVersion.V_8));
-            @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION) // forbid this parameter in the v10 API
+            @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // forbid this parameter in the v10 API
             // by default, return everything but metadata
             final String metric = request.param("metric");
             if (metric == null) {

@@ -12,6 +12,7 @@ package org.elasticsearch.common.util;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -23,6 +24,7 @@ import java.util.List;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class BytesRefArrayTests extends ESTestCase {
 
@@ -64,17 +66,20 @@ public class BytesRefArrayTests extends ESTestCase {
         array.close();
     }
 
-    public void testTakeOwnership() {
+    public void testOwnership() {
         BytesRefArray array = randomArray();
         long size = array.size();
-        BytesRefArray newOwnerOfArray = BytesRefArray.takeOwnershipOf(array);
-
-        assertNotEquals(array, newOwnerOfArray);
-        assertEquals(0, array.size());
-        assertEquals(size, newOwnerOfArray.size());
-
+        array.incRef();
+        assertThat(array.refCount(), equalTo(2));
         array.close();
-        newOwnerOfArray.close();
+        // still accessible
+        BytesRef sparse = new BytesRef();
+        for (long l = 0; l < size; l++) {
+            var v = array.get(l, sparse);
+            assertThat(v.length, greaterThan(1));
+        }
+        assertThat(array.refCount(), equalTo(1));
+        array.close();
     }
 
     public void testLookup() throws IOException {
@@ -164,17 +169,6 @@ public class BytesRefArrayTests extends ESTestCase {
         testReadWritten(IntStream.range(0, listSize).mapToObj(i -> values).flatMap(List::stream).toList(), 10);
     }
 
-    public void testDeepCopy() {
-        try (
-            BytesRefArray bytes1 = randomArray(between(1, 50_000), between(10, 50_000), mockBigArrays());
-            BytesRefArray bytes2 = BytesRefArray.deepCopy(bytes1);
-            BytesRefArray bytes3 = BytesRefArray.deepCopy(bytes2)
-        ) {
-            assertEquality(bytes1, bytes2);
-            assertEquality(bytes1, bytes3);
-        }
-    }
-
     private void testReadWritten(List<BytesRef> values, int initialCapacity) {
         try (BytesRefArray array = new BytesRefArray(initialCapacity, mockBigArrays())) {
             for (BytesRef v : values) {
@@ -184,6 +178,66 @@ public class BytesRefArrayTests extends ESTestCase {
             for (int i = 0; i < values.size(); i++) {
                 array.get(i, scratch);
                 assertThat(scratch, equalTo(values.get(i)));
+            }
+        }
+    }
+
+    public void testAppendPagedBytesCursorSinglePage() {
+        try (BytesRefArray array = new BytesRefArray(0, mockBigArrays())) {
+            byte[] data = randomByteArrayOfLength(between(1, 100));
+            PagedBytesCursor cursor = new PagedBytesCursor();
+            cursor.init(data, 0, data.length);
+            array.append(cursor);
+            assertThat(array.size(), equalTo(1L));
+            assertThat(array.get(0, new BytesRef()), equalTo(new BytesRef(data)));
+        }
+    }
+
+    public void testAppendPagedBytesCursorMultiPage() {
+        try (BytesRefArray array = new BytesRefArray(0, mockBigArrays())) {
+            int pageSize = between(2, 16);
+            int pages = between(2, 4);
+            byte[][] pageData = new byte[pages][pageSize];
+            byte[] flat = randomByteArrayOfLength(pages * pageSize);
+            for (int p = 0; p < pages; p++) {
+                System.arraycopy(flat, p * pageSize, pageData[p], 0, pageSize);
+            }
+            PagedBytesCursor cursor = new PagedBytesCursor();
+            cursor.init(pageData, 0, 0, flat.length, false);
+            array.append(cursor);
+            assertThat(array.size(), equalTo(1L));
+            assertThat(array.get(0, new BytesRef()), equalTo(new BytesRef(flat)));
+        }
+    }
+
+    public void testAppendPagedBytesCursorEmpty() {
+        try (BytesRefArray array = new BytesRefArray(0, mockBigArrays())) {
+            PagedBytesCursor cursor = new PagedBytesCursor();
+            cursor.init(new byte[0], 0, 0);
+            array.append(cursor);
+            assertThat(array.size(), equalTo(1L));
+            assertThat(array.get(0, new BytesRef()), equalTo(new BytesRef()));
+        }
+    }
+
+    public void testAppendPagedBytesCursorMixed() {
+        try (BytesRefArray array = new BytesRefArray(0, mockBigArrays())) {
+            int count = between(4, 20);
+            BytesRef[] expected = new BytesRef[count];
+            PagedBytesCursor cursor = new PagedBytesCursor();
+            for (int i = 0; i < count; i++) {
+                byte[] data = randomByteArrayOfLength(between(0, 50));
+                expected[i] = new BytesRef(data);
+                if (randomBoolean()) {
+                    array.append(new BytesRef(data));
+                } else {
+                    cursor.init(data, 0, data.length);
+                    array.append(cursor);
+                }
+            }
+            BytesRef scratch = new BytesRef();
+            for (int i = 0; i < count; i++) {
+                assertThat(array.get(i, scratch), equalTo(expected[i]));
             }
         }
     }

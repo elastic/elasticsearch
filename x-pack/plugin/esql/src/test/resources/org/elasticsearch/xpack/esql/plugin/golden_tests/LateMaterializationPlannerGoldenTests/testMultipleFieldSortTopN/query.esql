@@ -1,0 +1,4 @@
+FROM employees
+| keep hire_date, emp_no, height
+| SORT hire_date, height
+| LIMIT 20

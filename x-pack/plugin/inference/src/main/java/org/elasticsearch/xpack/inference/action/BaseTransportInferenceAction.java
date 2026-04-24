@@ -25,15 +25,14 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.telemetry.InferenceStats;
-import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.inference.InferenceLicenceCheck;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
 import org.elasticsearch.xpack.inference.registry.InferenceEndpointRegistry;
@@ -49,10 +48,8 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.ExceptionsHelper.unwrapCause;
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.inference.telemetry.InferenceStats.modelAndResponseAttributes;
-import static org.elasticsearch.inference.telemetry.InferenceStats.modelAttributes;
 import static org.elasticsearch.inference.telemetry.InferenceStats.responseAttributes;
-import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_API_FEATURE;
+import static org.elasticsearch.inference.telemetry.InferenceStats.serviceAndResponseAttributes;
 
 /**
  * Base class for transport actions that handle inference requests.
@@ -113,15 +110,16 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<InferenceAction.Response> listener) {
-        if (INFERENCE_API_FEATURE.check(licenseState) == false) {
-            listener.onFailure(LicenseUtils.newComplianceException(XPackField.INFERENCE));
-            return;
-        }
 
         var timer = InferenceTimer.start();
 
         var getModelListener = ActionListener.wrap((Model model) -> {
             var serviceName = model.getConfigurations().getService();
+
+            if (InferenceLicenceCheck.isServiceLicenced(serviceName, licenseState) == false) {
+                listener.onFailure(InferenceLicenceCheck.complianceException(serviceName));
+                return;
+            }
 
             try {
                 validateRequest(request, model);
@@ -181,7 +179,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
 
     private void recordRequestDurationMetrics(Model model, InferenceTimer timer, @Nullable Throwable t) {
         Map<String, Object> metricAttributes = new HashMap<>();
-        metricAttributes.putAll(modelAttributes(model));
+        metricAttributes.putAll(InferenceStats.serviceAttributes(model));
         metricAttributes.putAll(responseAttributes(unwrapCause(t)));
 
         inferenceStats.inferenceDuration().record(timer.elapsedMillis(), metricAttributes);
@@ -270,7 +268,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
 
     private void recordRequestCountMetrics(Model model, Request request, String localNodeId) {
         Map<String, Object> requestCountAttributes = new HashMap<>();
-        requestCountAttributes.putAll(modelAttributes(model));
+        requestCountAttributes.putAll(InferenceStats.serviceAttributes(model));
 
         inferenceStats.requestCount().incrementBy(1, requestCountAttributes);
     }
@@ -283,7 +281,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         @Nullable Throwable t
     ) {
         Map<String, Object> metricAttributes = new HashMap<>();
-        metricAttributes.putAll(modelAndResponseAttributes(model, unwrapCause(t)));
+        metricAttributes.putAll(serviceAndResponseAttributes(model, unwrapCause(t)));
 
         inferenceStats.inferenceDuration().record(timer.elapsedMillis(), metricAttributes);
     }

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.IntArrayBlock;
@@ -16,7 +15,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.ToMask;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 
 import java.util.stream.IntStream;
@@ -30,11 +29,13 @@ import java.util.stream.IntStream;
  *     positions.
  * </p>
  */
-record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next, EvalOperator.ExpressionEvaluator filter)
+record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next, ExpressionEvaluator filter)
     implements
         GroupingAggregatorFunction {
 
     FilteredGroupingAggregatorFunction {
+        // Filtered aggregators may filter out entire pages, so the underlying aggregator
+        // may not see all groups. It needs to know this so it can initialize unseen groups to null.
         next.selectedMayContainUnseenGroups(new SeenGroupIds.Empty());
     }
 
@@ -46,6 +47,9 @@ record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next, EvalO
             AddInput nextAdd = null;
             try {
                 nextAdd = next.prepareProcessRawInputPage(seenGroupIds, page);
+                if (nextAdd == null) {
+                    return null;
+                }
                 AddInput result = new FilteredAddInput(mask.mask(), nextAdd, page.getPositionCount());
                 mask = null;
                 nextAdd = null;
@@ -80,6 +84,7 @@ record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next, EvalO
             } else {
                 try (
                     BooleanVector offsetMask = mask.filter(
+                        false,
                         IntStream.range(positionOffset, positionOffset + groupIds.getPositionCount()).toArray()
                     );
                     IntBlock filtered = groupIds.keepMask(offsetMask)
@@ -116,13 +121,19 @@ record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next, EvalO
     }
 
     @Override
-    public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-        next.evaluateIntermediate(blocks, offset, selected);
+    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
+        return next.prepareEvaluateIntermediate(selected, ctx);
     }
 
     @Override
-    public void evaluateFinal(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evaluationContext) {
-        next.evaluateFinal(blocks, offset, selected, evaluationContext);
+    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
+        return next.prepareEvaluateFinal(selected, ctx);
     }
 
     @Override

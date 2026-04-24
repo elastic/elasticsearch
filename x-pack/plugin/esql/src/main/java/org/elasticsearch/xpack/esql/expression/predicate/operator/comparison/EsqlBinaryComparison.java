@@ -12,7 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
@@ -47,6 +48,7 @@ import java.math.BigInteger;
 import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -211,9 +213,9 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        EvalOperator.ExpressionEvaluator.Factory lhs;
-        EvalOperator.ExpressionEvaluator.Factory rhs;
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        ExpressionEvaluator.Factory lhs;
+        ExpressionEvaluator.Factory rhs;
 
         // Special cases for mixed nanosecond and millisecond comparisions
         if (left().dataType() == DataType.DATE_NANOS && right().dataType() == DataType.DATETIME) {
@@ -230,6 +232,23 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
 
         // Our type is always boolean, so figure out the evaluator type from the inputs
         DataType commonType = commonType(left().dataType(), right().dataType());
+
+        // if you reached this point, it means that the types were not compatible, which should have been caught by the type resolution
+        // verification step, so this should never happen in practice. We are throwing an exception in this case to get more information
+        // about the failure, if it does happen.
+        // see also https://github.com/elastic/elasticsearch/issues/141267
+        if (commonType == null) {
+            throw new EsqlIllegalArgumentException(
+                "Cannot compare incompatible types ["
+                    + left().dataType().typeName()
+                    + "] and ["
+                    + right().dataType().typeName()
+                    + "] "
+                    + "with operator ["
+                    + functionType.symbol()
+                    + "]"
+            );
+        }
         if (commonType.isNumeric()) {
             lhs = Cast.cast(source(), left().dataType(), commonType, toEvaluator.apply(left()));
             rhs = Cast.cast(source(), right().dataType(), commonType, toEvaluator.apply(right()));
@@ -275,27 +294,40 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
      * NOTE: this method should be consistent with
      * {@link org.elasticsearch.xpack.esql.analysis.Verifier#validateBinaryComparison(BinaryComparison)}
      *
-     * @return TypeResolution.TYPE_RESOLVED iff the types are compatible.  Otherwise, an appropriate type resolution error.
+     * @return TypeResolution.TYPE_RESOLVED if the types are compatible.  Otherwise, an appropriate type resolution error.
      */
     protected TypeResolution checkCompatibility() {
         DataType leftType = left().dataType();
         DataType rightType = right().dataType();
-
-        // Unsigned long is only interoperable with other unsigned longs
-        if ((rightType == UNSIGNED_LONG && (false == (leftType == UNSIGNED_LONG || leftType == DataType.NULL)))
-            || (leftType == UNSIGNED_LONG && (false == (rightType == UNSIGNED_LONG || rightType == DataType.NULL)))) {
-            return new TypeResolution(formatIncompatibleTypesMessage(left().dataType(), right().dataType(), sourceText()));
-        }
-
-        if ((leftType.isNumeric() && rightType.isNumeric())
-            || (DataType.isString(leftType) && DataType.isString(rightType))
-            || (leftType.isDate() && rightType.isDate()) // Millis and Nanos
-            || leftType.equals(rightType)
-            || DataType.isNull(leftType)
-            || DataType.isNull(rightType)) {
+        if (areTypesCompatible(leftType, rightType)) {
             return TypeResolution.TYPE_RESOLVED;
         }
-        return new TypeResolution(formatIncompatibleTypesMessage(left().dataType(), right().dataType(), sourceText()));
+        return new TypeResolution(formatIncompatibleTypesMessage(leftType, rightType, sourceText()));
+    }
+
+    /**
+     * Check if the two types are compatible for binary comparison.
+     * <p>
+     * For UNSIGNED_LONG types, we ensure they are not implicitly converted when used in binary operations, as this cannot be done since:
+     * - unsigned longs are passed through the engine as longs, so/and
+     * - negative values cannot be represented (i.e. range [Long.MIN_VALUE, "abs"(Long.MIN_VALUE) + Long.MAX_VALUE] won't fit on 64 bits);
+     * - a conversion to double isn't possible, since upper range UL values can no longer be distinguished
+     * ex: (double) 18446744073709551615 == (double) 18446744073709551614
+     * - the implicit ESQL's Cast doesn't currently catch Exception and nullify the result.
+     * Let the user handle the operation explicitly.
+     *
+     * @param leftType  the left operand type
+     * @param rightType the right operand type
+     * @return true if the types are compatible for comparison
+     */
+    public static boolean areTypesCompatible(DataType leftType, DataType rightType) {
+        return DataType.isNull(leftType)
+            || DataType.isNull(rightType)
+            || (rightType == UNSIGNED_LONG && leftType == UNSIGNED_LONG)
+            || (leftType.isNumericOrAmd() && rightType.isNumericOrAmd() && leftType != UNSIGNED_LONG && rightType != UNSIGNED_LONG)
+            || (DataType.isString(leftType) && DataType.isString(rightType))
+            || (leftType.isDate() && rightType.isDate()) // Millis and Nanos
+            || leftType.equals(rightType);
     }
 
     public static String formatIncompatibleTypesMessage(DataType leftType, DataType rightType, String sourceText) {
@@ -329,7 +361,13 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
 
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
-        if (right().foldable()) {
+        if (right() instanceof Literal lit) {
+            // Multi-valued literals are not supported going further. This also makes sure that we are handling multi-valued literals with
+            // a "warning" header, as well (see EqualsKeywordsEvaluator, for example, where lhs and rhs are both dealt with equally when
+            // it comes to multi-value handling).
+            if (lit.value() instanceof Collection<?>) {
+                return Translatable.NO;
+            }
             if (pushdownPredicates.isPushableFieldAttribute(left())) {
                 return Translatable.YES;
             }

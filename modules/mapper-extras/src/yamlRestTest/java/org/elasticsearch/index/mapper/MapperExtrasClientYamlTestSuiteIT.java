@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
@@ -30,7 +31,10 @@ public class MapperExtrasClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase
     }
 
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("mapper-extras").build();
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .module("mapper-extras")
+        .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS)
+        .build();
 
     @Override
     protected String getTestRestCluster() {

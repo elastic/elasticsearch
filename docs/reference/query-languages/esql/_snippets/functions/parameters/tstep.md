@@ -3,7 +3,7 @@
 ## Parameters
 
 `step`
-:   Fixed bucket width in UTC. Bucket boundaries are spaced by `step` from the start of the time range.
+:   Fixed bucket width in UTC, or target number of buckets to fill the `from`-`to` range. When an integer count is given, the actual step is chosen as the finest supported granularity (from 1 millisecond up to 1 day) that produces at most `count` buckets in the `[from, to]` range. Explicit `from` and `to` bounds are required when a count is given.
 
 `from`
 :   Start of the time range that anchors the step grid. Required together with `to`.

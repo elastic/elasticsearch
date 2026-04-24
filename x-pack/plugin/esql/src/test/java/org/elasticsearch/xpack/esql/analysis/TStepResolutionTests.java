@@ -91,6 +91,27 @@ public class TStepResolutionTests extends ESTestCase {
             """, containsString("requires both 'from' and 'to' arguments"));
     }
 
+    public void testTstepBucketCountWithBoundsSucceeds() {
+        assumeTStepEnabled();
+        assumeTrue("TSTEP bucket count requires corresponding capability", EsqlCapabilities.Cap.TSTEP_BUCKET_COUNT.isEnabled());
+        var plan = EsqlTestUtils.analyzer().addSampleData().query("""
+            FROM sample_data
+            | STATS c = COUNT(*) BY b = TSTEP(10, "2023-10-23T12:15:00.000Z", "2023-10-23T13:55:01.543Z")
+            | LIMIT 10
+            """);
+        assertNotNull(plan);
+    }
+
+    public void testTstepBucketCountWithoutBoundsFails() {
+        assumeTStepEnabled();
+        assumeTrue("TSTEP bucket count requires corresponding capability", EsqlCapabilities.Cap.TSTEP_BUCKET_COUNT.isEnabled());
+        EsqlTestUtils.analyzer().addSampleData().error("""
+            FROM sample_data
+            | STATS c = COUNT(*) BY b = TSTEP(10)
+            | LIMIT 10
+            """, containsString("requires 'from' and 'to' bounds when step is a bucket count"));
+    }
+
     private static void assumeTStepEnabled() {
         assumeTrue("TSTEP requires corresponding capability", EsqlCapabilities.Cap.TSTEP.isEnabled());
     }

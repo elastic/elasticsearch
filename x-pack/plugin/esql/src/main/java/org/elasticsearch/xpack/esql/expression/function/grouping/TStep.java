@@ -72,6 +72,29 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
     public static final Duration ONE_NANOSECOND = Duration.ofNanos(1);
     public static final Duration ONE_MILLISECOND = Duration.ofMillis(1);
 
+    /**
+     * Candidate step sizes in milliseconds (descending order) used when deriving a step from a target bucket count.
+     * Mirrors the primary fixed-duration units in {@link Bucket}'s date rounding picker.
+     */
+    static final long[] STEP_CANDIDATES_MILLIS = {
+        86_400_000L,  // 1 day
+        43_200_000L,  // 12 hours
+        10_800_000L,  // 3 hours
+        3_600_000L,   // 1 hour
+        1_800_000L,   // 30 minutes
+        600_000L,     // 10 minutes
+        300_000L,     // 5 minutes
+        60_000L,      // 1 minute
+        30_000L,      // 30 seconds
+        10_000L,      // 10 seconds
+        5_000L,       // 5 seconds
+        1_000L,       // 1 second
+        100L,         // 100 milliseconds
+        50L,          // 50 milliseconds
+        10L,          // 10 milliseconds
+        1L            // 1 millisecond
+    };
+
     private final Configuration configuration;
     private final Expression step;
     @Nullable
@@ -89,6 +112,11 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
             which aligns buckets to calendar boundaries, `TSTEP` always buckets at the fixed interval increments in UTC timezone.
             Each `bucket` label is rendered as the upper boundary of the half-open interval `(timestamp - step, timestamp]`.
 
+            The `step` can be a time duration (e.g. `1 hour`) or a target bucket count (an integer).
+            When a count is given, the actual step is chosen as the finest supported granularity
+            (from 1 millisecond up to 1 day) that produces at most `count` buckets in the `[from, to]` range.
+            Explicit `from` and `to` bounds are required when a count is given.
+
             In the one-argument form, provide a
             [`@timestamp` range](docs-content://explore-analyze/query-filter/languages/esql-kibana.md#_standard_time_filter)
             in the request query filter; that range's start anchors the grid.
@@ -105,13 +133,21 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
                     Boundaries are generated as `range_start + n * step` (UTC), and each bucket
                     represents `(bucket_end - step, bucket_end]`."""
             ),
-            @Example(description = "The same query with explicit bounds:", file = "tstep", tag = "docsTStepExplicitBounds") },
+            @Example(description = "The same query with explicit bounds:", file = "tstep", tag = "docsTStepExplicitBounds"),
+            @Example(
+                description = "The same query using a target bucket count of 2 instead of a fixed step:",
+                file = "tstep",
+                tag = "docsTStepBucketCount"
+            ) },
         type = FunctionType.GROUPING
     )
     public TStep(
         Source source,
-        @Param(name = "step", type = { "time_duration" }, description = """
-            Fixed bucket width in UTC. Bucket boundaries are spaced by `step` from the start of the time range.""") Expression step,
+        @Param(name = "step", type = { "time_duration", "integer", "long" }, description = """
+            Fixed bucket width in UTC, or target number of buckets to fill the `from`-`to` range.
+            When an integer count is given, the actual step is chosen as the finest supported granularity
+            (from 1 millisecond up to 1 day) that produces at most `count` buckets in the `[from, to]` range.
+            Explicit `from` and `to` bounds are required when a count is given.""") Expression step,
         @Param(
             name = "from",
             type = { "date", "date_nanos", "keyword" },
@@ -153,7 +189,7 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
 
     @Override
     public boolean needsTimestampBounds() {
-        return step.resolved() && (start == null && end == null);
+        return step.resolved() && step.dataType() == DataType.TIME_DURATION && (start == null && end == null);
     }
 
     @Override
@@ -165,7 +201,7 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
 
     @Override
     public void postAnalysisVerification(Failures failures) {
-        if (step.resolved() && start == null && end == null) {
+        if (step.resolved() && step.dataType() == DataType.TIME_DURATION && start == null && end == null) {
             failures.add(
                 Failure.fail(
                     this,
@@ -200,17 +236,21 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
             configuration
         );
 
+        Expression effectiveStep = step.dataType().isWholeNumber()
+            ? Literal.timeDuration(source(), deriveStepDuration(FoldContext.small()))
+            : step;
+
         var bucket = new Bucket(
             source(),
             newTimestamp,
-            step,
+            effectiveStep,
             null,
             null,
             configuration.withZoneId(ZoneOffset.UTC),
             offset(FoldContext.small())
         );
 
-        return new Add(source(), bucket, step, configuration);
+        return new Add(source(), bucket, effectiveStep, configuration);
     }
 
     @Override
@@ -218,11 +258,32 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
-        var resolution = isType(step, dt -> dt == DataType.TIME_DURATION, sourceText(), FIRST, "time_duration").and(
-            isType(timestamp, DataType::isMillisOrNanos, sourceText(), IMPLICIT, "date_nanos or datetime")
-        );
+        var resolution = isType(
+            step,
+            dt -> dt == DataType.TIME_DURATION || dt.isWholeNumber(),
+            sourceText(),
+            FIRST,
+            "time_duration",
+            "integer",
+            "long"
+        ).and(isType(timestamp, DataType::isMillisOrNanos, sourceText(), IMPLICIT, "date_nanos or datetime"));
         if (resolution.unresolved()) {
             return resolution;
+        }
+        if (step.dataType().isWholeNumber()) {
+            if (start == null || end == null) {
+                return new TypeResolution(
+                    org.elasticsearch.common.Strings.format(
+                        "[%s] requires 'from' and 'to' bounds when step is a bucket count",
+                        sourceText()
+                    )
+                );
+            }
+            resolution = resolution.and(isStringOrDateBound(start, SECOND));
+            if (resolution.unresolved()) {
+                return resolution;
+            }
+            return resolution.and(isStringOrDateBound(end, THIRD));
         }
         if ((start == null) != (end == null)) {
             return new TypeResolution(
@@ -287,7 +348,18 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
     }
 
     public Bucket timeBucketSpecRef() {
-        return new Bucket(source(), timestamp, step, null, null, configuration.withZoneId(ZoneOffset.UTC), offset(FoldContext.small()));
+        Expression effectiveStep = step.dataType().isWholeNumber()
+            ? Literal.timeDuration(source(), deriveStepDuration(FoldContext.small()))
+            : step;
+        return new Bucket(
+            source(),
+            timestamp,
+            effectiveStep,
+            null,
+            null,
+            configuration.withZoneId(ZoneOffset.UTC),
+            offset(FoldContext.small())
+        );
     }
 
     @Override
@@ -296,7 +368,9 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
     }
 
     private long offset(FoldContext foldContext) {
-        long stepMs = ((Duration) step.fold(foldContext)).toMillis();
+        long stepMs = step.dataType().isWholeNumber()
+            ? deriveStepDuration(foldContext).toMillis()
+            : ((Duration) step.fold(foldContext)).toMillis();
         if (stepMs == 0) {
             // {@link Bucket} doesn't support nanosecond step precision
             return 0;
@@ -306,17 +380,38 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
             throw new EsqlIllegalArgumentException(NAME + " requires a start bound");
         }
 
-        var folded = start.fold(foldContext);
-        long startMs;
-        if (DataType.isString(start.dataType())) {
-            startMs = dateTimeToLong(((BytesRef) folded).utf8ToString());
-        } else {
-            startMs = ((Number) folded).longValue();
-            if (start.dataType() == DataType.DATE_NANOS) {
-                startMs = DateUtils.toMilliSeconds(startMs);
+        return DateUtils.floorRemainder(foldBoundToMillis(start, foldContext), stepMs);
+    }
+
+    /**
+     * Derives a fixed-width step duration from the target bucket count and the [from, to] range.
+     * Picks the finest granularity from {@link #STEP_CANDIDATES_MILLIS} such that
+     * {@code ceil(range / step) <= count}.
+     */
+    private Duration deriveStepDuration(FoldContext foldContext) {
+        int count = ((Number) step.fold(foldContext)).intValue();
+        long fromMs = foldBoundToMillis(start, foldContext);
+        long toMs = foldBoundToMillis(end, foldContext);
+        long rangeMs = toMs - fromMs;
+        if (count <= 0 || rangeMs <= 0) {
+            return Duration.ofMillis(1);
+        }
+        for (int i = STEP_CANDIDATES_MILLIS.length - 1; i >= 0; i--) {
+            long stepMs = STEP_CANDIDATES_MILLIS[i];
+            if ((rangeMs + stepMs - 1) / stepMs <= count) {
+                return Duration.ofMillis(stepMs);
             }
         }
-        return DateUtils.floorRemainder(startMs, stepMs);
+        return Duration.ofMillis(STEP_CANDIDATES_MILLIS[0]);
+    }
+
+    private long foldBoundToMillis(Expression bound, FoldContext foldContext) {
+        var folded = bound.fold(foldContext);
+        if (DataType.isString(bound.dataType())) {
+            return dateTimeToLong(((BytesRef) folded).utf8ToString());
+        }
+        long value = ((Number) folded).longValue();
+        return bound.dataType() == DataType.DATE_NANOS ? DateUtils.toMilliSeconds(value) : value;
     }
 
     @Override

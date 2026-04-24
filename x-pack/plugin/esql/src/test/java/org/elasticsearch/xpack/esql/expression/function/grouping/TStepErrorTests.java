@@ -40,7 +40,11 @@ public class TStepErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Stream<List<DataType>> testCandidates(List<TestCaseSupplier> cases, Set<List<DataType>> valid) {
-        return super.testCandidates(cases, valid).filter(signature -> signature.contains(DataType.NULL) == false);
+        return super.testCandidates(cases, valid).filter(signature -> signature.contains(DataType.NULL) == false)
+            // Count mode (integer/long step) requires explicit bounds and is not exercisable via the 2-arg
+            // builder used here. Exclude whole-number step candidates; count mode errors are covered by
+            // TStepResolutionTests.
+            .filter(signature -> signature.get(0).isWholeNumber() == false);
     }
 
     @Override
@@ -55,7 +59,11 @@ public class TStepErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
         String source = sourceForSignature(signature);
         return switch (badArgPosition) {
             case 0 -> equalTo(
-                "first argument of [" + source + "] must be [time_duration], found value [] type [" + signature.get(0).typeName() + "]"
+                "first argument of ["
+                    + source
+                    + "] must be [time_duration, integer or long], found value [] type ["
+                    + signature.get(0).typeName()
+                    + "]"
             );
             case 1 -> equalTo(
                 "implicit argument of ["

@@ -41,6 +41,7 @@ import org.hamcrest.Matchers;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -186,6 +187,194 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             } else {
                 fail("unexpected block for avg_worked_seconds: " + avgWorked);
             }
+        }
+    }
+
+    public void testTrimLastPartialLineDropsIncompleteTail() throws IOException {
+        String data = "{\"id\":1}\n{\"id\":2}\n{\"incomplete\":";
+        try (
+            InputStream trimmed = NdJsonPageIterator.trimLastPartialLine(
+                new ByteArrayInputStream(data.getBytes(StandardCharsets.UTF_8)),
+                ErrorPolicy.STRICT
+            )
+        ) {
+            assertEquals("{\"id\":1}\n{\"id\":2}\n", new String(trimmed.readAllBytes(), StandardCharsets.UTF_8));
+        }
+    }
+
+    public void testTrimLastPartialLineEmptyWhenNoNewline() throws IOException {
+        try (
+            InputStream trimmed = NdJsonPageIterator.trimLastPartialLine(
+                new ByteArrayInputStream("partial-only".getBytes(StandardCharsets.UTF_8)),
+                ErrorPolicy.STRICT
+            )
+        ) {
+            assertEquals(0, trimmed.readAllBytes().length);
+        }
+    }
+
+    public void testTrimLastPartialLineEmptyStream() throws IOException {
+        try (InputStream trimmed = NdJsonPageIterator.trimLastPartialLine(new ByteArrayInputStream(new byte[0]), ErrorPolicy.STRICT)) {
+            assertEquals(0, trimmed.readAllBytes().length);
+        }
+    }
+
+    /** Input already ends on a line feed: nothing after the last delimiter to trim. */
+    public void testTrimLastPartialLineInputEndsWithNewline() throws IOException {
+        byte[] data = "{\"x\":1}\n".getBytes(StandardCharsets.UTF_8);
+        try (InputStream trimmed = NdJsonPageIterator.trimLastPartialLine(new ByteArrayInputStream(data), ErrorPolicy.STRICT)) {
+            assertArrayEquals(data, trimmed.readAllBytes());
+        }
+    }
+
+    /**
+     * Exercises carry + emit across multiple small reads (chunk size 4) to match the behavior of
+     * trimming when newline boundaries do not align with read buffers.
+     */
+    public void testTrimLastPartialLineAcrossSmallChunks() throws IOException {
+        byte[] payload = "aa\nbb\nPART".getBytes(StandardCharsets.UTF_8);
+        try (InputStream trimmed = new TrimLastPartialLineInputStream(new ByteArrayInputStream(payload), 4, ErrorPolicy.STRICT)) {
+            assertEquals("aa\nbb\n", new String(trimmed.readAllBytes(), StandardCharsets.UTF_8));
+        }
+    }
+
+    /**
+     * Regression: after the consumer has advanced {@code readIdx}, growing the emit buffer must use
+     * {@code writeIdx + emitLen}, not {@code unread + emitLen}, or a large carry + line can write past
+     * the end of the reallocated array.
+     */
+    public void testTrimLastPartialLineBufferGrowAfterPartialRead() throws IOException {
+        int trimChunk = 8192;
+        List<byte[]> parts = new ArrayList<>();
+        byte[] firstLine = new byte[5001];
+        Arrays.fill(firstLine, 0, 5000, (byte) '0');
+        firstLine[5000] = '\n';
+        parts.add(firstLine);
+        for (int i = 0; i < 4; i++) {
+            parts.add(bytesOf(trimChunk, 'c'));
+        }
+        byte[] terminal = new byte[3001];
+        Arrays.fill(terminal, 0, 3000, (byte) 'd');
+        terminal[3000] = '\n';
+        parts.add(terminal);
+
+        try (InputStream trimmed = new TrimLastPartialLineInputStream(new ChainedByteChunksStream(parts), trimChunk, ErrorPolicy.STRICT)) {
+            assertEquals(2000, trimmed.readNBytes(2000).length);
+            byte[] tail = trimmed.readAllBytes();
+            assertEquals(5001 - 2000 + (4L * trimChunk) + 3001, tail.length);
+        }
+    }
+
+    private static byte[] bytesOf(int len, char fill) {
+        byte[] b = new byte[len];
+        Arrays.fill(b, (byte) fill);
+        return b;
+    }
+
+    /** Sequences fixed-size byte arrays as one logical {@link InputStream}. */
+    private static final class ChainedByteChunksStream extends InputStream {
+        private final List<byte[]> chunks;
+        private int chunkIndex;
+        private int posInChunk;
+
+        ChainedByteChunksStream(List<byte[]> chunks) {
+            this.chunks = chunks;
+        }
+
+        @Override
+        public int read() {
+            while (chunkIndex < chunks.size()) {
+                byte[] cur = chunks.get(chunkIndex);
+                if (posInChunk < cur.length) {
+                    return cur[posInChunk++] & 0xFF;
+                }
+                chunkIndex++;
+                posInChunk = 0;
+            }
+            return -1;
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) {
+            if (len == 0) {
+                return 0;
+            }
+            int total = 0;
+            while (len > 0 && chunkIndex < chunks.size()) {
+                byte[] cur = chunks.get(chunkIndex);
+                if (posInChunk >= cur.length) {
+                    chunkIndex++;
+                    posInChunk = 0;
+                    continue;
+                }
+                int n = Math.min(len, cur.length - posInChunk);
+                System.arraycopy(cur, posInChunk, b, off, n);
+                posInChunk += n;
+                off += n;
+                len -= n;
+                total += n;
+            }
+            return total == 0 ? -1 : total;
+        }
+    }
+
+    /**
+     * Without a record delimiter, {@link TrimLastPartialLineInputStream} must not grow {@code carry}
+     * past {@link TrimLastPartialLineInputStream#MAX_CARRY_BYTES} (defends against pathological lines).
+     */
+    public void testTrimLastPartialLineCarryExceedsMaxThrows() throws IOException {
+        int chunk = 8192;
+        long streamLen = TrimLastPartialLineInputStream.MAX_CARRY_BYTES + chunk;
+        try (
+            InputStream trimmed = new TrimLastPartialLineInputStream(new FiniteBytesWithoutNewline(streamLen), chunk, ErrorPolicy.STRICT)
+        ) {
+            IOException ex = expectThrows(IOException.class, trimmed::readAllBytes);
+            assertThat(ex.getMessage(), Matchers.containsString(TrimLastPartialLineInputStream.MAX_CARRY.toString()));
+        }
+    }
+
+    /**
+     * When {@link ErrorPolicy#isStrict()} is false, an oversized partial line is dropped instead of
+     * failing the whole read (same stream shape as {@link #testTrimLastPartialLineCarryExceedsMaxThrows}).
+     */
+    public void testTrimLastPartialLineCarryOverLimitLenientSkipsBogusLine() throws IOException {
+        int chunk = 8192;
+        long streamLen = TrimLastPartialLineInputStream.MAX_CARRY_BYTES + chunk;
+        try (
+            InputStream trimmed = new TrimLastPartialLineInputStream(new FiniteBytesWithoutNewline(streamLen), chunk, ErrorPolicy.LENIENT)
+        ) {
+            assertEquals(0, trimmed.readAllBytes().length);
+        }
+    }
+
+    /** Supplies {@code length} bytes of {@code 'a'} without allocating that array (no newlines). */
+    private static final class FiniteBytesWithoutNewline extends InputStream {
+        private final long length;
+        private long pos;
+
+        FiniteBytesWithoutNewline(long length) {
+            this.length = length;
+        }
+
+        @Override
+        public int read() {
+            if (pos >= length) {
+                return -1;
+            }
+            pos++;
+            return 'a';
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) {
+            if (pos >= length) {
+                return -1;
+            }
+            long remaining = length - pos;
+            int n = (int) Math.min(len, remaining);
+            Arrays.fill(b, off, off + n, (byte) 'a');
+            pos += n;
+            return n;
         }
     }
 

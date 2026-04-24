@@ -264,11 +264,18 @@ public class OrcFormatReader implements RangeAwareFormatReader {
         Path path = new Path(object.path().toString());
         try (Reader reader = OrcFile.createReader(path, orcReaderOptions(fs))) {
             List<StripeInformation> stripes = reader.getStripes();
-            if (stripes.size() <= 1) {
+            if (stripes.isEmpty()) {
                 return List.of();
             }
             List<StripeStatistics> stripeStats = reader.getStripeStatistics();
             TypeDescription schema = reader.getSchema();
+            if (stripes.size() == 1) {
+                StripeInformation stripe = stripes.getFirst();
+                Map<String, Object> stats = stripeStats.isEmpty() == false
+                    ? buildStripeStats(stripe, stripeStats.getFirst(), schema)
+                    : Map.of();
+                return List.of(new SplitRange(stripe.getOffset(), stripe.getLength(), stats));
+            }
             List<SplitRange> ranges = new ArrayList<>(stripes.size());
             for (int i = 0; i < stripes.size(); i++) {
                 StripeInformation stripe = stripes.get(i);

@@ -273,7 +273,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
 
     private void cancelPendingPrefetch() {
         if (pendingPrefetch != null) {
-            pendingPrefetch.cancel(false);
+            org.elasticsearch.common.util.concurrent.FutureUtils.cancel(pendingPrefetch);
             pendingPrefetch = null;
         }
     }

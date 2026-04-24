@@ -165,7 +165,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         if (value instanceof Boolean b) {
             return b;
         }
-        return Boolean.parseBoolean(value.toString());
+        return org.elasticsearch.core.Booleans.parseBoolean(value.toString());
     }
 
     @Override

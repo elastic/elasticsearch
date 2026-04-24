@@ -9,10 +9,13 @@ esplugin {
     extendedPlugins = ['x-pack-core']
 }
 
+
 dependencies {
     compileOnly project(':x-pack:plugin:core')
     implementation project(xpackModule('shutdown'))
     javaRestTestImplementation testArtifact(project(xpackModule('core')))
     javaRestTestImplementation project(':x-pack:test:stateless-test-framework')
+
+    clusterModules project(':x-pack:plugin:stateless')
 }
 

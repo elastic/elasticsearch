@@ -872,12 +872,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                 || sim == VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT) {
                 scaleCentroidsToAverageMagnitude(centroids, assignments, floatVectorValues);
             }
-            return new CentroidAssignments(
-                fieldInfo.getVectorDimension(),
-                centroids,
-                assignments,
-                soarAssignments
-            );
+            return new CentroidAssignments(fieldInfo.getVectorDimension(), centroids, assignments, soarAssignments);
         } else {
             final FieldInfo slicedFieldInfo = mergeState.mergeFieldInfos.fieldInfo(sliceField);
             assert slicedFieldInfo != null;
@@ -946,13 +941,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                 logger.debug("final centroid count: {}", merged.centroids().length);
             }
             final CentroidSlices centroidSlices = new CentroidSlices(sliceOffsets, sliceLengths);
-            return new CentroidAssignments(
-                floatVectorValues.dimension(),
-                centroids,
-                assignments,
-                soarAssignments,
-                centroidSlices
-            );
+            return new CentroidAssignments(floatVectorValues.dimension(), centroids, assignments, soarAssignments, centroidSlices);
         }
     }
 

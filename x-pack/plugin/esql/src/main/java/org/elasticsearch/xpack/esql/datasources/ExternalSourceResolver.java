@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -178,7 +179,8 @@ public class ExternalSourceResolver {
         if (isCacheable(provider)) {
             // Stat the file first (cheap HEAD/stat) to get mtime for the cache key.
             object = provider.newObject(storagePath);
-            long mtime = object.lastModified().toEpochMilli();
+            Instant lastMod = object.lastModified();
+            long mtime = lastMod != null ? lastMod.toEpochMilli() : Instant.EPOCH.toEpochMilli();
             String formatType = detectFormatType(storagePath);
             SchemaCacheKey schemaKey = SchemaCacheKey.build(storagePath.toString(), mtime, formatType, config);
             SchemaCacheEntry schemaEntry = cacheService.getOrComputeSchema(schemaKey, k -> {

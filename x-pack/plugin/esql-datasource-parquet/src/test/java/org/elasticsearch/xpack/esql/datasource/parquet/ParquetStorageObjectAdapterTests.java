@@ -478,19 +478,25 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             }
         };
 
-        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(countingStorageObject);
+        boolean saved = ParquetStorageObjectAdapter.windowCacheEnabled;
+        try {
+            ParquetStorageObjectAdapter.windowCacheEnabled = true;
+            ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(countingStorageObject);
 
-        try (SeekableInputStream stream = adapter.newStream()) {
-            stream.read();
-            stream.read();
-            stream.read();
-            stream.seek(0);
-            stream.read();
-            stream.seek(10);
-            stream.read();
+            try (SeekableInputStream stream = adapter.newStream()) {
+                stream.read();
+                stream.read();
+                stream.read();
+                stream.seek(0);
+                stream.read();
+                stream.seek(10);
+                stream.read();
+            }
+
+            assertTrue("Expected few range reads (window reuse); got " + rangeReadCount[0], rangeReadCount[0] <= 2);
+        } finally {
+            ParquetStorageObjectAdapter.windowCacheEnabled = saved;
         }
-
-        assertTrue("Expected few range reads (window reuse); got " + rangeReadCount[0], rangeReadCount[0] <= 2);
     }
 
     public void testFooterCacheServesTailReadsWithoutExtraRangeRequest() throws IOException {
@@ -535,23 +541,29 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             }
         };
 
-        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(countingStorageObject);
-        long tailStart = data.length - 1024;
+        boolean saved = ParquetStorageObjectAdapter.windowCacheEnabled;
+        try {
+            ParquetStorageObjectAdapter.windowCacheEnabled = true;
+            ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(countingStorageObject);
+            long tailStart = data.length - 1024;
 
-        byte[] first = new byte[1024];
-        try (SeekableInputStream stream = adapter.newStream()) {
-            stream.seek(tailStart);
-            stream.readFully(first);
-        }
-        assertEquals(1, rangeReadCount[0]);
+            byte[] first = new byte[1024];
+            try (SeekableInputStream stream = adapter.newStream()) {
+                stream.seek(tailStart);
+                stream.readFully(first);
+            }
+            assertEquals(1, rangeReadCount[0]);
 
-        byte[] second = new byte[1024];
-        try (SeekableInputStream stream = adapter.newStream()) {
-            stream.seek(tailStart);
-            stream.readFully(second);
+            byte[] second = new byte[1024];
+            try (SeekableInputStream stream = adapter.newStream()) {
+                stream.seek(tailStart);
+                stream.readFully(second);
+            }
+            assertEquals(1, rangeReadCount[0]);
+            assertArrayEquals(first, second);
+        } finally {
+            ParquetStorageObjectAdapter.windowCacheEnabled = saved;
         }
-        assertEquals(1, rangeReadCount[0]);
-        assertArrayEquals(first, second);
     }
 
     public void testReadFullyCrossesWindowBoundaries() throws IOException {
@@ -596,13 +608,19 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             }
         };
 
-        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(rangeOnlyCounting);
-        byte[] read = new byte[size];
-        try (SeekableInputStream stream = adapter.newStream()) {
-            stream.readFully(read);
+        boolean saved = ParquetStorageObjectAdapter.windowCacheEnabled;
+        try {
+            ParquetStorageObjectAdapter.windowCacheEnabled = true;
+            ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(rangeOnlyCounting);
+            byte[] read = new byte[size];
+            try (SeekableInputStream stream = adapter.newStream()) {
+                stream.readFully(read);
+            }
+            assertArrayEquals(data, read);
+            assertEquals(2, rangeReadCount[0]);
+        } finally {
+            ParquetStorageObjectAdapter.windowCacheEnabled = saved;
         }
-        assertArrayEquals(data, read);
-        assertEquals(2, rangeReadCount[0]);
     }
 
     // --- Adaptive window tests ---
@@ -748,26 +766,33 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             }
         };
 
-        // With default 4 MiB window, reading 6 MiB requires 2 range requests
-        ParquetStorageObjectAdapter defaultAdapter = new ParquetStorageObjectAdapter(countingStorageObject);
-        byte[] buf = new byte[size];
-        try (SeekableInputStream stream = defaultAdapter.newStream()) {
-            stream.readFully(buf);
-        }
-        int defaultReads = rangeReadCount[0];
+        boolean saved = ParquetStorageObjectAdapter.windowCacheEnabled;
+        try {
+            ParquetStorageObjectAdapter.windowCacheEnabled = true;
 
-        // With 8 MiB adaptive window, reading 6 MiB requires 1 range request
-        rangeReadCount[0] = 0;
-        ParquetStorageObjectAdapter adaptiveAdapter = ParquetStorageObjectAdapter.forRange(countingStorageObject, 8 * 1024 * 1024L);
-        try (SeekableInputStream stream = adaptiveAdapter.newStream()) {
-            stream.readFully(buf);
-        }
-        int adaptiveReads = rangeReadCount[0];
+            // With default 4 MiB window, reading 6 MiB requires 2 range requests
+            ParquetStorageObjectAdapter defaultAdapter = new ParquetStorageObjectAdapter(countingStorageObject);
+            byte[] buf = new byte[size];
+            try (SeekableInputStream stream = defaultAdapter.newStream()) {
+                stream.readFully(buf);
+            }
+            int defaultReads = rangeReadCount[0];
 
-        assertTrue(
-            "Adaptive window should use fewer range reads (" + adaptiveReads + ") than default (" + defaultReads + ")",
-            adaptiveReads < defaultReads
-        );
+            // With 8 MiB adaptive window, reading 6 MiB requires 1 range request
+            rangeReadCount[0] = 0;
+            ParquetStorageObjectAdapter adaptiveAdapter = ParquetStorageObjectAdapter.forRange(countingStorageObject, 8 * 1024 * 1024L);
+            try (SeekableInputStream stream = adaptiveAdapter.newStream()) {
+                stream.readFully(buf);
+            }
+            int adaptiveReads = rangeReadCount[0];
+
+            assertTrue(
+                "Adaptive window should use fewer range reads (" + adaptiveReads + ") than default (" + defaultReads + ")",
+                adaptiveReads < defaultReads
+            );
+        } finally {
+            ParquetStorageObjectAdapter.windowCacheEnabled = saved;
+        }
     }
 
     private void randomBytes(byte[] data) {
@@ -851,23 +876,29 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             }
         };
 
-        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(tracked);
-        NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = new TreeMap<>();
-        int chunkLen = data.length - 100;
-        ByteBuffer prefetchedBuf = ByteBuffer.wrap(data, 100, chunkLen);
-        chunks.put(100L, new ColumnChunkPrefetcher.PrefetchedChunk(100, chunkLen, prefetchedBuf.slice()));
-        adapter.installPrefetchedData(chunks);
+        boolean saved = ParquetStorageObjectAdapter.windowCacheEnabled;
+        try {
+            ParquetStorageObjectAdapter.windowCacheEnabled = true;
+            ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(tracked);
+            NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = new TreeMap<>();
+            int chunkLen = data.length - 100;
+            ByteBuffer prefetchedBuf = ByteBuffer.wrap(data, 100, chunkLen);
+            chunks.put(100L, new ColumnChunkPrefetcher.PrefetchedChunk(100, chunkLen, prefetchedBuf.slice()));
+            adapter.installPrefetchedData(chunks);
 
-        readBytesCalls.set(0);
-        try (SeekableInputStream stream = adapter.newStream()) {
-            stream.seek(100);
-            byte[] result = new byte[100];
-            stream.readFully(result);
-            for (int i = 0; i < result.length; i++) {
-                assertEquals(data[100 + i], result[i]);
+            readBytesCalls.set(0);
+            try (SeekableInputStream stream = adapter.newStream()) {
+                stream.seek(100);
+                byte[] result = new byte[100];
+                stream.readFully(result);
+                for (int i = 0; i < result.length; i++) {
+                    assertEquals(data[100 + i], result[i]);
+                }
             }
+            assertEquals(0, readBytesCalls.get());
+        } finally {
+            ParquetStorageObjectAdapter.windowCacheEnabled = saved;
         }
-        assertEquals(0, readBytesCalls.get());
     }
 
     public void testPrefetchedDataFallbackOnMiss() throws IOException {
@@ -961,6 +992,176 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             for (int i = 0; i < result.length; i++) {
                 assertEquals(data[i], result[i]);
             }
+        }
+    }
+
+    /**
+     * Verifies that seek+read sequences return correct data when the window cache is disabled
+     * (direct reads). This pattern mimics Parquet's column chunk access: seek to a dictionary
+     * page, read it, seek to a data page, read it, possibly seek back.
+     */
+    public void testDirectStreamSeekAndReadCorrectness() throws IOException {
+        byte[] data = new byte[64 * 1024];
+        randomBytes(data);
+        StorageObject storageObject = createRangeReadStorageObject(data);
+
+        boolean savedWindowCache = ParquetStorageObjectAdapter.windowCacheEnabled;
+        try {
+            ParquetStorageObjectAdapter.windowCacheEnabled = false;
+            ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storageObject);
+
+            try (SeekableInputStream stream = adapter.newStream()) {
+                byte[] buf = new byte[1024];
+                stream.seek(4096);
+                stream.readFully(buf);
+                for (int i = 0; i < buf.length; i++) {
+                    assertEquals("Mismatch at first read offset " + i, data[4096 + i], buf[i]);
+                }
+
+                stream.seek(32768);
+                stream.readFully(buf);
+                for (int i = 0; i < buf.length; i++) {
+                    assertEquals("Mismatch at second read offset " + i, data[32768 + i], buf[i]);
+                }
+
+                stream.seek(4096);
+                stream.readFully(buf);
+                for (int i = 0; i < buf.length; i++) {
+                    assertEquals("Mismatch at re-read offset " + i, data[4096 + i], buf[i]);
+                }
+            }
+        } finally {
+            ParquetStorageObjectAdapter.windowCacheEnabled = savedWindowCache;
+        }
+    }
+
+    /**
+     * Verifies that reading the full data with both window-cached and direct streams
+     * produces identical results. This is a parity test: any divergence indicates a
+     * correctness bug in one of the two paths.
+     */
+    public void testWindowedVsDirectReadParity() throws IOException {
+        ParquetStorageObjectAdapter.clearFooterCacheForTests();
+        int size = ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 12345;
+        byte[] data = new byte[size];
+        randomBytes(data);
+        StorageObject storageObject = createRangeReadStorageObject(data);
+
+        boolean savedWindowCache = ParquetStorageObjectAdapter.windowCacheEnabled;
+        try {
+            ParquetStorageObjectAdapter.windowCacheEnabled = true;
+            ParquetStorageObjectAdapter windowedAdapter = new ParquetStorageObjectAdapter(storageObject);
+            byte[] windowedResult = new byte[size];
+            try (SeekableInputStream stream = windowedAdapter.newStream()) {
+                stream.readFully(windowedResult);
+            }
+
+            ParquetStorageObjectAdapter.windowCacheEnabled = false;
+            ParquetStorageObjectAdapter directAdapter = new ParquetStorageObjectAdapter(storageObject);
+            byte[] directResult = new byte[size];
+            try (SeekableInputStream stream = directAdapter.newStream()) {
+                stream.readFully(directResult);
+            }
+
+            assertArrayEquals(windowedResult, directResult);
+        } finally {
+            ParquetStorageObjectAdapter.windowCacheEnabled = savedWindowCache;
+        }
+    }
+
+    /**
+     * Verifies that interleaved seek+read of non-overlapping regions returns correct
+     * bytes with both window modes. This simulates Parquet reading dictionary and data
+     * pages from different column chunks within a row group.
+     */
+    public void testInterleavedSeekReadParity() throws IOException {
+        ParquetStorageObjectAdapter.clearFooterCacheForTests();
+        int size = 8 * 1024 * 1024;
+        byte[] data = new byte[size];
+        randomBytes(data);
+        StorageObject storageObject = createRangeReadStorageObject(data);
+
+        int[][] readRegions = new int[][] {
+            { 0, 4096 },
+            { 1_000_000, 8192 },
+            { 4_000_000, 16384 },
+            { 100, 2048 },
+            { 7_000_000, 4096 },
+            { 2_000_000, 32768 },
+            { 0, 4096 } };
+
+        for (boolean windowEnabled : new boolean[] { true, false }) {
+            boolean savedWindowCache = ParquetStorageObjectAdapter.windowCacheEnabled;
+            try {
+                ParquetStorageObjectAdapter.windowCacheEnabled = windowEnabled;
+                ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storageObject);
+
+                try (SeekableInputStream stream = adapter.newStream()) {
+                    for (int[] region : readRegions) {
+                        int offset = region[0];
+                        int len = region[1];
+                        byte[] buf = new byte[len];
+                        stream.seek(offset);
+                        stream.readFully(buf);
+                        for (int i = 0; i < len; i++) {
+                            assertEquals(
+                                "Mismatch at offset " + (offset + i) + " (window=" + windowEnabled + ")",
+                                data[offset + i],
+                                buf[i]
+                            );
+                        }
+                    }
+                }
+            } finally {
+                ParquetStorageObjectAdapter.windowCacheEnabled = savedWindowCache;
+            }
+        }
+    }
+
+    /**
+     * Verifies the direct stream handles single-byte reads, ByteBuffer reads,
+     * and skip operations correctly.
+     */
+    public void testDirectStreamOperations() throws IOException {
+        byte[] data = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+        StorageObject storageObject = createRangeReadStorageObject(data);
+
+        boolean savedWindowCache = ParquetStorageObjectAdapter.windowCacheEnabled;
+        try {
+            ParquetStorageObjectAdapter.windowCacheEnabled = false;
+            ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storageObject);
+
+            try (SeekableInputStream stream = adapter.newStream()) {
+                assertEquals(1, stream.read());
+                assertEquals(1, stream.getPos());
+
+                long skipped = stream.skip(3);
+                assertEquals(3, skipped);
+                assertEquals(4, stream.getPos());
+                assertEquals(5, stream.read());
+
+                stream.seek(0);
+                ByteBuffer buf = ByteBuffer.allocate(5);
+                stream.readFully(buf);
+                buf.flip();
+                assertEquals(1, buf.get());
+                assertEquals(2, buf.get());
+                assertEquals(3, buf.get());
+                assertEquals(4, buf.get());
+                assertEquals(5, buf.get());
+
+                stream.seek(8);
+                ByteBuffer directBuf = ByteBuffer.allocateDirect(2);
+                stream.readFully(directBuf);
+                directBuf.flip();
+                assertEquals(9, directBuf.get());
+                assertEquals(10, directBuf.get());
+
+                stream.seek(10);
+                assertEquals(-1, stream.read());
+            }
+        } finally {
+            ParquetStorageObjectAdapter.windowCacheEnabled = savedWindowCache;
         }
     }
 

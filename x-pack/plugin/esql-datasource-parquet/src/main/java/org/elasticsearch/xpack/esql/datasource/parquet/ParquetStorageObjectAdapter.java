@@ -50,6 +50,15 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
     /** Max single footer entry (2MB). Prevents caching unusually large footers. */
     static final int FOOTER_CACHE_MAX_ENTRY_BYTES = 2 * 1024 * 1024;
 
+    /**
+     * Controls whether the sliding-window read cache is active. Disabled by default due to a
+     * non-deterministic correctness bug where seeks within the cached window can serve stale
+     * bytes, corrupting dictionary-encoded column values.
+     *
+     * @see <a href="https://github.com/elastic/esql-planning/issues/585">esql-planning#585</a>
+     */
+    static volatile boolean windowCacheEnabled = false;
+
     private static final FooterCache FOOTER_CACHE = new FooterCache(FOOTER_CACHE_MAX_BYTES, FOOTER_CACHE_MAX_ENTRY_BYTES);
 
     /**
@@ -105,7 +114,10 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
 
     @Override
     public SeekableInputStream newStream() throws IOException {
-        return new RangeFirstSeekableInputStream(storageObject, footerCacheKey, length, windowSize, this);
+        if (windowCacheEnabled) {
+            return new RangeFirstSeekableInputStream(storageObject, footerCacheKey, length, windowSize, this);
+        }
+        return new DirectSeekableInputStream(storageObject, length);
     }
 
     static void clearFooterCacheForTests() {
@@ -378,6 +390,185 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                     break;
                 }
                 buf.put(transfer, 0, n);
+                totalRead += n;
+            }
+            return totalRead == 0 ? -1 : totalRead;
+        }
+
+        @Override
+        public void readFully(java.nio.ByteBuffer buf) throws IOException {
+            if (buf.hasArray()) {
+                int off = buf.arrayOffset() + buf.position();
+                readFully(buf.array(), off, buf.remaining());
+                buf.position(buf.limit());
+                return;
+            }
+            byte[] transfer = new byte[Math.min(buf.remaining(), StorageObject.TRANSFER_BUFFER_SIZE)];
+            while (buf.hasRemaining()) {
+                int toRead = Math.min(transfer.length, buf.remaining());
+                readFully(transfer, 0, toRead);
+                buf.put(transfer, 0, toRead);
+            }
+        }
+    }
+
+    /**
+     * SeekableInputStream that issues a fresh positional read for every request,
+     * bypassing the sliding-window cache entirely. Correctness-safe fallback while
+     * the window cache bug is investigated.
+     */
+    private static class DirectSeekableInputStream extends SeekableInputStream {
+        private final StorageObject storageObject;
+        private final long length;
+        private long position;
+        private boolean closed;
+
+        DirectSeekableInputStream(StorageObject storageObject, long length) {
+            this.storageObject = storageObject;
+            this.length = length;
+            this.position = 0;
+            this.closed = false;
+        }
+
+        @Override
+        public long getPos() throws IOException {
+            return position;
+        }
+
+        @Override
+        public void seek(long newPos) throws IOException {
+            if (closed) {
+                throw new IOException("Stream is closed");
+            }
+            if (newPos < 0) {
+                throw new IOException("Cannot seek to negative position: " + newPos);
+            }
+            if (newPos > length) {
+                throw new IOException("Cannot seek beyond end of file: " + newPos + " > " + length);
+            }
+            position = newPos;
+        }
+
+        @Override
+        public int read() throws IOException {
+            if (closed) {
+                throw new IOException("Stream is closed");
+            }
+            if (position >= length) {
+                return -1;
+            }
+            byte[] buf = new byte[1];
+            ByteBuffer target = ByteBuffer.wrap(buf);
+            int n = storageObject.readBytes(position, target);
+            if (n <= 0) {
+                return -1;
+            }
+            position++;
+            return buf[0] & 0xFF;
+        }
+
+        @Override
+        public int read(byte[] b) throws IOException {
+            return read(b, 0, b.length);
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            if (closed) {
+                throw new IOException("Stream is closed");
+            }
+            if (position >= length) {
+                return -1;
+            }
+            if (len <= 0) {
+                return 0;
+            }
+            int toRead = (int) Math.min(len, length - position);
+            ByteBuffer target = ByteBuffer.wrap(b, off, toRead);
+            int bytesRead = storageObject.readBytes(position, target);
+            if (bytesRead <= 0) {
+                return -1;
+            }
+            position += bytesRead;
+            return bytesRead;
+        }
+
+        @Override
+        public long skip(long n) throws IOException {
+            if (n <= 0) {
+                return 0;
+            }
+            long newPos = Math.min(position + n, length);
+            long skipped = newPos - position;
+            seek(newPos);
+            return skipped;
+        }
+
+        @Override
+        public int available() throws IOException {
+            if (closed || position >= length) {
+                return 0;
+            }
+            return (int) Math.min(length - position, Integer.MAX_VALUE);
+        }
+
+        @Override
+        public void close() throws IOException {
+            closed = true;
+        }
+
+        @Override
+        public void readFully(byte[] bytes) throws IOException {
+            readFully(bytes, 0, bytes.length);
+        }
+
+        @Override
+        public void readFully(byte[] bytes, int start, int len) throws IOException {
+            int offset = start;
+            int remaining = len;
+            while (remaining > 0) {
+                int bytesRead = read(bytes, offset, remaining);
+                if (bytesRead < 0) {
+                    throw new IOException("Reached end of stream before reading " + len + " bytes");
+                }
+                offset += bytesRead;
+                remaining -= bytesRead;
+            }
+        }
+
+        @Override
+        public int read(java.nio.ByteBuffer buf) throws IOException {
+            if (buf.hasRemaining() == false) {
+                return 0;
+            }
+            if (closed) {
+                throw new IOException("Stream is closed");
+            }
+            if (position >= length) {
+                return -1;
+            }
+            int toRead = (int) Math.min(buf.remaining(), length - position);
+            if (buf.hasArray()) {
+                int off = buf.arrayOffset() + buf.position();
+                ByteBuffer target = ByteBuffer.wrap(buf.array(), off, toRead);
+                int bytesRead = storageObject.readBytes(position, target);
+                if (bytesRead > 0) {
+                    buf.position(buf.position() + bytesRead);
+                    position += bytesRead;
+                }
+                return bytesRead <= 0 ? -1 : bytesRead;
+            }
+            byte[] transfer = new byte[Math.min(toRead, StorageObject.TRANSFER_BUFFER_SIZE)];
+            int totalRead = 0;
+            while (totalRead < toRead && buf.hasRemaining()) {
+                int chunkSize = Math.min(transfer.length, toRead - totalRead);
+                ByteBuffer target = ByteBuffer.wrap(transfer, 0, chunkSize);
+                int n = storageObject.readBytes(position, target);
+                if (n <= 0) {
+                    break;
+                }
+                buf.put(transfer, 0, n);
+                position += n;
                 totalRead += n;
             }
             return totalRead == 0 ? -1 : totalRead;

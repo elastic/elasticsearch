@@ -90,6 +90,10 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature IGNORED_VALUES_STORED_IN_BINARY_DV = new NodeFeature("mapper.doc_values.ignored_values_in_binary_dv");
     static final NodeFeature KEYWORD_NORMALIZER_SKIP_STORE_SETTING = new NodeFeature("mapper.keyword.normalizer_skip_store_setting");
 
+    public static final NodeFeature KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED = new NodeFeature(
+        "mapper.keyword.multi_fields_not_stored_when_ignored"
+    );
+
     @Override
     public Set<NodeFeature> getTestFeatures() {
         return Set.of(
@@ -153,7 +157,8 @@ public class MapperFeatures implements FeatureSpecification {
             FLATTENED_PASSTHROUGH_FEATURE,
             IGNORED_VALUES_STORED_IN_BINARY_DV,
             IP_MAPPER_CARDINALITY_OPTION,
-            KEYWORD_NORMALIZER_SKIP_STORE_SETTING
+            KEYWORD_NORMALIZER_SKIP_STORE_SETTING,
+            KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED
         );
     }
 }

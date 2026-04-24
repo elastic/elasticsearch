@@ -341,9 +341,6 @@ tests:
   method: testCancellationWhileWaitingOnWaitForSpace
   issue: https://github.com/elastic/elasticsearch/issues/147073
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=mapping/20_synthetic_source/synthetic_source text with ignored multi-field and multiple values in the same doc}
-  issue: https://github.com/elastic/elasticsearch/issues/147064
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=mapping/20_synthetic_source/synthetic_source text with normalized keyword with default skip store original value}
   issue: https://github.com/elastic/elasticsearch/issues/147064
 - class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT

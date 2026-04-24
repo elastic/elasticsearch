@@ -188,7 +188,7 @@ public class ChangePoint extends UnaryPlan
             failures.add(fail(key, "CHANGE_POINT only supports sortable keys, found expression [{}] type [{}]", key.sourceText(), type));
         }
         // All groupings must be sortable
-        for (Expression grouping : groupings) { // TODO for removal? Does OrderBy accept unsortable types?
+        for (Expression grouping : groupings) {
             type = grouping.dataType();
             if (DataType.isSortable(type) == false) {
                 failures.add(

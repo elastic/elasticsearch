@@ -21,6 +21,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.Translog;
 
 import java.util.Objects;
+import java.util.Random;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -100,7 +101,12 @@ final class SoftDeletesPolicy {
      * make sure that all operations that are being retained will be retained until the lock is released.
      * This is a analogy to the translog's retention lock; see {@link Translog#acquireRetentionLock()}
      */
-    synchronized Releasable acquireRetentionLock() {
+    synchronized Releasable acquireRetentionLock() {;
+        try {
+            Thread.sleep(new Random().nextInt(100));
+        } catch (InterruptedException e) {
+            throw new AssertionError("bwaaa");
+        }
         assert retentionLockCount >= 0 : "Invalid number of retention locks [" + retentionLockCount + "]";
         logger.info("---> Retention lock acquired");
         retentionLockCount++;
@@ -110,6 +116,11 @@ final class SoftDeletesPolicy {
     private synchronized void releaseRetentionLock() {
         assert retentionLockCount > 0 : "Invalid number of retention locks [" + retentionLockCount + "]";
         logger.info("---> Retention lock released");
+        try {
+            Thread.sleep(new Random().nextInt(100));
+        } catch (InterruptedException e) {
+            throw new AssertionError("bwaaa");
+        }
         retentionLockCount--;
     }
 

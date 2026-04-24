@@ -69,6 +69,9 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
 
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(TStep.class).quaternaryConfig(TStep::new).name("tstep");
 
+    public static final Duration ONE_NANOSECOND = Duration.ofNanos(1);
+    public static final Duration ONE_MILLISECOND = Duration.ofMillis(1);
+
     private final Configuration configuration;
     private final Expression step;
     @Nullable
@@ -174,36 +177,40 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
         }
     }
 
+    /**
+    * Replace {@link TStep} expression with {@link Bucket} expression.
+    * <p>
+    * Bucket uses truncation-style, left-labeled intervals on calendar-aligned grid:
+    * Bucket(t) = left, for t in [label:=left, right)
+    * e.g., step=1h: [12:00; 13:00) [13:00; 14:00)
+    * <p>
+    * TStep uses right-labeled intervals on a start-aligned grid:
+    * TStep(t) = right, for t in (left, label:=right]
+    * e.g., step=1h, start=12:13: (12:13; 13:13] (13:13; 14:13]
+    * <p>
+    * Therefore, TStep(t) := Bucket0(t - tick) + step, where Bucket0 is Bucket with offset = start mod step.
+    */
+
     @Override
     public Expression surrogate() {
-        Expression tick = Literal.timeDuration(
+        var newTimestamp = new Sub(
             source(),
-            timestamp.dataType() == DataType.DATE_NANOS ? Duration.ofNanos(1) : Duration.ofMillis(1)
-        );
-
-        // Bucket uses truncation-style, left-labeled intervals on calendar-aligned grid:
-        // Bucket(t) = left, for t in [label:=left, right)
-        // e.g., step=1h: [12:00; 13:00) [13:00; 14:00)
-        //
-        // TStep uses right-labeled intervals on a start-aligned grid:
-        // TStep(t) = right, for t in (left, label:=right]
-        // e.g., step=1h, start=12:13: (12:13; 13:13] (13:13; 14:13]
-        //
-        // Therefore, TStep(t) := Bucket0(t - tick) + step, where Bucket0 is Bucket with offset = start mod step.
-        return new Add(
-            source(),
-            new Bucket(
-                source(),
-                new Sub(source(), timestamp, tick, configuration),
-                step,
-                null,
-                null,
-                configuration.withZoneId(ZoneOffset.UTC),
-                offset(FoldContext.small())
-            ),
-            step,
+            timestamp,
+            Literal.timeDuration(source(), timestamp.dataType() == DataType.DATE_NANOS ? ONE_NANOSECOND : ONE_MILLISECOND),
             configuration
         );
+
+        var bucket = new Bucket(
+            source(),
+            newTimestamp,
+            step,
+            null,
+            null,
+            configuration.withZoneId(ZoneOffset.UTC),
+            offset(FoldContext.small())
+        );
+
+        return new Add(source(), bucket, step, configuration);
     }
 
     @Override
@@ -217,7 +224,7 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
         if (resolution.unresolved()) {
             return resolution;
         }
-        if (start != null && end == null) {
+        if ((start == null) != (end == null)) {
             return new TypeResolution(
                 org.elasticsearch.common.Strings.format("[%s] requires both 'from' and 'to' arguments, or neither", sourceText())
             );
@@ -291,7 +298,7 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
     private long offset(FoldContext foldContext) {
         long stepMs = ((Duration) step.fold(foldContext)).toMillis();
         if (stepMs == 0) {
-            // {@link Bucket} doesn't support nanos precision
+            // {@link Bucket} doesn't support nanosecond step precision
             return 0;
         }
 

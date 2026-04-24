@@ -61,8 +61,7 @@ public class ByteRankVectors implements RankVectors, MultiByteVectorsSource {
     @Override
     public float maxSimDotProduct(byte[][] query) {
         float[] scores = ensureScoresScratch();
-        float[] maxes = ensureMaxesScratch(query.length);
-        return ESVectorUtil.maxSimDotProduct(this, query, scores, maxes);
+        return ESVectorUtil.maxSimDotProduct(this, query, scores);
     }
 
     @Override

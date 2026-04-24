@@ -35,9 +35,9 @@ public interface ESVectorUtilSupport {
     /** Calculates the dot product of the given byte arrays. */
     float dotProduct(byte[] a, byte[] b);
 
-    float maxSimDotProduct(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch, float[] maxesScratch);
+    float maxSimDotProduct(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch);
 
-    float maxSimDotProduct(MultiByteVectorsSource source, byte[][] query, float[] scoresScratch, float[] maxesScratch);
+    float maxSimDotProduct(MultiByteVectorsSource source, byte[][] query, float[] scoresScratch);
 
     /** Returns the sum of squared differences of the two vectors. */
     float squareDistance(byte[] a, byte[] b);

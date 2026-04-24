@@ -17,8 +17,6 @@ import org.elasticsearch.simdvec.MathUtils;
 import org.elasticsearch.simdvec.MultiByteVectorsSource;
 import org.elasticsearch.simdvec.MultiFloatVectorsSource;
 
-import java.util.Arrays;
-
 final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
 
     private static float fma(float a, float b, float c) {
@@ -61,29 +59,31 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public float maxSimDotProduct(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch, float[] maxesScratch) {
-        Arrays.fill(maxesScratch, 0, query.length, Float.NEGATIVE_INFINITY);
-        var vectorValues = source.vectorValues();
-        while (vectorValues.hasNext()) {
-            float[] vv = vectorValues.next();
-            for (int i = 0; i < query.length; i++) {
-                maxesScratch[i] = Math.max(maxesScratch[i], dotProduct(query[i], vv));
+    public float maxSimDotProduct(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch) {
+        float sum = 0f;
+        for (float[] floats : query) {
+            float max = Float.NEGATIVE_INFINITY;
+            var vectorValues = source.vectorValues();
+            while (vectorValues.hasNext()) {
+                max = Math.max(max, dotProduct(floats, vectorValues.next()));
             }
+            sum += max;
         }
-        return sum(maxesScratch, query.length);
+        return sum;
     }
 
     @Override
-    public float maxSimDotProduct(MultiByteVectorsSource source, byte[][] query, float[] scoresScratch, float[] maxesScratch) {
-        Arrays.fill(maxesScratch, 0, query.length, Float.NEGATIVE_INFINITY);
-        var vectorValues = source.vectorValues();
-        while (vectorValues.hasNext()) {
-            byte[] vv = vectorValues.next();
-            for (int i = 0; i < query.length; i++) {
-                maxesScratch[i] = Math.max(maxesScratch[i], dotProduct(query[i], vv));
+    public float maxSimDotProduct(MultiByteVectorsSource source, byte[][] query, float[] scoresScratch) {
+        float sum = 0f;
+        for (byte[] bytes : query) {
+            float max = Float.NEGATIVE_INFINITY;
+            var vectorValues = source.vectorValues();
+            while (vectorValues.hasNext()) {
+                max = Math.max(max, dotProduct(bytes, vectorValues.next()));
             }
+            sum += max;
         }
-        return sum(maxesScratch, query.length);
+        return sum;
     }
 
     @Override
@@ -606,11 +606,4 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         }
     }
 
-    private static float sum(float[] values, int length) {
-        float sum = 0f;
-        for (int i = 0; i < length; i++) {
-            sum += values[i];
-        }
-        return sum;
-    }
 }

@@ -29,7 +29,6 @@ public class FloatRankVectors implements RankVectors, MultiFloatVectorsSource {
     private final BytesRef vectorBytes;
     private final ElementType elementType;
     private float[] scoresScratch = new float[0];
-    private float[] maxesScratch = new float[0];
 
     public FloatRankVectors(VectorIterator<float[]> decodedDocVector, BytesRef magnitudes, int numVectors, int dims) {
         this(decodedDocVector, magnitudes, numVectors, dims, null, ElementType.FLOAT);
@@ -55,8 +54,7 @@ public class FloatRankVectors implements RankVectors, MultiFloatVectorsSource {
     @Override
     public float maxSimDotProduct(float[][] query) {
         float[] scores = ensureScoresScratch();
-        float[] maxes = ensureMaxesScratch(query.length);
-        return ESVectorUtil.maxSimDotProduct(this, query, scores, maxes);
+        return ESVectorUtil.maxSimDotProduct(this, query, scores);
     }
 
     @Override
@@ -133,10 +131,4 @@ public class FloatRankVectors implements RankVectors, MultiFloatVectorsSource {
         return scoresScratch;
     }
 
-    private float[] ensureMaxesScratch(int queryCount) {
-        if (maxesScratch.length < queryCount) {
-            maxesScratch = new float[queryCount];
-        }
-        return maxesScratch;
-    }
 }

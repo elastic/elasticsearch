@@ -30,7 +30,6 @@ import org.elasticsearch.simdvec.MultiVectorsSource;
 import org.elasticsearch.simdvec.internal.Similarities;
 
 import java.lang.foreign.MemorySegment;
-import java.util.Arrays;
 
 import static jdk.incubator.vector.VectorOperators.ADD;
 import static jdk.incubator.vector.VectorOperators.ASHR;
@@ -120,41 +119,43 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public float maxSimDotProduct(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch, float[] maxesScratch) {
+    public float maxSimDotProduct(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch) {
         if (canUseBulkPath(source)) {
             final BytesRef vectors = source.vectorBytes();
-            for (int i = 0; i < query.length; i++) {
+            float sum = 0f;
+            for (float[] floats : query) {
                 Similarities.dotProductF32Bulk(
                     MemorySegment.ofArray(vectors.bytes).asSlice(vectors.offset, (long) source.vectorByteSize() * source.vectorCount()),
-                    MemorySegment.ofArray(query[i]),
+                    MemorySegment.ofArray(floats),
                     source.vectorDims(),
                     source.vectorCount(),
                     MemorySegment.ofArray(scoresScratch)
                 );
-                maxesScratch[i] = max(scoresScratch, source.vectorCount());
+                sum += max(scoresScratch, source.vectorCount());
             }
-            return sum(maxesScratch, query.length);
+            return sum;
         }
-        return DEFAULT.maxSimDotProduct(source, query, scoresScratch, maxesScratch);
+        return DEFAULT.maxSimDotProduct(source, query, scoresScratch);
     }
 
     @Override
-    public float maxSimDotProduct(MultiByteVectorsSource source, byte[][] query, float[] scoresScratch, float[] maxesScratch) {
+    public float maxSimDotProduct(MultiByteVectorsSource source, byte[][] query, float[] scoresScratch) {
         if (canUseBulkPath(source)) {
             final BytesRef vectors = source.vectorBytes();
-            for (int i = 0; i < query.length; i++) {
+            float sum = 0f;
+            for (byte[] bytes : query) {
                 Similarities.dotProductI8Bulk(
                     MemorySegment.ofArray(vectors.bytes).asSlice(vectors.offset, (long) source.vectorByteSize() * source.vectorCount()),
-                    MemorySegment.ofArray(query[i]),
+                    MemorySegment.ofArray(bytes),
                     source.vectorDims(),
                     source.vectorCount(),
                     MemorySegment.ofArray(scoresScratch)
                 );
-                maxesScratch[i] = max(scoresScratch, source.vectorCount());
+                sum += max(scoresScratch, source.vectorCount());
             }
-            return sum(maxesScratch, query.length);
+            return sum;
         }
-        return DEFAULT.maxSimDotProduct(source, query, scoresScratch, maxesScratch);
+        return DEFAULT.maxSimDotProduct(source, query, scoresScratch);
     }
 
     @Override
@@ -1501,11 +1502,4 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         return max;
     }
 
-    private static float sum(float[] values, int length) {
-        float sum = 0f;
-        for (int i = 0; i < length; i++) {
-            sum += values[i];
-        }
-        return sum;
-    }
 }

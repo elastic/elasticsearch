@@ -111,14 +111,14 @@ public class ESVectorUtil {
         return IMPL.dotProduct(a, b);
     }
 
-    public static float maxSimDotProduct(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch, float[] maxesScratch) {
-        ensureScratchCapacity(source, query.length, scoresScratch, maxesScratch);
-        return IMPL.maxSimDotProduct(source, query, scoresScratch, maxesScratch);
+    public static float maxSimDotProduct(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch) {
+        ensureScoresScratchCapacity(source, scoresScratch);
+        return IMPL.maxSimDotProduct(source, query, scoresScratch);
     }
 
-    public static float maxSimDotProduct(MultiByteVectorsSource source, byte[][] query, float[] scoresScratch, float[] maxesScratch) {
-        ensureScratchCapacity(source, query.length, scoresScratch, maxesScratch);
-        return IMPL.maxSimDotProduct(source, query, scoresScratch, maxesScratch);
+    public static float maxSimDotProduct(MultiByteVectorsSource source, byte[][] query, float[] scoresScratch) {
+        ensureScoresScratchCapacity(source, scoresScratch);
+        return IMPL.maxSimDotProduct(source, query, scoresScratch);
     }
 
     public static float squareDistance(byte[] a, byte[] b) {
@@ -232,12 +232,9 @@ public class ESVectorUtil {
         return distance;
     }
 
-    private static void ensureScratchCapacity(MultiVectorsSource<?> source, int queryCount, float[] scoresScratch, float[] maxesScratch) {
+    private static void ensureScoresScratchCapacity(MultiVectorsSource<?> source, float[] scoresScratch) {
         if (scoresScratch.length < source.vectorCount()) {
             throw new IllegalArgumentException("scores array too small: " + scoresScratch.length + " < " + source.vectorCount());
-        }
-        if (maxesScratch.length < queryCount) {
-            throw new IllegalArgumentException("maxes array too small: " + maxesScratch.length + " < " + queryCount);
         }
     }
 

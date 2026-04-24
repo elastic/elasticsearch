@@ -30,13 +30,13 @@ public class OTLPTracesTransportActionTests extends AbstractOTLPTransportActionT
     @Override
     protected OTLPActionRequest createRequestWithData() {
         return new OTLPActionRequest(
-            new BytesArray(OtlpUtils.createTracesRequest(List.of(OtlpUtils.createSpan("test-span"))).toByteArray())
+            new BytesArray(OtlpTraceUtils.createTracesRequest(List.of(OtlpTraceUtils.createSpan("test-span"))).toByteArray())
         );
     }
 
     @Override
     protected OTLPActionRequest createEmptyRequest() {
-        return new OTLPActionRequest(new BytesArray(OtlpUtils.createTracesRequest(List.of()).toByteArray()));
+        return new OTLPActionRequest(new BytesArray(OtlpTraceUtils.createTracesRequest(List.of()).toByteArray()));
     }
 
     @Override

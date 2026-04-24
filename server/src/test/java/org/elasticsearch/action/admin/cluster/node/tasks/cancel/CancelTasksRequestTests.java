@@ -16,7 +16,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsString;

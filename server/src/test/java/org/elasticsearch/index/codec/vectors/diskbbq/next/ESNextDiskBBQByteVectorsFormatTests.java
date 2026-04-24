@@ -124,7 +124,7 @@ public class ESNextDiskBBQByteVectorsFormatTests extends BaseKnnVectorsFormatTes
 
     @Override
     protected VectorSimilarityFunction randomSimilarity() {
-        return switch (random().nextInt(4)) {
+        return switch (random().nextInt(3)) {
             case 0 -> VectorSimilarityFunction.DOT_PRODUCT;
             case 1 -> VectorSimilarityFunction.EUCLIDEAN;
             case 2 -> VectorSimilarityFunction.COSINE;

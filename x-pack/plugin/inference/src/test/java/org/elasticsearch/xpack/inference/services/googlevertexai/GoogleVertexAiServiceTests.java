@@ -1270,7 +1270,6 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                         TaskType.SPARSE_EMBEDDING
                     )
                 )
-
             );
         }
     }

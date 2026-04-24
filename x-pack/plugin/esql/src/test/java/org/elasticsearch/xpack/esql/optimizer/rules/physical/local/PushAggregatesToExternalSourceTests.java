@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.test.ESTestCase;
@@ -303,6 +305,14 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
         assertEquals(3, local.output().size());
     }
 
+    public void testCountStarNotPushedWithPartialStats() {
+        Map<String, Object> metadata = statsMetadata(1000L, null, null);
+        metadata.put(SourceStatisticsSerializer.STATS_PARTIAL, Boolean.TRUE);
+        var agg = aggregateExec(AggregatorMode.SINGLE, externalSource(metadata), countStarAlias());
+
+        as(applyRule(agg), AggregateExec.class);
+    }
+
     public void testNotPushedWithMixedSplitStats() {
         ExternalSourceExec ext = externalSourceWithSplits(Map.of(), statsMetadata(100L, null, null), null);
         var agg = aggregateExec(AggregatorMode.SINGLE, ext, countStarAlias());
@@ -334,6 +344,80 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
         assertEquals(2, page.getBlockCount());
         assertEquals(300L, as(page.getBlock(0), LongBlock.class).getLong(0));
         assertTrue(as(page.getBlock(1), BooleanBlock.class).getBoolean(0));
+    }
+
+    public void testPushedWithTenSplitsWholeFileStats() {
+        @SuppressWarnings("unchecked")
+        Map<String, Object>[] perSplitStats = new Map[10];
+        for (int i = 0; i < 10; i++) {
+            perSplitStats[i] = statsMetadata(1000L, null, null);
+        }
+        ExternalSourceExec ext = externalSourceWithSplits(Map.of(), perSplitStats);
+        var agg = aggregateExec(AggregatorMode.SINGLE, ext, countStarAlias());
+
+        LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
+        assertEquals(10_000L, as(local.supplier().get().getBlock(0), LongBlock.class).getLong(0));
+    }
+
+    public void testMultiSplitMinMaxMergedCorrectly() {
+        Map<String, Object> split1Stats = statsMetadata(500L, "age", 10L);
+        split1Stats.put("_stats.columns.age.min", 18);
+        split1Stats.put("_stats.columns.age.max", 65);
+
+        Map<String, Object> split2Stats = statsMetadata(300L, "age", 5L);
+        split2Stats.put("_stats.columns.age.min", 22);
+        split2Stats.put("_stats.columns.age.max", 90);
+
+        Map<String, Object> split3Stats = statsMetadata(200L, "age", 0L);
+        split3Stats.put("_stats.columns.age.min", 15);
+        split3Stats.put("_stats.columns.age.max", 70);
+
+        ExternalSourceExec ext = externalSourceWithSplits(Map.of(), split1Stats, split2Stats, split3Stats);
+
+        var countAgg = aggregateExec(AggregatorMode.SINGLE, ext, countStarAlias());
+        LocalSourceExec countLocal = as(applyRule(countAgg), LocalSourceExec.class);
+        assertEquals(1000L, as(countLocal.supplier().get().getBlock(0), LongBlock.class).getLong(0));
+
+        ExternalSourceExec ext2 = externalSourceWithSplits(Map.of(), split1Stats, split2Stats, split3Stats);
+        var minAgg = aggregateExec(AggregatorMode.SINGLE, ext2, alias("m", new Min(Source.EMPTY, AGE)));
+        LocalSourceExec minLocal = as(applyRule(minAgg), LocalSourceExec.class);
+        assertEquals(15, as(minLocal.supplier().get().getBlock(0), IntBlock.class).getInt(0));
+
+        ExternalSourceExec ext3 = externalSourceWithSplits(Map.of(), split1Stats, split2Stats, split3Stats);
+        var maxAgg = aggregateExec(AggregatorMode.SINGLE, ext3, alias("m", new Max(Source.EMPTY, AGE)));
+        LocalSourceExec maxLocal = as(applyRule(maxAgg), LocalSourceExec.class);
+        assertEquals(90, as(maxLocal.supplier().get().getBlock(0), IntBlock.class).getInt(0));
+    }
+
+    public void testMultiSplitCountFieldSubtractsNullsAcrossFiles() {
+        Map<String, Object> split1Stats = statsMetadata(1000L, "score", 50L);
+        Map<String, Object> split2Stats = statsMetadata(2000L, "score", 100L);
+
+        ExternalSourceExec ext = externalSourceWithSplits(Map.of(), split1Stats, split2Stats);
+        var agg = aggregateExec(AggregatorMode.SINGLE, ext, countFieldAlias(SCORE));
+
+        LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
+        assertEquals(2850L, as(local.supplier().get().getBlock(0), LongBlock.class).getLong(0));
+    }
+
+    public void testMultiSplitMinMaxDoublesMergedCorrectly() {
+        Map<String, Object> split1Stats = statsMetadata(100L, "score", 0L);
+        split1Stats.put("_stats.columns.score.min", 1.5);
+        split1Stats.put("_stats.columns.score.max", 99.0);
+
+        Map<String, Object> split2Stats = statsMetadata(200L, "score", 0L);
+        split2Stats.put("_stats.columns.score.min", 0.5);
+        split2Stats.put("_stats.columns.score.max", 100.5);
+
+        ExternalSourceExec ext = externalSourceWithSplits(Map.of(), split1Stats, split2Stats);
+        var minAgg = aggregateExec(AggregatorMode.SINGLE, ext, alias("m", new Min(Source.EMPTY, SCORE)));
+        LocalSourceExec minLocal = as(applyRule(minAgg), LocalSourceExec.class);
+        assertEquals(0.5, as(minLocal.supplier().get().getBlock(0), DoubleBlock.class).getDouble(0), 0.0001);
+
+        ExternalSourceExec ext2 = externalSourceWithSplits(Map.of(), split1Stats, split2Stats);
+        var maxAgg = aggregateExec(AggregatorMode.SINGLE, ext2, alias("m", new Max(Source.EMPTY, SCORE)));
+        LocalSourceExec maxLocal = as(applyRule(maxAgg), LocalSourceExec.class);
+        assertEquals(100.5, as(maxLocal.supplier().get().getBlock(0), DoubleBlock.class).getDouble(0), 0.0001);
     }
 
     public void testNotPushedWithMultipleSplitsWithoutStats() {

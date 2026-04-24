@@ -14,16 +14,18 @@ import org.elasticsearch.test.ESTestCase;
 public class EirfTypeTests extends ESTestCase {
 
     public void testFixedSizeZeroByte() {
+        assertEquals(0, EirfType.fixedSize(EirfType.ABSENT, true));
         assertEquals(0, EirfType.fixedSize(EirfType.NULL, true));
         assertEquals(0, EirfType.fixedSize(EirfType.TRUE, true));
         assertEquals(0, EirfType.fixedSize(EirfType.FALSE, true));
+        assertEquals(0, EirfType.fixedSize(EirfType.ABSENT, false));
         assertEquals(0, EirfType.fixedSize(EirfType.NULL, false));
         assertEquals(0, EirfType.fixedSize(EirfType.TRUE, false));
         assertEquals(0, EirfType.fixedSize(EirfType.FALSE, false));
     }
 
     public void testFixedSizeSmallRow() {
-        // Small row: types 0x03-0x09 → 4 bytes, 0x0A-0x0B → 8 bytes
+        // Small row: types 0x04-0x0A → 4 bytes, 0x0B-0x0C → 8 bytes
         assertEquals(4, EirfType.fixedSize(EirfType.INT, true));
         assertEquals(4, EirfType.fixedSize(EirfType.FLOAT, true));
         assertEquals(4, EirfType.fixedSize(EirfType.STRING, true));
@@ -36,7 +38,7 @@ public class EirfTypeTests extends ESTestCase {
     }
 
     public void testFixedSizeLargeRow() {
-        // Large row: types 0x03-0x04 → 4 bytes, 0x05-0x0B → 8 bytes
+        // Large row: types 0x04-0x05 → 4 bytes, 0x06-0x0C → 8 bytes
         assertEquals(4, EirfType.fixedSize(EirfType.INT, false));
         assertEquals(4, EirfType.fixedSize(EirfType.FLOAT, false));
         assertEquals(8, EirfType.fixedSize(EirfType.STRING, false));
@@ -58,6 +60,7 @@ public class EirfTypeTests extends ESTestCase {
         assertFalse(EirfType.isVariable(EirfType.FLOAT));
         assertFalse(EirfType.isVariable(EirfType.LONG));
         assertFalse(EirfType.isVariable(EirfType.DOUBLE));
+        assertFalse(EirfType.isVariable(EirfType.ABSENT));
         assertFalse(EirfType.isVariable(EirfType.NULL));
         assertFalse(EirfType.isVariable(EirfType.TRUE));
         assertFalse(EirfType.isVariable(EirfType.FALSE));
@@ -72,6 +75,7 @@ public class EirfTypeTests extends ESTestCase {
     }
 
     public void testNameForAllTypes() {
+        assertEquals("ABSENT", EirfType.name(EirfType.ABSENT));
         assertEquals("NULL", EirfType.name(EirfType.NULL));
         assertEquals("TRUE", EirfType.name(EirfType.TRUE));
         assertEquals("FALSE", EirfType.name(EirfType.FALSE));
@@ -92,6 +96,7 @@ public class EirfTypeTests extends ESTestCase {
     }
 
     public void testElemDataSize() {
+        assertEquals(0, EirfType.elemDataSize(EirfType.ABSENT));
         assertEquals(0, EirfType.elemDataSize(EirfType.NULL));
         assertEquals(0, EirfType.elemDataSize(EirfType.TRUE));
         assertEquals(0, EirfType.elemDataSize(EirfType.FALSE));

@@ -104,26 +104,21 @@ public class ReindexSettingsTests extends ESTestCase {
         assertThat(reindexSettings.pitKeepAlive(), equalTo(valid));
 
         String key = ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING.getKey();
-        Settings invalid = Settings.builder().put(key, "9999ms").build();
+        Settings invalid = Settings.builder().put(key, "0ms").build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.applySettings(invalid));
         assertThat(e.getMessage(), containsString(key));
         assertThat(reindexSettings.pitKeepAlive(), equalTo(valid));
     }
 
     /**
-     * {@link ReindexSettings#REINDEX_PIT_KEEP_ALIVE_SETTING} parses the documented default and accepts values at the minimum (10s)
-     * and maximum (1h) bounds.
+     * {@link ReindexSettings#REINDEX_PIT_KEEP_ALIVE_SETTING} parses the documented default and accepts the minimum ({@code 1ms})
      */
     public void testReindexPitKeepAliveSettingDefinition() {
         assertThat(ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING.get(Settings.EMPTY), equalTo(TimeValue.timeValueMinutes(5)));
         String key = ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING.getKey();
         assertThat(
-            ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING.get(Settings.builder().put(key, "10s").build()),
-            equalTo(TimeValue.timeValueSeconds(10))
-        );
-        assertThat(
-            ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING.get(Settings.builder().put(key, "1h").build()),
-            equalTo(TimeValue.timeValueHours(1))
+            ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING.get(Settings.builder().put(key, "1ms").build()),
+            equalTo(TimeValue.timeValueMillis(1))
         );
     }
 
@@ -134,21 +129,21 @@ public class ReindexSettingsTests extends ESTestCase {
         String key = ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING.getKey();
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING.get(Settings.builder().put(key, "9999ms").build())
+            () -> ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING.get(Settings.builder().put(key, "0ms").build())
         );
-        assertThat(e.getMessage(), equalTo("failed to parse value [9999ms] for setting [" + key + "], must be >= [10s]"));
+        assertThat(e.getMessage(), equalTo("failed to parse value [0ms] for setting [" + key + "], must be >= [1ms]"));
     }
 
     /**
-     * Values strictly above the maximum allowed keep-alive are rejected with a stable error message.
+     * The setting has no defined upper bound so accept anything
      */
-    public void testReindexPitKeepAliveSettingRejectsAboveMaximum() {
+    public void testReindexPitKeepAliveSettingHasNoUpperBound() {
         String key = ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING.getKey();
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING.get(Settings.builder().put(key, "3600001ms").build())
+        long value = randomLongBetween(1, Long.MAX_VALUE);
+        assertThat(
+            ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING.get(Settings.builder().put(key, value + "ms").build()),
+            equalTo(TimeValue.timeValueMillis(value))
         );
-        assertThat(e.getMessage(), equalTo("failed to parse value [3600001ms] for setting [" + key + "], must be <= [1h]"));
     }
 
     private static ClusterSettings clusterSettings(Set<Setting<?>> settingsSet, Settings nodeSettings) {

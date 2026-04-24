@@ -23,12 +23,12 @@ public final class ReindexSettings {
      * Keep-alive for point-in-time search contexts used during reindexing.
      * When scroll-based search is used, the scroll timeout comes from the search request.
      * If the scroll timeout is set but pit is used, the scroll timeout is ignored in favor of this.
+     * Minimum {@code 1ms}; default {@code 5m}; no upper bound.
      */
     public static final Setting<TimeValue> REINDEX_PIT_KEEP_ALIVE_SETTING = Setting.timeSetting(
         "cluster.reindex.pit.keep_alive",
         TimeValue.timeValueMinutes(5),
-        TimeValue.timeValueSeconds(10),
-        TimeValue.timeValueHours(1),
+        TimeValue.timeValueMillis(1),
         Property.Dynamic,
         Property.NodeScope
     );

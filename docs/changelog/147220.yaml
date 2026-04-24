@@ -1,5 +1,6 @@
 area: Vector Search
-issues: []
+issues:
+ - 146407
 pr: 147220
 summary: "[DiskBBQ] Add 'Byte' Element Type for DiskBBQ"
 type: enhancement

@@ -14,7 +14,7 @@ thread_local! {
 }
 
 pub fn set_last_error(msg: String) {
-    LAST_ERROR.with(|e| *e.borrow_mut() = Some(msg));
+    LAST_ERROR.set(Some(msg));
 }
 
 /// Evaluates an expression that returns `Result`. On `Ok`, yields the value.

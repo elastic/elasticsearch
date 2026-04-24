@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
@@ -70,7 +69,7 @@ public class BreakingExponentialHistogramHolder implements Releasable, Accountab
      * Sets this holder to a copy of the given histogram.
      */
     public void set(ExponentialHistogram incoming) {
-        encodedHistogramBuffer.clear();
+        encodedHistogramBuffer.delegate.clear();
         try {
             CompressedExponentialHistogram.writeHistogramBytes(encodedHistogramBuffer, incoming);
         } catch (IOException e) {
@@ -83,7 +82,7 @@ public class BreakingExponentialHistogramHolder implements Releasable, Accountab
                 incoming.sum(),
                 incoming.min(),
                 incoming.max(),
-                encodedHistogramBuffer.bytesRefView()
+                encodedHistogramBuffer.delegate.bytesRefView()
             );
         } catch (IOException e) {
             throw new IllegalStateException("Histogram decoding failed", e);
@@ -131,14 +130,6 @@ public class BreakingExponentialHistogramHolder implements Releasable, Accountab
                 }
             }
             this.delegate = delegate;
-        }
-
-        void clear() {
-            delegate.clear();
-        }
-
-        BytesRef bytesRefView() {
-            return delegate.bytesRefView();
         }
 
         @Override

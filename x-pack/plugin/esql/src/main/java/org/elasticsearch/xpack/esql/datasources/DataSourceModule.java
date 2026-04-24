@@ -67,7 +67,7 @@ public final class DataSourceModule implements Closeable {
 
         DecompressionCodecRegistry codecRegistry = new DecompressionCodecRegistry();
         for (DataSourcePlugin plugin : dataSourcePlugins) {
-            for (DecompressionCodec codec : plugin.decompressionCodecs(settings)) {
+            for (DecompressionCodec codec : plugin.decompressionCodecs(settings, executor)) {
                 codecRegistry.register(codec);
             }
         }
@@ -218,7 +218,11 @@ public final class DataSourceModule implements Closeable {
     }
 
     public OperatorFactoryRegistry createOperatorFactoryRegistry(Executor executor) {
-        return new OperatorFactoryRegistry(sourceFactories, pluginFactories, executor);
+        return createOperatorFactoryRegistry(executor, executor);
+    }
+
+    public OperatorFactoryRegistry createOperatorFactoryRegistry(Executor executor, Executor fileReadExecutor) {
+        return new OperatorFactoryRegistry(sourceFactories, pluginFactories, executor, fileReadExecutor);
     }
 
     /**

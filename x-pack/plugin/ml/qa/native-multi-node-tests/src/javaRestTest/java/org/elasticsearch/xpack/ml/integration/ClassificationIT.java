@@ -699,10 +699,11 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         String sourceIndex = "classification_two_jobs_with_same_randomize_seed_source";
         String dependentVariable = KEYWORD_FIELD;
 
-        createIndex(sourceIndex, false);
+        createIndex(sourceIndex, false, DETERMINISTIC_DOC_ORDER_INDEX_SETTINGS);
         // We use 100 rows as we can't set this too low. If too low it is possible
         // we only train with rows of one of the two classes which leads to a failure.
         indexData(sourceIndex, 100, 0, dependentVariable);
+        forceMergeSingleSegment(sourceIndex);
 
         String firstJobId = "classification_two_jobs_with_same_randomize_seed_1";
         String firstJobDestIndex = firstJobId + "_dest";
@@ -1064,6 +1065,10 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     }
 
     static void createIndex(String index, boolean isDatastream) {
+        createIndex(index, isDatastream, Settings.EMPTY);
+    }
+
+    static void createIndex(String index, boolean isDatastream, Settings indexSettings) {
         String mapping = Strings.format(
             """
                 {
@@ -1122,7 +1127,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 throw new ElasticsearchException(ex);
             }
         } else {
-            client().admin().indices().prepareCreate(index).setMapping(mapping).get();
+            client().admin().indices().prepareCreate(index).setSettings(indexSettings).setMapping(mapping).get();
         }
     }
 

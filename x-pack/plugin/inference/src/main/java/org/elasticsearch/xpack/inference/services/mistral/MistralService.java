@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
@@ -199,7 +198,7 @@ public class MistralService extends SenderService<MistralModel> {
 
     @Override
     public void parseRequestConfig(
-        String modelId,
+        String inferenceId,
         TaskType taskType,
         Map<String, Object> config,
         ActionListener<Model> parsedModelListener
@@ -214,15 +213,17 @@ public class MistralService extends SenderService<MistralModel> {
                     removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
                 );
             }
-
-            MistralModel model = createModel(
-                modelId,
-                taskType,
-                serviceSettingsMap,
-                chunkingSettings,
-                serviceSettingsMap,
-                ConfigurationParseContext.REQUEST
-            );
+            var model = retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceId, taskType, NAME, ConfigurationParseContext.REQUEST)
+                .createFromMaps(
+                    inferenceId,
+                    taskType,
+                    NAME,
+                    serviceSettingsMap,
+                    null,
+                    chunkingSettings,
+                    serviceSettingsMap,
+                    ConfigurationParseContext.REQUEST
+                );
 
             throwIfNotEmptyMap(config, NAME);
             throwIfNotEmptyMap(serviceSettingsMap, NAME);
@@ -241,7 +242,7 @@ public class MistralService extends SenderService<MistralModel> {
             config.getInferenceEntityId(),
             config.getTaskType(),
             config.getService(),
-            ConfigurationParseContext.PERSISTENT
+            ConfigurationParseContext.REQUEST
         ).createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
@@ -253,26 +254,6 @@ public class MistralService extends SenderService<MistralModel> {
     @Override
     public Set<TaskType> supportedStreamingTasks() {
         return EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
-    }
-
-    private static MistralModel createModel(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> serviceSettings,
-        ChunkingSettings chunkingSettings,
-        @Nullable Map<String, Object> secretSettings,
-        ConfigurationParseContext context
-    ) {
-        return retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceEntityId, taskType, NAME, context).createFromMaps(
-            inferenceEntityId,
-            taskType,
-            NAME,
-            serviceSettings,
-            null,
-            chunkingSettings,
-            secretSettings,
-            context
-        );
     }
 
     @Override

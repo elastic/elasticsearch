@@ -549,12 +549,13 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Wraps the metadata to include a {@code _stats.file_count} field for observability.
+     * Returns a wrapper that delegates everything to {@code metadata} except {@code sourceMetadata()},
+     * which is enriched with the given extra entries.
      */
-    static ExternalSourceMetadata enrichWithFileCount(ExternalSourceMetadata metadata, int fileCount) {
+    static ExternalSourceMetadata withExtraSourceMetadata(ExternalSourceMetadata metadata, Map<String, Object> extra) {
         Map<String, Object> original = metadata.sourceMetadata();
         Map<String, Object> enriched = original != null ? new HashMap<>(original) : new HashMap<>();
-        enriched.put(SourceStatisticsSerializer.STATS_FILE_COUNT, (long) fileCount);
+        enriched.putAll(extra);
         Map<String, Object> finalMetadata = Map.copyOf(enriched);
         return new ExternalSourceMetadata() {
             @Override
@@ -584,41 +585,12 @@ public class ExternalSourceResolver {
         };
     }
 
-    /**
-     * Wraps the metadata to include a {@code _stats.partial=true} flag, signaling that
-     * the statistics come from a single anchor file and do not cover the full multi-file dataset.
-     */
+    static ExternalSourceMetadata enrichWithFileCount(ExternalSourceMetadata metadata, int fileCount) {
+        return withExtraSourceMetadata(metadata, Map.of(SourceStatisticsSerializer.STATS_FILE_COUNT, (long) fileCount));
+    }
+
     static ExternalSourceMetadata markStatsAsPartial(ExternalSourceMetadata metadata) {
-        Map<String, Object> original = metadata.sourceMetadata();
-        Map<String, Object> enriched = original != null ? new HashMap<>(original) : new HashMap<>();
-        enriched.put(SourceStatisticsSerializer.STATS_PARTIAL, Boolean.TRUE);
-        Map<String, Object> finalMetadata = Map.copyOf(enriched);
-        return new ExternalSourceMetadata() {
-            @Override
-            public String location() {
-                return metadata.location();
-            }
-
-            @Override
-            public List<Attribute> schema() {
-                return metadata.schema();
-            }
-
-            @Override
-            public String sourceType() {
-                return metadata.sourceType();
-            }
-
-            @Override
-            public Map<String, Object> sourceMetadata() {
-                return finalMetadata;
-            }
-
-            @Override
-            public Map<String, Object> config() {
-                return metadata.config();
-            }
-        };
+        return withExtraSourceMetadata(metadata, Map.of(SourceStatisticsSerializer.STATS_PARTIAL, Boolean.TRUE));
     }
 
     static ExternalSourceMetadata enrichSchemaWithPartitionColumns(ExternalSourceMetadata metadata, PartitionMetadata partitionMetadata) {

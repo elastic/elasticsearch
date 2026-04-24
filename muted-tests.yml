@@ -353,16 +353,10 @@ tests:
   method: testCancellationWhileWaitingOnWaitForSpace
   issue: https://github.com/elastic/elasticsearch/issues/147073
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=search/395_binary_doc_values_search/*}
-  issue: https://github.com/elastic/elasticsearch/issues/147064
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=mapping/20_synthetic_source/synthetic_source text with ignored multi-field and multiple values in the same doc}
   issue: https://github.com/elastic/elasticsearch/issues/147064
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=mapping/20_synthetic_source/synthetic_source text with normalized keyword with default skip store original value}
-  issue: https://github.com/elastic/elasticsearch/issues/147064
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=indices.simulate_index_template/10_basic/Simulate index template with data stream with mapping and setting overrides}
   issue: https://github.com/elastic/elasticsearch/issues/147064
 - class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
   method: test {yaml=rrf/310_rrf_retriever_simplified/Expansion to equivalent custom sub-retrievers returns the same results}
@@ -403,9 +397,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.plan.logical.CommandLicenseTests
   method: testLicenseCheck
   issue: https://github.com/elastic/elasticsearch/issues/147147
-- class: org.elasticsearch.ingest.common.IngestCommonClientYamlTestSuiteIT
-  method: test {yaml=ingest/70_bulk/Update with pipeline}
-  issue: https://github.com/elastic/elasticsearch/issues/147163
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/145901
@@ -425,9 +416,6 @@ tests:
   method: testBulkOperations {useLegacyFormat=false useSyntheticSource=true}
   issue: https://github.com/elastic/elasticsearch/issues/147177
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=aggregations/terms_text_docvalues/Indexing disabled}
-  issue: https://github.com/elastic/elasticsearch/issues/147200
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=index/100_field_name_length_limit/Test field name length limit array}
   issue: https://github.com/elastic/elasticsearch/issues/147205
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
@@ -436,6 +424,27 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
   method: testIndexingSyntheticSource
   issue: https://github.com/elastic/elasticsearch/issues/147298
+- class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
+  method: testDeploymentSurvivesRestart {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/145728
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=mapping/40_doc_values_multi_value/multi_value=no on multi-field parent rejects parent array}
+  issue: https://github.com/elastic/elasticsearch/issues/147375
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=mapping/40_doc_values_multi_value/multi_value=no on multi-field sub rejects parent array}
+  issue: https://github.com/elastic/elasticsearch/issues/147376
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  method: test {csv-spec:stats_sparkline.sparklineComplexWithGrouping}
+  issue: https://github.com/elastic/elasticsearch/issues/147378
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/250_high_cardinality_keyword/Test mv_min}
+  issue: https://github.com/elastic/elasticsearch/issues/147379
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/250_high_cardinality_keyword/Test avg length}
+  issue: https://github.com/elastic/elasticsearch/issues/147380
+- class: org.elasticsearch.search.fetch.ChunkedFetchPhaseCircuitBreakerTrippingIT
+  method: testCircuitBreakerTripsWithConcurrentSearches
+  issue: https://github.com/elastic/elasticsearch/issues/147391
 
 # Examples:
 #

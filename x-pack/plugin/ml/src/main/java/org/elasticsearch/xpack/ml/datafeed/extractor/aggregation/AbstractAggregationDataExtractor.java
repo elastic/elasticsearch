@@ -129,7 +129,10 @@ abstract class AbstractAggregationDataExtractor implements DataExtractor {
         try {
             LOGGER.debug("[{}] Search response was obtained", context.jobId);
             timingStatsReporter.reportSearchDuration(searchResponse.getTook());
-            lastLinkedClusterStates = DataExtractorUtils.extractLinkedClusterStates(searchResponse);
+            lastLinkedClusterStates = DataExtractorUtils.preferRicherLinkedClusterStates(
+                lastLinkedClusterStates,
+                DataExtractorUtils.extractLinkedClusterStates(searchResponse)
+            );
             return validateAggs(searchResponse.getAggregations());
         } finally {
             searchResponse.decRef();

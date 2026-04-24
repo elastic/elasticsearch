@@ -1387,52 +1387,6 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
         }
     }
 
-    public void testBuildModelFromConfigAndSecrets_ChatCompletion() throws IOException {
-        var model = OpenAiChatCompletionModelTests.createChatCompletionModel(URL, ORGANIZATION, SECRET, MODEL, USER);
-        validateModelBuilding(model);
-    }
-
-    public void testBuildModelFromConfigAndSecrets_Completion() throws IOException {
-        var model = OpenAiChatCompletionModelTests.createCompletionModel(URL, ORGANIZATION, SECRET, MODEL, USER);
-        validateModelBuilding(model);
-    }
-
-    public void testBuildModelFromConfigAndSecrets_TextEmbedding() throws IOException {
-        var model = OpenAiEmbeddingsModelTests.createModel(URL, ORGANIZATION, SECRET, MODEL, USER, TaskType.TEXT_EMBEDDING);
-        validateModelBuilding(model);
-    }
-
-    public void testBuildModelFromConfigAndSecrets_Embedding() throws IOException {
-        var model = OpenAiEmbeddingsModelTests.createModel(URL, ORGANIZATION, SECRET, MODEL, USER, TaskType.EMBEDDING);
-        validateModelBuilding(model);
-    }
-
-    public void testBuildModelFromConfigAndSecrets_UnsupportedTaskType() throws IOException {
-        var modelConfigurations = new ModelConfigurations(
-            INFERENCE_ID,
-            TaskType.SPARSE_EMBEDDING,
-            OpenAiService.NAME,
-            mock(ServiceSettings.class)
-        );
-        try (var inferenceService = createOpenAiService()) {
-            var thrownException = expectThrows(
-                ElasticsearchStatusException.class,
-                () -> inferenceService.buildModelFromConfigAndSecrets(modelConfigurations, mock(ModelSecrets.class))
-            );
-            assertThat(
-                thrownException.getMessage(),
-                is(Strings.format("The [%s] service does not support task type [%s]", OpenAiService.NAME, TaskType.SPARSE_EMBEDDING))
-            );
-        }
-    }
-
-    private void validateModelBuilding(Model model) throws IOException {
-        try (var inferenceService = createOpenAiService()) {
-            var resultModel = inferenceService.buildModelFromConfigAndSecrets(model.getConfigurations(), model.getSecrets());
-            assertThat(resultModel, is(model));
-        }
-    }
-
     private static OpenAiService createService(ThreadPool threadPool, HttpClientManager clientManager) {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         return new OpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty());

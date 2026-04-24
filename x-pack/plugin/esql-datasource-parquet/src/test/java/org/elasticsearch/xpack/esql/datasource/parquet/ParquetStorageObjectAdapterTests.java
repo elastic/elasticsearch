@@ -1186,7 +1186,9 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         StorageObject storageObject = createRangeReadStorageObject(parquetData);
 
         int iterations = 20;
-        ParquetReadOptions options = ParquetReadOptions.builder().build();
+        // Use the Hadoop-free builder; the upstream ParquetReadOptions.builder() eagerly constructs
+        // HadoopParquetConfiguration, which fails in tests without Woodstox on the classpath.
+        ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
         for (int iter = 0; iter < iterations; iter++) {
             for (boolean windowEnabled : new boolean[] { false, true }) {
                 ParquetStorageObjectAdapter.clearFooterCacheForTests();

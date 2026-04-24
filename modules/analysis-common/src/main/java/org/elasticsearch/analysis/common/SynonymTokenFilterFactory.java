@@ -77,7 +77,9 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
                             + "]! Loading synonyms from index is supported only for search time synonyms!"
                     );
                 }
-                List<String> synonymsSets = List.copyOf(new LinkedHashSet<>(factory.settings.getAsList(SynonymsSource.INDEX.getSettingName())));
+                List<String> synonymsSets = List.copyOf(
+                    new LinkedHashSet<>(factory.settings.getAsList(SynonymsSource.INDEX.getSettingName()))
+                );
                 if (synonymsSets.size() > 1
                     && factory.clusterService.state().getMinTransportVersion().supports(MULTIPLE_SYNONYM_SETS_PER_FILTER_TV) == false) {
                     throw new IllegalArgumentException(

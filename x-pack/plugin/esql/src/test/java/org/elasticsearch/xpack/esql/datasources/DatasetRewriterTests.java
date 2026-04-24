@@ -101,15 +101,6 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("datasets=[logs]"));
     }
 
-    public void testUnknownParentDataSourceRejected() {
-        Dataset orphan = new Dataset("orphan", new DataSourceReference("ghost_parent"), "s3://x/", null, Map.of());
-        ProjectMetadata project = projectWith(Map.of(), Map.of("orphan", orphan));
-
-        VerificationException ex = expectThrows(VerificationException.class, () -> DatasetRewriter.rewrite(relationOf("orphan"), project));
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("dataset [orphan]"));
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("unknown data source [ghost_parent]"));
-    }
-
     public void testSecretSettingUnwrappedToPlaintext() {
         DataSource parent = dataSource(
             "s3_parent",

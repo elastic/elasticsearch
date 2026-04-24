@@ -8,6 +8,8 @@
  */
 package org.elasticsearch.index.seqno;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -36,6 +38,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * Utilities for asserting on sequence number fields at the Lucene level in integration tests.
  */
 public final class SequenceNumbersTestUtils {
+    private static final Logger logger = LogManager.getLogger(SequenceNumbersTestUtils.class);
 
     private SequenceNumbersTestUtils() {}
 
@@ -77,6 +80,13 @@ public final class SequenceNumbersTestUtils {
                                     for (var leaf : searcher.getLeafContexts()) {
                                         var leafReader = leaf.reader();
                                         NumericDocValues seqNoDV = leafReader.getNumericDocValues(SeqNoFieldMapper.NAME);
+                                        if (seqNoDV != null) {
+                                            int doc;
+                                            while ((doc = seqNoDV.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                                                logger.info("docId={} seqNo={}", doc, seqNoDV.longValue());
+                                            }
+                                            seqNoDV = leafReader.getNumericDocValues(SeqNoFieldMapper.NAME);
+                                        }
                                         if (expectDocValuesOnDisk) {
                                             assertThat(shardId + " _seq_no doc values should be present", seqNoDV, notNullValue());
                                             assertThat(seqNoDV.nextDoc(), not(equalTo(DocIdSetIterator.NO_MORE_DOCS)));

@@ -20,16 +20,16 @@ import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.simdvec.internal.BFloat16VectorScorer;
 import org.elasticsearch.simdvec.internal.BFloat16VectorScorerSupplier;
-import org.elasticsearch.simdvec.internal.ByteVectorScorer;
-import org.elasticsearch.simdvec.internal.ByteVectorScorerSupplier;
-import org.elasticsearch.simdvec.internal.FloatVectorScorer;
-import org.elasticsearch.simdvec.internal.FloatVectorScorerSupplier;
+import org.elasticsearch.simdvec.internal.Float32VectorScorer;
+import org.elasticsearch.simdvec.internal.Float32VectorScorerSupplier;
 import org.elasticsearch.simdvec.internal.Int4VectorScorer;
 import org.elasticsearch.simdvec.internal.Int4VectorScorerSupplier;
 import org.elasticsearch.simdvec.internal.Int7SQVectorScorer;
 import org.elasticsearch.simdvec.internal.Int7SQVectorScorerSupplier;
 import org.elasticsearch.simdvec.internal.Int7uOSQVectorScorer;
 import org.elasticsearch.simdvec.internal.Int7uOSQVectorScorerSupplier;
+import org.elasticsearch.simdvec.internal.Int8VectorScorer;
+import org.elasticsearch.simdvec.internal.Int8VectorScorerSupplier;
 
 import java.util.Optional;
 
@@ -46,7 +46,7 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
     }
 
     @Override
-    public Optional<RandomVectorScorerSupplier> getFloatVectorScorerSupplier(
+    public Optional<RandomVectorScorerSupplier> getFloat32VectorScorerSupplier(
         VectorSimilarityType similarityType,
         IndexInput input,
         FloatVectorValues values
@@ -58,9 +58,9 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
         input = MemorySegmentAccessInputAccess.unwrap(input);
         checkInvariants(values.size(), values.dimension(), input);
         return switch (similarityType) {
-            case COSINE, DOT_PRODUCT -> Optional.of(new FloatVectorScorerSupplier.DotProductSupplier(input, values));
-            case EUCLIDEAN -> Optional.of(new FloatVectorScorerSupplier.EuclideanSupplier(input, values));
-            case MAXIMUM_INNER_PRODUCT -> Optional.of(new FloatVectorScorerSupplier.MaxInnerProductSupplier(input, values));
+            case COSINE, DOT_PRODUCT -> Optional.of(new Float32VectorScorerSupplier.DotProductSupplier(input, values));
+            case EUCLIDEAN -> Optional.of(new Float32VectorScorerSupplier.EuclideanSupplier(input, values));
+            case MAXIMUM_INNER_PRODUCT -> Optional.of(new Float32VectorScorerSupplier.MaxInnerProductSupplier(input, values));
         };
     }
 
@@ -84,7 +84,7 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
     }
 
     @Override
-    public Optional<RandomVectorScorerSupplier> getByteVectorScorerSupplier(
+    public Optional<RandomVectorScorerSupplier> getInt8VectorScorerSupplier(
         VectorSimilarityType similarityType,
         IndexInput input,
         ByteVectorValues values
@@ -96,16 +96,20 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
         input = MemorySegmentAccessInputAccess.unwrap(input);
         checkInvariants(values.size(), values.dimension(), input);
         return switch (similarityType) {
-            case COSINE -> Optional.of(new ByteVectorScorerSupplier.CosineSupplier(input, values));
-            case DOT_PRODUCT -> Optional.of(new ByteVectorScorerSupplier.DotProductSupplier(input, values));
-            case EUCLIDEAN -> Optional.of(new ByteVectorScorerSupplier.EuclideanSupplier(input, values));
-            case MAXIMUM_INNER_PRODUCT -> Optional.of(new ByteVectorScorerSupplier.MaxInnerProductSupplier(input, values));
+            case COSINE -> Optional.of(new Int8VectorScorerSupplier.CosineSupplier(input, values));
+            case DOT_PRODUCT -> Optional.of(new Int8VectorScorerSupplier.DotProductSupplier(input, values));
+            case EUCLIDEAN -> Optional.of(new Int8VectorScorerSupplier.EuclideanSupplier(input, values));
+            case MAXIMUM_INNER_PRODUCT -> Optional.of(new Int8VectorScorerSupplier.MaxInnerProductSupplier(input, values));
         };
     }
 
     @Override
-    public Optional<RandomVectorScorer> getFloatVectorScorer(VectorSimilarityFunction sim, FloatVectorValues values, float[] queryVector) {
-        return FloatVectorScorer.create(sim, values, queryVector);
+    public Optional<RandomVectorScorer> getFloat32VectorScorer(
+        VectorSimilarityFunction sim,
+        FloatVectorValues values,
+        float[] queryVector
+    ) {
+        return Float32VectorScorer.create(sim, values, queryVector);
     }
 
     @Override
@@ -118,8 +122,8 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
     }
 
     @Override
-    public Optional<RandomVectorScorer> getByteVectorScorer(VectorSimilarityFunction sim, ByteVectorValues values, byte[] queryVector) {
-        return ByteVectorScorer.create(sim, values, queryVector);
+    public Optional<RandomVectorScorer> getInt8VectorScorer(VectorSimilarityFunction sim, ByteVectorValues values, byte[] queryVector) {
+        return Int8VectorScorer.create(sim, values, queryVector);
     }
 
     @Override

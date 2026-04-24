@@ -95,6 +95,9 @@ $(OUT_DARWIN): | $(DARWIN_SYSROOT)
 	mkdir -p $(dir $@)
 	cp target/$(TARGET_DARWIN)/release/libes_parquet_rs.dylib $@
 
+# Create minimal Apple TBD stubs. Each .tbd is a short YAML file in Apple's
+# TAPI (text-based API) format that tells the linker "this library exists"
+# without providing any symbols or code.
 $(DARWIN_SYSROOT):
 	@mkdir -p $@/lib $@/Frameworks/CoreFoundation.framework
 	@for lib in libc libm libiconv libSystem; do \

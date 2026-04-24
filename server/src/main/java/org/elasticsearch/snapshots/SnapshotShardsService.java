@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
@@ -252,7 +253,16 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
 
     @Override
     public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
-        if (snapshotShardContextFactory.supportsRelocationDuringSnapshot()) {
+        // Do Not abort the shard snapshot if the shard closes due to relocation. This can happen only when relocation during snapshot
+        // is enabled. Even when it is enabled, the shard snapshot is still aborted when:
+        // (1) The node is closing without going through proper shutdown waits. Any still running shard snapshots should abort.
+        // (2) The index is deleted and the snapshotting node and primary node are the same one.
+        // (3) This node disconnects, master unassigns or reassigns the shard to a different node, and this node re-joins.
+        // In this case, the master already fails the shard snapshot. This node should abort the shard snapshot locally.
+        if (snapshotShardContextFactory.supportsRelocationDuringSnapshot()
+            && indicesService.lifecycleState() == Lifecycle.State.STARTED
+            && indexShard != null
+            && indexShard.routingEntry().relocating()) {
             return;
         }
         // abort any snapshots occurring on the soon-to-be closed shard

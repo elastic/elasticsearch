@@ -225,12 +225,12 @@ public final class BytesRefIntAdaptiveBlockHash extends AdaptiveBlockHash {
                     for (int i = 0; i < batchSize; i++) {
                         final int bytesOrd = Math.toIntExact((longs[i] >> 32) - 1);
                         scratch = bytesHash.hash.get(bytesOrd, scratch);
-                        final int totalLength = 1 + scratch.length + 4;
+                        final int totalLength = 1 + scratch.length + 8;
                         packedKey.growNoCopy(totalLength);
                         packedKey.append((byte) 0); // byte 0 is reserved for the null bits in the packed values hash
                         if (reverseOutput) {
                             // int key
-                            INT_HANDLE.set(packedKey.bytes(), packedKey.length(), (int) longs[i]);
+                            INT_HANDLE.set(packedKey.bytes(), 1, (int) longs[i]);
                             packedKey.setLength(packedKey.length() + Integer.BYTES);
                             // bytes key
                             INT_HANDLE.set(packedKey.bytes(), packedKey.length(), scratch.length);

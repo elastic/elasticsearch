@@ -430,7 +430,7 @@ public class EsqlSession {
 
         EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
 
-        var columnMetadata = createColumnMetadata(analyzedPlan, foldContext);
+        var columnMetadata = createColumnMetadata(analyzedPlan, optimizedPlan, foldContext);
         listener = listener.delegateFailureAndWrap(
             (l, r) -> l.onResponse(
                 new Result(r.schema(), r.pages(), columnMetadata, r.configuration(), r.completionInfo(), r.executionInfo())
@@ -457,10 +457,14 @@ public class EsqlSession {
         );
     }
 
-    private Map<NameId, Map<String, Object>> createColumnMetadata(LogicalPlan plan, FoldContext foldContext) {
+    private Map<NameId, Map<String, Object>> createColumnMetadata(
+        LogicalPlan analyzedPlan,
+        LogicalPlan optimizedPlan,
+        FoldContext foldContext
+    ) {
         return Maps.merge(
-            BucketColumnMetadata.createColumnMetadata(plan, foldContext),
-            ApproximationPlan.createColumnMetadata(plan.output()),
+            BucketColumnMetadata.createColumnMetadata(analyzedPlan, foldContext),
+            ApproximationPlan.createColumnMetadata(optimizedPlan.output()),
             (a, b) -> Maps.merge(a, b, (m1, m2) -> {
                 throw new IllegalStateException("Should not produce metadata with the same key");
             })

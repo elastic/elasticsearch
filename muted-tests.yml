@@ -2,9 +2,6 @@ tests:
 - class: org.elasticsearch.packaging.test.PackagesSecurityAutoConfigurationTests
   method: test20SecurityNotAutoConfiguredOnReInstallation
   issue: https://github.com/elastic/elasticsearch/issues/112635
-- class: org.elasticsearch.xpack.transform.integration.TransformIT
-  method: testStopWaitForCheckpoint
-  issue: https://github.com/elastic/elasticsearch/issues/106113
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityWithApmTracingRestIT
   method: testTracingCrossCluster
   issue: https://github.com/elastic/elasticsearch/issues/112731
@@ -85,21 +82,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
   method: test {csv-spec:ints.convertStringToBaseIndexGroup7}
   issue: https://github.com/elastic/elasticsearch/issues/141375
-- class: org.elasticsearch.search.aggregations.metrics.TopHitsIT
-  method: testMixedSortFieldTypes
-  issue: https://github.com/elastic/elasticsearch/issues/142077
 - class: org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityAggregatorTests
   method: testSimple
   issue: https://github.com/elastic/elasticsearch/issues/142408
 - class: org.elasticsearch.xpack.esql.common.spatial.H3SphericalGeometryTests
   method: testIndexPoints
   issue: https://github.com/elastic/elasticsearch/issues/142439
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlClientYamlIT
-  method: test {p0=esql/160_union_types/suggested_type}
-  issue: https://github.com/elastic/elasticsearch/issues/142525
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  method: test {p0=esql/160_union_types/suggested_type}
-  issue: https://github.com/elastic/elasticsearch/issues/142525
 - class: org.elasticsearch.xpack.esql.spatial.SpatialPushDownGeoShapeIT
   method: testQuantizedXY
   issue: https://github.com/elastic/elasticsearch/issues/141234
@@ -298,9 +286,6 @@ tests:
 - class: org.elasticsearch.lucene.FullClusterRestartSystemIndexCompatibilityIT
   method: testAsyncSearchIndexMigration {p0=8.19.0}
   issue: https://github.com/elastic/elasticsearch/issues/146849
-- class: org.elasticsearch.action.admin.cluster.tasks.ListTasksIT
-  method: testWaitForCompletion
-  issue: https://github.com/elastic/elasticsearch/issues/146859
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testWatcherWithApiKey {cluster=OLD}
   issue: https://github.com/elastic/elasticsearch/issues/146861
@@ -356,9 +341,6 @@ tests:
   method: testCancellationWhileWaitingOnWaitForSpace
   issue: https://github.com/elastic/elasticsearch/issues/147073
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=search/395_binary_doc_values_search/*}
-  issue: https://github.com/elastic/elasticsearch/issues/147064
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=mapping/20_synthetic_source/synthetic_source text with ignored multi-field and multiple values in the same doc}
   issue: https://github.com/elastic/elasticsearch/issues/147064
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
@@ -403,10 +385,10 @@ tests:
 - class: org.elasticsearch.xpack.esql.plan.logical.CommandLicenseTests
   method: testLicenseCheck
   issue: https://github.com/elastic/elasticsearch/issues/147147
-- class: org.elasticsearch.ingest.common.IngestCommonClientYamlTestSuiteIT
-  method: test {yaml=ingest/70_bulk/Update with pipeline}
-  issue: https://github.com/elastic/elasticsearch/issues/147163
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/145901
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/145901
 - class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
@@ -425,38 +407,34 @@ tests:
   method: testBulkOperations {useLegacyFormat=false useSyntheticSource=true}
   issue: https://github.com/elastic/elasticsearch/issues/147177
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=aggregations/terms_text_docvalues/Indexing disabled}
-  issue: https://github.com/elastic/elasticsearch/issues/147200
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=index/100_field_name_length_limit/Test field name length limit array}
   issue: https://github.com/elastic/elasticsearch/issues/147205
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:tstep.docs_tstep_by_one_hour_duration_as_string}
-  issue: https://github.com/elastic/elasticsearch/issues/147228
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:tstep.tstep_by_ten_minutes_duration}
-  issue: https://github.com/elastic/elasticsearch/issues/147228
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:k8s-timeseries-sum-over-time.sum_over_time_with_tstep_window}
-  issue: https://github.com/elastic/elasticsearch/issues/147228
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:tstep.tstep_with_timezone_and_duration}
-  issue: https://github.com/elastic/elasticsearch/issues/147228
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:tstep.docs_tstep_by_one_hour_duration}
-  issue: https://github.com/elastic/elasticsearch/issues/147228
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:tstep.tstep_by_ten_minutes_duration_as_string}
-  issue: https://github.com/elastic/elasticsearch/issues/147228
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:tstep.tstep_with_request_timestamp_bounds_only}
-  issue: https://github.com/elastic/elasticsearch/issues/147228
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search.vectors/41_knn_search_byte_quantized_bfloat16/KNN Vector similarity search only}
   issue: https://github.com/elastic/elasticsearch/issues/147251
 - class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
   method: testIndexingSyntheticSource
   issue: https://github.com/elastic/elasticsearch/issues/147298
+- class: org.elasticsearch.compute.aggregation.blockhash.BlockHashRandomizedTests
+  issue: https://github.com/elastic/elasticsearch/issues/147361
+- class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
+  method: testDeploymentSurvivesRestart {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/145728
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  method: test {csv-spec:stats_sparkline.sparklineComplexWithGrouping}
+  issue: https://github.com/elastic/elasticsearch/issues/147378
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/250_high_cardinality_keyword/Test mv_min}
+  issue: https://github.com/elastic/elasticsearch/issues/147379
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/250_high_cardinality_keyword/Test avg length}
+  issue: https://github.com/elastic/elasticsearch/issues/147380
+- class: org.elasticsearch.search.fetch.ChunkedFetchPhaseCircuitBreakerTrippingIT
+  method: testCircuitBreakerTripsWithConcurrentSearches
+  issue: https://github.com/elastic/elasticsearch/issues/147391
+- class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
+  method: testReindexTaskRelocatesOnNodeShutdown
+  issue: https://github.com/elastic/elasticsearch/issues/147449
 
 # Examples:
 #

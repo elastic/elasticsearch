@@ -29,6 +29,8 @@ import org.ietf.jgss.Oid;
 
 import java.io.IOException;
 import java.security.Principal;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
@@ -125,9 +127,9 @@ public class SpnegoHttpClientConfigCallbackHandler implements HttpClientConfigCa
         try {
             final GSSName gssUserPrincipalName = gssManager.createName(userPrincipalName, GSSName.NT_USER_NAME);
             login();
-            final GSSCredential credential = Subject.callAs(
+            final GSSCredential credential = Subject.doAs(
                 loginContext.getSubject(),
-                () -> gssManager.createCredential(
+                (PrivilegedExceptionAction<GSSCredential>) () -> gssManager.createCredential(
                     gssUserPrincipalName,
                     GSSCredential.DEFAULT_LIFETIME,
                     SPNEGO_OID,
@@ -141,8 +143,10 @@ public class SpnegoHttpClientConfigCallbackHandler implements HttpClientConfigCa
                 new KerberosCredentials(credential)
             );
             httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider);
-        } catch (Exception e) {
+        } catch (GSSException e) {
             throw new RuntimeException(e);
+        } catch (PrivilegedActionException e) {
+            throw new RuntimeException(e.getCause());
         }
         httpClientBuilder.setDefaultAuthSchemeRegistry(authSchemeRegistry);
     }
@@ -309,22 +313,31 @@ public class SpnegoHttpClientConfigCallbackHandler implements HttpClientConfigCa
      * base64 encoded token to be sent to server.
      *
      * @return Base64 encoded token
+     * @throws PrivilegedActionException when privileged action threw exception
      * @throws GSSException when GSS context creation fails
      * @throws LoginException when login fails
      */
-    String getBase64EncodedTokenForSpnegoHeader(final String serviceHost) throws GSSException, LoginException {
+    String getBase64EncodedTokenForSpnegoHeader(final String serviceHost) throws PrivilegedActionException, GSSException, LoginException {
         final GSSManager gssManager = GSSManager.getInstance();
         final GSSName gssServicePrincipalName = gssManager.createName("HTTP/" + serviceHost, null);
         final GSSName gssUserPrincipalName = gssManager.createName(userPrincipalName, GSSName.NT_USER_NAME);
         loginContext = loginUsingPassword(userPrincipalName, password);
-        final GSSCredential userCreds = Subject.callAs(
+        final GSSCredential userCreds = Subject.doAs(
             loginContext.getSubject(),
-            () -> gssManager.createCredential(gssUserPrincipalName, GSSCredential.DEFAULT_LIFETIME, SPNEGO_OID, GSSCredential.INITIATE_ONLY)
+            (PrivilegedExceptionAction<GSSCredential>) () -> gssManager.createCredential(
+                gssUserPrincipalName,
+                GSSCredential.DEFAULT_LIFETIME,
+                SPNEGO_OID,
+                GSSCredential.INITIATE_ONLY
+            )
         );
         gssContext = gssManager.createContext(gssServicePrincipalName, SPNEGO_OID, userCreds, GSSCredential.DEFAULT_LIFETIME);
         gssContext.requestMutualAuth(true);
 
-        final byte[] outToken = Subject.callAs(loginContext.getSubject(), () -> gssContext.initSecContext(new byte[0], 0, 0));
+        final byte[] outToken = Subject.doAs(
+            loginContext.getSubject(),
+            (PrivilegedExceptionAction<byte[]>) () -> gssContext.initSecContext(new byte[0], 0, 0)
+        );
         return Base64.getEncoder().encodeToString(outToken);
     }
 
@@ -347,13 +360,17 @@ public class SpnegoHttpClientConfigCallbackHandler implements HttpClientConfigCa
      *            gss negotiation
      * @return Base64 encoded token to be sent to server. May return {@code null} if
      *         nothing to be sent.
+     * @throws PrivilegedActionException when privileged action threw exception
      */
-    String handleResponse(final String base64Token) {
+    String handleResponse(final String base64Token) throws PrivilegedActionException {
         if (gssContext.isEstablished()) {
             throw new IllegalStateException("GSS Context has already been established");
         }
         final byte[] token = Base64.getDecoder().decode(base64Token);
-        final byte[] outToken = Subject.callAs(loginContext.getSubject(), () -> gssContext.initSecContext(token, 0, token.length));
+        final byte[] outToken = Subject.doAs(
+            loginContext.getSubject(),
+            (PrivilegedExceptionAction<byte[]>) () -> gssContext.initSecContext(token, 0, token.length)
+        );
         if (outToken == null || outToken.length == 0) {
             return null;
         }

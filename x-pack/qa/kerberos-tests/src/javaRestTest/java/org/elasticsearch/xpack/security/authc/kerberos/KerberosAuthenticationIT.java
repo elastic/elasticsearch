@@ -37,6 +37,8 @@ import org.junit.rules.TestRule;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 import java.util.List;
 import java.util.Map;
 
@@ -221,11 +223,14 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
     private void executeRequestAndVerifyResponse(
         final String userPrincipalName,
         final SpnegoHttpClientConfigCallbackHandler callbackHandler
-    ) throws IOException, LoginException {
+    ) throws PrivilegedActionException, IOException, LoginException {
         final Request request = new Request("GET", "/_security/_authenticate");
         try (RestClient restClient = buildRestClientForKerberos(callbackHandler)) {
             final LoginContext lc = callbackHandler.login();
-            Response response = Subject.callAs(lc.getSubject(), () -> restClient.performRequest(request));
+            Response response = Subject.doAs(
+                lc.getSubject(),
+                (PrivilegedExceptionAction<Response>) () -> restClient.performRequest(request)
+            );
 
             assertOK(response);
             final Map<String, Object> map = parseResponseAsMap(response.getEntity());

@@ -16,6 +16,7 @@ import org.apache.hadoop.fs.AbstractFileSystem;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.Options;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.UnsupportedFileSystemException;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.util.Progressable;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -35,9 +36,9 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
 import java.security.Principal;
+import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.concurrent.Callable;
 
 import javax.security.auth.Subject;
 
@@ -82,15 +83,15 @@ public class HdfsBlobStoreContainerTests extends ESTestCase {
         cfg.set("fs.AbstractFileSystem." + uri.getScheme() + ".impl", TestingFs.class.getName());
 
         // create the FileContext with our user
-        try {
-            return Subject.callAs(subject, (Callable<FileContext>) () -> {
+        return Subject.doAs(subject, (PrivilegedAction<FileContext>) () -> {
+            try {
                 TestingFs fs = (TestingFs) AbstractFileSystem.get(uri, cfg);
                 fs = Mockito.spy(fs);
                 return FileContext.getFileContext(fs, cfg);
-            });
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+            } catch (UnsupportedFileSystemException e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 
     public void testReadOnly() throws Exception {

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.physical.inference;
 
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -28,7 +29,8 @@ public class CompletionExecSerializationTests extends AbstractPhysicalPlanSerial
             randomInferenceId(),
             randomPrompt(),
             randomAttribute(),
-            randomTaskSettings()
+            randomTaskSettings(),
+            randomTimeout()
         );
     }
 
@@ -39,15 +41,21 @@ public class CompletionExecSerializationTests extends AbstractPhysicalPlanSerial
         Expression prompt = instance.prompt();
         Attribute targetField = instance.targetField();
         MapExpression taskSettings = instance.taskSettings();
+        TimeValue timeout = instance.timeout();
 
-        switch (between(0, 4)) {
+        switch (between(0, 5)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> inferenceId = randomValueOtherThan(inferenceId, this::randomInferenceId);
             case 2 -> prompt = randomValueOtherThan(prompt, this::randomPrompt);
             case 3 -> targetField = randomValueOtherThan(targetField, this::randomAttribute);
             case 4 -> taskSettings = randomValueOtherThan(taskSettings, this::randomTaskSettings);
+            case 5 -> timeout = randomValueOtherThan(timeout, this::randomTimeout);
         }
-        return new CompletionExec(instance.source(), child, inferenceId, prompt, targetField, taskSettings);
+        return new CompletionExec(instance.source(), child, inferenceId, prompt, targetField, taskSettings, timeout);
+    }
+
+    private TimeValue randomTimeout() {
+        return randomBoolean() ? null : TimeValue.timeValueMillis(randomLongBetween(1, 300_000));
     }
 
     private Literal randomInferenceId() {

@@ -335,7 +335,9 @@ public class CancelTasksRelocationIT extends ESIntegTestCase {
 
     /**
      * Starts a throttled reindex on an ephemeral node, triggers relocation via node shutdown, waits (for sliced reindex) until the
-     * slice workers have registered under the relocated parent, and returns the task ids on both sides of the hop.
+     * slice workers have registered under the relocated parent, and returns the task ids on both sides of the hop. A random number of
+     * master-only bystander nodes is also started so the cancel broadcast fanout is exercised across a larger cluster; bystanders hold
+     * no data and so the relocation target is still forced to the survivor.
      */
     private RelocatedReindex setupRelocatedReindex(int slices) throws Exception {
         final String survivorNodeName = internalCluster().startNode(
@@ -346,7 +348,11 @@ public class CancelTasksRelocationIT extends ESIntegTestCase {
             NodeRoles.onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE))
         );
         final String reindexNodeId = nodeIdByName(reindexNodeName);
-        ensureStableCluster(2);
+        final int bystanders = randomIntBetween(0, 3);
+        for (int i = 0; i < bystanders; i++) {
+            internalCluster().startNode(NodeRoles.onlyRole(DiscoveryNodeRole.MASTER_ROLE));
+        }
+        ensureStableCluster(2 + bystanders);
 
         createIndexPinnedToNodeName(SOURCE_INDEX, survivorNodeName);
         createIndexPinnedToNodeName(DEST_INDEX, survivorNodeName);

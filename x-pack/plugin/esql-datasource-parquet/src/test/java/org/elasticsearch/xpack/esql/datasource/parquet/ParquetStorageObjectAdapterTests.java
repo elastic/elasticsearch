@@ -18,6 +18,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.time.Instant;
+import java.util.NavigableMap;
+import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class ParquetStorageObjectAdapterTests extends ESTestCase {
 
@@ -804,6 +807,161 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
                 return StoragePath.of("memory://test.parquet");
             }
         };
+    }
+
+    public void testPrefetchedDataServedFromMemory() throws IOException {
+        byte[] data = new byte[2048];
+        randomBytes(data);
+        AtomicInteger readBytesCalls = new AtomicInteger();
+        StorageObject tracked = new StorageObject() {
+            @Override
+            public InputStream newStream() {
+                return new ByteArrayInputStream(data);
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                return new ByteArrayInputStream(data, (int) position, (int) length);
+            }
+
+            @Override
+            public int readBytes(long position, ByteBuffer target) throws IOException {
+                readBytesCalls.incrementAndGet();
+                return StorageObject.super.readBytes(position, target);
+            }
+
+            @Override
+            public long length() {
+                return data.length;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.now();
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("memory://prefetch-test.parquet");
+            }
+        };
+
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(tracked);
+        NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = new TreeMap<>();
+        int chunkLen = data.length - 100;
+        ByteBuffer prefetchedBuf = ByteBuffer.wrap(data, 100, chunkLen);
+        chunks.put(100L, new ColumnChunkPrefetcher.PrefetchedChunk(100, chunkLen, prefetchedBuf.slice()));
+        adapter.installPrefetchedData(chunks);
+
+        readBytesCalls.set(0);
+        try (SeekableInputStream stream = adapter.newStream()) {
+            stream.seek(100);
+            byte[] result = new byte[100];
+            stream.readFully(result);
+            for (int i = 0; i < result.length; i++) {
+                assertEquals(data[100 + i], result[i]);
+            }
+        }
+        assertEquals(0, readBytesCalls.get());
+    }
+
+    public void testPrefetchedDataFallbackOnMiss() throws IOException {
+        byte[] data = new byte[2048];
+        randomBytes(data);
+        StorageObject storage = createRangeReadStorageObject(data);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storage);
+
+        NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = new TreeMap<>();
+        ByteBuffer prefetchedBuf = ByteBuffer.wrap(data, 100, 200);
+        chunks.put(100L, new ColumnChunkPrefetcher.PrefetchedChunk(100, 200, prefetchedBuf.slice()));
+        adapter.installPrefetchedData(chunks);
+
+        try (SeekableInputStream stream = adapter.newStream()) {
+            stream.seek(500);
+            byte[] result = new byte[100];
+            stream.readFully(result);
+            for (int i = 0; i < result.length; i++) {
+                assertEquals(data[500 + i], result[i]);
+            }
+        }
+    }
+
+    public void testClearPrefetchedData() throws IOException {
+        byte[] data = new byte[2048];
+        randomBytes(data);
+        AtomicInteger readBytesCalls = new AtomicInteger();
+        StorageObject tracked = new StorageObject() {
+            @Override
+            public InputStream newStream() {
+                return new ByteArrayInputStream(data);
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                return new ByteArrayInputStream(data, (int) position, (int) length);
+            }
+
+            @Override
+            public int readBytes(long position, ByteBuffer target) throws IOException {
+                readBytesCalls.incrementAndGet();
+                return StorageObject.super.readBytes(position, target);
+            }
+
+            @Override
+            public long length() {
+                return data.length;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.now();
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("memory://clear-test.parquet");
+            }
+        };
+
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(tracked);
+        NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = new TreeMap<>();
+        ByteBuffer buf = ByteBuffer.wrap(data, 100, 500);
+        chunks.put(100L, new ColumnChunkPrefetcher.PrefetchedChunk(100, 500, buf.slice()));
+        adapter.installPrefetchedData(chunks);
+        adapter.clearPrefetchedData();
+
+        readBytesCalls.set(0);
+        try (SeekableInputStream stream = adapter.newStream()) {
+            stream.seek(100);
+            byte[] result = new byte[100];
+            stream.readFully(result);
+        }
+        assertTrue(readBytesCalls.get() > 0);
+    }
+
+    public void testNoPrefetchedDataDoesNotAffectBaseline() throws IOException {
+        byte[] data = new byte[1024];
+        randomBytes(data);
+        StorageObject storage = createRangeReadStorageObject(data);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storage);
+
+        try (SeekableInputStream stream = adapter.newStream()) {
+            byte[] result = new byte[100];
+            stream.readFully(result);
+            for (int i = 0; i < result.length; i++) {
+                assertEquals(data[i], result[i]);
+            }
+        }
     }
 
     private StorageObject createRangeReadStorageObject(byte[] data) {

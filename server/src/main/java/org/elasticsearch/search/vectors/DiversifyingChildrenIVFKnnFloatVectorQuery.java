@@ -57,17 +57,7 @@ public class DiversifyingChildrenIVFKnnFloatVectorQuery extends IVFKnnFloatVecto
         boolean persistIvfSegmentConfig,
         @Nullable ESNextDiskBBQVectorsFormat.QuantEncoding searchQuantEncodingOverride
     ) {
-        super(
-            field,
-            query,
-            k,
-            numCands,
-            childFilter,
-            visitRatio,
-            doPrecondition,
-            persistIvfSegmentConfig,
-            searchQuantEncodingOverride
-        );
+        super(field, query, k, numCands, childFilter, visitRatio, doPrecondition, persistIvfSegmentConfig, searchQuantEncodingOverride);
         this.parentsFilter = parentsFilter;
     }
 

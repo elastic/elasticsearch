@@ -26,11 +26,7 @@ package org.elasticsearch.index.codec.vectors.diskbbq.next;
  * When the stored rescore is not finite (e.g. {@code NaN}), the index leg of oversample is skipped;
  * query and mapping rescore then apply in the usual order.
  */
-public record IvfSegmentConfig(
-    ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding,
-    boolean usePrecondition,
-    float rescoreOversample
-) {
+public record IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding, boolean usePrecondition, float rescoreOversample) {
 
     public static IvfSegmentConfig fromCodecDefaults(ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding, boolean doPrecondition) {
         return new IvfSegmentConfig(quantEncoding, doPrecondition, Float.NaN);

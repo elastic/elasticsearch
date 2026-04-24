@@ -64,16 +64,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         boolean persistIvfSegmentConfig,
         @Nullable ESNextDiskBBQVectorsFormat.QuantEncoding searchQuantEncodingOverride
     ) {
-        super(
-            field,
-            visitRatio,
-            k,
-            numCands,
-            filter,
-            doPrecondition,
-            persistIvfSegmentConfig,
-            searchQuantEncodingOverride
-        );
+        super(field, visitRatio, k, numCands, filter, doPrecondition, persistIvfSegmentConfig, searchQuantEncodingOverride);
         this.query = query;
     }
 

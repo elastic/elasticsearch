@@ -318,6 +318,21 @@ sv:double
 ;
 
 
+Approximate stats with dependent constant variable
+required_capability: approximation_v7
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+    | STATS avg = AVG(sv)
+    | EVAL zero = 0 * avg
+;
+
+avg:double | zero:double | _approximation_confidence_interval(avg):double | _approximation_certified(avg):boolean | _approximation_confidence_interval(zero):double | _approximation_certified(zero):boolean
+440..490   | 0           | [440..490,440..490]                            | {any}                                 | [0,0]                                           | true
+;
+
+
 Approximate stats by with zero variance
 required_capability: approximation_v7
 request_stored: skip

@@ -1,0 +1,49 @@
+[[release-notes-8.19.15]]
+== {es} version 8.19.15
+
+coming[8.19.15]
+
+Also see <<breaking-changes-8.19,Breaking changes in 8.19>>.
+
+[[bug-8.19.15]]
+[float]
+=== Bug fixes
+
+EQL::
+* Fix propagation of filters on join keys for missing events {es-pull}145813[#145813] (issue: {es-issue}145402[#145402])
+
+Infra/Core::
+* Throw a 400 error for malformed parsing input when missing element end {es-pull}145777[#145777]
+
+Ingest Node::
+* Fix pipeline resolution cache for bulk requests {es-pull}144648[#144648]
+* Fix waiting for enrich policy execution for users without the `monitor` privilege {es-pull}145751[#145751]
+
+Machine Learning::
+* Omit uncomputed model stats {es-pull}146186[#146186]
+
+Mapping::
+* Fix match only text decoding surrogate pairs {es-pull}146567[#146567] (issue: {es-issue}146538[#146538])
+
+Reindex::
+* Restore initial thread context during reindex etc {es-pull}146134[#146134]
+
+Search::
+* Add cancellation support to `IndicesRequestCache` {es-pull}141708[#141708]
+* Collapse pathological regex quantifier stacking to prevent NFA construction OOM {es-pull}145452[#145452]
+* Fix `terminate_after` not honored for aggs when size=0 {es-pull}146199[#146199] (issue: {es-issue}126665[#126665])
+* Fix bug parsing "request" parameter in clear cache API, it should clear the request cache only {es-pull}145726[#145726]
+* Use query circuit breaker for wildcard/regexp determinization {es-pull}145427[#145427] (issue: {es-issue}145128[#145128])
+
+Snapshot/Restore::
+* Use `IllegalArgumentException` over `RepositoryException` for readonly-repository checks {es-pull}140200[#140200]
+
+[[enhancement-8.19.15]]
+[float]
+=== Enhancements
+
+Authentication::
+* Add attribute count to `SamlAttribute` `toString` {es-pull}131173[#131173]
+* In-response-to in saml successful response {es-pull}137599[#137599] (issue: {es-issue}128179[#128179])
+
+

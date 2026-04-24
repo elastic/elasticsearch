@@ -75,11 +75,6 @@ class ConcurrencyLimitedStorageProvider implements StorageProvider {
     }
 
     @Override
-    public boolean supportsStableMetadata() {
-        return delegate.supportsStableMetadata();
-    }
-
-    @Override
     public void close() throws IOException {
         delegate.close();
     }

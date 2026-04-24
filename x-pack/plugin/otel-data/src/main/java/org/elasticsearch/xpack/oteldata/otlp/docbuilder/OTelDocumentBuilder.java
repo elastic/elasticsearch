@@ -28,6 +28,7 @@ import java.util.List;
  */
 public abstract class OTelDocumentBuilder {
 
+    private static final HexFormat HEX = HexFormat.of();
     private final BufferedByteStringAccessor byteStringAccessor;
 
     public OTelDocumentBuilder(BufferedByteStringAccessor byteStringAccessor) {
@@ -127,14 +128,16 @@ public abstract class OTelDocumentBuilder {
     }
 
     protected void addSpanId(XContentBuilder builder, byte[] spanId) throws IOException {
-        if (spanId.length > 0) {
-            builder.field("span_id", HexFormat.of().formatHex(spanId));
-        }
+        addHexIdIfNotEmpty(builder, "span_id", spanId);
     }
 
     protected void addTraceId(XContentBuilder builder, byte[] traceId) throws IOException {
-        if (traceId.length > 0) {
-            builder.field("trace_id", HexFormat.of().formatHex(traceId));
+        addHexIdIfNotEmpty(builder, "trace_id", traceId);
+    }
+
+    private static void addHexIdIfNotEmpty(XContentBuilder builder, String fieldName, byte[] id) throws IOException {
+        if (id.length > 0) {
+            builder.field(fieldName, HEX.formatHex(id));
         }
     }
 }

@@ -16,6 +16,7 @@ import io.opentelemetry.proto.resource.v1.Resource;
 
 import com.google.protobuf.ByteString;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.TargetIndex;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
@@ -65,12 +66,8 @@ public class LogDocumentBuilder extends OTelDocumentBuilder {
                 }
             }
         }
-        if (logRecord.getSpanId().isEmpty() == false) {
-            addSpanId(builder, logRecord.getSpanId().toByteArray());
-        }
-        if (logRecord.getTraceId().isEmpty() == false) {
-            addTraceId(builder, logRecord.getTraceId().toByteArray());
-        }
+        addSpanId(builder, logRecord.getSpanId().toByteArray());
+        addTraceId(builder, logRecord.getTraceId().toByteArray());
         buildLogResource(resource, resourceSchemaUrl, builder);
         buildDataStream(builder, targetIndex);
         buildLogScope(builder, scope, scopeSchemaUrl);
@@ -82,7 +79,7 @@ public class LogDocumentBuilder extends OTelDocumentBuilder {
     private void addLogTimestampField(XContentBuilder builder, String fieldName, long unixNanos) throws IOException {
         long millis = TimeUnit.NANOSECONDS.toMillis(unixNanos);
         long nanosRemainder = unixNanos - TimeUnit.MILLISECONDS.toNanos(millis);
-        builder.field(fieldName, millis + "." + nanosRemainder);
+        builder.field(fieldName, nanosRemainder == 0 ? millis + ".0" : Strings.format("%d.%06d", millis, nanosRemainder));
     }
 
     private void buildLogResource(Resource resource, ByteString schemaUrl, XContentBuilder builder) throws IOException {
@@ -135,6 +132,9 @@ public class LogDocumentBuilder extends OTelDocumentBuilder {
         AnyValue body = logRecord.getBody();
         AnyValue.ValueCase valueCase = body.getValueCase();
         if (valueCase == AnyValue.ValueCase.VALUE_NOT_SET) {
+            return;
+        }
+        if (valueCase == AnyValue.ValueCase.ARRAY_VALUE && body.getArrayValue().getValuesCount() == 0) {
             return;
         }
         builder.startObject("body");

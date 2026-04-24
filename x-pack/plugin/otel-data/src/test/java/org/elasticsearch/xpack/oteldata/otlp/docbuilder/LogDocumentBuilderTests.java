@@ -156,6 +156,17 @@ public class LogDocumentBuilderTests extends ESTestCase {
         assertThat(doc.evaluate("body.structured.value.1"), equalTo(99));
     }
 
+    public void testEmptyArrayBodyIsOmitted() throws IOException {
+        LogRecord logRecord = LogRecord.newBuilder()
+            .setTimeUnixNano(1_000_000_000L)
+            .setBody(AnyValue.newBuilder().setArrayValue(ArrayValue.newBuilder()).build())
+            .build();
+
+        ObjectPath doc = buildDocument(logRecord);
+
+        assertThat(doc.evaluate("body"), nullValue());
+    }
+
     public void testEventNameFromField() throws IOException {
         LogRecord logRecord = LogRecord.newBuilder()
             .setTimeUnixNano(1_000_000_000L)
@@ -235,6 +246,54 @@ public class LogDocumentBuilderTests extends ESTestCase {
         assertThat(doc.evaluate("attributes.my_bytes"), equalTo(Base64.getEncoder().encodeToString(bytes)));
     }
 
+    public void testSpanAndTraceIdsAreHexEncoded() throws IOException {
+        LogRecord logRecord = LogRecord.newBuilder()
+            .setTimeUnixNano(1_000_000_000L)
+            .setBody(AnyValue.newBuilder().setStringValue("msg").build())
+            .setSpanId(ByteString.copyFrom(new byte[] { 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77 }))
+            .setTraceId(
+                ByteString.copyFrom(
+                    new byte[] {
+                        0x00,
+                        0x11,
+                        0x22,
+                        0x33,
+                        0x44,
+                        0x55,
+                        0x66,
+                        0x77,
+                        (byte) 0x88,
+                        (byte) 0x99,
+                        (byte) 0xAA,
+                        (byte) 0xBB,
+                        (byte) 0xCC,
+                        (byte) 0xDD,
+                        (byte) 0xEE,
+                        (byte) 0xFF }
+                )
+            )
+            .build();
+
+        ObjectPath doc = buildDocument(logRecord);
+
+        assertThat(doc.evaluate("span_id"), equalTo("0011223344556677"));
+        assertThat(doc.evaluate("trace_id"), equalTo("00112233445566778899aabbccddeeff"));
+    }
+
+    public void testEmptySpanAndTraceIdsAreOmitted() throws IOException {
+        LogRecord logRecord = LogRecord.newBuilder()
+            .setTimeUnixNano(1_000_000_000L)
+            .setBody(AnyValue.newBuilder().setStringValue("msg").build())
+            .setSpanId(ByteString.EMPTY)
+            .setTraceId(ByteString.EMPTY)
+            .build();
+
+        ObjectPath doc = buildDocument(logRecord);
+
+        assertThat(doc.evaluate("span_id"), nullValue());
+        assertThat(doc.evaluate("trace_id"), nullValue());
+    }
+
     public void testTimestampFallsBackToObservedTimestamp() throws IOException {
         LogRecord logRecord = LogRecord.newBuilder()
             .setObservedTimeUnixNano(5_000_000_000L)
@@ -256,6 +315,18 @@ public class LogDocumentBuilderTests extends ESTestCase {
         ObjectPath doc = buildDocument(logRecord);
 
         assertThat(doc.evaluate("@timestamp"), equalTo("1721314113467.654123"));
+        assertThat(doc.evaluate("observed_timestamp"), equalTo("0.0"));
+    }
+
+    public void testTimestampPadsSubMillisecondRemainder() throws IOException {
+        LogRecord logRecord = LogRecord.newBuilder()
+            .setTimeUnixNano(1_000_000_123L)
+            .setBody(AnyValue.newBuilder().setStringValue("msg").build())
+            .build();
+
+        ObjectPath doc = buildDocument(logRecord);
+
+        assertThat(doc.evaluate("@timestamp"), equalTo("1000.000123"));
         assertThat(doc.evaluate("observed_timestamp"), equalTo("0.0"));
     }
 

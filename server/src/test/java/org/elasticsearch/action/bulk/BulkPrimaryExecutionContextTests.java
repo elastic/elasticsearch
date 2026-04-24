@@ -139,7 +139,7 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
                 }
                 default -> throw new AssertionError("unknown type:" + current.opType());
             }
-            if (failure == false || noOpResult) {
+            if (failure == false || (noOpResult && current.opType() != DocWriteRequest.OpType.DELETE)) {
                 expectedLocation = location;
             }
             context.markOperationAsExecuted(result);

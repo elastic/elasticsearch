@@ -59,7 +59,9 @@ public final class FullTextFunctionGenerator {
             if (FULL_TEXT_FORBIDDEN_AFTER_COMMANDS.contains(cmd.commandName())) {
                 return false;
             }
-            // Full-text functions (match/match_phrase/qstr/kql) cannot follow a subquery in the source FROM.
+            // ESQL supports full-text functions with subqueries, but we exclude them here for now as
+            // cross-branch type conflicts can produce columns that look index-mapped but aren't usable as
+            // FieldAttributes, and the previous-commands walk below doesn't see into subqueries yet.
             if (Boolean.TRUE.equals(cmd.context().get(HAS_SUBQUERY))) {
                 return false;
             }

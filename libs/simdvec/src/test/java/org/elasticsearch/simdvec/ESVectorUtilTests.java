@@ -17,8 +17,11 @@ import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFor
 import org.elasticsearch.simdvec.internal.vectorization.BaseVectorizationTests;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.function.ToLongBiFunction;
 
 import static org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport.B_QUERY;
@@ -28,6 +31,34 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
 
     static final ESVectorizationProvider defaultedProvider = BaseVectorizationTests.defaultProvider();
     static final ESVectorizationProvider defOrPanamaProvider = BaseVectorizationTests.maybePanamaProvider();
+
+    public void testMaxSimDotProductFloatDefaultEqualsPanama() {
+        int dims = randomIntBetween(1, 512);
+        int numDocVectors = randomIntBetween(1, 256);
+        int numQueryVectors = randomIntBetween(1, 64);
+        float[][] docVectors = generateRandomFloatVectors(numDocVectors, dims);
+        float[][] queryVectors = generateRandomFloatVectors(numQueryVectors, dims);
+        MultiFloatVectorsSource source = new TestMultiFloatVectorsSource(docVectors, encodeFloatVectors(docVectors), dims);
+        float[] defaultScoresScratch = new float[numDocVectors];
+        float[] defOrPanamaScoresScratch = new float[numDocVectors];
+        float expected = defaultedProvider.getVectorUtilSupport().maxSimDotProduct(source, queryVectors, defaultScoresScratch);
+        float actual = defOrPanamaProvider.getVectorUtilSupport().maxSimDotProduct(source, queryVectors, defOrPanamaScoresScratch);
+        assertEquals(expected, actual, 1e-3f * dims * numQueryVectors);
+    }
+
+    public void testMaxSimDotProductByteDefaultEqualsPanama() {
+        int dims = randomIntBetween(1, 512);
+        int numDocVectors = randomIntBetween(1, 256);
+        int numQueryVectors = randomIntBetween(1, 64);
+        byte[][] docVectors = generateRandomByteVectors(numDocVectors, dims);
+        byte[][] queryVectors = generateRandomByteVectors(numQueryVectors, dims);
+        MultiByteVectorsSource source = new TestMultiByteVectorsSource(docVectors, encodeByteVectors(docVectors), dims);
+        float[] defaultScoresScratch = new float[numDocVectors];
+        float[] defOrPanamaScoresScratch = new float[numDocVectors];
+        float expected = defaultedProvider.getVectorUtilSupport().maxSimDotProduct(source, queryVectors, defaultScoresScratch);
+        float actual = defOrPanamaProvider.getVectorUtilSupport().maxSimDotProduct(source, queryVectors, defOrPanamaScoresScratch);
+        assertEquals(expected, actual, 1e-3f * dims * numQueryVectors);
+    }
 
     public void testIpByteBit() {
         byte[] d = new byte[random().nextInt(128)];
@@ -510,6 +541,120 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
             vector[i] = random().nextFloat();
         }
         return vector;
+    }
+
+    private float[][] generateRandomFloatVectors(int vectorCount, int dims) {
+        float[][] vectors = new float[vectorCount][dims];
+        for (int i = 0; i < vectorCount; i++) {
+            for (int j = 0; j < dims; j++) {
+                vectors[i][j] = randomFloat() * 2f - 1f;
+            }
+        }
+        return vectors;
+    }
+
+    private byte[][] generateRandomByteVectors(int vectorCount, int dims) {
+        byte[][] vectors = new byte[vectorCount][dims];
+        for (int i = 0; i < vectorCount; i++) {
+            random().nextBytes(vectors[i]);
+        }
+        return vectors;
+    }
+
+    private static BytesRef encodeFloatVectors(float[][] vectors) {
+        int dims = vectors[0].length;
+        ByteBuffer buffer = ByteBuffer.allocate(vectors.length * dims * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        for (float[] vector : vectors) {
+            for (float value : vector) {
+                buffer.putFloat(value);
+            }
+        }
+        return new BytesRef(buffer.array());
+    }
+
+    private static BytesRef encodeByteVectors(byte[][] vectors) {
+        int dims = vectors[0].length;
+        byte[] bytes = new byte[vectors.length * dims];
+        int offset = 0;
+        for (byte[] vector : vectors) {
+            System.arraycopy(vector, 0, bytes, offset, dims);
+            offset += dims;
+        }
+        return new BytesRef(bytes);
+    }
+
+    private static class TestMultiFloatVectorsSource implements MultiFloatVectorsSource {
+        private final float[][] vectors;
+        private final BytesRef vectorBytes;
+        private final int dims;
+
+        TestMultiFloatVectorsSource(float[][] vectors, BytesRef vectorBytes, int dims) {
+            this.vectors = vectors;
+            this.vectorBytes = vectorBytes;
+            this.dims = dims;
+        }
+
+        @Override
+        public BytesRef vectorBytes() {
+            return vectorBytes;
+        }
+
+        @Override
+        public int vectorCount() {
+            return vectors.length;
+        }
+
+        @Override
+        public int vectorDims() {
+            return dims;
+        }
+
+        @Override
+        public int vectorByteSize() {
+            return dims * Float.BYTES;
+        }
+
+        @Override
+        public Iterator<float[]> vectorValues() {
+            return Arrays.asList(vectors).iterator();
+        }
+    }
+
+    private static class TestMultiByteVectorsSource implements MultiByteVectorsSource {
+        private final byte[][] vectors;
+        private final BytesRef vectorBytes;
+        private final int dims;
+
+        TestMultiByteVectorsSource(byte[][] vectors, BytesRef vectorBytes, int dims) {
+            this.vectors = vectors;
+            this.vectorBytes = vectorBytes;
+            this.dims = dims;
+        }
+
+        @Override
+        public BytesRef vectorBytes() {
+            return vectorBytes;
+        }
+
+        @Override
+        public int vectorCount() {
+            return vectors.length;
+        }
+
+        @Override
+        public int vectorDims() {
+            return dims;
+        }
+
+        @Override
+        public int vectorByteSize() {
+            return dims;
+        }
+
+        @Override
+        public Iterator<byte[]> vectorValues() {
+            return Arrays.asList(vectors).iterator();
+        }
     }
 
     void testIpByteBinImpl(ToLongBiFunction<byte[], byte[]> ipByteBinFunc) {

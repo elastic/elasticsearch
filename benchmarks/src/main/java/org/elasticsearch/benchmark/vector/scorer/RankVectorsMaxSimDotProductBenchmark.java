@@ -39,7 +39,7 @@ import java.util.concurrent.TimeUnit;
 @Warmup(iterations = 3, time = 3)
 @Measurement(iterations = 5, time = 3)
 @BenchmarkMode(Mode.Throughput)
-@OutputTimeUnit(TimeUnit.SECONDS)
+@OutputTimeUnit(TimeUnit.MILLISECONDS)
 @State(Scope.Thread)
 public class RankVectorsMaxSimDotProductBenchmark {
     static {
@@ -54,13 +54,13 @@ public class RankVectorsMaxSimDotProductBenchmark {
     @Param({ "FLOAT", "BYTE" })
     public RankVectorType type;
 
-    @Param({ "128", "768" })
+    @Param({ "128" })
     public int dims;
 
-    @Param({ "16", "64", "256" })
+    @Param({ "256" })
     public int numDocVectors;
 
-    @Param({ "4", "16", "64" })
+    @Param({ "16" })
     public int numQueryVectors;
 
     private float[][] floatDocVectors;
@@ -68,8 +68,10 @@ public class RankVectorsMaxSimDotProductBenchmark {
     private byte[][] byteDocVectors;
     private byte[][] byteQueryVectors;
 
-    private FloatRankVectors floatRankVectors;
-    private ByteRankVectors byteRankVectors;
+    private FloatRankVectors floatRankVectorsPanama;
+    private FloatRankVectors floatRankVectorsDefault;
+    private ByteRankVectors byteRankVectorsPanama;
+    private ByteRankVectors byteRankVectorsDefault;
 
     @Setup(Level.Trial)
     public void setup() {
@@ -92,7 +94,7 @@ public class RankVectorsMaxSimDotProductBenchmark {
         }
 
         BytesRef magnitudes = new BytesRef(new byte[numDocVectors * Float.BYTES]);
-        floatRankVectors = new FloatRankVectors(
+        floatRankVectorsPanama = new FloatRankVectors(
             VectorIterator.from(floatDocVectors),
             magnitudes,
             numDocVectors,
@@ -100,7 +102,8 @@ public class RankVectorsMaxSimDotProductBenchmark {
             encodeFloatDocVectors(floatDocVectors),
             ElementType.FLOAT
         );
-        byteRankVectors = new ByteRankVectors(
+        floatRankVectorsDefault = new FloatRankVectors(VectorIterator.from(floatDocVectors), magnitudes, numDocVectors, dims);
+        byteRankVectorsPanama = new ByteRankVectors(
             VectorIterator.from(byteDocVectors),
             magnitudes,
             numDocVectors,
@@ -108,23 +111,24 @@ public class RankVectorsMaxSimDotProductBenchmark {
             encodeByteDocVectors(byteDocVectors),
             ElementType.BYTE
         );
+        byteRankVectorsDefault = new ByteRankVectors(VectorIterator.from(byteDocVectors), magnitudes, numDocVectors, dims);
 
         verifyCorrectness();
     }
 
     @Benchmark
-    public float oldWay() {
+    public float defaultPath() {
         return switch (type) {
-            case FLOAT -> oldWayFloat();
-            case BYTE -> oldWayByte();
+            case FLOAT -> floatRankVectorsDefault.maxSimDotProduct(floatQueryVectors);
+            case BYTE -> byteRankVectorsDefault.maxSimDotProduct(byteQueryVectors);
         };
     }
 
     @Benchmark
-    public float newWay() {
+    public float panamaPath() {
         return switch (type) {
-            case FLOAT -> floatRankVectors.maxSimDotProduct(floatQueryVectors);
-            case BYTE -> byteRankVectors.maxSimDotProduct(byteQueryVectors);
+            case FLOAT -> floatRankVectorsPanama.maxSimDotProduct(floatQueryVectors);
+            case BYTE -> byteRankVectorsPanama.maxSimDotProduct(byteQueryVectors);
         };
     }
 
@@ -151,10 +155,17 @@ public class RankVectorsMaxSimDotProductBenchmark {
     }
 
     private void verifyCorrectness() {
-        float oldScore = oldWay();
-        float newScore = newWay();
-        if (Math.abs(oldScore - newScore) > 1e-3f) {
-            throw new IllegalStateException("newWay and oldWay differ: old=" + oldScore + ", new=" + newScore);
+        float scalarScore = switch (type) {
+            case FLOAT -> oldWayFloat();
+            case BYTE -> oldWayByte();
+        };
+        float defaultScore = defaultPath();
+        float panamaScore = panamaPath();
+        if (Math.abs(scalarScore - defaultScore) > 1e-3f) {
+            throw new IllegalStateException("defaultPath and scalar differ: scalar=" + scalarScore + ", defaultPath=" + defaultScore);
+        }
+        if (Math.abs(scalarScore - panamaScore) > 1e-3f) {
+            throw new IllegalStateException("panamaPath and scalar differ: scalar=" + scalarScore + ", panamaPath=" + panamaScore);
         }
     }
 

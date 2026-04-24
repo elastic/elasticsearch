@@ -1404,7 +1404,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         testRequest.getSearchRequest().source().size(100);
         testRequest.getSearchRequest().source().slice(new SliceBuilder(IdFieldMapper.NAME, 0, 5));
 
-        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false);
+        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false, null);
 
         assertThat(preparedSearchRequest.scroll(), notNullValue());
     }

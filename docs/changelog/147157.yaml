@@ -1,5 +1,6 @@
-area: Search
-issues: []
+area: Analysis
+issues:
+  - 144941
 pr: 147157
 summary: Allow multiple synonym sets per filter using the synonyms API
 type: enhancement

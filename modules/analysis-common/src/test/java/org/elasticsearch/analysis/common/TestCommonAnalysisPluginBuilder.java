@@ -9,7 +9,9 @@
 
 package org.elasticsearch.analysis.common;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -33,6 +35,7 @@ public class TestCommonAnalysisPluginBuilder {
     private ScriptService scriptService = null;
     private Client client = null;
     private CircuitBreakerService circuitBreakerService = null;
+    private ClusterService clusterService = null;
 
     public TestCommonAnalysisPluginBuilder(ThreadPool threadPool) {
         this.threadPool = threadPool;
@@ -53,6 +56,11 @@ public class TestCommonAnalysisPluginBuilder {
         return this;
     }
 
+    public TestCommonAnalysisPluginBuilder clusterService(ClusterService clusterService) {
+        this.clusterService = clusterService;
+        return this;
+    }
+
     public CommonAnalysisPlugin build() {
         ScriptService scriptService = this.scriptService != null
             ? this.scriptService
@@ -65,9 +73,17 @@ public class TestCommonAnalysisPluginBuilder {
         IndicesService indicesService = mock(IndicesService.class);
         when(indicesService.getCircuitBreakerService()).thenReturn(circuitBreakerService);
 
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        ClusterService clusterService;
+        if (this.clusterService != null) {
+            clusterService = this.clusterService;
+        } else {
+            ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+            ClusterState clusterState = mock(ClusterState.class);
+            when(clusterState.getMinTransportVersion()).thenReturn(TransportVersion.current());
+            clusterService = mock(ClusterService.class);
+            when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+            when(clusterService.state()).thenReturn(clusterState);
+        }
 
         Plugin.PluginServices pluginServices = mock(Plugin.PluginServices.class);
         when(pluginServices.scriptService()).thenReturn(scriptService);

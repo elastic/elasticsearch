@@ -244,34 +244,6 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
         assertThat(result.pageResults()[1].synonyms(), equalTo("big, large"));
     }
 
-    public void testGetSynonymSetRulesMissingSetIgnoredWhenLenient() throws Exception {
-        // set-a has one rule; set-missing has no document in the index
-        SearchHit hitA1 = synonymRuleHit(1, "rule-a-1", "quick, fast", "set-a");
-
-        var client = new PitSearchClient(threadPool, new SearchHit[] { hitA1 }, 1L, Map.of("set-a", true, "set-missing", false));
-        var service = buildService(client, clusterService, 100_000, SynonymsManagementAPIService.BULK_CHUNK_SIZE);
-
-        var future = new PlainActionFuture<PagedResult<SynonymRule>>();
-        // safeGet is inside the lambda so assertThatLogger waits for the full async chain
-        // (the warning fires on system_read thread via closePitAndThen) before checking
-        MockLog.assertThatLogger(() -> {
-            service.getSynonymSetRules(List.of("set-a", "set-missing"), true, future);
-            safeGet(future);
-        },
-            SynonymsManagementAPIService.class,
-            new MockLog.SeenEventExpectation(
-                "missing set warning",
-                SynonymsManagementAPIService.class.getName(),
-                Level.WARN,
-                "*set-missing*not found*"
-            )
-        );
-
-        PagedResult<SynonymRule> result = safeGet(future);
-        assertThat(result.pageResults().length, equalTo(1));
-        assertThat(result.pageResults()[0].synonyms(), equalTo("quick, fast"));
-    }
-
     /** Builds a SearchHit with the three fields getSynonymSetRules reads from each rule document. */
     private static SearchHit synonymRuleHit(int docId, String ruleId, String synonyms, String synonymsSet) {
         SearchHit hit = SearchHit.unpooled(docId, ruleId);

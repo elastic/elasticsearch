@@ -256,16 +256,6 @@ public class IndexVersions {
     public static final IndexVersion TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT = def(9_094_0_00, Version.LUCENE_10_4_0);
     public static final IndexVersion DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES = def(9_095_0_00, Version.LUCENE_10_4_0);
     public static final IndexVersion SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN = def(9_096_00_0, Version.LUCENE_10_4_0);
-    /**
-     * Allows {@code synonyms_set} to accept a list of synonym set IDs in a single filter.
-     * Old nodes that do not carry this version will mishandle a list value in {@code synonyms_set}
-     * settings (reading it via {@code Settings.get()} returns Java's {@code List.toString()} rather
-     * than a valid synonym set ID). The index version gate ensures multi-set configs cannot enter
-     * index metadata while old nodes exist: new index creation uses
-     * {@code min(IndexVersion.current(), maxDataNodeCompatibleIndexVersion)}.
-     */
-    public static final IndexVersion MULTIPLE_SYNONYM_SETS_PER_FILTER = def(9_097_0_00, Version.LUCENE_10_4_0);
-
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

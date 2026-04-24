@@ -23,6 +23,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
 public class OTLPTracesTransportActionTests extends AbstractOTLPTransportActionTests {
@@ -64,6 +65,31 @@ public class OTLPTracesTransportActionTests extends AbstractOTLPTransportActionT
         return "traces";
     }
 
+    public void testPrepareBulkRequestUsesDocumentIdAttribute() throws Exception {
+        BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
+        createAction().prepareBulkRequest(
+            new OTLPActionRequest(
+                new BytesArray(
+                    OtlpTraceUtils.createTracesRequest(
+                        List.of(OtlpTraceUtils.createSpan("test-span", List.of(OtlpUtils.keyValue("elasticsearch.document_id", "trace-doc-id"))))
+                    ).toByteArray()
+                )
+            ),
+            bulkRequestBuilder
+        );
+
+        IndexRequest indexRequest = (IndexRequest) bulkRequestBuilder.request().requests().get(0);
+        assertThat(indexRequest.id(), equalTo("trace-doc-id"));
+    }
+
+    public void testPrepareBulkRequestLeavesDocumentIdUnsetWhenAttributeMissing() throws Exception {
+        BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
+        createAction().prepareBulkRequest(createRequestWithData(), bulkRequestBuilder);
+
+        IndexRequest indexRequest = (IndexRequest) bulkRequestBuilder.request().requests().get(0);
+        assertThat(indexRequest.id(), nullValue());
+    }
+
     public void testPrepareBulkRequestAddsSpanEventDocuments() throws Exception {
         BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
         createAction().prepareBulkRequest(
@@ -102,5 +128,35 @@ public class OTLPTracesTransportActionTests extends AbstractOTLPTransportActionT
         Map<String, Object> attributes = (Map<String, Object>) eventRequest.sourceAsMap().get("attributes");
         assertThat(attributes.get("event.attr.foo"), equalTo("event.attr.bar"));
         assertThat(attributes.get("event.name"), equalTo("exception"));
+    }
+
+    public void testPrepareBulkRequestUsesSpanEventDocumentIdAttribute() throws Exception {
+        BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
+        createAction().prepareBulkRequest(
+            new OTLPActionRequest(
+                new BytesArray(
+                    OtlpTraceUtils.createTracesRequest(
+                        List.of(
+                            OtlpTraceUtils.createSpan(
+                                "test-span",
+                                List.of(),
+                                List.of(
+                                    OtlpTraceUtils.createEvent(
+                                        "exception",
+                                        2_000_000_000L,
+                                        List.of(OtlpUtils.keyValue("elasticsearch.document_id", "span-event-doc-id"))
+                                    )
+                                )
+                            )
+                        )
+                    ).toByteArray()
+                )
+            ),
+            bulkRequestBuilder
+        );
+
+        var bulkRequest = bulkRequestBuilder.request();
+        IndexRequest eventRequest = (IndexRequest) bulkRequest.requests().get(1);
+        assertThat(eventRequest.id(), equalTo("span-event-doc-id"));
     }
 }

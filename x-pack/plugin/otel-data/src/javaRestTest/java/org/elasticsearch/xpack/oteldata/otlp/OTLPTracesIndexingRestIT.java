@@ -122,6 +122,18 @@ public class OTLPTracesIndexingRestIT extends AbstractOTLPIndexingRestIT {
         assertThat(source.evaluate("data_stream.type"), equalTo("logs"));
     }
 
+    public void testSpanEventsUseDocumentIdAttribute() throws Exception {
+        var span = tracer.spanBuilder("span-with-event-id").startSpan();
+        span.addEvent("exception", Attributes.of(stringKey("elasticsearch.document_id"), "span-event-doc-id"));
+        span.end();
+
+        indexTraces();
+
+        ObjectPath logsSearch = search("logs-generic.otel-default");
+        assertThat(logsSearch.evaluate("hits.total.value"), equalTo(1));
+        assertThat(logsSearch.evaluate("hits.hits.0._id"), equalTo("span-event-doc-id"));
+    }
+
     public void testDataStreamRouting() throws Exception {
         var span = tracer.spanBuilder("routed span").startSpan();
         span.setAttribute("data_stream.dataset", "checkout");

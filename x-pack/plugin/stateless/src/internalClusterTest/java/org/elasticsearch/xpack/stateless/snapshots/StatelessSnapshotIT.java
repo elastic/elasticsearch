@@ -29,11 +29,13 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
+import org.elasticsearch.xpack.stateless.StatelessMockRepository;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryPlugin;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryStrategy;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
@@ -44,6 +46,7 @@ import org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotSettings.Sta
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.NoSuchFileException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
@@ -329,6 +332,109 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
         assertThat(response.getSnapshotInfo(), notNullValue());
     }
 
+    public void testSnapshotFailsCleanlyWhenIndexDeletedDuringMetadataRead() throws Exception {
+        final var settings = Settings.builder()
+            .put(STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(), StatelessSnapshotEnabledStatus.ENABLED)
+            .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
+            .build();
+        final var node = startMasterAndIndexNode(settings);
+
+        final String indexName = randomIdentifier();
+        createIndex(indexName, 1, 0);
+        ensureGreen(indexName);
+        indexAndMaybeFlush(indexName);
+        flush(indexName);
+
+        final var repoName = randomRepoName();
+        createRepository(repoName, "fs");
+
+        final var shardId0 = new ShardId(resolveIndex(indexName), 0);
+
+        // Block the shard snapshot on its metadataSnapshot read from the object store
+        final var readStrategy = new BlockingMetadataReadStrategy(1);
+        setNodeRepositoryStrategy(node, readStrategy);
+
+        final var snapshotFuture = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap-during-index-delete")
+            .setIndices(indexName)
+            .setPartial(true)
+            .setWaitForCompletion(true)
+            .execute();
+        safeAwait(readStrategy.readObserved);
+
+        // While the shard snapshot is blocked inside metadataSnapshot, delete the index. This aborts the in-progress
+        // snapshot and closes the shard which drops the SnapshotIndexCommit's initial ref, allowing the backing
+        // BCC blobs to become eligible for deletion. metadataSnapshot holds an extra commit ref for the duration of the read,
+        // which prevents the cleanup and NoSuchFileException. The shard snapshot will then find out the abort by deletion
+        // when it starts to read shard files.
+        safeGet(client().admin().indices().prepareDelete(indexName).execute());
+
+        final var snapshotsCommitService = internalCluster().getInstance(SnapshotsCommitService.class, node);
+        assertBusy(() -> assertFalse(snapshotsCommitService.hasTrackingForShard(shardId0)));
+
+        readStrategy.proceed.countDown();
+        final var response = safeGet(snapshotFuture);
+        assertThat(response.getSnapshotInfo(), notNullValue());
+    }
+
+    public void testSnapshotFailsCleanlyWhenIndexDeletedBeforeMetadataRead() throws Exception {
+        final var settings = Settings.builder()
+            .put(STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(), StatelessSnapshotEnabledStatus.ENABLED)
+            .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
+            .build();
+        final var node = startMasterAndIndexNode(settings);
+
+        final String indexName = randomIdentifier();
+        createIndex(indexName, 1, 0);
+        ensureGreen(indexName);
+        indexAndMaybeFlush(indexName);
+        flush(indexName);
+
+        // Use a mock-type snapshot repo so we can block on reads to it (the object store's mock repo is a separate instance).
+        final var repoName = randomRepoName();
+        createRepository(repoName, StatelessMockRepositoryPlugin.TYPE);
+
+        // A first successful snapshot establishes a real shard generation; without one, the next snapshot hits the
+        // NEW_SHARD_GEN fast path in buildBlobStoreIndexShardSnapshots and never reads from the snapshot repo before
+        // metadataSnapshot.
+        createSnapshot(repoName, "snap-initial", List.of(indexName), List.of());
+        indexAndMaybeFlush(indexName);
+        flush(indexName);
+
+        final var shardId0 = new ShardId(resolveIndex(indexName), 0);
+
+        // Block the snapshot-repo metadata read in buildBlobStoreIndexShardSnapshots, which runs before metadataSnapshot.
+        // Deleting the index while blocked means that, when the read resumes, the commit is released and the shard snapshot
+        // is aborted. Subsequent metadataSnapshot call must bail out and not try to read a deleted BCC.
+        final var readStrategy = new BlockingMetadataReadStrategy(1);
+        final var snapshotRepo = (StatelessMockRepository) internalCluster().getInstance(RepositoriesService.class, node)
+            .repository(ProjectId.DEFAULT, repoName);
+        snapshotRepo.setStrategy(readStrategy);
+
+        // Guard on the object store to ensure it does not attempt to read a deleted BCC
+        setNodeRepositoryStrategy(node, new AssertNoMissingMetadataBlobStrategy());
+
+        // Start the snapshot, wait for the it to start
+        final var snapshotFuture = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap-before-metadata-read")
+            .setIndices(indexName)
+            .setPartial(true)
+            .setWaitForCompletion(true)
+            .execute();
+        safeAwait(readStrategy.readObserved);
+        // Now delete the index to trigger commit release and shard snapshot abort
+        safeGet(client().admin().indices().prepareDelete(indexName).execute());
+
+        final var snapshotsCommitService = internalCluster().getInstance(SnapshotsCommitService.class, node);
+        assertBusy(() -> assertFalse(snapshotsCommitService.hasTrackingForShard(shardId0)));
+
+        readStrategy.proceed.countDown();
+        final var response = safeGet(snapshotFuture);
+        assertThat(response.getSnapshotInfo(), notNullValue());
+    }
+
     public void testSnapshotFailsCleanlyWhenShardClosesDuringRestart() {
         final var settings = Settings.builder()
             .put(STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(), StatelessSnapshotEnabledStatus.ENABLED)
@@ -393,7 +499,48 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
         assertThat(response.getSnapshotInfo(), notNullValue());
     }
 
-    private class BlockingMetadataReadStrategy extends StatelessMockRepositoryStrategy {
+    /**
+     * Asserts that any {@link OperationPurpose#SNAPSHOT_METADATA} read which reaches the underlying blob store does not
+     * surface a {@link NoSuchFileException}. Installed on the object store, this catches the race where a concurrently
+     * deleted index removes a BCC blob while the snapshot process is reading it.
+     */
+    private static class AssertNoMissingMetadataBlobStrategy extends StatelessMockRepositoryStrategy {
+        @Override
+        public InputStream blobContainerReadBlob(
+            CheckedSupplier<InputStream, IOException> originalSupplier,
+            OperationPurpose purpose,
+            String blobName
+        ) throws IOException {
+            try {
+                return super.blobContainerReadBlob(originalSupplier, purpose, blobName);
+            } catch (NoSuchFileException e) {
+                if (purpose == OperationPurpose.SNAPSHOT_METADATA) {
+                    throw new AssertionError("unexpected NoSuchFileException for snapshot metadata blob [" + blobName + "]", e);
+                }
+                throw e;
+            }
+        }
+
+        @Override
+        public InputStream blobContainerReadBlob(
+            CheckedSupplier<InputStream, IOException> originalSupplier,
+            OperationPurpose purpose,
+            String blobName,
+            long position,
+            long length
+        ) throws IOException {
+            try {
+                return super.blobContainerReadBlob(originalSupplier, purpose, blobName, position, length);
+            } catch (NoSuchFileException e) {
+                if (purpose == OperationPurpose.SNAPSHOT_METADATA) {
+                    throw new AssertionError("unexpected NoSuchFileException for snapshot metadata blob [" + blobName + "]", e);
+                }
+                throw e;
+            }
+        }
+    }
+
+    private class BlockingMetadataReadStrategy extends AssertNoMissingMetadataBlobStrategy {
         final CountDownLatch readObserved;
         final CountDownLatch proceed = new CountDownLatch(1);
 

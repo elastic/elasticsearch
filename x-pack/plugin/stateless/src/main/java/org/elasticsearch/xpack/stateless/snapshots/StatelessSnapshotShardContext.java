@@ -106,7 +106,10 @@ public class StatelessSnapshotShardContext extends SnapshotShardContext {
 
     @Override
     public Store.MetadataSnapshot metadataSnapshot() {
-        try (var dir = new MetadataSnapshotBlobStoreDirectory(fileToBlobLocations, blobContainerFunc, shardId)) {
+        try (
+            var ignore = maybeWithSnapshotIndexCommitRef();
+            var dir = new MetadataSnapshotBlobStoreDirectory(fileToBlobLocations, blobContainerFunc, shardId)
+        ) {
             return Store.MetadataSnapshot.loadFromIndexCommit(null, dir, logger);
         } catch (IOException e) {
             throw new IndexShardSnapshotFailedException(shardId, "failed to get store file metadata", e);
@@ -152,13 +155,15 @@ public class StatelessSnapshotShardContext extends SnapshotShardContext {
 
     @Override
     public FileReader fileReader(String file, StoreFileMetadata metadata) throws IOException {
-        final Releasable commitRefReleasable = snapshotIndexCommit != null
-            ? withSnapshotIndexCommitRef(shardId, snapshotId(), snapshotIndexCommit, status())
-            : null;
+        final Releasable commitRefReleasable = maybeWithSnapshotIndexCommitRef();
         final BlobLocation blobLocation = fileToBlobLocations.get(file);
         assert blobLocation != null : "Blob location for file [" + file + "] not found in " + fileToBlobLocations;
         final BlobContainer blobContainer = blobContainerFunc.apply(shardId, blobLocation.primaryTerm());
         return new BlobStoreFileReader(blobContainer, blobLocation, commitRefReleasable);
+    }
+
+    private Releasable maybeWithSnapshotIndexCommitRef() {
+        return snapshotIndexCommit != null ? withSnapshotIndexCommitRef(shardId, snapshotId(), snapshotIndexCommit, status()) : null;
     }
 
     static class BlobStoreFileReader implements SnapshotShardContext.FileReader {

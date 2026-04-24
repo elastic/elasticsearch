@@ -747,15 +747,32 @@ public class VerifierTests extends ESTestCase {
     public void testBucketOnlyInAggs() {
         defaultAnalyzer().error(
             "FROM test | WHERE ABS(BUCKET(emp_no, 100.)) > 0",
-            equalTo("1:23: cannot use grouping function [BUCKET(emp_no, 100.)] outside of a STATS command")
+            equalTo("1:23: cannot use grouping function [BUCKET(emp_no, 100.)] outside of a STATS or LIMIT BY command")
         );
         defaultAnalyzer().error(
             "FROM test | EVAL 3 + BUCKET(emp_no, 100.)",
-            equalTo("1:22: cannot use grouping function [BUCKET(emp_no, 100.)] outside of a STATS command")
+            equalTo("1:22: cannot use grouping function [BUCKET(emp_no, 100.)] outside of a STATS or LIMIT BY command")
         );
         defaultAnalyzer().error(
             "FROM test | SORT BUCKET(emp_no, 100.)",
-            equalTo("1:18: cannot use grouping function [BUCKET(emp_no, 100.)] outside of a STATS command")
+            equalTo("1:18: cannot use grouping function [BUCKET(emp_no, 100.)] outside of a STATS or LIMIT BY command")
+        );
+    }
+
+    public void testBucketAllowedInLimitBy() {
+        // Bare evaluatable grouping function as the LIMIT BY key.
+        defaultAnalyzer().query("FROM test | LIMIT 1 BY BUCKET(emp_no, 100.)");
+        // Wrapped in a scalar expression.
+        defaultAnalyzer().query("FROM test | LIMIT 1 BY BUCKET(emp_no, 100.) + 1");
+        // Combined with a regular field grouping.
+        defaultAnalyzer().query("FROM test | LIMIT 1 BY BUCKET(emp_no, 100.), languages");
+    }
+
+    public void testCategorizeNotAllowedInLimitBy() {
+        // Stateful grouping functions still require a STATS context.
+        defaultAnalyzer().error(
+            "FROM test | LIMIT 1 BY CATEGORIZE(first_name)",
+            equalTo("1:24: cannot use grouping function [CATEGORIZE(first_name)] outside of a STATS command")
         );
     }
 
@@ -3319,18 +3336,10 @@ public class VerifierTests extends ESTestCase {
 
     public void testNoDimensionsInAggsOnlyInByClause() {
         tsdb().error(
-            "TS test | STATS count(host) BY bucket(@timestamp, 1 minute)",
+            "TS test | STATS count(bool_field) BY bucket(@timestamp, 1 minute)",
             equalTo(
-                "1:23: argument of [implicit time-series aggregation function (LastOverTime) for host] must be "
-                    + "[numeric except unsigned_long], found value [host] type [keyword]; "
-                    + "to aggregate non-numeric fields, use the FROM command instead of the TS command"
-            )
-        );
-        tsdb().error(
-            "TS test | STATS max(name) BY bucket(@timestamp, 1 minute)",
-            equalTo(
-                "1:21: argument of [implicit time-series aggregation function (LastOverTime) for name] must be "
-                    + "[numeric except unsigned_long], found value [name] type [keyword]; "
+                "1:23: argument of [implicit time-series aggregation function (LastOverTime) for bool_field] must be "
+                    + "[numeric except unsigned_long], found value [bool_field] type [boolean]; "
                     + "to aggregate non-numeric fields, use the FROM command instead of the TS command"
             )
         );

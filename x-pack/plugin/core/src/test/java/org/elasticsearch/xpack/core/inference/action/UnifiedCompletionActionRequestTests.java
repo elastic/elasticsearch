@@ -15,6 +15,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.InferenceContext;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
@@ -25,11 +26,34 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED;
 import static org.elasticsearch.test.BWCVersions.DEFAULT_BWC_VERSIONS;
+import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.INFERENCE_REQUEST_PER_TASK_TIMEOUT_ADDED;
+import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
 import static org.hamcrest.Matchers.is;
 
 public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializationTestCase<UnifiedCompletionAction.Request> {
 
     private static final TransportVersion INFERENCE_CONTEXT = TransportVersion.fromName("inference_context");
+
+    public void testConstructor_WithNullTimeout_UsesPlaceholder() {
+        var request = new UnifiedCompletionAction.Request(
+            randomAlphaOfLength(8),
+            TaskType.COMPLETION,
+            UnifiedCompletionRequest.of(null),
+            null
+        );
+        assertThat(request.getTimeout(), is(TIMEOUT_NOT_DETERMINED));
+    }
+
+    public void testConstructor_WithNonNullTimeout_UsesTimeout() {
+        var timeout = randomTimeValue();
+        var request = new UnifiedCompletionAction.Request(
+            randomAlphaOfLength(8),
+            TaskType.COMPLETION,
+            UnifiedCompletionRequest.of(null),
+            timeout
+        );
+        assertThat(request.getTimeout(), is(timeout));
+    }
 
     public void testValidation_ReturnsException_When_UnifiedCompletionRequestMessage_Is_Null() {
         var request = new UnifiedCompletionAction.Request(
@@ -80,12 +104,19 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
         if (version.supports(INFERENCE_CONTEXT) == false) {
             context = InferenceContext.EMPTY_INSTANCE;
         }
+
+        var timeout = instance.getTimeout();
+        if (version.supports(INFERENCE_REQUEST_PER_TASK_TIMEOUT_ADDED) == false) {
+            if (timeout.equals(TIMEOUT_NOT_DETERMINED)) {
+                timeout = BaseInferenceActionRequest.OLD_DEFAULT_TIMEOUT;
+            }
+        }
         return new UnifiedCompletionAction.Request(
             instance.getInferenceEntityId(),
             instance.getTaskType(),
             UnifiedCompletionRequestTests.mutateInstanceForTransportVersion(instance.getUnifiedCompletionRequest(), version),
             context,
-            instance.getTimeout()
+            timeout
         );
     }
 
@@ -136,7 +167,7 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
             randomFrom(TaskType.values()),
             UnifiedCompletionRequestTests.randomUnifiedCompletionRequest(),
             new InferenceContext(randomAlphaOfLength(10)),
-            TimeValue.timeValueMillis(randomLongBetween(1, 2048))
+            randomFrom(randomTimeValue(), null)
         );
     }
 
@@ -155,7 +186,14 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
                 UnifiedCompletionRequestTests::randomUnifiedCompletionRequest
             );
             case 3 -> inferenceContext = randomValueOtherThan(inferenceContext, () -> new InferenceContext(randomAlphaOfLength(10)));
-            case 4 -> timeout = randomValueOtherThan(timeout, () -> TimeValue.timeValueMillis(randomLongBetween(1, 2048)));
+            case 4 -> {
+                if (timeout.equals(TIMEOUT_NOT_DETERMINED)) {
+                    // Using null as timeout will translate it internally to TIMEOUT_NOT_DETERMINED, which would not mutate the instance
+                    timeout = randomValueOtherThan(timeout, ESTestCase::randomTimeValue);
+                } else {
+                    timeout = randomValueOtherThan(timeout, () -> randomFrom(randomTimeValue(), null));
+                }
+            }
             default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new UnifiedCompletionAction.Request(inferenceEntityId, taskType, unifiedCompletionRequest, inferenceContext, timeout);

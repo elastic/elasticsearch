@@ -85,17 +85,9 @@ public class DateHistogramGlobalIT extends ESIntegTestCase {
 
                 Histogram histogram = everything.getAggregations().get("by_month");
                 assertThat(histogram, notNullValue());
-                assertThat(
-                    "histogram has wrong number of buckets",
-                    (long) histogram.getBuckets().size(),
-                    equalTo(expectedTotalDocs)
-                );
+                assertThat("histogram has wrong number of buckets", (long) histogram.getBuckets().size(), equalTo(expectedTotalDocs));
                 for (Histogram.Bucket bucket : histogram.getBuckets()) {
-                    assertThat(
-                        "bucket " + bucket.getKeyAsString() + " has wrong doc count",
-                        bucket.getDocCount(),
-                        equalTo(1L)
-                    );
+                    assertThat("bucket " + bucket.getKeyAsString() + " has wrong doc count", bucket.getDocCount(), equalTo(1L));
                 }
             }
         );

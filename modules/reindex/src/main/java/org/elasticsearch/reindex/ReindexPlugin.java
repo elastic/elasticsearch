@@ -15,10 +15,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.FeatureFlag;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
@@ -65,20 +63,6 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
      */
     public static final boolean REINDEX_PIT_SEARCH_ENABLED = new FeatureFlag("reindex_pit_search").isEnabled();
 
-    /**
-     * Keep-alive for point-in-time contexts used during reindexing.
-     * When scroll-based search is used, the scroll timeout comes from the search request.
-     * If the scroll timeout is set but pit is used, the scroll timeout is ignored in favor of this.
-     */
-    public static final Setting<TimeValue> REINDEX_PIT_KEEP_ALIVE_SETTING = Setting.timeSetting(
-        "cluster.reindex.pit.keep_alive",
-        TimeValue.timeValueMinutes(5),
-        TimeValue.timeValueSeconds(10),
-        TimeValue.timeValueHours(1),
-        Property.Dynamic,
-        Property.NodeScope
-    );
-
     public static ReindexRelocationNodePicker getReindexRelocationNodePicker(final Environment environment) {
         return DiscoveryNode.isStateless(environment.settings())
             ? new StatelessReindexRelocationNodePicker()
@@ -123,12 +107,14 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
+        final ReindexSettings reindexSettings = new ReindexSettings(services.clusterService().getClusterSettings());
         return List.of(
             new ReindexSslConfig(services.environment().settings(), services.environment(), services.resourceWatcherService()),
             new ReindexMetrics(services.telemetryProvider().getMeterRegistry()),
             new UpdateByQueryMetrics(services.telemetryProvider().getMeterRegistry()),
             new DeleteByQueryMetrics(services.telemetryProvider().getMeterRegistry()),
-            new PluginComponentBinding<>(ReindexRelocationNodePicker.class, getReindexRelocationNodePicker(services.environment()))
+            new PluginComponentBinding<>(ReindexRelocationNodePicker.class, getReindexRelocationNodePicker(services.environment())),
+            new PluginComponentBinding<>(ReindexSettings.class, reindexSettings)
         );
     }
 
@@ -137,7 +123,7 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
         final List<Setting<?>> settings = new ArrayList<>();
         settings.add(TransportReindexAction.REMOTE_CLUSTER_WHITELIST);
         settings.add(TransportReindexAction.REMOTE_CLUSTER_BLOCKLIST);
-        settings.add(REINDEX_PIT_KEEP_ALIVE_SETTING);
+        settings.add(ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING);
         settings.addAll(ReindexSslConfig.getSettings());
         return settings;
     }

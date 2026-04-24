@@ -1,0 +1,54 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.reindex;
+
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.core.TimeValue;
+
+/**
+ * Holds reindex-related dynamic cluster settings and keeps them current via {@link ClusterSettings#initializeAndWatch}.
+ * Exposed for dependency injection so consumers (for example {@link Reindexer}) read cached values instead of resolving
+ * settings through {@link org.elasticsearch.cluster.service.ClusterService} on each use.
+ */
+public final class ReindexSettings {
+
+    /**
+     * Keep-alive for point-in-time contexts used during reindexing.
+     * When scroll-based search is used, the scroll timeout comes from the search request.
+     * If the scroll timeout is set but pit is used, the scroll timeout is ignored in favor of this.
+     */
+    public static final Setting<TimeValue> REINDEX_PIT_KEEP_ALIVE_SETTING = Setting.timeSetting(
+        "cluster.reindex.pit.keep_alive",
+        TimeValue.timeValueMinutes(5),
+        TimeValue.timeValueSeconds(10),
+        TimeValue.timeValueHours(1),
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    private volatile TimeValue pitKeepAlive;
+
+    public ReindexSettings(ClusterSettings clusterSettings) {
+        clusterSettings.initializeAndWatch(REINDEX_PIT_KEEP_ALIVE_SETTING, this::setPitKeepAlive);
+    }
+
+    /**
+     * Keep-alive for point-in-time contexts during reindex when PIT-based pagination is used.
+     */
+    public TimeValue pitKeepAlive() {
+        return pitKeepAlive;
+    }
+
+    private void setPitKeepAlive(TimeValue pitKeepAlive) {
+        this.pitKeepAlive = pitKeepAlive;
+    }
+}

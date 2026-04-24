@@ -21,6 +21,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
+import org.elasticsearch.reindex.ReindexSettings;
 import org.elasticsearch.reindex.TransportReindexAction;
 import org.elasticsearch.rest.root.MainRestPlugin;
 import org.elasticsearch.tasks.Task;
@@ -38,7 +39,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Verifies {@link ReindexPlugin#REINDEX_PIT_KEEP_ALIVE_SETTING} is applied when reindex opens a point-in-time on the local cluster.
+ * Verifies {@link ReindexSettings#REINDEX_PIT_KEEP_ALIVE_SETTING} is applied when reindex opens a point-in-time on the local cluster.
  */
 @ESIntegTestCase.ClusterScope(numDataNodes = 1, numClientNodes = 0)
 public class ReindexPitKeepAliveIT extends ESIntegTestCase {
@@ -98,7 +99,7 @@ public class ReindexPitKeepAliveIT extends ESIntegTestCase {
         try {
             assertAcked(
                 clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
-                    .setPersistentSettings(Settings.builder().putNull(ReindexPlugin.REINDEX_PIT_KEEP_ALIVE_SETTING.getKey()).build())
+                    .setPersistentSettings(Settings.builder().putNull(ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING.getKey()).build())
             );
         } finally {
             LAST_OPEN_PIT_KEEP_ALIVE.set(null);
@@ -113,10 +114,10 @@ public class ReindexPitKeepAliveIT extends ESIntegTestCase {
         assertAcked(
             clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                 .setPersistentSettings(
-                    Settings.builder().put(ReindexPlugin.REINDEX_PIT_KEEP_ALIVE_SETTING.getKey(), configured.getStringRep()).build()
+                    Settings.builder().put(ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING.getKey(), configured.getStringRep()).build()
                 )
         );
-        assertThat(clusterService().getClusterSettings().get(ReindexPlugin.REINDEX_PIT_KEEP_ALIVE_SETTING), equalTo(configured));
+        assertThat(clusterService().getClusterSettings().get(ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING), equalTo(configured));
 
         LAST_OPEN_PIT_KEEP_ALIVE.set(null);
 

@@ -20,7 +20,6 @@ import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ResumeBulkByScrollRequest;
 import org.elasticsearch.index.reindex.ResumeBulkByScrollResponse;
-import org.elasticsearch.tasks.LoggingTaskListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
@@ -57,7 +56,7 @@ public abstract class AbstractResumeBulkByScrollAction<Request extends AbstractB
 
     @Override
     protected void doExecute(Task task, ResumeBulkByScrollRequest request, ActionListener<ResumeBulkByScrollResponse> listener) {
-        Task delegateTask = nodeClient.executeLocally(delegateAction, request.getDelegate(), new LoggingTaskListener<>(task));
+        Task delegateTask = nodeClient.executeLocally(delegateAction, request.getDelegate(), new LoggingReindexTaskListener(task));
         TaskId taskId = new TaskId(clusterService.localNode().getId(), delegateTask.getId());
         listener.onResponse(new ResumeBulkByScrollResponse(taskId));
     }

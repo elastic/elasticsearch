@@ -49,6 +49,7 @@ public abstract class AbstractOTLPIndexingRestIT extends ESRestTestCase {
         .setting("xpack.ml.enabled", "false")
         .setting("xpack.watcher.enabled", "false")
         .feature(FeatureFlag.OTLP_TRACES)
+        .feature(FeatureFlag.OTLP_LOGS)
         .build();
 
     @Override
@@ -70,6 +71,7 @@ public abstract class AbstractOTLPIndexingRestIT extends ESRestTestCase {
         super.setUp();
         assertBusy(() -> assertOK(client().performRequest(new Request("GET", "_index_template/metrics-otel@template"))));
         assertBusy(() -> assertOK(client().performRequest(new Request("GET", "_index_template/traces-otel@template"))));
+        assertBusy(() -> assertOK(client().performRequest(new Request("GET", "_index_template/logs-otel@template"))));
     }
 
     @After

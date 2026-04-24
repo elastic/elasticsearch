@@ -438,6 +438,9 @@ tests:
 - class: org.elasticsearch.action.admin.cluster.tasks.ListTasksIT
   method: testWaitForCompletion
   issue: https://github.com/elastic/elasticsearch/issues/146859
+- class: org.elasticsearch.index.codec.vectors.cluster.BalancedKMeansLocalTests
+  method: testKMeansNeighbors
+  issue: https://github.com/elastic/elasticsearch/issues/147479
 
 # Examples:
 #

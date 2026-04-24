@@ -358,17 +358,13 @@ public class EsqlSession {
                     );
 
                     SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(plan, logicalPlanPreOptimizer, planTimeProfile, l))
-                        .<LogicalPlan>andThen(
-                            (l, p) -> preMapper.preMapper(
-                                new Versioned<>(optimizedPlan(p, logicalPlanOptimizer, planTimeProfile), minimumVersion),
-                                l
-                            )
-                        )
+                        .<LogicalPlan>andThen((l, p) -> preMapper.preMapper(optimizedPlan(p, logicalPlanOptimizer, planTimeProfile), l))
                         .<Result>andThen(
                             (l, p) -> executeOptimizedPlan(
                                 request,
                                 executionInfo,
                                 planRunner,
+                                analyzedPlan.inner(),
                                 p,
                                 finalConfiguration,
                                 foldContext,
@@ -378,34 +374,10 @@ public class EsqlSession {
                                 l
                             )
                         )
-                        .<Versioned<Result>>andThen(
-                            (l, r) -> l.onResponse(
-                                new Versioned<>(
-                                    new Result(
-                                        r.schema(),
-                                        r.pages(),
-                                        createColumnMetadata(r.schema(), plan, r.configuration().newFoldContext()),
-                                        r.configuration(),
-                                        r.completionInfo(),
-                                        r.executionInfo()
-                                    ),
-                                    minimumVersion
-                                )
-                            )
-                        )
+                        .<Versioned<Result>>andThen((l, r) -> l.onResponse(new Versioned<>(r, minimumVersion)))
                         .addListener(listener);
                 }
             }
-        );
-    }
-
-    private Map<NameId, Map<String, Object>> createColumnMetadata(List<Attribute> attributes, LogicalPlan plan, FoldContext foldContext) {
-        return Maps.merge(
-            BucketColumnMetadata.createColumnMetadata(plan, foldContext),
-            ApproximationPlan.createColumnMetadata(attributes),
-            (a, b) -> Maps.merge(a, b, (m1, m2) -> {
-                throw new IllegalStateException("Should not produce metadata with the same key");
-            })
         );
     }
 
@@ -440,6 +412,7 @@ public class EsqlSession {
         EsqlQueryRequest request,
         EsqlExecutionInfo executionInfo,
         PlanRunner planRunner,
+        LogicalPlan analyzedPlan,
         LogicalPlan optimizedPlan,
         Configuration configuration,
         FoldContext foldContext,
@@ -463,6 +436,8 @@ public class EsqlSession {
             ? createExplainListener(listener, optimizedPlan, request, physicalPlanOptimizer, planTimeProfile, configuration, planRunner)
             : listener;
 
+        var columnMetadata = createColumnMetadata(analyzedPlan, foldContext);
+
         // Always use the same execution path - executeSubPlans handles both simple queries and those with subplans
         executeSubPlans(
             optimizedPlan,
@@ -474,7 +449,21 @@ public class EsqlSession {
             request,
             physicalPlanOptimizer,
             planTimeProfile,
-            effectiveListener
+            effectiveListener.delegateFailureAndWrap(
+                (l, r) -> l.onResponse(
+                    new Result(r.schema(), r.pages(), columnMetadata, r.configuration(), r.completionInfo(), r.executionInfo())
+                )
+            )
+        );
+    }
+
+    private Map<NameId, Map<String, Object>> createColumnMetadata(LogicalPlan plan, FoldContext foldContext) {
+        return Maps.merge(
+            BucketColumnMetadata.createColumnMetadata(plan, foldContext),
+            ApproximationPlan.createColumnMetadata(plan.output()),
+            (a, b) -> Maps.merge(a, b, (m1, m2) -> {
+                throw new IllegalStateException("Should not produce metadata with the same key");
+            })
         );
     }
 

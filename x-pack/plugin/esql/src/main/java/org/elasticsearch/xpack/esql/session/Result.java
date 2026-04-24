@@ -33,7 +33,6 @@ import java.util.Map;
  */
 public record Result(
     List<Attribute> schema,
-
     List<Page> pages,
     Map<NameId, Map<String, Object>> attributeMetadata,
     Configuration configuration,

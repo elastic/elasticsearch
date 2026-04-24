@@ -5728,10 +5728,91 @@ from employees
 | limit 5
 ;
 
-   languages:i |    emp_no:i   |    gender:s   |     w_avg:d   |   w:i       
-2              |10001          |M              |[1.0, 1.0, 1.0]|[1, 2, 3]      
-5              |10002          |F              |[1.0, 1.0, 1.0]|[1, 2, 3]      
-4              |10003          |M              |[1.0, 1.0, 1.0]|[1, 2, 3]      
-5              |10004          |M              |[1.0, 1.0, 1.0]|[1, 2, 3]      
-1              |10005          |M              |[1.0, 1.0, 1.0]|[1, 2, 3]      
+   languages:i |    emp_no:i   |    gender:s   |     w_avg:d   |   w:i
+2              |10001          |M              |[1.0, 1.0, 1.0]|[1, 2, 3]
+5              |10002          |F              |[1.0, 1.0, 1.0]|[1, 2, 3]
+4              |10003          |M              |[1.0, 1.0, 1.0]|[1, 2, 3]
+5              |10004          |M              |[1.0, 1.0, 1.0]|[1, 2, 3]
+1              |10005          |M              |[1.0, 1.0, 1.0]|[1, 2, 3]
+;
+
+inlineStatsAbsentOnTopWithDateTrunc
+required_capability: fix_push_count_query_and_tags_with_multiple_aggs
+
+FROM date_nanos
+| STATS a = COUNT(*), y = TOP(DATE_TRUNC(1 year, millis), 2, "desc") BY num
+| INLINE STATS x = COUNT(*), z = ABSENT(y)
+| KEEP x, z, a
+;
+ignoreOrder:true
+
+x:long | z:boolean | a:long
+8      | false     | 1
+8      | false     | 1
+8      | false     | 1
+8      | false     | 1
+8      | false     | 1
+8      | false     | 1
+8      | false     | 2
+8      | false     | 2
+;
+
+inlineStatsAbsentOnMaxWithDateTrunc
+required_capability: fix_push_count_query_and_tags_with_multiple_aggs
+
+FROM date_nanos
+| STATS a = COUNT(*), y = MAX(DATE_TRUNC(1 year, millis)) BY num
+| INLINE STATS x = COUNT(*), z = ABSENT(y)
+| KEEP x, z, a
+;
+ignoreOrder:true
+
+x:long | z:boolean | a:long
+8      | false     | 1
+8      | false     | 1
+8      | false     | 1
+8      | false     | 1
+8      | false     | 1
+8      | false     | 1
+8      | false     | 2
+8      | false     | 2
+;
+
+inlineStatsAbsentOnTopHireDateByLanguages
+required_capability: fix_push_count_query_and_tags_with_multiple_aggs
+
+FROM employees
+| STATS a = COUNT(*), y = TOP(DATE_TRUNC(1 year, hire_date), 2, "desc") BY languages
+| INLINE STATS x = COUNT(*), z = ABSENT(y)
+| KEEP x, z, a
+;
+ignoreOrder:true
+
+x:long | z:boolean | a:long
+6      | false     | 10
+6      | false     | 15
+6      | false     | 17
+6      | false     | 18
+6      | false     | 19
+6      | false     | 21
+;
+
+inlineStatsSumCountWithDateTruncDropGroupingKey
+required_capability: fix_push_count_query_and_tags_with_multiple_aggs
+
+FROM employees
+| EVAL x = DATE_TRUNC(1 year, hire_date)
+| STATS a = COUNT(*), y = MAX(salary) BY x
+| INLINE STATS total = SUM(a)
+| KEEP a, y, total
+| SORT a ASC, y ASC
+| LIMIT 5
+;
+
+a:long | y:integer | total:long
+1      | 45656     | 100
+1      | 64675     | 100
+1      | 73717     | 100
+3      | 58715     | 100
+4      | 67492     | 100
 ;

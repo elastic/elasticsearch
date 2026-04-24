@@ -21,6 +21,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -36,6 +37,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static java.util.Objects.requireNonNull;
 
@@ -54,6 +56,10 @@ public abstract class ScrollableHitSource {
     private final Consumer<AsyncResponse> onResponse;
     protected final Consumer<Exception> fail;
 
+    /// Each cycle must be executed in the root thread context and not in a descendant context of the previous task, so that the tracing
+    /// subsystem does not form a deeply-nested linked list of spans.
+    private final Supplier<ThreadContext.StoredContext> rootStoredContextSupplier;
+
     public ScrollableHitSource(
         Logger logger,
         BackoffPolicy backoffPolicy,
@@ -68,10 +74,11 @@ public abstract class ScrollableHitSource {
         this.countSearchRetry = countSearchRetry;
         this.onResponse = onResponse;
         this.fail = fail;
+        this.rootStoredContextSupplier = threadPool.getThreadContext().newRestorableContext(true);
     }
 
     public final void start() {
-        doStart(createRetryListener(this::doStart));
+        doStartInRootContext(createRetryListener(this::doStartInRootContext));
     }
 
     private RetryListener createRetryListener(Consumer<RejectAwareActionListener<Response>> retryHandler) {
@@ -88,7 +95,9 @@ public abstract class ScrollableHitSource {
     }
 
     private void startNextScroll(TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
-        doStartNextScroll(scrollId.get(), extraKeepAlive, searchListener);
+        try (var ignored = rootStoredContextSupplier.get()) {
+            doStartNextScroll(scrollId.get(), extraKeepAlive, searchListener);
+        }
     }
 
     private void onResponse(Response response) {
@@ -116,6 +125,12 @@ public abstract class ScrollableHitSource {
             clearScroll(scrollId, () -> cleanup(onCompletion));
         } else {
             cleanup(onCompletion);
+        }
+    }
+
+    private void doStartInRootContext(RejectAwareActionListener<Response> searchListener) {
+        try (var ignored = rootStoredContextSupplier.get()) {
+            doStart(searchListener);
         }
     }
 

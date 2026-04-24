@@ -698,8 +698,8 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
         var previousState = (previousGroupId >= 0) ? states.get(previousGroupId) : null;
         if (previousState == null || previousState.samples == 0) {
             if (state.samples == 1) {
-                firstTsSec = state.intervals[0].t1 / dateFactor;
-                firstValue = state.intervals[0].v1;
+                firstTsSec = state.intervals[0].t2 / dateFactor;
+                firstValue = state.intervals[0].v2;
             } else {
                 firstValue = extrapolateToBoundary(state, tbucketStart, tbucketEnd, dateFactor, true);
             }
@@ -712,7 +712,7 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
         if (nextState == null || nextState.samples == 0) {
             if (state.samples == 1) {
                 lastTsSec = state.intervals[0].t1 / dateFactor;
-                lastValue = state.intervals[0].v1;
+                lastValue = state.intervals[0].v1 + state.resets;
             } else {
                 lastValue = extrapolateToBoundary(state, tbucketStart, tbucketEnd, dateFactor, false);
             }

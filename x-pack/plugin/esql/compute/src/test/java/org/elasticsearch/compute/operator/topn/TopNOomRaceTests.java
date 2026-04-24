@@ -83,9 +83,9 @@ public class TopNOomRaceTests extends ESTestCase {
 
     public void testRace() {
         assumeFalse("previous test failed", watcher.anyFailed);
-        int driverCount = 6;
-        double usedByEachThread = .3;
-        ByteSizeValue limit = ByteSizeValue.ofBytes(Runtime.getRuntime().totalMemory() - ByteSizeValue.ofMb(30).getBytes());
+        int driverCount = 2;
+        double usedByEachThread = .7;
+        ByteSizeValue limit = ByteSizeValue.ofBytes(Runtime.getRuntime().totalMemory() - ByteSizeValue.ofMb(60).getBytes());
         int approxObjectRefsPerFilledRow = 5;
         // One byte for the null/non-null marker
         int approxSizePerFilledRow = RamUsageEstimator.NUM_BYTES_OBJECT_REF * approxObjectRefsPerFilledRow + repeats * (1 + Integer.BYTES);

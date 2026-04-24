@@ -9,7 +9,8 @@
 
 package org.elasticsearch.simdvec.internal;
 
-import org.apache.lucene.index.ByteVectorValues;
+import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
@@ -19,33 +20,34 @@ import java.io.IOException;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 
-// Scores pairs of indexed vectors (ordinal vs ordinal) for graph construction and segment merging.
-public abstract sealed class ByteVectorScorerSupplier implements RandomVectorScorerSupplier {
+import static org.apache.lucene.index.VectorSimilarityFunction.DOT_PRODUCT;
+import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
+import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
+
+public abstract sealed class Float32VectorScorerSupplier implements RandomVectorScorerSupplier {
 
     final int dims;
-    final int maxOrd;
-    /**
-     * The length in bytes of one vector. For this scorer, it matches the pitch (the distance in memory between 2 vectors, when laid
-     * out consecutively) and the total vector size (no padding, no extra fields).
-     */
     final int vectorByteSize;
+    final int maxOrd;
     final IndexInput input;
-    final ByteVectorValues values;
+    final FloatVectorValues values;
+    final VectorSimilarityFunction fallbackScorer;
     final FixedSizeScratch firstScratch;
     final FixedSizeScratch secondScratch;
 
-    protected ByteVectorScorerSupplier(IndexInput input, ByteVectorValues values) {
+    protected Float32VectorScorerSupplier(IndexInput input, FloatVectorValues values, VectorSimilarityFunction fallbackScorer) {
         this.input = input;
         this.values = values;
         this.dims = values.dimension();
-        this.vectorByteSize = values.getVectorByteLength();
+        this.vectorByteSize = dims * Float.BYTES;
         this.maxOrd = values.size();
+        this.fallbackScorer = fallbackScorer;
         this.firstScratch = new FixedSizeScratch(vectorByteSize);
         this.secondScratch = new FixedSizeScratch(vectorByteSize);
     }
 
     protected final void checkOrdinal(int ord) {
-        if (ord < 0 || ord >= maxOrd) {
+        if (ord < 0 || ord > maxOrd) {
             throw new IllegalArgumentException("illegal ordinal: " + ord);
         }
     }
@@ -72,14 +74,11 @@ public abstract sealed class ByteVectorScorerSupplier implements RandomVectorSco
                 addrs -> maxScore[0] = bulkScoreFromSegment(addrs, query, MemorySegment.ofArray(scores), numNodes)
             );
             if (resolved == false) {
-                // fallback to per-vector scorer
+                // fallback to on-heap fallback scorer
+                var queryVector = values.vectorValue(firstOrd).clone();
                 for (int i = 0; i < numNodes; i++) {
-                    input.seek(offsets[i]);
-                    scores[i] = IndexInputUtils.withSlice(input, vectorByteSize, secondScratch::getScratch, vector -> {
-                        var score = scoreFromSegments(query, vector);
-                        maxScore[0] = Math.max(maxScore[0], score);
-                        return score;
-                    });
+                    scores[i] = fallbackScorer.compare(queryVector, values.vectorValue(ordinals[i]));
+                    maxScore[0] = Math.max(maxScore[0], scores[i]);
                 }
             }
             return maxScore[0];
@@ -130,62 +129,26 @@ public abstract sealed class ByteVectorScorerSupplier implements RandomVectorSco
         };
     }
 
-    public static final class CosineSupplier extends ByteVectorScorerSupplier {
+    public static final class EuclideanSupplier extends Float32VectorScorerSupplier {
 
-        public CosineSupplier(IndexInput input, ByteVectorValues values) {
-            super(input, values);
-        }
-
-        private static float normalize(float cosine) {
-            return (1 + cosine) / 2;
+        public EuclideanSupplier(IndexInput input, FloatVectorValues values) {
+            super(input, values, EUCLIDEAN);
         }
 
         @Override
         float scoreFromSegments(MemorySegment a, MemorySegment b) {
-            return normalize(Similarities.cosineI8(a, b, dims));
+            return VectorUtil.normalizeDistanceToUnitInterval(Similarities.squareDistanceF32(a, b, dims));
         }
 
         @Override
-        float bulkScoreFromSegment(MemorySegment addresses, MemorySegment query, MemorySegment scores, int numNodes) {
-            Similarities.cosineI8BulkSparse(addresses, query, dims, numNodes, scores);
-
+        protected float bulkScoreFromSegment(MemorySegment addresses, MemorySegment query, MemorySegment scores, int numNodes) {
+            Similarities.squareDistanceF32BulkSparse(addresses, query, dims, numNodes, scores);
             float max = Float.NEGATIVE_INFINITY;
             for (int i = 0; i < numNodes; ++i) {
                 float squareDistance = scores.getAtIndex(ValueLayout.JAVA_FLOAT, i);
-                float normalized = normalize(squareDistance);
-                scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, normalized);
-                max = Math.max(max, normalized);
-            }
-            return max;
-        }
-
-        @Override
-        public CosineSupplier copy() {
-            return new CosineSupplier(input.clone(), values);
-        }
-    }
-
-    public static final class EuclideanSupplier extends ByteVectorScorerSupplier {
-
-        public EuclideanSupplier(IndexInput input, ByteVectorValues values) {
-            super(input, values);
-        }
-
-        @Override
-        float scoreFromSegments(MemorySegment a, MemorySegment b) {
-            return VectorUtil.normalizeDistanceToUnitInterval(Similarities.squareDistanceI8(a, b, dims));
-        }
-
-        @Override
-        float bulkScoreFromSegment(MemorySegment addresses, MemorySegment query, MemorySegment scores, int numNodes) {
-            Similarities.squareDistanceI8BulkSparse(addresses, query, dims, numNodes, scores);
-
-            float max = Float.NEGATIVE_INFINITY;
-            for (int i = 0; i < numNodes; ++i) {
-                float squareDistance = scores.getAtIndex(ValueLayout.JAVA_FLOAT, i);
-                float normalized = VectorUtil.normalizeDistanceToUnitInterval(squareDistance);
-                scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, normalized);
-                max = Math.max(max, normalized);
+                float normalizedScore = VectorUtil.normalizeDistanceToUnitInterval(squareDistance);
+                scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, normalizedScore);
+                max = Math.max(max, normalizedScore);
             }
             return max;
         }
@@ -196,33 +159,26 @@ public abstract sealed class ByteVectorScorerSupplier implements RandomVectorSco
         }
     }
 
-    public static final class DotProductSupplier extends ByteVectorScorerSupplier {
+    public static final class DotProductSupplier extends Float32VectorScorerSupplier {
 
-        private final float denom = (float) (dims * (1 << 15));
-
-        public DotProductSupplier(IndexInput input, ByteVectorValues values) {
-            super(input, values);
-        }
-
-        private float normalize(float dotProduct) {
-            return 0.5f + dotProduct / denom;
+        public DotProductSupplier(IndexInput input, FloatVectorValues values) {
+            super(input, values, DOT_PRODUCT);
         }
 
         @Override
         float scoreFromSegments(MemorySegment a, MemorySegment b) {
-            return normalize(Similarities.dotProductI8(a, b, dims));
+            return VectorUtil.normalizeToUnitInterval(Similarities.dotProductF32(a, b, dims));
         }
 
         @Override
-        float bulkScoreFromSegment(MemorySegment addresses, MemorySegment query, MemorySegment scores, int numNodes) {
-            Similarities.dotProductI8BulkSparse(addresses, query, dims, numNodes, scores);
-
+        protected float bulkScoreFromSegment(MemorySegment addresses, MemorySegment query, MemorySegment scores, int numNodes) {
+            Similarities.dotProductF32BulkSparse(addresses, query, dims, numNodes, scores);
             float max = Float.NEGATIVE_INFINITY;
             for (int i = 0; i < numNodes; ++i) {
                 float dotProduct = scores.getAtIndex(ValueLayout.JAVA_FLOAT, i);
-                float normalized = normalize(dotProduct);
-                scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, normalized);
-                max = Math.max(max, normalized);
+                float normalizedScore = VectorUtil.normalizeToUnitInterval(dotProduct);
+                scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, normalizedScore);
+                max = Math.max(max, normalizedScore);
             }
             return max;
         }
@@ -233,27 +189,27 @@ public abstract sealed class ByteVectorScorerSupplier implements RandomVectorSco
         }
     }
 
-    public static final class MaxInnerProductSupplier extends ByteVectorScorerSupplier {
+    public static final class MaxInnerProductSupplier extends Float32VectorScorerSupplier {
 
-        public MaxInnerProductSupplier(IndexInput input, ByteVectorValues values) {
-            super(input, values);
+        public MaxInnerProductSupplier(IndexInput input, FloatVectorValues values) {
+            super(input, values, MAXIMUM_INNER_PRODUCT);
         }
 
         @Override
         float scoreFromSegments(MemorySegment a, MemorySegment b) {
-            return VectorUtil.scaleMaxInnerProductScore(Similarities.dotProductI8(a, b, dims));
+            return VectorUtil.scaleMaxInnerProductScore(Similarities.dotProductF32(a, b, dims));
         }
 
         @Override
-        float bulkScoreFromSegment(MemorySegment addresses, MemorySegment query, MemorySegment scores, int numNodes) {
-            Similarities.dotProductI8BulkSparse(addresses, query, dims, numNodes, scores);
+        protected float bulkScoreFromSegment(MemorySegment addresses, MemorySegment query, MemorySegment scores, int numNodes) {
+            Similarities.dotProductF32BulkSparse(addresses, query, dims, numNodes, scores);
 
             float max = Float.NEGATIVE_INFINITY;
             for (int i = 0; i < numNodes; ++i) {
                 float dotProduct = scores.getAtIndex(ValueLayout.JAVA_FLOAT, i);
-                float normalized = VectorUtil.scaleMaxInnerProductScore(dotProduct);
-                scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, normalized);
-                max = Math.max(max, normalized);
+                float scaledScore = VectorUtil.scaleMaxInnerProductScore(dotProduct);
+                scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, scaledScore);
+                max = Math.max(max, scaledScore);
             }
             return max;
         }

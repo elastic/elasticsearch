@@ -109,8 +109,8 @@ import static org.hamcrest.Matchers.startsWith;
 public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobContainerRetriesTestCase {
 
     private final ClusterService clusterService = ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool());
-    private final Map<String, AtomicInteger> requestCounters = new ConcurrentHashMap<>();
-    private String endpointUrlOverride;
+    protected final Map<String, AtomicInteger> requestCounters = new ConcurrentHashMap<>();
+    protected String endpointUrlOverride;
 
     private String httpServerUrl() {
         assertThat(httpServer, notNullValue());

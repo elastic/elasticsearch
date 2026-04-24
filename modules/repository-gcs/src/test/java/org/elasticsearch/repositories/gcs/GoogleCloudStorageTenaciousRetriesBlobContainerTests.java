@@ -9,20 +9,56 @@
 
 package org.elasticsearch.repositories.gcs;
 
+import com.google.cloud.storage.StorageException;
+
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.RepositoriesMetrics;
+import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
+
+import java.util.Arrays;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_ATTEMPTS_HISTOGRAM;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 @SuppressForbidden(reason = "use a http server")
 public class GoogleCloudStorageTenaciousRetriesBlobContainerTests extends GoogleCloudStorageBlobContainerRetriesTests {
 
+    class TestGcsTenaciousRetryBlobContainer extends GcsTenaciousRetryBlobContainer {
+        TestGcsTenaciousRetryBlobContainer(BlobContainer delegate, RepositoriesMetrics repositoriesMetrics) {
+            super(delegate, repositoriesMetrics);
+        }
+
+        @Override
+        protected boolean isExceptionRetryable(Exception e) {
+            if (stopped.get()) {
+                return false;
+            }
+
+            return super.isExceptionRetryable(e);
+        }
+
+        @Override
+        protected BlobContainer wrapChild(BlobContainer child) {
+            return new TestGcsTenaciousRetryBlobContainer(child, repositoriesMetrics);
+        }
+
+        @Override
+        protected long getRetryDelayInMillis(int attempt) {
+            return 1;
+        }
+    }
+
     final RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
     final RepositoriesMetrics repositoriesMetrics = new RepositoriesMetrics(recordingMeterRegistry);
+    final AtomicBoolean stopped = new AtomicBoolean(false);
 
     @Override
     protected BlobContainer createBlobContainer(
@@ -46,16 +82,61 @@ public class GoogleCloudStorageTenaciousRetriesBlobContainerTests extends Google
             blobContainerPath
         );
 
-        return new GcsTenaciousRetryBlobContainer(delegate, repositoriesMetrics);
+        return new TestGcsTenaciousRetryBlobContainer(delegate, repositoriesMetrics);
     }
 
     @Override
     public void testShouldRetryOnUnresolvableHost() {
-        // TO DO
+        endpointUrlOverride = "http://unresolvable.invalid";
+
+        final int maxRetries = randomIntBetween(4, 5);
+        final BlobContainer blobContainer = blobContainerBuilder().maxRetries(maxRetries).build();
+        // No additional retries for NON INDICES purposes.
+        expectThrows(
+            StorageException.class,
+            () -> blobContainer.listBlobs(
+                randomFrom(Arrays.stream(OperationPurpose.values()).filter(v -> v != OperationPurpose.INDICES).toList())
+            )
+        );
+        assertEquals(maxRetries + 1, requestCounters.get("/storage/v1/b/bucket/o").get());
+
+        // Infinite retries for children() with INDICES purposes.
+        Thread thread = new Thread(() -> { expectThrows(StorageException.class, () -> blobContainer.children(OperationPurpose.INDICES)); });
+
+        thread.start();
+
+        // Tenacious retries
+        final int targetRetryCount = randomIntBetween(20, 30);
+
+        // Wait until we've observed the target number of retries
+        try {
+            assertBusy(() -> {
+                recordingMeterRegistry.getRecorder().collect();
+                assertThat(
+                    getMeasurements(recordingMeterRegistry, METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_ATTEMPTS_HISTOGRAM),
+                    greaterThanOrEqualTo(targetRetryCount)
+                );
+            });
+        } catch (Exception e) {
+            fail(e);
+        }
+        // Now stop the retries
+        stopped.set(true);
+        // Wait for thread to finish
+        try {
+            thread.join(TimeValue.timeValueSeconds(30).millis());
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+        assertFalse("Thread should have terminated", thread.isAlive());
     }
 
     @Override
     public void testRetriesAreTerminatedWhenClientProviderIsClosed() {
         // TO DO
+    }
+
+    private int getMeasurements(RecordingMeterRegistry meterRegistry, String name) {
+        return meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, name).size();
     }
 }

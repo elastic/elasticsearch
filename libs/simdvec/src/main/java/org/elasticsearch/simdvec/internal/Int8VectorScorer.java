@@ -27,7 +27,7 @@ import static org.elasticsearch.simdvec.internal.Similarities.dotProductI8;
 import static org.elasticsearch.simdvec.internal.Similarities.squareDistanceI8;
 import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 
-public abstract sealed class ByteVectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
+public abstract sealed class Int8VectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
 
     final int dimensions;
     final int vectorByteSize;
@@ -57,7 +57,7 @@ public abstract sealed class ByteVectorScorer extends RandomVectorScorer.Abstrac
         };
     }
 
-    ByteVectorScorer(IndexInput input, ByteVectorValues values, byte[] queryVector) {
+    Int8VectorScorer(IndexInput input, ByteVectorValues values, byte[] queryVector) {
         super(values);
         this.input = input;
         assert queryVector.length == values.dimension();
@@ -101,7 +101,7 @@ public abstract sealed class ByteVectorScorer extends RandomVectorScorer.Abstrac
         );
     }
 
-    public static final class DotProductScorer extends ByteVectorScorer {
+    public static final class DotProductScorer extends Int8VectorScorer {
         private final float denom = (float) (dimensions * (1 << 15));
 
         public DotProductScorer(IndexInput in, ByteVectorValues values, byte[] query) {
@@ -140,7 +140,7 @@ public abstract sealed class ByteVectorScorer extends RandomVectorScorer.Abstrac
         }
     }
 
-    public static final class CosineScorer extends ByteVectorScorer {
+    public static final class CosineScorer extends Int8VectorScorer {
         public CosineScorer(IndexInput in, ByteVectorValues values, byte[] query) {
             super(in, values, query);
         }
@@ -175,7 +175,7 @@ public abstract sealed class ByteVectorScorer extends RandomVectorScorer.Abstrac
         }
     }
 
-    public static final class EuclideanScorer extends ByteVectorScorer {
+    public static final class EuclideanScorer extends Int8VectorScorer {
         public EuclideanScorer(IndexInput in, ByteVectorValues values, byte[] query) {
             super(in, values, query);
         }
@@ -206,7 +206,7 @@ public abstract sealed class ByteVectorScorer extends RandomVectorScorer.Abstrac
         }
     }
 
-    public static final class MaxInnerProductScorer extends ByteVectorScorer {
+    public static final class MaxInnerProductScorer extends Int8VectorScorer {
         public MaxInnerProductScorer(IndexInput in, ByteVectorValues values, byte[] query) {
             super(in, values, query);
         }

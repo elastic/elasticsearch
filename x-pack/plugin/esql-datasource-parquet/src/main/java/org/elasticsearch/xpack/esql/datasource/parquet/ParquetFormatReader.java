@@ -97,23 +97,32 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
     private final FilterCompat.Filter pushedFilter;
     private final ParquetPushedExpressions pushedExpressions;
     private final boolean forceBaselinePath;
+    private final boolean optimizedReader;
 
     static final long DEFAULT_ROW_GROUP_MACRO_SPLIT_TARGET_BYTES = 32L * 1024 * 1024;
 
+    static final String CONFIG_OPTIMIZED_READER = "optimized_reader";
+
     public ParquetFormatReader(BlockFactory blockFactory) {
-        this(blockFactory, FilterCompat.NOOP, null, false);
+        this(blockFactory, FilterCompat.NOOP, null, false, false);
+    }
+
+    ParquetFormatReader(BlockFactory blockFactory, boolean optimizedReader) {
+        this(blockFactory, FilterCompat.NOOP, null, false, optimizedReader);
     }
 
     private ParquetFormatReader(
         BlockFactory blockFactory,
         FilterCompat.Filter pushedFilter,
         ParquetPushedExpressions pushedExpressions,
-        boolean forceBaselinePath
+        boolean forceBaselinePath,
+        boolean optimizedReader
     ) {
         this.blockFactory = blockFactory;
         this.pushedFilter = pushedFilter;
         this.pushedExpressions = pushedExpressions;
         this.forceBaselinePath = forceBaselinePath;
+        this.optimizedReader = optimizedReader;
     }
 
     /**
@@ -122,18 +131,41 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
      * testing against the optimized path.
      */
     ParquetFormatReader withBaselinePath() {
-        return new ParquetFormatReader(blockFactory, pushedFilter, pushedExpressions, true);
+        return new ParquetFormatReader(blockFactory, pushedFilter, pushedExpressions, true, optimizedReader);
     }
 
     @Override
     public ParquetFormatReader withPushedFilter(Object pushedFilter) {
         if (pushedFilter instanceof FilterCompat.Filter filter) {
-            return new ParquetFormatReader(blockFactory, filter, null, forceBaselinePath);
+            return new ParquetFormatReader(blockFactory, filter, null, forceBaselinePath, optimizedReader);
         }
         if (pushedFilter instanceof ParquetPushedExpressions exprs) {
-            return new ParquetFormatReader(blockFactory, FilterCompat.NOOP, exprs, forceBaselinePath);
+            return new ParquetFormatReader(blockFactory, FilterCompat.NOOP, exprs, forceBaselinePath, optimizedReader);
         }
         return this;
+    }
+
+    @Override
+    public FormatReader withConfig(Map<String, Object> config) {
+        if (config == null || config.isEmpty()) {
+            return this;
+        }
+        boolean newOptimized = parseBooleanConfig(config, CONFIG_OPTIMIZED_READER, optimizedReader);
+        if (newOptimized == optimizedReader) {
+            return this;
+        }
+        return new ParquetFormatReader(blockFactory, pushedFilter, pushedExpressions, forceBaselinePath, newOptimized);
+    }
+
+    private static boolean parseBooleanConfig(Map<String, Object> config, String key, boolean defaultValue) {
+        Object value = config.get(key);
+        if (value == null) {
+            return defaultValue;
+        }
+        if (value instanceof Boolean b) {
+            return b;
+        }
+        return org.elasticsearch.core.Booleans.parseBoolean(value.toString());
     }
 
     @Override
@@ -372,6 +404,18 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         MessageType projectedSchema = buildProjectedSchema(parquetSchema, projectedAttributes);
         String createdBy = fileMetaData.getCreatedBy();
         boolean hasRecordFilter = forceBaselinePath || FilterCompat.isFilteringRequired(recordFilter);
+        if (optimizedReader && hasRecordFilter == false) {
+            return createOptimizedIterator(
+                reader,
+                projectedSchema,
+                projectedAttributes,
+                batchSize,
+                rowLimit,
+                createdBy,
+                object,
+                parquetInputFile
+            );
+        }
         return new ParquetColumnIterator(
             reader,
             projectedSchema,
@@ -411,8 +455,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         ParquetReadOptions options = readOptionsBuilder().build();
         try (ParquetFileReader reader = openParquetFile(object, parquetInputFile, options)) {
             List<BlockMetaData> rowGroups = reader.getRowGroups();
-            if (rowGroups.size() <= 1) {
+            if (rowGroups.isEmpty()) {
                 return List.of();
+            }
+            if (rowGroups.size() == 1) {
+                BlockMetaData block = rowGroups.getFirst();
+                Map<String, Object> stats = buildRowGroupStats(block);
+                return List.of(new SplitRange(block.getStartingPos(), block.getCompressedSize(), stats));
             }
             List<SplitRange> ranges = new ArrayList<>(rowGroups.size());
             for (BlockMetaData block : rowGroups) {
@@ -574,6 +623,18 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         MessageType projectedSchema = buildProjectedSchema(parquetSchema, projectedAttributes);
         String createdBy = fileMetaData.getCreatedBy();
         boolean hasRecordFilter = forceBaselinePath || FilterCompat.isFilteringRequired(recordFilter);
+        if (optimizedReader && hasRecordFilter == false) {
+            return createOptimizedIterator(
+                reader,
+                projectedSchema,
+                projectedAttributes,
+                batchSize,
+                NO_LIMIT,
+                createdBy,
+                object,
+                parquetInputFile
+            );
+        }
         return new ParquetColumnIterator(
             reader,
             projectedSchema,
@@ -585,6 +646,71 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             object.path().toString(),
             hasRecordFilter
         );
+    }
+
+    private CloseableIterator<Page> createOptimizedIterator(
+        ParquetFileReader reader,
+        MessageType projectedSchema,
+        List<Attribute> projectedAttributes,
+        int batchSize,
+        int rowLimit,
+        String createdBy,
+        StorageObject storageObject,
+        InputFile inputFile
+    ) {
+        if (inputFile instanceof ParquetStorageObjectAdapter == false) {
+            throw new ElasticsearchException(
+                "optimized_reader requires ParquetStorageObjectAdapter but got [" + inputFile.getClass().getName() + "]"
+            );
+        }
+        ParquetStorageObjectAdapter adapter = (ParquetStorageObjectAdapter) inputFile;
+        ColumnInfo[] columnInfos = buildColumnInfos(projectedSchema, projectedAttributes);
+        validatePlannerTypesAgainstFile(logger, storageObject.path().toString(), reader, projectedAttributes, columnInfos);
+        PreloadedRowGroupMetadata preloadedMetadata = PreloadedRowGroupMetadata.preload(reader, storageObject);
+        return new OptimizedParquetColumnIterator(
+            reader,
+            projectedSchema,
+            projectedAttributes,
+            batchSize,
+            blockFactory,
+            rowLimit,
+            createdBy,
+            storageObject.path().toString(),
+            columnInfos,
+            preloadedMetadata,
+            storageObject,
+            adapter
+        );
+    }
+
+    static ColumnInfo[] buildColumnInfos(MessageType projectedSchema, List<Attribute> attributes) {
+        ColumnInfo[] columnInfos = new ColumnInfo[attributes.size()];
+        // Uses getPath()[0] (top-level name only), matching the baseline ParquetColumnIterator.
+        // Nested Parquet fields have multi-segment paths, but ESQL currently only supports flat
+        // columns and LIST(primitive) — nested struct types map to UNSUPPORTED and are skipped.
+        Map<String, ColumnDescriptor> descByName = new HashMap<>();
+        for (ColumnDescriptor desc : projectedSchema.getColumns()) {
+            descByName.put(desc.getPath()[0], desc);
+        }
+        for (int i = 0; i < attributes.size(); i++) {
+            Attribute attr = attributes.get(i);
+            if (attr.dataType() == DataType.NULL || attr.dataType() == DataType.UNSUPPORTED) {
+                continue;
+            }
+            ColumnDescriptor desc = descByName.get(attr.name());
+            if (desc != null) {
+                LogicalTypeAnnotation logicalType = desc.getPrimitiveType().getLogicalTypeAnnotation();
+                columnInfos[i] = new ColumnInfo(
+                    desc,
+                    desc.getPrimitiveType().getPrimitiveTypeName(),
+                    attr.dataType(),
+                    desc.getMaxDefinitionLevel(),
+                    desc.getMaxRepetitionLevel(),
+                    logicalType
+                );
+            }
+        }
+        return columnInfos;
     }
 
     private static MessageType buildProjectedSchema(MessageType fullSchema, List<Attribute> projectedAttributes) {

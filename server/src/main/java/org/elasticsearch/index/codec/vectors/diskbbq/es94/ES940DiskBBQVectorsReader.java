@@ -107,7 +107,8 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
         AcceptDocs acceptDocs,
         float approximateCost,
         FloatVectorValues values,
-        float visitRatio
+        float visitRatio,
+        org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.QuantEncoding searchQuantEncodingOverride
     ) throws IOException {
         final NextFieldEntry fieldEntry = fields.get(fieldInfo.number);
         int bulkSize = fieldEntry.getBulkSize();
@@ -604,7 +605,8 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
         float[] target,
         Bits acceptDocs,
         IndexInput centroidSlice,
-        ESAcceptDocs esAcceptDocs
+        ESAcceptDocs esAcceptDocs,
+        org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.QuantEncoding searchQuantEncodingOverride
     ) throws IOException {
         NextFieldEntry entry = fields.get(fieldInfo.number);
         final int bitsRequired = DirectWriter.bitsRequired(entry.numCentroids());

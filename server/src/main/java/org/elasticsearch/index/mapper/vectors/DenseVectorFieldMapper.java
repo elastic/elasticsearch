@@ -445,7 +445,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     indexVersionCreated,
                     false,
                     bits,
-                    experimentalFeaturesEnabled
+                    experimentalFeaturesEnabled,
+                    false
                 );
             }
 
@@ -1916,6 +1917,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
                 boolean doPrecondition = XContentMapValues.nodeBooleanValue(indexOptionsMap.remove("precondition"), false);
 
+                boolean persistIvfSegmentConfig = XContentMapValues.nodeBooleanValue(
+                    indexOptionsMap.remove("persist_ivf_segment_config"),
+                    false
+                );
+
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
                 return new BBQIVFIndexOptions(
                     clusterSize,
@@ -1926,7 +1932,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     indexVersion,
                     doPrecondition,
                     quantizeBits,
-                    experimentalFeaturesEnabled
+                    experimentalFeaturesEnabled,
+                    persistIvfSegmentConfig
                 );
             }
 
@@ -2608,6 +2615,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
         final int bits;
         final boolean doPrecondition;
         final boolean experimentalFeaturesEnabled;
+        /** When {@code true}, flush/merge may persist full {@code mivf} calibration; search uses on-disk quant, precondition, rescore. */
+        final boolean persistIvfSegmentConfig;
 
         public BBQIVFIndexOptions(
             int clusterSize,
@@ -2618,7 +2627,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             IndexVersion indexVersionCreated,
             boolean doPrecondition,
             int bits,
-            boolean experimentalFeaturesEnabled
+            boolean experimentalFeaturesEnabled,
+            boolean persistIvfSegmentConfig
         ) {
             super(VectorIndexType.BBQ_DISK, rescoreVector);
             this.clusterSize = clusterSize;
@@ -2629,6 +2639,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.bits = bits;
             this.doPrecondition = doPrecondition;
             this.experimentalFeaturesEnabled = experimentalFeaturesEnabled;
+            this.persistIvfSegmentConfig = persistIvfSegmentConfig;
         }
 
         @Override
@@ -2654,6 +2665,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     doPrecondition,
                     ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
                     flatIndexThreshold,
+                    persistIvfSegmentConfig,
                     null
                 );
             } else {
@@ -2685,12 +2697,25 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 && defaultVisitPercentage == that.defaultVisitPercentage
                 && onDiskRescore == that.onDiskRescore
                 && bits == that.bits
+                && persistIvfSegmentConfig == that.persistIvfSegmentConfig
+                && doPrecondition == that.doPrecondition
+                && experimentalFeaturesEnabled == that.experimentalFeaturesEnabled
                 && Objects.equals(rescoreVector, that.rescoreVector);
         }
 
         @Override
         int doHashCode() {
-            return Objects.hash(clusterSize, flatIndexThreshold, defaultVisitPercentage, onDiskRescore, rescoreVector);
+            return Objects.hash(
+                clusterSize,
+                flatIndexThreshold,
+                defaultVisitPercentage,
+                onDiskRescore,
+                bits,
+                doPrecondition,
+                experimentalFeaturesEnabled,
+                persistIvfSegmentConfig,
+                rescoreVector
+            );
         }
 
         @Override
@@ -2713,6 +2738,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
             builder.field("bits", bits);
             if (doPrecondition) {
                 builder.field("precondition", doPrecondition);
+            }
+            if (persistIvfSegmentConfig) {
+                builder.field("persist_ivf_segment_config", true);
             }
         }
 
@@ -2738,6 +2766,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         public int getBits() {
             return bits;
+        }
+
+        public boolean persistIvfSegmentConfig() {
+            return persistIvfSegmentConfig;
         }
     }
 
@@ -3207,7 +3239,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
             int adjustedK = k;
             // precedence: query oversample > persisted > mapping rescore_vector
             Float oversample = queryOversample;
-            if (oversample == null && indexOptions instanceof BBQIVFIndexOptions && indexReader != null) {
+            if (oversample == null
+                && indexOptions instanceof BBQIVFIndexOptions bbqIvf
+                && bbqIvf.persistIvfSegmentConfig()
+                && indexReader != null) {
                 float stored = readStoredBbqIvfRescoreOversample(indexReader, name());
                 if (Float.isFinite(stored)) {
                     oversample = stored;
@@ -3237,6 +3272,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
             } else if (indexOptions instanceof BBQIVFIndexOptions bbqIndexOptions) {
                 float defaultVisitRatio = (float) (bbqIndexOptions.defaultVisitPercentage / 100d);
                 float visitRatio = visitPercentage == null ? defaultVisitRatio : (float) (visitPercentage / 100d);
+                var searchQuantForQuery = bbqIndexOptions.persistIvfSegmentConfig()
+                    ? null
+                    : ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits((byte) bbqIndexOptions.getBits());
                 knnQuery = parentFilter != null
                     ? new DiversifyingChildrenIVFKnnFloatVectorQuery(
                         name(),
@@ -3246,7 +3284,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         filter,
                         parentFilter,
                         visitRatio,
-                        bbqIndexOptions.doPrecondition()
+                        bbqIndexOptions.doPrecondition(),
+                        bbqIndexOptions.persistIvfSegmentConfig(),
+                        searchQuantForQuery
                     )
                     : new IVFKnnFloatVectorQuery(
                         name(),
@@ -3255,7 +3295,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         numCands,
                         filter,
                         visitRatio,
-                        bbqIndexOptions.doPrecondition()
+                        bbqIndexOptions.doPrecondition(),
+                        bbqIndexOptions.persistIvfSegmentConfig(),
+                        searchQuantForQuery
                     );
             } else {
                 knnQuery = parentFilter != null

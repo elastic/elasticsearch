@@ -86,6 +86,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     private final boolean doPrecondition;
     // field for slicing, null for no slicing
     private final String sliceField;
+    private final boolean persistIvfSegmentConfig;
     private final IvfFlushConfigSource flushConfigSource;
     private final IvfMergeConfigResolver mergeConfigResolver;
 
@@ -122,6 +123,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             doPrecondition,
             flatVectorThreshold,
             sliceField,
+            false,
             null,
             null
         );
@@ -141,6 +143,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         boolean doPrecondition,
         int flatVectorThreshold,
         String sliceField,
+        boolean persistIvfSegmentConfig,
         IvfFlushConfigSource flushConfigSource,
         IvfMergeConfigResolver mergeConfigResolver
     ) throws IOException {
@@ -165,6 +168,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         this.blockDimension = blockDimension;
         this.doPrecondition = doPrecondition;
         this.sliceField = sliceField;
+        this.persistIvfSegmentConfig = persistIvfSegmentConfig;
         this.flushConfigSource = flushConfigSource != null ? flushConfigSource : IvfFlushConfigSource.empty();
         this.mergeConfigResolver = mergeConfigResolver != null ? mergeConfigResolver : IvfMergeConfigResolver.useCodecDefault();
         this.effectiveQuantEncoding = encoding;
@@ -188,7 +192,12 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     @Override
     protected void onBeginIvfFieldFlush(FieldInfo fieldInfo) throws IOException {
         IvfSegmentConfig codec = IvfSegmentConfig.fromCodecDefaults(quantEncoding, doPrecondition);
-        IvfSegmentConfig eff = flushConfigSource.load(segmentWriteState, fieldInfo).orElse(codec);
+        IvfSegmentConfig eff;
+        if (persistIvfSegmentConfig) {
+            eff = flushConfigSource.load(segmentWriteState, fieldInfo).orElse(codec);
+        } else {
+            eff = codec;
+        }
         this.effectiveQuantEncoding = eff.quantEncoding();
         this.effectiveDoPrecondition = eff.usePrecondition();
         this.effectiveRescoreOversample = eff.rescoreOversample();
@@ -197,7 +206,12 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     @Override
     protected void onBeginIvfFieldMerge(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
         IvfSegmentConfig codec = IvfSegmentConfig.fromCodecDefaults(quantEncoding, doPrecondition);
-        IvfSegmentConfig eff = mergeConfigResolver.resolve(fieldInfo, mergeState, codec);
+        IvfSegmentConfig eff;
+        if (persistIvfSegmentConfig) {
+            eff = mergeConfigResolver.resolve(fieldInfo, mergeState, codec);
+        } else {
+            eff = codec;
+        }
         this.effectiveQuantEncoding = eff.quantEncoding();
         this.effectiveDoPrecondition = eff.usePrecondition();
         this.effectiveRescoreOversample = eff.rescoreOversample();
@@ -696,7 +710,8 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                 metaOutput.writeVInt(maxSliceSize);
             }
         }
-        metaOutput.writeInt(Float.floatToIntBits(effectiveRescoreOversample));
+        float rescoreToWrite = persistIvfSegmentConfig ? effectiveRescoreOversample : Float.NaN;
+        metaOutput.writeInt(Float.floatToIntBits(rescoreToWrite));
     }
 
     @Override

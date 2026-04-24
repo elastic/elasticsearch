@@ -87,6 +87,7 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                             doPrecondition,
                             ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
                             flatIndexThreshold,
+                            diskbbq.persistIvfSegmentConfig(),
                             null
                         );
                     }

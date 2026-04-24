@@ -30,6 +30,7 @@ import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIterator;
 import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
 import org.elasticsearch.index.codec.vectors.diskbbq.PostingMetadata;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
@@ -122,7 +123,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         AcceptDocs acceptDocs,
         float approximateCost,
         FloatVectorValues values,
-        float visitRatio
+        float visitRatio,
+        @Nullable ESNextDiskBBQVectorsFormat.QuantEncoding searchQuantEncodingOverride
     ) throws IOException {
         final NextFieldEntry fieldEntry = fields.get(fieldInfo.number);
         // build optmization filters if possible
@@ -705,7 +707,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         float[] target,
         Bits needsScoring,
         IndexInput centroidSlice,
-        ESAcceptDocs acceptDocs
+        ESAcceptDocs acceptDocs,
+        @Nullable ESNextDiskBBQVectorsFormat.QuantEncoding searchQuantEncodingOverride
     ) throws IOException {
         NextFieldEntry entry = fields.get(fieldInfo.number);
         if (entry.numSlices > 0) {
@@ -716,7 +719,9 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         final int bitsRequired = DirectWriter.bitsRequired(entry.numCentroids());
         final long sizeLookup = DirectWriter.bytesRequired(values.size(), bitsRequired);
         centroidSlice.skipBytes(sizeLookup);
-        ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding = entry.quantEncoding();
+        ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding = searchQuantEncodingOverride != null
+            ? searchQuantEncodingOverride
+            : entry.quantEncoding();
         int numParents = centroidSlice.readVInt();
         if (entry.numSlices > 0) {
             // skip slice offsets

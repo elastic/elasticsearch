@@ -294,6 +294,11 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     private final boolean doPrecondition;
     private final int preconditioningBlockDimension;
     private final int flatVectorThreshold;
+    /**
+     * When {@code false}, flush/merge use only mapping/codec defaults for persisted {@code mivf} IVF metadata and
+     * queries use mapping for quant, precondition, and rescore instead of on-disk values.
+     */
+    private final boolean persistIvfSegmentConfig;
     private final String sliceField;
 
     public ESNextDiskBBQVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster, String sliceField) {
@@ -312,6 +317,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             false,
             DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
             defaultFlatThreshold(vectorPerCluster),
+            false,
             sliceField
         );
     }
@@ -339,6 +345,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             doPrecondition,
             preconditioningBlockDimension,
             defaultFlatThreshold(vectorPerCluster),
+            false,
             sliceField
         );
     }
@@ -354,6 +361,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         boolean doPrecondition,
         int preconditioningBlockDimension,
         int flatVectorThreshold,
+        boolean persistIvfSegmentConfig,
         String sliceField
     ) {
         super(NAME);
@@ -408,6 +416,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         this.preconditioningBlockDimension = preconditioningBlockDimension;
         this.doPrecondition = doPrecondition;
         this.flatVectorThreshold = flatVectorThreshold == -1 ? defaultFlatThreshold(vectorPerCluster) : flatVectorThreshold;
+        this.persistIvfSegmentConfig = persistIvfSegmentConfig;
         this.sliceField = sliceField;
     }
 
@@ -431,7 +440,10 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             preconditioningBlockDimension,
             doPrecondition,
             flatVectorThreshold,
-            sliceField
+            sliceField,
+            persistIvfSegmentConfig,
+            null,
+            null
         );
     }
 

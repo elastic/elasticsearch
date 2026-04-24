@@ -10,12 +10,20 @@
 package org.elasticsearch.index.codec.vectors.diskbbq.next;
 
 /**
- * Per-segment (per-field) IVF options for indexing. The persisted {@code rescoreOversample} is
- * read at query time to participate in the same place as {@code rescore_vector.oversample} (see
- * kNN rescore in {@link org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType}).
- * It is not used for the centroid-visit budget; that remains {@code (float) numCentroids / (2 * numParents)}.
+ * Per-segment (per-field) IVF bundle persisted in {@code mivf} for <em>ESNext</em> DiskBBQ. It has three
+ * parts: {@link #quantEncoding()} for scalar quant used when indexing vectors into clusters,
+ * {@link #usePrecondition()} for whether a preconditioner is written and used on flush/merge and on the
+ * reader, and {@link #rescoreOversample()} for kNN rescore candidate expansion (v2+ {@code mivf}),
+ * read with query and mapping in {@link org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType}.
+ * Rescore is not used for the centroid-visit budget; that remains {@code (float) numCentroids / (2 * numParents)}.
  * <p>
- * When the stored value is not finite (e.g. {@code NaN}), the index leg of oversample is skipped;
+ * For {@code bbq_disk} indices, the mapping flag {@code persist_ivf_segment_config} (default {@code false})
+ * controls whether flush/merge may calibrate and persist the full bundle and whether search uses on-disk
+ * values for all three. When the flag is {@code false}, writers only persist mapping/codec defaults (and
+ * write a non-finite rescore slot), and kNN search uses the mapping for quant, precondition, and rescore
+ * instead of {@code mivf}, even in older segments.
+ * <p>
+ * When the stored rescore is not finite (e.g. {@code NaN}), the index leg of oversample is skipped;
  * query and mapping rescore then apply in the usual order.
  */
 public record IvfSegmentConfig(

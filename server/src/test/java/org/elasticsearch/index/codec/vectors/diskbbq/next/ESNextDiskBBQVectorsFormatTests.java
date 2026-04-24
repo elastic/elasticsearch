@@ -113,6 +113,7 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                 false,
                 DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
                 flatVectorThreshold,
+                false,
                 null
             );
         } else if (rarely()) {
@@ -129,6 +130,7 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                 true,
                 random().nextInt(MIN_PRECONDITIONING_BLOCK_DIMS, MAX_PRECONDITIONING_BLOCK_DIMS),
                 flatVectorThreshold,
+                false,
                 null
             );
         } else {
@@ -146,6 +148,7 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                 false,
                 DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
                 flatVectorThreshold,
+                false,
                 null
             );
         }
@@ -561,6 +564,7 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
             false,
             DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
             0,
+            false,
             sliceField
         );
         int dimensions = random().nextInt(12, 500);

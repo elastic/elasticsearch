@@ -33,7 +33,9 @@ import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.vectors.cluster.BulkNeighborQueue;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
@@ -56,8 +58,24 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     protected final Query filter;
     protected int vectorOpsCount;
     protected boolean doPrecondition;
+    protected final boolean persistIvfSegmentConfig;
+    @Nullable
+    protected final ESNextDiskBBQVectorsFormat.QuantEncoding searchQuantEncodingOverride;
 
     protected AbstractIVFKnnVectorQuery(String field, float visitRatio, int k, int numCands, Query filter, boolean doPrecondition) {
+        this(field, visitRatio, k, numCands, filter, doPrecondition, true, null);
+    }
+
+    protected AbstractIVFKnnVectorQuery(
+        String field,
+        float visitRatio,
+        int k,
+        int numCands,
+        Query filter,
+        boolean doPrecondition,
+        boolean persistIvfSegmentConfig,
+        @Nullable ESNextDiskBBQVectorsFormat.QuantEncoding searchQuantEncodingOverride
+    ) {
         if (k < 1) {
             throw new IllegalArgumentException("k must be at least 1, got: " + k);
         }
@@ -73,6 +91,8 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         this.filter = filter;
         this.numCands = numCands;
         this.doPrecondition = doPrecondition;
+        this.persistIvfSegmentConfig = persistIvfSegmentConfig;
+        this.searchQuantEncodingOverride = searchQuantEncodingOverride;
     }
 
     @Override
@@ -91,12 +111,14 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             && numCands == that.numCands
             && Objects.equals(field, that.field)
             && Objects.equals(filter, that.filter)
-            && Objects.equals(providedVisitRatio, that.providedVisitRatio);
+            && Objects.equals(providedVisitRatio, that.providedVisitRatio)
+            && persistIvfSegmentConfig == that.persistIvfSegmentConfig
+            && Objects.equals(searchQuantEncodingOverride, that.searchQuantEncodingOverride);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, k, numCands, filter, providedVisitRatio);
+        return Objects.hash(field, k, numCands, filter, providedVisitRatio, persistIvfSegmentConfig, searchQuantEncodingOverride);
     }
 
     @Override
@@ -132,7 +154,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
         List<Callable<TopDocs>> tasks = new ArrayList<>(leafReaderContexts.size());
         for (LeafReaderContext context : leafReaderContexts) {
-            if (doPrecondition) {
+            if (doPrecondition && persistIvfSegmentConfig) {
                 preconditionQuery(context);
             }
             tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManager, visitRatio));

@@ -102,9 +102,10 @@ public class CancelTasksRelocationIT extends ESIntegTestCase {
 
     /**
      * After a reindex task is relocated to another node, cancelling it by its original task id should succeed even though the numeric id
-     * on the destination node is different from the one encoded in the user-supplied {@link TaskId}. For sliced reindex, cancellation
-     * must cascade to the slice children; for non-sliced, the single parent task must be cancelled. The random {@code numOfSlices}
-     * bound at {@code 1..4} covers both variants across test seeds.
+     * on the destination node is different from the one encoded in the user-supplied {@link TaskId}. This test pins the slice count to
+     * {@code >= 2} so it always covers the cascade-cancel invariant: the relocated parent and every slice worker registered under it
+     * must be cancelled. Non-sliced cancel of a relocated task is covered probabilistically by {@link #testCancelRelocatedTaskByNewTaskId}
+     * (and is a strict subset of the sliced cascade path).
      */
     public void testCancelByOriginalTaskIdAfterRelocation() throws Exception {
         final String survivorNodeName = internalCluster().startNode(
@@ -122,7 +123,8 @@ public class CancelTasksRelocationIT extends ESIntegTestCase {
         indexRandom(true, SOURCE_INDEX, numberOfDocumentsThatTakes60SecondsToIngest);
         ensureGreen(SOURCE_INDEX, DEST_INDEX);
 
-        final TaskId originalTaskId = startAsyncThrottledReindexOnNode(reindexNodeName);
+        final int slices = randomIntBetween(2, 4);
+        final TaskId originalTaskId = startAsyncThrottledReindexOnNode(reindexNodeName, slices);
         assertThat(originalTaskId.getNodeId(), equalTo(reindexNodeId));
 
         shutdownNodeNameAndRelocate(reindexNodeName);
@@ -134,17 +136,15 @@ public class CancelTasksRelocationIT extends ESIntegTestCase {
         assertThat("parent task is the relocated one", runningParent.taskId(), equalTo(relocatedTaskId));
         assertThat("parent task is not yet cancelled", runningParent.cancelled(), is(false));
 
-        // For sliced reindex, wait for the slice workers to register under the relocated parent on the destination. This ensures the
-        // cascade-cancel assertion below is meaningful (otherwise we'd be asserting nothing was there to cancel).
-        if (numOfSlices > 1) {
-            assertBusy(
-                () -> assertThat(
-                    "slice workers should be registered under the relocated parent",
-                    listChildrenOf(relocatedTaskId),
-                    hasSize(numOfSlices)
-                )
-            );
-        }
+        // Wait for the slice workers to register under the relocated parent on the destination so the cascade-cancel assertion below
+        // is meaningful (otherwise we'd be asserting nothing was there to cancel).
+        assertBusy(
+            () -> assertThat(
+                "slice workers should be registered under the relocated parent",
+                listChildrenOf(relocatedTaskId),
+                hasSize(slices)
+            )
+        );
 
         final ListTasksResponse cancelResponse = clusterAdmin().prepareCancelTasks()
             .setTargetTaskId(originalTaskId)
@@ -430,10 +430,14 @@ public class CancelTasksRelocationIT extends ESIntegTestCase {
     }
 
     private TaskId startAsyncThrottledReindexOnNode(final String nodeName) throws Exception {
+        return startAsyncThrottledReindexOnNode(nodeName, numOfSlices);
+    }
+
+    private TaskId startAsyncThrottledReindexOnNode(final String nodeName, final int slices) throws Exception {
         try (RestClient restClient = createRestClient(nodeName)) {
             final Request request = new Request("POST", "/_reindex");
             request.addParameter("wait_for_completion", "false");
-            request.addParameter("slices", Integer.toString(numOfSlices));
+            request.addParameter("slices", Integer.toString(slices));
             request.addParameter("requests_per_second", Integer.toString(requestsPerSecond));
             request.setJsonEntity(Strings.format("""
                 {

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
-import org.apache.parquet.column.page.DictionaryPage;
 import org.apache.parquet.format.Util;
 import org.apache.parquet.format.converter.ParquetMetadataConverter;
 import org.apache.parquet.hadoop.ParquetFileReader;
@@ -30,10 +29,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Holds pre-fetched metadata for a Parquet file's row groups: column indexes, offset indexes,
- * and dictionary pages. When a {@link StorageObject} is provided, uses
- * {@link CoalescedRangeReader} to batch all index byte ranges into minimal I/O requests —
- * critical for remote storage (S3) where each GET has ~50-100ms latency.
+ * Holds pre-fetched metadata for a Parquet file's row groups: column indexes and offset indexes.
+ * When a {@link StorageObject} is provided, uses {@link CoalescedRangeReader} to batch all index
+ * byte ranges into minimal I/O requests — critical for remote storage (S3) where each GET has
+ * ~50-100ms latency.
  *
  * <p>This class is populated once during file open and then read during row group
  * processing. All fields are effectively immutable after construction.
@@ -44,20 +43,14 @@ final class PreloadedRowGroupMetadata {
 
     private final Map<String, ColumnIndex> columnIndexes;
     private final Map<String, OffsetIndex> offsetIndexes;
-    private final Map<String, DictionaryPage> dictionaryPages;
 
-    PreloadedRowGroupMetadata(
-        Map<String, ColumnIndex> columnIndexes,
-        Map<String, OffsetIndex> offsetIndexes,
-        Map<String, DictionaryPage> dictionaryPages
-    ) {
+    PreloadedRowGroupMetadata(Map<String, ColumnIndex> columnIndexes, Map<String, OffsetIndex> offsetIndexes) {
         this.columnIndexes = Map.copyOf(columnIndexes);
         this.offsetIndexes = Map.copyOf(offsetIndexes);
-        this.dictionaryPages = Map.copyOf(dictionaryPages);
     }
 
     static PreloadedRowGroupMetadata empty() {
-        return new PreloadedRowGroupMetadata(Map.of(), Map.of(), Map.of());
+        return new PreloadedRowGroupMetadata(Map.of(), Map.of());
     }
 
     /**
@@ -184,7 +177,7 @@ final class PreloadedRowGroupMetadata {
             }
         }
 
-        return new PreloadedRowGroupMetadata(columnIndexes, offsetIndexes, Map.of());
+        return new PreloadedRowGroupMetadata(columnIndexes, offsetIndexes);
     }
 
     /**
@@ -217,7 +210,7 @@ final class PreloadedRowGroupMetadata {
             }
         }
 
-        return new PreloadedRowGroupMetadata(columnIndexes, offsetIndexes, Map.of());
+        return new PreloadedRowGroupMetadata(columnIndexes, offsetIndexes);
     }
 
     ColumnIndex getColumnIndex(int rowGroupOrdinal, String columnPath) {
@@ -226,10 +219,6 @@ final class PreloadedRowGroupMetadata {
 
     OffsetIndex getOffsetIndex(int rowGroupOrdinal, String columnPath) {
         return offsetIndexes.get(key(rowGroupOrdinal, columnPath));
-    }
-
-    DictionaryPage getDictionaryPage(int rowGroupOrdinal, String columnPath) {
-        return dictionaryPages.get(key(rowGroupOrdinal, columnPath));
     }
 
     boolean hasColumnIndexes() {

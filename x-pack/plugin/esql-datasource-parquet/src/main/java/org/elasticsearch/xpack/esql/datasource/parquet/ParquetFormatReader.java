@@ -413,7 +413,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
                 rowLimit,
                 createdBy,
                 object,
-                (ParquetStorageObjectAdapter) parquetInputFile
+                parquetInputFile
             );
         }
         return new ParquetColumnIterator(
@@ -632,7 +632,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
                 NO_LIMIT,
                 createdBy,
                 object,
-                (ParquetStorageObjectAdapter) parquetInputFile
+                parquetInputFile
             );
         }
         return new ParquetColumnIterator(
@@ -656,8 +656,14 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         int rowLimit,
         String createdBy,
         StorageObject storageObject,
-        ParquetStorageObjectAdapter adapter
+        InputFile inputFile
     ) {
+        if (inputFile instanceof ParquetStorageObjectAdapter == false) {
+            throw new ElasticsearchException(
+                "optimized_reader requires ParquetStorageObjectAdapter but got [" + inputFile.getClass().getName() + "]"
+            );
+        }
+        ParquetStorageObjectAdapter adapter = (ParquetStorageObjectAdapter) inputFile;
         ColumnInfo[] columnInfos = buildColumnInfos(projectedSchema, projectedAttributes);
         validatePlannerTypesAgainstFile(logger, storageObject.path().toString(), reader, projectedAttributes, columnInfos);
         PreloadedRowGroupMetadata preloadedMetadata = PreloadedRowGroupMetadata.preload(reader, storageObject);
@@ -679,6 +685,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
 
     static ColumnInfo[] buildColumnInfos(MessageType projectedSchema, List<Attribute> attributes) {
         ColumnInfo[] columnInfos = new ColumnInfo[attributes.size()];
+        // Uses getPath()[0] (top-level name only), matching the baseline ParquetColumnIterator.
+        // Nested Parquet fields have multi-segment paths, but ESQL currently only supports flat
+        // columns and LIST(primitive) — nested struct types map to UNSUPPORTED and are skipped.
         Map<String, ColumnDescriptor> descByName = new HashMap<>();
         for (ColumnDescriptor desc : projectedSchema.getColumns()) {
             descByName.put(desc.getPath()[0], desc);

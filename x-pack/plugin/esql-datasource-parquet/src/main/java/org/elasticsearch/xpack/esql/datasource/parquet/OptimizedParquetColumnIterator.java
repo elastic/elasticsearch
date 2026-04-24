@@ -58,6 +58,10 @@ import java.util.concurrent.CompletableFuture;
  *
  * <p>The existing baseline {@code ParquetColumnIterator} is never modified — it remains as the
  * stable fallback when {@code optimized_reader=false}.
+ *
+ * <p><b>Memory:</b> Prefetching an entire next row group's projected column bytes can be
+ * significant on wide schemas. A future refinement may cap the prefetch budget or integrate
+ * with the circuit breaker.
  */
 final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
 
@@ -73,7 +77,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
     private final String createdBy;
     private final String fileLocation;
     private final ColumnInfo[] columnInfos;
-    @SuppressWarnings("unused")
+    // TODO: use for column-index and dictionary-based optimizations in the filtered-read follow-up
     private final PreloadedRowGroupMetadata preloadedMetadata;
     private final StorageObject storageObject;
     private final ParquetStorageObjectAdapter adapter;

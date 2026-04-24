@@ -48,9 +48,8 @@ final class ColumnChunkPrefetcher {
     private ColumnChunkPrefetcher() {}
 
     /**
-     * Computes byte ranges for all column chunks in the given row group and fetches them
-     * in parallel. Returns a future that completes with a position-indexed map of the
-     * prefetched data.
+     * Synchronous prefetch: blocks the caller until all I/O completes. Intended for tests and
+     * non-hot paths only — production code uses {@link #prefetchAsync} to overlap I/O with decode.
      *
      * @param storageObject the storage backend
      * @param block metadata for the row group to prefetch
@@ -81,6 +80,8 @@ final class ColumnChunkPrefetcher {
 
         try {
             Map<CoalescedRangeReader.ByteRange, ByteBuffer> fetched = ioFuture.actionGet();
+            // Keyed by file offset. Column chunks in a valid Parquet file have unique start
+            // positions; duplicate offsets would indicate a corrupt or pathological file.
             NavigableMap<Long, PrefetchedChunk> prefetched = new TreeMap<>();
             for (var entry : fetched.entrySet()) {
                 CoalescedRangeReader.ByteRange range = entry.getKey();
@@ -167,6 +168,11 @@ final class ColumnChunkPrefetcher {
      * Pages whose row span does not overlap with {@code rowRanges} are excluded, reducing
      * the number of bytes fetched from remote storage.
      *
+     * <p><b>Note:</b> The filtered variants ({@code computeFilteredPageRanges}, filtered
+     * {@code prefetch/prefetchAsync}) are not yet wired into the iterator — the current
+     * optimized path always prefetches full column chunks. These exist for a planned
+     * follow-up that integrates row-range-aware prefetch with page-index filtering.
+     *
      * <p>Dictionary pages (which sit before data pages) are always included since they are
      * needed to decode any surviving page. Adjacent page ranges are merged by the caller
      * via {@link CoalescedRangeReader#mergeRanges}.
@@ -237,6 +243,9 @@ final class ColumnChunkPrefetcher {
         return result;
     }
 
+    /**
+     * Synchronous filtered prefetch: blocks the caller. Test-only; see {@link #prefetchAsync}.
+     */
     static CompletableFuture<NavigableMap<Long, PrefetchedChunk>> prefetch(
         StorageObject storageObject,
         BlockMetaData block,

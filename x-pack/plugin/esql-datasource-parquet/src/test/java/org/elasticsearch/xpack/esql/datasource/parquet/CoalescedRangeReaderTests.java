@@ -175,6 +175,7 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Map<ByteRange, ByteBuffer>> resultRef = new AtomicReference<>();
 
+        // null StorageObject is safe here: the empty-ranges path returns before any I/O
         CoalescedRangeReader.readCoalesced(null, List.of(), 0, Runnable::run, new ActionListener<>() {
             @Override
             public void onResponse(Map<ByteRange, ByteBuffer> result) {

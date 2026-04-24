@@ -43,4 +43,6 @@ public interface PostFilterableKnnQuery {
     int countTotalVectors(List<LeafReaderContext> leaves) throws IOException;
 
     long totalVectorOps();
+
+    int k();
 }

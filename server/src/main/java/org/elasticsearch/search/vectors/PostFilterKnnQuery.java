@@ -91,11 +91,14 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
         ScoreDoc[] scoreDocs = new ScoreDoc[0];
         int[] seenDocs = new int[0];
         long vectorOps = 0;
-        Query delegate = postFilterQuery.createRetryQuery(searcher.getIndexReader(), null);
-        assert delegate instanceof PostFilterableKnnQuery;
+        Query delegate = (Query) postFilterQuery;
         for (int round = 0; round < MAX_ROUNDS; round++) {
+            int delegateK = ((PostFilterableKnnQuery) delegate).k();
+            if (scoreDocs.length > 0) {
+                delegateK = (k - scoreDocs.length) * 2;
+            }
             // todo: check revisiting segments that might have already been exhausted
-            TopDocs topDocs = searcher.search(delegate, Integer.MAX_VALUE);
+            TopDocs topDocs = searcher.search(delegate, delegateK);
             if (topDocs.scoreDocs.length == 0) {
                 break;
             }

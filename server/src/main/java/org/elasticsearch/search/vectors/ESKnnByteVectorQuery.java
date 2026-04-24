@@ -116,6 +116,11 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryPro
         return vectorOpsCount;
     }
 
+    @Override
+    public int k() {
+        return kParam;
+    }
+
     public int kParam() {
         return kParam;
     }

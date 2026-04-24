@@ -725,7 +725,7 @@ public class KnnSearcher {
                 DenseVectorFieldMapper.FilterHeuristic.ACORN.getKnnSearchStrategy(),
                 indexType == KnnIndexTester.IndexType.HNSW && searchParameters.earlyTermination()
             );
-            knnQuery = new PostFilterKnnQuery((PostFilterableKnnQuery) knnQuery, filterQuery, efSearch, VECTOR_FIELD, null);
+            knnQuery = new PostFilterKnnQuery((PostFilterableKnnQuery) knnQuery, filterQuery, overSampledTopK, VECTOR_FIELD, null);
         }
         if (searchParameters.overSamplingFactor() > 1f) {
             // oversample the topK results to get more candidates for the final result

@@ -81,23 +81,14 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
     public Query createRetryQuery(IndexReader reader, int[] docsVisited) {
         // todo: adjust k (account for selectivity) so that we only gather the results missing to hit the original k
         Query filter = docsVisited != null ? new ExcludeDocsQuery(docsVisited, reader) : null;
-        return new ESKnnFloatVectorQuery(
-            field,
-            getTargetCopy(),
-            kParam,
-            numCandsParam,
-            filter,
-            searchStrategy,
-            earlyTermination,
-            docsVisited
-        );
+        return new ESKnnFloatVectorQuery(field, target, kParam, numCandsParam, filter, searchStrategy, earlyTermination, docsVisited);
     }
 
     @Override
     public Query createPostFilterDelegate(float filterSelectivity) {
         int scaledK = (int) Math.min(NUM_CANDS_LIMIT, Math.ceil(kParam / filterSelectivity));
         int scaledNumCands = (int) Math.min(NUM_CANDS_LIMIT, Math.ceil((double) numCandsParam / filterSelectivity));
-        return new ESKnnFloatVectorQuery(field, getTargetCopy(), scaledK, scaledNumCands, null, searchStrategy, earlyTermination, null);
+        return new ESKnnFloatVectorQuery(field, target, scaledK, scaledNumCands, null, searchStrategy, earlyTermination, null);
     }
 
     @Override
@@ -115,6 +106,11 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
     @Override
     public long totalVectorOps() {
         return vectorOpsCount;
+    }
+
+    @Override
+    public int k() {
+        return kParam;
     }
 
     public int kParam() {

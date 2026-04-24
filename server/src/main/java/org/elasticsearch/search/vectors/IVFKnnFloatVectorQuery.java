@@ -145,6 +145,11 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
     }
 
     @Override
+    public int k() {
+        return k;
+    }
+
+    @Override
     protected void preconditionQuery(LeafReaderContext context) throws IOException {
         if (isQueryPreconditioned) {
             // already preconditioned

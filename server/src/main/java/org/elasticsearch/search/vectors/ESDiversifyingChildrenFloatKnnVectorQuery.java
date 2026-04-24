@@ -144,6 +144,11 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
         return vectorOpsCount;
     }
 
+    @Override
+    public int k() {
+        return kParam;
+    }
+
     public KnnSearchStrategy getStrategy() {
         return searchStrategy;
     }

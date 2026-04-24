@@ -19,6 +19,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
@@ -53,10 +54,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class CancelTasksRelocationIT extends ESIntegTestCase {
@@ -86,6 +89,51 @@ public class CancelTasksRelocationIT extends ESIntegTestCase {
     @Override
     protected boolean addMockHttpTransport() {
         return false;
+    }
+
+    /**
+     * After a reindex task is relocated to another node, cancelling it by its original task id should succeed.
+     * {@link #testCancelRelocatedTaskByNewTaskId}.
+     */
+    public void testCancelByOriginalTaskIdAfterRelocation() throws Exception {
+        final RelocatedReindex relocated = setupRelocatedReindex(numOfSlices);
+        assertCancelCascadesForRelocatedReindex(relocated, relocated.originalTaskId());
+    }
+
+    /**
+     * Clients that learned the new (post-relocation) task id via {@code GET _tasks} or the {@code .tasks} index should still be able to
+     * cancel it.
+     */
+    public void testCancelRelocatedTaskByNewTaskId() throws Exception {
+        final RelocatedReindex relocated = setupRelocatedReindex(numOfSlices);
+        assertCancelCascadesForRelocatedReindex(relocated, relocated.relocatedTaskId());
+    }
+
+    /**
+     * A single {@code POST _tasks/_cancel?actions=<reindex>} request must cancel every reindex task in the cluster regardless of
+     * relocation state: one relocated reindex (resumed on the survivor) and one plain reindex (started directly on the survivor) should
+     * both be cancelled together, along with their slice workers.
+     */
+    public void testCancelAllReindexTasksByActionWithMixedRelocationState() throws Exception {
+        final RelocatedReindex relocated = setupRelocatedReindex(numOfSlices);
+        // R2: plain (never-relocated) reindex on the survivor, the only data-holding node remaining after R1's shutdown.
+        startAsyncThrottledReindexOnNode(relocated.survivorNodeName(), numOfSlices);
+
+        assertBusy(() -> {
+            final List<TaskInfo> parents = listAllReindexTasks().stream().filter(t -> t.parentTaskId().isSet() == false).toList();
+            assertThat("both reindex parents should be registered", parents, hasSize(2));
+        });
+
+        final ListTasksResponse cancelResponse = clusterAdmin().prepareCancelTasks()
+            .setActions(ReindexAction.NAME)
+            .waitForCompletion(true)
+            .get();
+        assertThat("no task-level failures", cancelResponse.getTaskFailures(), hasSize(0));
+        assertThat("no node-level failures", cancelResponse.getNodeFailures(), hasSize(0));
+        assertThat("cancel returns at least the two matching parents", cancelResponse.getTasks(), not(empty()));
+
+        // Both R1 (relocated) and R2 (plain), plus any slice workers under either parent, must be gone.
+        assertBusy(() -> assertThat("no reindex tasks remain after action-filter cancel", listAllReindexTasks(), hasSize(0)));
     }
 
     /**
@@ -296,11 +344,88 @@ public class CancelTasksRelocationIT extends ESIntegTestCase {
         return response.getTasks();
     }
 
+    private List<TaskInfo> listChildrenOf(TaskId parentTaskId) {
+        return listAllReindexTasks().stream().filter(t -> parentTaskId.equals(t.parentTaskId())).toList();
+    }
+
+    /**
+     * Starts a throttled reindex on an ephemeral node, triggers relocation via node shutdown, waits (for sliced reindex) until the
+     * slice workers have registered under the relocated parent, and returns the task ids on both sides of the hop. A random number of
+     * master-only bystander nodes is also started so the cancel broadcast fanout is exercised across a larger cluster; bystanders hold
+     * no data and so the relocation target is still forced to the survivor.
+     */
+    private RelocatedReindex setupRelocatedReindex(int slices) throws Exception {
+        final String survivorNodeName = internalCluster().startNode(
+            NodeRoles.onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE))
+        );
+        final String survivorNodeId = nodeIdByName(survivorNodeName);
+        final String reindexNodeName = internalCluster().startNode(
+            NodeRoles.onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE))
+        );
+        final String reindexNodeId = nodeIdByName(reindexNodeName);
+        final int bystanders = randomIntBetween(0, 3);
+        for (int i = 0; i < bystanders; i++) {
+            internalCluster().startNode(NodeRoles.onlyRole(DiscoveryNodeRole.MASTER_ROLE));
+        }
+        ensureStableCluster(2 + bystanders);
+
+        createIndexPinnedToNodeName(SOURCE_INDEX, survivorNodeName);
+        createIndexPinnedToNodeName(DEST_INDEX, survivorNodeName);
+        indexRandom(true, SOURCE_INDEX, numberOfDocumentsThatTakes60SecondsToIngest);
+        ensureGreen(SOURCE_INDEX, DEST_INDEX);
+
+        final TaskId originalTaskId = startAsyncThrottledReindexOnNode(reindexNodeName, slices);
+        assertThat("original task lives on the reindex node", originalTaskId.getNodeId(), equalTo(reindexNodeId));
+
+        shutdownNodeNameAndRelocate(reindexNodeName);
+
+        final TaskId relocatedTaskId = getRelocatedTaskIdFromTasksIndex(originalTaskId);
+        assertThat("relocated task lives on the survivor node", relocatedTaskId.getNodeId(), equalTo(survivorNodeId));
+        assertThat("relocated task has a distinct numeric id", relocatedTaskId, not(equalTo(originalTaskId)));
+
+        if (slices > 1) {
+            assertBusy(
+                () -> assertThat(
+                    "slice workers should be registered under the relocated parent",
+                    listChildrenOf(relocatedTaskId),
+                    hasSize(slices)
+                )
+            );
+        }
+
+        return new RelocatedReindex(survivorNodeName, originalTaskId, relocatedTaskId);
+    }
+
+    /**
+     * Cancels the relocated reindex via {@code cancelBy} (either the original or the post-relocation task id) and asserts the cancel
+     * response shape plus the cascade invariant: after the cancel settles no reindex parent or slice-worker task remains anywhere.
+     */
+    private void assertCancelCascadesForRelocatedReindex(RelocatedReindex relocated, TaskId cancelBy) throws Exception {
+        final ListTasksResponse cancelResponse = clusterAdmin().prepareCancelTasks()
+            .setTargetTaskId(cancelBy)
+            .waitForCompletion(true)
+            .get();
+        assertThat("no task-level failures", cancelResponse.getTaskFailures(), hasSize(0));
+        assertThat("no node-level failures", cancelResponse.getNodeFailures(), hasSize(0));
+        assertThat("cancel returns the parent task; children are cancelled via cascade", cancelResponse.getTasks(), hasSize(1));
+        final TaskInfo cancelled = cancelResponse.getTasks().getFirst();
+        assertThat("cancelled task id is the relocated id", cancelled.taskId(), equalTo(relocated.relocatedTaskId()));
+        assertThat("cancelled task carries original id as its identity", cancelled.originalTaskId(), equalTo(relocated.originalTaskId()));
+
+        assertBusy(() -> assertThat("no reindex parent or child tasks remain after cancel", listAllReindexTasks(), hasSize(0)));
+    }
+
+    private record RelocatedReindex(String survivorNodeName, TaskId originalTaskId, TaskId relocatedTaskId) {}
+
     private TaskId startAsyncThrottledReindexOnNode(final String nodeName) throws Exception {
+        return startAsyncThrottledReindexOnNode(nodeName, numOfSlices);
+    }
+
+    private TaskId startAsyncThrottledReindexOnNode(final String nodeName, final int slices) throws Exception {
         try (RestClient restClient = createRestClient(nodeName)) {
             final Request request = new Request("POST", "/_reindex");
             request.addParameter("wait_for_completion", "false");
-            request.addParameter("slices", Integer.toString(numOfSlices));
+            request.addParameter("slices", Integer.toString(slices));
             request.addParameter("requests_per_second", Integer.toString(requestsPerSecond));
             request.setJsonEntity(Strings.format("""
                 {
@@ -337,6 +462,16 @@ public class CancelTasksRelocationIT extends ESIntegTestCase {
         ensureGreen(TimeValue.timeValueSeconds(10), index);
     }
 
+    private String nodeIdByName(final String nodeName) {
+        return clusterService().state()
+            .nodes()
+            .stream()
+            .filter(node -> node.getName().equals(nodeName))
+            .map(DiscoveryNode::getId)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("node with name [" + nodeName + "] not found"));
+    }
+
     private TaskResult readSourceTaskResult(TaskId originalTaskId) {
         ensureYellowAndNoInitializingShards(TaskResultsService.TASK_INDEX);
         assertNoFailures(indicesAdmin().prepareRefresh(TaskResultsService.TASK_INDEX).get());
@@ -352,6 +487,21 @@ public class CancelTasksRelocationIT extends ESIntegTestCase {
         } catch (IOException e) {
             throw new AssertionError("failed to parse task result from .tasks index", e);
         }
+    }
+
+    private TaskId getRelocatedTaskIdFromTasksIndex(TaskId originalTaskId) {
+        final TaskResult result = readSourceTaskResult(originalTaskId);
+        final Map<String, Object> errorMap = result.getErrorAsMap();
+        assertThat(errorMap.get("type"), equalTo("task_relocated_exception"));
+        return new TaskId((String) errorMap.get("relocated_task_id"));
+    }
+
+    private void shutdownNodeNameAndRelocate(final String nodeName) throws Exception {
+        assertFalse(".tasks index should not exist before shutdown", indexExists(TaskResultsService.TASK_INDEX));
+        internalCluster().getInstance(ShutdownPrepareService.class, nodeName).prepareForShutdown();
+        assertTrue(indexExists(TaskResultsService.TASK_INDEX));
+        ensureGreen(TaskResultsService.TASK_INDEX);
+        internalCluster().stopNode(nodeName);
     }
 
     private static void awaitLatch(CountDownLatch latch) {

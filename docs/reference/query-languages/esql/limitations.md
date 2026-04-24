@@ -300,15 +300,23 @@ The [`FORK`](/reference/query-languages/esql/commands/fork.md) command cannot be
 For example, using `FORK` **inside** a subquery is not supported:
 
 ```esql
-FROM (FROM employees | FORK (WHERE emp_no > 10090) (WHERE emp_no < 10010))
+FROM
+    (FROM employees
+     | FORK
+         (WHERE emp_no > 10090)
+         (WHERE emp_no < 10010))
 | KEEP emp_no, languages
 ```
 
 And using `FORK` **after** a `FROM` with subqueries is also not supported:
 
 ```esql
-FROM employees, (FROM sample_data | WHERE client_ip == "172.21.3.15")
-| FORK (WHERE emp_no > 10090) (WHERE client_ip IS NOT NULL)
+FROM
+    employees,
+    (FROM sample_data | WHERE client_ip == "172.21.3.15")
+| FORK
+    (WHERE emp_no > 10090)
+    (WHERE client_ip IS NOT NULL)
 ```
 
 

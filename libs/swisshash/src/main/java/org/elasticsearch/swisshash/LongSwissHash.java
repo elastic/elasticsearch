@@ -600,7 +600,7 @@ public final class LongSwissHash extends SwissHash implements LongHashTable {
 
         @Override
         public long ramBytesUsed() {
-            return (long)idPages.length * PageCacheRecycler.PAGE_SIZE_IN_BYTES + controlData.length;
+            return (long) idPages.length * PageCacheRecycler.PAGE_SIZE_IN_BYTES + controlData.length;
         }
     }
 

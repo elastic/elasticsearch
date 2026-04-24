@@ -107,6 +107,11 @@ public class ReindexPitKeepAliveIT extends ESIntegTestCase {
         }
     }
 
+    /**
+     * Asserts local reindex’s open-PIT uses {@link org.elasticsearch.reindex.ReindexSettings#REINDEX_PIT_KEEP_ALIVE_SETTING}
+     * by updating the cluster setting, running a reindex task, and comparing to the value captured from
+     * {@link org.elasticsearch.action.search.OpenPointInTimeRequest#keepAlive()}.
+     */
     public void testClusterSettingControlsLocalReindexOpenPitKeepAlive() throws Exception {
         assumeTrue("reindex PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 

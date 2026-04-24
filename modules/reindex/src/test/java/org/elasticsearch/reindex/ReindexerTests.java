@@ -1993,7 +1993,7 @@ public class ReindexerTests extends ESTestCase {
      * Local PIT open uses {@link ReindexSettings#REINDEX_PIT_KEEP_ALIVE_SETTING} for keep-alive. The reindex {@code scroll} parameter
      * does not affect PIT.
      */
-    public void testLocalOpenPitUsesClusterSettingKeepAliveAndIgnoresScrollParam() {
+    public void testLocalOpenPitUsesClusterPitKeepAliveSetting() {
         assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final OpenPitCapturingClient client = new OpenPitCapturingClient(getTestName());

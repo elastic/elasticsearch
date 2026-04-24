@@ -38,6 +38,17 @@ public class ReindexSettingsTests extends ESTestCase {
     }
 
     /**
+     * When the PIT keep-alive setting is not registered on {@link ClusterSettings} (nodes without {@code ReindexPlugin}),
+     * {@link ReindexSettings} still constructs and exposes the static default; dynamic updates are not applied.
+     */
+    public void testPitKeepAliveUsesDefaultWhenSettingNotRegistered() {
+        ClusterSettings clusterSettings = clusterSettings(Set.of(), Settings.EMPTY);
+        ReindexSettings reindexSettings = new ReindexSettings(clusterSettings);
+        assertThat(reindexSettings.pitKeepAlive(), equalTo(TimeValue.timeValueMinutes(5)));
+        assertNull(clusterSettings.get(ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING));
+    }
+
+    /**
      * When the PIT keep-alive is present in node settings at {@link ClusterSettings} construction time, the watcher initializes
      * {@link ReindexSettings#pitKeepAlive()} to that value instead of the built-in default.
      */

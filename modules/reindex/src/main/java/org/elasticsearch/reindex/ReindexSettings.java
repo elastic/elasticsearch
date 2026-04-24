@@ -12,6 +12,7 @@ package org.elasticsearch.reindex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
 
@@ -43,9 +44,10 @@ public final class ReindexSettings {
     public ReindexSettings(ClusterSettings clusterSettings) {
         Setting<?> registered = clusterSettings.get(REINDEX_PIT_KEEP_ALIVE_SETTING.getKey());
         if (registered == null) {
-            throw new IllegalStateException(
-                "Missing cluster setting [" + REINDEX_PIT_KEEP_ALIVE_SETTING.getKey() + "]; ensure ReindexPlugin#getSettings registers it"
-            );
+            // Nodes that do not load ReindexPlugin (e.g. some tests) still inject ReindexSettings for
+            // cross-module actions; use the static default and skip dynamic updates.
+            this.pitKeepAlive = REINDEX_PIT_KEEP_ALIVE_SETTING.get(Settings.EMPTY);
+            return;
         }
         @SuppressWarnings("unchecked")
         Setting<TimeValue> pitKeepAliveSetting = (Setting<TimeValue>) registered;

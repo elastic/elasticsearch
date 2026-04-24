@@ -31,7 +31,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.elasticsearch.cli.MockTerminal;
-import org.elasticsearch.cli.terminal.Terminal;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.is;

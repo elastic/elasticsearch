@@ -2723,12 +2723,9 @@ public abstract class ESRestTestCase extends ESTestCase {
     /**
      * Builds a {@link TestFeatureService} for executing client YAML against an arbitrary cluster before the
      * usual per-test {@link ESRestTestCase} client initialization (for example seeding a CCS remote from {@code @BeforeClass}).
+     * Pass the version set from {@link #readVersionsFromNodesInfo} to avoid a redundant {@code /_nodes} call.
      */
-    public static TestFeatureService newYamlTestFeatureServiceForCluster(RestClient adminClient) throws IOException {
-        Set<String> versions = new HashSet<>();
-        for (Map<?, ?> nodeInfo : getNodesInfo(adminClient).values()) {
-            versions.add(nodeInfo.get("version").toString());
-        }
+    public static TestFeatureService newYamlTestFeatureServiceForCluster(RestClient adminClient, Set<String> versions) throws IOException {
         Map<String, Set<String>> clusterStateFeatures = getClusterStateFeatures(adminClient);
         return new ESRestTestFeatureService(fromSemanticVersions(versions), clusterStateFeatures.values());
     }

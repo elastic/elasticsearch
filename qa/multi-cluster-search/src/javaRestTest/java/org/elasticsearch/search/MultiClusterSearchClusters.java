@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search;
 
+import org.apache.http.HttpHost;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
@@ -16,6 +17,9 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * JUnit {@link ElasticsearchCluster} wiring for {@code qa/multi-cluster-search}: two clusters with CCS,
@@ -115,8 +119,30 @@ public final class MultiClusterSearchClusters {
     }
 
     private static boolean supportRetryOnShardFailures(Version version) {
+        // Retry on shard failures was introduced in 8.19 (backport) and 9.1. Older nodes cannot handle
+        // shard rebalancing during CCS tests, so we disable it for them to avoid spurious failures.
         return version.onOrAfter(Version.fromString("9.1.0"))
             || (version.onOrAfter(Version.fromString("8.19.0")) && version.before(Version.fromString("9.0.0")));
+    }
+
+    /**
+     * Parses the {@code tests.rest.remote_cluster} system property into a list of {@link HttpHost} objects.
+     */
+    public static List<HttpHost> remoteClusterHosts() {
+        String address = System.getProperty("tests.rest.remote_cluster");
+        if (address == null || address.isBlank()) {
+            throw new IllegalStateException("Required system property [tests.rest.remote_cluster] is not set");
+        }
+        String[] parts = address.split(",");
+        List<HttpHost> hosts = new ArrayList<>(parts.length);
+        for (String part : parts) {
+            int portSep = part.lastIndexOf(':');
+            if (portSep < 0) {
+                throw new IllegalArgumentException("Illegal cluster address [" + part + "]");
+            }
+            hosts.add(new HttpHost(part.substring(0, portSep), Integer.parseInt(part.substring(portSep + 1))));
+        }
+        return hosts;
     }
 
     private static String requiredProp(String key) {

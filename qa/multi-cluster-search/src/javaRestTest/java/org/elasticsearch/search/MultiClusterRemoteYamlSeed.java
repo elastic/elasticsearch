@@ -27,7 +27,6 @@ import org.junit.AssumptionViolatedException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -36,7 +35,7 @@ import static org.elasticsearch.test.rest.yaml.section.ExecutableSection.XCONTEN
 
 /**
  * Runs {@code remote_cluster/10_basic.yml} against the CCS remote once per JVM so Gradle no longer needs a
- * separate {@code #remote-cluster} / {@code #rev-remote-setup} task chain (see {@code qa/multi-cluster-search/MIGRATION_PLAN.md}).
+ * separate {@code #remote-cluster} / {@code #rev-remote-setup} task chain.
  */
 public final class MultiClusterRemoteYamlSeed {
 
@@ -63,7 +62,7 @@ public final class MultiClusterRemoteYamlSeed {
     }
 
     private static void run() throws Exception {
-        List<HttpHost> hosts = parseRemoteHosts(System.getProperty("tests.rest.remote_cluster"));
+        List<HttpHost> hosts = MultiClusterSearchClusters.remoteClusterHosts();
         ClientYamlSuiteRestSpec restSpec = ClientYamlSuiteRestSpec.load("rest-api-spec/api");
         Path yamlFile = findYamlFile("remote_cluster/10_basic.yml");
         ClientYamlTestSuite suite = ClientYamlTestSuite.parse(XCONTENT_REGISTRY, "remote_cluster", yamlFile, Map.of());
@@ -79,7 +78,7 @@ public final class MultiClusterRemoteYamlSeed {
             )
         ) {
             Set<String> versions = ESRestTestCase.readVersionsFromNodesInfo(remoteClient);
-            var testFeatureService = ESRestTestCase.newYamlTestFeatureServiceForCluster(remoteClient);
+            var testFeatureService = ESRestTestCase.newYamlTestFeatureServiceForCluster(remoteClient, versions);
             String os = ESClientYamlSuiteTestCase.readOsFromNodesInfo(remoteClient);
             Set<String> osSet = Set.of(os);
 
@@ -123,21 +122,4 @@ public final class MultiClusterRemoteYamlSeed {
         throw new IllegalStateException("Could not locate YAML at rest-api-spec/test/" + relativeUnderRestApiSpecTest);
     }
 
-    private static List<HttpHost> parseRemoteHosts(String address) {
-        if (address == null) {
-            throw new IllegalArgumentException("tests.rest.remote_cluster is not configured");
-        }
-        String[] stringUrls = address.split(",");
-        List<HttpHost> hosts = new ArrayList<>(stringUrls.length);
-        for (String stringUrl : stringUrls) {
-            int portSeparator = stringUrl.lastIndexOf(':');
-            if (portSeparator < 0) {
-                throw new IllegalArgumentException("Illegal cluster url [" + stringUrl + "]");
-            }
-            String host = stringUrl.substring(0, portSeparator);
-            int port = Integer.parseInt(stringUrl.substring(portSeparator + 1));
-            hosts.add(new HttpHost(host, port, "http"));
-        }
-        return hosts;
-    }
 }

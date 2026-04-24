@@ -11,7 +11,6 @@ package org.elasticsearch.search;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
-import org.apache.http.HttpHost;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -23,9 +22,6 @@ import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.rules.TestRule;
-
-import java.util.ArrayList;
-import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -47,30 +43,11 @@ public class SearchShardsResponseBwcIT extends ESRestTestCase {
         return true;
     }
 
-    static List<HttpHost> parseRemoteHosts() {
-        String address = System.getProperty("tests.rest.remote_cluster");
-        assertNotNull("[tests.rest.remote_cluster] is not configured", address);
-        String[] stringUrls = address.split(",");
-        List<HttpHost> hosts = new ArrayList<>(stringUrls.length);
-        for (String stringUrl : stringUrls) {
-            int portSeparator = stringUrl.lastIndexOf(':');
-            if (portSeparator < 0) {
-                throw new IllegalArgumentException("Illegal cluster url [" + stringUrl + "]");
-            }
-            String host = stringUrl.substring(0, portSeparator);
-            int port = Integer.parseInt(stringUrl.substring(portSeparator + 1));
-            hosts.add(new HttpHost(host, port, "http"));
-        }
-        return hosts;
-    }
-
     static RestClient newRemoteClient() {
-        return RestClient.builder(randomFrom(parseRemoteHosts())).build();
+        return RestClient.builder(randomFrom(MultiClusterSearchClusters.remoteClusterHosts())).build();
     }
 
     public void testSkippedShardsPreservedAcrossVersions() throws Exception {
-        assumeTrue("requires multi-cluster CCS setup", "multi_cluster".equals(System.getProperty("tests.rest.suite")));
-
         try (RestClient remoteClient = newRemoteClient()) {
             // Create 5 single-shard indices on the new remote, each with docs in a distinct day
             for (int day = 1; day <= 5; day++) {

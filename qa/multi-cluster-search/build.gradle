@@ -44,6 +44,7 @@ buildParams.bwcVersions.withWireCompatible(ccsSupportedVersion) { bwcVersion, ba
     testClassesDirs = sourceSets.javaRestTest.output.classesDirs
     classpath = sourceSets.javaRestTest.runtimeClasspath
     include '**/*IT.class'
+    systemProperty('tests.rest.suite', 'multi_cluster')
     systemProperty('tests.multi_cluster.bwc_version', bwcVersion.toString())
     systemProperty('tests.multi_cluster.reverse', 'false')
     dependsOn sourceSets.javaRestTest.classesTaskName
@@ -58,6 +59,7 @@ buildParams.bwcVersions.withWireCompatible(ccsSupportedVersion) { bwcVersion, ba
     testClassesDirs = sourceSets.javaRestTest.output.classesDirs
     classpath = sourceSets.javaRestTest.runtimeClasspath
     include '**/*IT.class'
+    systemProperty('tests.rest.suite', 'multi_cluster')
     systemProperty('tests.multi_cluster.bwc_version', bwcVersion.toString())
     systemProperty('tests.multi_cluster.reverse', 'true')
     dependsOn sourceSets.javaRestTest.classesTaskName

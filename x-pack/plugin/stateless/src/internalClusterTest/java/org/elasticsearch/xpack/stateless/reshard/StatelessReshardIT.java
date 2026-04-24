@@ -2202,20 +2202,57 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         );
     }
 
-    // lookup indices are required to have exactly one shard
-    public void testReshardLookupIndexFails() {
-        startMasterAndIndexNode();
-        ensureStableCluster(1);
-
-        final var indexName = "lookup-index";
-        createIndex(indexName, indexSettings(1, 0).put(IndexSettings.MODE.getKey(), IndexMode.LOOKUP.getName()).build());
-        ensureGreen(indexName);
-
+    private void assertReshardNonstandardIndexFails(final String indexName, IndexMode indexMode) {
         ReshardIndexRequest request = new ReshardIndexRequest(indexName);
-        expectThrows(
+        IllegalArgumentException failure = expectThrows(
             IllegalArgumentException.class,
             () -> client().execute(TransportReshardAction.TYPE, request).actionGet(SAFE_AWAIT_TIMEOUT)
         );
+        assertEquals("resharding " + indexMode + " indices not supported", failure.getMessage());
+    }
+
+    public void testReshardNonstandardIndexFails() {
+        startMasterAndIndexNode();
+        ensureStableCluster(1);
+
+        // lookup indices are required to have exactly one shard
+        final var lookupIndexName = "lookup-index";
+        createIndex(lookupIndexName, indexSettings(1, 0).put(IndexSettings.MODE.getKey(), IndexMode.LOOKUP.getName()).build());
+        ensureGreen(lookupIndexName);
+        assertReshardNonstandardIndexFails(lookupIndexName, IndexMode.LOOKUP);
+
+        final String logsdbIndexName = "logsdb-index";
+        createIndex(
+            logsdbIndexName,
+            Settings.builder()
+                .put(indexSettings(randomIntBetween(1, 5), 0).build())
+                .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName())
+                .build()
+        );
+        ensureGreen(logsdbIndexName);
+        assertReshardNonstandardIndexFails(logsdbIndexName, IndexMode.LOGSDB);
+
+        final String timeSeriesIndexName = "time-series-index";
+        final Settings settings = Settings.builder()
+            .put(indexSettings(randomIntBetween(1, 5), 0).build())
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            .putList("routing_path", List.of("host"))
+            .build();
+        client().admin()
+            .indices()
+            .prepareCreate(timeSeriesIndexName)
+            .setSettings(settings)
+            .setMapping(
+                "@timestamp",
+                "type=date",
+                "host",
+                "type=keyword,time_series_dimension=true",
+                "cpu",
+                "type=long,time_series_metric=gauge"
+            )
+            .get();
+        ensureGreen(timeSeriesIndexName);
+        assertReshardNonstandardIndexFails(timeSeriesIndexName, IndexMode.TIME_SERIES);
     }
 
     public void testReshardTargetWillEqualToPrimaryTermOfSource() throws Exception {

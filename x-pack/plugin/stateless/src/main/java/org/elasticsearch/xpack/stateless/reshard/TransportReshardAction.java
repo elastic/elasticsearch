@@ -100,7 +100,7 @@ public class TransportReshardAction extends TransportMasterNodeAction<ReshardInd
 
         var validationError = ReshardIndexService.validateIndex(indexAbstraction, indexMetadata);
         if (validationError != null) {
-            throw validationError.intoException(index);
+            throw validationError.intoException(index, indexMetadata);
         }
 
         final ReshardIndexClusterStateUpdateRequest updateRequest = new ReshardIndexClusterStateUpdateRequest(

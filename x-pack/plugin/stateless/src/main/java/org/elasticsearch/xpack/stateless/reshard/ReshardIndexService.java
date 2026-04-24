@@ -51,6 +51,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
@@ -144,6 +145,10 @@ public class ReshardIndexService {
         if (indexMetadata.getCreationVersion().before(IndexVersions.MOD_ROUTING_FUNCTION)) {
             return ValidationError.INVALID_INDEX_VERSION;
         }
+        IndexMode indexMode = indexMetadata.getIndexMode();
+        if (indexMode != null && indexMode != IndexMode.STANDARD) {
+            return ValidationError.INVALID_INDEX_MODE;
+        }
 
         return null;
     }
@@ -154,9 +159,10 @@ public class ReshardIndexService {
         DATA_STREAM_INDEX,
         ALREADY_RESHARDING,
         CLOSED,
-        INVALID_INDEX_VERSION;
+        INVALID_INDEX_VERSION,
+        INVALID_INDEX_MODE;
 
-        public RuntimeException intoException(Index index) {
+        public RuntimeException intoException(Index index, IndexMetadata indexMetadata) {
             return switch (this) {
                 case INDEX_NOT_FOUND -> new IndexNotFoundException(index);
                 case SYSTEM_INDEX -> new IllegalArgumentException("resharding a system index " + index + " is not supported");
@@ -168,6 +174,9 @@ public class ReshardIndexService {
                 );
                 case ALREADY_RESHARDING -> new IllegalStateException("an existing resharding operation on " + index + " is unfinished");
                 case CLOSED -> new IndexClosedException(index);
+                case INVALID_INDEX_MODE -> new IllegalArgumentException(
+                    "resharding " + indexMetadata.getIndexMode() + " indices not supported"
+                );
             };
         }
     }
@@ -564,7 +573,7 @@ public class ReshardIndexService {
 
             var validationError = validateIndex(indexAbstraction, sourceMetadata);
             if (validationError != null) {
-                throw validationError.intoException(index);
+                throw validationError.intoException(index, sourceMetadata);
             }
 
             final int sourceNumShards = sourceMetadata.getNumberOfShards();

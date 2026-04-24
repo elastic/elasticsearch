@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.inference;
 
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -31,7 +32,8 @@ public class CompletionSerializationTests extends AbstractLogicalPlanSerializati
             randomRowLimit(),
             randomPrompt(),
             randomAttribute(),
-            randomTaskSettings()
+            randomTaskSettings(),
+            randomTimeout()
         );
     }
 
@@ -43,16 +45,22 @@ public class CompletionSerializationTests extends AbstractLogicalPlanSerializati
         Expression prompt = instance.prompt();
         Attribute targetField = instance.targetField();
         MapExpression taskSettings = instance.taskSettings();
+        TimeValue timeout = instance.timeout();
 
-        switch (between(0, 5)) {
+        switch (between(0, 6)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> inferenceId = randomValueOtherThan(inferenceId, this::randomInferenceId);
             case 2 -> rowLimit = randomValueOtherThan(rowLimit, this::randomRowLimit);
             case 3 -> prompt = randomValueOtherThan(prompt, this::randomPrompt);
             case 4 -> targetField = randomValueOtherThan(targetField, this::randomAttribute);
             case 5 -> taskSettings = randomValueOtherThan(taskSettings, this::randomTaskSettings);
+            case 6 -> timeout = randomValueOtherThan(timeout, this::randomTimeout);
         }
-        return new Completion(instance.source(), child, inferenceId, rowLimit, prompt, targetField, taskSettings);
+        return new Completion(instance.source(), child, inferenceId, rowLimit, prompt, targetField, taskSettings, timeout);
+    }
+
+    private TimeValue randomTimeout() {
+        return randomBoolean() ? null : TimeValue.timeValueMillis(randomLongBetween(1, 300_000));
     }
 
     private MapExpression randomTaskSettings() {

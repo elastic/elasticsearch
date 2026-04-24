@@ -14,6 +14,10 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.simdvec.MathUtils;
+import org.elasticsearch.simdvec.MultiByteVectorsSource;
+import org.elasticsearch.simdvec.MultiFloatVectorsSource;
+
+import java.util.Arrays;
 
 final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
 
@@ -54,6 +58,32 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     @Override
     public float dotProduct(byte[] a, byte[] b) {
         return VectorUtil.dotProduct(a, b);
+    }
+
+    @Override
+    public float maxSimDotProduct(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch, float[] maxesScratch) {
+        Arrays.fill(maxesScratch, 0, query.length, Float.NEGATIVE_INFINITY);
+        var vectorValues = source.vectorValues();
+        while (vectorValues.hasNext()) {
+            float[] vv = vectorValues.next();
+            for (int i = 0; i < query.length; i++) {
+                maxesScratch[i] = Math.max(maxesScratch[i], dotProduct(query[i], vv));
+            }
+        }
+        return sum(maxesScratch, query.length);
+    }
+
+    @Override
+    public float maxSimDotProduct(MultiByteVectorsSource source, byte[][] query, float[] scoresScratch, float[] maxesScratch) {
+        Arrays.fill(maxesScratch, 0, query.length, Float.NEGATIVE_INFINITY);
+        var vectorValues = source.vectorValues();
+        while (vectorValues.hasNext()) {
+            byte[] vv = vectorValues.next();
+            for (int i = 0; i < query.length; i++) {
+                maxesScratch[i] = Math.max(maxesScratch[i], dotProduct(query[i], vv));
+            }
+        }
+        return sum(maxesScratch, query.length);
     }
 
     @Override
@@ -574,5 +604,13 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         for (int j = 0; j < v1.length; j++) {
             result[j] = MathUtils.pow2NQT((a + v1[j] - v2[j]) / eps);
         }
+    }
+
+    private static float sum(float[] values, int length) {
+        float sum = 0f;
+        for (int i = 0; i < length; i++) {
+            sum += values[i];
+        }
+        return sum;
     }
 }

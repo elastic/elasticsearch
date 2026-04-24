@@ -111,6 +111,16 @@ public class ESVectorUtil {
         return IMPL.dotProduct(a, b);
     }
 
+    public static float maxSimDotProduct(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch, float[] maxesScratch) {
+        ensureScratchCapacity(source, query.length, scoresScratch, maxesScratch);
+        return IMPL.maxSimDotProduct(source, query, scoresScratch, maxesScratch);
+    }
+
+    public static float maxSimDotProduct(MultiByteVectorsSource source, byte[][] query, float[] scoresScratch, float[] maxesScratch) {
+        ensureScratchCapacity(source, query.length, scoresScratch, maxesScratch);
+        return IMPL.maxSimDotProduct(source, query, scoresScratch, maxesScratch);
+    }
+
     public static float squareDistance(byte[] a, byte[] b) {
         if (a.length != b.length) {
             throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
@@ -220,6 +230,15 @@ public class ESVectorUtil {
             distance += Integer.bitCount((a[i] & b[i]) & 0xFF);
         }
         return distance;
+    }
+
+    private static void ensureScratchCapacity(MultiVectorsSource<?> source, int queryCount, float[] scoresScratch, float[] maxesScratch) {
+        if (scoresScratch.length < source.vectorCount()) {
+            throw new IllegalArgumentException("scores array too small: " + scoresScratch.length + " < " + source.vectorCount());
+        }
+        if (maxesScratch.length < queryCount) {
+            throw new IllegalArgumentException("maxes array too small: " + maxesScratch.length + " < " + queryCount);
+        }
     }
 
     /**

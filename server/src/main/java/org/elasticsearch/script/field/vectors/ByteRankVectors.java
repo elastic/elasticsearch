@@ -11,13 +11,15 @@ package org.elasticsearch.script.field.vectors;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.index.mapper.vectors.VectorEncoderDecoder;
 import org.elasticsearch.simdvec.ESVectorUtil;
+import org.elasticsearch.simdvec.MultiByteVectorsSource;
 
 import java.util.Arrays;
 import java.util.Iterator;
 
-public class ByteRankVectors implements RankVectors {
+public class ByteRankVectors implements RankVectors, MultiByteVectorsSource {
 
     protected final VectorIterator<byte[]> vectorValues;
     protected final int numVecs;
@@ -25,13 +27,30 @@ public class ByteRankVectors implements RankVectors {
 
     private float[] magnitudes;
     private final BytesRef magnitudesBytes;
+    private final BytesRef vectorBytes;
+    private final ElementType elementType;
+    private float[] scoresScratch = new float[0];
+    private float[] maxesScratch = new float[0];
 
     public ByteRankVectors(VectorIterator<byte[]> vectorValues, BytesRef magnitudesBytes, int numVecs, int dims) {
+        this(vectorValues, magnitudesBytes, numVecs, dims, null, ElementType.BYTE);
+    }
+
+    public ByteRankVectors(
+        VectorIterator<byte[]> vectorValues,
+        BytesRef magnitudesBytes,
+        int numVecs,
+        int dims,
+        BytesRef vectorBytes,
+        ElementType elementType
+    ) {
         assert magnitudesBytes.length == numVecs * Float.BYTES;
         this.vectorValues = vectorValues;
         this.numVecs = numVecs;
         this.dims = dims;
         this.magnitudesBytes = magnitudesBytes;
+        this.vectorBytes = vectorBytes;
+        this.elementType = elementType;
     }
 
     @Override
@@ -41,39 +60,24 @@ public class ByteRankVectors implements RankVectors {
 
     @Override
     public float maxSimDotProduct(byte[][] query) {
-        vectorValues.reset();
-        float[] maxes = new float[query.length];
-        Arrays.fill(maxes, Float.NEGATIVE_INFINITY);
-        while (vectorValues.hasNext()) {
-            byte[] vv = vectorValues.next();
-            for (int i = 0; i < query.length; i++) {
-                maxes[i] = Math.max(maxes[i], ESVectorUtil.dotProduct(query[i], vv));
-            }
-        }
-        float sum = 0;
-        for (float m : maxes) {
-            sum += m;
-        }
-        return sum;
+        float[] scores = ensureScoresScratch();
+        float[] maxes = ensureMaxesScratch(query.length);
+        return ESVectorUtil.maxSimDotProduct(this, query, scores, maxes);
     }
 
     @Override
     public float maxSimInvHamming(byte[][] query) {
         vectorValues.reset();
         int bitCount = dims * Byte.SIZE;
-        float[] maxes = new float[query.length];
-        Arrays.fill(maxes, Float.NEGATIVE_INFINITY);
+        float[] maxes = ensureMaxesScratch(query.length);
+        Arrays.fill(maxes, 0, query.length, Float.NEGATIVE_INFINITY);
         while (vectorValues.hasNext()) {
             byte[] vv = vectorValues.next();
             for (int i = 0; i < query.length; i++) {
                 maxes[i] = Math.max(maxes[i], ((bitCount - VectorUtil.xorBitCount(vv, query[i])) / (float) bitCount));
             }
         }
-        float sum = 0;
-        for (float m : maxes) {
-            sum += m;
-        }
-        return sum;
+        return sum(maxes, query.length);
     }
 
     @Override
@@ -102,6 +106,57 @@ public class ByteRankVectors implements RankVectors {
     @Override
     public int size() {
         return numVecs;
+    }
+
+    @Override
+    public BytesRef vectorBytes() {
+        return vectorBytes;
+    }
+
+    @Override
+    public int vectorCount() {
+        return numVecs;
+    }
+
+    @Override
+    public int vectorDims() {
+        return dims;
+    }
+
+    @Override
+    public int vectorByteSize() {
+        return dims;
+    }
+
+    public ElementType elementType() {
+        return elementType;
+    }
+
+    @Override
+    public Iterator<byte[]> vectorValues() {
+        return vectorValues.copy();
+    }
+
+    private float[] ensureScoresScratch() {
+        if (scoresScratch.length < numVecs) {
+            scoresScratch = new float[numVecs];
+        }
+        return scoresScratch;
+    }
+
+    private float[] ensureMaxesScratch(int queryCount) {
+        if (maxesScratch.length < queryCount) {
+            maxesScratch = new float[queryCount];
+        }
+        return maxesScratch;
+    }
+
+    private static float sum(float[] values, int length) {
+        float sum = 0f;
+        for (int i = 0; i < length; i++) {
+            sum += values[i];
+        }
+        return sum;
     }
 
     static class ByteToFloatIteratorWrapper implements Iterator<float[]> {

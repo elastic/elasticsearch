@@ -56,6 +56,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         savedWindowCacheFlag = ParquetStorageObjectAdapter.windowCacheEnabled;
+        ParquetStorageObjectAdapter.clearFooterCacheForTests();
     }
 
     @After
@@ -1285,6 +1286,282 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         if (failure != null) {
             throw failure;
         }
+    }
+
+    /**
+     * Validates that the simplified {@code (path, length)} cache key means different
+     * {@code lastModified} values still produce a cache hit for the same file.
+     */
+    public void testFooterCacheKeyIgnoresLastModified() throws IOException {
+        ParquetStorageObjectAdapter.setWindowCacheEnabledForTests(true);
+        byte[] data = new byte[1024 * 1024];
+        random().nextBytes(data);
+        final int[] rangeReadCount = { 0 };
+        final StoragePath path = StoragePath.of("memory://cache-key-test.parquet");
+
+        StorageObject obj1 = createCountingStorageObject(data, path, Instant.ofEpochMilli(100), rangeReadCount);
+        StorageObject obj2 = createCountingStorageObject(data, path, Instant.ofEpochMilli(500), rangeReadCount);
+
+        int tailStart = data.length - 1024;
+        byte[] expected = java.util.Arrays.copyOfRange(data, tailStart, data.length);
+
+        ParquetStorageObjectAdapter first = new ParquetStorageObjectAdapter(obj1);
+        try (SeekableInputStream s = first.newStream()) {
+            s.seek(tailStart);
+            byte[] w = new byte[1024];
+            s.readFully(w);
+            assertArrayEquals(expected, w);
+        }
+        assertEquals(1, rangeReadCount[0]);
+
+        ParquetStorageObjectAdapter second = new ParquetStorageObjectAdapter(obj2);
+        try (SeekableInputStream s = second.newStream()) {
+            s.seek(tailStart);
+            byte[] w = new byte[1024];
+            s.readFully(w);
+            assertArrayEquals(expected, w);
+        }
+        assertEquals("Second adapter should use cache, no additional I/O", 1, rangeReadCount[0]);
+    }
+
+    /**
+     * Validates thundering-herd coalescing: 8 concurrent threads reading the same tail
+     * should produce exactly 1 I/O, not 8.
+     */
+    public void testThunderingHerdCoalescesConcurrentFooterReads() throws Exception {
+        ParquetStorageObjectAdapter.setWindowCacheEnabledForTests(true);
+        byte[] data = new byte[1024 * 1024];
+        random().nextBytes(data);
+        final AtomicInteger rangeReadCount = new AtomicInteger();
+        final StoragePath path = StoragePath.of("memory://thundering-herd.parquet");
+        final java.util.concurrent.CyclicBarrier barrier = new java.util.concurrent.CyclicBarrier(8);
+
+        StorageObject obj = new StorageObject() {
+            @Override
+            public InputStream newStream() throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) throws IOException {
+                rangeReadCount.incrementAndGet();
+                try {
+                    Thread.sleep(50);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                int pos = (int) position;
+                int len = (int) Math.min(length, data.length - position);
+                return new ByteArrayInputStream(data, pos, len);
+            }
+
+            @Override
+            public long length() throws IOException {
+                return data.length;
+            }
+
+            @Override
+            public Instant lastModified() throws IOException {
+                return Instant.ofEpochMilli(100);
+            }
+
+            @Override
+            public boolean exists() throws IOException {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return path;
+            }
+        };
+
+        int tailStart = data.length - 1024;
+        byte[] expected = java.util.Arrays.copyOfRange(data, tailStart, data.length);
+        Thread[] threads = new Thread[8];
+        AtomicReference<AssertionError> firstFailure = new AtomicReference<>();
+
+        for (int i = 0; i < 8; i++) {
+            threads[i] = new Thread(() -> {
+                try {
+                    ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(obj);
+                    try (SeekableInputStream s = adapter.newStream()) {
+                        barrier.await(5, TimeUnit.SECONDS);
+                        s.seek(tailStart);
+                        byte[] w = new byte[1024];
+                        s.readFully(w);
+                        assertArrayEquals(expected, w);
+                    }
+                } catch (AssertionError e) {
+                    firstFailure.compareAndSet(null, e);
+                } catch (Exception e) {
+                    firstFailure.compareAndSet(null, new AssertionError("Unexpected exception", e));
+                }
+            });
+            threads[i].start();
+        }
+
+        for (Thread t : threads) {
+            t.join(TimeUnit.SECONDS.toMillis(10));
+        }
+
+        AssertionError failure = firstFailure.get();
+        if (failure != null) {
+            throw failure;
+        }
+        assertTrue(
+            "Expected at most 2 range reads (1 tail + possibly 1 early non-tail), got " + rangeReadCount.get(),
+            rangeReadCount.get() <= 2
+        );
+    }
+
+    /**
+     * Validates LRU eviction behavior of the footer cache after the thundering-herd redesign.
+     */
+    public void testFooterCacheLruEvictionStillWorks() {
+        ParquetStorageObjectAdapter.FooterCache cache = new ParquetStorageObjectAdapter.FooterCache(10_000, 5_000);
+        byte[] bytes5000 = new byte[5000];
+        byte[] bytes500 = new byte[500];
+        random().nextBytes(bytes5000);
+        random().nextBytes(bytes500);
+
+        ParquetStorageObjectAdapter.FooterCacheKey key1 = new ParquetStorageObjectAdapter.FooterCacheKey("file1", 10000);
+        ParquetStorageObjectAdapter.FooterCacheKey key2 = new ParquetStorageObjectAdapter.FooterCacheKey("file2", 20000);
+        ParquetStorageObjectAdapter.FooterCacheKey key3 = new ParquetStorageObjectAdapter.FooterCacheKey("file3", 30000);
+
+        cache.putTailIfEligible(key1, 5000, bytes5000, 5000);
+        cache.putTailIfEligible(key2, 15000, bytes5000, 5000);
+
+        assertNotNull("key1 should be in cache", cache.getCompleted(key1));
+        assertNotNull("key2 should be in cache", cache.getCompleted(key2));
+
+        cache.putTailIfEligible(key3, 29500, bytes500, 500);
+        assertNotNull("key3 should be in cache", cache.getCompleted(key3));
+        assertNull("key1 should have been evicted by LRU", cache.getCompleted(key1));
+    }
+
+    /**
+     * Validates byte-for-byte correctness of the sliding-window adapter against raw data:
+     * sequential reads, forward seeks, backward seeks, tail reads, and ByteBuffer reads.
+     */
+    public void testAdapterReadsIdenticalBytesToVanillaStream() throws IOException {
+        ParquetStorageObjectAdapter.setWindowCacheEnabledForTests(true);
+        int n = 2 * ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 500;
+        byte[] data = new byte[n];
+        random().nextBytes(data);
+        StorageObject storageObject = createRangeReadStorageObject(data);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storageObject);
+
+        try (SeekableInputStream stream = adapter.newStream()) {
+            byte[] got = new byte[100];
+            assertEquals(100, stream.read(got));
+            assertArrayEquals(java.util.Arrays.copyOfRange(data, 0, 100), got);
+
+            stream.seek(1000);
+            got = new byte[200];
+            assertEquals(200, stream.read(got, 0, 200));
+            assertArrayEquals(java.util.Arrays.copyOfRange(data, 1000, 1200), got);
+
+            stream.seek(500);
+            got = new byte[300];
+            assertEquals(300, stream.read(got, 0, 300));
+            assertArrayEquals(java.util.Arrays.copyOfRange(data, 500, 800), got);
+
+            long endPos = data.length - 100L;
+            stream.seek(endPos);
+            got = new byte[100];
+            stream.readFully(got);
+            assertArrayEquals(java.util.Arrays.copyOfRange(data, (int) endPos, data.length), got);
+
+            stream.seek(2048);
+            ByteBuffer buf = ByteBuffer.allocate(64);
+            stream.readFully(buf);
+            buf.flip();
+            byte[] bufBytes = new byte[64];
+            buf.get(bufBytes);
+            assertArrayEquals(java.util.Arrays.copyOfRange(data, 2048, 2048 + 64), bufBytes);
+        }
+    }
+
+    /**
+     * Validates that the {@code forRange} adaptive-window adapter reads the same bytes as the
+     * default-window adapter for identical seek/read sequences.
+     */
+    public void testForRangeAdapterReadsIdenticalData() throws IOException {
+        ParquetStorageObjectAdapter.setWindowCacheEnabledForTests(true);
+        int n = 2 * ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 500;
+        byte[] data = new byte[n];
+        random().nextBytes(data);
+        StorageObject storage = createRangeReadStorageObject(data);
+        ParquetStorageObjectAdapter defaultAdapter = new ParquetStorageObjectAdapter(storage);
+        ParquetStorageObjectAdapter rangeAdapter = ParquetStorageObjectAdapter.forRange(storage, 8L * 1024 * 1024);
+
+        try (SeekableInputStream a = defaultAdapter.newStream(); SeekableInputStream b = rangeAdapter.newStream()) {
+            byte[] g1 = new byte[100];
+            byte[] g2 = new byte[100];
+            assertEquals(a.read(g1), b.read(g2));
+            assertArrayEquals(g1, g2);
+
+            a.seek(1000);
+            b.seek(1000);
+            g1 = new byte[200];
+            g2 = new byte[200];
+            assertEquals(a.read(g1, 0, 200), b.read(g2, 0, 200));
+            assertArrayEquals(g1, g2);
+
+            a.seek(500);
+            b.seek(500);
+            g1 = new byte[300];
+            g2 = new byte[300];
+            assertEquals(a.read(g1, 0, 300), b.read(g2, 0, 300));
+            assertArrayEquals(g1, g2);
+
+            long endPos = data.length - 100L;
+            a.seek(endPos);
+            b.seek(endPos);
+            g1 = new byte[100];
+            g2 = new byte[100];
+            a.readFully(g1);
+            b.readFully(g2);
+            assertArrayEquals(g1, g2);
+        }
+    }
+
+    private StorageObject createCountingStorageObject(byte[] data, StoragePath path, Instant lastModified, int[] counter) {
+        return new StorageObject() {
+            @Override
+            public InputStream newStream() throws IOException {
+                throw new UnsupportedOperationException("Full GET not supported");
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) throws IOException {
+                counter[0]++;
+                int pos = (int) position;
+                int len = (int) Math.min(length, data.length - position);
+                return new ByteArrayInputStream(data, pos, len);
+            }
+
+            @Override
+            public long length() throws IOException {
+                return data.length;
+            }
+
+            @Override
+            public Instant lastModified() throws IOException {
+                return lastModified;
+            }
+
+            @Override
+            public boolean exists() throws IOException {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return path;
+            }
+        };
     }
 
     /**

@@ -358,9 +358,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=mapping/20_synthetic_source/synthetic_source text with normalized keyword with default skip store original value}
   issue: https://github.com/elastic/elasticsearch/issues/147064
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=indices.simulate_index_template/10_basic/Simulate index template with data stream with mapping and setting overrides}
-  issue: https://github.com/elastic/elasticsearch/issues/147064
 - class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
   method: test {yaml=rrf/310_rrf_retriever_simplified/Expansion to equivalent custom sub-retrievers returns the same results}
   issue: https://github.com/elastic/elasticsearch/issues/146464

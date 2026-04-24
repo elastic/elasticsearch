@@ -24,16 +24,18 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.translog.TranslogStats;
-import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_METADATA;
@@ -51,6 +53,12 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class OpenCloseIndexIT extends ESIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return List.of(InternalSettingsPlugin.class);
+    }
+
     public void testSimpleCloseOpen() {
         Client client = client();
         createIndex("test1");
@@ -360,7 +368,15 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
 
     public void testTranslogStats() throws Exception {
         final String indexName = "test";
-        createIndex(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build());
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                // sync global checkpoint and translog quickly so that the test assertion picks it up within a 10-sec time frame
+                .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "500ms")
+                .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), "500ms")
+                .build()
+        );
 
         final int nbDocs = randomIntBetween(0, 50);
         int uncommittedOps = 0;
@@ -379,62 +395,22 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         final int uncommittedTranslogOps = uncommittedOps;
 
         assertBusy(() -> {
-            IndicesStatsResponse stats = indicesAdmin().prepareStats(indexName).clear().setTranslog(true).get();
+            final IndicesStatsResponse stats = indicesAdmin().prepareStats(indexName).clear().setTranslog(true).get();
             assertThat(stats.getIndex(indexName), notNullValue());
-            logShardStatus(indexName);
             final var translogStats = stats.getIndex(indexName).getPrimaries().getTranslog();
-            logTranslogStats(translogStats, uncommittedTranslogOps);
             assertThat(translogStats.estimatedNumberOfOperations(), equalTo(uncommittedTranslogOps));
             assertThat(translogStats.getUncommittedOperations(), equalTo(uncommittedTranslogOps));
         });
 
         assertAcked(indicesAdmin().prepareClose("test"));
 
-        IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
         IndicesStatsResponse stats = indicesAdmin().prepareStats(indexName)
-            .setIndicesOptions(indicesOptions)
+            .setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN)
             .clear()
             .setTranslog(true)
             .get();
         assertThat(stats.getIndex(indexName), notNullValue());
         assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().estimatedNumberOfOperations(), equalTo(0));
         assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().getUncommittedOperations(), equalTo(0));
-    }
-
-    /**
-     * @see <a href="https://github.com/elastic/elasticsearch/issues/146604">#146604</a>
-     */
-    private void logShardStatus(String indexName) {
-        final var index = internalCluster().clusterService().state().metadata().getProject().index(indexName).getIndex();
-        for (String nodeName : internalCluster().nodesInclude(indexName)) {
-            IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeName);
-            IndexService indexService = indicesService.indexServiceSafe(index);
-            for (IndexShard shard : indexService) {
-                if (shard.routingEntry().primary()) {
-                    logger.info(
-                        "Shard [{}] status: lastKnownGlobalCheckpoint={}, lastSyncedGlobalCheckpoint={}, "
-                            + "localCheckpoint={}, maxSeqNo={}",
-                        shard.shardId(),
-                        shard.getLastKnownGlobalCheckpoint(),
-                        shard.getLastSyncedGlobalCheckpoint(),
-                        shard.seqNoStats().getLocalCheckpoint(),
-                        shard.seqNoStats().getMaxSeqNo()
-                    );
-                }
-            }
-        }
-    }
-
-    /**
-     *
-     * @see <a href="https://github.com/elastic/elasticsearch/issues/146604">#146604</a>
-     */
-    private void logTranslogStats(TranslogStats translogStats, int uncommittedTranslogOps) {
-        logger.info(
-            "TranslogStats: estimatedOps={}, uncommittedOps={}, expected={}",
-            translogStats.estimatedNumberOfOperations(),
-            translogStats.getUncommittedOperations(),
-            uncommittedTranslogOps
-        );
     }
 }

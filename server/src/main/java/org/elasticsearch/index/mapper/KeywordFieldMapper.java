@@ -1375,11 +1375,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         return docValuesParameters;
     }
 
-    @Override
-    protected boolean isSingleValueEnforced() {
-        return docValuesParameters.multiValue().isSingleValued();
-    }
-
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         var value = context.parser().optimizedTextOrNull();
 
@@ -1441,7 +1436,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 final String fieldName = fieldType().syntheticSourceFallbackFieldName();
 
                 if (storeIgnoredFieldsInBinaryDocValues) {
-                    dvFactory.addBinaryField(
+                    dvFactory.addBinaryFieldLegacyEncodingAware(
                         context.doc(),
                         fieldName,
                         bytesRef,

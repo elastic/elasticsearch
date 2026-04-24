@@ -12,11 +12,6 @@ esplugin {
 }
 
 configurations {
-    all {
-        resolutionStrategy {
-            preferProjectModules()
-        }
-    }
     testImplementation {
         exclude group: 'javax.xml.bind', module: 'jaxb-api'
     }

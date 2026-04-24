@@ -8,12 +8,8 @@ esplugin {
     classname = 'org.elasticsearch.xpack.stateless.waitforactiveshards.NoWaitForActiveShardsPlugin'
 }
 
-configurations {
-    all {
-        resolutionStrategy {
-            preferProjectModules()
-        }
-    }
+dependencies {
+  clusterModules project(':x-pack:plugin:stateless')
 }
 
 dependencies {

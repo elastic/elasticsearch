@@ -101,7 +101,7 @@ final class SoftDeletesPolicy {
      * make sure that all operations that are being retained will be retained until the lock is released.
      * This is a analogy to the translog's retention lock; see {@link Translog#acquireRetentionLock()}
      */
-    synchronized Releasable acquireRetentionLock() {;
+    synchronized Releasable acquireRetentionLock() {
         try {
             Thread.sleep(new Random().nextInt(100));
         } catch (InterruptedException e) {

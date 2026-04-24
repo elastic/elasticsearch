@@ -68,6 +68,8 @@ import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.IVFKnnFloatVectorQuery;
+import org.elasticsearch.search.vectors.PostFilterKnnQuery;
+import org.elasticsearch.search.vectors.PostFilterableKnnQuery;
 import org.elasticsearch.search.vectors.QueryProfilerProvider;
 import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
 import org.elasticsearch.test.knn.data.DataGenerator;
@@ -723,6 +725,7 @@ public class KnnSearcher {
                 DenseVectorFieldMapper.FilterHeuristic.ACORN.getKnnSearchStrategy(),
                 indexType == KnnIndexTester.IndexType.HNSW && searchParameters.earlyTermination()
             );
+            knnQuery = new PostFilterKnnQuery((PostFilterableKnnQuery) knnQuery, filterQuery, efSearch, VECTOR_FIELD, null);
         }
         if (searchParameters.overSamplingFactor() > 1f) {
             // oversample the topK results to get more candidates for the final result

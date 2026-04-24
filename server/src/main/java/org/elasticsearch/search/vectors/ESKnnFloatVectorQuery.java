@@ -79,6 +79,7 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
 
     @Override
     public Query createRetryQuery(IndexReader reader, int[] docsVisited) {
+        // todo: adjust k (account for selectivity) so that we only gather the results missing to hit the original k
         Query filter = docsVisited != null ? new ExcludeDocsQuery(docsVisited, reader) : null;
         return new ESKnnFloatVectorQuery(
             field,

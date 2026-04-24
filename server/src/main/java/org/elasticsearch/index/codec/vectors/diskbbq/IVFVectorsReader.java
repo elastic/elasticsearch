@@ -440,6 +440,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             && (maxVectorVisited > expectedDocs || knnCollector.minCompetitiveSimilarity() == Float.NEGATIVE_INFINITY)) {
             PostingMetadata postingMetadata = centroidPrefetchingIterator.nextPosting();
             // skip centroids that were visited in a previous retry round
+            // todo: maybe not worth skipping whole centroids as the optimal results might be in already visited centroids
             if (ivfStrategy != null && ivfStrategy.shouldSkipCentroid(postingMetadata.centroidOrdinal())) {
                 continue;
             }

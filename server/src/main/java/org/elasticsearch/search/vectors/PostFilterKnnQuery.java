@@ -94,6 +94,7 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
         Query delegate = postFilterQuery.createRetryQuery(searcher.getIndexReader(), null);
         assert delegate instanceof PostFilterableKnnQuery;
         for (int round = 0; round < MAX_ROUNDS; round++) {
+            // todo: check revisiting segments that might have already been exhausted
             TopDocs topDocs = searcher.search(delegate, Integer.MAX_VALUE);
             if (topDocs.scoreDocs.length == 0) {
                 break;

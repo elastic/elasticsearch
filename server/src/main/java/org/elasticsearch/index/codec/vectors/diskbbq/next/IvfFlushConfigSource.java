@@ -16,7 +16,8 @@ import java.io.IOException;
 import java.util.Optional;
 
 /**
- * Optional per-field configuration loaded on flush before building IVF structures. Default: {@link #empty()}.
+ * Optional per-field configuration loaded on flush before building IVF structures.
+ * Default: {@link #empty()}.
  */
 @FunctionalInterface
 public interface IvfFlushConfigSource {

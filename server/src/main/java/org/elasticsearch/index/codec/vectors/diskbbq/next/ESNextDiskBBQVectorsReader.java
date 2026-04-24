@@ -75,15 +75,6 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         );
     }
 
-    /**
-     * Returns the {@link NextFieldEntry#centroidOversamplingFactor} for the field; only for tests
-     * in the same package.
-     */
-    float centroidOversamplingFactorForFieldForTests(int fieldNumber) {
-        NextFieldEntry e = Objects.requireNonNull(fields.get(fieldNumber), "missing ivf field " + fieldNumber);
-        return e.centroidOversamplingFactor();
-    }
-
     CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice) throws IOException {
         // TODO we may want to prefetch more than one postings list, however, we will likely want to place a limit
         // so we don't bother prefetching many lists we won't end up scoring
@@ -333,7 +324,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         return null;
     }
 
-    protected static class NextFieldEntry extends FieldEntry {
+    public static class NextFieldEntry extends FieldEntry {
         private final ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding;
         protected final long preconditionerOffset;
         protected final long preconditionerLength;
@@ -342,7 +333,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         // > 0 "sliced but on merge, is the number of slices".
         final int numSlices;
         final int maxSliceSize;
-        /** NaN: use historical derived factor from centroids / parents at query time. */
+        // if NaN, use historical derived factor from centroids / parents at query time.
         private final float centroidOversamplingFactor;
 
         NextFieldEntry(

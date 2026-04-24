@@ -15,7 +15,8 @@ import org.apache.lucene.index.MergeState;
 import java.io.IOException;
 
 /**
- * Produces a single merged {@link IvfSegmentConfig} for the output segment. Default: {@link #useCodecDefault()}.
+ * Resolve a single merged {@link IvfSegmentConfig} for the output segment.
+ * Defaults to {@link #useCodecDefault()}.
  */
 @FunctionalInterface
 public interface IvfMergeConfigResolver {

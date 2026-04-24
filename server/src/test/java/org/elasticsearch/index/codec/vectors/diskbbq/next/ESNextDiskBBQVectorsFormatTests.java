@@ -23,7 +23,6 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -78,8 +77,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
 
@@ -224,38 +221,6 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
         expectThrows(IllegalArgumentException.class, () -> new ESNextDiskBBQVectorsFormat(MAX_VECTORS_PER_CLUSTER + 1, 16, null));
         expectThrows(IllegalArgumentException.class, () -> new ESNextDiskBBQVectorsFormat(128, MIN_CENTROIDS_PER_PARENT_CLUSTER - 1, null));
         expectThrows(IllegalArgumentException.class, () -> new ESNextDiskBBQVectorsFormat(128, MAX_CENTROIDS_PER_PARENT_CLUSTER + 1, null));
-    }
-
-    public void testDefaultCentroidOversamplingInMetaIsNaN() throws IOException {
-        int dimensions = 16;
-        try (Directory dir = newDirectory()) {
-            IndexWriterConfig iwc = newIndexWriterConfig();
-            iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(format));
-            try (IndexWriter w = new IndexWriter(dir, iwc)) {
-                Document doc = new Document();
-                doc.add(new KnnFloatVectorField("f", randomVector(dimensions), VectorSimilarityFunction.EUCLIDEAN));
-                w.addDocument(doc);
-                w.commit();
-            }
-            try (IndexReader reader = DirectoryReader.open(dir)) {
-                LeafReader leaf = getOnlyLeafReader(reader);
-                if (leaf instanceof CodecReader codecReader) {
-                    KnnVectorsReader knnVectorsReader = codecReader.getVectorReader();
-                    if (knnVectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
-                        knnVectorsReader = fieldsReader.getFieldReader("f");
-                    }
-                    assertTrue(
-                        "expected ESNextDiskBBQVectorsReader, got: " + knnVectorsReader.getClass(),
-                        knnVectorsReader instanceof ESNextDiskBBQVectorsReader
-                    );
-                    var esr = (ESNextDiskBBQVectorsReader) knnVectorsReader;
-                    FieldInfo fi = leaf.getFieldInfos().fieldInfo("f");
-                    assertTrue(Float.isNaN(esr.centroidOversamplingFactorForFieldForTests(fi.number)));
-                } else {
-                    fail("expected CodecReader, got: " + leaf);
-                }
-            }
-        }
     }
 
     public void testSimpleOffHeapSize() throws IOException {

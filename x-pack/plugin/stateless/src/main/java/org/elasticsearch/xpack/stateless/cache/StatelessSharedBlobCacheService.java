@@ -89,15 +89,17 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         boolean force,
         ActionListener<Void> listener
     ) {
-        var adjustedByteRange = cacheBlobReader.getRange(
-            byteRange.start(),
-            byteRange.length() < Integer.MAX_VALUE ? Math.toIntExact(byteRange.length()) : Integer.MAX_VALUE,
-            byteRange.length()
-        );
-        var startRegion = getRegion(adjustedByteRange.start());
-        var endRegion = getEndingRegion(adjustedByteRange.end());
+        var startRegion = getRegion(byteRange.start());
+        var endRegion = getEndingRegion(byteRange.end());
         try (RefCountingListener listeners = new RefCountingListener(listener)) {
             for (int region = startRegion; region <= endRegion; region++) {
+                long regionRangeStart = Math.max(getRegionStart(region), byteRange.start());
+                long regionRangeEnd = Math.min(getRegionEnd(region), byteRange.end());
+                var adjustedByteRange = cacheBlobReader.getRange(
+                    regionRangeStart,
+                    Math.toIntExact(regionRangeEnd - regionRangeStart),
+                    byteRange.end() - regionRangeStart
+                );
                 fetchRange(
                     cacheKey,
                     region,

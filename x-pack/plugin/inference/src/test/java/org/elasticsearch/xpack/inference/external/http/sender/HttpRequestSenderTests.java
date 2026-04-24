@@ -196,6 +196,84 @@ public class HttpRequestSenderTests extends ESTestCase {
         assertThat(exception.status(), is(RestStatus.SERVICE_UNAVAILABLE));
     }
 
+    public void testStartAsync_PerCallerTimeoutDoesNotPoisonSharedState() {
+        var mockManager = createMockHttpClientManager();
+
+        // Block service.start() to simulate a hung startup; blockStartLatch is counted down in @After
+        var mockService = mock(RequestExecutor.class);
+        doAnswer(invocation -> {
+            blockStartLatch.await();
+            return null;
+        }).when(mockService).start();
+        var sender = new HttpRequestSender(threadPool, mockManager, mock(RequestSender.class), mockService);
+
+        // First caller times out — per-caller ListenerTimeouts fires, not the shared startupNotifier
+        var timedListener = new TestPlainActionFuture<Void>();
+        sender.startAsynchronously(timedListener, TimeValue.timeValueMillis(1));
+        var ex = expectThrows(ElasticsearchStatusException.class, () -> timedListener.actionGet(TEST_REQUEST_TIMEOUT));
+        assertThat(ex.getMessage(), is("Http sender startup did not complete in time"));
+        assertThat(ex.status(), is(RestStatus.SERVICE_UNAVAILABLE));
+
+        // Unblock startup so startupNotifier resolves successfully
+        blockStartLatch.countDown();
+
+        // Second caller with no timeout should succeed — startupNotifier was not poisoned
+        var successListener = new TestPlainActionFuture<Void>();
+        sender.startAsynchronously(successListener, null);
+        assertNull(successListener.actionGet(TEST_REQUEST_TIMEOUT));
+        verify(mockManager, times(1)).start();
+    }
+
+    public void testStartAsync_LateListenerGetsImmediateNotification() {
+        var mockManager = createMockHttpClientManager();
+        var sender = new HttpRequestSender(threadPool, mockManager, mock(RequestSender.class), mock(RequestExecutor.class));
+
+        startSynchronously(sender);  // startup completes, startupNotifier already resolved
+
+        // Listener registered after startup completes should be notified immediately
+        var listener = new TestPlainActionFuture<Void>();
+        sender.startAsynchronously(listener, null);
+        assertNull(listener.actionGet(TEST_REQUEST_TIMEOUT));
+        verify(mockManager, times(1)).start();
+    }
+
+    public void testConcurrentStartAsync_AllListenersReceiveFailure() throws InterruptedException {
+        var mockManager = createMockHttpClientManager();
+        doAnswer(invocation -> {
+            blockStartLatch.await();
+            throw new ElasticsearchException("failed");
+        }).when(mockManager).start();
+        var sender = new HttpRequestSender(threadPool, mockManager, mock(RequestSender.class), mock(RequestExecutor.class));
+
+        final var threadCount = between(4, 8);
+        final var barrier = new CyclicBarrier(threadCount);
+        final var threads = new ArrayList<Thread>();
+        final var futures = new ArrayList<TestPlainActionFuture<Void>>();
+
+        for (int i = 0; i < threadCount; i++) {
+            final var future = new TestPlainActionFuture<Void>();
+            futures.add(future);
+            threads.add(new Thread(() -> {
+                safeAwait(barrier);
+                sender.startAsynchronously(future, null);
+            }));
+        }
+
+        for (var thread : threads) {
+            thread.start();
+        }
+        blockStartLatch.countDown();  // unblock → manager.start() throws → startupNotifier.onFailure
+        for (var thread : threads) {
+            thread.join(TEST_REQUEST_TIMEOUT.millis());
+        }
+
+        for (var future : futures) {
+            var exception = expectThrows(ElasticsearchException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
+            assertThat(exception.getMessage(), is("failed"));
+        }
+        verify(mockManager, times(1)).start();
+    }
+
     public void testCreateSender_CanCallStartAsyncMultipleTimes() throws Exception {
         var mockManager = createMockHttpClientManager();
         var asyncCalls = 3;

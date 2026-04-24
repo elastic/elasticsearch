@@ -27,11 +27,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 public abstract class InferenceTestCase extends ESRestTestCase {
 
-    /**
-     * Shared cluster for all {@link InferenceTestCase} subclasses. Replaces the
-     * previous {@code testClusters.configureEach} Gradle block so this project can
-     * migrate off {@code elasticsearch.legacy-java-rest-test}.
-     */
     @ClassRule
     public static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)

@@ -430,13 +430,17 @@ public class EsqlSession {
 
         EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
 
+        var columnMetadata = createColumnMetadata(analyzedPlan, foldContext);
+        listener = listener.delegateFailureAndWrap(
+            (l, r) -> l.onResponse(
+                new Result(r.schema(), r.pages(), columnMetadata, r.configuration(), r.completionInfo(), r.executionInfo())
+            )
+        );
         // In explain mode, wrap the listener to transform results into EXPLAIN table format.
         // We use the same execution path as normal queries to ensure accuracy.
-        ActionListener<Result> effectiveListener = explainMode
+        listener = explainMode
             ? createExplainListener(listener, optimizedPlan, request, physicalPlanOptimizer, planTimeProfile, configuration, planRunner)
             : listener;
-
-        var columnMetadata = createColumnMetadata(analyzedPlan, foldContext);
 
         // Always use the same execution path - executeSubPlans handles both simple queries and those with subplans
         executeSubPlans(
@@ -449,11 +453,7 @@ public class EsqlSession {
             request,
             physicalPlanOptimizer,
             planTimeProfile,
-            effectiveListener.delegateFailureAndWrap(
-                (l, r) -> l.onResponse(
-                    new Result(r.schema(), r.pages(), columnMetadata, r.configuration(), r.completionInfo(), r.executionInfo())
-                )
-            )
+            listener
         );
     }
 

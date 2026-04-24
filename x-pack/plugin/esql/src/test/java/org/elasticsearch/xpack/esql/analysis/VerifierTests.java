@@ -3334,6 +3334,25 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testNoDimensionsInAggsOnlyInByClause() {
+        tsdb().error(
+            "TS test | STATS count(host) BY bucket(@timestamp, 1 minute)",
+            equalTo(
+                "1:23: argument of [implicit time-series aggregation function (LastOverTime) for host] must be "
+                    + "[numeric except unsigned_long], found value [host] type [keyword]; "
+                    + "to aggregate non-numeric fields, use the FROM command instead of the TS command"
+            )
+        );
+        tsdb().error(
+            "TS test | STATS max(name) BY bucket(@timestamp, 1 minute)",
+            equalTo(
+                "1:21: argument of [implicit time-series aggregation function (LastOverTime) for name] must be "
+                    + "[numeric except unsigned_long], found value [name] type [keyword]; "
+                    + "to aggregate non-numeric fields, use the FROM command instead of the TS command"
+            )
+        );
+    }
+
     public void testSortInTimeSeries() {
         tsdb().error(
             "TS test | SORT host | STATS avg(last_over_time(network.connections))",

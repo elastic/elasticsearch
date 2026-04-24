@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.oteldata.otlp.datapoint.TargetIndex;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -42,14 +43,13 @@ public class LogDocumentBuilder extends OTelDocumentBuilder {
         LogRecord logRecord
     ) throws IOException {
         builder.startObject();
+        long observedTimestamp = logRecord.getObservedTimeUnixNano();
         long docTimestamp = logRecord.getTimeUnixNano();
         if (docTimestamp == 0) {
-            docTimestamp = logRecord.getObservedTimeUnixNano();
+            docTimestamp = observedTimestamp;
         }
-        builder.field("@timestamp", TimeUnit.NANOSECONDS.toMillis(docTimestamp));
-        if (logRecord.getObservedTimeUnixNano() != 0) {
-            builder.field("observed_timestamp", TimeUnit.NANOSECONDS.toMillis(logRecord.getObservedTimeUnixNano()));
-        }
+        addLogTimestampField(builder, "@timestamp", docTimestamp);
+        addLogTimestampField(builder, "observed_timestamp", observedTimestamp);
         if (logRecord.getSeverityNumber() != SeverityNumber.SEVERITY_NUMBER_UNSPECIFIED) {
             builder.field("severity_number", logRecord.getSeverityNumber().getNumber());
         }
@@ -71,18 +71,73 @@ public class LogDocumentBuilder extends OTelDocumentBuilder {
         if (logRecord.getTraceId().isEmpty() == false) {
             addTraceId(builder, logRecord.getTraceId().toByteArray());
         }
-        buildResource(resource, resourceSchemaUrl, builder);
+        buildLogResource(resource, resourceSchemaUrl, builder);
         buildDataStream(builder, targetIndex);
-        buildScope(builder, scope, scopeSchemaUrl);
-        buildAttributes(builder, logRecord.getAttributesList(), logRecord.getDroppedAttributesCount());
+        buildLogScope(builder, scope, scopeSchemaUrl);
+        buildLogAttributes(builder, logRecord.getAttributesList(), logRecord.getDroppedAttributesCount());
         buildBody(builder, logRecord);
         builder.endObject();
     }
 
+    private void addLogTimestampField(XContentBuilder builder, String fieldName, long unixNanos) throws IOException {
+        long millis = TimeUnit.NANOSECONDS.toMillis(unixNanos);
+        long nanosRemainder = unixNanos - TimeUnit.MILLISECONDS.toNanos(millis);
+        builder.field(fieldName, millis + "." + nanosRemainder);
+    }
+
+    private void buildLogResource(Resource resource, ByteString schemaUrl, XContentBuilder builder) throws IOException {
+        builder.startObject("resource");
+        addFieldIfNotEmpty(builder, "schema_url", schemaUrl);
+        buildLogAttributes(builder, resource.getAttributesList(), resource.getDroppedAttributesCount());
+        builder.endObject();
+    }
+
+    private void buildLogScope(XContentBuilder builder, InstrumentationScope scope, ByteString schemaUrl) throws IOException {
+        builder.startObject("scope");
+        addFieldIfNotEmpty(builder, "schema_url", schemaUrl);
+        addFieldIfNotEmpty(builder, "name", scope.getNameBytes());
+        addFieldIfNotEmpty(builder, "version", scope.getVersionBytes());
+        buildLogAttributes(builder, scope.getAttributesList(), scope.getDroppedAttributesCount());
+        builder.endObject();
+    }
+
+    private void buildLogAttributes(XContentBuilder builder, List<KeyValue> attributes, int droppedAttributesCount) throws IOException {
+        if (droppedAttributesCount > 0) {
+            builder.field("dropped_attributes_count", droppedAttributesCount);
+        }
+        boolean startedAttributes = false;
+        for (int i = 0, size = attributes.size(); i < size; i++) {
+            KeyValue attribute = attributes.get(i);
+            if (isIgnoredLogAttribute(attribute.getKey())) {
+                continue;
+            }
+            if (startedAttributes == false) {
+                builder.startObject("attributes");
+                startedAttributes = true;
+            }
+            builder.field(attribute.getKey());
+            buildAnyValue(builder, attribute.getValue());
+        }
+        if (startedAttributes) {
+            builder.endObject();
+        }
+    }
+
+    private static boolean isIgnoredLogAttribute(String attributeKey) {
+        return isIgnoredAttribute(attributeKey)
+            || "data_stream.type".equals(attributeKey)
+            || "elastic.mapping.mode".equals(attributeKey)
+            || "elasticsearch.document_id".equals(attributeKey)
+            || "elasticsearch.ingest_pipeline".equals(attributeKey);
+    }
+
     private void buildBody(XContentBuilder builder, LogRecord logRecord) throws IOException {
-        builder.startObject("body");
         AnyValue body = logRecord.getBody();
         AnyValue.ValueCase valueCase = body.getValueCase();
+        if (valueCase == AnyValue.ValueCase.VALUE_NOT_SET) {
+            return;
+        }
+        builder.startObject("body");
         switch (valueCase) {
             case ARRAY_VALUE: {
                 boolean allMaps = true;
@@ -97,8 +152,10 @@ public class LogDocumentBuilder extends OTelDocumentBuilder {
                 } else {
                     // The flattened field type only accepts objects or arrays of objects
                     // If this is an array of primitive values, for example, wrap the array in a 'value' object
-                    builder.startObject("value");
-                    buildStructuredBody(builder, body);
+                    builder.field("structured");
+                    builder.startObject();
+                    builder.field("value");
+                    buildAnyValue(builder, body);
                     builder.endObject();
                 }
                 break;

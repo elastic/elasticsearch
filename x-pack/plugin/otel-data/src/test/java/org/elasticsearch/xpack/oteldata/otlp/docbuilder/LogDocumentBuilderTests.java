@@ -32,7 +32,6 @@ import java.io.IOException;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.keyValue;
 import static org.hamcrest.Matchers.equalTo;
@@ -55,10 +54,11 @@ public class LogDocumentBuilderTests extends ESTestCase {
 
         assertThat(doc.evaluate("body.text"), equalTo("Hello world"));
         assertThat(doc.evaluate("body.structured"), nullValue());
-        assertThat(doc.<Number>evaluate("@timestamp").longValue(), equalTo(TimeUnit.NANOSECONDS.toMillis(1_000_000_000L)));
-        assertThat(doc.<Number>evaluate("observed_timestamp").longValue(), equalTo(TimeUnit.NANOSECONDS.toMillis(2_000_000_000L)));
+        assertThat(doc.evaluate("@timestamp"), equalTo("1000.0"));
+        assertThat(doc.evaluate("observed_timestamp"), equalTo("2000.0"));
         assertThat(doc.evaluate("severity_text"), equalTo("INFO"));
         assertThat(doc.evaluate("severity_number"), equalTo(SeverityNumber.SEVERITY_NUMBER_INFO.getNumber()));
+        assertThat(doc.evaluate("attributes"), nullValue());
     }
 
     public void testKvlistBody() throws IOException {
@@ -152,8 +152,8 @@ public class LogDocumentBuilderTests extends ESTestCase {
         ObjectPath doc = buildDocument(logRecord);
 
         assertThat(doc.evaluate("body.text"), nullValue());
-        assertThat(doc.evaluate("body.value.structured.0"), equalTo("plain string"));
-        assertThat(doc.evaluate("body.value.structured.1"), equalTo(99));
+        assertThat(doc.evaluate("body.structured.value.0"), equalTo("plain string"));
+        assertThat(doc.evaluate("body.structured.value.1"), equalTo(99));
     }
 
     public void testEventNameFromField() throws IOException {
@@ -243,14 +243,87 @@ public class LogDocumentBuilderTests extends ESTestCase {
 
         ObjectPath doc = buildDocument(logRecord);
 
-        // When timeUnixNano is 0, @timestamp should fall back to observedTimeUnixNano
-        assertThat(doc.<Number>evaluate("@timestamp").longValue(), equalTo(TimeUnit.NANOSECONDS.toMillis(5_000_000_000L)));
-        assertThat(doc.<Number>evaluate("observed_timestamp").longValue(), equalTo(TimeUnit.NANOSECONDS.toMillis(5_000_000_000L)));
+        assertThat(doc.evaluate("@timestamp"), equalTo("5000.0"));
+        assertThat(doc.evaluate("observed_timestamp"), equalTo("5000.0"));
+    }
+
+    public void testTimestampPreservesSubMillisecondPrecision() throws IOException {
+        LogRecord logRecord = LogRecord.newBuilder()
+            .setTimeUnixNano(1_721_314_113_467_654_123L)
+            .setBody(AnyValue.newBuilder().setStringValue("msg").build())
+            .build();
+
+        ObjectPath doc = buildDocument(logRecord);
+
+        assertThat(doc.evaluate("@timestamp"), equalTo("1721314113467.654123"));
+        assertThat(doc.evaluate("observed_timestamp"), equalTo("0.0"));
+    }
+
+    public void testEmptyBodyIsOmitted() throws IOException {
+        LogRecord logRecord = LogRecord.newBuilder().setTimeUnixNano(1_000_000_000L).build();
+
+        ObjectPath doc = buildDocument(logRecord);
+
+        assertThat(doc.evaluate("body"), nullValue());
+        assertThat(doc.evaluate("attributes"), nullValue());
+    }
+
+    public void testControlAttributesAreFiltered() throws IOException {
+        Resource resource = Resource.newBuilder()
+            .addAttributes(keyValue("service.name", "test-service"))
+            .addAttributes(keyValue("elastic.mapping.mode", "otel"))
+            .build();
+        InstrumentationScope scope = InstrumentationScope.newBuilder()
+            .setName("test-scope")
+            .addAttributes(keyValue("scope.keep", "value"))
+            .addAttributes(keyValue("elasticsearch.ingest_pipeline", "logs-pipeline"))
+            .build();
+        LogRecord logRecord = LogRecord.newBuilder()
+            .setTimeUnixNano(1_000_000_000L)
+            .setBody(AnyValue.newBuilder().setStringValue("msg").build())
+            .addAttributes(keyValue("keep", "value"))
+            .addAttributes(keyValue("data_stream.type", "logs"))
+            .addAttributes(keyValue("elasticsearch.document_id", "doc-id"))
+            .build();
+
+        ObjectPath doc = buildDocument(resource, scope, logRecord);
+
+        assertThat(doc.evaluate("attributes.keep"), equalTo("value"));
+        assertThat(doc.evaluate("attributes.data_stream\\.type"), nullValue());
+        assertThat(doc.evaluate("attributes.elasticsearch\\.document_id"), nullValue());
+        assertThat(doc.evaluate("scope.attributes.scope\\.keep"), equalTo("value"));
+        assertThat(doc.evaluate("scope.attributes.elasticsearch\\.ingest_pipeline"), nullValue());
+        assertThat(doc.evaluate("resource.attributes.service\\.name"), equalTo("test-service"));
+        assertThat(doc.evaluate("resource.attributes.elastic\\.mapping\\.mode"), nullValue());
+    }
+
+    public void testFilteredControlAttributesDoNotCreateEmptyAttributesObject() throws IOException {
+        Resource resource = Resource.newBuilder().addAttributes(keyValue("elastic.mapping.mode", "otel")).build();
+        InstrumentationScope scope = InstrumentationScope.newBuilder()
+            .setName("test-scope")
+            .addAttributes(keyValue("elasticsearch.ingest_pipeline", "logs-pipeline"))
+            .build();
+        LogRecord logRecord = LogRecord.newBuilder()
+            .setTimeUnixNano(1_000_000_000L)
+            .setBody(AnyValue.newBuilder().setStringValue("msg").build())
+            .addAttributes(keyValue("data_stream.type", "logs"))
+            .addAttributes(keyValue("elasticsearch.document_id", "doc-id"))
+            .build();
+
+        ObjectPath doc = buildDocument(resource, scope, logRecord);
+
+        assertThat(doc.evaluate("attributes"), nullValue());
+        assertThat(doc.evaluate("scope.attributes"), nullValue());
+        assertThat(doc.evaluate("resource.attributes"), nullValue());
     }
 
     private ObjectPath buildDocument(LogRecord logRecord) throws IOException {
         Resource resource = Resource.newBuilder().addAttributes(keyValue("service.name", "test-service")).build();
         InstrumentationScope scope = InstrumentationScope.newBuilder().setName("test-scope").setVersion("1.0.0").build();
+        return buildDocument(resource, scope, logRecord);
+    }
+
+    private ObjectPath buildDocument(Resource resource, InstrumentationScope scope, LogRecord logRecord) throws IOException {
         TargetIndex targetIndex = TargetIndex.evaluate("logs", List.of(), null, List.of(), List.of());
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);

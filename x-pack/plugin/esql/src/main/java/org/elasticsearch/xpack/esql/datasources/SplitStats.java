@@ -472,6 +472,9 @@ public final class SplitStats implements Writeable {
             if (splits.size() == 1 && splits.getFirst() instanceof FileSplit fs && fs.splitStats() != null) {
                 return fs.splitStats();
             }
+            if (sourceMetadata != null && Boolean.TRUE.equals(sourceMetadata.get(SourceStatisticsSerializer.STATS_PARTIAL))) {
+                return null;
+            }
             return of(sourceMetadata);
         }
         List<SplitStats> perSplit = new ArrayList<>(splits.size());

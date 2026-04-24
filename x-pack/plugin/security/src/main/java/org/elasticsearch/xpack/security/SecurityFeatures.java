@@ -12,6 +12,7 @@ import org.elasticsearch.features.NodeFeature;
 
 import java.util.Set;
 
+import static org.elasticsearch.xpack.security.crypto.PrimaryEncryptionKeyService.PRIMARY_ENCRYPTION_KEY_FEATURE;
 import static org.elasticsearch.xpack.security.support.QueryableBuiltInRolesSynchronizer.QUERYABLE_BUILT_IN_ROLES_FEATURE;
 
 public class SecurityFeatures implements FeatureSpecification {
@@ -21,6 +22,11 @@ public class SecurityFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(QUERYABLE_BUILT_IN_ROLES_FEATURE, CERTIFICATE_IDENTITY_FIELD_FEATURE, SECURITY_STATS_ENDPOINT);
+        return Set.of(
+            QUERYABLE_BUILT_IN_ROLES_FEATURE,
+            CERTIFICATE_IDENTITY_FIELD_FEATURE,
+            SECURITY_STATS_ENDPOINT,
+            PRIMARY_ENCRYPTION_KEY_FEATURE
+        );
     }
 }

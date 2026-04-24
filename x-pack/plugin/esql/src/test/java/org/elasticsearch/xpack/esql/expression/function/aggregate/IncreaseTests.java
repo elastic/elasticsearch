@@ -167,9 +167,7 @@ public class IncreaseTests extends AbstractAggregationTestCase {
         if (temporality == RateTests.TemporalityParameter.DELTA) {
             // last array entry corresponds to first timestamp, as we have reverse chronological order
             double firstDelta = ((Number) nonNullDataRows.getLast()).doubleValue();
-            increase = nonNullDataRows.stream()
-                .mapToDouble(v -> ((Number) v).doubleValue())
-                .sum() - firstDelta;
+            increase = nonNullDataRows.stream().mapToDouble(v -> ((Number) v).doubleValue()).sum() - firstDelta;
         } else {
             // cumulative
             double resets = 0.0;

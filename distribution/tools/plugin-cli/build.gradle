@@ -34,9 +34,9 @@ dependencies {
   testImplementation "com.google.jimfs:jimfs:${versions.jimfs}"
   testRuntimeOnly "com.google.guava:guava:${versions.jimfs_guava}"
 
-  testImplementation "org.bouncycastle:bcpg-jdk18on:1.83"
-  testImplementation "org.bouncycastle:bcprov-jdk18on:1.83"
-  testImplementation "org.bouncycastle:bcutil-jdk18on:1.83"
+  testImplementation "org.bouncycastle:bcpg-jdk18on:1.84"
+  testImplementation "org.bouncycastle:bcprov-jdk18on:1.84"
+  testImplementation "org.bouncycastle:bcutil-jdk18on:1.84"
 }
 
 tasks.named("test").configure {

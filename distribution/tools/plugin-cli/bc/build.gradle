@@ -15,9 +15,9 @@ base {
 }
 
 dependencies {
-  implementation "org.bouncycastle:bcpg-jdk18on:1.83"
-  implementation "org.bouncycastle:bcprov-jdk18on:1.83"
-  implementation "org.bouncycastle:bcutil-jdk18on:1.83"
+  implementation "org.bouncycastle:bcpg-jdk18on:1.84"
+  implementation "org.bouncycastle:bcprov-jdk18on:1.84"
+  implementation "org.bouncycastle:bcutil-jdk18on:1.84"
 }
 
 tasks.named("dependencyLicenses").configure {

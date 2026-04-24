@@ -16,7 +16,10 @@ import io.opentelemetry.api.trace.SpanBuilder;
 import io.opentelemetry.api.trace.SpanContext;
 import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.api.trace.Tracer;
+import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
 import io.opentelemetry.context.Context;
+import io.opentelemetry.context.propagation.ContextPropagators;
+import io.opentelemetry.sdk.OpenTelemetrySdk;
 
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.settings.Settings;
@@ -113,7 +116,7 @@ public class APMTracerTests extends ESTestCase {
     }
 
     /**
-     * Check that when a nested trace is discarded e.g.g due to transaction_max_spans exceeded, the tracer does not record it.
+     * Check that when a nested trace is discarded e.g. due to transaction_max_spans exceeded, the tracer does not record it.
      */
     public void test_onNestedTraceStarted_ifNotRecorded_doesNotStartTrace() {
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
@@ -291,8 +294,44 @@ public class APMTracerTests extends ESTestCase {
         ).forEach(key -> assertTrue("Expected label filter automaton to redact [" + key + "]", labelFilterAutomaton.run(key)));
     }
 
+    /**
+     * Simulates a data-node scenario: {@link Task#TRACE_PARENT_HTTP_HEADER} is propagated
+     * over transport (as a regular header) but {@link Task#PARENT_APM_TRACE_CONTEXT} is not
+     * (transients are not serialised over transport). The tracer should start a span whose
+     * parent matches the remote span encoded in the header.
+     */
+    public void test_whenTraceStartedWithPropagatedTraceParentHeader_andNoLocalParent_usesRemoteParentFromHeader() {
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer apmTracer = buildTracerWithW3CPropagator(settings);
+
+        final String traceId = "0af7651916cd43dd8448eb211c80319c";
+        final String remoteParentSpanId = "b7ad6b7169203331";
+        ThreadContext traceContext = new ThreadContext(settings);
+        // Simulate transport propagation: the transport layer copies TRACE_PARENT_HTTP_HEADER into the
+        // PARENT_TRACE_PARENT_HEADER transient on the receiving node. getRemoteParentContext() reads this transient.
+        traceContext.putTransient(Task.PARENT_TRACE_PARENT_HEADER, "00-" + traceId + "-" + remoteParentSpanId + "-01");
+        // PARENT_APM_TRACE_CONTEXT is intentionally absent — transients are not serialised over transport.
+
+        apmTracer.startTrace(traceContext, TRACEABLE1, "name1", null);
+
+        assertThat(apmTracer.getSpans(), aMapWithSize(1));
+        Context spanContext = apmTracer.getSpans().get(TRACEABLE1.getSpanId());
+        assertThat(spanContext, notNullValue());
+        // MockSpanBuilder.setParent() stores the parent's SpanContext on the mock span.
+        // Verify it matches the trace ID and span ID from the traceparent header.
+        Span span = Span.fromContext(spanContext);
+        assertThat(span.getSpanContext().getTraceId(), is(traceId));
+        assertThat(span.getSpanContext().getSpanId(), is(remoteParentSpanId));
+    }
+
     private APMTracer buildTracer(Settings settings) {
         APMTracer tracer = new SpyAPMTracer(settings);
+        tracer.doStart();
+        return tracer;
+    }
+
+    private APMTracer buildTracerWithW3CPropagator(Settings settings) {
+        APMTracer tracer = new SpyAPMTracerWithW3CPropagator(settings);
         tracer.doStart();
         return tracer;
     }
@@ -405,6 +444,28 @@ public class APMTracerTests extends ESTestCase {
                 spanStartTimeMap.put(spanName, startTime);
                 return span;
             }
+        }
+    }
+
+    /**
+     * Extension of {@link SpyAPMTracer} that wires a real {@link W3CTraceContextPropagator}
+     * so that {@code getRemoteParentContext()} actually extracts a parent from
+     * {@link Task#TRACE_PARENT_HTTP_HEADER}. Used to test the data-node scenario where
+     * the header is propagated over transport but no local parent context is present.
+     */
+    static class SpyAPMTracerWithW3CPropagator extends SpyAPMTracer {
+
+        SpyAPMTracerWithW3CPropagator(Settings settings) {
+            super(settings);
+        }
+
+        @Override
+        APMServices createApmServices() {
+            APMServices base = super.createApmServices();
+            OpenTelemetrySdk openTelemetry = OpenTelemetrySdk.builder()
+                .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))
+                .build();
+            return new APMServices(base.tracer(), openTelemetry);
         }
     }
 

@@ -108,6 +108,25 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
             Instant.parse("2024-01-01T12:04:00Z"),
             Instant.parse("2024-01-01T12:32:00Z")
         );
+        // count=2 over a 1h40m range -> picks 1h step; same result as explicit "1 hour" bounds test
+        dateCasesWithBucketCount(
+            suppliers,
+            "bucket count 2 over 1h40m range gives 1h step",
+            () -> Instant.parse("2024-01-01T12:45:00Z").toEpochMilli(),
+            2,
+            Instant.parse("2024-01-01T12:15:00Z"),
+            Instant.parse("2024-01-01T13:55:00Z"),
+            Instant.parse("2024-01-01T13:15:00Z")
+        );
+        dateNanosCasesWithBucketCount(
+            suppliers,
+            "date_nanos bucket count 2 over 1h40m range gives 1h step",
+            () -> DateUtils.toLong(Instant.parse("2024-01-01T12:45:00Z")),
+            2,
+            Instant.parse("2024-01-01T12:15:00Z"),
+            Instant.parse("2024-01-01T13:55:00Z"),
+            Instant.parse("2024-01-01T13:15:00Z")
+        );
         return parameterSuppliersFromTypedData(suppliers);
     }
 
@@ -218,6 +237,76 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
                         randomConfigurationBuilder().query(TEST_SOURCE.text()).now(end).zoneId(ZoneOffset.UTC).build()
                     );
                 }));
+            }
+        }
+    }
+
+    private static final DataType[] COUNT_STEP_TYPES = { DataType.INTEGER, DataType.LONG };
+
+    private static void dateCasesWithBucketCount(
+        List<TestCaseSupplier> suppliers,
+        String name,
+        LongSupplier timestamp,
+        int count,
+        Instant start,
+        Instant end,
+        Instant expectedBucket
+    ) {
+        for (DataType stepType : COUNT_STEP_TYPES) {
+            for (DataType fromType : BOUND_TYPES) {
+                for (DataType toType : BOUND_TYPES) {
+                    suppliers.add(new TestCaseSupplier(name, List.of(stepType, fromType, toType, DataType.DATETIME), () -> {
+                        List<TestCaseSupplier.TypedData> args = new ArrayList<>();
+                        Object stepValue = stepType == DataType.LONG ? (long) count : count;
+                        args.add(new TestCaseSupplier.TypedData(stepValue, stepType, "step").forceLiteral());
+                        args.add(dateBound("from", fromType, start));
+                        args.add(dateBound("to", toType, end));
+                        args.add(new TestCaseSupplier.TypedData(timestamp.getAsLong(), DataType.DATETIME, "@timestamp"));
+                        return new TestCaseSupplier.TestCase(
+                            args,
+                            Matchers.startsWith("AddDatetimesEvaluator["),
+                            DataType.DATETIME,
+                            equalTo(expectedBucket.toEpochMilli())
+                        ).withConfiguration(
+                            TEST_SOURCE,
+                            randomConfigurationBuilder().query(TEST_SOURCE.text()).now(end).zoneId(ZoneOffset.UTC).build()
+                        );
+                    }));
+                }
+            }
+        }
+    }
+
+    private static void dateNanosCasesWithBucketCount(
+        List<TestCaseSupplier> suppliers,
+        String name,
+        LongSupplier timestampNanos,
+        int count,
+        Instant start,
+        Instant end,
+        Instant expectedBucket
+    ) {
+        for (DataType stepType : COUNT_STEP_TYPES) {
+            for (DataType fromType : BOUND_TYPES) {
+                for (DataType toType : BOUND_TYPES) {
+                    suppliers.add(new TestCaseSupplier(name, List.of(stepType, fromType, toType, DataType.DATE_NANOS), () -> {
+                        List<TestCaseSupplier.TypedData> args = new ArrayList<>();
+                        Object stepValue = stepType == DataType.LONG ? (long) count : count;
+                        args.add(new TestCaseSupplier.TypedData(stepValue, stepType, "step").forceLiteral());
+                        args.add(dateBound("from", fromType, start));
+                        args.add(dateBound("to", toType, end));
+                        args.add(new TestCaseSupplier.TypedData(timestampNanos.getAsLong(), DataType.DATE_NANOS, "@timestamp"));
+                        return new TestCaseSupplier.TestCase(
+                            args,
+                            Matchers.startsWith("AddDateNanosEvaluator["),
+                            DataType.DATE_NANOS,
+                            equalTo(DateUtils.toNanoSeconds(expectedBucket.toEpochMilli()))
+                        ).withConfiguration(
+                            TEST_SOURCE,
+                            randomConfigurationBuilder().query(TEST_SOURCE.text()).now(end).zoneId(ZoneOffset.UTC).build()
+                        );
+                    }));
+                }
             }
         }
     }

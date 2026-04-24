@@ -33,4 +33,17 @@ FROM sample_data
 | 2023-10-23T12:15:03.360Z | 2023-10-23T12:27:28.948Z | 2023-10-23T13:15:00.000Z |
 | 2023-10-23T13:33:34.937Z | 2023-10-23T13:55:01.543Z | 2023-10-23T14:15:00.000Z |
 
+The same query using a target bucket count of 2 instead of a fixed step:
+
+```esql
+FROM sample_data
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TSTEP(2, "2023-10-23T12:15:00.000Z", "2023-10-23T13:55:01.543Z")
+| SORT bucket
+```
+
+| min:datetime | max:datetime | bucket:datetime |
+| --- | --- | --- |
+| 2023-10-23T12:15:03.360Z | 2023-10-23T12:27:28.948Z | 2023-10-23T13:15:00.000Z |
+| 2023-10-23T13:33:34.937Z | 2023-10-23T13:55:01.543Z | 2023-10-23T14:15:00.000Z |
+
 

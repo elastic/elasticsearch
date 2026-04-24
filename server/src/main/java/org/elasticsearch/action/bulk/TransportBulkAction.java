@@ -11,6 +11,9 @@ package org.elasticsearch.action.bulk;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.CorruptIndexException;
+import org.elasticsearch.ElasticsearchCorruptionException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
@@ -47,9 +50,11 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.gateway.CorruptStateException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.injection.guice.Inject;
@@ -232,6 +237,25 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         assert bulkRequest.getComponentTemplateSubstitutions().isEmpty()
             : "Component template substitutions are not allowed in a non-simulated bulk";
         trackIndexRequests(bulkRequest);
+
+        for (String index : bulkRequest.getIndices()) {
+            try {
+                switch (index) {
+                    case "CorruptStateException":
+                        throw new CorruptStateException("Test");
+                    case "ElasticsearchCorruptionException":
+                        throw new ElasticsearchCorruptionException("Test");
+                    case "TranslogCorruptedException":
+                        throw new TranslogCorruptedException("Test", "with details");
+                    case "CorruptIndexException":
+                        throw new CorruptIndexException("Test", "resource description");
+                    default:
+                }
+            } catch (Exception e) {
+                throw new ElasticsearchException(e);
+            }
+        }
+
         Map<String, CreateIndexRequest> indicesToAutoCreate = new HashMap<>();
         Set<String> dataStreamsToBeRolledOver = new HashSet<>();
         Set<String> failureStoresToBeRolledOver = new HashSet<>();

@@ -21,15 +21,18 @@ setup:
                 doc_values:
                   cardinality: high
   - do:
-      indices.get_mapping:
+      indices.get_field_mapping:
         index: test_icu_collation_mapping
-  - match: { test_icu_collation_mapping.mappings.properties.collate.type: icu_collation_keyword }
-  - match: { test_icu_collation_mapping.mappings.properties.collate.language: es }
-  - match: { test_icu_collation_mapping.mappings.properties.collate.strength: primary }
-  - match: { test_icu_collation_mapping.mappings.properties.collate_binary.type: icu_collation_keyword }
-  - match: { test_icu_collation_mapping.mappings.properties.collate_binary.language: es }
-  - match: { test_icu_collation_mapping.mappings.properties.collate_binary.strength: primary }
-  - match: { test_icu_collation_mapping.mappings.properties.collate_binary.doc_values.cardinality: high }
+        fields: [ collate, collate_binary ]
+        include_defaults: true
+  - match: { test_icu_collation_mapping.mappings.collate.mapping.collate.type: icu_collation_keyword }
+  - match: { test_icu_collation_mapping.mappings.collate.mapping.collate.language: es }
+  - match: { test_icu_collation_mapping.mappings.collate.mapping.collate.strength: primary }
+  - match: { test_icu_collation_mapping.mappings.collate.mapping.collate.doc_values.cardinality: low }
+  - match: { test_icu_collation_mapping.mappings.collate_binary.mapping.collate_binary.type: icu_collation_keyword }
+  - match: { test_icu_collation_mapping.mappings.collate_binary.mapping.collate_binary.language: es }
+  - match: { test_icu_collation_mapping.mappings.collate_binary.mapping.collate_binary.strength: primary }
+  - match: { test_icu_collation_mapping.mappings.collate_binary.mapping.collate_binary.doc_values.cardinality: high }
 
 
 ---

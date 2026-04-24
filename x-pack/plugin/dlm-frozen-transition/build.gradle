@@ -14,6 +14,7 @@ esplugin {
   description = 'A plugin for the frozen tier functionality of DLM'
   classname = 'org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionPlugin'
   extendedPlugins = ['data-streams', 'x-pack-core']
+  deploymentTarget = "STATEFUL_ONLY"
 }
 base {
   archivesName = 'x-pack-dlm-frozen-transition'

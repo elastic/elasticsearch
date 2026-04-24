@@ -241,13 +241,21 @@ public class ExternalSourceResolver {
             SchemaCacheKey schemaKey = SchemaCacheKey.build(anchorPath.toString(), anchorMtime, formatType, config);
             SchemaCacheEntry schemaEntry = cacheService.getOrComputeSchema(schemaKey, k -> {
                 SourceMetadata meta = resolveSingleSource(anchorPath.toString(), config);
-                return SchemaCacheEntry.from(meta.schema(), meta.sourceType(), meta.location(), meta.sourceMetadata());
+                Map<String, Object> enrichedMeta = meta.statistics()
+                    .map(stats -> SourceStatisticsSerializer.embedStatistics(meta.sourceMetadata(), stats))
+                    .orElse(meta.sourceMetadata());
+                return SchemaCacheEntry.from(meta.schema(), meta.sourceType(), meta.location(), enrichedMeta);
             });
             List<Attribute> schema = schemaEntry.toAttributes();
             extMetadata = buildMetadataFromCache(schemaEntry, schema, config);
         } else {
             SourceMetadata metadata = resolveSingleSource(anchorPath.toString(), config);
             extMetadata = wrapAsExternalSourceMetadata(metadata, config);
+        }
+
+        extMetadata = enrichWithFileCount(extMetadata, listing.fileCount());
+        if (listing.fileCount() > 1) {
+            extMetadata = markStatsAsPartial(extMetadata);
         }
 
         PartitionMetadata partitionMetadata = listing.partitionMetadata();
@@ -423,6 +431,9 @@ public class ExternalSourceResolver {
     ) {
         Map<String, Object> mergedConfig = mergeConfigs(referenceMeta.config(), queryConfig);
         List<Attribute> schema = List.copyOf(unifiedSchema);
+        Map<String, Object> enrichedSourceMetadata = referenceMeta.statistics()
+            .map(stats -> SourceStatisticsSerializer.embedStatistics(referenceMeta.sourceMetadata(), stats))
+            .orElse(referenceMeta.sourceMetadata());
         return new ExternalSourceMetadata() {
             @Override
             public String location() {
@@ -441,7 +452,7 @@ public class ExternalSourceResolver {
 
             @Override
             public Map<String, Object> sourceMetadata() {
-                return referenceMeta.sourceMetadata();
+                return enrichedSourceMetadata;
             }
 
             @Override
@@ -537,6 +548,51 @@ public class ExternalSourceResolver {
         );
     }
 
+    /**
+     * Returns a wrapper that delegates everything to {@code metadata} except {@code sourceMetadata()},
+     * which is enriched with the given extra entries.
+     */
+    static ExternalSourceMetadata withExtraSourceMetadata(ExternalSourceMetadata metadata, Map<String, Object> extra) {
+        Map<String, Object> original = metadata.sourceMetadata();
+        Map<String, Object> enriched = original != null ? new HashMap<>(original) : new HashMap<>();
+        enriched.putAll(extra);
+        Map<String, Object> finalMetadata = Map.copyOf(enriched);
+        return new ExternalSourceMetadata() {
+            @Override
+            public String location() {
+                return metadata.location();
+            }
+
+            @Override
+            public List<Attribute> schema() {
+                return metadata.schema();
+            }
+
+            @Override
+            public String sourceType() {
+                return metadata.sourceType();
+            }
+
+            @Override
+            public Map<String, Object> sourceMetadata() {
+                return finalMetadata;
+            }
+
+            @Override
+            public Map<String, Object> config() {
+                return metadata.config();
+            }
+        };
+    }
+
+    static ExternalSourceMetadata enrichWithFileCount(ExternalSourceMetadata metadata, int fileCount) {
+        return withExtraSourceMetadata(metadata, Map.of(SourceStatisticsSerializer.STATS_FILE_COUNT, (long) fileCount));
+    }
+
+    static ExternalSourceMetadata markStatsAsPartial(ExternalSourceMetadata metadata) {
+        return withExtraSourceMetadata(metadata, Map.of(SourceStatisticsSerializer.STATS_PARTIAL, Boolean.TRUE));
+    }
+
     static ExternalSourceMetadata enrichSchemaWithPartitionColumns(ExternalSourceMetadata metadata, PartitionMetadata partitionMetadata) {
         List<Attribute> originalSchema = metadata.schema();
         Map<String, DataType> partitionColumns = partitionMetadata.partitionColumns();
@@ -630,6 +686,10 @@ public class ExternalSourceResolver {
 
         if (metadata instanceof ExternalSourceMetadata extMetadata) {
             if (extMetadata.config() != null && extMetadata.config().isEmpty() == false) {
+                // Stats are embedded into sourceMetadata() below for the general path; for
+                // ExternalSourceMetadata instances that already carry config (e.g. Iceberg),
+                // their factory is responsible for populating sourceMetadata() — statistics()
+                // is typically empty so there is nothing extra to embed.
                 return extMetadata;
             }
         }
@@ -646,6 +706,10 @@ public class ExternalSourceResolver {
         } else {
             mergedConfig = queryConfig;
         }
+
+        Map<String, Object> enrichedSourceMetadata = metadata.statistics()
+            .map(stats -> SourceStatisticsSerializer.embedStatistics(metadata.sourceMetadata(), stats))
+            .orElse(metadata.sourceMetadata());
 
         return new ExternalSourceMetadata() {
             @Override
@@ -665,7 +729,7 @@ public class ExternalSourceResolver {
 
             @Override
             public Map<String, Object> sourceMetadata() {
-                return metadata.sourceMetadata();
+                return enrichedSourceMetadata;
             }
 
             @Override

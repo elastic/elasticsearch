@@ -33,6 +33,8 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 
+import org.elasticsearch.index.mapper.BlockLoader;
+
 import java.io.IOException;
 import java.util.Objects;
 import java.util.function.LongPredicate;
@@ -133,6 +135,13 @@ public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRang
                     }
                 }
 
+                if (skipper != null && singleton instanceof BlockLoader.OptionalNumericRangeReader rangeReader) {
+                    final DocIdSetIterator rangeIterator = rangeReader.tryRangeIterator(lowerValue, upperValue, skipper);
+                    if (rangeIterator != null) {
+                        return ConstantScoreScorerSupplier.fromIterator(rangeIterator, score(), scoreMode, maxDoc);
+                    }
+                }
+
                 if (skipper != null) {
                     // Use SkipBlockRangeIterator as the approximation: block-level skip
                     // filtering with no DV decoding. This exposes block skips to
@@ -140,6 +149,10 @@ public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRang
                     // never decode DV data for that block.
                     final SkipBlockRangeIterator skipApprox =
                         new SkipBlockRangeIterator(skipper, lowerValue, upperValue);
+
+
+
+
                     iterator =
                         new TwoPhaseIterator(skipApprox) {
                             private int cachedBlockEnd = -1;

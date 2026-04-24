@@ -2,5 +2,5 @@ area: Distributed
 issues:
  - 147171
 pr: 147405
-summary: Issue 147171
+summary: Fix race in FsBlobContainer.moveBlobAtomic by replacing move op with hard link
 type: bug

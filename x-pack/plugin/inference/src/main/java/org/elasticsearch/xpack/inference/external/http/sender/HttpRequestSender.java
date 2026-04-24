@@ -75,7 +75,7 @@ public class HttpRequestSender implements Sender {
         }
     }
 
-    private static final TimeValue STARTUP_TIMEOUT = TimeValue.timeValueSeconds(10);
+    private static final TimeValue STARTUP_TIMEOUT = TimeValue.timeValueSeconds(5);
 
     private final ThreadPool threadPool;
     private final HttpClientManager manager;

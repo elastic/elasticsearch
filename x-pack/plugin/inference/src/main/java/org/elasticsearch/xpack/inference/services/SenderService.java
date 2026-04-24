@@ -233,7 +233,7 @@ public abstract class SenderService<M extends Model> implements InferenceService
             } else {
                 var index = indexContainingMultipleInferenceStrings(request.inputs());
                 if (index == null) {
-                    doEmbeddingInfer(model, request, timeout, listener);
+                    doEmbeddingInfer(model, request, resolvedInferenceTimeout, listener);
                 } else {
                     listener.onFailure(
                         new ElasticsearchStatusException(
@@ -283,7 +283,6 @@ public abstract class SenderService<M extends Model> implements InferenceService
     ) {
         try {
             var resolvedInferenceTimeout = resolveInferenceTimeout(timeout, inputType, clusterService, model.getTaskType());
-
             ValidationException validationException = new ValidationException();
             validateInputType(inputType, model, validationException);
             validationException.throwIfValidationErrorsExist();

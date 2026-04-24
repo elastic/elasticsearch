@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;
@@ -46,6 +47,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
@@ -75,10 +77,10 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class HttpRequestSenderTests extends ESTestCase {
-
     private static final String INFERENCE_ID = "id";
     private static final TimeValue ONE_NANOSECOND = TimeValue.timeValueNanos(1);
 
@@ -123,7 +125,12 @@ public class HttpRequestSenderTests extends ESTestCase {
     }
 
     public void testStartSynchronously_ThrowsUnsupportedOperationException() {
-        var sender = new HttpRequestSender(threadPool, createMockHttpClientManager(), mock(RequestSender.class), mock(RequestExecutor.class));
+        var sender = new HttpRequestSender(
+            threadPool,
+            createMockHttpClientManager(),
+            mock(RequestSender.class),
+            mock(RequestExecutor.class)
+        );
 
         expectThrows(UnsupportedOperationException.class, sender::startSynchronously);
     }
@@ -166,15 +173,10 @@ public class HttpRequestSenderTests extends ESTestCase {
         }
     }
 
-    public void testStartSync_ThrowsServiceUnavailableWhenStartupTimesOut() throws Exception {
+    public void testStartSync_ThrowsServiceUnavailableWhenStartupTimesOut() {
         var mockManager = createMockHttpClientManager();
 
-        // Block service.start() to simulate a hung startup; blockStartLatch is counted down in @After
-        var mockService = mock(RequestExecutor.class);
-        doAnswer(invocation -> {
-            blockStartLatch.await();
-            return null;
-        }).when(mockService).start();
+        var mockService = createMockRequestExecutorThatBlocksOnStart();
         var sender = new HttpRequestSender(threadPool, mockManager, mock(RequestSender.class), mockService);
 
         var exception = expectThrows(ElasticsearchStatusException.class, () -> startSynchronously(sender, TimeValue.timeValueMillis(1)));
@@ -182,15 +184,20 @@ public class HttpRequestSenderTests extends ESTestCase {
         assertThat(exception.status(), is(RestStatus.SERVICE_UNAVAILABLE));
     }
 
-    public void testStartAsync_ThrowsServiceUnavailableWhenStartupTimesOut() throws Exception {
-        var mockManager = createMockHttpClientManager();
-
-        // Block service.start() to simulate a hung startup; blockStartLatch is counted down in @After
+    private RequestExecutor createMockRequestExecutorThatBlocksOnStart() {
         var mockService = mock(RequestExecutor.class);
         doAnswer(invocation -> {
+            // Block service.start() to simulate a hung startup; blockStartLatch is counted down in @After
             blockStartLatch.await();
             return null;
         }).when(mockService).start();
+        return mockService;
+    }
+
+    public void testStartAsync_ThrowsServiceUnavailableWhenStartupTimesOut() throws Exception {
+        var mockManager = createMockHttpClientManager();
+
+        var mockService = createMockRequestExecutorThatBlocksOnStart();
         var sender = new HttpRequestSender(threadPool, mockManager, mock(RequestSender.class), mockService);
 
         var listener = new PlainActionFuture<Void>();
@@ -205,12 +212,7 @@ public class HttpRequestSenderTests extends ESTestCase {
     public void testStartAsync_PerCallerTimeoutDoesNotPoisonSharedState() {
         var mockManager = createMockHttpClientManager();
 
-        // Block service.start() to simulate a hung startup; blockStartLatch is counted down in @After
-        var mockService = mock(RequestExecutor.class);
-        doAnswer(invocation -> {
-            blockStartLatch.await();
-            return null;
-        }).when(mockService).start();
+        var mockService = createMockRequestExecutorThatBlocksOnStart();
         var sender = new HttpRequestSender(threadPool, mockManager, mock(RequestSender.class), mockService);
 
         // First caller times out — per-caller ListenerTimeouts fires, not the shared startupNotifier
@@ -235,12 +237,13 @@ public class HttpRequestSenderTests extends ESTestCase {
         var sender = new HttpRequestSender(threadPool, mockManager, mock(RequestSender.class), mock(RequestExecutor.class));
 
         startSynchronously(sender);  // startup completes, startupNotifier already resolved
+        verify(mockManager, times(1)).start();
 
         // Listener registered after startup completes should be notified immediately
         var listener = new TestPlainActionFuture<Void>();
         sender.startAsynchronously(listener, null);
         assertNull(listener.actionGet(TEST_REQUEST_TIMEOUT));
-        verify(mockManager, times(1)).start();
+        verifyNoMoreInteractions(mockManager);
     }
 
     public void testConcurrentStartAsync_AllListenersReceiveFailure() throws InterruptedException {

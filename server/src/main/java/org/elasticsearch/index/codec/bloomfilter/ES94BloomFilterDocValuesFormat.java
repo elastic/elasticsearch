@@ -33,7 +33,9 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FileTypeHint;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
@@ -698,7 +700,9 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
                 BloomFilterMetadata bloomFilterMetadata = BloomFilterMetadata.readFrom(metaInput);
                 CodecUtil.checkFooter(metaInput);
 
-                bloomFilterData = directory.openInput(bloomFilterFileName(si, segmentSuffix), context);
+                // Bloom filter files are accessed randomly during point lookups, so sequential pre-fetching would not be beneficial
+                var dataContext = context.withHints(FileTypeHint.DATA, DataAccessHint.RANDOM);
+                bloomFilterData = directory.openInput(bloomFilterFileName(si, segmentSuffix), dataContext);
                 var bloomFilterDataVersion = CodecUtil.checkIndexHeader(
                     bloomFilterData,
                     FORMAT_NAME,

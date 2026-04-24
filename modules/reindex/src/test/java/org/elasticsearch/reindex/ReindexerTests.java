@@ -47,6 +47,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -1882,11 +1883,15 @@ public class ReindexerTests extends ESTestCase {
     /**
      * Remote clusters before PIT support (below 7.10) must use scroll-based pagination. Verifies the mock server receives no
      * {@code POST} to open a point-in-time while a 7.9-style version response still allows reindex to complete using scroll.
+     * Also verifies on every matching request (inside the mock handler) that the {@code scroll} query parameter on the remote
+     * initial {@code _search} and on {@code _search/scroll} equals the reindex scroll keep-alive.
      */
     @SuppressForbidden(reason = "use http server for testing")
     public void testRemoteReindexUsesScrollWhenVersionBeforePitSupport() throws Exception {
         assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
+        final TimeValue expectedScroll = TimeValue.timeValueMinutes(randomIntBetween(1, 8));
+        final String expectedScrollParam = expectedScroll.getStringRep();
         final AtomicInteger pitPostCount = new AtomicInteger();
         final String version79 = "{\"version\":{\"number\":\"7.9.0\"},\"tagline\":\"You Know, for Search\"}";
         final String scrollBody = "{\"_scroll_id\":\"fake-scroll\",\"timed_out\":false,\"hits\":{\"total\":0,\"hits\":[]}"
@@ -1907,10 +1912,18 @@ public class ReindexerTests extends ESTestCase {
                     return;
                 }
                 if (path.contains("/_search") && "POST".equals(method) && path.contains("scroll") == false) {
+                    assertThat(
+                        parseRawQueryParam(exchange.getRequestURI().getRawQuery(), "scroll"),
+                        equalTo(expectedScrollParam)
+                    );
                     respondJson(exchange, 200, scrollBody);
                     return;
                 }
                 if (path.contains("_search/scroll") && "POST".equals(method)) {
+                    assertThat(
+                        parseRawQueryParam(exchange.getRequestURI().getRawQuery(), "scroll"),
+                        equalTo(expectedScrollParam)
+                    );
                     respondJson(exchange, 200, scrollBody);
                     return;
                 }
@@ -1925,7 +1938,7 @@ public class ReindexerTests extends ESTestCase {
         });
         server.start();
         try {
-            runRemotePitTestWithMockServer(server, r -> {}, initFuture -> {
+            runRemotePitTestWithMockServer(server, r -> r.setScroll(expectedScroll), initFuture -> {
                 BulkByScrollResponse response = initFuture.actionGet();
                 assertNotNull(response);
                 assertThat(pitPostCount.get(), equalTo(0));
@@ -2725,6 +2738,23 @@ public class ReindexerTests extends ESTestCase {
             exchange.close();
         });
         return server;
+    }
+
+    /**
+     * Returns the first value for {@code paramName} in a raw HTTP query string, URL-decoded, or {@code null} if absent.
+     */
+    @Nullable
+    private static String parseRawQueryParam(String rawQuery, String paramName) {
+        if (rawQuery == null) {
+            return null;
+        }
+        for (String part : rawQuery.split("&")) {
+            int eq = part.indexOf('=');
+            if (eq > 0 && paramName.equals(part.substring(0, eq))) {
+                return URLDecoder.decode(part.substring(eq + 1), StandardCharsets.UTF_8);
+            }
+        }
+        return null;
     }
 
     private static void respondJson(HttpExchange exchange, int status, String json) throws IOException {

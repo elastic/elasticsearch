@@ -15,14 +15,12 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.core.TimeValue;
 
 /**
- * Holds reindex-related dynamic cluster settings and keeps them current via {@link ClusterSettings#initializeAndWatch}.
- * Exposed for dependency injection so consumers (for example {@link Reindexer}) read cached values instead of resolving
- * settings through {@link org.elasticsearch.cluster.service.ClusterService} on each use.
+ * Holds reindex-related dynamic cluster settings
  */
 public final class ReindexSettings {
 
     /**
-     * Keep-alive for point-in-time contexts used during reindexing.
+     * Keep-alive for point-in-time search contexts used during reindexing.
      * When scroll-based search is used, the scroll timeout comes from the search request.
      * If the scroll timeout is set but pit is used, the scroll timeout is ignored in favor of this.
      */
@@ -37,6 +35,9 @@ public final class ReindexSettings {
 
     private volatile TimeValue pitKeepAlive;
 
+    /**
+     * {@link ClusterSettings#initializeAndWatch} keeps the value of the settings updated
+     */
     public ReindexSettings(ClusterSettings clusterSettings) {
         clusterSettings.initializeAndWatch(REINDEX_PIT_KEEP_ALIVE_SETTING, this::setPitKeepAlive);
     }

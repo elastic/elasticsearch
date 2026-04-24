@@ -35,6 +35,7 @@ import org.elasticsearch.inference.completion.ToolCall;
 import org.elasticsearch.inference.completion.ToolChoice;
 import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceObject;
 import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceString;
+import org.elasticsearch.inference.completion.UnifiedCompletionUtils;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -492,8 +493,11 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
         }
     }
 
-    // Versions before MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED throw an exception when serializing non-text content
-    // Those are tested in testMultimodalContentIsNotBackwardsCompatible
+    /**
+     * Versions before {@link UnifiedCompletionUtils#MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED} throw an exception when serializing
+     * non-text content, so we filter those out of the bwc versions to avoid test failures.
+     * The logic is tested directly by {@link #testMultimodalContentIsNotBackwardsCompatible}
+     */
     @Override
     protected Collection<TransportVersion> bwcVersions() {
         return super.bwcVersions().stream().filter(version -> version.supports(MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED)).toList();
@@ -503,8 +507,9 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
         testSerializationIsNotBackwardsCompatible(
             MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED,
             UnifiedCompletionRequest::containsMultimodalContent,
-            "Cannot send a multimodal chat completion request to an older node. "
-                + "Please wait until all nodes are upgraded before using multimodal chat completion inputs"
+            """
+                Cannot send a multimodal chat completion request to an older node. \
+                Please wait until all nodes are upgraded before using multimodal chat completion inputs"""
         );
     }
 

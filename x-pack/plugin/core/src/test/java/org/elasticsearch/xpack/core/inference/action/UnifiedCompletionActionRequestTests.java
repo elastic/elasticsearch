@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.UnifiedCompletionUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.InferenceContext;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
@@ -116,8 +117,11 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
         );
     }
 
-    // Versions before MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED throw an exception when serializing non-text content
-    // Those are tested in testMultimodalContentIsNotBackwardsCompatible
+    /**
+     * Versions before {@link UnifiedCompletionUtils#MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED} throw an exception when serializing
+     * non-text content, so we filter those out of the bwc versions to avoid test failures.
+     * The logic is tested directly by {@link #testMultimodalContentIsNotBackwardsCompatible}
+     */
     @Override
     protected Collection<TransportVersion> bwcVersions() {
         return super.bwcVersions().stream().filter(version -> version.supports(MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED)).toList();
@@ -127,8 +131,9 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
         testSerializationIsNotBackwardsCompatible(
             MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED,
             i -> i.getUnifiedCompletionRequest().containsMultimodalContent(),
-            "Cannot send a multimodal chat completion request to an older node. "
-                + "Please wait until all nodes are upgraded before using multimodal chat completion inputs"
+            """
+                Cannot send a multimodal chat completion request to an older node. \
+                Please wait until all nodes are upgraded before using multimodal chat completion inputs"""
         );
     }
 

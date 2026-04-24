@@ -567,9 +567,11 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AzureOpenAiServic
         );
     }
 
-    // Versions before AZURE_OPENAI_OAUTH_SETTINGS throw an exception when serializing non-null OAuth2 settings,
-    // so we filter those out of the bwc versions to avoid test failures.
-    // The logic is tested directly by testAzureOpenAiOAuth2Settings_AreNotBackwardsCompatible.
+    /**
+     * Versions before {@link AzureOpenAiOAuth2Settings#AZURE_OPENAI_OAUTH_SETTINGS} throw an exception when serializing non-null OAuth2
+     * settings, so we filter those out of the bwc versions to avoid test failures.
+     * The logic is tested directly by {@link #testAzureOpenAiOAuth2Settings_AreNotBackwardsCompatible}
+     */
     @Override
     protected Collection<TransportVersion> bwcVersions() {
         return super.bwcVersions().stream().filter(version -> version.supports(AZURE_OPENAI_OAUTH_SETTINGS)).toList();
@@ -579,7 +581,7 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AzureOpenAiServic
         testSerializationIsNotBackwardsCompatible(
             AZURE_OPENAI_OAUTH_SETTINGS,
             i -> i.oAuth2Settings() != null,
-            "Cannot send OAuth2 settings to an older node. " + "Please wait until all nodes are upgraded before using OAuth2."
+            "Cannot send OAuth2 settings to an older node. Please wait until all nodes are upgraded before using OAuth2."
         );
     }
 }

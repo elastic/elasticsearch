@@ -328,8 +328,11 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
         assertThat(assertionError.getMessage(), is("Non-text input returned from InferenceString.textValue"));
     }
 
-    // Versions before EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED throw an exception when serializing audio, video or pdf content
-    // Those are tested in testAudioVideoPdfAreNotBackwardsCompatible
+    /**
+     * Versions before {@link InferenceString#EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED} throw an exception when serializing audio,
+     * video or pdf content, so we filter those out of the bwc versions to avoid test failures.
+     * The logic is tested directly by {@link #testAudioVideoPdfAreNotBackwardsCompatible}
+     */
     @Override
     protected Collection<TransportVersion> bwcVersions() {
         return super.bwcVersions().stream().filter(version -> version.supports(EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED)).toList();
@@ -339,8 +342,9 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
         testSerializationIsNotBackwardsCompatible(
             EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED,
             InferenceStringTests::isAudioVideoOrPdf,
-            "Cannot send an inference request with audio, video or pdf inputs to an older node. "
-                + "Please wait until all nodes are upgraded before using audio, video or pdf inputs"
+            """
+                Cannot send an inference request with audio, video or pdf inputs to an older node. \
+                Please wait until all nodes are upgraded before using audio, video or pdf inputs"""
         );
     }
 

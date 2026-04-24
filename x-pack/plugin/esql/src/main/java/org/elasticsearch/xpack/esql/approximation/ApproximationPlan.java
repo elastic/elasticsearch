@@ -85,22 +85,35 @@ public class ApproximationPlan {
      */
     public static final String CERTIFIED_COLUMN_PREFIX = "_approximation_certified(";
 
+    public static Map<NameId, Map<String, Object>> createColumnMetadata(List<Attribute> attributes) {
+        var resolved = new HashMap<NameId, Map<String, Object>>();
+        for (Attribute attribute : attributes) {
+            var columnMetadata = createColumnMetadata(attribute);
+            if (columnMetadata != null) {
+                resolved.put(attribute.id(), columnMetadata);
+            }
+        }
+        return resolved;
+    }
+
     /**
      * Returns the {@code _meta} map for an approximation column, or {@code null}
      * if the column name does not match an approximation pattern.
      */
-    public static void addColumnMetadata(Attribute column, Map<String, Object> metadata) {
+    static Map<String, Object> createColumnMetadata(Attribute column) {
         if (column.synthetic() == false) {
-            return;
+            return null;
         }
         String columnName = column.name();
         if (columnName.startsWith(CONFIDENCE_INTERVAL_COLUMN_PREFIX) && columnName.endsWith(")")) {
             String sourceColumn = columnName.substring(CONFIDENCE_INTERVAL_COLUMN_PREFIX.length(), columnName.length() - 1);
-            metadata.put("approximation", Map.of("type", "confidence_interval", "column", sourceColumn));
-        } else if (columnName.startsWith(CERTIFIED_COLUMN_PREFIX) && columnName.endsWith(")")) {
-            String sourceColumn = columnName.substring(CERTIFIED_COLUMN_PREFIX.length(), columnName.length() - 1);
-            metadata.put("approximation", Map.of("type", "certified", "column", sourceColumn));
+            return Map.of("approximation", Map.of("type", "confidence_interval", "column", sourceColumn));
         }
+        if (columnName.startsWith(CERTIFIED_COLUMN_PREFIX) && columnName.endsWith(")")) {
+            String sourceColumn = columnName.substring(CERTIFIED_COLUMN_PREFIX.length(), columnName.length() - 1);
+            return Map.of("approximation", Map.of("type", "certified", "column", sourceColumn));
+        }
+        return null;
     }
 
     /**

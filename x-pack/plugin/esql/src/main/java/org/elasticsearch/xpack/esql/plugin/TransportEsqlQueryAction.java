@@ -58,7 +58,6 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlQueryTask;
 import org.elasticsearch.xpack.esql.action.EsqlResponseListener;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
-import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
@@ -67,7 +66,6 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
-import org.elasticsearch.xpack.esql.expression.function.grouping.BucketColumnMetadata;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.querylog.EsqlLogContext;
@@ -82,7 +80,6 @@ import java.io.IOException;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
@@ -458,9 +455,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, boolean profileEnabled, Versioned<Result> versionedResult) {
         var result = versionedResult.inner();
-        var bucketColumnMetadataResolver = result.plan() != null
-            ? BucketColumnMetadata.createResolver(result.plan(), result.configuration().newFoldContext())
-            : null;
         List<ColumnInfoImpl> columns = result.schema().stream().map(c -> {
             List<String> originalTypes;
             if (c instanceof UnsupportedAttribute ua) {
@@ -470,16 +464,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             } else {
                 originalTypes = null;
             }
-            // Quick way to get the approximation column metadata in the response
-            // without a full implementation of a colum metadata service.
-            // TODO: remove this hack when we have a proper column metadata service,
-            // see https://github.com/elastic/elasticsearch/issues/138223
-            Map<String, Object> columnMetadata = new LinkedHashMap<>();
-            ApproximationPlan.addColumnMetadata(c, columnMetadata);
-            if (bucketColumnMetadataResolver != null) {
-                bucketColumnMetadataResolver.add(c.id(), columnMetadata);
-            }
-            return new ColumnInfoImpl(c.name(), c.dataType(), originalTypes, columnMetadata.isEmpty() ? null : columnMetadata);
+            return new ColumnInfoImpl(c.name(), c.dataType(), originalTypes, result.attributeMetadata(c.id()));
         }).toList();
         EsqlQueryResponse.Profile profile = profileEnabled
             ? new EsqlQueryResponse.Profile(

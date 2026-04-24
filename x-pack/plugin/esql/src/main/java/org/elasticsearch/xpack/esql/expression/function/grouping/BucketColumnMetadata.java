@@ -12,19 +12,12 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
 public class BucketColumnMetadata {
 
-    public interface Resolver {
-        void add(NameId id, Map<String, Object> metadata);
-
-        Collection<Map<String, Object>> all();
-    }
-
-    public static Resolver createResolver(LogicalPlan plan, FoldContext foldContext) {
+    public static Map<NameId, Map<String, Object>> createColumnMetadata(LogicalPlan plan, FoldContext foldContext) {
         var resolved = new HashMap<NameId, Map<String, Object>>();
         plan.forEachExpressionDown(Alias.class, alias -> {
             if (alias.child() instanceof Bucket bucket) {
@@ -34,19 +27,6 @@ public class BucketColumnMetadata {
                 }
             }
         });
-        return new Resolver() {
-            @Override
-            public void add(NameId id, Map<String, Object> metadata) {
-                Map<String, Object> intervalMetadata = resolved.get(id);
-                if (intervalMetadata != null) {
-                    metadata.putAll(intervalMetadata);
-                }
-            }
-
-            @Override
-            public Collection<Map<String, Object>> all() {
-                return resolved.values();
-            }
-        };
+        return resolved;
     }
 }

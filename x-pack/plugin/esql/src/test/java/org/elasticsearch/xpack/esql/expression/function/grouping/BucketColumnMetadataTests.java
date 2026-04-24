@@ -112,8 +112,10 @@ public class BucketColumnMetadataTests extends ESTestCase {
 
     @SafeVarargs
     private static void assertBucketColumnMetadata(String query, Map<String, Object>... expectedMetadata) {
-        var resolver = BucketColumnMetadata.createResolver(analyzedPlan(query), FoldContext.small());
-        assertThat(resolver.all(), containsInAnyOrder(expectedMetadata));
+        assertThat(
+            BucketColumnMetadata.createColumnMetadata(analyzedPlan(query), FoldContext.small()).values(),
+            containsInAnyOrder(expectedMetadata)
+        );
     }
 
     private static LogicalPlan analyzedPlan(String query) {

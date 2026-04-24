@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -58,6 +59,7 @@ import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
@@ -69,6 +71,7 @@ import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.expression.function.grouping.BucketColumnMetadata;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
@@ -369,7 +372,7 @@ public class EsqlSession {
                                 p,
                                 finalConfiguration,
                                 foldContext,
-                                new Holder<Approximation>(),
+                                new Holder<>(),
                                 minimumVersion,
                                 planTimeProfile,
                                 l
@@ -378,7 +381,14 @@ public class EsqlSession {
                         .<Versioned<Result>>andThen(
                             (l, r) -> l.onResponse(
                                 new Versioned<>(
-                                    new Result(plan, r.schema(), r.pages(), r.configuration(), r.completionInfo(), r.executionInfo()),
+                                    new Result(
+                                        r.schema(),
+                                        r.pages(),
+                                        createColumnMetadata(r.schema(), plan, r.configuration().newFoldContext()),
+                                        r.configuration(),
+                                        r.completionInfo(),
+                                        r.executionInfo()
+                                    ),
                                     minimumVersion
                                 )
                             )
@@ -386,6 +396,16 @@ public class EsqlSession {
                         .addListener(listener);
                 }
             }
+        );
+    }
+
+    private Map<NameId, Map<String, Object>> createColumnMetadata(List<Attribute> attributes, LogicalPlan plan, FoldContext foldContext) {
+        return Maps.merge(
+            BucketColumnMetadata.createColumnMetadata(plan, foldContext),
+            ApproximationPlan.createColumnMetadata(attributes),
+            (a, b) -> Maps.merge(a, b, (m1, m2) -> {
+                throw new IllegalStateException("Should not produce metadata with the same key");
+            })
         );
     }
 
@@ -691,9 +711,9 @@ public class EsqlSession {
                             completionInfoAccumulator.accumulate(finalResult.completionInfo());
                             finalListener.onResponse(
                                 new Result(
-                                    null,
                                     finalResult.schema(),
                                     finalResult.pages(),
+                                    null,
                                     configuration,
                                     completionInfoAccumulator.finish(),
                                     executionInfo

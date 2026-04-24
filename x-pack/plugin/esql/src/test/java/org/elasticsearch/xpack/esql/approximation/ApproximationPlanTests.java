@@ -12,13 +12,13 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.SampledAggregate;
 
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ApproximationPlanTests extends ApproximationTestCase {
 
@@ -83,12 +83,11 @@ public class ApproximationPlanTests extends ApproximationTestCase {
         );
 
         for (Attribute attr : approximationPlan.output()) {
-            Map<String, Object> metadata = new LinkedHashMap<>();
-            ApproximationPlan.addColumnMetadata(attr, metadata);
+            Map<String, Object> metadata = ApproximationPlan.createColumnMetadata(attr);
             switch (attr.name()) {
                 case "count", "sum":
                     assertThat(attr.synthetic(), equalTo(false));
-                    assertThat(metadata, equalTo(Map.of()));
+                    assertThat(metadata, nullValue());
                     break;
                 case "_approximation_confidence_interval(count)":
                     assertThat(attr.synthetic(), equalTo(true));

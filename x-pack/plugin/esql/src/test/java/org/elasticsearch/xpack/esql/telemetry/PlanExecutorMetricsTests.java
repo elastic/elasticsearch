@@ -141,7 +141,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
 
     private static Result createPlanRunnerResult(Configuration configuration, EsqlExecutionInfo executionInfo) {
         executionInfo.markEndQuery();
-        return new Result(null, List.of(), List.of(), configuration, DriverCompletionInfo.EMPTY, executionInfo);
+        return new Result(List.of(), List.of(), null, configuration, DriverCompletionInfo.EMPTY, executionInfo);
     }
 
     @SuppressWarnings("unchecked")

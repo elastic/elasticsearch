@@ -99,9 +99,9 @@ public class EsqlCCSUtils {
                 listener.onResponse(
                     new Versioned<>(
                         new Result(
-                            null,
                             Analyzer.NO_FIELDS,
                             Collections.emptyList(),
+                            null,
                             configuration,
                             DriverCompletionInfo.EMPTY,
                             executionInfo

@@ -60,12 +60,12 @@ public class FromGenerator implements CommandGenerator {
         GenerationContext context
     ) {
         // SET prefixes are only legal at the top level of a query — never emit them inside a subquery.
-        boolean useUnmappedFields = context.inSubquery() == false && shouldAddUnmappedFieldWithProbabilityIncrease(3);
+        boolean useUnmappedFields = context.isWithinASubquery() == false && shouldAddUnmappedFieldWithProbabilityIncrease(3);
         StringBuilder result = new StringBuilder();
         if (useUnmappedFields) {
             result.append(SET_UNMAPPED_FIELDS_PREFIX);
         }
-        boolean setQueryApproximation = context.inSubquery() == false
+        boolean setQueryApproximation = context.isWithinASubquery() == false
             && EsqlCapabilities.Cap.APPROXIMATION_V7.isEnabled()
             && randomDouble() < QUERY_APPROXIMATION_SETTING_PROBABILITY;
         if (setQueryApproximation) {
@@ -113,7 +113,7 @@ public class FromGenerator implements CommandGenerator {
                 result.append(",");
             }
             // No nested subqueries: ESQL rejects UnionAll under UnionAll ("Nested subqueries are not supported").
-            if (context.inSubquery() == false && randomDouble() < SUBQUERY_PROBABILITY) {
+            if (context.isWithinASubquery() == false && randomDouble() < SUBQUERY_PROBABILITY) {
                 SubqueryGenerator.SubqueryResult sub = SubqueryGenerator.build(context, schema, executor);
                 if (sub != null) {
                     result.append(sub.queryText());

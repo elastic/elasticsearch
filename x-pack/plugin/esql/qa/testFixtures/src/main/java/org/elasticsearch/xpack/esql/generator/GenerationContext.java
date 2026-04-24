@@ -25,14 +25,24 @@ public final class GenerationContext {
         return new GenerationContext(0);
     }
 
+    /**
+     * How deeply nested the current generation is inside subqueries.
+     * E.g. 0 for the root query, 1+ inside a subquery.
+     */
     public int subqueryDepth() {
         return subqueryDepth;
     }
 
-    public boolean inSubquery() {
+    /**
+     * Returns {@code true} if generation is happening inside a subquery body.
+     */
+    public boolean isWithinASubquery() {
         return subqueryDepth > 0;
     }
 
+    /**
+     * Returns a copy of this context with the given subquery nesting depth.
+     */
     public GenerationContext withSubqueryDepth(int subqueryDepth) {
         return new GenerationContext(subqueryDepth);
     }

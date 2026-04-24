@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -70,6 +71,7 @@ public class HttpRequestSender implements Sender {
         }
     }
 
+    private static final Logger logger = LogManager.getLogger(HttpRequestSender.class);
     private static final TimeValue STARTUP_TIMEOUT = TimeValue.timeValueSeconds(5);
 
     private final ThreadPool threadPool;
@@ -108,7 +110,13 @@ public class HttpRequestSender implements Sender {
     @Override
     public void startAsynchronously(ActionListener<Void> listener, @Nullable TimeValue timeout) {
         if (startInitiated.compareAndSet(false, true)) {
-            threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(this::startInternal);
+            try {
+                threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(this::startInternal);
+            } catch (Exception e) {
+                // Consider making this an error log because it's not recoverable
+                logger.warn("Failed to execute http sender start thread", e);
+                startupNotifier.onFailure(e);
+            }
         }
         // Preserve context before wrapping with timeout so both the normal completion path and
         // the timeout action restore the original thread context when notifying the caller.
@@ -136,8 +144,9 @@ public class HttpRequestSender implements Sender {
             manager.start();
             service.start();
             startupNotifier.onResponse(null);
-        } catch (Exception ex) {
-            startupNotifier.onFailure(ex);
+        } catch (Exception e) {
+            logger.warn("Failed to initialize http sender components", e);
+            startupNotifier.onFailure(e);
         }
     }
 

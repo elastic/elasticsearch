@@ -9,6 +9,9 @@
 
 package org.elasticsearch.cli.terminal;
 
+import org.elasticsearch.cli.terminal.internal.EcsJsonUtils;
+import org.elasticsearch.cli.terminal.internal.TerminalPrintStream;
+
 import java.io.Console;
 import java.io.IOException;
 import java.io.InputStream;
@@ -36,8 +39,23 @@ public abstract class Terminal {
     // Writer to standard error - not supplied by the {@link Console} API, so we share with subclasses
     private static final PrintWriter ERROR_WRITER = newErrorWriter();
 
-    /** The default terminal implementation, which will be a console if available, or stdout/stderr if not. */
-    public static final Terminal DEFAULT = ConsoleTerminal.isSupported() ? new ConsoleTerminal() : new SystemTerminal();
+    /**
+     * The default terminal implementation, which will be a console if available, or stdout/stderr if not.
+     * Depending on the env, this might be a JSON terminal.
+     */
+    public static final Terminal DEFAULT = defaultTerminal();
+
+    private static Terminal defaultTerminal() {
+        Terminal terminal = ConsoleTerminal.isSupported() ? new ConsoleTerminal() : new SystemTerminal();
+        // FIXME change condition
+        if (EcsJsonUtils.useJsonOutput()) {
+            terminal = new JsonTerminal(terminal);
+            // FIXME switch to replace output streams
+            System.setOut(new TerminalPrintStream(terminal, false));
+            System.setErr(new TerminalPrintStream(terminal, true));
+        }
+        return terminal;
+    }
 
     private static PrintWriter newErrorWriter() {
         return new PrintWriter(System.err, true, StandardCharsets.UTF_8);
@@ -175,10 +193,6 @@ public abstract class Terminal {
                 writer.flush();
             }
         }
-    }
-
-    protected final boolean isErrorWriter(PrintWriter writer) {
-        return writer == errWriter;
     }
 
     /** Prints a line to the terminal's standard error at {@link Verbosity#NORMAL} verbosity level, without a newline. */
@@ -389,6 +403,53 @@ public abstract class Terminal {
         public void flush() {
             if (count > 0) {
                 flush(false);
+            }
+        }
+    }
+
+    /**
+     * A {@link Terminal} decorator that formats all output as single-line ECS JSON.
+     *
+     * <p> Wraps a delegate terminal, intercepting all print operations to emit JSON via
+     * {@link EcsJsonUtils}. Messages sent to stdout use log level {@code INFO}, messages
+     * sent to stderr use {@code WARN}. Stacktraces from {@link #errorPrintln} are captured
+     * into a single JSON line with {@code error.stack_trace} and {@code error.type} fields.
+     */
+    static class JsonTerminal extends Terminal {
+
+        private final Terminal delegate;
+
+        protected JsonTerminal(Terminal delegate) {
+            super(delegate);
+            this.delegate = delegate;
+        }
+
+        @Override
+        public InputStream getInputStream() {
+            return delegate.getInputStream();
+        }
+
+        @Override
+        public OutputStream getOutputStream() {
+            return delegate.getOutputStream();
+        }
+
+        @Override
+        protected void print(Verbosity verbosity, PrintWriter writer, CharSequence msg, boolean newline, boolean flush) {
+            // FIXME prevent print
+            if (isPrintable(verbosity)) {
+                String json = (writer == delegate.errWriter)
+                    ? EcsJsonUtils.formatJson("WARN", "stderr", msg)
+                    : EcsJsonUtils.formatJson("INFO", "stdout", msg);
+                super.print(verbosity, writer, json, newline, flush);
+            }
+        }
+
+        @Override
+        public void errorPrintln(Verbosity verbosity, Throwable throwable) {
+            if (isPrintable(verbosity)) {
+                String json = EcsJsonUtils.formatJson("WARN", "stderr", throwable.getMessage(), throwable);
+                delegate.errorPrintln(Verbosity.SILENT, json);
             }
         }
     }

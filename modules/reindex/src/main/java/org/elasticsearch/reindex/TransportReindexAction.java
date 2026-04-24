@@ -30,6 +30,7 @@ import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -66,7 +67,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         ReindexSslConfig sslConfig,
         @Nullable ReindexMetrics reindexMetrics,
         ReindexRelocationNodePicker relocationNodePicker,
-        FeatureService featureService
+        FeatureService featureService,
+        TaskResultsService taskResultsService
     ) {
         this(
             ReindexAction.NAME,
@@ -83,7 +85,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             sslConfig,
             reindexMetrics,
             relocationNodePicker,
-            featureService
+            featureService,
+            taskResultsService
         );
     }
 
@@ -102,7 +105,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         ReindexSslConfig sslConfig,
         @Nullable ReindexMetrics reindexMetrics,
         ReindexRelocationNodePicker relocationNodePicker,
-        FeatureService featureService
+        FeatureService featureService,
+        TaskResultsService taskResultsService
     ) {
         super(name, transportService, actionFilters, ReindexRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = client;
@@ -123,7 +127,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             reindexMetrics,
             transportService,
             relocationNodePicker,
-            featureService
+            featureService,
+            taskResultsService
         );
     }
 

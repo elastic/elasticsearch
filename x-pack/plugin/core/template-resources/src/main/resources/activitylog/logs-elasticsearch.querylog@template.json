@@ -2,7 +2,7 @@
   "index_patterns": ["${xpack.stack.querylog.template.pattern}"],
   "priority": 250,
   "data_stream": {
-    "hidden": true
+    "hidden": false
   },
   "composed_of": [
     "logs@mappings",

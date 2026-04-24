@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -147,7 +148,7 @@ public class RerankIT extends InferenceCommandIntegTestCase {
             | KEEP id, _score
             """, testIndexLarge, RERANK_MODEL_ID);
 
-        try (var resp = run(query)) {
+        try (var resp = run(query, TimeValue.timeValueSeconds(60L))) {
             List<List<Object>> values = getValuesList(resp);
             // Should be limited to exactly the default row limit (1000)
             assertThat(values, hasSize(1000));

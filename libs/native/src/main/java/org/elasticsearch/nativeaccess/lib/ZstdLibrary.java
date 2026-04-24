@@ -11,6 +11,8 @@ package org.elasticsearch.nativeaccess.lib;
 
 import org.elasticsearch.nativeaccess.CloseableByteBuffer;
 
+import java.nio.ByteBuffer;
+
 public non-sealed interface ZstdLibrary extends NativeLibrary {
 
     long compressBound(int scrLen);
@@ -22,4 +24,11 @@ public non-sealed interface ZstdLibrary extends NativeLibrary {
     String getErrorName(long code);
 
     long decompress(CloseableByteBuffer dst, CloseableByteBuffer src);
+
+    /**
+     * Decompress variant that accepts a direct {@link ByteBuffer} as the source, avoiding the need for a
+     * {@link CloseableByteBuffer} wrapper when the caller already holds a direct buffer (e.g. from
+     * {@code DirectAccessInput.withByteBufferSlice}).
+     */
+    long decompress(CloseableByteBuffer dst, ByteBuffer src);
 }

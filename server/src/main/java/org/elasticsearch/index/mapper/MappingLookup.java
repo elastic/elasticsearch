@@ -60,7 +60,7 @@ public final class MappingLookup {
     private final NestedLookup nestedLookup;
     private final FieldTypeLookup fieldTypeLookup;
     private final FieldTypeLookup indexTimeLookup;  // for index-time scripts, a lookup that does not include runtime fields
-    private final Map<String, NamedAnalyzer> indexAnalyzersMap;
+    private final Map<String, NamedAnalyzer> indexAnalyzers;
     private final List<FieldMapper> indexTimeScriptMappers;
     private final Mapping mapping;
     private final int totalFieldsCount;
@@ -181,7 +181,7 @@ public final class MappingLookup {
         }
         this.nestedLookup = NestedLookup.build(nestedMappers);
 
-        final Map<String, NamedAnalyzer> indexAnalyzersMap = new HashMap<>();
+        final Map<String, NamedAnalyzer> indexAnalyzers = new HashMap<>();
         final List<FieldMapper> indexTimeScriptMappers = new ArrayList<>();
         for (FieldMapper mapper : mappers) {
             if (objects.containsKey(mapper.fullPath())) {
@@ -190,7 +190,7 @@ public final class MappingLookup {
             if (fieldMappers.put(mapper.fullPath(), mapper) != null) {
                 throw new MapperParsingException("Field [" + mapper.fullPath() + "] is defined more than once");
             }
-            indexAnalyzersMap.putAll(mapper.indexAnalyzers());
+            indexAnalyzers.putAll(mapper.indexAnalyzers());
             if (mapper.hasScript()) {
                 indexTimeScriptMappers.add(mapper);
             }
@@ -232,7 +232,7 @@ public final class MappingLookup {
         this.fieldMappers = Map.copyOf(fieldMappers);
         this.objectMappers = Map.copyOf(objects);
         this.runtimeFieldMappersCount = runtimeFields.size();
-        this.indexAnalyzersMap = Map.copyOf(indexAnalyzersMap);
+        this.indexAnalyzers = Map.copyOf(indexAnalyzers);
         this.indexTimeScriptMappers = List.copyOf(indexTimeScriptMappers);
         this.indexMode = indexMode;
 
@@ -298,7 +298,7 @@ public final class MappingLookup {
     }
 
     public NamedAnalyzer indexAnalyzer(String field, Function<String, NamedAnalyzer> unmappedFieldAnalyzer) {
-        final NamedAnalyzer analyzer = indexAnalyzersMap.get(field);
+        final NamedAnalyzer analyzer = indexAnalyzers.get(field);
         if (analyzer != null) {
             return analyzer;
         }

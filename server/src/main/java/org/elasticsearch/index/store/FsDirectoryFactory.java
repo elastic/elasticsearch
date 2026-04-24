@@ -157,14 +157,6 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             if (context.hints().contains(StandardIOBehaviorHint.INSTANCE)) {
                 return Optional.of(ReadAdvice.NORMAL);
             }
-            if (name.endsWith(".cfs")) {
-                return Optional.of(ReadAdvice.NORMAL);
-            }
-            // Bloom filter files are accessed randomly during point lookups,
-            // so sequential pre-fetching would not be beneficial
-            if (name.endsWith(".sfbf")) {
-                return Optional.of(ReadAdvice.RANDOM);
-            }
             return MMapDirectory.ADVISE_BY_CONTEXT.apply(name, context);
         };
     }

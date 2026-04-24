@@ -71,10 +71,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static java.util.stream.IntStream.range;
+import static org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_MAX_SHARD_WRITE_LOAD_PROPORTION_THRESHOLD_SETTING;
 import static org.elasticsearch.test.NodeRoles.onlyRoles;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -659,6 +661,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             .put(onlyRoles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INDEX_ROLE)))
             .build();
         final var dataNodes = internalCluster().startNodes(3, settings);
+        ensureStableCluster(3);
 
         // Refresh cluster info (should trigger polling)
         refreshClusterInfo();
@@ -683,6 +686,39 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             mostRecentAverageWriteLoadMetrics.values(),
             everyItem(Matchers.allOf(greaterThan(0d), lessThanOrEqualTo((double) writePoolMaximumSize)))
         );
+    }
+
+    public void testMaxSingleShardWriteLoadSetting() {
+        internalCluster().startMasterOnlyNode(Settings.EMPTY);
+
+        String thresholdSettingKey = WRITE_LOAD_DECIDER_HOTSPOT_MAX_SHARD_WRITE_LOAD_PROPORTION_THRESHOLD_SETTING.getKey();
+
+        updateClusterSettings(Settings.builder().put(thresholdSettingKey, "0%"));
+
+        updateClusterSettings(Settings.builder().put(thresholdSettingKey, "90%"));
+
+        updateClusterSettings(Settings.builder().put(thresholdSettingKey, "100%"));
+
+        updateClusterSettings(Settings.builder().put(thresholdSettingKey, "51%"));
+
+        Consumer<String> testUnderFiftyRatio = (setting) -> expectThrows(
+            IllegalArgumentException.class,
+            equalTo(thresholdSettingKey + " may be between 50% and 100%, or 0% to disable"),
+            () -> updateClusterSettings(Settings.builder().put(thresholdSettingKey, setting))
+        );
+
+        testUnderFiftyRatio.accept("1%");
+        testUnderFiftyRatio.accept("50%");
+        testUnderFiftyRatio.accept(randomIntBetween(1, 50) + "%");
+
+        Consumer<Integer> testAboveOneHundredRatio = (setting) -> expectThrows(
+            IllegalArgumentException.class,
+            equalTo(Strings.format("Percentage should be in [0-100], got [%d]", setting)),
+            () -> updateClusterSettings(Settings.builder().put(thresholdSettingKey, setting + "%"))
+        );
+
+        testAboveOneHundredRatio.accept(101);
+        testAboveOneHundredRatio.accept(randomIntBetween(101, 1000));
     }
 
     private static Map<String, Long> getMostRecentQueueLatencyMetrics(List<String> dataNodes) {

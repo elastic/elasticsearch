@@ -198,14 +198,14 @@ public final class ExponentialHistogramStates {
 
         private final CircuitBreaker breaker;
         private long longValue;
-        private BreakingExponentialHistogramHolder value;
+        private BreakingExponentialHistogramHolder histogramValue;
 
         public WithLongSingleState(CircuitBreaker breaker) {
             this.breaker = breaker;
         }
 
         public boolean isSeen() {
-            return value != null;
+            return histogramValue != null;
         }
 
         public long longValue() {
@@ -216,10 +216,10 @@ public final class ExponentialHistogramStates {
         public void set(long longValue, ExponentialHistogram histogram) {
             assert histogram != null;
             this.longValue = longValue;
-            if (value == null) {
-                value = BreakingExponentialHistogramHolder.create(breaker);
+            if (histogramValue == null) {
+                histogramValue = BreakingExponentialHistogramHolder.create(breaker);
             }
-            value.set(histogram);
+            histogramValue.set(histogram);
         }
 
         @Override
@@ -227,30 +227,30 @@ public final class ExponentialHistogramStates {
             assert blocks.length >= offset + 3;
             BlockFactory blockFactory = driverContext.blockFactory();
             // in case of error, the blocks are closed by the caller
-            if (value == null) {
+            if (histogramValue == null) {
                 blocks[offset] = blockFactory.newConstantLongBlockWith(0L, 1);
                 blocks[offset + 1] = blockFactory.newConstantExponentialHistogramBlock(ExponentialHistogram.empty(), 1);
                 blocks[offset + 2] = blockFactory.newConstantBooleanBlockWith(false, 1);
             } else {
                 blocks[offset] = blockFactory.newConstantLongBlockWith(longValue, 1);
-                blocks[offset + 1] = blockFactory.newConstantExponentialHistogramBlock(value.accessor(), 1);
+                blocks[offset + 1] = blockFactory.newConstantExponentialHistogramBlock(histogramValue.accessor(), 1);
                 blocks[offset + 2] = blockFactory.newConstantBooleanBlockWith(true, 1);
             }
         }
 
         public Block evaluateFinalHistogram(DriverContext driverContext) {
             BlockFactory blockFactory = driverContext.blockFactory();
-            if (value == null) {
+            if (histogramValue == null) {
                 return blockFactory.newConstantNullBlock(1);
             } else {
-                return blockFactory.newConstantExponentialHistogramBlock(value.accessor(), 1);
+                return blockFactory.newConstantExponentialHistogramBlock(histogramValue.accessor(), 1);
             }
         }
 
         @Override
         public void close() {
-            Releasables.close(value);
-            value = null;
+            Releasables.close(histogramValue);
+            histogramValue = null;
         }
     }
 

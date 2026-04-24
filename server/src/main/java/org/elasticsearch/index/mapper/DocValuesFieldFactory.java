@@ -64,15 +64,28 @@ public class DocValuesFieldFactory {
     }
 
     /**
-     * Adds a binary doc values field. For {@code multi_value=no}, creates a plain {@link BinaryDocValuesField} (single-valued,
-     * no companion {@code .counts} field). Otherwise, delegates to {@link MultiValuedBinaryDocValuesField#addToBinaryFieldInDoc}
-     * which handles the multi-valued encoding.
+     * Adds a binary doc values field using the current index version's on-disk format. Use this overload for fields whose binary
+     * doc values have always been written in {@link MultiValuedBinaryDocValuesField.SeparateCount SeparateCount} format.
      */
     public void addBinaryField(LuceneDocument doc, String name, BytesRef value, ValueOrdering ordering) {
+        addBinaryField(doc, name, value, ordering, IndexVersion.current());
+    }
+
+    /**
+     * Adds a binary doc values field using {@link #indexVersion} to select the on-disk encoding. Use this overload for fields that
+     * historically stored {@link MultiValuedBinaryDocValuesField.IntegratedCount IntegratedCount} data
+     * pre-{@link org.elasticsearch.index.IndexVersions#DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES}).
+     */
+    public void addBinaryFieldLegacyEncodingAware(LuceneDocument doc, String name, BytesRef value, ValueOrdering ordering) {
+        addBinaryField(doc, name, value, ordering, indexVersion);
+    }
+
+    private void addBinaryField(LuceneDocument doc, String name, BytesRef value, ValueOrdering ordering, IndexVersion indexVersion) {
         if (multiValue.isSingleValued()) {
             doc.add(new BinaryDocValuesField(name, value));
         } else {
             MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(doc, name, value, ordering, indexVersion);
         }
     }
+
 }

@@ -31,6 +31,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.TargetIndex;
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.SpanEventDocumentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.SpanDocumentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
@@ -63,6 +64,7 @@ public class OTLPTracesTransportAction extends AbstractOTLPTransportAction {
         BufferedByteStringAccessor byteStringAccessor = new BufferedByteStringAccessor();
         var tracesServiceRequest = ExportTraceServiceRequest.parseFrom(request.getRequest().streamInput());
         SpanDocumentBuilder spanDocumentBuilder = new SpanDocumentBuilder(byteStringAccessor);
+        SpanEventDocumentBuilder spanEventDocumentBuilder = new SpanEventDocumentBuilder(byteStringAccessor);
         List<ResourceSpans> resourceSpansList = tracesServiceRequest.getResourceSpansList();
         for (int i = 0, resourceSpansListSize = resourceSpansList.size(); i < resourceSpansListSize; i++) {
             ResourceSpans resourceSpans = resourceSpansList.get(i);
@@ -97,6 +99,34 @@ public class OTLPTracesTransportAction extends AbstractOTLPTransportAction {
                                 .setRequireDataStream(true)
                                 .source(xContentBuilder)
                         );
+                    }
+                    List<Span.Event> eventsList = span.getEventsList();
+                    for (int l = 0, eventsListSize = eventsList.size(); l < eventsListSize; l++) {
+                        Span.Event event = eventsList.get(l);
+                        TargetIndex eventIndex = TargetIndex.evaluate(
+                            OTLPLogsTransportAction.TYPE_LOGS,
+                            event.getAttributesList(),
+                            receiverName,
+                            scope.getAttributesList(),
+                            resource.getAttributesList()
+                        );
+                        try (XContentBuilder xContentBuilder = XContentFactory.cborBuilder(new BytesStreamOutput())) {
+                            spanEventDocumentBuilder.buildSpanEventDocument(
+                                xContentBuilder,
+                                resource,
+                                resourceSpans.getSchemaUrlBytes(),
+                                scope,
+                                scopeSpans.getSchemaUrlBytes(),
+                                eventIndex,
+                                span,
+                                event
+                            );
+                            bulkRequestBuilder.add(
+                                new IndexRequest(eventIndex.index()).opType(DocWriteRequest.OpType.CREATE)
+                                    .setRequireDataStream(true)
+                                    .source(xContentBuilder)
+                            );
+                        }
                     }
                 }
             }

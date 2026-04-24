@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.oteldata.otlp;
 
+import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.api.trace.Tracer;
@@ -20,6 +21,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 
+import static io.opentelemetry.api.common.AttributeKey.stringKey;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.isA;
@@ -40,7 +42,7 @@ public class OTLPTracesIndexingRestIT extends AbstractOTLPIndexingRestIT {
         super.setUp();
         OtlpHttpSpanExporter exporter = OtlpHttpSpanExporter.builder()
             .setEndpoint(getClusterHosts().getFirst().toURI() + otlpEndpointPath())
-            .addHeader("Authorization", "ApiKey " + createApiKey("traces-*"))
+            .addHeader("Authorization", "ApiKey " + createApiKey("traces-*", "logs-*"))
             .build();
         tracerProvider = SdkTracerProvider.builder()
             .setResource(TEST_RESOURCE)
@@ -97,6 +99,29 @@ public class OTLPTracesIndexingRestIT extends AbstractOTLPIndexingRestIT {
         assertThat(source.evaluate("scope.name"), equalTo(getClass().getSimpleName()));
     }
 
+    public void testSpanEventsAreIndexedAsLogs() throws Exception {
+        var span = tracer.spanBuilder("span-with-event").startSpan();
+        String traceId = span.getSpanContext().getTraceId();
+        String spanId = span.getSpanContext().getSpanId();
+        span.addEvent("exception", Attributes.of(stringKey("event.attr.foo"), "event.attr.bar"));
+        span.end();
+
+        indexTraces();
+
+        ObjectPath tracesSearch = search("traces-generic.otel-default");
+        assertThat(tracesSearch.evaluate("hits.total.value"), equalTo(1));
+
+        ObjectPath logsSearch = search("logs-generic.otel-default");
+        assertThat(logsSearch.evaluate("hits.total.value"), equalTo(1));
+        var source = new ObjectPath(logsSearch.evaluate("hits.hits.0._source"));
+        assertThat(source.evaluate("event_name"), equalTo("exception"));
+        assertThat(source.evaluate("trace_id"), equalTo(traceId));
+        assertThat(source.evaluate("span_id"), equalTo(spanId));
+        assertThat(source.evaluate("attributes.event\\.attr\\.foo"), equalTo("event.attr.bar"));
+        assertThat(source.evaluate("attributes.event\\.name"), equalTo("exception"));
+        assertThat(source.evaluate("data_stream.type"), equalTo("logs"));
+    }
+
     public void testDataStreamRouting() throws Exception {
         var span = tracer.spanBuilder("routed span").startSpan();
         span.setAttribute("data_stream.dataset", "checkout");
@@ -117,6 +142,7 @@ public class OTLPTracesIndexingRestIT extends AbstractOTLPIndexingRestIT {
         var result = tracerProvider.forceFlush().join(TEST_REQUEST_TIMEOUT.millis(), MILLISECONDS);
         assertThat(result.isSuccess(), equalTo(true));
         refresh("traces-*.otel-*");
+        refresh("logs-*.otel-*");
     }
 
 }

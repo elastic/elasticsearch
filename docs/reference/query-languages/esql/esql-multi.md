@@ -13,3 +13,4 @@ data from multiple sources. Learn more in the following sections:
 * [Query multiple indices](esql-multi-index.md)
 * [Query across clusters](esql-cross-clusters.md)
 * [Combine result sets with subqueries](esql-subquery.md)
+* [Define virtual indices using ES|QL views](esql-views.md) {applies_to}`stack: preview 9.4.0` {applies_to}`serverless: unavailable`

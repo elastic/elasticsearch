@@ -433,6 +433,14 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             );
     }
 
+    public void testNullifyLookupJoinUnknownRightField() {
+        test().addLanguagesLookup()
+            .statementError(
+                setUnmappedNullify("FROM test | LOOKUP JOIN languages_lookup ON does_not_exist"),
+                containsString("Unknown column [does_not_exist] in right side of join")
+            );
+    }
+
     public void testNullifyLookupJoinExpressionWithNullifiedFields() {
         assumeTrue(
             "requires LOOKUP JOIN ON boolean expression capability",

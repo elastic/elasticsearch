@@ -441,6 +441,21 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.cluster.BalancedKMeansLocalTests
   method: testKMeansNeighbors
   issue: https://github.com/elastic/elasticsearch/issues/147479
+- class: org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeansTests
+  method: testHKmeans
+  issue: https://github.com/elastic/elasticsearch/issues/147482
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:inlinestats.pushDown_SelectiveGroupingAndFilters_PastInlineJoin}
+  issue: https://github.com/elastic/elasticsearch/issues/147485
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:match-operator.testMatchInStatsPushable}
+  issue: https://github.com/elastic/elasticsearch/issues/147486
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:exponential_histogram.Top level date group with no other groups (standard index)}
+  issue: https://github.com/elastic/elasticsearch/issues/147487
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:match-phrase-function.testMatchPhraseInStatsNonPushable}
+  issue: https://github.com/elastic/elasticsearch/issues/147488
 
 # Examples:
 #

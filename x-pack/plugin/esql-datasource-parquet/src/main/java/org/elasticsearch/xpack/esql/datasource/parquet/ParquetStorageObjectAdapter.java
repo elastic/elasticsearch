@@ -8,16 +8,19 @@
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.parquet.io.SeekableInputStream;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
-import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Adapter that wraps a StorageObject to implement Parquet's InputFile interface.
@@ -37,8 +40,15 @@ import java.util.NavigableMap;
  *
  * <p>Both paths use <strong>only</strong> range reads ({@code newStream(position, length)})
  * and {@link StorageObject#readBytes} — never a full-object GET — and have no Hadoop dependencies.
+ *
+ * <p>A JVM-wide {@link FooterCache} (8 MiB budget) caches the tail bytes of Parquet files
+ * to avoid redundant footer reads across splits. Thundering-herd protection ensures that
+ * concurrent tail reads for the same file coalesce into a single I/O via {@link CompletableFuture}.
  */
 public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputFile {
+
+    private static final Logger logger = LogManager.getLogger(ParquetStorageObjectAdapter.class);
+
     private final StorageObject storageObject;
     private final long length;
     private final FooterCacheKey footerCacheKey;
@@ -148,14 +158,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
     }
 
     private static FooterCacheKey buildFooterCacheKey(StorageObject storageObject, long length) {
-        Instant lastModified;
-        try {
-            lastModified = storageObject.lastModified();
-        } catch (IOException e) {
-            lastModified = null;
-        }
-        Long lastModifiedMillis = lastModified == null ? null : lastModified.toEpochMilli();
-        return new FooterCacheKey(storageObject.path().toString(), length, lastModifiedMillis);
+        return new FooterCacheKey(storageObject.path().toString(), length);
     }
 
     /**
@@ -235,7 +238,9 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                 return;
             }
 
-            FooterCacheEntry cached = FOOTER_CACHE.get(footerCacheKey);
+            boolean isTailRead = pos + toRead == length;
+
+            FooterCacheEntry cached = FOOTER_CACHE.getCompleted(footerCacheKey);
             if (cached != null && cached.covers(pos, (int) toRead)) {
                 int from = (int) (pos - cached.startOffset());
                 System.arraycopy(cached.bytes(), from, window, 0, (int) toRead);
@@ -244,14 +249,50 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                 return;
             }
 
-            windowStart = pos;
-            windowLength = 0;
-            ByteBuffer target = ByteBuffer.wrap(window, 0, (int) toRead);
-            int bytesRead = storageObject.readBytes(pos, target);
-            windowLength = bytesRead < 0 ? 0 : bytesRead;
+            if (isTailRead) {
+                cached = FOOTER_CACHE.getOrAwaitPending(footerCacheKey);
+                if (cached != null && cached.covers(pos, (int) toRead)) {
+                    int from = (int) (pos - cached.startOffset());
+                    System.arraycopy(cached.bytes(), from, window, 0, (int) toRead);
+                    windowStart = pos;
+                    windowLength = (int) toRead;
+                    return;
+                }
 
-            if (windowLength > 0 && windowStart + windowLength == length) {
-                FOOTER_CACHE.putTailIfEligible(footerCacheKey, windowStart, window, windowLength);
+                CompletableFuture<FooterCacheEntry> future = new CompletableFuture<>();
+                if (FOOTER_CACHE.tryRegisterPending(footerCacheKey, future)) {
+                    try {
+                        windowStart = pos;
+                        windowLength = 0;
+                        ByteBuffer target = ByteBuffer.wrap(window, 0, (int) toRead);
+                        int bytesRead = storageObject.readBytes(pos, target);
+                        windowLength = bytesRead < 0 ? 0 : bytesRead;
+                        FOOTER_CACHE.completePending(footerCacheKey, windowStart, window, windowLength);
+                    } catch (IOException e) {
+                        FOOTER_CACHE.failPending(footerCacheKey);
+                        throw e;
+                    }
+                } else {
+                    cached = FOOTER_CACHE.getOrAwaitPending(footerCacheKey);
+                    if (cached != null && cached.covers(pos, (int) toRead)) {
+                        int from = (int) (pos - cached.startOffset());
+                        System.arraycopy(cached.bytes(), from, window, 0, (int) toRead);
+                        windowStart = pos;
+                        windowLength = (int) toRead;
+                    } else {
+                        windowStart = pos;
+                        windowLength = 0;
+                        ByteBuffer target = ByteBuffer.wrap(window, 0, (int) toRead);
+                        int bytesRead = storageObject.readBytes(pos, target);
+                        windowLength = bytesRead < 0 ? 0 : bytesRead;
+                    }
+                }
+            } else {
+                windowStart = pos;
+                windowLength = 0;
+                ByteBuffer target = ByteBuffer.wrap(window, 0, (int) toRead);
+                int bytesRead = storageObject.readBytes(pos, target);
+                windowLength = bytesRead < 0 ? 0 : bytesRead;
             }
         }
 
@@ -610,7 +651,17 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         }
     }
 
-    private record FooterCacheKey(String path, long length, Long lastModifiedMillis) {}
+    /**
+     * Cache key for Parquet footer bytes. Uses {@code (path, length)} only — not {@code lastModified}
+     * — so that all range splits of the same file share one cache entry regardless of any timing
+     * jitter in {@link StorageObject#lastModified()}.
+     *
+     * <p>This is safe for immutable object stores (S3, GCS, Azure Blob) where objects are never
+     * overwritten in place. For mutable filesystems (local, NFS), same-path same-length overwrites
+     * can serve stale footer bytes until the entry is evicted or the JVM restarts.
+     */
+    // package-private for tests
+    record FooterCacheKey(String path, long length) {}
 
     private record FooterCacheEntry(long startOffset, byte[] bytes) {
         boolean covers(long position, int length) {
@@ -624,10 +675,22 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         }
     }
 
-    private static class FooterCache {
+    /**
+     * JVM-wide footer cache with thundering-herd protection. Completed entries live in a
+     * byte-budget LRU ({@code completed}); in-flight reads are tracked in a separate
+     * {@code pending} map so concurrent callers coalesce into a single I/O via
+     * {@link CompletableFuture}.
+     *
+     * <p>Thread-safety: {@code completed} and byte accounting are guarded by {@code synchronized(this)};
+     * {@code pending} is a {@link ConcurrentHashMap} so registration/removal is lock-free.
+     * {@link #clear()} synchronizes on both to ensure no orphaned futures.
+     */
+    // package-private for tests
+    static class FooterCache {
         private final int maxBytes;
         private final int maxEntryBytes;
-        private final LinkedHashMap<FooterCacheKey, FooterCacheEntry> map = new LinkedHashMap<>(16, 0.75f, true);
+        private final LinkedHashMap<FooterCacheKey, FooterCacheEntry> completed = new LinkedHashMap<>(16, 0.75f, true);
+        private final ConcurrentHashMap<FooterCacheKey, CompletableFuture<FooterCacheEntry>> pending = new ConcurrentHashMap<>();
         private int totalBytes;
 
         FooterCache(int maxBytes, int maxEntryBytes) {
@@ -635,8 +698,81 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             this.maxEntryBytes = maxEntryBytes;
         }
 
-        synchronized FooterCacheEntry get(FooterCacheKey key) {
-            return map.get(key);
+        /** Returns a completed cache entry, or {@code null}. Never blocks. */
+        synchronized FooterCacheEntry getCompleted(FooterCacheKey key) {
+            return completed.get(key);
+        }
+
+        /**
+         * Returns a completed entry if available, otherwise awaits any in-flight pending read
+         * for this key. If the pending read completes before this call, falls back to the
+         * completed map. Returns {@code null} only when no entry exists and no pending read
+         * is in progress.
+         */
+        FooterCacheEntry getOrAwaitPending(FooterCacheKey key) {
+            synchronized (this) {
+                FooterCacheEntry cached = completed.get(key);
+                if (cached != null) {
+                    return cached;
+                }
+            }
+            CompletableFuture<FooterCacheEntry> future = pending.get(key);
+            if (future != null) {
+                FooterCacheEntry result = awaitFuture(future);
+                if (result != null) {
+                    return result;
+                }
+            }
+            synchronized (this) {
+                return completed.get(key);
+            }
+        }
+
+        /**
+         * Registers this caller as the owner of the pending read for the given key.
+         * Returns {@code true} if registration succeeded (caller should perform I/O),
+         * {@code false} if another caller already registered (caller should call
+         * {@link #getOrAwaitPending}).
+         */
+        boolean tryRegisterPending(FooterCacheKey key, CompletableFuture<FooterCacheEntry> future) {
+            return pending.putIfAbsent(key, future) == null;
+        }
+
+        /**
+         * Completes a pending read: stores the entry in the LRU cache (if within size budget),
+         * removes the pending future, and completes it so waiters unblock.
+         *
+         * <p>When the footer exceeds {@code maxEntryBytes}, it is not cached but the future is
+         * still completed with {@code null} — waiters will fall through and perform their own I/O.
+         * This matches the pre-coalescing behavior for oversized footers.
+         */
+        void completePending(FooterCacheKey key, long startOffset, byte[] buffer, int length) {
+            FooterCacheEntry entry = null;
+            if (length > 0 && length <= maxEntryBytes) {
+                byte[] bytes = new byte[length];
+                System.arraycopy(buffer, 0, bytes, 0, length);
+                entry = new FooterCacheEntry(startOffset, bytes);
+                synchronized (this) {
+                    FooterCacheEntry previous = completed.put(key, entry);
+                    if (previous != null) {
+                        totalBytes -= previous.bytes().length;
+                    }
+                    totalBytes += bytes.length;
+                    evictIfNeeded();
+                }
+            }
+            CompletableFuture<FooterCacheEntry> future = pending.remove(key);
+            if (future != null) {
+                future.complete(entry);
+            }
+        }
+
+        /** Signals that a pending read failed, allowing waiters to retry or fall through. */
+        void failPending(FooterCacheKey key) {
+            CompletableFuture<FooterCacheEntry> future = pending.remove(key);
+            if (future != null) {
+                future.complete(null);
+            }
         }
 
         synchronized void putTailIfEligible(FooterCacheKey key, long startOffset, byte[] buffer, int length) {
@@ -646,7 +782,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             byte[] bytes = new byte[length];
             System.arraycopy(buffer, 0, bytes, 0, length);
 
-            FooterCacheEntry previous = map.put(key, new FooterCacheEntry(startOffset, bytes));
+            FooterCacheEntry previous = completed.put(key, new FooterCacheEntry(startOffset, bytes));
             if (previous != null) {
                 totalBytes -= previous.bytes().length;
             }
@@ -655,17 +791,34 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         }
 
         private void evictIfNeeded() {
-            while (totalBytes > maxBytes && map.isEmpty() == false) {
-                Map.Entry<FooterCacheKey, FooterCacheEntry> eldest = map.entrySet().iterator().next();
+            while (totalBytes > maxBytes && completed.isEmpty() == false) {
+                Map.Entry<FooterCacheKey, FooterCacheEntry> eldest = completed.entrySet().iterator().next();
                 FooterCacheEntry removed = eldest.getValue();
-                map.remove(eldest.getKey());
+                completed.remove(eldest.getKey());
                 totalBytes -= removed.bytes().length;
             }
         }
 
+        /**
+         * Clears all cached and pending entries. Pending futures are completed with {@code null}
+         * before removal so that any thread blocked in {@link #getOrAwaitPending} unblocks.
+         */
         synchronized void clear() {
-            map.clear();
+            completed.clear();
             totalBytes = 0;
+            for (Map.Entry<FooterCacheKey, CompletableFuture<FooterCacheEntry>> entry : pending.entrySet()) {
+                entry.getValue().complete(null);
+            }
+            pending.clear();
+        }
+
+        private FooterCacheEntry awaitFuture(CompletableFuture<FooterCacheEntry> future) {
+            try {
+                return future.join();
+            } catch (java.util.concurrent.CancellationException | java.util.concurrent.CompletionException e) {
+                logger.debug("footer cache await failed", e);
+                return null;
+            }
         }
     }
 }

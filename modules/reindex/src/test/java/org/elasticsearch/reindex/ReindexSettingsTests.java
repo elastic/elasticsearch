@@ -45,7 +45,7 @@ public class ReindexSettingsTests extends ESTestCase {
         ClusterSettings clusterSettings = clusterSettings(Set.of(), Settings.EMPTY);
         ReindexSettings reindexSettings = new ReindexSettings(clusterSettings);
         assertThat(reindexSettings.pitKeepAlive(), equalTo(TimeValue.timeValueMinutes(5)));
-        assertNull(clusterSettings.get(ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING));
+        assertNull(clusterSettings.get(ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING.getKey()));
     }
 
     /**

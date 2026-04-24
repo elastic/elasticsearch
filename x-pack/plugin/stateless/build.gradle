@@ -17,6 +17,12 @@ configurations {
     }
 }
 
+restResources {
+  restApi {
+    include '_common', 'cluster', 'indices', 'index', 'search', 'get', 'nodes'
+  }
+}
+
 dependencies {
     compileOnly project(':server')
     testImplementation project(':test:framework')

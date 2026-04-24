@@ -117,6 +117,7 @@ public class OTLPLogsIndexingRestIT extends AbstractOTLPIndexingRestIT {
         var source = new ObjectPath(search.evaluate("hits.hits.0._source"));
         assertThat(source.evaluate("scope.name"), equalTo(getClass().getSimpleName()));
     }
+
     private void indexLogs() throws IOException {
         var result = loggerProvider.forceFlush().join(TEST_REQUEST_TIMEOUT.millis(), MILLISECONDS);
         assertThat(result.isSuccess(), equalTo(true));

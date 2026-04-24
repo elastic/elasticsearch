@@ -10,9 +10,12 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class SplitStatsTests extends ESTestCase {
@@ -305,5 +308,143 @@ public class SplitStatsTests extends ESTestCase {
             input.get(SourceStatisticsSerializer.columnMaxKey("a.b.c")),
             output.get(SourceStatisticsSerializer.columnMaxKey("a.b.c"))
         );
+    }
+
+    // --- resolveEffectiveStats tests ---
+
+    public void testResolveEffectiveStatsEmptySplitsUsesSourceMetadata() {
+        Map<String, Object> sourceMetadata = new HashMap<>();
+        sourceMetadata.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 1000L);
+
+        SplitStats result = SplitStats.resolveEffectiveStats(List.of(), sourceMetadata);
+        assertNotNull(result);
+        assertEquals(1000, result.rowCount());
+    }
+
+    public void testResolveEffectiveStatsEmptySplitsReturnsNullWhenPartial() {
+        Map<String, Object> sourceMetadata = new HashMap<>();
+        sourceMetadata.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 1000L);
+        sourceMetadata.put(SourceStatisticsSerializer.STATS_PARTIAL, Boolean.TRUE);
+
+        SplitStats result = SplitStats.resolveEffectiveStats(List.of(), sourceMetadata);
+        assertNull("Should return null for partial stats to prevent wrong pushdown", result);
+    }
+
+    public void testResolveEffectiveStatsEmptySplitsPartialFalseUsesSourceMetadata() {
+        Map<String, Object> sourceMetadata = new HashMap<>();
+        sourceMetadata.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 1000L);
+        sourceMetadata.put(SourceStatisticsSerializer.STATS_PARTIAL, Boolean.FALSE);
+
+        SplitStats result = SplitStats.resolveEffectiveStats(List.of(), sourceMetadata);
+        assertNotNull("Non-true partial flag should not block stats", result);
+        assertEquals(1000, result.rowCount());
+    }
+
+    public void testResolveEffectiveStatsSingleSplitWithStats() {
+        SplitStats.Builder b = new SplitStats.Builder().rowCount(500);
+        b.addColumn("x", 0L, 1, 100, 400);
+        SplitStats splitStats = b.build();
+        FileSplit split = fileSplitWithStats(splitStats);
+
+        SplitStats result = SplitStats.resolveEffectiveStats(List.of(split), Map.of());
+        assertNotNull(result);
+        assertEquals(500, result.rowCount());
+        assertEquals(0, result.columnNullCount("x"));
+        assertEquals(1, result.columnMin("x"));
+        assertEquals(100, result.columnMax("x"));
+    }
+
+    public void testResolveEffectiveStatsMultipleSplitsMerged() {
+        SplitStats.Builder b1 = new SplitStats.Builder().rowCount(100);
+        b1.addColumn("age", 5L, 18, 65, 400);
+        SplitStats s1 = b1.build();
+        SplitStats.Builder b2 = new SplitStats.Builder().rowCount(200);
+        b2.addColumn("age", 10L, 20, 80, 800);
+        SplitStats s2 = b2.build();
+        SplitStats.Builder b3 = new SplitStats.Builder().rowCount(300);
+        b3.addColumn("age", 0L, 25, 90, 1200);
+        SplitStats s3 = b3.build();
+
+        List<ExternalSplit> splits = List.of(fileSplitWithStats(s1), fileSplitWithStats(s2), fileSplitWithStats(s3));
+
+        SplitStats result = SplitStats.resolveEffectiveStats(splits, Map.of());
+        assertNotNull(result);
+        assertEquals(600, result.rowCount());
+        assertEquals(15, result.columnNullCount("age"));
+        assertEquals(18, result.columnMin("age"));
+        assertEquals(90, result.columnMax("age"));
+        assertEquals(2400, result.columnSizeBytes("age"));
+    }
+
+    public void testResolveEffectiveStatsMultipleSplitsOneMissingStatsReturnsNull() {
+        SplitStats s1 = new SplitStats.Builder().rowCount(100).build();
+        FileSplit splitWithStats = fileSplitWithStats(s1);
+        FileSplit splitWithoutStats = new FileSplit(
+            "parquet",
+            StoragePath.of("file:///nostat.parquet"),
+            0,
+            100,
+            "parquet",
+            Map.of(),
+            Map.of(),
+            null,
+            null
+        );
+
+        List<ExternalSplit> splits = List.of(splitWithStats, splitWithoutStats);
+
+        SplitStats result = SplitStats.resolveEffectiveStats(splits, Map.of(SourceStatisticsSerializer.STATS_ROW_COUNT, 9999L));
+        assertNull("Should return null when any split lacks stats", result);
+    }
+
+    // --- merge tests ---
+
+    public void testMergeMultipleFilesSumsRowCounts() {
+        SplitStats f1 = new SplitStats.Builder().rowCount(10000).build();
+        SplitStats f2 = new SplitStats.Builder().rowCount(20000).build();
+        SplitStats f3 = new SplitStats.Builder().rowCount(30000).build();
+
+        SplitStats merged = SplitStats.merge(List.of(f1, f2, f3));
+        assertNotNull(merged);
+        assertEquals(60000, merged.rowCount());
+    }
+
+    public void testMergePreservesMinMaxAcrossFiles() {
+        SplitStats.Builder fb1 = new SplitStats.Builder().rowCount(100);
+        fb1.addColumn("ts", 0L, 1000L, 2000L, 800);
+        SplitStats f1 = fb1.build();
+        SplitStats.Builder fb2 = new SplitStats.Builder().rowCount(200);
+        fb2.addColumn("ts", 0L, 500L, 1500L, 1600);
+        SplitStats f2 = fb2.build();
+        SplitStats.Builder fb3 = new SplitStats.Builder().rowCount(300);
+        fb3.addColumn("ts", 0L, 800L, 3000L, 2400);
+        SplitStats f3 = fb3.build();
+
+        SplitStats merged = SplitStats.merge(List.of(f1, f2, f3));
+        assertNotNull(merged);
+        assertEquals(600, merged.rowCount());
+        assertEquals(500L, merged.columnMin("ts"));
+        assertEquals(3000L, merged.columnMax("ts"));
+        assertEquals(0, merged.columnNullCount("ts"));
+        assertEquals(4800, merged.columnSizeBytes("ts"));
+    }
+
+    public void testMergeSingleElementReturnsSame() {
+        SplitStats.Builder sb = new SplitStats.Builder().rowCount(42);
+        sb.addColumn("x", 0L, 1, 2, 100);
+        SplitStats single = sb.build();
+
+        SplitStats merged = SplitStats.merge(List.of(single));
+        assertSame(single, merged);
+    }
+
+    public void testMergeNullAndEmptyReturnsNull() {
+        assertNull(SplitStats.merge(null));
+        assertNull(SplitStats.merge(List.of()));
+    }
+
+    private static FileSplit fileSplitWithStats(SplitStats stats) {
+        Map<String, Object> statsMap = stats.toMap();
+        return new FileSplit("parquet", StoragePath.of("file:///test.parquet"), 0, 100, "parquet", Map.of(), Map.of(), null, statsMap);
     }
 }

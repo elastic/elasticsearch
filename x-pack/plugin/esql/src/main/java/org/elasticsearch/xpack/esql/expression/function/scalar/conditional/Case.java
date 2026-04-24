@@ -259,11 +259,19 @@ public final class Case extends EsqlScalarFunction {
             if (condition.condition.foldable() == false) {
                 return false;
             }
-            // condition is foldable
+            /* Given the current condition is foldable,
+                if we have already folded the condition into a Literal
+                    If True, Case is foldable if the value is foldable
+                    If False, Case is foldable if the rest of the conditions are foldable
+                Otherwise
+                    if the value is foldable and the rest of the conditions are foldable, Case is foldable
+             */
             if (condition.condition instanceof Literal literal) {
                 if (Boolean.TRUE.equals(literal.value())) {
                     // The condition is literally TRUE, so only the matching value needs to be foldable.
                     return condition.value.foldable();
+                } else {
+                    continue;
                 }
             }
             if (condition.value.foldable() == false) {

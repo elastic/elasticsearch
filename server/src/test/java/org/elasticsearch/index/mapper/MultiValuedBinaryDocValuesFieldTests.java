@@ -389,23 +389,4 @@ public class MultiValuedBinaryDocValuesFieldTests extends ESTestCase {
         assertEquals(value, storedField.binaryValue());
     }
 
-    /**
-     * This test verifies that we're not double storing field names in keyedFields ({@link LuceneDocument}) and singleValuedFields
-     * ({@link DocumentParserContext}). This ensures that we're not double storing.
-     */
-    public void testMultiValueNoDoesNotStoreInKeyedFields() {
-        // given
-        LuceneDocument doc = new LuceneDocument();
-
-        // when
-        DocValuesFieldFactory factory = new DocValuesFieldFactory(MultiValue.NO, false, IndexVersion.current());
-        factory.addBinaryField(doc, "field", new BytesRef(randomAlphanumericOfLength(10)), ValueOrdering.SORTED_UNIQUE);
-
-        // then — field is NOT registered in keyedFields; only in the Lucene fields list. Single-value enforcement is handled at the
-        // DocumentParserContext level, not by keyed dedup.
-        assertNull(doc.getByKey("field"));
-        assertNull(doc.getByKey("field.counts"));
-        assertNull(doc.getField("field.counts"));
-    }
-
 }

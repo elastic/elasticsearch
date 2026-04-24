@@ -15,6 +15,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectException;
 import org.elasticsearch.dissect.DissectParser;
@@ -1250,6 +1251,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             rerank = applyInferenceId(rerank, inferenceId);
         }
 
+        Expression timeoutExpr = optionsMap.remove(Rerank.TIMEOUT_OPTION_NAME);
+        if (timeoutExpr != null) {
+            rerank = rerank.withTimeout(parseTimeoutOption(timeoutExpr, Rerank.TIMEOUT_OPTION_NAME, "RERANK"));
+        }
+
         if (optionsMap.isEmpty() == false) {
             throw new ParsingException(
                 source(ctx),
@@ -1315,6 +1321,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             completion = completion.withTaskSettings((MapExpression) taskSettings);
         }
 
+        Expression timeoutExpr = optionsMap.remove(Completion.TIMEOUT_OPTION_NAME);
+        if (timeoutExpr != null) {
+            completion = completion.withTimeout(parseTimeoutOption(timeoutExpr, Completion.TIMEOUT_OPTION_NAME, "COMPLETION"));
+        }
+
         if (optionsMap.isEmpty() == false) {
             throw new ParsingException(
                 source(ctx),
@@ -1325,6 +1336,31 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         return completion;
+    }
+
+    private TimeValue parseTimeoutOption(Expression timeoutExpr, String optionName, String commandName) {
+        if (timeoutExpr instanceof Literal == false || DataType.isString(timeoutExpr.dataType()) == false) {
+            throw new ParsingException(
+                timeoutExpr.source(),
+                "Option [{}] in {} must be a string literal (e.g. \"30s\"), found [{}]",
+                optionName,
+                commandName,
+                timeoutExpr.source().text()
+            );
+        }
+        String timeoutStr = BytesRefs.toString(((Literal) timeoutExpr).value());
+        try {
+            return TimeValue.parseTimeValue(timeoutStr, optionName);
+        } catch (IllegalArgumentException e) {
+            throw new ParsingException(
+                timeoutExpr.source(),
+                "Invalid timeout value [{}] for option [{}] in {}: [{}]",
+                timeoutStr,
+                optionName,
+                commandName,
+                e.getMessage()
+            );
+        }
     }
 
     private <InferencePlanType extends InferencePlan<InferencePlanType>> InferencePlanType applyInferenceId(
@@ -1441,7 +1477,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             params.bucketsLiteral(),
             params.scrapeIntervalLiteral(),
             valueColumnName,
-            new UnresolvedTimestamp(source)
+            new UnresolvedTimestamp(source),
+            false
         );
     }
 

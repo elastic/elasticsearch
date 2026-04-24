@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.diskbbq;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.elasticsearch.Build;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
@@ -33,7 +34,8 @@ public class DiskBBQDenseVectorFieldMapperTests extends MapperServiceTestCase {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return List.of(new TrialLicenseStateDiskBBQPlugin(Settings.EMPTY));
+        Settings statelessSettings = Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true).build();
+        return List.of(new TrialLicenseStateDiskBBQPlugin(statelessSettings));
     }
 
     public void testKnnBBQIVFVectorsFormat() throws IOException {
@@ -67,7 +69,7 @@ public class DiskBBQDenseVectorFieldMapperTests extends MapperServiceTestCase {
         }
     }
 
-    public void testDefaultsToBBQDiskWhenLicensed() throws IOException {
+    public void testDefaultsToBBQDiskWhenLicensedOnStatelessNode() throws IOException {
         final int dims = randomIntBetween(1, 4096);
         MapperService mapperService = createMapperService(getVersion(), Settings.EMPTY, () -> true, fieldMapping(b -> {
             b.field("type", "dense_vector");

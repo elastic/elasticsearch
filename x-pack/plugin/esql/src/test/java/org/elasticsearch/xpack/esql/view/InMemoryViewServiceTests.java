@@ -163,7 +163,9 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addIndex("logs-public");
         addIndex("logs-secret");
         LogicalPlan plan = query("FROM safe-logs,logs-secret");
-        assertThat(replaceViews(plan), matchesPlan(query("FROM logs*,-logs-secret,logs-secret")));
+        // The view body's -logs-secret exclusion stays scoped to the view — it must not widen
+        // onto the sibling outer pattern "logs-secret", which explicitly asks to include it.
+        assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM logs*,-logs-secret),(FROM logs-secret)")));
     }
 
     public void testExclusionWithNoRemainingIndexMatch() {
@@ -178,6 +180,113 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addIndex("logs3");
         LogicalPlan plan = query("FROM logs*,-logs3");
         assertThat(replaceViews(plan), matchesPlan(query("FROM logs2,logs*,-logs3")));
+    }
+
+    /**
+     * Exclusion patterns must be preserved at their original position in the unresolved-pattern
+     * list, not appended after positive patterns. Pattern order matters because
+     * {@code IndexAbstractionResolver} processes exclusions against prior accumulated state —
+     * reordering {@code -*-view-*} from before {@code data-view-*} to after it changes the
+     * semantics (the exclusion would now strip {@code data-view-*} matches from the result).
+     * <p>
+     * {@code match-nothing-*} is dropped here because its expansion is empty+SUCCESS in the
+     * null-fallback path. In the security-enabled path it would be NOT_VISIBLE and preserved,
+     * but the exclusion-order bug exists on either path.
+     */
+    public void testExclusionPreservesOriginalOrder() {
+        addIndex("data-index-origin");
+        addIndex("data-view-extra");
+        addView("data-view-origin", "FROM data-index-origin");
+        LogicalPlan plan = query("FROM match-nothing-*,-*-view-*,data-view-*");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM data-index-origin,-*-view-*,data-view-*")));
+    }
+
+    /**
+     * A view body's exclusion must stay scoped to its own body. When the body is a simple
+     * {@link UnresolvedRelation} containing an exclusion, it must not be merged with sibling or
+     * outer URs, because the merge concatenates patterns into one UR and widens the scope of
+     * the exclusion to everything in the combined pattern list.
+     * <p>
+     * Real-world failure (ServerlessCrossProjectEsqlIT):
+     * <pre>
+     *   indices: index-a1, index-a2, index-b1, index-b2
+     *   view data-view = FROM index-b*,-*2        (scopes to index-b*, excludes index-b2)
+     *   query: FROM index-a*,data-view            (expects index-a1, index-a2, index-b1)
+     * </pre>
+     * Before the fix the resolver merged into {@code UR(index-a*,index-b*,-*2)} so the view
+     * body's {@code -*2} excluded {@code index-a2} as well, producing only {@code a1, b1}.
+     */
+    public void testViewBodyExclusionNotLeakedToOuter() {
+        addIndex("index-a1");
+        addIndex("index-a2");
+        addIndex("index-b1");
+        addIndex("index-b2");
+        addView("data-view", "FROM index-b*,-*2");
+        LogicalPlan plan = query("FROM index-a*,data-view");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM index-a*),(FROM index-b*,-*2)")));
+    }
+
+    /**
+     * Reproduces the bug where an inner view's exclusion leaks to an outer view's sibling indices
+     * across multiple levels of nesting.
+     * <p>
+     * Setup:
+     * <pre>
+     *   indices:    index-1-a, index-1-b, index-2-a, index-2-b,
+     *               view-1-r-a, view-1-r-b, view-2-r-a, view-2-r-b
+     *   view-2-l:   FROM index-2-*,-*a          (resolves to index-2-b)
+     *   view-1-l:   FROM view-2-*,index-1-*,-*b (matches view-2-l + view-2-r-*, index-1-*; excludes *b)
+     *   view-0-l:   FROM view-1-*               (matches view-1-l + view-1-r-*)
+     * </pre>
+     * Query: {@code FROM view-0-l}
+     * <p>
+     * The {@code -*b} exclusion in {@code view-1-l}'s body must stay scoped to {@code view-1-l} —
+     * it must not leak to the outer {@code view-0-l} and cause {@code view-1-r-b} to be excluded.
+     * <p>
+     * The single-level case is covered by {@link #testViewBodyExclusionNotLeakedToOuter}. In the
+     * nested case the view-flattening path in {@code ViewResolver.tryFlattenViewUnionAll} would
+     * lift the inner ViewUnionAll's entries (ViewUnionAll extends UnionAll extends Fork, which
+     * triggers the fork-flattening branch) and then merge their bare URs with sibling outer URs,
+     * re-widening the exclusion's scope. The fix wraps exclusion-bearing URs in a NamedSubquery
+     * before lifting so the subsequent merge step leaves them alone.
+     */
+    public void testViewBodyExclusionNotLeakedThroughNestedViews() {
+        addIndex("index-1-a");
+        addIndex("index-1-b");
+        addIndex("index-2-a");
+        addIndex("index-2-b");
+        addIndex("view-1-r-a");
+        addIndex("view-1-r-b");
+        addIndex("view-2-r-a");
+        addIndex("view-2-r-b");
+        addView("view-2-l", "FROM index-2-*,-*a");
+        addView("view-1-l", "FROM view-2-*,index-1-*,-*b");
+        addView("view-0-l", "FROM view-1-*");
+        LogicalPlan plan = query("FROM view-0-l");
+        // The inner -*b exclusion must stay scoped to view-1-l's body, not widen to view-0-l's
+        // sibling view-1-r-* indices. Each scope-carrying UR stays in its own branch.
+        assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM view-1-*),(FROM index-2-*,-*a),(FROM view-2-*,index-1-*,-*b)")));
+    }
+
+    /**
+     * A user-written subquery inside a view body carries its own scope. When its parent view is
+     * composed with sibling outer patterns, the subquery's exclusion must not widen to the outer
+     * patterns.
+     * <p>
+     * Without the fix in {@code tryFlattenViewUnionAll}'s fork-child branch, the inner subquery's
+     * {@code -*b} would merge with the outer {@code inner-b} pattern and wrongly exclude it.
+     */
+    public void testUserSubqueryExclusionInViewBodyDoesNotLeakToOuter() {
+        assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        addIndex("outer-a");
+        addIndex("outer-b");
+        addIndex("inner-a");
+        addIndex("inner-b");
+        addView("my_view", "FROM outer-*, (FROM inner-*,-*b)");
+        LogicalPlan plan = query("FROM my_view, inner-b");
+        // The -*b in the inner subquery must only exclude -*b from matches of inner-*, not from the
+        // outer inner-b pattern. Each scope-carrying UR stays in its own branch.
+        assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM inner-b,outer-*),(FROM inner-*,-*b)")));
     }
 
     public void testExclusionMultipleViews() {
@@ -757,6 +866,84 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(e.getMessage(), containsString("circular view reference 'view_a'"));
     }
 
+    /**
+     * Reproduces https://github.com/elastic/elasticsearch/issues/146665
+     * FORK queries that reference no views should succeed even when circular views exist on the cluster.
+     */
+    public void testForkWithCircularViewsOnClusterButNotReferenced() {
+        assumeTrue("Requires FORK support", EsqlCapabilities.Cap.FORK_V9.isEnabled());
+        addView("view_x", "FROM view_y");
+        addView("view_y", "FROM view_x");
+        addIndex("logs-001");
+        // FORK query with wildcard that matches only the index, not the circular views
+        LogicalPlan plan = query("FROM logs-* | FORK (STATS c = COUNT(*)) (LIMIT 5)");
+        LogicalPlan result = replaceViews(plan);
+        assertNotNull("FORK query should resolve without circular view errors", result);
+        assertThat("Plan did not change, no views matched", result, matchesPlan(plan));
+    }
+
+    /**
+     * Reproduces https://github.com/elastic/elasticsearch/issues/146665
+     * FORK query with FROM * but excluding the circular views should succeed.
+     */
+    public void testForkWithStarWildcardExcludingCircularViews() {
+        assumeTrue("Requires FORK support", EsqlCapabilities.Cap.FORK_V9.isEnabled());
+        addView("view_x", "FROM view_y");
+        addView("view_y", "FROM view_x");
+        addIndex("logs");
+        // FROM *,-view_* excludes the circular views — should succeed
+        LogicalPlan plan = query("FROM *,-view_* | FORK (STATS c = COUNT(*)) (LIMIT 5)");
+        LogicalPlan result = replaceViews(plan);
+        assertNotNull("FORK query excluding circular views should resolve without errors", result);
+        assertThat("Plan did not change, no views matched", result, matchesPlan(plan));
+    }
+
+    /**
+     * Reproduces <a href="https://github.com/elastic/elasticsearch/issues/146208">#146208</a>.
+     * FROM *,-employees* against a cluster populated with the csv-spec views (several simple
+     * views whose bodies share underlying wildcard patterns, plus employee views that are
+     * excluded by the outer pattern) should not trigger a false circular view reference.
+     * <p>
+     * This mirrors the manual-server reproduction: the bug only fires when a recursive
+     * re-visit of an already-resolved UnresolvedRelation issues a view-resolve request with
+     * empty indices, which the security layer expands to "_all". The fix short-circuits that
+     * re-entry in {@link ViewResolver#replaceViewsUnresolvedRelation} when all patterns have
+     * already been consumed by seenWildcards.
+     */
+    public void testFromStarExcludingEmployeesWithCsvSpecViews_Issue146208() {
+        assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        // Indices referenced by the csv-spec view bodies (plus "logs" from default setup)
+        addIndex("addresses");
+        addIndex("airports");
+        addIndex("airports_mp");
+        addIndex("languages_lookup_non_unique_key");
+        addIndex("employees");
+
+        // Non-employee views from views.csv-spec — none reference each other, but their bodies
+        // share underlying index patterns (airports, addresses) that the outer FROM * expands to.
+        addView("country_addresses", "FROM addresses | STATS count=COUNT() BY country");
+        addView("country_languages", "FROM languages_lookup_non_unique_key | STATS count=COUNT() BY country");
+        addView("airports_mp_filtered", "FROM airports | LOOKUP JOIN airports_mp ON abbrev == abbrev");
+        addView("country_airports", "FROM airports | STATS count=COUNT() BY country");
+
+        // Employee views — all excluded by the outer -employees* pattern
+        addView("employees_all", "FROM employees");
+        addView("employees_extra", "FROM employees, employees_all");
+        addView("employees_rehired", "FROM employees | WHERE is_rehired == true");
+        addView("employees_not_rehired", "FROM employees | WHERE is_rehired == false");
+
+        // Must not throw a circular view reference error.
+        LogicalPlan result = replaceViews(query("FROM *,-employees* | LIMIT 1"));
+        assertNotNull("FROM *,-employees* should resolve without false circular reference errors", result);
+        assertThat("Should match four views and one index pattern", result, matchesPlan(query("""
+            FROM *,-employees*,
+            (FROM addresses | STATS count=COUNT() BY country),
+            (FROM languages_lookup_non_unique_key | STATS count=COUNT() BY country),
+            (FROM airports | LOOKUP JOIN airports_mp ON abbrev == abbrev),
+            (FROM airports | STATS count=COUNT() BY country)
+            | LIMIT 1""")));
+    }
+
     public void testCircularViewExcludedByWildcard() {
         addView("v_1", "FROM v_*");
         LogicalPlan plan = query("FROM v_*,-v_1");
@@ -799,6 +986,128 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
         LogicalPlan plan = query("FROM wired_otel_*");
         assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM idx_otel_linux),(FROM idx_otel,idx_otel_linux)")));
+    }
+
+    /**
+     * Reproduces the bug where composing two views that share an underlying index pattern
+     * inside a parent view incorrectly triggers a "circular view reference" error.
+     * The error_triage view uses inline subqueries (FROM (subquery), ...) and one of those
+     * subqueries references svc-auth-* which is also the target of the suspicious_ips view.
+     * Neither view references the other, so there is no circular reference.
+     */
+    public void testFalseCircularReferenceWithSharedWildcardInSubqueries() {
+        assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        // Set up concrete indices matching the wildcard patterns
+        addIndex("svc-gateway-logs");
+        addIndex("svc-payments-logs");
+        addIndex("svc-auth-logs");
+
+        // error_triage uses inline subqueries, one of which references svc-auth-*
+        addView(
+            "error_triage",
+            "FROM (FROM svc-gateway-* | WHERE http_status >= 500 | KEEP @timestamp, http_status),"
+                + "(FROM svc-payments-* | WHERE http_status >= 500 | KEEP @timestamp, http_status),"
+                + "(FROM svc-auth-* | WHERE http_status >= 500 | KEEP @timestamp, http_status)"
+        );
+
+        // suspicious_ips also references svc-auth-* but is a completely separate view
+        addView("suspicious_ips", "FROM svc-auth-* | STATS attempts = COUNT(*) BY source_ip");
+
+        // incident_dashboard composes both views — no circular reference exists
+        addView("incident_dashboard", "FROM error_triage, suspicious_ips");
+
+        // This should NOT throw a circular view reference error
+        LogicalPlan result = replaceViews(query("FROM incident_dashboard"));
+        assertNotNull("incident_dashboard should resolve without circular reference errors", result);
+        assertNoPlanConsistencyFailures(result, "incident_dashboard");
+    }
+
+    /**
+     * Tests that composing two views in a parent view does not produce a false circular reference
+     * when a wildcard in one view's subquery happens to match the sibling view's name, provided
+     * the sibling view uses self-exclusion to avoid genuine self-reference.
+     * <p>
+     * Before the fix, the {@code seenViews} set was polluted by sibling view names from the outer
+     * scope, causing the wildcard resolution inside {@code error_view} to see {@code svc-auth-failures}
+     * as already visited even though it was only a sibling, not an ancestor.
+     */
+    public void testFalseCircularReferenceWhenWildcardMatchesSiblingViewName() {
+        assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        addIndex("svc-gateway-logs");
+        addIndex("svc-auth-logs");
+
+        // error_view uses inline subqueries, one references svc-auth-*
+        addView(
+            "error_view",
+            "FROM (FROM svc-gateway-* | WHERE http_status >= 500 | KEEP @timestamp, http_status),"
+                + "(FROM svc-auth-* | WHERE http_status >= 500 | KEEP @timestamp, http_status)"
+        );
+
+        // svc-auth-failures is a view whose NAME matches the svc-auth-* pattern.
+        // It self-excludes to avoid genuine self-reference via wildcard.
+        addView("svc-auth-failures", "FROM svc-auth-*,-svc-auth-failures | STATS attempts = COUNT(*) BY source_ip");
+
+        // dashboard composes both views — no circular reference exists
+        addView("dashboard", "FROM error_view, svc-auth-failures");
+
+        // This should NOT throw a circular view reference error
+        LogicalPlan result = replaceViews(query("FROM dashboard"));
+        assertNotNull("dashboard should resolve without circular reference errors", result);
+
+        // The wildcard svc-auth-* inside error_view's subquery matches the view svc-auth-failures,
+        // creating a nested ViewUnionAll inside the pipeline chain. This produces a "nested subqueries"
+        // error — which is the correct behavior (not a false circular reference).
+        Failures failures = new Failures();
+        Failures depFailures = new Failures();
+        LogicalVerifier.INSTANCE.checkPlanConsistency(result, failures, depFailures);
+        assertTrue("Expected nested subquery failure", failures.hasFailures());
+        for (Failure failure : failures.failures()) {
+            assertThat(failure.failMessage(), containsString("Nested subqueries are not supported"));
+        }
+    }
+
+    /**
+     * Tests that a view whose name matches its own wildcard pattern IS correctly detected as
+     * a circular self-reference when it does NOT use self-exclusion.
+     */
+    public void testGenuineSelfReferenceViaWildcardInComposedView() {
+        assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        addIndex("svc-auth-logs");
+
+        // svc-auth-failures queries FROM svc-auth-* which matches itself — genuine self-reference
+        addView("svc-auth-failures", "FROM svc-auth-* | STATS attempts = COUNT(*) BY source_ip");
+
+        Exception e = expectThrows(VerificationException.class, () -> replaceViews(query("FROM svc-auth-failures")));
+        assertThat(e.getMessage(), containsString("circular view reference 'svc-auth-failures'"));
+    }
+
+    /**
+     * Reproduces <a href="https://github.com/elastic/elasticsearch/issues/146097">#146097</a>:
+     * a subquery-based view composed with a simple view that shares a wildcard index pattern
+     * incorrectly triggers a "circular view reference" error.
+     * <p>
+     * view_x uses subqueries touching two wildcard patterns. view_y is a simple view on one of
+     * the same patterns. Neither references the other, so composing them in view_xy should not
+     * produce a circular reference error.
+     */
+    public void testFalseCircularReferenceFromSharedWildcardPattern_Issue146097() {
+        assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        addIndex("app-events-001");
+        addIndex("auth-events-001");
+
+        // view_x: subqueries touching both patterns
+        addView("view_x", "FROM (FROM app-events-* | KEEP msg, level), (FROM auth-events-* | KEEP msg, level)");
+
+        // view_y: simple view on one of the same patterns
+        addView("view_y", "FROM auth-events-* | KEEP msg, level");
+
+        // Compose both views
+        addView("view_xy", "FROM view_x, view_y");
+
+        // Before the fix this threw: "circular view reference 'view_y': view_xy -> view_x -> view_y"
+        LogicalPlan result = replaceViews(query("FROM view_xy"));
+        assertNotNull("view_xy should resolve without circular reference errors", result);
+        assertNoPlanConsistencyFailures(result, "view_xy");
     }
 
     public void testModifiedViewDepth() {
@@ -1646,6 +1955,13 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
      */
     private InMemoryViewService matrixViewService() {
         return viewService.withSettings(Settings.builder().put(ViewService.MAX_VIEWS_COUNT_SETTING.getKey(), 200).build());
+    }
+
+    private static void assertNoPlanConsistencyFailures(LogicalPlan plan, String context) {
+        Failures failures = new Failures();
+        Failures depFailures = new Failures();
+        LogicalVerifier.INSTANCE.checkPlanConsistency(plan, failures, depFailures);
+        assertFalse("Plan consistency failures for " + context + ": " + failures, failures.hasFailures());
     }
 
     private LogicalPlan replaceViews(LogicalPlan plan) {

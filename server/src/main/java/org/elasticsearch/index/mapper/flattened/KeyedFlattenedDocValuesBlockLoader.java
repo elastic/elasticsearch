@@ -35,7 +35,7 @@ public class KeyedFlattenedDocValuesBlockLoader extends BlockDocValuesReader.Doc
     @Override
     public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
         if (usesBinaryDocValues) {
-            MultiValuedSortedBinaryDocValues dv = MultiValuedSortedBinaryDocValues.from(context.reader(), keyedFieldName);
+            MultiValuedSortedBinaryDocValues dv = MultiValuedSortedBinaryDocValues.fromMultiValued(context.reader(), keyedFieldName);
             SortedBinaryDocValues filtered = BinaryKeyedFlattenedLeafFieldData.getKeyFilteredSortedBinaryDocValues(dv, key);
             return new BinaryKeyedBlockDocValuesReader(breaker, filtered);
         } else {

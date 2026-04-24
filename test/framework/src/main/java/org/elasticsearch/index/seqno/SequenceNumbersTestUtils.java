@@ -10,18 +10,27 @@ package org.elasticsearch.index.seqno;
 
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 
 import java.io.IOException;
 
+import static org.elasticsearch.test.ESIntegTestCase.internalCluster;
+import static org.elasticsearch.test.ESTestCase.assertBusy;
+import static org.elasticsearch.test.ESTestCase.assertThat;
+import static org.elasticsearch.test.ESTestCase.safeGet;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.junit.Assert.assertThat;
 
 /**
  * Utilities for asserting on sequence number fields at the Lucene level in integration tests.
@@ -39,7 +48,7 @@ public final class SequenceNumbersTestUtils {
      * @param expectedShards          the exact number of shards expected to be verified
      */
     public static void assertShardsHaveSeqNoDocValues(String indexName, boolean expectDocValuesOnDisk, int expectedShards) {
-        assertShardsHaveSeqNoDocValues(ESIntegTestCase.internalCluster(), indexName, expectDocValuesOnDisk, expectedShards);
+        assertShardsHaveSeqNoDocValues(internalCluster(), indexName, expectDocValuesOnDisk, expectedShards);
     }
 
     /**
@@ -179,7 +188,7 @@ public final class SequenceNumbersTestUtils {
      * @param expectedRetainingSeqNo    the expected retaining sequence number for every lease
      */
     public static void assertRetentionLeasesAdvanced(Client client, String indexName, long expectedRetainingSeqNo) throws Exception {
-        ESIntegTestCase.assertBusy(() -> {
+        assertBusy(() -> {
             var stats = client.admin().indices().prepareStats(indexName).get();
             for (var shardStats : stats.getShards()) {
                 for (RetentionLease lease : shardStats.getRetentionLeaseStats().retentionLeases().leases()) {
@@ -191,5 +200,74 @@ public final class SequenceNumbersTestUtils {
                 }
             }
         });
+    }
+
+    /**
+     * Persist the global checkpoint on all primary shards of the given index into disk.
+     * This makes sure that the persisted global checkpoint on those shards will equal to the in-memory value.
+     *
+     * This helper method is useful if you do not use replicas in your test setup.
+     *
+     * Uses the default {@link ESIntegTestCase#internalCluster()}.
+     */
+    public static void persistGlobalCheckpointOnPrimaryShards(String index) throws Exception {
+        persistGlobalCheckpointOnPrimaryShards(internalCluster(), index);
+    }
+
+    /**
+     * Persist the global checkpoint on all primary shards of the given index into disk.
+     * This makes sure that the persisted global checkpoint on those shards will equal to the in-memory value.
+     *
+     * This helper method is useful if you do not use replicas in your test setup.
+     *
+     * @param cluster the cluster containing the index
+     * @param indexName   the name of the index
+     */
+    public static void persistGlobalCheckpointOnPrimaryShards(InternalTestCluster cluster, String indexName) throws Exception {
+        final var future = new PlainActionFuture<Void>();
+        try (var listeners = new RefCountingListener(future)) {
+            for (String node : cluster.nodesInclude(indexName)) {
+                final var index = cluster.clusterService().state().metadata().getProject().index(indexName).getIndex();
+                IndexService indexService = cluster.getInstance(IndicesService.class, node).indexServiceSafe(index);
+                for (IndexShard indexShard : indexService) {
+                    if (indexShard.routingEntry().primary() == false) {
+                        continue;
+                    }
+                    assertThat(
+                        "Shard " + indexShard.getShardUuid() + " should be active",
+                        indexShard.routingEntry().active(),
+                        equalTo(true)
+                    );
+
+                    final var maxSeqNo = indexShard.withEngine(Engine::getMaxSeqNo);
+
+                    indexShard.sync(); // sync to ensure local checkpoint is processed
+
+                    if (indexShard.getTranslogDurability() == Translog.Durability.ASYNC) {
+                        // in the async case, there is a background process that updates the global checkpoint.
+                        // We need to wait for that process to run. Alternatively, we could use indexShard.updateLocalCheckpointForShard
+                        // to enforce a sync but this would be a bit hacky.
+                        assertBusy(() -> assertThat(indexShard.getLastKnownGlobalCheckpoint(), equalTo(maxSeqNo)));
+                    }
+
+                    final var listener = listeners.acquire(
+                        ignored -> assertThat(
+                            "Global checkpoint not synced for shard: " + indexShard.routingEntry(),
+                            indexShard.getLastSyncedGlobalCheckpoint(),
+                            equalTo(maxSeqNo)
+                        )
+                    );
+                    indexShard.syncGlobalCheckpoint(maxSeqNo, e -> {
+                        if (e == null) {
+                            listener.onResponse(null);
+                        } else {
+                            listener.onFailure(e);
+                        }
+                    });
+                }
+
+            }
+        }
+        safeGet(future);
     }
 }

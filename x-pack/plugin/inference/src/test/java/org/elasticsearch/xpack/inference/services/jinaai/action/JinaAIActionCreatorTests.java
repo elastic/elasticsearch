@@ -11,11 +11,15 @@ import org.apache.http.HttpHeaders;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests;
+import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloatResultsTests;
+import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResultsTests;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
@@ -24,6 +28,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingType;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsModelTests;
+import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.jinaai.request.JinaAIEmbeddingsRequestEntity;
 import org.elasticsearch.xpack.inference.services.jinaai.request.JinaAIRerankRequestEntity;
 import org.elasticsearch.xpack.inference.services.jinaai.request.JinaAIUtils;
@@ -35,14 +40,13 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests.createSender;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
-import static org.hamcrest.Matchers.equalTo;
+import static org.elasticsearch.xpack.inference.services.jinaai.request.JinaAIEmbeddingsRequestEntity.INPUT_TEXT_FIELD;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -73,7 +77,15 @@ public class JinaAIActionCreatorTests extends ESTestCase {
         webServer.close();
     }
 
+    public void testExecute_ReturnsSuccessfulResponse_ForTextEmbeddingAction() throws IOException {
+        testExecute_ReturnsSuccessfulResponse_ForEmbeddingAction(TaskType.TEXT_EMBEDDING);
+    }
+
     public void testExecute_ReturnsSuccessfulResponse_ForEmbeddingAction() throws IOException {
+        testExecute_ReturnsSuccessfulResponse_ForEmbeddingAction(TaskType.EMBEDDING);
+    }
+
+    private void testExecute_ReturnsSuccessfulResponse_ForEmbeddingAction(TaskType taskType) throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
@@ -101,7 +113,13 @@ public class JinaAIActionCreatorTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = JinaAIEmbeddingsModelTests.createTextEmbeddingModel(getUrl(webServer), TEST_EMBEDDING_MODEL_ID, TEST_API_KEY);
+            var model = JinaAIEmbeddingsModelTests.createModel(
+                getUrl(webServer),
+                TEST_EMBEDDING_MODEL_ID,
+                JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
+                TEST_API_KEY,
+                taskType
+            );
             var actionCreator = new JinaAIActionCreator(sender, createWithEmptySettings(threadPool));
             var action = actionCreator.create(model, Map.of());
 
@@ -110,19 +128,33 @@ public class JinaAIActionCreatorTests extends ESTestCase {
 
             var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
 
-            assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
+            if (taskType == TaskType.TEXT_EMBEDDING) {
+                assertThat(
+                    result.asMap(),
+                    is(DenseEmbeddingFloatResultsTests.buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F })))
+                );
+            } else {
+                assertThat(
+                    result.asMap(),
+                    is(GenericDenseEmbeddingFloatResultsTests.buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F })))
+                );
+            }
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer " + TEST_API_KEY));
-            assertThat(
-                webServer.requests().get(0).getHeader(JinaAIUtils.REQUEST_SOURCE_HEADER),
-                equalTo(JinaAIUtils.ELASTIC_REQUEST_SOURCE)
-            );
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), is(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), is("Bearer " + TEST_API_KEY));
+            assertThat(webServer.requests().get(0).getHeader(JinaAIUtils.REQUEST_SOURCE_HEADER), is(JinaAIUtils.ELASTIC_REQUEST_SOURCE));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.size(), is(3));
-            assertThat(requestMap.get(JinaAIEmbeddingsRequestEntity.INPUT_FIELD), is(List.of(TEST_EMBEDDING_INPUT)));
+            if (taskType == TaskType.TEXT_EMBEDDING) {
+                assertThat(requestMap.get(JinaAIEmbeddingsRequestEntity.INPUT_FIELD), is(List.of(TEST_EMBEDDING_INPUT)));
+            } else {
+                assertThat(
+                    requestMap.get(JinaAIEmbeddingsRequestEntity.INPUT_FIELD),
+                    is(List.of(Map.of(INPUT_TEXT_FIELD, TEST_EMBEDDING_INPUT)))
+                );
+            }
             assertThat(requestMap.get(JinaAIEmbeddingsRequestEntity.MODEL_FIELD), is(TEST_EMBEDDING_MODEL_ID));
             assertThat(requestMap.get(JinaAIEmbeddingsRequestEntity.EMBEDDING_TYPE_FIELD), is(JinaAIEmbeddingType.FLOAT.toRequestString()));
         }
@@ -163,18 +195,19 @@ public class JinaAIActionCreatorTests extends ESTestCase {
                 result.asMap(),
                 is(
                     RankedDocsResultsTests.buildExpectationRerank(
-                        List.of(new RankedDocsResultsTests.RerankExpectation(Map.of("index", 0, "relevance_score", 0.94f)))
+                        List.of(
+                            new RankedDocsResultsTests.RerankExpectation(
+                                Map.of(RankedDocsResults.RankedDoc.INDEX, 0, RankedDocsResults.RankedDoc.RELEVANCE_SCORE, 0.94f)
+                            )
+                        )
                     )
                 )
             );
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer " + TEST_API_KEY));
-            assertThat(
-                webServer.requests().get(0).getHeader(JinaAIUtils.REQUEST_SOURCE_HEADER),
-                equalTo(JinaAIUtils.ELASTIC_REQUEST_SOURCE)
-            );
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), is(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), is("Bearer " + TEST_API_KEY));
+            assertThat(webServer.requests().get(0).getHeader(JinaAIUtils.REQUEST_SOURCE_HEADER), is(JinaAIUtils.ELASTIC_REQUEST_SOURCE));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.size(), is(3));

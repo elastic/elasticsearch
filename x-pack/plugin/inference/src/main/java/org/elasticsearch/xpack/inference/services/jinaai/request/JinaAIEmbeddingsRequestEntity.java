@@ -29,6 +29,7 @@ public record JinaAIEmbeddingsRequestEntity(List<InferenceStringGroup> input, @N
         ToXContentObject {
 
     public static final String INPUT_FIELD = "input";
+    public static final String INPUT_TEXT_FIELD = "text";
     public static final String MODEL_FIELD = "model";
     public static final String TASK_TYPE_FIELD = "task";
     public static final String LATE_CHUNKING = "late_chunking";
@@ -44,7 +45,6 @@ public record JinaAIEmbeddingsRequestEntity(List<InferenceStringGroup> input, @N
     private static final String SEARCH_QUERY = "retrieval.query";
     private static final String CLUSTERING = "separation";
     private static final String CLASSIFICATION = "classification";
-    private static final String INPUT_TEXT_FIELD = "text";
     private static final String INPUT_IMAGE_FIELD = "image";
 
     public JinaAIEmbeddingsRequestEntity {

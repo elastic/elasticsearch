@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.jinaai.action;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
@@ -33,8 +34,13 @@ import static org.elasticsearch.xpack.inference.external.action.ActionUtils.cons
  */
 public class JinaAIActionCreator implements JinaAIActionVisitor {
 
-    private static final ResponseHandler EMBEDDINGS_HANDLER = new JinaAIResponseHandler(
+    private static final ResponseHandler TEXT_EMBEDDINGS_HANDLER = new JinaAIResponseHandler(
         "jinaai text embedding",
+        JinaAIEmbeddingsResponseEntity::fromResponse
+    );
+
+    private static final ResponseHandler EMBEDDINGS_HANDLER = new JinaAIResponseHandler(
+        "jinaai embedding",
         JinaAIEmbeddingsResponseEntity::fromResponse
     );
 
@@ -57,11 +63,22 @@ public class JinaAIActionCreator implements JinaAIActionVisitor {
         var requestManager = new GenericRequestManager<>(
             serviceComponents.threadPool(),
             overriddenModel,
-            EMBEDDINGS_HANDLER,
+            getEmbeddingsResponseHandler(model),
             (embeddingsInput) -> new JinaAIEmbeddingsRequest(embeddingsInput.getInputs(), embeddingsInput.getInputType(), overriddenModel),
             EmbeddingsInput.class
         );
         return new SenderExecutableAction(sender, requestManager, constructFailedToSendRequestMessage("JinaAI embeddings"));
+    }
+
+    private static ResponseHandler getEmbeddingsResponseHandler(JinaAIEmbeddingsModel model) {
+        return switch (model.getTaskType()) {
+            case TEXT_EMBEDDING -> TEXT_EMBEDDINGS_HANDLER;
+            case EMBEDDING -> EMBEDDINGS_HANDLER;
+            // Should not be possible
+            default -> throw new IllegalArgumentException(
+                Strings.format("Received unexpected task type [%s] for JinaAI embeddings model", model.getTaskType())
+            );
+        };
     }
 
     @Override

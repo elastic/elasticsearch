@@ -152,6 +152,9 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             double avgMagnitude = magnitudeSum[c] / assignmentCount[c];
             float[] centroid = centroids[c];
             double centroidNorm = Math.sqrt(ESVectorUtil.dotProduct(centroid, centroid));
+            if (Math.abs(avgMagnitude - centroidNorm) < 1e-8) {
+                continue;
+            }
             if (centroidNorm > 0) {
                 float scale = (float) (avgMagnitude / centroidNorm);
                 for (int d = 0; d < centroid.length; d++) {
@@ -475,10 +478,12 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             }
             double avgMagnitude = magnitudeSum / count;
             double centroidNorm = Math.sqrt(ESVectorUtil.dotProduct(centroid, centroid));
-            if (centroidNorm > 0) {
-                float scale = (float) (avgMagnitude / centroidNorm);
-                for (int d = 0; d < dimension; d++) {
-                    centroid[d] *= scale;
+            if (Math.abs(avgMagnitude - centroidNorm) > 1e-8) {
+                if (centroidNorm > 0) {
+                    float scale = (float) (avgMagnitude / centroidNorm);
+                    for (int d = 0; d < dimension; d++) {
+                        centroid[d] *= scale;
+                    }
                 }
             }
         }

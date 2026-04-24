@@ -13,7 +13,6 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 
@@ -54,17 +53,7 @@ public class RestListReindexAction extends BaseRestHandler {
             throw new IllegalArgumentException("endpoint not supported on all nodes in the cluster");
         }
         ListReindexRequest listReindexRequest = new ListReindexRequest(request.paramAsBoolean("detailed", false));
-        return channel -> client.execute(TransportListReindexAction.TYPE, listReindexRequest, new RestChunkedToXContentListener<>(channel) {
-            @Override
-            protected RestStatus getRestStatus(ListReindexResponse resp) {
-                if (resp.getTaskFailures().isEmpty() == false) {
-                    return RestStatus.INTERNAL_SERVER_ERROR;
-                } else if (resp.getNodeFailures().isEmpty() == false) {
-                    return RestStatus.SERVICE_UNAVAILABLE;
-                }
-                return RestStatus.OK;
-            }
-        });
+        return channel -> client.execute(TransportListReindexAction.TYPE, listReindexRequest, new RestChunkedToXContentListener<>(channel));
     }
 
     @Override

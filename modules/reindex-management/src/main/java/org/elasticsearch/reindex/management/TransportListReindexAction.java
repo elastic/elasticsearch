@@ -50,9 +50,11 @@ public class TransportListReindexAction extends HandledTransportAction<ListReind
         listTasksRequest.setDetailed(request.getDetailed());
 
         client.execute(TransportListTasksAction.TYPE, listTasksRequest, listener.delegateFailureAndWrap((l, response) -> {
-            final List<TaskInfo> tasks = response.getTasks().stream().peek(t -> {
-                assert ReindexAction.NAME.equals(t.action()) : "unexpected task action [" + t.action() + "]";
-            }).filter(t -> t.parentTaskId().isSet() == false).map(TransportListReindexAction::relocatedTaskInfo).toList();
+            final List<TaskInfo> tasks = response.getTasks()
+                .stream()
+                .filter(t -> t.parentTaskId().isSet() == false)
+                .map(TransportListReindexAction::relocatedTaskInfo)
+                .toList();
             l.onResponse(new ListReindexResponse(tasks, response.getTaskFailures(), response.getNodeFailures()));
         }));
     }
@@ -60,7 +62,9 @@ public class TransportListReindexAction extends HandledTransportAction<ListReind
     /// Rewrite a {@link TaskInfo} so the caller sees the original (pre-relocation) identity.
     /// For non-relocated tasks this is a no-op because {@code originalTaskId == taskId} and
     /// {@code originalStartTimeMillis == startTime}.
-    static TaskInfo relocatedTaskInfo(final TaskInfo info) {
+    private static TaskInfo relocatedTaskInfo(final TaskInfo info) {
+        assert ReindexAction.NAME.equals(info.action()) : "unexpected task action [" + info.action() + "]";
+        assert info.parentTaskId().isSet() == false : "unexpected child task with parent [" + info.parentTaskId() + "]";
         final TaskId originalId = info.originalTaskId();
         final long originalStartMillis = info.originalStartTimeMillis();
         final long adjustedRunningTimeNanos = info.runningTimeNanos() + TimeUnit.MILLISECONDS.toNanos(

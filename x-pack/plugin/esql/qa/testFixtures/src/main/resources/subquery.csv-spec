@@ -195,6 +195,71 @@ sample_data    | null           | null              | 172.21.3.15 | 172.21.3.15
 sample_data    | null           | null              | 172.21.3.15 | 172.21.3.15
 ;
 
+subqueryMetadataIndex
+required_capability: subquery_in_from_command
+
+// tag::subquery_with_metadata[]
+FROM employees,
+     (FROM sample_data METADATA _index, _index_mode)
+         METADATA _index, _index_mode
+| WHERE emp_no == 10091 OR emp_no IS NULL
+| STATS count=COUNT(*) BY emp_no, _index, _index_mode
+// end::subquery_with_metadata[]
+| EVAL _index = MV_LAST(SPLIT(_index, ":"))
+| SORT count ASC
+| KEEP count, emp_no, _index, _index_mode
+;
+
+// tag::subquery_with_metadata-result[]
+count:long | emp_no:integer | _index:keyword | _index_mode:keyword
+1          | 10091          | employees      | standard
+7          | null           | sample_data    | standard
+// end::subquery_with_metadata-result[]
+;
+
+subqueryMetadataIndexInner
+required_capability: subquery_in_from_command
+
+// tag::subquery_with_metadata_inner[]
+FROM employees,
+     (FROM sample_data METADATA _index, _index_mode)
+| WHERE emp_no == 10091 OR emp_no IS NULL
+| STATS count=COUNT(*) BY emp_no, _index, _index_mode
+// end::subquery_with_metadata_inner[]
+| EVAL _index = MV_LAST(SPLIT(_index, ":"))
+| SORT count ASC
+| KEEP count, emp_no, _index, _index_mode
+;
+
+// tag::subquery_with_metadata_inner-result[]
+count:long | emp_no:integer | _index:keyword | _index_mode:keyword
+1          | 10091          | null           | null
+7          | null           | sample_data    | standard
+// end::subquery_with_metadata_inner-result[]
+;
+
+subqueryMetadataIndexOuter
+required_capability: subquery_in_from_command
+
+// tag::subquery_with_metadata_outer[]
+FROM employees,
+     (FROM sample_data)
+         METADATA _index, _index_mode
+| WHERE emp_no == 10091 OR emp_no IS NULL
+| STATS count=COUNT(*) BY emp_no, _index, _index_mode
+// end::subquery_with_metadata_outer[]
+| EVAL _index = MV_LAST(SPLIT(_index, ":"))
+| SORT count ASC
+| KEEP count, emp_no, _index, _index_mode
+;
+
+// tag::subquery_with_metadata_outer-result[]
+count:long | emp_no:integer | _index:keyword | _index_mode:keyword
+1          | 10091          | employees      | standard
+7          | null           | null           | null
+// end::subquery_with_metadata_outer-result[]
+;
+
 subqueryInFromWithWhereInSubquery
 required_capability: subquery_in_from_command
 

@@ -66,10 +66,8 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
     ) {
         if (request.getTargetTaskId().isSet() && tasks.isEmpty() && taskOperationFailures.isEmpty() && failedNodeExceptions.isEmpty()) {
             // For BwC: Now that we fan out to every node (to find potentially relocated targets by their original task id), the node
-            // identified by the target task id no longer throws ResourceNotFoundException from its per-node processTasks. Re-surface the
-            // same
-            // wire shape the single-node-routed path used to produce: a ListTasksResponse with one FailedNodeException, attributed to
-            // the target's own node, wrapping the ResourceNotFoundException with the same message.
+            // identified by the target task id no longer throws ResourceNotFoundException from its per-node processTasks.
+            // Re-surface the same ResourceNotFoundException wrapped in a FailedNodeException.
             final TaskId target = request.getTargetTaskId();
             final FailedNodeException notFound = new FailedNodeException(
                 target.getNodeId(),

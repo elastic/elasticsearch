@@ -2412,7 +2412,7 @@ public class EsqlCapabilities {
         /**
          * Support the BY grouping clause in CHANGE_POINT to detect change points independently per group.
          */
-        CHANGE_POINT_BY,
+        CHANGE_POINT_BY(Build.current().isSnapshot()),
 
         FIX_DIV_ERROR_MESSAGE,
 

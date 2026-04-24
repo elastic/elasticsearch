@@ -122,6 +122,12 @@ public class HttpRequestSenderTests extends ESTestCase {
         assertThat(sender1, sameInstance(sender2));
     }
 
+    public void testStartSynchronously_ThrowsUnsupportedOperationException() {
+        var sender = new HttpRequestSender(threadPool, createMockHttpClientManager(), mock(RequestSender.class), mock(RequestExecutor.class));
+
+        expectThrows(UnsupportedOperationException.class, sender::startSynchronously);
+    }
+
     public void testCreateSender_CanCallStartMultipleTimes() throws Exception {
         var mockManager = createMockHttpClientManager();
 

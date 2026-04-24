@@ -75,6 +75,8 @@ public class HttpRequestSender implements Sender {
         }
     }
 
+    private static final TimeValue STARTUP_TIMEOUT = TimeValue.timeValueSeconds(10);
+
     private final ThreadPool threadPool;
     private final HttpClientManager manager;
     private final AtomicBoolean startInitiated = new AtomicBoolean(false);
@@ -151,7 +153,7 @@ public class HttpRequestSender implements Sender {
      */
     @Override
     public void startSynchronously() {
-        throw new UnsupportedOperationException("synchronous startup is not supported; use startAsynchronously() instead");
+        throw new UnsupportedOperationException("Synchronous startup is not supported; use startAsynchronously() instead");
     }
 
     @Override
@@ -177,7 +179,7 @@ public class HttpRequestSender implements Sender {
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        SubscribableListener.<Void>newForked(l -> startAsynchronously(l, null))
+        SubscribableListener.<Void>newForked(l -> startAsynchronously(l, STARTUP_TIMEOUT))
             .<InferenceServiceResults>andThen(sendListener -> service.execute(requestCreator, inferenceInputs, timeout, sendListener))
             .addListener(listener);
     }
@@ -200,7 +202,7 @@ public class HttpRequestSender implements Sender {
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        SubscribableListener.<Void>newForked(l -> startAsynchronously(l, null)).<InferenceServiceResults>andThen(sendListener -> {
+        SubscribableListener.<Void>newForked(l -> startAsynchronously(l, STARTUP_TIMEOUT)).<InferenceServiceResults>andThen(sendListener -> {
             var preservedListener = ContextPreservingActionListener.wrapPreservingContext(sendListener, threadPool.getThreadContext());
             var timedListener = new TimedListener<>(timeout, preservedListener, threadPool, request.getInferenceEntityId());
             threadPool.executor(UTILITY_THREAD_POOL_NAME)

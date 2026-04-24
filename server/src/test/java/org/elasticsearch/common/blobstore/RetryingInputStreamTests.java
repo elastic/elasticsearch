@@ -227,8 +227,8 @@ public class RetryingInputStreamTests extends ESTestCase {
         final var eTag = randomUUID();
         final var purpose = randomRetryingPurpose();
         final var maxRetries = randomIntBetween(3, 10);
-        final int interruptAfterAttempt = randomIntBetween(1, maxRetries);
-        final var interruptCountDown = new AtomicInteger(interruptAfterAttempt);
+        final int interruptAfterAttempts = randomIntBetween(1, maxRetries);
+        final var interruptCountDown = new AtomicInteger(interruptAfterAttempts);
 
         final var services = new BlobStoreServicesAdapter(purpose, maxRetries) {
 
@@ -255,7 +255,7 @@ public class RetryingInputStreamTests extends ESTestCase {
                         copyToBytes(inputStream);
                     }
                 });
-                assertThat(interruptedIOException.getSuppressed().length, equalTo(interruptAfterAttempt));
+                assertThat(interruptedIOException.getSuppressed().length, equalTo(interruptAfterAttempts));
                 return interruptedIOException;
             });
             safeGet(future);

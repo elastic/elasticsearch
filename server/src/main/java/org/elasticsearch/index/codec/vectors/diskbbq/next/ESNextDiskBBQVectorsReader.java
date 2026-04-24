@@ -75,6 +75,15 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         );
     }
 
+    /**
+     * Returns the {@link NextFieldEntry#centroidOversamplingFactor} for the field; only for tests
+     * in the same package.
+     */
+    float centroidOversamplingFactorForFieldForTests(int fieldNumber) {
+        NextFieldEntry e = Objects.requireNonNull(fields.get(fieldNumber), "missing ivf field " + fieldNumber);
+        return e.centroidOversamplingFactor();
+    }
+
     CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice) throws IOException {
         // TODO we may want to prefetch more than one postings list, however, we will likely want to place a limit
         // so we don't bother prefetching many lists we won't end up scoring
@@ -139,8 +148,11 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         // build iterator
         CentroidIterator centroidIterator;
         if (numParents > 0) {
-            // equivalent to (float) centroidsPerParentCluster / 2
-            float centroidOversampling = (float) fieldEntry.numCentroids() / (2 * numParents);
+            // equivalent to (float) centroidsPerParentCluster / 2 when persisted factor is NaN
+            float derivedOversampling = (float) fieldEntry.numCentroids() / (2 * numParents);
+            float centroidOversampling = Float.isNaN(fieldEntry.centroidOversamplingFactor())
+                ? derivedOversampling
+                : fieldEntry.centroidOversamplingFactor();
             centroidIterator = getCentroidIteratorWithParents(
                 fieldInfo,
                 centroids,
@@ -251,6 +263,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
     @Override
     protected NextFieldEntry doReadField(
         IndexInput input,
+        int versionMeta,
         String rawVectorFormat,
         boolean useDirectIOReads,
         VectorSimilarityFunction similarityFunction,
@@ -275,6 +288,10 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         if (numSlices > 0) {
             maxSliceSize = input.readVInt();
         }
+        float centroidOversamplingFactor = Float.NaN;
+        if (versionMeta >= ESNextDiskBBQVectorsFormat.VERSION_OVERSAMPLING_FACTOR) {
+            centroidOversamplingFactor = Float.intBitsToFloat(input.readInt());
+        }
         return new NextFieldEntry(
             rawVectorFormat,
             useDirectIOReads,
@@ -292,7 +309,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             preconditionerOffset,
             preconditionerLength,
             numSlices,
-            maxSliceSize
+            maxSliceSize,
+            centroidOversamplingFactor
         );
     }
 
@@ -324,6 +342,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         // > 0 "sliced but on merge, is the number of slices".
         final int numSlices;
         final int maxSliceSize;
+        /** NaN: use historical derived factor from centroids / parents at query time. */
+        private final float centroidOversamplingFactor;
 
         NextFieldEntry(
             String rawVectorFormat,
@@ -342,7 +362,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             long preconditionerOffset,
             long preconditionerLength,
             int numSlices,
-            int maxSliceSize
+            int maxSliceSize,
+            float centroidOversamplingFactor
         ) {
             super(
                 rawVectorFormat,
@@ -363,6 +384,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             this.preconditionerLength = preconditionerLength;
             this.numSlices = numSlices;
             this.maxSliceSize = maxSliceSize;
+            this.centroidOversamplingFactor = centroidOversamplingFactor;
         }
 
         public ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding() {
@@ -375,6 +397,10 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
 
         public long preconditionerLength() {
             return preconditionerLength;
+        }
+
+        public float centroidOversamplingFactor() {
+            return centroidOversamplingFactor;
         }
     }
 

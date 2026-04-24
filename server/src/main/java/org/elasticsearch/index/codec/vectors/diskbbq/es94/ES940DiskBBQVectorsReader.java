@@ -185,8 +185,10 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
     }
 
     @Override
+    @SuppressWarnings("unused")
     protected NextFieldEntry doReadField(
         IndexInput input,
+        int versionMeta,
         String rawVectorFormat,
         boolean useDirectIOReads,
         VectorSimilarityFunction similarityFunction,

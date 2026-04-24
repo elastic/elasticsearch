@@ -59,6 +59,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
     private final FlatVectorsWriter rawVectorDelegate;
     private final int flatVectorThreshold;
     private final boolean shouldWriteDirectIoReads;
+    protected final SegmentWriteState segmentWriteState;
 
     @SuppressWarnings("this-escape")
     protected IVFVectorsWriter(
@@ -79,6 +80,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         this.rawVectorDelegate = rawVectorDelegate;
         this.flatVectorThreshold = flatVectorThreshold;
         this.shouldWriteDirectIoReads = shouldWriteDirectIoReads;
+        this.segmentWriteState = state;
         final String metaFileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, metaExtension);
         final String ivfCentroidsFileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, centroidExtension);
         final String ivfClustersFileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, clusterExtension);
@@ -183,10 +185,27 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
 
     protected abstract Consumer<List<float[]>> preconditionVectors(Preconditioner preconditioner);
 
+    /**
+     * Called for each field at the start of {@link #flush} before IVF work. Subclasses may
+     * resolve per-field calibration (e.g. optional disk-backed quantization) into effective settings.
+     */
+    protected void onBeginIvfFieldFlush(FieldInfo fieldInfo) throws IOException {
+        // default: no-op
+    }
+
+    /**
+     * Called at the start of {@link #mergeOneField} for each field, including non-float
+     * encodings, before any IVF or raw vector merge. Subclasses may resolve merged calibration.
+     */
+    protected void onBeginIvfFieldMerge(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+        // default: no-op
+    }
+
     @Override
     public final void flush(int maxDoc, Sorter.DocMap sortMap) throws IOException {
         rawVectorDelegate.flush(maxDoc, sortMap);
         for (FieldWriter fieldWriter : fieldWriters) {
+            onBeginIvfFieldFlush(fieldWriter.fieldInfo());
             // build preconditioner if necessary, only need one given that this writer is tied to a format that has a fixed dim & block dim
             // write preconditioner subsequently in the centroids file
             Preconditioner preconditioner = createPreconditioner(fieldWriter.fieldInfo().getVectorDimension());
@@ -339,6 +358,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
 
     @Override
     public final void mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+        onBeginIvfFieldMerge(fieldInfo, mergeState);
         if (fieldInfo.getVectorEncoding().equals(VectorEncoding.FLOAT32)) {
             mergeOneFieldIVF(fieldInfo, mergeState);
         } else {

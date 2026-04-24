@@ -109,6 +109,22 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertTimeExtraction(ctx, "day_of_week", 0.0);
     }
 
+    public void testDaysInMonth() {
+        assertTimeExtraction(ctxAt("2024-05-10T14:30:00Z"), "days_in_month", 31.0);
+        assertTimeExtraction(ctxAt("2024-02-15T00:00:00Z"), "days_in_month", 29.0);
+        assertTimeExtraction(ctxAt("2023-02-15T00:00:00Z"), "days_in_month", 28.0);
+        assertTimeExtraction(ctxAt("2024-04-01T00:00:00Z"), "days_in_month", 30.0);
+    }
+
+    private PromqlFunctionRegistry.PromqlContext ctxAt(String instant) {
+        return new PromqlFunctionRegistry.PromqlContext(
+            Literal.NULL,
+            Literal.NULL,
+            Literal.dateTime(Source.EMPTY, Instant.parse(instant)),
+            EsqlTestUtils.TEST_CFG
+        );
+    }
+
     private void assertTimeExtraction(PromqlFunctionRegistry.PromqlContext ctx, String function, double expected) {
         var expression = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(function, Source.EMPTY, null, ctx, List.of());
         assertThat(function, as(expression.fold(FoldContext.small()), Double.class), equalTo(expected));

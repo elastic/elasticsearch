@@ -284,17 +284,21 @@ public class SearchCommitPrefetcher {
 
                 var cacheBlobReader = cacheBlobReaderSupplier.getCacheBlobReaderForPreFetching(blobFile);
 
-                // If fetching a range from the indexing node, adjust it for padding and alignment.
-                // If fetching from the blob store, we try to fetch the entire region.
-                var adjustedRangeToPrefetch = cacheBlobReader.getRange(
-                    rangeToPrefetch.start(),
-                    totalDataToPrefetchInBytes < Integer.MAX_VALUE ? Math.toIntExact(totalDataToPrefetchInBytes) : Integer.MAX_VALUE,
-                    totalDataToPrefetchInBytes
-                );
-
-                var startRegion = cacheService.getRegion(adjustedRangeToPrefetch.start());
-                var endRegion = cacheService.getEndingRegion(adjustedRangeToPrefetch.end());
+                // Calculate regions from the full range first, then compute the adjusted range per-region.
+                // This avoids Integer.MAX_VALUE truncation for > 2GB blobs.
+                var startRegion = cacheService.getRegion(rangeToPrefetch.start());
+                var endRegion = cacheService.getEndingRegion(rangeToPrefetch.end());
                 for (int region = startRegion; region <= endRegion; region++) {
+                    long regionRangeStart = Math.max(cacheService.getRegionStart(region), rangeToPrefetch.start());
+                    long regionRangeEnd = Math.min(cacheService.getRegionEnd(region), rangeToPrefetch.end());
+                    assert regionRangeEnd > regionRangeStart;
+                    // If fetching a range from the indexing node, adjust it for padding and alignment.
+                    // If fetching from the blob store, we try to fetch the entire region.
+                    var adjustedRangeToPrefetch = cacheBlobReader.getRange(
+                        regionRangeStart,
+                        Math.toIntExact(regionRangeEnd - regionRangeStart),
+                        totalDataToPrefetchInBytes
+                    );
                     long maxPrefetchedOffsetInRegion = Math.min(cacheService.getRegionEnd(region), adjustedRangeToPrefetch.end());
                     // TODO: Implement force version that decays entries from level 1 if there's no room in the cache
 

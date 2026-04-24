@@ -85,7 +85,7 @@ public final class EcsJsonUtils {
     /**
      * Returns {@code true} if the line appears to already be a JSON object.
      */
-    public static boolean looksLikeJson(String line) {
+    public static boolean looksLikeJson(CharSequence line) {
         return line.length() > 0 && line.charAt(0) == '{';
     }
 

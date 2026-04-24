@@ -436,12 +436,15 @@ public abstract class Terminal {
 
         @Override
         protected void print(Verbosity verbosity, PrintWriter writer, CharSequence msg, boolean newline, boolean flush) {
-            // FIXME prevent print
+            assert newline : "Expected usage of println variants when JSON terminal is enabled";
             if (isPrintable(verbosity)) {
-                String json = (writer == delegate.errWriter)
-                    ? EcsJsonUtils.formatJson("WARN", "stderr", msg)
-                    : EcsJsonUtils.formatJson("INFO", "stdout", msg);
-                super.print(verbosity, writer, json, newline, flush);
+                if (EcsJsonUtils.looksLikeJson(msg) == false) {
+                    // if not JSON yet, format the message as Ecs JSON
+                    msg = (writer == delegate.errWriter)
+                        ? EcsJsonUtils.formatJson("WARN", "stderr", msg)
+                        : EcsJsonUtils.formatJson("INFO", "stdout", msg);
+                }
+                super.print(verbosity, writer, msg, newline, flush);
             }
         }
 

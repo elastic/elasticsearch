@@ -297,7 +297,7 @@ public class SearchCommitPrefetcher {
                     var adjustedRangeToPrefetch = cacheBlobReader.getRange(
                         regionRangeStart,
                         Math.toIntExact(regionRangeEnd - regionRangeStart),
-                        totalDataToPrefetchInBytes
+                        rangeToPrefetch.end() - regionRangeStart
                     );
                     long maxPrefetchedOffsetInRegion = Math.min(cacheService.getRegionEnd(region), adjustedRangeToPrefetch.end());
                     // TODO: Implement force version that decays entries from level 1 if there's no room in the cache

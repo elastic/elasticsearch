@@ -16,16 +16,18 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
-import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Merges unmapped fields into the output of the ES relation. This marking is necessary for the block loaders to force loading from _source
  * if the field is unmapped.
+ *
+ * N.B. This is only used for INSIST keyword, so when INSIST is sunset, we can get rid of this rule!
  */
-public class PropgateUnmappedFields extends Rule<LogicalPlan, LogicalPlan> {
+public class PropagateUnmappedFields extends Rule<LogicalPlan, LogicalPlan> {
     @Override
     public LogicalPlan apply(LogicalPlan logicalPlan) {
         if (logicalPlan instanceof EsRelation) {
@@ -42,21 +44,24 @@ public class PropgateUnmappedFields extends Rule<LogicalPlan, LogicalPlan> {
             return logicalPlan;
         }
         return logicalPlan.transformUp(EsRelation.class, er -> {
-            Set<String> existingPuks = new HashSet<>();
-            for (Attribute attr : er.output()) {
-                if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField) {
-                    existingPuks.add(fa.fieldName().string());
-                }
-            }
+            Set<String> existingPuks = er.output()
+                .stream()
+                .flatMap(
+                    attr -> attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField
+                        ? Stream.of(fa.fieldName().string())
+                        : Stream.empty()
+                )
+                .collect(Collectors.toSet());
             // Only propagate PUK fields that are not already in the relation's output, so we preserve the existing order.
             // Partially-mapped keyword fields are already wrapped as PUKs by the index resolver; this rule just merges in
-            // PUKs introduced elsewhere (e.g. by INSIST on a field that is not in the index).
-            List<Attribute> missing = new ArrayList<>();
-            for (Attribute attr : unmappedFields) {
-                if (attr instanceof FieldAttribute fa && existingPuks.contains(fa.fieldName().string()) == false) {
-                    missing.add(fa);
-                }
-            }
+            // PUKs introduced elsewhere (e.g., by INSIST on a field that is not in the index).
+            List<Attribute> missing = unmappedFields.stream()
+                .flatMap(
+                    attr -> attr instanceof FieldAttribute fa && existingPuks.contains(fa.fieldName().string()) == false
+                        ? Stream.of(attr)
+                        : Stream.empty()
+                )
+                .collect(Collectors.toList());
             return missing.isEmpty() ? er : er.withAttributes(NamedExpressions.mergeOutputAttributes(missing, er.output()));
         });
     }

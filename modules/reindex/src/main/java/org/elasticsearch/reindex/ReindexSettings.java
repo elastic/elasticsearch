@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.injection.guice.Inject;
 
 /**
  * Holds reindex-related dynamic cluster settings
@@ -38,6 +39,7 @@ public final class ReindexSettings {
     /**
      * {@link ClusterSettings#initializeAndWatch} keeps the value of the settings updated
      */
+    @Inject
     public ReindexSettings(ClusterSettings clusterSettings) {
         clusterSettings.initializeAndWatch(REINDEX_PIT_KEEP_ALIVE_SETTING, this::setPitKeepAlive);
     }

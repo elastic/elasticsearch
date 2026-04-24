@@ -229,17 +229,19 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
 // use licenses from each of the bundled xpack plugins
 Project xpack = project(':x-pack:plugin')
 xpack.subprojects.findAll { it.parent == xpack }.each { Project xpackModule ->
-  File licenses = new File(xpackModule.projectDir, 'licenses')
-  if (licenses.exists()) {
-    buildDefaultNoticeTaskProvider.configure {
-      licensesDir licenses
-      source xpackModule.file('src/main/java')
+  if (xpackModule.name.contains("stateless") == false && xpackModule.name.contains("secure-settings") == false) {
+    File licenses = new File(xpackModule.projectDir, 'licenses')
+    if (licenses.exists()) {
+      buildDefaultNoticeTaskProvider.configure {
+        licensesDir licenses
+        source xpackModule.file('src/main/java')
+      }
     }
-  }
-  distro.copyModule(processDefaultOutputsTaskProvider, xpackModule)
-  dependencies.add('featuresMetadata', xpackModule)
-  if (xpackModule.name.equals('core') || xpackModule.name.equals('security')) {
-    distro.copyModule(processIntegTestOutputsTaskProvider, xpackModule)
+    distro.copyModule(processDefaultOutputsTaskProvider, xpackModule)
+    dependencies.add('featuresMetadata', xpackModule)
+    if (xpackModule.name.equals('core') || xpackModule.name.equals('security')) {
+      distro.copyModule(processIntegTestOutputsTaskProvider, xpackModule)
+    }
   }
 }
 

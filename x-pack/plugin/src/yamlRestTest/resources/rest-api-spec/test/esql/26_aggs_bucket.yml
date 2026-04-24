@@ -298,7 +298,7 @@
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [bucket_column_metadata]
+          capabilities: [column_metadata_bucket]
       reason: "BUCKET exposes interval metadata on grouping columns"
 
   - do:

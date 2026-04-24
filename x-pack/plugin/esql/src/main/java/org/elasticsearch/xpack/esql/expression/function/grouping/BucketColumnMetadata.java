@@ -17,9 +17,11 @@ import java.util.Map;
 
 public class BucketColumnMetadata {
 
-    public static Map<NameId, Map<String, Object>> createColumnMetadata(LogicalPlan plan, FoldContext foldContext) {
+    public static Map<NameId, Map<String, Object>> createColumnMetadata(LogicalPlan optimizedPlan, FoldContext foldContext) {
         var resolved = new HashMap<NameId, Map<String, Object>>();
-        plan.forEachExpressionDown(Alias.class, alias -> {
+        // this does not retain bucket meta when executing row
+        // we can fix this later by adding meta from analyzed plan as well
+        optimizedPlan.forEachExpressionDown(Alias.class, alias -> {
             if (alias.child() instanceof Bucket bucket) {
                 Map<String, Object> intervalMetadata = bucket.getIntervalMetadata(foldContext);
                 if (intervalMetadata != null) {

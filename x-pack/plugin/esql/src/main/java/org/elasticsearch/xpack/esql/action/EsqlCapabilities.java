@@ -804,7 +804,7 @@ public class EsqlCapabilities {
         /**
          * Expose resolved bucket interval in {@code _meta} on {@code BUCKET} grouping columns.
          */
-        BUCKET_COLUMN_METADATA,
+        COLUMN_METADATA_BUCKET,
 
         /**
          * Allow mixed numeric types in coalesce

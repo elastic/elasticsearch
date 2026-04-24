@@ -364,7 +364,6 @@ public class EsqlSession {
                                 request,
                                 executionInfo,
                                 planRunner,
-                                analyzedPlan.inner(),
                                 p,
                                 finalConfiguration,
                                 foldContext,
@@ -412,7 +411,6 @@ public class EsqlSession {
         EsqlQueryRequest request,
         EsqlExecutionInfo executionInfo,
         PlanRunner planRunner,
-        LogicalPlan analyzedPlan,
         LogicalPlan optimizedPlan,
         Configuration configuration,
         FoldContext foldContext,
@@ -430,7 +428,7 @@ public class EsqlSession {
 
         EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
 
-        var columnMetadata = createColumnMetadata(analyzedPlan, optimizedPlan, foldContext);
+        var columnMetadata = createColumnMetadata(optimizedPlan, foldContext);
         listener = listener.delegateFailureAndWrap(
             (l, r) -> l.onResponse(
                 new Result(r.schema(), r.pages(), columnMetadata, r.configuration(), r.completionInfo(), r.executionInfo())
@@ -457,13 +455,11 @@ public class EsqlSession {
         );
     }
 
-    private Map<NameId, Map<String, Object>> createColumnMetadata(
-        LogicalPlan analyzedPlan,
-        LogicalPlan optimizedPlan,
-        FoldContext foldContext
-    ) {
+    private Map<NameId, Map<String, Object>> createColumnMetadata(LogicalPlan optimizedPlan, FoldContext foldContext) {
+        // TODO we need to enforce NameId do not change during optimization.
+        // Otherwise metadata might not be found when redering result.
         return Maps.merge(
-            BucketColumnMetadata.createColumnMetadata(analyzedPlan, foldContext),
+            BucketColumnMetadata.createColumnMetadata(optimizedPlan, foldContext),
             ApproximationPlan.createColumnMetadata(optimizedPlan.output()),
             (a, b) -> Maps.merge(a, b, (m1, m2) -> {
                 throw new IllegalStateException("Should not produce metadata with the same key");

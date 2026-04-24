@@ -665,7 +665,11 @@ public class StatelessPlugin extends Plugin
             .put(StatelessBalancingWeightsFactory.INDEXING_TIER_SHARD_BALANCE_FACTOR_SETTING.getKey(), 0)
             .put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 0)
             .put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING.getKey(), true)
-            .put(StatelessBalancingWeightsFactory.INDEXING_TIER_BALANCING_THRESHOLD_SETTING.getKey(), 500)
+            // The write load weight factor, which is 10 by default, is the only active node weight factor for the threshold. Write load
+            // weight is counted in active write threads, and the number of write threads defaults to the number of CPUs available on
+            // a node. Let's say a big node had 64 CPUs, *10 results in a possible weight differential across nodes of up to 640. A
+            // threshold value of 10 million will ensure no weight rebalancing occurs in the index tier.
+            .put(StatelessBalancingWeightsFactory.INDEXING_TIER_BALANCING_THRESHOLD_SETTING.getKey(), 10_000_000)
             .put(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED.getKey(), true)
             .put(EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_LOW_WATERMARK.getKey(), "95%")
             .put(

@@ -385,42 +385,31 @@ public class FsBlobContainerTests extends ESTestCase {
 
     public void testConcurrentAtomicWriteOverwriteProtection() throws Exception {
         restoreFileSystem();
-        final String blobName = randomAlphaOfLengthBetween(1, 20).toLowerCase(Locale.ROOT);
-        final Path path = PathUtils.get(createTempDir().toString());
-
-        final FsBlobContainer container = new FsBlobContainer(
+        final var blobName = randomAlphaOfLengthBetween(1, 20).toLowerCase(Locale.ROOT);
+        final var path = createTempDir();
+        final var container = new FsBlobContainer(
             new FsBlobStore(randomIntBetween(1, 8) * 1024, path, false),
             BlobPath.EMPTY,
             path
         );
+        final var threadCount = between(2, 8);
+        final var success = new AtomicBoolean();
 
-        final int threadCount = between(2, 8);
-        final var threads = new Thread[threadCount];
-        final var barrier = new CyclicBarrier(threadCount);
-        final var successCount = new AtomicLong(0);
-
-        for (int i = 0; i < threadCount; i++) {
+        startInParallel(threadCount, ignored -> {
             final var data = new BytesArray(randomByteArrayOfLength(randomIntBetween(1, 512)));
-            threads[i] = new Thread(() -> {
-                safeAwait(barrier);
-                try {
-                    container.writeBlobAtomic(randomNonDataPurpose(), blobName, data, true);
-                    successCount.incrementAndGet();
-                } catch (FileAlreadyExistsException e) {
-                    // expected for all but one thread
-                } catch (IOException e) {
-                    fail(e, "unexpected exception");
-                }
-            }, "overwrite-thread-" + i);
-            threads[i].start();
-        }
+            try {
+                container.writeBlobAtomic(randomNonDataPurpose(), blobName, data, true);
+                assertTrue("there should be exactly one successful writer",
+                    success.compareAndSet(false, true));
+            } catch (FileAlreadyExistsException e) {
+                // expected for all but one thread
+            } catch (Exception e) {
+                fail(e, "unexpected exception");
+            }
+        });
 
-        for (Thread thread : threads) {
-            thread.join();
-        }
-
-        assertThat("exactly one writer should succeed", successCount.get(), equalTo(1L));
-        for (String blob : container.listBlobs(randomPurpose()).keySet()) {
+        assertTrue("there should be exactly one successful writer", success.get());
+        for (final String blob : container.listBlobs(randomPurpose()).keySet()) {
             assertFalse("unexpected temp blob [" + blob + "]", FsBlobContainer.isTempBlobName(blob));
         }
     }

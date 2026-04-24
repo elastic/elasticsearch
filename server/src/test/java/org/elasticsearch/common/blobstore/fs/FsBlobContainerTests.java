@@ -379,6 +379,52 @@ public class FsBlobContainerTests extends ESTestCase {
         }
     }
 
+    public void testConcurrentAtomicWriteOverwriteProtection() throws Exception {
+        restoreFileSystem();
+        try {
+            final String blobName = randomAlphaOfLengthBetween(1, 20).toLowerCase(Locale.ROOT);
+            final Path path = PathUtils.get(createTempDir().toString());
+
+            final FsBlobContainer container = new FsBlobContainer(
+                new FsBlobStore(randomIntBetween(1, 8) * 1024, path, false),
+                BlobPath.EMPTY,
+                path
+            );
+
+            final int threadCount = between(2, 8);
+            final var threads = new Thread[threadCount];
+            final var barrier = new CyclicBarrier(threadCount);
+            final var successCount = new AtomicLong(0);
+
+            for (int i = 0; i < threadCount; i++) {
+                final var data = new BytesArray(randomByteArrayOfLength(randomIntBetween(1, 512)));
+                threads[i] = new Thread(() -> {
+                    safeAwait(barrier);
+                    try {
+                        container.writeBlobAtomic(randomNonDataPurpose(), blobName, data, true);
+                        successCount.incrementAndGet();
+                    } catch (FileAlreadyExistsException e) {
+                        // expected for all but one thread
+                    } catch (IOException e) {
+                        fail(e, "unexpected exception");
+                    }
+                }, "overwrite-thread-" + i);
+                threads[i].start();
+            }
+
+            for (Thread thread : threads) {
+                thread.join();
+            }
+
+            assertThat("exactly one writer should succeed", successCount.get(), equalTo(1L));
+            for (String blob : container.listBlobs(randomPurpose()).keySet()) {
+                assertFalse("unexpected temp blob [" + blob + "]", FsBlobContainer.isTempBlobName(blob));
+            }
+        } finally {
+            PathUtilsForTesting.installMock(fileSystem);
+        }
+    }
+
     public void testCopy() throws Exception {
         // without this, on CI the test sometimes fails with
         // java.nio.file.ProviderMismatchException: mismatch, expected: class org.elasticsearch.common.blobstore.fs.FsBlobContainerTests$1,

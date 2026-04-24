@@ -23,13 +23,20 @@ import java.util.NavigableMap;
  * Adapter that wraps a StorageObject to implement Parquet's InputFile interface.
  * This allows using our storage abstraction with Parquet's ParquetFileReader.
  *
- * <p>Key features:
+ * <p>Two {@link SeekableInputStream} implementations are available, selected by
+ * {@link #windowCacheEnabled}:
  * <ul>
- *   <li>Uses <strong>only</strong> range reads ({@code newStream(position, length)}) — never full-object GET</li>
- *   <li>Sliding window cache (default 4MB) to amortize seeks and avoid {@code InputStream.skip}</li>
- *   <li>Optimized for remote storage (S3, HTTP) where full GET and skip-download are expensive</li>
- *   <li>No Hadoop dependencies — uses pure Java InputStream</li>
+ *   <li><b>Direct</b> (default): each request issues a fresh positional read via
+ *       {@link StorageObject#readBytes}. Correctness-safe fallback while the window cache bug
+ *       is being investigated, see <a href="https://github.com/elastic/esql-planning/issues/585">esql-planning#585</a>.
+ *       May increase the number of range requests on remote storage (S3, HTTP).</li>
+ *   <li><b>Windowed</b> (currently disabled): sliding window cache (default 4 MiB) that amortizes
+ *       seeks and avoids {@link java.io.InputStream#skip}. Also consults the JVM-wide footer cache
+ *       and any prefetched column chunks installed via {@link #installPrefetchedData}.</li>
  * </ul>
+ *
+ * <p>Both paths use <strong>only</strong> range reads ({@code newStream(position, length)})
+ * and {@link StorageObject#readBytes} — never a full-object GET — and have no Hadoop dependencies.
  */
 public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputFile {
     private final StorageObject storageObject;
@@ -55,9 +62,20 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
      * non-deterministic correctness bug where seeks within the cached window can serve stale
      * bytes, corrupting dictionary-encoded column values.
      *
-     * @see <a href="https://github.com/elastic/esql-planning/issues/585">esql-planning#585</a>
+     * <p>Visible for testing only. Production code should not mutate this field; tests flip it
+     * via {@link #setWindowCacheEnabledForTests(boolean)} and must restore the previous value.
      */
     static volatile boolean windowCacheEnabled = false;
+
+    /**
+     * Test-only hook to toggle the window cache in a single test method. Returns the previous
+     * value so the caller can restore it (typically in a {@code @After} method).
+     */
+    static boolean setWindowCacheEnabledForTests(boolean enabled) {
+        boolean previous = windowCacheEnabled;
+        windowCacheEnabled = enabled;
+        return previous;
+    }
 
     private static final FooterCache FOOTER_CACHE = new FooterCache(FOOTER_CACHE_MAX_BYTES, FOOTER_CACHE_MAX_ENTRY_BYTES);
 
@@ -72,6 +90,11 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
      * Creates an adapter with an adaptive window sized to cover the given byte range.
      * This allows all column chunks within a small row-group split to be fetched in a single I/O
      * instead of incurring multiple range GETs with the default 4 MiB window.
+     *
+     * <p>Note: the configured window size is only honored when {@link #windowCacheEnabled} is
+     * {@code true}. With the default direct-read path, this factory is equivalent to the
+     * no-arg constructor — the window buffer itself is only allocated when
+     * {@link #newStream()} actually instantiates {@code RangeFirstSeekableInputStream}.
      *
      * @param rangeBytes byte span of the range being read; clamped to [{@link #DEFAULT_WINDOW_SIZE}, {@link #MAX_WINDOW_SIZE}]
      */
@@ -416,10 +439,17 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
      * SeekableInputStream that issues a fresh positional read for every request,
      * bypassing the sliding-window cache entirely. Correctness-safe fallback while
      * the window cache bug is investigated.
+     *
+     * <p>Not thread-safe: the single-byte scratch buffer and the {@code position} cursor are
+     * mutable per-stream state. Each consumer must open its own stream.
      */
     private static class DirectSeekableInputStream extends SeekableInputStream {
         private final StorageObject storageObject;
         private final long length;
+        // Reused on every single-byte read() to avoid allocating a fresh byte[1]/ByteBuffer pair
+        // per call — critical on remote storage where that would translate to a 1-byte range GET.
+        private final byte[] singleByte = new byte[1];
+        private final ByteBuffer singleByteBuf = ByteBuffer.wrap(singleByte);
         private long position;
         private boolean closed;
 
@@ -457,14 +487,13 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             if (position >= length) {
                 return -1;
             }
-            byte[] buf = new byte[1];
-            ByteBuffer target = ByteBuffer.wrap(buf);
-            int n = storageObject.readBytes(position, target);
+            singleByteBuf.clear();
+            int n = storageObject.readBytes(position, singleByteBuf);
             if (n <= 0) {
                 return -1;
             }
             position++;
-            return buf[0] & 0xFF;
+            return singleByte[0] & 0xFF;
         }
 
         @Override
@@ -536,6 +565,13 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             }
         }
 
+        /**
+         * Reads into the caller's buffer in a single {@link StorageObject#readBytes} call, regardless
+         * of whether it is heap-backed or direct. The buffer's {@code limit} is temporarily narrowed
+         * so we never read past EOF, and restored before returning. This delegates any provider-specific
+         * chunking (e.g. S3/HTTP direct-buffer transfer sizes) to the provider itself instead of
+         * issuing many small range requests from this class.
+         */
         @Override
         public int read(java.nio.ByteBuffer buf) throws IOException {
             if (buf.hasRemaining() == false) {
@@ -548,45 +584,28 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                 return -1;
             }
             int toRead = (int) Math.min(buf.remaining(), length - position);
-            if (buf.hasArray()) {
-                int off = buf.arrayOffset() + buf.position();
-                ByteBuffer target = ByteBuffer.wrap(buf.array(), off, toRead);
-                int bytesRead = storageObject.readBytes(position, target);
-                if (bytesRead > 0) {
-                    buf.position(buf.position() + bytesRead);
-                    position += bytesRead;
-                }
-                return bytesRead <= 0 ? -1 : bytesRead;
+            int savedLimit = buf.limit();
+            buf.limit(buf.position() + toRead);
+            int bytesRead;
+            try {
+                bytesRead = storageObject.readBytes(position, buf);
+            } finally {
+                buf.limit(savedLimit);
             }
-            byte[] transfer = new byte[Math.min(toRead, StorageObject.TRANSFER_BUFFER_SIZE)];
-            int totalRead = 0;
-            while (totalRead < toRead && buf.hasRemaining()) {
-                int chunkSize = Math.min(transfer.length, toRead - totalRead);
-                ByteBuffer target = ByteBuffer.wrap(transfer, 0, chunkSize);
-                int n = storageObject.readBytes(position, target);
-                if (n <= 0) {
-                    break;
-                }
-                buf.put(transfer, 0, n);
-                position += n;
-                totalRead += n;
+            if (bytesRead <= 0) {
+                return -1;
             }
-            return totalRead == 0 ? -1 : totalRead;
+            position += bytesRead;
+            return bytesRead;
         }
 
         @Override
         public void readFully(java.nio.ByteBuffer buf) throws IOException {
-            if (buf.hasArray()) {
-                int off = buf.arrayOffset() + buf.position();
-                readFully(buf.array(), off, buf.remaining());
-                buf.position(buf.limit());
-                return;
-            }
-            byte[] transfer = new byte[Math.min(buf.remaining(), StorageObject.TRANSFER_BUFFER_SIZE)];
             while (buf.hasRemaining()) {
-                int toRead = Math.min(transfer.length, buf.remaining());
-                readFully(transfer, 0, toRead);
-                buf.put(transfer, 0, toRead);
+                int bytesRead = read(buf);
+                if (bytesRead < 0) {
+                    throw new IOException("Reached end of stream before filling ByteBuffer");
+                }
             }
         }
     }

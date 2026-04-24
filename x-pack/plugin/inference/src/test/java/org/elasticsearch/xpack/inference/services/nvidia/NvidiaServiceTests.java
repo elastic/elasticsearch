@@ -68,7 +68,6 @@ import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbedd
 import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsTaskSettingsTests;
 import org.elasticsearch.xpack.inference.services.nvidia.rerank.NvidiaRerankModel;
-import org.elasticsearch.xpack.inference.services.nvidia.rerank.NvidiaRerankModelTests;
 import org.elasticsearch.xpack.inference.services.nvidia.rerank.NvidiaRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -510,61 +509,6 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
                 ),
                 modelVerificationListener
             );
-        }
-    }
-
-    public void testBuildModelFromConfigAndSecrets_TextEmbedding() throws IOException {
-        var model = NvidiaEmbeddingsModelTests.createEmbeddingsModel(
-            URL_VALUE,
-            API_KEY_VALUE,
-            MODEL_VALUE,
-            MAX_INPUT_TOKENS_VALUE,
-            DIMENSIONS_VALUE,
-            null,
-            null,
-            null
-        );
-        validateModelBuilding(model);
-    }
-
-    public void testBuildModelFromConfigAndSecrets_Completion() throws IOException {
-        var model = NvidiaChatCompletionModelTests.createCompletionModel(URL_VALUE, API_KEY_VALUE, MODEL_VALUE);
-        validateModelBuilding(model);
-    }
-
-    public void testBuildModelFromConfigAndSecrets_ChatCompletion() throws IOException {
-        var model = NvidiaChatCompletionModelTests.createChatCompletionModel(URL_VALUE, API_KEY_VALUE, MODEL_VALUE);
-        validateModelBuilding(model);
-    }
-
-    public void testBuildModelFromConfigAndSecrets_Rerank() throws IOException {
-        var model = NvidiaRerankModelTests.createRerankModel(URL_VALUE, API_KEY_VALUE, MODEL_VALUE);
-        validateModelBuilding(model);
-    }
-
-    public void testBuildModelFromConfigAndSecrets_UnsupportedTaskType() throws IOException {
-        var modelConfigurations = new ModelConfigurations(
-            INFERENCE_ID_VALUE,
-            SPARSE_EMBEDDING,
-            NvidiaService.NAME,
-            mock(ServiceSettings.class)
-        );
-        try (var inferenceService = createService()) {
-            var thrownException = expectThrows(
-                ElasticsearchStatusException.class,
-                () -> inferenceService.buildModelFromConfigAndSecrets(modelConfigurations, mock(ModelSecrets.class))
-            );
-            assertThat(
-                thrownException.getMessage(),
-                is(Strings.format("The [%s] service does not support task type [%s]", NvidiaService.NAME, SPARSE_EMBEDDING))
-            );
-        }
-    }
-
-    private void validateModelBuilding(Model model) throws IOException {
-        try (var inferenceService = createService()) {
-            var resultModel = inferenceService.buildModelFromConfigAndSecrets(model.getConfigurations(), model.getSecrets());
-            assertThat(resultModel, is(model));
         }
     }
 

@@ -7,6 +7,8 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.cluster.metadata.DataSourceMetadata;
+import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -18,6 +20,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockFactoryBuilder;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
@@ -83,7 +86,28 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
+import org.elasticsearch.xpack.esql.datasources.dataset.DatasetService;
+import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.dataset.GetDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.dataset.RestDeleteDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.dataset.RestGetDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.dataset.RestPutDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.dataset.TransportDeleteDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.dataset.TransportGetDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.dataset.TransportPutDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.DataSourceService;
+import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.GetDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.RestDeleteDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.RestGetDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.RestPutDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.TransportDeleteDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.TransportGetDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.TransportPutDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.enrich.StreamingLookupFromIndexOperator;
@@ -116,7 +140,9 @@ import org.elasticsearch.xpack.esql.view.ViewService;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -264,6 +290,15 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             .getClusterSettings()
             .addSettingsUpdateConsumer(ExternalSourceCacheSettings.CACHE_ENABLED, cacheService::setEnabled);
 
+        Map<String, DataSourceValidator> crudValidators = new HashMap<>();
+        for (DataSourcePlugin p : allDataSourcePlugins) {
+            p.datasourceValidators(settings).forEach((type, v) -> {
+                if (crudValidators.putIfAbsent(type, v) != null) {
+                    throw new IllegalStateException("duplicate DataSourceValidator for type [" + type + "]");
+                }
+            });
+        }
+
         return List.of(
             new PlanExecutor(
                 new IndexResolver(services.client()),
@@ -286,7 +321,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             blockFactoryProvider,
             dataSourceModule,
             new ViewResolver(services.clusterService(), services.projectResolver(), services.client(), services.crossProjectModeDecider()),
-            new ViewService(services.clusterService(), parser)
+            new ViewService(services.clusterService(), parser),
+            new DataSourceService(services.clusterService(), crudValidators),
+            new DatasetService(services.clusterService(), crudValidators)
         );
     }
 
@@ -324,7 +361,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD,
                 ViewService.MAX_VIEWS_COUNT_SETTING,
                 ViewService.MAX_VIEW_LENGTH_SETTING,
-                ViewResolver.MAX_VIEW_DEPTH_SETTING
+                ViewResolver.MAX_VIEW_DEPTH_SETTING,
+                DataSourceService.MAX_DATA_SOURCES_COUNT_SETTING,
+                DatasetService.MAX_DATASETS_COUNT_SETTING
             )
         );
         settings.addAll(PlannerSettings.settings());
@@ -343,22 +382,33 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     @Override
     public List<ActionHandler> getActions() {
-        return List.of(
-            new ActionHandler(EsqlQueryAction.INSTANCE, TransportEsqlQueryAction.class),
-            new ActionHandler(EsqlAsyncGetResultAction.INSTANCE, TransportEsqlAsyncGetResultsAction.class),
-            new ActionHandler(EsqlStatsAction.INSTANCE, TransportEsqlStatsAction.class),
-            new ActionHandler(XPackUsageFeatureAction.ESQL, EsqlUsageTransportAction.class),
-            new ActionHandler(XPackInfoFeatureAction.ESQL, EsqlInfoTransportAction.class),
-            new ActionHandler(EsqlResolveFieldsAction.TYPE, EsqlResolveFieldsAction.class),
-            new ActionHandler(EsqlSearchShardsAction.TYPE, EsqlSearchShardsAction.class),
-            new ActionHandler(EsqlAsyncStopAction.INSTANCE, TransportEsqlAsyncStopAction.class),
-            new ActionHandler(EsqlListQueriesAction.INSTANCE, TransportEsqlListQueriesAction.class),
-            new ActionHandler(EsqlGetQueryAction.INSTANCE, TransportEsqlGetQueryAction.class),
-            new ActionHandler(PutViewAction.INSTANCE, TransportPutViewAction.class),
-            new ActionHandler(DeleteViewAction.INSTANCE, TransportDeleteViewAction.class),
-            new ActionHandler(EsqlResolveViewAction.TYPE, EsqlResolveViewAction.class),
-            new ActionHandler(GetViewAction.INSTANCE, TransportGetViewAction.class)
+        List<ActionHandler> actions = new ArrayList<>(
+            List.of(
+                new ActionHandler(EsqlQueryAction.INSTANCE, TransportEsqlQueryAction.class),
+                new ActionHandler(EsqlAsyncGetResultAction.INSTANCE, TransportEsqlAsyncGetResultsAction.class),
+                new ActionHandler(EsqlStatsAction.INSTANCE, TransportEsqlStatsAction.class),
+                new ActionHandler(XPackUsageFeatureAction.ESQL, EsqlUsageTransportAction.class),
+                new ActionHandler(XPackInfoFeatureAction.ESQL, EsqlInfoTransportAction.class),
+                new ActionHandler(EsqlResolveFieldsAction.TYPE, EsqlResolveFieldsAction.class),
+                new ActionHandler(EsqlSearchShardsAction.TYPE, EsqlSearchShardsAction.class),
+                new ActionHandler(EsqlAsyncStopAction.INSTANCE, TransportEsqlAsyncStopAction.class),
+                new ActionHandler(EsqlListQueriesAction.INSTANCE, TransportEsqlListQueriesAction.class),
+                new ActionHandler(EsqlGetQueryAction.INSTANCE, TransportEsqlGetQueryAction.class),
+                new ActionHandler(PutViewAction.INSTANCE, TransportPutViewAction.class),
+                new ActionHandler(DeleteViewAction.INSTANCE, TransportDeleteViewAction.class),
+                new ActionHandler(EsqlResolveViewAction.TYPE, EsqlResolveViewAction.class),
+                new ActionHandler(GetViewAction.INSTANCE, TransportGetViewAction.class)
+            )
         );
+        if (DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()) {
+            actions.add(new ActionHandler(PutDataSourceAction.INSTANCE, TransportPutDataSourceAction.class));
+            actions.add(new ActionHandler(GetDataSourceAction.INSTANCE, TransportGetDataSourceAction.class));
+            actions.add(new ActionHandler(DeleteDataSourceAction.INSTANCE, TransportDeleteDataSourceAction.class));
+            actions.add(new ActionHandler(PutDatasetAction.INSTANCE, TransportPutDatasetAction.class));
+            actions.add(new ActionHandler(GetDatasetAction.INSTANCE, TransportGetDatasetAction.class));
+            actions.add(new ActionHandler(DeleteDatasetAction.INSTANCE, TransportDeleteDatasetAction.class));
+        }
+        return List.copyOf(actions);
     }
 
     @Override
@@ -368,17 +418,28 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
         EsqlCapabilities capabilities = this.capabilities.get();
-        return List.of(
-            new RestEsqlQueryAction(capabilities),
-            new RestEsqlAsyncQueryAction(capabilities),
-            new RestEsqlGetAsyncResultAction(),
-            new RestEsqlStopAsyncAction(),
-            new RestEsqlDeleteAsyncResultAction(),
-            new RestEsqlListQueriesAction(),
-            new RestPutViewAction(),
-            new RestDeleteViewAction(),
-            new RestGetViewAction()
+        List<RestHandler> handlers = new ArrayList<>(
+            List.of(
+                new RestEsqlQueryAction(capabilities),
+                new RestEsqlAsyncQueryAction(capabilities),
+                new RestEsqlGetAsyncResultAction(),
+                new RestEsqlStopAsyncAction(),
+                new RestEsqlDeleteAsyncResultAction(),
+                new RestEsqlListQueriesAction(),
+                new RestPutViewAction(),
+                new RestDeleteViewAction(),
+                new RestGetViewAction()
+            )
         );
+        if (DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()) {
+            handlers.add(new RestPutDataSourceAction());
+            handlers.add(new RestGetDataSourceAction());
+            handlers.add(new RestDeleteDataSourceAction());
+            handlers.add(new RestPutDatasetAction());
+            handlers.add(new RestGetDatasetAction());
+            handlers.add(new RestDeleteDatasetAction());
+        }
+        return List.copyOf(handlers);
     }
 
     @Override
@@ -417,6 +478,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(ExpressionQueryBuilder.ENTRY);
         entries.add(PlanStreamWrapperQueryBuilder.ENTRY);
         entries.addAll(ViewMetadata.ENTRIES);
+        entries.addAll(DataSourceMetadata.ENTRIES);
+        entries.addAll(DatasetMetadata.ENTRIES);
 
         entries.addAll(ExpressionWritables.getNamedWriteables());
         entries.addAll(PlanWritables.getNamedWriteables());
@@ -426,7 +489,17 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         return List.of(
-            new NamedXContentRegistry.Entry(Metadata.ProjectCustom.class, new ParseField(ViewMetadata.TYPE), ViewMetadata::fromXContent)
+            new NamedXContentRegistry.Entry(Metadata.ProjectCustom.class, new ParseField(ViewMetadata.TYPE), ViewMetadata::fromXContent),
+            new NamedXContentRegistry.Entry(
+                Metadata.ProjectCustom.class,
+                new ParseField(DataSourceMetadata.TYPE),
+                DataSourceMetadata::fromXContent
+            ),
+            new NamedXContentRegistry.Entry(
+                Metadata.ProjectCustom.class,
+                new ParseField(DatasetMetadata.TYPE),
+                DatasetMetadata::fromXContent
+            )
         );
     }
 
@@ -454,6 +527,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     @Override
     public List<SearchPlugin.GenericNamedWriteableSpec> getGenericNamedWriteables() {
-        return ExpressionWritables.getGenericNamedWriteables();
+        List<SearchPlugin.GenericNamedWriteableSpec> entries = new ArrayList<>(ExpressionWritables.getGenericNamedWriteables());
+        entries.add(new SearchPlugin.GenericNamedWriteableSpec("LongRange", LongRangeBlockBuilder.LongRange::new));
+        return entries;
     }
 }

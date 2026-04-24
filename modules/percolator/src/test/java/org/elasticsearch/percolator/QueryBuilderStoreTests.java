@@ -107,7 +107,8 @@ public class QueryBuilderStoreTests extends ESTestCase {
             BytesBinaryIndexFieldData fieldData = new BytesBinaryIndexFieldData(
                 fieldMapper.fullPath(),
                 CoreValuesSourceType.KEYWORD,
-                BinaryDocValuesField::new
+                BinaryDocValuesField::new,
+                indexVersion
             );
             BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup = (mft, fdc) -> fieldData;
             Settings indexSettingsSettings = indexSettings(indexVersion, 1, 1).build();
@@ -224,7 +225,8 @@ public class QueryBuilderStoreTests extends ESTestCase {
             BytesBinaryIndexFieldData fieldData = new BytesBinaryIndexFieldData(
                 fieldMapper.fullPath(),
                 CoreValuesSourceType.KEYWORD,
-                BinaryDocValuesField::new
+                BinaryDocValuesField::new,
+                indexVersion
             );
             BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup = (mft, fdc) -> fieldData;
 

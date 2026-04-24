@@ -23,13 +23,20 @@ import java.util.NavigableMap;
  * Adapter that wraps a StorageObject to implement Parquet's InputFile interface.
  * This allows using our storage abstraction with Parquet's ParquetFileReader.
  *
- * <p>Key features:
+ * <p>Two {@link SeekableInputStream} implementations are available, selected by
+ * {@link #windowCacheEnabled}:
  * <ul>
- *   <li>Uses <strong>only</strong> range reads ({@code newStream(position, length)}) — never full-object GET</li>
- *   <li>Sliding window cache (default 4MB) to amortize seeks and avoid {@code InputStream.skip}</li>
- *   <li>Optimized for remote storage (S3, HTTP) where full GET and skip-download are expensive</li>
- *   <li>No Hadoop dependencies — uses pure Java InputStream</li>
+ *   <li><b>Direct</b> (default): each request issues a fresh positional read via
+ *       {@link StorageObject#readBytes}. Correctness-safe fallback while the window cache bug
+ *       is being investigated, see <a href="https://github.com/elastic/esql-planning/issues/585">esql-planning#585</a>.
+ *       May increase the number of range requests on remote storage (S3, HTTP).</li>
+ *   <li><b>Windowed</b> (currently disabled): sliding window cache (default 4 MiB) that amortizes
+ *       seeks and avoids {@link java.io.InputStream#skip}. Also consults the JVM-wide footer cache
+ *       and any prefetched column chunks installed via {@link #installPrefetchedData}.</li>
  * </ul>
+ *
+ * <p>Both paths use <strong>only</strong> range reads ({@code newStream(position, length)})
+ * and {@link StorageObject#readBytes} — never a full-object GET — and have no Hadoop dependencies.
  */
 public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputFile {
     private final StorageObject storageObject;
@@ -50,6 +57,26 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
     /** Max single footer entry (2MB). Prevents caching unusually large footers. */
     static final int FOOTER_CACHE_MAX_ENTRY_BYTES = 2 * 1024 * 1024;
 
+    /**
+     * Controls whether the sliding-window read cache is active. Disabled by default due to a
+     * non-deterministic correctness bug where seeks within the cached window can serve stale
+     * bytes, corrupting dictionary-encoded column values.
+     *
+     * <p>Visible for testing only. Production code should not mutate this field; tests flip it
+     * via {@link #setWindowCacheEnabledForTests(boolean)} and must restore the previous value.
+     */
+    static volatile boolean windowCacheEnabled = false;
+
+    /**
+     * Test-only hook to toggle the window cache in a single test method. Returns the previous
+     * value so the caller can restore it (typically in a {@code @After} method).
+     */
+    static boolean setWindowCacheEnabledForTests(boolean enabled) {
+        boolean previous = windowCacheEnabled;
+        windowCacheEnabled = enabled;
+        return previous;
+    }
+
     private static final FooterCache FOOTER_CACHE = new FooterCache(FOOTER_CACHE_MAX_BYTES, FOOTER_CACHE_MAX_ENTRY_BYTES);
 
     /**
@@ -63,6 +90,11 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
      * Creates an adapter with an adaptive window sized to cover the given byte range.
      * This allows all column chunks within a small row-group split to be fetched in a single I/O
      * instead of incurring multiple range GETs with the default 4 MiB window.
+     *
+     * <p>Note: the configured window size is only honored when {@link #windowCacheEnabled} is
+     * {@code true}. With the default direct-read path, this factory is equivalent to the
+     * no-arg constructor — the window buffer itself is only allocated when
+     * {@link #newStream()} actually instantiates {@code RangeFirstSeekableInputStream}.
      *
      * @param rangeBytes byte span of the range being read; clamped to [{@link #DEFAULT_WINDOW_SIZE}, {@link #MAX_WINDOW_SIZE}]
      */
@@ -105,7 +137,10 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
 
     @Override
     public SeekableInputStream newStream() throws IOException {
-        return new RangeFirstSeekableInputStream(storageObject, footerCacheKey, length, windowSize, this);
+        if (windowCacheEnabled) {
+            return new RangeFirstSeekableInputStream(storageObject, footerCacheKey, length, windowSize, this);
+        }
+        return new DirectSeekableInputStream(storageObject, length);
     }
 
     static void clearFooterCacheForTests() {
@@ -396,6 +431,181 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                 int toRead = Math.min(transfer.length, buf.remaining());
                 readFully(transfer, 0, toRead);
                 buf.put(transfer, 0, toRead);
+            }
+        }
+    }
+
+    /**
+     * SeekableInputStream that issues a fresh positional read for every request,
+     * bypassing the sliding-window cache entirely. Correctness-safe fallback while
+     * the window cache bug is investigated.
+     *
+     * <p>Not thread-safe: the single-byte scratch buffer and the {@code position} cursor are
+     * mutable per-stream state. Each consumer must open its own stream.
+     */
+    private static class DirectSeekableInputStream extends SeekableInputStream {
+        private final StorageObject storageObject;
+        private final long length;
+        // Reused on every single-byte read() to avoid allocating a fresh byte[1]/ByteBuffer pair
+        // per call — critical on remote storage where that would translate to a 1-byte range GET.
+        private final byte[] singleByte = new byte[1];
+        private final ByteBuffer singleByteBuf = ByteBuffer.wrap(singleByte);
+        private long position;
+        private boolean closed;
+
+        DirectSeekableInputStream(StorageObject storageObject, long length) {
+            this.storageObject = storageObject;
+            this.length = length;
+            this.position = 0;
+            this.closed = false;
+        }
+
+        @Override
+        public long getPos() throws IOException {
+            return position;
+        }
+
+        @Override
+        public void seek(long newPos) throws IOException {
+            if (closed) {
+                throw new IOException("Stream is closed");
+            }
+            if (newPos < 0) {
+                throw new IOException("Cannot seek to negative position: " + newPos);
+            }
+            if (newPos > length) {
+                throw new IOException("Cannot seek beyond end of file: " + newPos + " > " + length);
+            }
+            position = newPos;
+        }
+
+        @Override
+        public int read() throws IOException {
+            if (closed) {
+                throw new IOException("Stream is closed");
+            }
+            if (position >= length) {
+                return -1;
+            }
+            singleByteBuf.clear();
+            int n = storageObject.readBytes(position, singleByteBuf);
+            if (n <= 0) {
+                return -1;
+            }
+            position++;
+            return singleByte[0] & 0xFF;
+        }
+
+        @Override
+        public int read(byte[] b) throws IOException {
+            return read(b, 0, b.length);
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            if (closed) {
+                throw new IOException("Stream is closed");
+            }
+            if (position >= length) {
+                return -1;
+            }
+            if (len <= 0) {
+                return 0;
+            }
+            int toRead = (int) Math.min(len, length - position);
+            ByteBuffer target = ByteBuffer.wrap(b, off, toRead);
+            int bytesRead = storageObject.readBytes(position, target);
+            if (bytesRead <= 0) {
+                return -1;
+            }
+            position += bytesRead;
+            return bytesRead;
+        }
+
+        @Override
+        public long skip(long n) throws IOException {
+            if (n <= 0) {
+                return 0;
+            }
+            long newPos = Math.min(position + n, length);
+            long skipped = newPos - position;
+            seek(newPos);
+            return skipped;
+        }
+
+        @Override
+        public int available() throws IOException {
+            if (closed || position >= length) {
+                return 0;
+            }
+            return (int) Math.min(length - position, Integer.MAX_VALUE);
+        }
+
+        @Override
+        public void close() throws IOException {
+            closed = true;
+        }
+
+        @Override
+        public void readFully(byte[] bytes) throws IOException {
+            readFully(bytes, 0, bytes.length);
+        }
+
+        @Override
+        public void readFully(byte[] bytes, int start, int len) throws IOException {
+            int offset = start;
+            int remaining = len;
+            while (remaining > 0) {
+                int bytesRead = read(bytes, offset, remaining);
+                if (bytesRead < 0) {
+                    throw new IOException("Reached end of stream before reading " + len + " bytes");
+                }
+                offset += bytesRead;
+                remaining -= bytesRead;
+            }
+        }
+
+        /**
+         * Reads into the caller's buffer in a single {@link StorageObject#readBytes} call, regardless
+         * of whether it is heap-backed or direct. The buffer's {@code limit} is temporarily narrowed
+         * so we never read past EOF, and restored before returning. This delegates any provider-specific
+         * chunking (e.g. S3/HTTP direct-buffer transfer sizes) to the provider itself instead of
+         * issuing many small range requests from this class.
+         */
+        @Override
+        public int read(java.nio.ByteBuffer buf) throws IOException {
+            if (buf.hasRemaining() == false) {
+                return 0;
+            }
+            if (closed) {
+                throw new IOException("Stream is closed");
+            }
+            if (position >= length) {
+                return -1;
+            }
+            int toRead = (int) Math.min(buf.remaining(), length - position);
+            int savedLimit = buf.limit();
+            buf.limit(buf.position() + toRead);
+            int bytesRead;
+            try {
+                bytesRead = storageObject.readBytes(position, buf);
+            } finally {
+                buf.limit(savedLimit);
+            }
+            if (bytesRead <= 0) {
+                return -1;
+            }
+            position += bytesRead;
+            return bytesRead;
+        }
+
+        @Override
+        public void readFully(java.nio.ByteBuffer buf) throws IOException {
+            while (buf.hasRemaining()) {
+                int bytesRead = read(buf);
+                if (bytesRead < 0) {
+                    throw new IOException("Reached end of stream before filling ByteBuffer");
+                }
             }
         }
     }

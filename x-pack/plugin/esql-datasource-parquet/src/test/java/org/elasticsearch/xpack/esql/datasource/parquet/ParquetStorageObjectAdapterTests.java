@@ -7,22 +7,62 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.apache.parquet.ParquetReadOptions;
+import org.apache.parquet.column.page.PageReadStore;
+import org.apache.parquet.conf.PlainParquetConfiguration;
+import org.apache.parquet.example.data.Group;
+import org.apache.parquet.example.data.simple.SimpleGroupFactory;
+import org.apache.parquet.example.data.simple.convert.GroupRecordConverter;
+import org.apache.parquet.hadoop.ParquetFileReader;
+import org.apache.parquet.hadoop.ParquetWriter;
+import org.apache.parquet.hadoop.example.ExampleParquetWriter;
+import org.apache.parquet.hadoop.metadata.CompressionCodecName;
+import org.apache.parquet.io.ColumnIOFactory;
+import org.apache.parquet.io.MessageColumnIO;
+import org.apache.parquet.io.OutputFile;
+import org.apache.parquet.io.PositionOutputStream;
+import org.apache.parquet.io.RecordReader;
 import org.apache.parquet.io.SeekableInputStream;
+import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.PrimitiveType;
+import org.apache.parquet.schema.Types;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.junit.After;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.NavigableMap;
+import java.util.Random;
 import java.util.TreeMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class ParquetStorageObjectAdapterTests extends ESTestCase {
+
+    private boolean savedWindowCacheFlag;
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        savedWindowCacheFlag = ParquetStorageObjectAdapter.windowCacheEnabled;
+    }
+
+    @After
+    public void resetWindowCacheFlag() {
+        // Always restore the flag so a test that fails mid-way cannot bleed state into the next one.
+        ParquetStorageObjectAdapter.setWindowCacheEnabledForTests(savedWindowCacheFlag);
+    }
 
     public void testNullStorageObjectThrowsException() {
         QlIllegalArgumentException e = expectThrows(QlIllegalArgumentException.class, () -> new ParquetStorageObjectAdapter(null));
@@ -478,6 +518,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             }
         };
 
+        ParquetStorageObjectAdapter.setWindowCacheEnabledForTests(true);
         ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(countingStorageObject);
 
         try (SeekableInputStream stream = adapter.newStream()) {
@@ -535,6 +576,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             }
         };
 
+        ParquetStorageObjectAdapter.setWindowCacheEnabledForTests(true);
         ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(countingStorageObject);
         long tailStart = data.length - 1024;
 
@@ -596,6 +638,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             }
         };
 
+        ParquetStorageObjectAdapter.setWindowCacheEnabledForTests(true);
         ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(rangeOnlyCounting);
         byte[] read = new byte[size];
         try (SeekableInputStream stream = adapter.newStream()) {
@@ -748,6 +791,8 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             }
         };
 
+        ParquetStorageObjectAdapter.setWindowCacheEnabledForTests(true);
+
         // With default 4 MiB window, reading 6 MiB requires 2 range requests
         ParquetStorageObjectAdapter defaultAdapter = new ParquetStorageObjectAdapter(countingStorageObject);
         byte[] buf = new byte[size];
@@ -851,6 +896,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             }
         };
 
+        ParquetStorageObjectAdapter.setWindowCacheEnabledForTests(true);
         ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(tracked);
         NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = new TreeMap<>();
         int chunkLen = data.length - 100;
@@ -962,6 +1008,361 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
                 assertEquals(data[i], result[i]);
             }
         }
+    }
+
+    /**
+     * Verifies that seek+read sequences return correct data when the window cache is disabled
+     * (direct reads). This pattern mimics Parquet's column chunk access: seek to a dictionary
+     * page, read it, seek to a data page, read it, possibly seek back.
+     */
+    public void testDirectStreamSeekAndReadCorrectness() throws IOException {
+        byte[] data = new byte[64 * 1024];
+        randomBytes(data);
+        StorageObject storageObject = createRangeReadStorageObject(data);
+
+        ParquetStorageObjectAdapter.setWindowCacheEnabledForTests(false);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storageObject);
+
+        try (SeekableInputStream stream = adapter.newStream()) {
+            byte[] buf = new byte[1024];
+            stream.seek(4096);
+            stream.readFully(buf);
+            for (int i = 0; i < buf.length; i++) {
+                assertEquals("Mismatch at first read offset " + i, data[4096 + i], buf[i]);
+            }
+
+            stream.seek(32768);
+            stream.readFully(buf);
+            for (int i = 0; i < buf.length; i++) {
+                assertEquals("Mismatch at second read offset " + i, data[32768 + i], buf[i]);
+            }
+
+            stream.seek(4096);
+            stream.readFully(buf);
+            for (int i = 0; i < buf.length; i++) {
+                assertEquals("Mismatch at re-read offset " + i, data[4096 + i], buf[i]);
+            }
+        }
+    }
+
+    /**
+     * Verifies that reading the full data with both window-cached and direct streams
+     * produces identical results. This is a parity test: any divergence indicates a
+     * correctness bug in one of the two paths.
+     */
+    public void testWindowedVsDirectReadParity() throws IOException {
+        ParquetStorageObjectAdapter.clearFooterCacheForTests();
+        int size = ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 12345;
+        byte[] data = new byte[size];
+        randomBytes(data);
+        StorageObject storageObject = createRangeReadStorageObject(data);
+
+        ParquetStorageObjectAdapter.setWindowCacheEnabledForTests(true);
+        ParquetStorageObjectAdapter windowedAdapter = new ParquetStorageObjectAdapter(storageObject);
+        byte[] windowedResult = new byte[size];
+        try (SeekableInputStream stream = windowedAdapter.newStream()) {
+            stream.readFully(windowedResult);
+        }
+
+        ParquetStorageObjectAdapter.setWindowCacheEnabledForTests(false);
+        ParquetStorageObjectAdapter directAdapter = new ParquetStorageObjectAdapter(storageObject);
+        byte[] directResult = new byte[size];
+        try (SeekableInputStream stream = directAdapter.newStream()) {
+            stream.readFully(directResult);
+        }
+
+        assertArrayEquals(windowedResult, directResult);
+    }
+
+    /**
+     * Verifies that interleaved seek+read of non-overlapping regions returns correct
+     * bytes with both window modes. This simulates Parquet reading dictionary and data
+     * pages from different column chunks within a row group.
+     */
+    public void testInterleavedSeekReadParity() throws IOException {
+        ParquetStorageObjectAdapter.clearFooterCacheForTests();
+        int size = 8 * 1024 * 1024;
+        byte[] data = new byte[size];
+        randomBytes(data);
+        StorageObject storageObject = createRangeReadStorageObject(data);
+
+        int[][] readRegions = new int[][] {
+            { 0, 4096 },
+            { 1_000_000, 8192 },
+            { 4_000_000, 16384 },
+            { 100, 2048 },
+            { 7_000_000, 4096 },
+            { 2_000_000, 32768 },
+            { 0, 4096 } };
+
+        for (boolean windowEnabled : new boolean[] { true, false }) {
+            ParquetStorageObjectAdapter.setWindowCacheEnabledForTests(windowEnabled);
+            ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storageObject);
+
+            try (SeekableInputStream stream = adapter.newStream()) {
+                for (int[] region : readRegions) {
+                    int offset = region[0];
+                    int len = region[1];
+                    byte[] buf = new byte[len];
+                    stream.seek(offset);
+                    stream.readFully(buf);
+                    for (int i = 0; i < len; i++) {
+                        assertEquals("Mismatch at offset " + (offset + i) + " (window=" + windowEnabled + ")", data[offset + i], buf[i]);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Verifies the direct stream handles single-byte reads, ByteBuffer reads,
+     * and skip operations correctly.
+     */
+    public void testDirectStreamOperations() throws IOException {
+        byte[] data = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+        StorageObject storageObject = createRangeReadStorageObject(data);
+
+        ParquetStorageObjectAdapter.setWindowCacheEnabledForTests(false);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storageObject);
+
+        try (SeekableInputStream stream = adapter.newStream()) {
+            assertEquals(1, stream.read());
+            assertEquals(1, stream.getPos());
+
+            long skipped = stream.skip(3);
+            assertEquals(3, skipped);
+            assertEquals(4, stream.getPos());
+            assertEquals(5, stream.read());
+
+            stream.seek(0);
+            ByteBuffer buf = ByteBuffer.allocate(5);
+            stream.readFully(buf);
+            buf.flip();
+            assertEquals(1, buf.get());
+            assertEquals(2, buf.get());
+            assertEquals(3, buf.get());
+            assertEquals(4, buf.get());
+            assertEquals(5, buf.get());
+
+            stream.seek(8);
+            ByteBuffer directBuf = ByteBuffer.allocateDirect(2);
+            stream.readFully(directBuf);
+            directBuf.flip();
+            assertEquals(9, directBuf.get());
+            assertEquals(10, directBuf.get());
+
+            stream.seek(10);
+            assertEquals(-1, stream.read());
+        }
+    }
+
+    /**
+     * End-to-end regression test for the non-deterministic dictionary-encoded SUM/COUNT bug that
+     * motivated disabling the sliding-window cache by default. Writes a Parquet file with a
+     * dictionary-encoded {@code int64} column spanning multiple data pages, then fully decodes
+     * it via {@link ParquetFileReader} (which drives {@link ParquetStorageObjectAdapter}) in
+     * both windowed and direct modes across multiple iterations. Any per-iteration drift in the
+     * sum or row count would be a correctness bug.
+     *
+     * <p>With the window cache disabled by default, this test must pass deterministically. If a
+     * future change re-enables the cache without fixing the underlying bug
+     * (<a href="https://github.com/elastic/esql-planning/issues/585">esql-planning#585</a>),
+     * this is the first test expected to go red.
+     */
+    public void testDictionaryEncodedSumCountRegression() throws IOException {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("v").named("dict_regression");
+
+        long[] dictionary = new long[] { 1L, 2L, 3L, 5L, 7L, 11L, 13L, 17L };
+        int rowCount = 25_000;
+        long expectedSum = 0;
+        Random seeded = new Random(0xD1C77L);
+        long[] expectedValues = new long[rowCount];
+        for (int i = 0; i < rowCount; i++) {
+            expectedValues[i] = dictionary[seeded.nextInt(dictionary.length)];
+            expectedSum += expectedValues[i];
+        }
+
+        byte[] parquetData = writeDictionaryEncodedInt64Parquet(schema, expectedValues);
+        StorageObject storageObject = createRangeReadStorageObject(parquetData);
+
+        int iterations = 20;
+        // Use the Hadoop-free builder; the upstream ParquetReadOptions.builder() eagerly constructs
+        // HadoopParquetConfiguration, which fails in tests without Woodstox on the classpath.
+        ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
+        for (int iter = 0; iter < iterations; iter++) {
+            for (boolean windowEnabled : new boolean[] { false, true }) {
+                ParquetStorageObjectAdapter.clearFooterCacheForTests();
+                ParquetStorageObjectAdapter.setWindowCacheEnabledForTests(windowEnabled);
+                ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storageObject);
+
+                long sum = 0;
+                long count = 0;
+                try (ParquetFileReader reader = ParquetFileReader.open(adapter, options)) {
+                    MessageColumnIO columnIO = new ColumnIOFactory().getColumnIO(schema);
+                    PageReadStore pages;
+                    while ((pages = reader.readNextRowGroup()) != null) {
+                        RecordReader<Group> recordReader = columnIO.getRecordReader(pages, new GroupRecordConverter(schema));
+                        long rgRows = pages.getRowCount();
+                        for (long i = 0; i < rgRows; i++) {
+                            Group g = recordReader.read();
+                            sum += g.getLong(0, 0);
+                            count++;
+                        }
+                    }
+                }
+
+                assertEquals("COUNT mismatch on iter=" + iter + " window=" + windowEnabled, rowCount, count);
+                assertEquals("SUM mismatch on iter=" + iter + " window=" + windowEnabled, expectedSum, sum);
+            }
+        }
+    }
+
+    /**
+     * Concurrency stress test for the windowed-path code (<code>RangeFirstSeekableInputStream</code>).
+     * Exercises the scenario Parquet uses in practice: one adapter shared, many streams opened from it.
+     * If the suspected thread-safety bug is the root cause of
+     * <a href="https://github.com/elastic/esql-planning/issues/585">esql-planning#585</a>, this test
+     * will flake or fail with a stale-byte mismatch under {@code windowCacheEnabled = true}.
+     *
+     * <p>Target runtime is capped at ~2s regardless of hardware to avoid flaking CI.
+     */
+    public void testConcurrentWindowedReadsProduceConsistentBytes() throws Exception {
+        int size = ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE * 2 + 7777;
+        byte[] data = new byte[size];
+        randomBytes(data);
+        StorageObject storageObject = createRangeReadStorageObject(data);
+
+        ParquetStorageObjectAdapter.clearFooterCacheForTests();
+        ParquetStorageObjectAdapter.setWindowCacheEnabledForTests(true);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storageObject);
+
+        int threadCount = randomIntBetween(4, 8);
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+        CountDownLatch start = new CountDownLatch(1);
+        AtomicReference<AssertionError> firstFailure = new AtomicReference<>();
+        List<Thread> threads = new ArrayList<>(threadCount);
+
+        for (int t = 0; t < threadCount; t++) {
+            long seed = randomLong();
+            Thread thread = new Thread(() -> {
+                try {
+                    start.await();
+                    Random rnd = new Random(seed);
+                    try (SeekableInputStream stream = adapter.newStream()) {
+                        while (System.nanoTime() < deadline && firstFailure.get() == null) {
+                            int readLen = 1 + rnd.nextInt(4096);
+                            int offset = rnd.nextInt(Math.max(1, size - readLen));
+                            byte[] buf = new byte[readLen];
+                            stream.seek(offset);
+                            stream.readFully(buf);
+                            for (int i = 0; i < readLen; i++) {
+                                if (buf[i] != data[offset + i]) {
+                                    firstFailure.compareAndSet(
+                                        null,
+                                        new AssertionError(
+                                            "Stale byte at offset " + (offset + i) + ": expected " + data[offset + i] + " got " + buf[i]
+                                        )
+                                    );
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                } catch (Throwable e) {
+                    firstFailure.compareAndSet(null, new AssertionError("Unexpected exception on stress thread", e));
+                }
+            }, "parquet-window-stress-" + t);
+            thread.start();
+            threads.add(thread);
+        }
+
+        start.countDown();
+        for (Thread thread : threads) {
+            thread.join(TimeUnit.SECONDS.toMillis(10));
+        }
+
+        AssertionError failure = firstFailure.get();
+        if (failure != null) {
+            throw failure;
+        }
+    }
+
+    /**
+     * Writes a Parquet file with a single {@code int64} column that is dictionary-encoded and
+     * spans multiple data pages (small page size + few distinct values forces this). Used by
+     * {@link #testDictionaryEncodedSumCountRegression()}.
+     */
+    private static byte[] writeDictionaryEncodedInt64Parquet(MessageType schema, long[] values) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        OutputFile outputFile = createOutputFile(out);
+        SimpleGroupFactory groupFactory = new SimpleGroupFactory(schema);
+
+        PlainParquetConfiguration conf = new PlainParquetConfiguration();
+        conf.set("parquet.enable.dictionary", "true");
+
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
+                .withConf(conf)
+                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withDictionaryEncoding(true)
+                .withPageSize(4 * 1024)
+                .withDictionaryPageSize(64 * 1024)
+                .withRowGroupSize(64 * 1024L)
+                .build()
+        ) {
+            for (long v : values) {
+                Group g = groupFactory.newGroup();
+                g.add("v", v);
+                writer.write(g);
+            }
+        }
+        return out.toByteArray();
+    }
+
+    private static OutputFile createOutputFile(ByteArrayOutputStream out) {
+        return new OutputFile() {
+            @Override
+            public PositionOutputStream create(long blockSizeHint) {
+                return new PositionOutputStream() {
+                    @Override
+                    public long getPos() {
+                        return out.size();
+                    }
+
+                    @Override
+                    public void write(int b) {
+                        out.write(b);
+                    }
+
+                    @Override
+                    public void write(byte[] b, int off, int len) {
+                        out.write(b, off, len);
+                    }
+                };
+            }
+
+            @Override
+            public PositionOutputStream createOrOverwrite(long blockSizeHint) {
+                return create(blockSizeHint);
+            }
+
+            @Override
+            public boolean supportsBlockSize() {
+                return false;
+            }
+
+            @Override
+            public long defaultBlockSize() {
+                return 0;
+            }
+
+            @Override
+            public String getPath() {
+                return "memory://dict-regression.parquet";
+            }
+        };
     }
 
     private StorageObject createRangeReadStorageObject(byte[] data) {

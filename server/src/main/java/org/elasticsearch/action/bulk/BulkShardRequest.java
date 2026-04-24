@@ -21,6 +21,8 @@ import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.eirf.EirfBatch;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 
@@ -39,6 +41,8 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
     private final boolean isSimulated;
 
     private transient Map<String, InferenceFieldMetadata> inferenceFieldMap = null;
+    @Nullable
+    private transient EirfBatch eirfBatch = null;
 
     public BulkShardRequest(StreamInput in) throws IOException {
         super(in);
@@ -98,6 +102,19 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
      */
     public Map<String, InferenceFieldMetadata> getInferenceFieldMap() {
         return inferenceFieldMap;
+    }
+
+    /**
+     * Sets the EIRF batch for batch indexing. When non-null, the batch indexing path
+     * will be used instead of the standard per-document parsing path.
+     */
+    public void setEirfBatch(@Nullable EirfBatch eirfBatch) {
+        this.eirfBatch = eirfBatch;
+    }
+
+    @Nullable
+    public EirfBatch getEirfBatch() {
+        return eirfBatch;
     }
 
     public long totalSizeInBytes() {

@@ -52,7 +52,6 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
-import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlanConcurrencyCalculator;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -840,21 +839,19 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
         // Run localPlan() to expand FragmentExec(ExternalRelation) -> ExternalSourceExec
         // This runs LocalLogicalPlanOptimizer, LocalMapper, and LocalPhysicalPlanOptimizer
-        // (including filter pushdown via FilterPushdownRegistry)
-        PhysicalPlan expandedPlan = PlannerUtils.localPlan(
+        // (including filter pushdown via FormatReader.filterPushdownSupport())
+        // Splits are injected before physical optimization so rules like PushAggregatesToExternalSource see them.
+        PhysicalPlan planWithSplits = PlannerUtils.localPlan(
             plannerSettings,
             flags,
             configuration,
             configuration.newFoldContext(),
             sinkExec,
             SearchStats.EMPTY,
-            computeService.filterPushdownRegistry(),
             computeService.formatReaderRegistry(),
+            request.externalSplits(),
             planTimeProfile
         );
-
-        // Inject external splits into the ExternalSourceExec created by localPlan()
-        PhysicalPlan planWithSplits = expandedPlan.transformUp(ExternalSourceExec.class, exec -> exec.withSplits(request.externalSplits()));
 
         try (
             ComputeListener computeListener = new ComputeListener(

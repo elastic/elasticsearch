@@ -19,20 +19,13 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmeti
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.promql.subquery.Subquery;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
-import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
-import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
-import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarConversionFunction;
-import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarFunction;
-import org.elasticsearch.xpack.esql.plan.logical.promql.ValueTransformationFunction;
-import org.elasticsearch.xpack.esql.plan.logical.promql.VectorConversionFunction;
-import org.elasticsearch.xpack.esql.plan.logical.promql.WithinSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryArithmetic;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryArithmetic.ArithmeticOp;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison;
@@ -54,7 +47,6 @@ import java.util.List;
 import java.util.Locale;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.esql.expression.promql.function.FunctionType.ACROSS_SERIES_AGGREGATION;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.AND;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.ASTERISK;
@@ -71,8 +63,6 @@ import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.PERCENT;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.PLUS;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.SLASH;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.UNLESS;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan.returnsRangeVector;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan.returnsScalar;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher.NAME;
 
 public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
@@ -244,15 +234,6 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
                 return new LiteralSelector(source, new Literal(unary.source(), negatedValue, dataType));
             }
         }
-        // forbid range selectors
-        else if (returnsRangeVector(unary)) {
-            throw new ParsingException(
-                source,
-                "Unary expression only allowed on expressions of type numeric or instant vector, got [{}]",
-                unary.nodeName()
-            );
-        }
-
         // For non-literals (vectors), rewrite as 0 - expression
         if (ctx.operator.getType() == MINUS) {
             LiteralSelector zero = new LiteralSelector(source, Literal.integer(source, 0));
@@ -272,32 +253,6 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         int opType = ctx.op.getType();
         String opText = ctx.op.getText();
 
-        // validate operation against expression types
-        boolean leftIsScalar = returnsScalar(le);
-        boolean rightIsScalar = returnsScalar(re);
-
-        // comparisons against scalars require bool
-        if (bool == false && leftIsScalar && rightIsScalar) {
-            switch (opType) {
-                case EQ:
-                case NEQ:
-                case LT:
-                case LTE:
-                case GT:
-                case GTE:
-                    throw new ParsingException(source, "Comparisons [{}] between scalars must use the BOOL modifier", opText);
-            }
-        }
-        // set operations are not allowed on scalars
-        if (leftIsScalar || rightIsScalar) {
-            switch (opType) {
-                case AND:
-                case UNLESS:
-                case OR:
-                    throw new ParsingException(source, "Set operator [{}] not allowed in binary scalar expression", opText);
-            }
-        }
-
         BinaryOp binaryOperator = binaryOp(ctx.op);
 
         // Handle scalar folding once validation passes
@@ -316,24 +271,18 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
                 return new LiteralSelector(source, new Literal(source, result, resultType));
             }
 
-            // comparisons
-            if (binaryOperator instanceof ComparisonOp compOp) {
+            // With the bool modifier, scalar-scalar comparisons fold to 0 or 1.
+            // Without it, fall through to the general case so postAnalysisVerification can reject it.
+            if (binaryOperator instanceof ComparisonOp compOp && bool) {
                 int result = PromqlFoldingUtils.evaluate(source, leftValue, rightValue, compOp) ? 1 : 0;
                 return new LiteralSelector(source, Literal.integer(source, result));
             }
-
-            // Set operations fall through to vector handling
         }
 
         VectorMatch modifier = VectorMatch.NONE;
 
         PromqlBaseParser.ModifierContext modifierCtx = ctx.modifier();
         if (modifierCtx != null) {
-            // modifiers work only on vectors
-            if (returnsRangeVector(le) || returnsRangeVector(re) || returnsScalar(le) || returnsScalar(re)) {
-                throw new ParsingException(source, "Vector matching allowed only between instant vectors");
-            }
-
             VectorMatch.Filter filter = modifierCtx.ON() != null ? VectorMatch.Filter.ON : VectorMatch.Filter.IGNORING;
             List<String> filterList = visitLabelList(modifierCtx.modifierLabels);
             VectorMatch.Joining joining = VectorMatch.Joining.NONE;
@@ -421,131 +370,36 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         Source source = source(ctx);
         String name = ctx.IDENTIFIER().getText().toLowerCase(Locale.ROOT);
 
-        PromqlFunctionRegistry.INSTANCE.checkFunction(source, name);
-        var metadata = PromqlFunctionRegistry.INSTANCE.functionMetadata(name);
-
         var paramsCtx = ctx.functionParams();
         List<Node> params = paramsCtx != null ? visitList(this, paramsCtx.expression(), Node.class) : emptyList();
 
-        int paramCount = params.size();
-        String message = "Invalid number of parameters for function [{}], required [{}], found [{}]";
-        if (paramCount < metadata.arity().min()) {
-            throw new ParsingException(source, message, name, metadata.arity().min(), paramCount);
-        }
-        if (paramCount > metadata.arity().max()) {
-            throw new ParsingException(source, message, name, metadata.arity().max(), paramCount);
-        }
-        LogicalPlan child = null;
-        List<Expression> extraParams = new ArrayList<>(Math.max(0, params.size() - 1));
-        List<PromqlFunctionRegistry.ParamInfo> functionParams = metadata.params();
-        for (int i = 0; i < functionParams.size() && params.size() > i; i++) {
-            PromqlFunctionRegistry.ParamInfo expectedParam = functionParams.get(i);
-            LogicalPlan providedParam = switch (params.get(i)) {
+        List<LogicalPlan> rawParams = new ArrayList<>(params.size());
+        for (Node node : params) {
+            rawParams.add(switch (node) {
                 case LogicalPlan plan -> plan;
                 case Literal literal -> new LiteralSelector(source, literal);
-                case Node n -> throw new IllegalStateException("Unexpected value: " + n);
-            };
-            assert providedParam instanceof PromqlPlan;
-            PromqlDataType actualType = PromqlPlan.getType(providedParam);
-            PromqlDataType expectedType = expectedParam.type();
-            if (actualType != expectedType) {
-                if (expectedType == PromqlDataType.RANGE_VECTOR && providedParam instanceof InstantSelector selector) {
-                    providedParam = convertToRangeSelector(selector);
-                } else {
-                    throw new ParsingException(source, "expected type {} in call to function [{}], got {}", expectedType, name, actualType);
-                }
-            }
-            if (expectedParam.child()) {
-                child = providedParam;
-            } else if (providedParam instanceof LiteralSelector literalSelector) {
-                extraParams.add(literalSelector.literal());
-            } else {
-                throw new ParsingException(
-                    source,
-                    "expected literal parameter in call to function [{}], got {}",
-                    name,
-                    providedParam.nodeName()
-                );
-            }
+                default -> throw new IllegalStateException("Unexpected param: " + node);
+            });
         }
 
         PromqlBaseParser.GroupingContext groupingContext = ctx.grouping();
-
-        LogicalPlan plan = null;
-        // explicit grouping
+        AcrossSeriesAggregate.Grouping grouping = null;
+        List<Attribute> groupings = List.of();
         if (groupingContext != null) {
-            var grouping = groupingContext.BY() != null ? AcrossSeriesAggregate.Grouping.BY : AcrossSeriesAggregate.Grouping.WITHOUT;
-
-            if (metadata.functionType() != ACROSS_SERIES_AGGREGATION) {
-                throw new ParsingException(
-                    source,
-                    "[{}] clause not allowed on non-aggregation function [{}]",
-                    grouping.name().toLowerCase(Locale.ROOT),
-                    name
-                );
-            }
-
+            grouping = groupingContext.BY() != null ? AcrossSeriesAggregate.Grouping.BY : AcrossSeriesAggregate.Grouping.WITHOUT;
             PromqlBaseParser.LabelListContext labelListCtx = groupingContext.labelList();
-            List<String> groupingKeys = visitLabelList(labelListCtx);
-            List<Attribute> groupings = new ArrayList<>(groupingKeys.size());
-            for (int i = 0; i < groupingKeys.size(); i++) {
-                groupings.add(new UnresolvedAttribute(source(labelListCtx.labelName(i)), groupingKeys.get(i)));
+            List<String> groupingKeyNames = visitLabelList(labelListCtx);
+            groupings = new ArrayList<>(groupingKeyNames.size());
+            for (int i = 0; i < groupingKeyNames.size(); i++) {
+                groupings.add(new UnresolvedAttribute(source(labelListCtx.labelName(i)), groupingKeyNames.get(i)));
             }
-            plan = new AcrossSeriesAggregate(source, child, name, extraParams, grouping, groupings);
-        } else {
-            plan = switch (metadata.functionType()) {
-                case ACROSS_SERIES_AGGREGATION -> new AcrossSeriesAggregate(
-                    source,
-                    child,
-                    name,
-                    extraParams,
-                    AcrossSeriesAggregate.Grouping.NONE,
-                    List.of()
-                );
-                case WITHIN_SERIES_AGGREGATION -> new WithinSeriesAggregate(source, child, name, extraParams);
-                case VALUE_TRANSFORMATION -> new ValueTransformationFunction(source, child, name, extraParams);
-                case VECTOR_CONVERSION -> new VectorConversionFunction(source, child, name, extraParams);
-                case SCALAR_CONVERSION -> new ScalarConversionFunction(source, child, name, extraParams);
-                case SCALAR -> new ScalarFunction(source, name);
-                default -> throw new ParsingException(
-                    source,
-                    "Unsupported function type [{}] for function [{}]",
-                    metadata.functionType(),
-                    name
-                );
-            };
         }
-        //
-        return plan;
-    }
-
-    /**
-     * In contrast to strict PromQL,
-     * we allow using instant vector selectors where range vectors are expected,
-     * by implicitly treating them as range vectors with a default range.
-     */
-    private static LogicalPlan convertToRangeSelector(InstantSelector selector) {
-        LogicalPlan providedParam;
-        providedParam = new RangeSelector(
-            selector.source(),
-            selector.child(),
-            selector.series(),
-            selector.labels(),
-            selector.labelMatchers(),
-            Literal.timeDuration(selector.source(), IMPLICIT_RANGE_PLACEHOLDER),
-            selector.evaluation()
-        );
-        return providedParam;
+        return new UnresolvedPromqlFunction(source, name, rawParams, grouping, groupings);
     }
 
     @Override
     public Subquery visitSubquery(PromqlBaseParser.SubqueryContext ctx) {
-        Source source = source(ctx);
         LogicalPlan plan = plan(ctx.expression());
-
-        if (returnsRangeVector(plan)) {
-            throw new ParsingException(source, "Subquery is only allowed on instant vector, got {}", plan.nodeName());
-        }
 
         Evaluation evaluation = visitEvaluation(ctx.evaluation());
         Literal rangeEx = visitDuration(ctx.range);

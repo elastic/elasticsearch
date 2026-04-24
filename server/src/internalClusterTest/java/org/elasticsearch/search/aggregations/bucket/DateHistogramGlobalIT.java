@@ -16,6 +16,8 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
 
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -70,6 +72,12 @@ public class DateHistogramGlobalIT extends ESIntegTestCase {
 
     private void runGlobalDateHistogramTest(QueryBuilder query) {
         final long expectedTotalDocs = totalDocs;
+        final List<Long> expectedKeys = new ArrayList<>();
+        for (int year = 2010; year <= 2020; year++) {
+            for (int month = 1; month <= 12; month++) {
+                expectedKeys.add(ZonedDateTime.of(year, month, 1, 0, 0, 0, 0, ZoneOffset.UTC).toInstant().toEpochMilli());
+            }
+        }
         assertNoFailuresAndResponse(
             prepareSearch(INDEX).setQuery(query)
                 .setSize(0)
@@ -86,7 +94,10 @@ public class DateHistogramGlobalIT extends ESIntegTestCase {
                 Histogram histogram = everything.getAggregations().get("by_month");
                 assertThat(histogram, notNullValue());
                 assertThat("histogram has wrong number of buckets", (long) histogram.getBuckets().size(), equalTo(expectedTotalDocs));
-                for (Histogram.Bucket bucket : histogram.getBuckets()) {
+                for (int i = 0; i < expectedKeys.size(); i++) {
+                    Histogram.Bucket bucket = histogram.getBuckets().get(i);
+                    long actualKey = ((ZonedDateTime) bucket.getKey()).toInstant().toEpochMilli();
+                    assertThat("bucket at index " + i + " has wrong key", actualKey, equalTo(expectedKeys.get(i)));
                     assertThat("bucket " + bucket.getKeyAsString() + " has wrong doc count", bucket.getDocCount(), equalTo(1L));
                 }
             }

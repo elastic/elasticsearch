@@ -17,6 +17,8 @@ import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.junit.Before;
 
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -28,6 +30,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -67,6 +70,8 @@ public class AutoDateHistogramGlobalIT extends AggregationIntegTestCase {
 
     private void runGlobalAutoDateHistogramTest(QueryBuilder query) {
         final long expectedTotalDocs = totalDocs;
+        final long earliestMillis = ZonedDateTime.of(2010, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC).toInstant().toEpochMilli();
+        final long latestMillis = ZonedDateTime.of(2020, 12, 1, 0, 0, 0, 0, ZoneOffset.UTC).toInstant().toEpochMilli();
         assertNoFailuresAndResponse(
             prepareSearch(INDEX).setQuery(query)
                 .setSize(0)
@@ -86,6 +91,12 @@ public class AutoDateHistogramGlobalIT extends AggregationIntegTestCase {
 
                 long sum = histogram.getBuckets().stream().mapToLong(Histogram.Bucket::getDocCount).sum();
                 assertThat(sum, equalTo(expectedTotalDocs));
+
+                long firstKey = ((ZonedDateTime) histogram.getBuckets().get(0).getKey()).toInstant().toEpochMilli();
+                long lastKey = ((ZonedDateTime) histogram.getBuckets().get(histogram.getBuckets().size() - 1).getKey()).toInstant()
+                    .toEpochMilli();
+                assertThat("first bucket key must be at or before the earliest doc", firstKey, lessThanOrEqualTo(earliestMillis));
+                assertThat("last bucket key must be at or before the latest doc", lastKey, lessThanOrEqualTo(latestMillis));
             }
         );
     }

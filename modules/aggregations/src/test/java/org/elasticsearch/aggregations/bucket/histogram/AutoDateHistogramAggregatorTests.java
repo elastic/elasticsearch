@@ -86,6 +86,7 @@ import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTestCase {
     private static final String DATE_FIELD = "date";
@@ -951,8 +952,8 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
     }
 
     /**
-     * Indexes one doc per month from 2010-01 through 2020-12 and runs a {@code global > date_histogram} aggregation,
-     * then asserts that no doc was lost.
+     * Indexes one doc per month from 2010-01 through 2020-12 and runs a {@code global > auto_date_histogram} aggregation,
+     * then asserts that no doc was lost and that the bucket keys span the full indexed date range.
      *
      * @param query The query to run the test with. It's expected to not affect the sub-aggregation, as the parent is a "global" agg
      */
@@ -965,6 +966,8 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
                 dataset.add(asUtcMillis(year, month, 1));
             }
         }
+        final long earliestMillis = dataset.get(0);
+        final long latestMillis = dataset.get(dataset.size() - 1);
 
         final GlobalAggregationBuilder builder = new GlobalAggregationBuilder("global").subAggregation(
             new AutoDateHistogramAggregationBuilder("dh").field(DATE_FIELD).setNumBuckets(10)
@@ -982,6 +985,11 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
             InternalAutoDateHistogram dh = global.getAggregations().get("dh");
             long total = dh.getBuckets().stream().mapToLong(Histogram.Bucket::getDocCount).sum();
             assertEquals(dataset.size(), total);
+            long firstKey = ((ZonedDateTime) dh.getBuckets().get(0).getKey()).toInstant().toEpochMilli();
+            long lastKey = ((ZonedDateTime) dh.getBuckets().get(dh.getBuckets().size() - 1).getKey()).toInstant().toEpochMilli();
+            // The auto-bucketing decides which buckets to create, so we shallowly check the expected values are within the buckets
+            assertThat("first bucket key must be at or before the earliest doc", firstKey, lessThanOrEqualTo(earliestMillis));
+            assertThat("last bucket key must be at or before the latest doc", lastKey, lessThanOrEqualTo(latestMillis));
         }, new AggTestConfig(builder, fieldType).withQuery(query));
     }
 

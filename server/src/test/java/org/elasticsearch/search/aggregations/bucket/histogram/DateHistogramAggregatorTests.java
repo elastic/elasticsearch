@@ -1160,7 +1160,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
 
     /**
      * Indexes one doc per month from 2010-01 through 2020-12 and runs a {@code global > date_histogram} aggregation,
-     * then asserts that every histogram bucket contains exactly one document, and that no doc was lost.
+     * then asserts that there is one bucket per indexed month, with the expected key, each containing exactly one document.
      *
      * @param query The query to run the test with. It's expected to not affect the sub-aggregation, as the parent is a "global" agg
      */
@@ -1189,7 +1189,11 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             assertEquals(dataset.size(), global.getDocCount());
             InternalDateHistogram dh = global.getAggregations().get("dh");
             assertEquals("histogram has wrong number of buckets", dataset.size(), dh.getBuckets().size());
-            for (InternalDateHistogram.Bucket bucket : dh.getBuckets()) {
+            for (int i = 0; i < dataset.size(); i++) {
+                InternalDateHistogram.Bucket bucket = dh.getBuckets().get(i);
+                long expectedKey = dataset.get(i);
+                long actualKey = ((ZonedDateTime) bucket.getKey()).toInstant().toEpochMilli();
+                assertEquals("bucket at index " + i + " has wrong key", expectedKey, actualKey);
                 assertEquals("bucket " + bucket.getKeyAsString() + " has wrong doc count", 1L, bucket.getDocCount());
             }
         }, new AggTestConfig(builder, fieldType).withQuery(query));

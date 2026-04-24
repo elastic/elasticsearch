@@ -28,7 +28,7 @@ import static org.elasticsearch.simdvec.internal.Similarities.squareDistanceF32;
 import static org.elasticsearch.simdvec.internal.Similarities.squareDistanceF32BulkSparse;
 import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 
-public abstract sealed class FloatVectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
+public abstract sealed class Float32VectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
 
     final int dimensions;
     final int vectorByteSize;
@@ -56,7 +56,7 @@ public abstract sealed class FloatVectorScorer extends RandomVectorScorer.Abstra
         };
     }
 
-    FloatVectorScorer(IndexInput input, FloatVectorValues values, float[] queryVector) {
+    Float32VectorScorer(IndexInput input, FloatVectorValues values, float[] queryVector) {
         super(values);
         this.input = input;
         assert queryVector.length == values.dimension();
@@ -78,7 +78,7 @@ public abstract sealed class FloatVectorScorer extends RandomVectorScorer.Abstra
         }
     }
 
-    public static final class DotProductScorer extends FloatVectorScorer {
+    public static final class DotProductScorer extends Float32VectorScorer {
         public DotProductScorer(IndexInput in, FloatVectorValues values, float[] query) {
             super(in, values, query);
         }
@@ -127,7 +127,7 @@ public abstract sealed class FloatVectorScorer extends RandomVectorScorer.Abstra
         }
     }
 
-    public static final class EuclideanScorer extends FloatVectorScorer {
+    public static final class EuclideanScorer extends Float32VectorScorer {
         public EuclideanScorer(IndexInput in, FloatVectorValues values, float[] query) {
             super(in, values, query);
         }
@@ -175,7 +175,7 @@ public abstract sealed class FloatVectorScorer extends RandomVectorScorer.Abstra
         }
     }
 
-    public static final class MaxInnerProductScorer extends FloatVectorScorer {
+    public static final class MaxInnerProductScorer extends Float32VectorScorer {
         public MaxInnerProductScorer(IndexInput in, FloatVectorValues values, float[] query) {
             super(in, values, query);
         }

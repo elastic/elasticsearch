@@ -112,3 +112,15 @@ be excellent to each other                                            | [50.0, 5
 live long and prosper                                                 | [45.0, 55.0, 54.0]           | fork1         | 0.02..0.3
 live long and prosper                                                 | [50.0, 57.0, 56.0]           | fork2         | 0.9..1.0
 ;
+
+text_embedding with timeout option
+required_capability: text_embedding_function
+required_capability: inference_accept_timeout
+
+ROW input="Who is Victor Hugo?"
+| EVAL embedding = TEXT_EMBEDDING("Who is Victor Hugo?", "test_dense_inference", {"timeout": "30s"})
+;
+
+input:keyword       | embedding:dense_vector
+Who is Victor Hugo? | [56.0, 50.0, 48.0]
+;

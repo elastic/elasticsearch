@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.grouping;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -37,10 +38,11 @@ import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfigur
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
 public class TStepTests extends AbstractConfigurationFunctionTestCase {
+    private static final DataType[] BOUND_TYPES = new DataType[] { DataType.DATETIME, DataType.DATE_NANOS, DataType.KEYWORD };
+
     public TStepTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -89,6 +91,22 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
             () -> DateUtils.toLong(Instant.parse("2024-01-01T12:09:00Z")),
             Duration.ofMinutes(5),
             Instant.parse("2024-01-01T12:12:00Z")
+        );
+        dateCasesWithExplicitBounds(
+            suppliers,
+            "explicit bounds 1 hour step",
+            () -> Instant.parse("2024-01-01T12:45:00Z").toEpochMilli(),
+            Duration.ofHours(1),
+            Instant.parse("2024-01-01T12:15:00Z"),
+            Instant.parse("2024-01-01T13:55:00Z")
+        );
+        dateNanosCasesWithExplicitBounds(
+            suppliers,
+            "date_nanos explicit bounds 5 minute step",
+            () -> DateUtils.toLong(Instant.parse("2024-01-01T12:09:00Z")),
+            Duration.ofMinutes(5),
+            Instant.parse("2024-01-01T12:04:00Z"),
+            Instant.parse("2024-01-01T12:32:00Z")
         );
         return parameterSuppliersFromTypedData(suppliers);
     }
@@ -139,6 +157,83 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
         }));
     }
 
+    private static void dateCasesWithExplicitBounds(
+        List<TestCaseSupplier> suppliers,
+        String name,
+        LongSupplier timestamp,
+        Duration step,
+        Instant start,
+        Instant end
+    ) {
+        for (DataType fromType : BOUND_TYPES) {
+            for (DataType toType : BOUND_TYPES) {
+                suppliers.add(new TestCaseSupplier(name, List.of(DataType.TIME_DURATION, fromType, toType, DataType.DATETIME), () -> {
+                    List<TestCaseSupplier.TypedData> args = new ArrayList<>();
+                    args.add(new TestCaseSupplier.TypedData(step, DataType.TIME_DURATION, "step").forceLiteral());
+                    args.add(dateBound("from", fromType, start));
+                    args.add(dateBound("to", toType, end));
+                    args.add(new TestCaseSupplier.TypedData(timestamp.getAsLong(), DataType.DATETIME, "@timestamp"));
+                    return new TestCaseSupplier.TestCase(
+                        args,
+                        Matchers.startsWith("AddDatetimesEvaluator["),
+                        DataType.DATETIME,
+                        equalTo(alignedBucketEnd(timestamp.getAsLong(), start.toEpochMilli(), step.toMillis()))
+                    ).withConfiguration(
+                        TEST_SOURCE,
+                        randomConfigurationBuilder().query(TEST_SOURCE.text()).now(end).zoneId(ZoneOffset.UTC).build()
+                    );
+                }));
+            }
+        }
+    }
+
+    private static void dateNanosCasesWithExplicitBounds(
+        List<TestCaseSupplier> suppliers,
+        String name,
+        LongSupplier timestampNanos,
+        Duration step,
+        Instant start,
+        Instant end
+    ) {
+        for (DataType fromType : BOUND_TYPES) {
+            for (DataType toType : BOUND_TYPES) {
+                suppliers.add(new TestCaseSupplier(name, List.of(DataType.TIME_DURATION, fromType, toType, DataType.DATE_NANOS), () -> {
+                    List<TestCaseSupplier.TypedData> args = new ArrayList<>();
+                    args.add(new TestCaseSupplier.TypedData(step, DataType.TIME_DURATION, "step").forceLiteral());
+                    args.add(dateBound("from", fromType, start));
+                    args.add(dateBound("to", toType, end));
+                    args.add(new TestCaseSupplier.TypedData(timestampNanos.getAsLong(), DataType.DATE_NANOS, "@timestamp"));
+                    long expectedMillis = alignedBucketEnd(
+                        DateUtils.toMilliSeconds(timestampNanos.getAsLong()),
+                        start.toEpochMilli(),
+                        step.toMillis()
+                    );
+                    return new TestCaseSupplier.TestCase(
+                        args,
+                        Matchers.startsWith("AddDateNanosEvaluator["),
+                        DataType.DATE_NANOS,
+                        equalTo(DateUtils.toNanoSeconds(expectedMillis))
+                    ).withConfiguration(
+                        TEST_SOURCE,
+                        randomConfigurationBuilder().query(TEST_SOURCE.text()).now(end).zoneId(ZoneOffset.UTC).build()
+                    );
+                }));
+            }
+        }
+    }
+
+    private static TestCaseSupplier.TypedData dateBound(String name, DataType type, Instant instant) {
+        Object value;
+        if (type == DataType.DATETIME) {
+            value = instant.toEpochMilli();
+        } else if (type == DataType.DATE_NANOS) {
+            value = DateUtils.toLong(instant);
+        } else {
+            value = new BytesRef(instant.toString());
+        }
+        return new TestCaseSupplier.TypedData(value, type, name).forceLiteral();
+    }
+
     private static Matcher<Object> resultsMatcher(List<TestCaseSupplier.TypedData> typedData, long stepMillis, Instant now) {
         if (typedData.get(1).type() == DataType.DATE_NANOS) {
             long tsNanos = ((Number) typedData.get(1).data()).longValue();
@@ -151,6 +246,9 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
 
     @Override
     protected Expression buildWithConfiguration(Source source, List<Expression> args, Configuration configuration) {
+        if (args.size() == 4) {
+            return new TStep(source, args.get(0), args.get(1), args.get(2), args.get(3), configuration);
+        }
         var anchor = configuration.now();
         return new TStep(source, args.get(0), args.get(1), configuration).withTimestampBounds(
             Literal.dateTime(source, anchor),
@@ -164,9 +262,10 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
     }
 
     public static List<DocsV3Support.Param> signatureTypes(List<DocsV3Support.Param> params) {
-        assertThat(params, hasSize(2));
-        assertThat(params.get(1).dataType(), anyOf(equalTo(DataType.DATE_NANOS), equalTo(DataType.DATETIME)));
-        return List.of(params.get(0));
+        assertThat(params.size(), anyOf(equalTo(2), equalTo(4)));
+        int tsIndex = params.size() - 1;
+        assertThat(params.get(tsIndex).dataType(), anyOf(equalTo(DataType.DATE_NANOS), equalTo(DataType.DATETIME)));
+        return params.subList(0, tsIndex);
     }
 
     public void testBucketBoundariesAlignToRangeStart() {

@@ -83,8 +83,9 @@ public final class SequenceNumbersTestUtils {
                                         if (seqNoDV != null) {
                                             int doc;
                                             while ((doc = seqNoDV.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-                                                logger.info("docId={} seqNo={}", doc, seqNoDV.longValue());
+                                                logger.info("---> docId={} seqNo={}", doc, seqNoDV.longValue());
                                             }
+                                            logger.info("---> No more docs", doc);
                                             seqNoDV = leafReader.getNumericDocValues(SeqNoFieldMapper.NAME);
                                         }
                                         if (expectDocValuesOnDisk) {

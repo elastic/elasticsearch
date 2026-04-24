@@ -44,8 +44,8 @@ public final class CsvSpecReader {
         private final List<String> requiredCapabilities = new ArrayList<>();
         private final List<SpecReader.Parser> optionParsers = new ArrayList<>();
         WhenLoadsRequestedToStored requestStored = WhenLoadsRequestedToStored.IGNORE_VALUE_ORDER;
-        String timestampBoundsGte;
-        String timestampBoundsLte;
+        String requestTimeRangeGte;
+        String requestTimeRangeLte;
         CsvTestCase testCase;
 
         private ParserContext() {}
@@ -74,12 +74,12 @@ public final class CsvSpecReader {
                 testCase.query = query.toString();
                 testCase.requiredCapabilities = List.copyOf(requiredCapabilities);
                 testCase.requestStored = requestStored;
-                testCase.timestampBoundsGte = timestampBoundsGte;
-                testCase.timestampBoundsLte = timestampBoundsLte;
+                testCase.requestTimeRangeGte = requestTimeRangeGte;
+                testCase.requestTimeRangeLte = requestTimeRangeLte;
                 requiredCapabilities.clear();
                 requestStored = WhenLoadsRequestedToStored.IGNORE_VALUE_ORDER;
-                timestampBoundsGte = null;
-                timestampBoundsLte = null;
+                requestTimeRangeGte = null;
+                requestTimeRangeLte = null;
                 query.setLength(0);
             } else {
                 query.append(line).append("\r\n");
@@ -147,9 +147,9 @@ public final class CsvSpecReader {
                         "request_time_filter must be two ISO-8601 instants separated by a comma: [" + value + "]"
                     );
                 }
-                state.timestampBoundsGte = value.substring(0, comma).trim();
-                state.timestampBoundsLte = value.substring(comma + 1).trim();
-                if (state.timestampBoundsGte.isEmpty() || state.timestampBoundsLte.isEmpty()) {
+                state.requestTimeRangeGte = value.substring(0, comma).trim();
+                state.requestTimeRangeLte = value.substring(comma + 1).trim();
+                if (state.requestTimeRangeGte.isEmpty() || state.requestTimeRangeLte.isEmpty()) {
                     throw new IllegalArgumentException("request_time_filter values must not be empty: [" + value + "]");
                 }
                 return Boolean.TRUE;
@@ -226,8 +226,8 @@ public final class CsvSpecReader {
          * When set from a {@code timestamp_bounds:} line in the expected-results section, the REST request includes
          * a Query DSL range on {@code @timestamp} with these bounds (inclusive).
          */
-        public String timestampBoundsGte;
-        public String timestampBoundsLte;
+        public String requestTimeRangeGte;
+        public String requestTimeRangeLte;
 
         /**
          * Returns the warning headers expected to be added by the test. To declare such a header, use the `warning:definition` format

@@ -1407,7 +1407,61 @@ public class ParquetFormatReaderTests extends ESTestCase {
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
 
         List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
-        assertTrue("Single row group file should return empty ranges", ranges.isEmpty());
+        assertEquals("Single row group file should return one range with stats", 1, ranges.size());
+        RangeAwareFormatReader.SplitRange range = ranges.getFirst();
+        assertTrue("Range offset must be non-negative", range.offset() >= 0);
+        assertTrue("Range length must be positive", range.length() > 0);
+        assertNotNull("Statistics should be present", range.statistics());
+        assertEquals("Row count should be 1", 1L, range.statistics().get("_stats.row_count"));
+    }
+
+    public void testDiscoverSplitRangesEmptyFile() throws Exception {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> List.of());
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
+        assertTrue("Empty file (no row groups) should return empty ranges", ranges.isEmpty());
+    }
+
+    public void testDiscoverSplitRangesSingleRowGroupStatsContainColumnInfo() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .named("age")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> rows = new ArrayList<>();
+            for (int i = 0; i < 100; i++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) i);
+                g.add("age", 20 + (i % 50));
+                rows.add(g);
+            }
+            return rows;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
+        assertEquals(1, ranges.size());
+        Map<String, Object> stats = ranges.getFirst().statistics();
+        assertEquals(100L, stats.get("_stats.row_count"));
+        assertNotNull("Column null count should be present", stats.get("_stats.columns.id.null_count"));
+        assertEquals(0L, stats.get("_stats.columns.id.null_count"));
+        assertNotNull("Column min should be present", stats.get("_stats.columns.id.min"));
+        assertEquals(0L, stats.get("_stats.columns.id.min"));
+        assertNotNull("Column max should be present", stats.get("_stats.columns.id.max"));
+        assertEquals(99L, stats.get("_stats.columns.id.max"));
+        assertEquals(0L, stats.get("_stats.columns.age.null_count"));
+        assertEquals(20, stats.get("_stats.columns.age.min"));
+        assertEquals(69, stats.get("_stats.columns.age.max"));
     }
 
     public void testInvalidParquetOpenGarbageIncludesUriInMessage() throws Exception {

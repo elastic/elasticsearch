@@ -37,6 +37,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.DataInput;
+import org.apache.lucene.store.FileTypeHint;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RandomAccessInput;
 import org.apache.lucene.util.BytesRef;
@@ -71,7 +72,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     final IntObjectHashMap<SortedSetEntry> sortedSets;
     final IntObjectHashMap<SortedNumericEntry> sortedNumerics;
     private final IntObjectHashMap<DocValuesSkipperEntry> skippers;
-    private final IndexInput data;
+    private final IndexInput data, skip;
     private final int maxDoc;
     final int version;
     private final int primarySortFieldNumber;
@@ -94,6 +95,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         final String dataExtension,
         final String metaCodec,
         final String metaExtension,
+        final String skipCodec,
+        final String skipExtension,
         final TSDBDocValuesFormatConfig formatConfig,
         final DocOffsetsCodec.Decoder docOffsetsDecoder,
         final NumericBlockCodec numericCodec,
@@ -128,12 +131,12 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 version = CodecUtil.checkIndexHeader(
                     in,
                     metaCodec,
-                    formatConfig.versionStart(),
-                    formatConfig.versionCurrent(),
+                    TSDBDocValuesFormatConfig.VERSION_START,
+                    TSDBDocValuesFormatConfig.VERSION_CURRENT,
                     state.segmentInfo.getId(),
                     state.segmentSuffix
                 );
-                if (version >= formatConfig.versionLargeBlocks()) {
+                if (version >= TSDBDocValuesFormatConfig.VERSION_NUMERIC_LARGE_BLOCKS) {
                     blockShift = in.readByte();
                 }
                 this.readContext = new NumericReadContext(1 << blockShift, formatConfig);
@@ -156,8 +159,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             final int version2 = CodecUtil.checkIndexHeader(
                 data,
                 dataCodec,
-                formatConfig.versionStart(),
-                formatConfig.versionCurrent(),
+                TSDBDocValuesFormatConfig.VERSION_START,
+                TSDBDocValuesFormatConfig.VERSION_CURRENT,
                 state.segmentInfo.getId(),
                 state.segmentSuffix
             );
@@ -178,6 +181,32 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 IOUtils.closeWhileHandlingException(this.data);
             }
         }
+
+        if (version >= TSDBDocValuesFormatConfig.VERSION_SEPARATE_SKIPLIST) {
+            IndexInput tempIn = null;
+            try {
+                String skipIndexName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, skipExtension);
+                tempIn = state.directory.openInput(skipIndexName, state.context.withHints(FileTypeHint.INDEX));
+                final int skipVersion = CodecUtil.checkIndexHeader(
+                    tempIn,
+                    skipCodec,
+                    TSDBDocValuesFormatConfig.VERSION_START,
+                    TSDBDocValuesFormatConfig.VERSION_SEPARATE_SKIPLIST,
+                    state.segmentInfo.getId(),
+                    state.segmentSuffix
+                );
+                if (version != skipVersion) {
+                    throw new CorruptIndexException("Format versions mismatch: meta=" + version + ", skipIndex=" + skipVersion, tempIn);
+                }
+                CodecUtil.retrieveChecksum(tempIn);
+            } catch (Throwable t) {
+                IOUtils.closeWhileHandlingException(data, tempIn);
+                throw t;
+            }
+            this.skip = tempIn;
+        } else {
+            this.skip = null;
+        }
     }
 
     protected AbstractTSDBDocValuesProducer(final AbstractTSDBDocValuesProducer original) {
@@ -192,6 +221,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         this.sortedNumerics = original.sortedNumerics;
         this.skippers = original.skippers;
         this.data = original.data.clone();
+        this.skip = original.skip == null ? null : original.skip.clone();
         this.maxDoc = original.maxDoc;
         this.version = original.version;
         this.primarySortFieldNumber = original.primarySortFieldNumber;
@@ -1818,7 +1848,11 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                     }
                 } else {
                     if (input == null) {
-                        input = data.slice("doc value skipper", entry.offset, entry.length);
+                        if (skip == null) {
+                            input = data.slice("doc value skipper", entry.offset, entry.length);
+                        } else {
+                            input = skip.slice("doc value skipper", entry.offset, entry.length);
+                        }
                     }
                     assert target > maxDocID[0] : "target must be bigger than current interval";
                     while (true) {
@@ -1896,11 +1930,14 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     @Override
     public void checkIntegrity() throws IOException {
         CodecUtil.checksumEntireFile(data);
+        if (skip != null) {
+            CodecUtil.checksumEntireFile(skip);
+        }
     }
 
     @Override
     public void close() throws IOException {
-        data.close();
+        IOUtils.close(data, skip);
     }
 
     /**
@@ -1988,7 +2025,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
     private BinaryEntry readBinary(IndexInput meta, int version) throws IOException {
         final BinaryDVCompressionMode compression;
-        if (version >= formatConfig.versionBinaryCompression()) {
+        if (version >= TSDBDocValuesFormatConfig.VERSION_BINARY_DV_COMPRESSION) {
             compression = BinaryDVCompressionMode.fromMode(meta.readByte());
         } else {
             compression = BinaryDVCompressionMode.NO_COMPRESS;
@@ -2065,7 +2102,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         SortedEntry entry = new SortedEntry();
         entry.ordsEntry = new NumericEntry();
         entry.termsDictEntry = new TermsDictEntry();
-        if (version >= formatConfig.versionPrefixPartitions()) {
+        if (version >= TSDBDocValuesFormatConfig.VERSION_PREFIX_PARTITIONS) {
             readTermDict(meta, entry.termsDictEntry, termsDictBlockLz4Shift);
             readOrdinalField(meta, entry.ordsEntry, numericBlockShift);
             if (primarySorted && meta.readByte() == 1) {

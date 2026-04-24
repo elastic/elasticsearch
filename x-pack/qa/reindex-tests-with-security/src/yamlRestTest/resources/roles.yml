@@ -55,7 +55,6 @@ minimal_with_reindex_get:
   cluster:
     - cluster:monitor/main
     - cluster:monitor/reindex/get
-    - cluster:monitor/task/get
   indices:
     - names: source
       privileges:

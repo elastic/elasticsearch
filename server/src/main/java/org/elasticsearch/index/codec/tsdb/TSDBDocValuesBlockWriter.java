@@ -30,11 +30,22 @@ import java.util.Arrays;
  * that shared layout so {@link TSDBNumericFieldWriter} and {@link TSDBOrdinalFieldWriter} can
  * delegate to a single implementation without coupling to each other.
  */
-final class TSDBDocValuesBlockWriter {
+public final class TSDBDocValuesBlockWriter {
 
+    /** Encodes one block of values into the data output. */
     @FunctionalInterface
-    interface BlockEncoder {
+    public interface BlockEncoder {
         void encode(long[] buffer, IndexOutput data) throws IOException;
+    }
+
+    /**
+     * Optional callback invoked after the block-shift marker is written to metadata but before
+     * the block encoding loop begins. Codec-specific formats (e.g. ES95) use this to write
+     * additional per-field metadata such as a {@link org.elasticsearch.index.codec.tsdb.pipeline.FieldDescriptor}.
+     */
+    @FunctionalInterface
+    public interface FieldMetaWriter {
+        void write() throws IOException;
     }
 
     /**
@@ -52,7 +63,7 @@ final class TSDBDocValuesBlockWriter {
      * @param blockEncoder        codec-specific encoder for each value block
      * @return the field's doc value count statistics
      */
-    DocValueFieldCountStats writeField(
+    public DocValueFieldCountStats writeFieldEntry(
         final NumericWriteContext ctx,
         final FieldInfo field,
         final TsdbDocValuesProducer valuesSource,
@@ -60,6 +71,37 @@ final class TSDBDocValuesBlockWriter {
         final AbstractTSDBDocValuesConsumer.DocValueCountConsumer docValueCountConsumer,
         final SortedFieldObserver sortedFieldObserver,
         final BlockEncoder blockEncoder
+    ) throws IOException {
+        return writeFieldEntry(ctx, field, valuesSource, maxOrd, docValueCountConsumer, sortedFieldObserver, blockEncoder, null);
+    }
+
+    /**
+     * Writes one field's value blocks, block index, and DISI metadata with an optional
+     * metadata header hook.
+     *
+     * @param ctx                 segment-scoped write state
+     * @param field               field being written
+     * @param valuesSource        source of doc values for this field
+     * @param maxOrd              maximum ordinal for ordinal fields, or
+     *                            {@link AbstractTSDBDocValuesConsumer#NO_MAX_ORD} for numeric fields
+     * @param docValueCountConsumer receives the per-doc value count for offset tracking,
+     *                              or {@code null} when offsets are not needed
+     * @param sortedFieldObserver receives {@code (docId, value)} pairs during the doc pass,
+     *                            or {@code null} when no observer is attached
+     * @param blockEncoder        codec-specific encoder for each value block
+     * @param fieldMetaWriter    optional callback invoked after the block-shift marker to write
+     *                            additional per-field metadata, or {@code null}
+     * @return the field's doc value count statistics
+     */
+    public DocValueFieldCountStats writeFieldEntry(
+        final NumericWriteContext ctx,
+        final FieldInfo field,
+        final TsdbDocValuesProducer valuesSource,
+        long maxOrd,
+        final AbstractTSDBDocValuesConsumer.DocValueCountConsumer docValueCountConsumer,
+        final SortedFieldObserver sortedFieldObserver,
+        final BlockEncoder blockEncoder,
+        final FieldMetaWriter fieldMetaWriter
     ) throws IOException {
         final IndexOutput meta = ctx.meta();
         final IndexOutput data = ctx.data();
@@ -145,6 +187,9 @@ final class TSDBDocValuesBlockWriter {
                         formatConfig.directMonotonicBlockShift()
                     );
                     meta.writeInt(formatConfig.directMonotonicBlockShift());
+                    if (fieldMetaWriter != null) {
+                        fieldMetaWriter.write();
+                    }
                     final long[] buffer = new long[blockSize];
                     int bufferSize = 0;
                     values = valuesSource.getSortedNumeric(field);
@@ -257,7 +302,7 @@ final class TSDBDocValuesBlockWriter {
             meta.writeShort((short) -1);
             meta.writeByte((byte) -1);
         } else {
-            long offset = data.getFilePointer();
+            final long offset = data.getFilePointer();
             meta.writeLong(offset);
             final short jumpTableEntryCount;
             if (maxOrd != 1 && disiAccumulator != null) {

@@ -7,9 +7,14 @@
 | counter_double | time_duration {applies_to}`stack: preview 9.3.0` | double |
 | counter_integer | time_duration {applies_to}`stack: preview 9.3.0` | integer |
 | counter_long | time_duration {applies_to}`stack: preview 9.3.0` | long |
+| date | time_duration {applies_to}`stack: preview 9.3.0` | date |
+| date_nanos | time_duration {applies_to}`stack: preview 9.3.0` | date_nanos |
 | double | time_duration {applies_to}`stack: preview 9.3.0` | double |
 | exponential_histogram {applies_to}`stack: preview 9.3.0, ga 9.4.0` | time_duration {applies_to}`stack: preview 9.3.0` | exponential_histogram |
 | integer | time_duration {applies_to}`stack: preview 9.3.0` | integer |
+| ip | time_duration {applies_to}`stack: preview 9.3.0` | ip |
+| keyword | time_duration {applies_to}`stack: preview 9.3.0` | keyword |
 | long | time_duration {applies_to}`stack: preview 9.3.0` | long |
 | tdigest {applies_to}`stack: ga 9.4.0` | time_duration {applies_to}`stack: preview 9.3.0` | tdigest |
+| text | time_duration {applies_to}`stack: preview 9.3.0` | keyword |
 

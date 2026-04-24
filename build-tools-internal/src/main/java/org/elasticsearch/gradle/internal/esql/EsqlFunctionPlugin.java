@@ -31,6 +31,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
@@ -276,16 +277,72 @@ public class EsqlFunctionPlugin implements Plugin<Project> {
             logger.quiet(
                 folder.toUpperCase(Locale.ROOT) + " Docs: Found " + countKibana + " generated kibana markdown files to patch into docs"
             );
+            // Preserve destination subdirectories whose source counterpart produced no files this
+            // run — typically because the generating test (e.g. CommandLicenseTests) was muted,
+            // skipped, or filtered out. Without this, a full test-suite run would delete their
+            // existing JSONs. See https://github.com/elastic/elasticsearch/issues/147402.
+            List<String> preservedSubdirs = unpopulatedKibanaSubdirs(kibanaFolder, kibanaDocFolder);
             injected.getFs().sync(spec -> {
                 spec.from(kibanaFolder);
                 spec.into(kibanaDocFolder);
                 spec.include("**/*.md", "**/*.json");
-                if (countKibana <= 100) {
-                    spec.preserve(preserveSpec -> preserveSpec.include("**/*.md", "**/*.json"));
-                }
+                spec.preserve(preserveSpec -> {
+                    if (countKibana <= 100) {
+                        preserveSpec.include("**/*.md", "**/*.json");
+                    }
+                    for (String sub : preservedSubdirs) {
+                        preserveSpec.include(sub + "/**");
+                    }
+                });
                 spec.filter(replaceLinks);
             });
         }
+    }
+
+    /**
+     * Returns subdirectory paths (relative to the kibana root) that exist in the destination but
+     * were not populated by the current test run. Callers use these to exclude such subdirs from
+     * deletion during sync, so a muted or skipped generator test cannot wipe up-to-date files.
+     */
+    private static List<String> unpopulatedKibanaSubdirs(File sourceRoot, File destRoot) {
+        List<String> result = new ArrayList<>();
+        File destDef = new File(destRoot, "definition");
+        if (destDef.isDirectory() == false) {
+            return result;
+        }
+        File[] destSubdirs = destDef.listFiles(File::isDirectory);
+        if (destSubdirs == null) {
+            return result;
+        }
+        for (File destSub : destSubdirs) {
+            String relative = "definition/" + destSub.getName();
+            File srcSub = new File(sourceRoot, relative);
+            if (containsKibanaContent(srcSub) == false) {
+                result.add(relative);
+            }
+        }
+        return result;
+    }
+
+    private static boolean containsKibanaContent(File dir) {
+        if (dir.isDirectory() == false) {
+            return false;
+        }
+        File[] children = dir.listFiles();
+        if (children == null) {
+            return false;
+        }
+        for (File child : children) {
+            if (child.isFile()) {
+                String n = child.getName();
+                if (n.endsWith(".json") || n.endsWith(".md")) {
+                    return true;
+                }
+            } else if (child.isDirectory() && containsKibanaContent(child)) {
+                return true;
+            }
+        }
+        return false;
     }
 
 }

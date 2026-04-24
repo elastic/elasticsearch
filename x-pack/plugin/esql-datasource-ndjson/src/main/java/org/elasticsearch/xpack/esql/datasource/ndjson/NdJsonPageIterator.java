@@ -12,12 +12,11 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
@@ -52,12 +51,13 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
         List<Attribute> resolvedAttributes,
         ErrorPolicy errorPolicy
     ) throws IOException {
+        Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
         InputStream inputStream = object.newStream();
         if (skipFirstLine) {
             skipToNextLine(inputStream);
         }
         if (trimLastPartialLine) {
-            inputStream = trimLastPartialLine(inputStream);
+            inputStream = trimLastPartialLine(inputStream, errorPolicy);
         }
         this.rowLimit = rowLimit;
         this.pageDecoder = new NdJsonPageDecoder(inputStream, resolvedAttributes, projectedColumns, batchSize, blockFactory, errorPolicy);
@@ -121,41 +121,35 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
         IOUtils.close(pageDecoder);
     }
 
+    /**
+     * Reader-side half of the split-alignment protocol: drop the leading partial record that the
+     * splitter's previous macro-split already emitted via finish-current-line.
+     *
+     * <p>Protocol cross-references (prose because these live in sibling plugin modules):
+     * <ul>
+     *   <li>Codec side — {@code Bzip2DecompressionCodec.BlockBoundedDecompressStream} in
+     *       the {@code esql-datasource-bzip2} module emits bytes past the split boundary up to
+     *       (and including) the next {@code '\n'}.</li>
+     *   <li>Splitter side — {@code FileSplitProvider.tryBlockAlignedSplits} in the
+     *       {@code esql} module sets the first-split vs. non-first-split markers that
+     *       {@link NdJsonFormatReader#read} uses to decide whether to call this method.</li>
+     * </ul>
+     *
+     * <p>Delegates to {@link NdJsonFormatReader#scanForTerminator} so LF/CRLF/CR are handled
+     * uniformly; in practice the codec's finish-current-line always ends on {@code '\n'}, so
+     * only the LF branch fires, but routing through one implementation removes the coupling.
+     */
     static void skipToNextLine(InputStream stream) throws IOException {
-        int b;
-        while ((b = stream.read()) != -1) {
-            if (b == '\n') {
-                return;
-            }
-        }
+        NdJsonFormatReader.scanForTerminator(stream);
     }
 
-    private static final int TRIM_CHUNK_SIZE = 8192;
-
-    static InputStream trimLastPartialLine(InputStream in) throws IOException {
-        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-        byte[] chunk = new byte[TRIM_CHUNK_SIZE];
-        int lastNewline = -1;
-        int totalRead = 0;
-        int bytesRead;
-        try {
-            while ((bytesRead = in.read(chunk)) != -1) {
-                int baseOffset = totalRead;
-                buffer.write(chunk, 0, bytesRead);
-                for (int i = bytesRead - 1; i >= 0; i--) {
-                    if (chunk[i] == '\n') {
-                        lastNewline = baseOffset + i;
-                        break;
-                    }
-                }
-                totalRead += bytesRead;
-            }
-        } finally {
-            IOUtils.close(in);
-        }
-        if (lastNewline == -1) {
-            return new ByteArrayInputStream(new byte[0]);
-        }
-        return new ByteArrayInputStream(buffer.toByteArray(), 0, lastNewline + 1);
+    /**
+     * Returns a stream that exposes the same bytes as fully reading {@code in} and truncating after
+     * the last {@code '\n'}, without materializing the whole stream in memory. The delegate is closed
+     * when the returned stream is closed. Oversized partial lines follow {@code errorPolicy}.
+     */
+    static InputStream trimLastPartialLine(InputStream in, ErrorPolicy errorPolicy) {
+        // TODO: thread in a centralized error counter?
+        return new TrimLastPartialLineInputStream(in, errorPolicy);
     }
 }

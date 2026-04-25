@@ -109,6 +109,31 @@ public class RestBulkActionIT extends ESIntegTestCase {
         assertThat(objectPath.evaluate("errors"), equalTo(false));
     }
 
+    public void testBulkSliceRequiredForIndexUpdateDeleteWhenIndexSettingEnabled() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        final String index = "bulk-slice-required-iud";
+        Request create = new Request("PUT", "/" + index);
+        create.setJsonEntity("""
+            {
+              "settings": {
+                "index.slice.enabled": true
+              }
+            }""");
+        getRestClient().performRequest(create);
+
+        Request bulk = new Request("POST", "/" + index + "/_bulk");
+        bulk.setJsonEntity("""
+            {"index":{"_id":"1"}}
+            {"field":"value1"}
+            {"update":{"_id":"1"}}
+            {"doc":{"field":"value2"}}
+            {"delete":{"_id":"1"}}
+            """);
+        ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(bulk));
+        String response = Streams.copyToString(new InputStreamReader(exception.getResponse().getEntity().getContent(), UTF_8));
+        assertThat(response, containsString("[_slice] is required when [index.slice.enabled] is true"));
+    }
+
     public void testBulkSliceRequiredWhenWritingViaAlias() throws Exception {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         final String backingIndex = "bulk-slice-alias-000001";
@@ -154,6 +179,40 @@ public class RestBulkActionIT extends ESIntegTestCase {
             """);
         ObjectPath objectPath = ObjectPath.createFromResponse(getRestClient().performRequest(bulkWithSlice));
         assertThat(objectPath.evaluate("errors"), equalTo(false));
+    }
+
+    public void testBulkSliceIndexUpdateDeleteFlow() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        final String index = "bulk-slice-iud";
+        Request create = new Request("PUT", "/" + index);
+        create.setJsonEntity("""
+            {
+              "settings": {
+                "index.slice.enabled": true
+              }
+            }""");
+        getRestClient().performRequest(create);
+
+        Request bulk = new Request("POST", "/" + index + "/_bulk");
+        bulk.addParameter("_slice", "s1");
+        bulk.setJsonEntity("""
+            {"index":{"_id":"1"}}
+            {"field":"value1"}
+            {"update":{"_id":"1"}}
+            {"doc":{"field":"value2"}}
+            {"delete":{"_id":"1"}}
+            """);
+        ObjectPath bulkResponsePath = ObjectPath.createFromResponse(getRestClient().performRequest(bulk));
+        assertThat(bulkResponsePath.evaluate("errors"), equalTo(false));
+        assertThat(bulkResponsePath.evaluate("items.0.index.result"), equalTo("created"));
+        assertThat(bulkResponsePath.evaluate("items.1.update.result"), equalTo("updated"));
+        assertThat(bulkResponsePath.evaluate("items.2.delete.result"), equalTo("deleted"));
+
+        Request getDeletedDoc = new Request("GET", "/" + index + "/_doc/1");
+        getDeletedDoc.addParameter("_slice", "s1");
+        ResponseException getException = expectThrows(ResponseException.class, () -> getRestClient().performRequest(getDeletedDoc));
+        String getResponse = Streams.copyToString(new InputStreamReader(getException.getResponse().getEntity().getContent(), UTF_8));
+        assertThat(getResponse, containsString("\"found\":false"));
     }
 
     public void testBulkSliceParamRejectedWhenFeatureFlagDisabled() throws Exception {

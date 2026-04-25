@@ -120,7 +120,7 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
     @Override
     public float maxSimDotProduct(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch) {
-        if (canUseBulkPath(source)) {
+        if (canUseF32BulkPath(source)) {
             final BytesRef vectors = source.vectorBytes();
             float sum = 0f;
             for (float[] floats : query) {
@@ -140,7 +140,7 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
     @Override
     public float maxSimDotProduct(MultiByteVectorsSource source, byte[][] query, float[] scoresScratch) {
-        if (canUseBulkPath(source)) {
+        if (canUseI8BulkPath(source)) {
             final BytesRef vectors = source.vectorBytes();
             float sum = 0f;
             for (byte[] bytes : query) {
@@ -1492,6 +1492,14 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
             && source.vectorBytes() != null
             && source.vectorCount() > 0
             && source.vectorBytes().length == source.vectorCount() * source.vectorByteSize();
+    }
+
+    private static boolean canUseF32BulkPath(MultiFloatVectorsSource source) {
+        return canUseBulkPath(source) && source.vectorByteSize() == source.vectorDims() * Float.BYTES;
+    }
+
+    private static boolean canUseI8BulkPath(MultiByteVectorsSource source) {
+        return canUseBulkPath(source) && source.vectorByteSize() == source.vectorDims();
     }
 
     private static float max(float[] values, int length) {

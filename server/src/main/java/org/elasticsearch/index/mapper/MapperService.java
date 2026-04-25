@@ -336,6 +336,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 metadataBuilders.put(builder.leafName(), builder);
             }
         }
+        if (indexSettings.isSliceEnabled()) {
+            MetadataFieldMapper.Builder routingBuilder = metadataBuilders.get(RoutingFieldMapper.NAME);
+            if (routingBuilder instanceof RoutingFieldMapper.Builder builder) {
+                builder.required.setValue(true);
+            }
+        }
         return metadataBuilders;
     }
 

@@ -136,6 +136,17 @@ public class DocumentMapper {
                 );
             }
         }
+        if (settings.isSliceEnabled() && routingFieldMapper().required() == false) {
+            throw new IllegalArgumentException(
+                "mapping type ["
+                    + type()
+                    + "] must not configure [_routing] settings when ["
+                    + IndexSettings.SLICE_ENABLED.getKey()
+                    + "] is true for index ["
+                    + settings.getIndex().getName()
+                    + "]"
+            );
+        }
 
         settings.getMode().validateMapping(mappingLookup);
         /*

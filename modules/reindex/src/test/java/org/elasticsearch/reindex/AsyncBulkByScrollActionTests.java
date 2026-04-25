@@ -651,6 +651,45 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     /**
+     * Verifies that when a bulk-request batch's estimated byte size exceeds the configured maximum, the reindex
+     * operation fails gracefully with a descriptive {@link IllegalArgumentException} instead of sending the
+     * oversized bulk request and potentially causing a node OOM.
+     */
+    public void testBatchExceedingMaxBytesFailsGracefully() throws Exception {
+        boolean usePit = configurePitOrScroll();
+        // Each doc has a 1 000-byte source. With REQUEST_OVERHEAD=50 per doc, three docs → 3 * 1050 = 3150 bytes.
+        final byte[] docSource = new byte[1000];
+        final long maxBytes = 2000L; // less than 3150, so the limit is exceeded
+
+        DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction() {
+            @Override
+            protected RequestWrapper<?> buildRequest(Hit doc) {
+                return wrap(new IndexRequest("test").id(doc.getId()).source(doc.getSource(), doc.getXContentType()));
+            }
+
+            @Override
+            protected long maxBulkRequestBytes() {
+                return maxBytes;
+            }
+        };
+
+        List<PaginatedHitSource.BasicHit> hits = List.of(
+            new PaginatedHitSource.BasicHit("idx", "1", -1).setSource(new BytesArray(docSource), XContentType.JSON),
+            new PaginatedHitSource.BasicHit("idx", "2", -1).setSource(new BytesArray(docSource), XContentType.JSON),
+            new PaginatedHitSource.BasicHit("idx", "3", -1).setSource(new BytesArray(docSource), XContentType.JSON)
+        );
+        PaginatedHitSource.Response response = createPaginatedResponse(usePit, false, emptyList(), hits.size(), hits, null, null);
+        simulatePaginatedResponse(action, System.nanoTime(), 0, response, usePit);
+
+        ExecutionException e = expectThrows(ExecutionException.class, () -> listener.get());
+        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(e.getCause().getMessage(), containsString("exceeds the configured maximum"));
+        assertThat(e.getCause().getMessage(), containsString("reindex.max_batch_size_in_bytes"));
+        // No bulk request should have been sent
+        assertEquals(0, client.bulksAttempts.get());
+    }
+
+    /**
      * Verifies that concurrent calls to {@code releaseRemainingHits()} release each unconsumed hit exactly once.
      * This covers the race where {@link AbstractAsyncBulkByScrollAction#prepareBulkRequest} (via the
      * {@code requestFinishing} path) and {@link AbstractAsyncBulkByScrollAction#finishHim} both hold a reference

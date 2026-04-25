@@ -545,6 +545,21 @@ public abstract class AbstractAsyncBulkByScrollAction<
                 notifyDone(thisBatchStartTimeNS, asyncResponse, 0);
                 return;
             }
+            final long maxBytes = maxBulkRequestBytes();
+            if (maxBytes >= 0 && request.estimatedSizeInBytes() > maxBytes) {
+                finishHim(
+                    new IllegalArgumentException(
+                        "Batch of ["
+                            + request.requests().size()
+                            + "] documents in reindex operation has estimated size ["
+                            + ByteSizeValue.ofBytes(request.estimatedSizeInBytes())
+                            + "] which exceeds the configured maximum of ["
+                            + ByteSizeValue.ofBytes(maxBytes)
+                            + "]. Reduce [scroll_size] or increase [reindex.max_batch_size_in_bytes]."
+                    )
+                );
+                return;
+            }
             request.timeout(mainRequest.getTimeout());
             request.waitForActiveShards(mainRequest.getWaitForActiveShards());
             sendBulkRequest(request, releaseBatchHits, () -> notifyDone(thisBatchStartTimeNS, asyncResponse, request.requests().size()));
@@ -802,6 +817,15 @@ public abstract class AbstractAsyncBulkByScrollAction<
                 listener.onFailure(failure);
             }
         }));
+    }
+
+    /**
+     * Returns the maximum number of bytes allowed in a single bulk request batch.
+     * A value of -1 (or any negative value) means no limit is enforced. Subclasses can override to
+     * impose a byte-size limit and fail the reindex request gracefully before the node runs out of memory.
+     */
+    protected long maxBulkRequestBytes() {
+        return -1L;
     }
 
     /**

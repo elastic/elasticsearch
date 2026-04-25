@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.FeatureService;
@@ -45,6 +46,22 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
     public static final Setting<List<String>> REMOTE_CLUSTER_BLOCKLIST = Setting.stringListSetting(
         "reindex.remote.blocklist",
         Property.NodeScope
+    );
+
+    /**
+     * Maximum estimated byte size of a single reindex bulk-write batch. When a batch's estimated size
+     * exceeds this threshold the reindex operation fails with a descriptive error rather than allowing
+     * the node to run out of heap. A value of {@code -1} (the default) disables the limit.
+     *
+     * <p>This setting protects against scenarios where a large {@code scroll_size} combined with large
+     * documents causes each batch to consume hundreds of megabytes, cascading into node OOM. Operators
+     * with legitimately large batches can raise or remove the limit as needed.
+     */
+    public static final Setting<ByteSizeValue> MAX_BATCH_SIZE = Setting.byteSizeSetting(
+        "reindex.max_batch_size_in_bytes",
+        ByteSizeValue.MINUS_ONE,
+        Property.NodeScope,
+        Property.Dynamic
     );
 
     protected final ReindexValidator reindexValidator;

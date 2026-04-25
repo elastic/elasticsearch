@@ -270,6 +270,7 @@ public class Reindexer {
         return remoteVersion -> {
             ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(), task);
             ParentTaskAssigningClient assigningBulkClient = new ParentTaskAssigningClient(bulkClient, clusterService.localNode(), task);
+            final long maxBatchSizeBytes = TransportReindexAction.MAX_BATCH_SIZE.get(clusterService.getSettings()).getBytes();
             AsyncIndexBySearchAction searchAction = new AsyncIndexBySearchAction(
                 task,
                 logger,
@@ -282,7 +283,8 @@ public class Reindexer {
                 request,
                 listener,
                 remoteVersion,
-                reindexShutdownGracePeriod
+                reindexShutdownGracePeriod,
+                maxBatchSizeBytes
             );
             searchAction.start();
         };
@@ -921,6 +923,12 @@ public class Reindexer {
         private final IdFieldMapper destinationIndexIdMapper;
 
         /**
+         * Maximum estimated bulk-request size in bytes before we fail the reindex gracefully.
+         * A negative value means no limit. Set from {@link TransportReindexAction#MAX_BATCH_SIZE}.
+         */
+        private final long maxBatchSizeBytes;
+
+        /**
          * List of threads created by this process. Usually actions don't create threads in Elasticsearch. Instead they use the builtin
          * {@link ThreadPool}s. But reindex-from-remote uses Elasticsearch's {@link RestClient} which doesn't use the
          * {@linkplain ThreadPool}s because it uses httpasyncclient. It'd be a ton of trouble to work around creating those threads. So
@@ -940,7 +948,8 @@ public class Reindexer {
             ReindexRequest request,
             ActionListener<BulkByScrollResponse> listener,
             @Nullable Version remoteVersion,
-            TimeValue maxTaskShutdownGracePeriod
+            TimeValue maxTaskShutdownGracePeriod,
+            long maxBatchSizeBytes
         ) {
             super(
                 task,
@@ -963,6 +972,12 @@ public class Reindexer {
                 maxTaskShutdownGracePeriod
             );
             this.destinationIndexIdMapper = destinationIndexMode(state).idFieldMapperWithoutFieldData();
+            this.maxBatchSizeBytes = maxBatchSizeBytes;
+        }
+
+        @Override
+        protected long maxBulkRequestBytes() {
+            return maxBatchSizeBytes;
         }
 
         private IndexMode destinationIndexMode(ProjectState state) {

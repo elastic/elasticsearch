@@ -690,6 +690,52 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     /**
+     * Verifies that when {@link AbstractAsyncBulkByScrollAction#maxBulkRequestBytes()} is configured, the batch
+     * size on the underlying search request is reduced after each batch so that subsequent fetches stay within
+     * the byte limit. The reduction is based on the observed average bytes-per-document ratio.
+     */
+    public void testBatchSizeIsReducedWhenByteLimitIsConfigured() throws Exception {
+        boolean usePit = configurePitOrScroll();
+        // Each doc contributes 500 bytes of source + 50 bytes overhead = 550 bytes estimated.
+        // With an initial scroll_size of 10 and a limit of 3 000 bytes: target = 3000/550 = 5 docs.
+        final byte[] docSource = new byte[500];
+        final long maxBytes = 3000L;
+        final int initialScrollSize = 10;
+        testRequest.getSearchRequest().source().size(initialScrollSize);
+
+        // Capture the batch size update by inspecting the search request after prepareBulkRequest runs.
+        DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction() {
+            @Override
+            protected RequestWrapper<?> buildRequest(Hit doc) {
+                return wrap(new IndexRequest("test").id(doc.getId()).source(doc.getSource(), doc.getXContentType()));
+            }
+
+            @Override
+            protected long maxBulkRequestBytes() {
+                return maxBytes;
+            }
+        };
+
+        // Build a batch of initialScrollSize docs — total ~5 500 bytes, well above the 3 000-byte limit.
+        // Each doc is 550 bytes estimated; target = floor(3000/550) = 5.
+        List<PaginatedHitSource.BasicHit> hits = new ArrayList<>();
+        for (int i = 0; i < initialScrollSize; i++) {
+            hits.add(
+                new PaginatedHitSource.BasicHit("idx", Integer.toString(i), -1).setSource(new BytesArray(docSource), XContentType.JSON)
+            );
+        }
+        // The batch exceeds the limit, so the action should fail gracefully after updating the size.
+        PaginatedHitSource.Response response = createPaginatedResponse(usePit, false, emptyList(), hits.size(), hits, null, null);
+        simulatePaginatedResponse(action, System.nanoTime(), 0, response, usePit);
+
+        // The operation fails because the batch (10 * 550 = 5 500 bytes) exceeds maxBytes (3 000).
+        expectThrows(ExecutionException.class, () -> listener.get());
+        // The batch size should have been reduced to floor(3000/550) = 5 before the failure check.
+        int expectedSize = (int) (maxBytes / 550L);
+        assertEquals(expectedSize, testRequest.getSearchRequest().source().size());
+    }
+
+    /**
      * Verifies that concurrent calls to {@code releaseRemainingHits()} release each unconsumed hit exactly once.
      * This covers the race where {@link AbstractAsyncBulkByScrollAction#prepareBulkRequest} (via the
      * {@code requestFinishing} path) and {@link AbstractAsyncBulkByScrollAction#finishHim} both hold a reference

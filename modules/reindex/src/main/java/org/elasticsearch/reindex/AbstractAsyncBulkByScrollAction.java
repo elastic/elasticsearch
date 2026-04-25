@@ -546,19 +546,48 @@ public abstract class AbstractAsyncBulkByScrollAction<
                 return;
             }
             final long maxBytes = maxBulkRequestBytes();
-            if (maxBytes >= 0 && request.estimatedSizeInBytes() > maxBytes) {
-                finishHim(
-                    new IllegalArgumentException(
-                        "Batch of ["
-                            + request.requests().size()
-                            + "] documents in reindex operation has estimated size ["
-                            + ByteSizeValue.ofBytes(request.estimatedSizeInBytes())
-                            + "] which exceeds the configured maximum of ["
-                            + ByteSizeValue.ofBytes(maxBytes)
-                            + "]. Reduce [scroll_size] or increase [reindex.max_batch_size_in_bytes]."
-                    )
-                );
-                return;
+            if (maxBytes >= 0) {
+                final int docCount = request.requests().size();
+                final long estimatedBytes = request.estimatedSizeInBytes();
+                // Auto-tune the search batch size for subsequent fetches using the observed
+                // bytes-per-doc ratio. For PIT-based pagination this takes effect on the next
+                // search request. For scroll-based pagination the size is fixed after the initial
+                // search, so the update is recorded but has no effect on the current session.
+                if (docCount > 0 && estimatedBytes > 0) {
+                    final long avgBytesPerDoc = estimatedBytes / docCount;
+                    if (avgBytesPerDoc > 0) {
+                        final int currentSize = mainRequest.getSearchRequest().source().size();
+                        final int targetSize = (int) Math.min(maxBytes / avgBytesPerDoc, currentSize);
+                        if (targetSize > 0 && targetSize < currentSize) {
+                            logger.debug(
+                                "[{}]: reducing batch size from [{}] to [{}] docs to stay within [{}] per batch (avg [{}] bytes/doc)",
+                                task.getId(),
+                                currentSize,
+                                targetSize,
+                                ByteSizeValue.ofBytes(maxBytes),
+                                ByteSizeValue.ofBytes(avgBytesPerDoc)
+                            );
+                            mainRequest.getSearchRequest().source().size(targetSize);
+                        }
+                    }
+                }
+                // Fail gracefully if this batch still exceeds the limit — most likely on the
+                // first batch (before tuning has taken effect) or when a single document is
+                // larger than the configured maximum.
+                if (estimatedBytes > maxBytes) {
+                    finishHim(
+                        new IllegalArgumentException(
+                            "Batch of ["
+                                + docCount
+                                + "] documents in reindex operation has estimated size ["
+                                + ByteSizeValue.ofBytes(estimatedBytes)
+                                + "] which exceeds the configured maximum of ["
+                                + ByteSizeValue.ofBytes(maxBytes)
+                                + "]. Reduce [scroll_size] or increase [reindex.max_batch_size_in_bytes]."
+                        )
+                    );
+                    return;
+                }
             }
             request.timeout(mainRequest.getTimeout());
             request.waitForActiveShards(mainRequest.getWaitForActiveShards());

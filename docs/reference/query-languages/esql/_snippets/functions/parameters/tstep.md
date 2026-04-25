@@ -3,5 +3,11 @@
 ## Parameters
 
 `step`
-:   Fixed bucket width in UTC. Bucket boundaries are spaced by `step` from the start of the `@timestamp` range in the request query filter.
+:   Fixed bucket width in UTC. Bucket boundaries are spaced by `step` from the start of the time range.
+
+`from`
+:   Start of the time range that anchors the step grid. Required together with `to`.
+
+`to`
+:   End of the time range. Required together with `from`.
 

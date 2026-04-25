@@ -71,7 +71,7 @@ public final class SliceIndexing {
     }
 
     /**
-     * Parses and validates the REST-level {@code routing} and {@code _slice} parameters for write APIs.
+     * Parses and validates the REST-level {@code routing} and {@code _slice} parameters.
      * Returns the effective routing value and whether it was provided via {@code _slice}.
      */
     public static ParsedRouting parseRoutingOrSliceWithProvenance(RestRequest request) {

@@ -42,6 +42,7 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Retrya
 
     private String id;
     private String routing;
+    private boolean routingFromSlice;
     private String preference;
 
     private String[] storedFields;
@@ -155,6 +156,11 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Retrya
         return this;
     }
 
+    public GetRequest setRoutingFromSlice(boolean routingFromSlice) {
+        this.routingFromSlice = routingFromSlice;
+        return this;
+    }
+
     /**
      * Sets the preference to execute the search. Defaults to randomize across shards. Can be set to
      * {@code _local} to prefer local shards or a custom value, which guarantees that the same order
@@ -171,6 +177,10 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Retrya
 
     public String routing() {
         return this.routing;
+    }
+
+    public boolean isRoutingFromSlice() {
+        return routingFromSlice;
     }
 
     public String preference() {

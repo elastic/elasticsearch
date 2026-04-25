@@ -105,8 +105,8 @@ public class Ai21ServiceTests extends AbstractInferenceServiceTests {
                 }
 
                 @Override
-                protected ModelSecrets createModelSecrets() {
-                    return new ModelSecrets(DefaultSecretSettings.fromMap(createSecretSettingsMap()));
+                protected ModelSecrets createModelSecrets(ConfigurationParseContext context) {
+                    return new ModelSecrets(DefaultSecretSettings.fromMap(createSecretSettingsMap(), context));
                 }
 
                 @Override

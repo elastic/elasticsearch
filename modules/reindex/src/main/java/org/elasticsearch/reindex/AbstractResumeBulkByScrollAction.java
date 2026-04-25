@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -20,7 +21,6 @@ import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ResumeBulkByScrollRequest;
 import org.elasticsearch.index.reindex.ResumeBulkByScrollResponse;
-import org.elasticsearch.tasks.LoggingTaskListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
@@ -57,7 +57,9 @@ public abstract class AbstractResumeBulkByScrollAction<Request extends AbstractB
 
     @Override
     protected void doExecute(Task task, ResumeBulkByScrollRequest request, ActionListener<ResumeBulkByScrollResponse> listener) {
-        Task delegateTask = nodeClient.executeLocally(delegateAction, request.getDelegate(), new LoggingTaskListener<>(task));
+        var responseListener = new SubscribableListener<BulkByScrollResponse>();
+        Task delegateTask = nodeClient.executeLocally(delegateAction, request.getDelegate(), responseListener);
+        responseListener.addListener(new LoggingReindexTaskListener(delegateTask));
         TaskId taskId = new TaskId(clusterService.localNode().getId(), delegateTask.getId());
         listener.onResponse(new ResumeBulkByScrollResponse(taskId));
     }

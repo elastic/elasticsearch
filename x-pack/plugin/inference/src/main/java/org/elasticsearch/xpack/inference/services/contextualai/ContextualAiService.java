@@ -21,8 +21,6 @@ import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
@@ -31,7 +29,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
-import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
@@ -90,56 +87,6 @@ public class ContextualAiService extends SenderService<ContextualAiModel> implem
         return SUPPORTED_TASK_TYPES;
     }
 
-    @Override
-    public void parseRequestConfig(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> config,
-        ActionListener<Model> parsedModelListener
-    ) {
-        try {
-            Map<String, Object> serviceSettingsMap = ServiceUtils.removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-            Map<String, Object> taskSettingsMap = ServiceUtils.removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
-
-            var model = retrieveModelCreatorFromMapOrThrow(
-                MODEL_CREATORS,
-                inferenceEntityId,
-                taskType,
-                NAME,
-                ConfigurationParseContext.REQUEST
-            ).createFromMaps(
-                inferenceEntityId,
-                taskType,
-                NAME,
-                serviceSettingsMap,
-                taskSettingsMap,
-                null,
-                serviceSettingsMap,
-                ConfigurationParseContext.REQUEST
-            );
-
-            ServiceUtils.throwIfNotEmptyMap(config, NAME);
-            ServiceUtils.throwIfNotEmptyMap(serviceSettingsMap, NAME);
-            ServiceUtils.throwIfNotEmptyMap(taskSettingsMap, NAME);
-
-            parsedModelListener.onResponse(model);
-        } catch (Exception e) {
-            parsedModelListener.onFailure(e);
-        }
-    }
-
-    @Override
-    public ContextualAiModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        return retrieveModelCreatorFromMapOrThrow(
-            MODEL_CREATORS,
-            config.getInferenceEntityId(),
-            config.getTaskType(),
-            config.getService(),
-            ConfigurationParseContext.REQUEST
-        ).createFromModelConfigurationsAndSecrets(config, secrets);
-    }
-
-    @Override
     protected void doInfer(
         Model model,
         InferenceInputs inputs,

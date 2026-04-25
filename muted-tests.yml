@@ -82,21 +82,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
   method: test {csv-spec:ints.convertStringToBaseIndexGroup7}
   issue: https://github.com/elastic/elasticsearch/issues/141375
-- class: org.elasticsearch.search.aggregations.metrics.TopHitsIT
-  method: testMixedSortFieldTypes
-  issue: https://github.com/elastic/elasticsearch/issues/142077
 - class: org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityAggregatorTests
   method: testSimple
   issue: https://github.com/elastic/elasticsearch/issues/142408
 - class: org.elasticsearch.xpack.esql.common.spatial.H3SphericalGeometryTests
   method: testIndexPoints
   issue: https://github.com/elastic/elasticsearch/issues/142439
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlClientYamlIT
-  method: test {p0=esql/160_union_types/suggested_type}
-  issue: https://github.com/elastic/elasticsearch/issues/142525
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  method: test {p0=esql/160_union_types/suggested_type}
-  issue: https://github.com/elastic/elasticsearch/issues/142525
 - class: org.elasticsearch.xpack.esql.spatial.SpatialPushDownGeoShapeIT
   method: testQuantizedXY
   issue: https://github.com/elastic/elasticsearch/issues/141234
@@ -295,9 +286,6 @@ tests:
 - class: org.elasticsearch.lucene.FullClusterRestartSystemIndexCompatibilityIT
   method: testAsyncSearchIndexMigration {p0=8.19.0}
   issue: https://github.com/elastic/elasticsearch/issues/146849
-- class: org.elasticsearch.action.admin.cluster.tasks.ListTasksIT
-  method: testWaitForCompletion
-  issue: https://github.com/elastic/elasticsearch/issues/146859
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testWatcherWithApiKey {cluster=OLD}
   issue: https://github.com/elastic/elasticsearch/issues/146861
@@ -355,9 +343,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=mapping/20_synthetic_source/synthetic_source text with ignored multi-field and multiple values in the same doc}
   issue: https://github.com/elastic/elasticsearch/issues/147064
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=mapping/20_synthetic_source/synthetic_source text with normalized keyword with default skip store original value}
-  issue: https://github.com/elastic/elasticsearch/issues/147064
 - class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
   method: test {yaml=rrf/310_rrf_retriever_simplified/Expansion to equivalent custom sub-retrievers returns the same results}
   issue: https://github.com/elastic/elasticsearch/issues/146464
@@ -400,6 +385,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/145901
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/145901
 - class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
   method: testReplaceChildren {class org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec}
   issue: https://github.com/elastic/elasticsearch/issues/147164
@@ -424,15 +412,11 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
   method: testIndexingSyntheticSource
   issue: https://github.com/elastic/elasticsearch/issues/147298
+- class: org.elasticsearch.compute.aggregation.blockhash.BlockHashRandomizedTests
+  issue: https://github.com/elastic/elasticsearch/issues/147361
 - class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
   method: testDeploymentSurvivesRestart {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/145728
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=mapping/40_doc_values_multi_value/multi_value=no on multi-field parent rejects parent array}
-  issue: https://github.com/elastic/elasticsearch/issues/147375
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=mapping/40_doc_values_multi_value/multi_value=no on multi-field sub rejects parent array}
-  issue: https://github.com/elastic/elasticsearch/issues/147376
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
   method: test {csv-spec:stats_sparkline.sparklineComplexWithGrouping}
   issue: https://github.com/elastic/elasticsearch/issues/147378
@@ -445,6 +429,33 @@ tests:
 - class: org.elasticsearch.search.fetch.ChunkedFetchPhaseCircuitBreakerTrippingIT
   method: testCircuitBreakerTripsWithConcurrentSearches
   issue: https://github.com/elastic/elasticsearch/issues/147391
+- class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
+  method: testReindexTaskRelocatesOnNodeShutdown
+  issue: https://github.com/elastic/elasticsearch/issues/147449
+- class: org.elasticsearch.action.admin.cluster.tasks.ListTasksIT
+  method: testWaitForCompletion
+  issue: https://github.com/elastic/elasticsearch/issues/146859
+- class: org.elasticsearch.index.codec.vectors.cluster.BalancedKMeansLocalTests
+  method: testKMeansNeighbors
+  issue: https://github.com/elastic/elasticsearch/issues/147479
+- class: org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeansTests
+  method: testHKmeans
+  issue: https://github.com/elastic/elasticsearch/issues/147482
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:inlinestats.pushDown_SelectiveGroupingAndFilters_PastInlineJoin}
+  issue: https://github.com/elastic/elasticsearch/issues/147485
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:match-operator.testMatchInStatsPushable}
+  issue: https://github.com/elastic/elasticsearch/issues/147486
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:exponential_histogram.Top level date group with no other groups (standard index)}
+  issue: https://github.com/elastic/elasticsearch/issues/147487
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:match-phrase-function.testMatchPhraseInStatsNonPushable}
+  issue: https://github.com/elastic/elasticsearch/issues/147488
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=index/100_field_name_length_limit/Test field name length limit}
+  issue: https://github.com/elastic/elasticsearch/issues/147494
 
 # Examples:
 #
